@@ -18,7 +18,6 @@
 package inetsoft.web.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import inetsoft.web.MapSession;
 import inetsoft.web.security.SessionAccessDispatcher;
 import inetsoft.web.viewsheet.event.TouchAssetEvent;
 import org.slf4j.Logger;
@@ -27,6 +26,7 @@ import org.springframework.messaging.*;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.support.ExecutorChannelInterceptor;
+import org.springframework.session.Session;
 import org.springframework.session.SessionRepository;
 import org.springframework.session.web.socket.server.SessionRepositoryMessageInterceptor;
 
@@ -40,10 +40,11 @@ import java.util.Map;
  * is taking place, but an idle viewsheet will not artificially extend the life of the session.
  */
 public class SessionAccessInterceptor implements ExecutorChannelInterceptor {
-   public SessionAccessInterceptor(SessionRepository<MapSession> sessionRepository,
+   @SuppressWarnings("unchecked")
+   public SessionAccessInterceptor(SessionRepository<? extends Session> sessionRepository,
                                    ObjectMapper objectMapper)
    {
-      this.sessionRepository = sessionRepository;
+      this.sessionRepository = (SessionRepository<Session>) sessionRepository;
       this.objectMapper = objectMapper;
    }
 
@@ -76,7 +77,7 @@ public class SessionAccessInterceptor implements ExecutorChannelInterceptor {
             Map<String, Object> sessionAttributes =
                SimpMessageHeaderAccessor.getSessionAttributes(message.getHeaders());
             String sessionId = SessionRepositoryMessageInterceptor.getSessionId(sessionAttributes);
-            MapSession session = sessionRepository.findById(sessionId);
+            Session session = sessionRepository.findById(sessionId);
 
             if(session != null) {
                session.setLastAccessedTime(Instant.now());
@@ -94,7 +95,7 @@ public class SessionAccessInterceptor implements ExecutorChannelInterceptor {
       return message;
    }
 
-   private final SessionRepository<MapSession> sessionRepository;
+   private final SessionRepository<Session> sessionRepository;
    private final ObjectMapper objectMapper;
    private static final Logger LOG = LoggerFactory.getLogger(SessionAccessInterceptor.class);
 }

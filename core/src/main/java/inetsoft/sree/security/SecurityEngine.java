@@ -31,7 +31,6 @@ import java.io.File;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -55,6 +54,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       authenticationService.addSessionListener(this);
       clusterInstance = Cluster.getInstance();
       clusterInstance.addMessageListener(this);
+      users = clusterInstance.getMap(USER_MAP_NAME);
    }
 
    /**
@@ -1590,7 +1590,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    private SecurityProvider provider = null;
    private SecurityProvider vprovider = null;
    private SecurityProvider vpm_provider = null;
-   private Map<ClientInfo, SRPrincipal> users = new ConcurrentHashMap<>();
+   private final Map<ClientInfo, SRPrincipal> users;
    private final Set<LoginListener> loginListeners = new LinkedHashSet<>();
    private final Set<AuthenticationChangeListener> authenticationChangeListeners =
       new LinkedHashSet<>();
@@ -1605,6 +1605,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       new SreeEnv.Value("security.tablestyle.everyone", 10000, "true");
    private static final SreeEnv.Value securitySchduletaskEveryone =
       new SreeEnv.Value("security.scheduletask.everyone", 10000, "true");
+   private static final String USER_MAP_NAME = SecurityEngine.class.getName() + ".users";
 
    /**
     * Interface used to perform additional authentication checks.

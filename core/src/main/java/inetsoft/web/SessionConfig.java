@@ -24,6 +24,7 @@ import inetsoft.web.admin.security.SSOSettingsService;
 import inetsoft.web.admin.security.SSOType;
 import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.SessionAccessFilter;
+import inetsoft.web.session.IgniteSessionRepository;
 import jakarta.servlet.ServletContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -62,9 +63,9 @@ public class SessionConfig {
    }
 
    @Bean
-   public MapSessionRepository mapSessionRepository() {
-      return new MapSessionRepository(servletContext, securityEngine, authenticationService,
-                                      nodeProtectionService);
+   public IgniteSessionRepository igniteSessionRepository() {
+      return new IgniteSessionRepository(
+         securityEngine, authenticationService, nodeProtectionService);
    }
 
    @Bean

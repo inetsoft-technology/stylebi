@@ -22,18 +22,15 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
-import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.security.PropertyModel;
 import inetsoft.web.security.DeniedMultiTenancyOrgUser;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.security.Principal;
 import java.util.Properties;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 @DeniedMultiTenancyOrgUser
@@ -84,10 +81,6 @@ public class PropertiesController {
       if(Tool.equals(propertyName, "asset.max.idle")) {
          RuntimeSheet.invalidateMaxIdle();
       }
-
-      if(Tool.equals(propertyName,"http.session.timeout")) {
-         mapSessionRepository.updateSessionTimeout(value);
-      }
    }
 
    @GetMapping("/api/admin/properties")
@@ -125,7 +118,4 @@ public class PropertiesController {
       properties.remove("log.level.inetsoft.web.portal.controller.ControllerErrorHandler");
       properties.remove("log.level.inetsoft_audit");
    }
-
-   @Autowired
-   private MapSessionRepository mapSessionRepository;
 }

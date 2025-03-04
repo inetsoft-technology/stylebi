@@ -30,12 +30,12 @@ import inetsoft.sree.security.SRPrincipal;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.util.*;
 import inetsoft.util.log.LogManager;
-import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.query.QueryModel;
 import inetsoft.web.admin.server.ServerServiceMessageListener;
 import inetsoft.web.admin.user.SessionModel;
 import inetsoft.web.admin.viewsheet.ViewsheetModel;
 import inetsoft.web.admin.viewsheet.ViewsheetThreadModel;
+import inetsoft.web.session.IgniteSessionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
@@ -204,7 +204,7 @@ public class StatusDumpService {
 
    private List<SessionModel> getUsers() {
       List<SessionModel> infos = new ArrayList<>();
-      MapSessionRepository sessionRepository = getSessionRepository();
+      IgniteSessionRepository sessionRepository = getSessionRepository();
 
       if(sessionRepository == null) {
          SRPrincipal principal = (SRPrincipal) ThreadContext.getContextPrincipal();
@@ -243,12 +243,12 @@ public class StatusDumpService {
       return infos;
    }
 
-   private MapSessionRepository getSessionRepository() {
+   private IgniteSessionRepository getSessionRepository() {
       if(applicationContext == null) {
          return null;
       }
 
-      return applicationContext.getBean(MapSessionRepository.class);
+      return applicationContext.getBean(IgniteSessionRepository.class);
    }
 
    private SessionModel createModel(SRPrincipal principal) {

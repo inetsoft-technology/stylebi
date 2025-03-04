@@ -39,13 +39,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 
-public class IgniteIndexedSessionRepository
-   implements FindByIndexNameSessionRepository<IgniteIndexedSessionRepository.IgniteSession>,
+public class IgniteSessionRepository
+   implements FindByIndexNameSessionRepository<IgniteSessionRepository.IgniteSession>,
    MapChangeListener<String, MapSession>, SessionListener, InitializingBean, DisposableBean
 {
-   public IgniteIndexedSessionRepository(SecurityEngine securityEngine,
-                                         AuthenticationService authenticationService,
-                                         NodeProtectionService nodeProtectionService)
+   public IgniteSessionRepository(SecurityEngine securityEngine,
+                                  AuthenticationService authenticationService,
+                                  NodeProtectionService nodeProtectionService)
    {
       this.securityEngine = securityEngine;
       this.authenticationService = authenticationService;
@@ -276,6 +276,14 @@ public class IgniteIndexedSessionRepository
       return result;
    }
 
+   public void invalidateSession(String id) {
+      final Session session = this.sessions.get(id);
+
+      if(session != null) {
+         this.sessions.remove(id);
+      }
+   }
+
    @Scheduled(fixedRate = 20000) // Check every 20 seconds
    public void checkSessions() {
       long currentTime = System.currentTimeMillis();
@@ -346,21 +354,20 @@ public class IgniteIndexedSessionRepository
    private final NodeProtectionService nodeProtectionService;
 
    public static final String DEFAULT_SESSION_MAP_NAME = "spring.session.sessions";
-   private static final Logger LOG = LoggerFactory.getLogger(IgniteIndexedSessionRepository.class);
+   private static final Logger LOG = LoggerFactory.getLogger(IgniteSessionRepository.class);
    private static final int SESSION_EXPIRATION_WARNING_TIME = 90000; // 90 seconds, when to start warning the user about session expiring
    private static final int PROTECTION_EXPIRATION_WARNING_TIME = 600000; // 10 minutes, when to start warning the user about protection expiring
    private static final int PROTECTION_EXPIRATION_WARNING_INTERVAL = 120000; // 2 minutes, how often to warn about protection expiring
-   private static final String EXPIRING_SOON_ATTR = IgniteIndexedSessionRepository.class.getName() + ".expiringSoon";
-   private static final String LAST_PROTECTION_WARNING_TIME_ATTR = IgniteIndexedSessionRepository.class.getName() + ".lastProtectionWarningTime";
+   private static final String EXPIRING_SOON_ATTR = IgniteSessionRepository.class.getName() + ".expiringSoon";
+   private static final String LAST_PROTECTION_WARNING_TIME_ATTR = IgniteSessionRepository.class.getName() + ".lastProtectionWarningTime";
 
-   final class IgniteSession implements Session {
-
+   public final class IgniteSession implements Session {
       IgniteSession(MapSession cached, boolean isNew) {
          this.delegate = cached;
          this.isNew = isNew;
          this.originalId = cached.getId();
 
-         if(this.isNew || (IgniteIndexedSessionRepository.this.saveMode == SaveMode.ALWAYS)) {
+         if(this.isNew || (IgniteSessionRepository.this.saveMode == SaveMode.ALWAYS)) {
             getAttributeNames()
                .forEach(n -> this.delta.put(n, cached.getAttribute(n)));
          }
@@ -373,7 +380,7 @@ public class IgniteIndexedSessionRepository
 
       @Override
       public String changeSessionId() {
-         String newSessionId = IgniteIndexedSessionRepository.this.sessionIdGenerator.generate();
+         String newSessionId = IgniteSessionRepository.this.sessionIdGenerator.generate();
          this.delegate.setId(newSessionId);
          this.sessionIdChanged = true;
          return newSessionId;
@@ -384,7 +391,7 @@ public class IgniteIndexedSessionRepository
          T attributeValue = this.delegate.getAttribute(attributeName);
 
          if(attributeValue != null &&
-            IgniteIndexedSessionRepository.this.saveMode.equals(SaveMode.ON_GET_ATTRIBUTE))
+            IgniteSessionRepository.this.saveMode.equals(SaveMode.ON_GET_ATTRIBUTE))
          {
             this.delta.put(attributeName, attributeValue);
          }
@@ -461,8 +468,8 @@ public class IgniteIndexedSessionRepository
       }
 
       private void flushImmediateIfNecessary() {
-         if(IgniteIndexedSessionRepository.this.flushMode == FlushMode.IMMEDIATE) {
-            IgniteIndexedSessionRepository.this.save(this);
+         if(IgniteSessionRepository.this.flushMode == FlushMode.IMMEDIATE) {
+            IgniteSessionRepository.this.save(this);
          }
       }
 
