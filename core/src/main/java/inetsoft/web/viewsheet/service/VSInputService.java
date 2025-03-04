@@ -459,7 +459,7 @@ public class VSInputService {
          // fix bug1368262989004, fix this bug same as bug1366884826731, now
          // no matter process share filter whether success or not, we should
          // also execute, or some dependency assembly will not refresh.
-         if(info.isSubmitOnChange()) {
+         if(info.isSubmitOnChange() && info.isRefresh()) {
             for(Assembly a : vs.getAssemblies()) {
                if(isAssemblyReferenced(assembly, a)) {
                   clist.getDataList().add(a.getAssemblyEntry());
