@@ -86,6 +86,10 @@ export class TaskOptionsPane {
             this.optionsForm.get("endDate").setValue(null);
          }
 
+         if(this.model.timeZone == null) {
+            this.model.timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+         }
+
          this.optionsForm.get("taskEnabled").setValue(this.model.enabled || false);
          this.optionsForm.get("deleteIfNotScheduledToRun").setValue(this.model.deleteIfNotScheduledToRun || false);
          this.optionsForm.get("description").setValue(this.model.description);
