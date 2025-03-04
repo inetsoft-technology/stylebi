@@ -84,13 +84,13 @@ or on Windows:
 If you have already built the Java libraries, you can then run the following command:
 
 ```shell
-./mvnw clean install -o -pl docker/community -PdockerImage
+./mvnw clean package -o -f docker -PdockerImage
 ```
 
 or on Windows:
 
 ```powershell
-.\mvnw.cmd clean install -o -pl docker/community -PdockerImage
+.\mvnw.cmd clean package -o -f docker -PdockerImage
 ```
 
 This will build the Docker image and install it on your machine. You can now use this locally. You can also tag the image and push it to your own repository for use elsewhere, for example:
@@ -106,6 +106,18 @@ docker push \
 ```
 
 > **NOTE** You can build the Java libraries and Docker images in a single command using `mvnw clean install -PdockerImage`.
+
+### Running the Local Deployment
+To start the server, run the following command in the `docker/target/docker-test` folder:
+
+```docker compose up -d```
+
+Open http://localhost:8080 in your browser to access the application. To stop the server and remove the containers, run:
+
+```docker compose down --rmi local -v```
+
+## Troubleshooting
+For assistance with any issues, please see the [Troubleshooting](./Troubleshoot.md) file  in this repository. 
 
 ## Contributing
 
