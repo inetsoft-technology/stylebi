@@ -17,7 +17,11 @@
  */
 package inetsoft.sree.schedule.jobstore;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import org.quartz.Calendar;
 import org.quartz.*;
@@ -28,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -132,6 +137,8 @@ public class ClusterJobStore implements JobStore, Serializable {
       if(jobsByKey.containsKey(newJobKey) && !replaceExisting) {
          throw new ObjectAlreadyExistsException(newJob);
       }
+
+      setPrincipal(job);
 
       jobsByKey.lock(newJobKey, 5, TimeUnit.MINUTES);
 
@@ -1279,6 +1286,31 @@ public class ClusterJobStore implements JobStore, Serializable {
          catch(IllegalMonitorStateException ex) {
             LOG.warn("Error unlocking since it is already released.", ex);
          }
+      }
+   }
+
+   private void setPrincipal(JobDetail job) {
+      ScheduleTask task = (ScheduleTask) job.getJobDataMap().get(ScheduleTask.class.getName());
+
+      if(task == null) {
+         return;
+      }
+
+      String addr = Tool.getIP();
+      String taskName = job.getKey().getName();
+      Principal principal = null;
+
+      if(!ScheduleManager.isInternalTask(taskName)) {
+         if(task.getIdentity() == null) {
+            principal = SUtil.getPrincipal(task.getOwner(), addr, true);
+         }
+         else {
+            principal = SUtil.getPrincipal(task.getIdentity(), addr, true);
+         }
+      }
+
+      if(principal != null) {
+         ThreadContext.setContextPrincipal(principal);
       }
    }
 
