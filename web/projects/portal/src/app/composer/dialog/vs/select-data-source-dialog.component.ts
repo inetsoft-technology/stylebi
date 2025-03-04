@@ -15,7 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input, Output, EventEmitter } from "@angular/core";
+import { Component, Input, Output, EventEmitter, NgZone } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { ComponentTool } from "../../../common/util/component-tool";
 
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { SelectDataSourceDialogModel } from "../../data/vs/select-data-source-dialog-model";
@@ -31,6 +33,9 @@ export class SelectDataSourceDialog {
    @Output() onCommit: EventEmitter<SelectDataSourceDialogModel> =
       new EventEmitter<SelectDataSourceDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
+
+   constructor(private modalService: NgbModal) {
+   }
 
    selectNode(node: TreeNodeModel): void {
       const folder = node.data && (node.data.type == AssetType.DATA_SOURCE ||
@@ -61,6 +66,12 @@ export class SelectDataSourceDialog {
    }
 
    saveChanges(): void {
-      this.onCommit.emit(this.model);
+      if(this.model.dataSource != null && this.model.dataSource.path != null && this.model.dataSource.path.includes("^")) {
+         ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+            "_#(js:compose.vs.entry.contains.caret)");
+      }
+      else {
+         this.onCommit.emit(this.model);
+      }
    }
 }
