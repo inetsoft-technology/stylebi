@@ -207,7 +207,7 @@ public class Gop2D extends Gop {
          if(w > 0 && h > 0 && (d.width != (int) w && d.width != 0 ||
             d.height != (int) h && d.height != 0))
          {
-            String prop = SreeEnv.getProperty("Graphics.Image.ScaleSmooth");
+            String prop = SreeEnv.getProperty("graphics.image.scalesmooth");
 
             if(prop != null && prop.equals("true")) {
                img = img.getScaledInstance((int) w, (int) h,

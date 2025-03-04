@@ -499,7 +499,7 @@ public class Gop implements StyleConstants {
    public void drawImage(Graphics g, Image img, float x, float y,
                          float w, float h, ImageObserver observer) {
       Dimension d = new Dimension(img.getWidth(null), img.getHeight(null));
-      String prop = SreeEnv.getProperty("Graphics.Image.ScaleSmooth");
+      String prop = SreeEnv.getProperty("graphics.image.scalesmooth");
 
       // unwrap image
       if(img instanceof MetaImage) {
