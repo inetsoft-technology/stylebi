@@ -764,7 +764,7 @@
     },
     {
       "name": "Email Events",
-      "pageType": 1,
+      "pageType": 7,
       "suffix": "/email/public/v1/events?appId={HubSpot App ID?}&campaignId={HubSpot Campaign ID?}&recipient={Recipient Email Address?}&eventType={Event type?}&startTimestamp={Start Timestamp?:milliseconds}&endTimestamp={End Timestamp?:milliseconds}&excludeFilteredEvents={Exclude Filtered Events?:true|false}"
     },
     {
@@ -944,7 +944,7 @@
     },
     {
       "name": "Tickets",
-      "pageType": 6,
+      "pageType": 7,
       "suffix": "/crm-objects/v1/objects/tickets/paged?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}"
     },
     {
