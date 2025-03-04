@@ -146,6 +146,13 @@ export class FormValidators {
       return !validName ? {invalidAssetItemName: true} : null;
    }
 
+   public static invalidJSFunctionName(control: UntypedFormControl): ValidationErrors {
+      const str = control.value;
+      let validName: boolean = str && /^[\p{L}_$][\p{L}\p{N}_$]*$/u.test(str);
+
+      return !validName ? {invalidJSFunctionName: true} : null;
+   }
+
    public static mustBeValidReportIdentifier(control: UntypedFormControl): ValidationErrors {
       const value: string = control.value;
 
