@@ -110,7 +110,12 @@ export class ScheduleClasspathDialogComponent implements OnInit {
           errorMsg = "_#(js:em.schedule.invalidClasspath)";
        }
        else if(this.classpath.find((path) => path == this.editingPath)) {
-          errorMsg = "_#(js:em.schedule.duplicateClasspath)";
+          for(let i = 0; i < this.classpath.length; i ++) {
+             if(this.classpath[i] == this.editingPath && i != this.selectedIndex) {
+                errorMsg = "_#(js:em.schedule.duplicateClasspath)";
+                break;
+             }
+          }
        }
 
        if(errorMsg != "") {
