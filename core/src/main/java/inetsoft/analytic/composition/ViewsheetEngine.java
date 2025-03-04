@@ -255,27 +255,23 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
       synchronized(amap) {
          final String newRvsId;
-         final int oldIndex;
+         boolean shouldClose = false;
 
          if(previewId == null) {
             newRvsId = getNextID(PREVIEW_VIEWSHEET);
-            oldIndex = -1;
          }
          else {
             newRvsId = previewId;
-            oldIndex = amap.indexOf(previewId);
+            shouldClose = amap.containsKey(previewId);
          }
 
          rvs.setID(newRvsId);
 
-         if(oldIndex == -1) {
-            amap.put(newRvsId, rvs);
-         }
-         else {
+         if(shouldClose) {
             closeViewsheet(previewId, user);
-            amap.put(oldIndex, newRvsId, rvs);
          }
 
+         amap.put(newRvsId, rvs);
          return newRvsId;
       }
    }
