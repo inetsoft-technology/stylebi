@@ -144,7 +144,10 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
    public void loadColumnSelection(VariableTable vtable, boolean addnew, QueryManager manager)
          throws Exception
    {
+      // Ensure that tabular query's datasource is up-to-date, or it will use the wrong credential tokens
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
+      query.revalidate();
+
       // column in the query output before the refresh
       Set<String> o_qcolumns = new HashSet<>();
 
