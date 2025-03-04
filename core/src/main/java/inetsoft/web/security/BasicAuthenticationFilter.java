@@ -141,7 +141,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
 
                if(pId != null && (pId.name.equals(userKey) &&
                   (loginAsUserKey == null || loginAsUserKey.isEmpty() ||
-                     loginAsUserKey.equals(pId.convertToKey()))))
+                     loginAsUserKey.equals(pId.convertToKey()) || loginAsUserKey.equals(pId.name))))
                {
                   authorized = true;
                }
