@@ -24,6 +24,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.MessageException;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.ws.TableModeController;
 import inetsoft.web.composer.ws.WorksheetController;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -31,7 +32,6 @@ import inetsoft.web.composer.ws.event.WSUnpivotDialogEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
@@ -41,8 +41,8 @@ import java.security.Principal;
 
 @Controller
 public class TableUnpivotDialogController extends WorksheetController {
-   public TableUnpivotDialogController(PlaceholderService placeholderService) {
-      this.placeholderService = placeholderService;
+   public TableUnpivotDialogController(VSLayoutService vsLayoutService) {
+      this.vsLayoutService = vsLayoutService;
    }
 
    @Undoable
@@ -122,12 +122,12 @@ public class TableUnpivotDialogController extends WorksheetController {
       }
       catch(MessageException ex) {
          if(ex.getCause() instanceof CrossJoinException) {
-            this.placeholderService.makeUndoable(rws, commandDispatcher, null);
+            this.vsLayoutService.makeUndoable(rws, commandDispatcher, null);
          }
 
          throw ex;
       }
    }
 
-   private final PlaceholderService placeholderService;
+   private final VSLayoutService vsLayoutService;
 }

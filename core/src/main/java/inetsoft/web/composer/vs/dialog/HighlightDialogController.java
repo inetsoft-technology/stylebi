@@ -78,7 +78,6 @@ public class HighlightDialogController {
     */
    @Autowired
    public HighlightDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
       DataRefModelFactoryService dataRefModelFactoryService,
       HighlightService highlightService,
       VSObjectPropertyService vsObjectPropertyService,
@@ -86,7 +85,6 @@ public class HighlightDialogController {
       VSTrapService vsTrapService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.highlightService = highlightService;
       this.vsObjectPropertyService = vsObjectPropertyService;
@@ -171,7 +169,7 @@ public class HighlightDialogController {
          if(ws != null && VSEventUtil.checkBaseWSPermission(
             viewsheet, principal, viewsheetService.getAssetRepository(), ResourceAction.READ))
          {
-            List<DataRef> refs = this.placeholderService.getRefsForVSAssembly(
+            List<DataRef> refs = this.highlightService.getRefsForVSAssembly(
                rvs, assembly, row == null ? 0 : row, col == null ? 0 : col,
                dataPath, colName, true);
 
@@ -196,7 +194,7 @@ public class HighlightDialogController {
                   TableLens table = (TableLens) box.getData(assembly.getAbsoluteName());
 
                   if(table instanceof RuntimeCalcTableLens) {
-                     List<String> nonSupportBrowseFields = this.placeholderService.
+                     List<String> nonSupportBrowseFields = this.highlightService.
                         getNamedGroupFields((RuntimeCalcTableLens) table, refs);
                      model.setNonsupportBrowseFields(nonSupportBrowseFields);
                   }
@@ -315,7 +313,7 @@ public class HighlightDialogController {
                !GraphTypes.isRelation(chartInfo.getChartType()) || refOnAxis))
             {
                if(highlightRef instanceof VSChartDimensionRef) {
-                  DataRef hColumnRef = placeholderService.getDimensionColumnRef(highlightRef);
+                  DataRef hColumnRef = highlightService.getDimensionColumnRef(highlightRef);
                   highlightService.fixColumnDataType(hColumnRef);
                   List<DataRefModel> fieldList = new ArrayList<>();
                   fieldList.add(dataRefModelFactoryService.createDataRefModel(hColumnRef));
@@ -777,7 +775,6 @@ public class HighlightDialogController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
    private final DataRefModelFactoryService dataRefModelFactoryService;
    private final HighlightService highlightService;
    private final VSObjectPropertyService vsObjectPropertyService;

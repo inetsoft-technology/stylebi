@@ -49,15 +49,15 @@ import java.util.function.ToIntFunction;
  */
 public abstract class VSChartController<T extends VSChartEvent> {
    /**
-    * RuntimeViewsheetRef and PlaceholderService should be autowired from subclasses
+    * RuntimeViewsheetRef and CoreLifecycleService should be autowired from subclasses
     */
    protected VSChartController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -145,13 +145,13 @@ public abstract class VSChartController<T extends VSChartEvent> {
 
       try {
          String name = event.getChartName();
-         placeholderService.execute(rvs, name, linkUri, hint, dispatcher);
+         coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
 
          if((hint & VSAssembly.INPUT_DATA_CHANGED) == VSAssembly.INPUT_DATA_CHANGED) {
             final ChangedAssemblyList clist =
-               placeholderService.createList(true, dispatcher, rvs, linkUri);
-            placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, event.getViewportWidth(),
-               event.getViewportHeight(), false, null, dispatcher, false, false, true, clist);
+               coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+            coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, event.getViewportWidth(),
+                                                  event.getViewportHeight(), false, null, dispatcher, false, false, true, clist);
          }
       }
       catch(Exception e) {
@@ -163,31 +163,31 @@ public abstract class VSChartController<T extends VSChartEvent> {
    }
 
    /**
-    * Call placeholderService.execute for now
+    * Call coreLifecycleService.execute for now
     */
    protected void execute(RuntimeViewsheet rvs, String name, String uri, int hint,
                           CommandDispatcher dispatcher) throws Exception
    {
-      placeholderService.execute(rvs, name, uri, hint, dispatcher);
+      coreLifecycleService.execute(rvs, name, uri, hint, dispatcher);
    }
 
    /**
-    * Call placeholderService.refreshVSAssembly for now
+    * Call coreLifecycleService.refreshVSAssembly for now
     */
    protected void refreshVSAssembly(RuntimeViewsheet rvs, String name,
                                     CommandDispatcher dispatcher) throws Exception
    {
-      placeholderService.refreshVSAssembly(rvs, name, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, name, dispatcher);
    }
 
    /**
-    * Call placeholderService.createList for now
+    * Call coreLifecycleService.createList for now
     */
    protected ChangedAssemblyList createList(boolean breakable,
                                             CommandDispatcher dispatcher,
                                             RuntimeViewsheet rvs, String uri)
    {
-      return placeholderService.createList(breakable, dispatcher, rvs, uri);
+      return coreLifecycleService.createList(breakable, dispatcher, rvs, uri);
    }
 
    /**
@@ -258,8 +258,8 @@ public abstract class VSChartController<T extends VSChartEvent> {
                                  CommandDispatcher dispatcher)
    {
       try {
-         placeholderService.addDeleteVSObject(rvs, assembly, dispatcher);
-         placeholderService.loadTableLens(rvs, assembly.getAbsoluteName(), uri, dispatcher);
+         coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher);
+         coreLifecycleService.loadTableLens(rvs, assembly.getAbsoluteName(), uri, dispatcher);
       }
       catch(Exception e) {
          LOG.warn("Failed to refresh assembly: " + assembly.getAbsoluteName(), e);
@@ -267,7 +267,7 @@ public abstract class VSChartController<T extends VSChartEvent> {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private static final Logger LOG = LoggerFactory.getLogger(VSChartController.class);
 

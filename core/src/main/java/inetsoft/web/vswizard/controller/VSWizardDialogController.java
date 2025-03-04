@@ -41,7 +41,7 @@ import java.security.Principal;
 public class VSWizardDialogController {
    @Autowired
    public VSWizardDialogController(ViewsheetService viewsheetService,
-                                   PlaceholderService placeholderService,
+                                   CoreLifecycleService coreLifecycleService,
                                    RuntimeViewsheetRef runtimeViewsheetRef,
                                    RuntimeViewsheetManager runtimeViewsheetManager,
                                    WizardViewsheetService wizardVSService,
@@ -52,7 +52,7 @@ public class VSWizardDialogController {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.wizardVSService = wizardVSService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsBindingService = vsBindingService;
       this.temporaryInfoService = temporaryInfoService;
    }
@@ -87,9 +87,9 @@ public class VSWizardDialogController {
       setVSInfoCommand.setAssetId(vsEntry.toIdentifier());
       dispatcher.sendCommand(setVSInfoCommand);
 
-      ChangedAssemblyList clist = placeholderService.createList(true, dispatcher, rvs, linkUri);
-      placeholderService.refreshViewsheet(rvs, vsEntry.toIdentifier(), linkUri,
-                                          dispatcher, true, false, false, clist);
+      ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+      coreLifecycleService.refreshViewsheet(rvs, vsEntry.toIdentifier(), linkUri,
+                                            dispatcher, true, false, false, clist);
    }
 
    @GetMapping("/api/vswizard/dialog/open")
@@ -164,7 +164,7 @@ public class VSWizardDialogController {
    }
 
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final RuntimeViewsheetManager runtimeViewsheetManager;
    private final WizardViewsheetService wizardVSService;

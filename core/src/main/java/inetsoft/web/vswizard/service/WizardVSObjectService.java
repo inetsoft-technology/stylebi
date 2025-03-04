@@ -27,7 +27,7 @@ import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.vswizard.command.UploadImageCommand;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import org.apache.commons.lang.StringUtils;
@@ -41,12 +41,12 @@ import java.util.*;
 @Service
 public class WizardVSObjectService {
    @Autowired
-   public WizardVSObjectService(PlaceholderService placeholderService,
+   public WizardVSObjectService(CoreLifecycleService coreLifecycleService,
                                 WizardViewsheetService wizardVSService,
                                 VSObjectModelFactoryService objectModelService)
    {
       this.wizardVSService = wizardVSService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.objectModelService = objectModelService;
    }
 
@@ -217,7 +217,7 @@ public class WizardVSObjectService {
          deleteAssemblies.add(assembly);
          newRectangles.put(assembly,
             new Rectangle(assembly.getBounds().x, assembly.getBounds().y, 0, 0));
-         placeholderService.removeVSAssembly(rtv, linkUri, ((VSAssembly) assembly), commandDispatcher, false, true);
+         coreLifecycleService.removeVSAssembly(rtv, linkUri, ((VSAssembly) assembly), commandDispatcher, false, true);
          // 2.send command to refresh wizard pane.
          RemoveVSObjectCommand removeObjectCmd = new RemoveVSObjectCommand();
          removeObjectCmd.setName(objectName);
@@ -362,7 +362,7 @@ public class WizardVSObjectService {
       wizardVSService.updateGridRowsAndNewBlock(assemblies, commandDispatcher);
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final WizardViewsheetService wizardVSService;
    private final VSObjectModelFactoryService objectModelService;
 }

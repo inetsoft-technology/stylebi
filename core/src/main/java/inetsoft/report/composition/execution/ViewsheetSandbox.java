@@ -7175,7 +7175,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    public void lockWrite() {
       // script (OutputVSAScriptable) may call getData, which would be triggered from
       // the Processor thread. The write lock may already be acquired by the current
-      // thread (PlaceholderService.refreshViewsheet). we ignore the thread from the data
+      // thread (CoreLifecycleService.refreshViewsheet). we ignore the thread from the data
       // thread to avoid deadlock.
       if(!AssetDataCache.isProcessorThread()) {
          thisLock.lockWrite();

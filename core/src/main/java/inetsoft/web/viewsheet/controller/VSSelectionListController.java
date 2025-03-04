@@ -17,7 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.web.viewsheet.*;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.event.SortSelectionListEvent;
@@ -39,14 +38,10 @@ import java.security.Principal;
 public class VSSelectionListController {
    @Autowired
    public VSSelectionListController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                    ViewsheetService viewsheetService,
-                                    VSSelectionService vsSelectionService,
-                                    PlaceholderService placeholderService)
+                                    VSSelectionService vsSelectionService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.viewsheetService = viewsheetService;
       this.vsSelectionService = vsSelectionService;
-      this.placeholderService = placeholderService;
    }
 
    /**
@@ -146,7 +141,5 @@ public class VSSelectionListController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
    private final VSSelectionService vsSelectionService;
-   private final PlaceholderService placeholderService;
 }

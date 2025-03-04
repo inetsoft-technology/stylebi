@@ -59,18 +59,18 @@ public class VSFormTableController {
     * Creates a new instance of <tt>VSFormTableController</tt>.
     *
     * @param viewsheetService    engine for retrieving runtime viewsheets.
-    * @param placeholderService  command/changes utility service
+    * @param coreLifecycleService  command/changes utility service
     * @param runtimeViewsheetRef reference to the runtime viewsheet associated
     *                            with the WebSocket session.
     */
    @Autowired
    public VSFormTableController(ViewsheetService viewsheetService,
                                 RuntimeViewsheetRef runtimeViewsheetRef,
-                                PlaceholderService placeholderService)
+                                CoreLifecycleService coreLifecycleService)
    {
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    private static String getRowLimitMessage() {
@@ -122,7 +122,7 @@ public class VSFormTableController {
       box.resetDataMap(assemblyName);
       BaseTableController.loadTableData(rvs, assemblyName, box.getMode(),
                                         event.start(), 100, linkUri, dispatcher);
-      this.placeholderService.refreshVSAssembly(rvs, assemblyName, dispatcher);
+      this.coreLifecycleService.refreshVSAssembly(rvs, assemblyName, dispatcher);
    }
 
    /**
@@ -298,14 +298,14 @@ public class VSFormTableController {
       }
 
       if(error != null) {
-         this.placeholderService.sendMessage(error, MessageCommand.Type.ERROR, dispatcher);
+         this.coreLifecycleService.sendMessage(error, MessageCommand.Type.ERROR, dispatcher);
       }
       else {
          form.setObject(row, col, val);
          form.setLabel(row, col, label);
 
          TableScriptEvent scriptEvent = new TableScriptEvent(event.getAssemblyName(), row, col);
-         placeholderService.dispatchEvent(scriptEvent, dispatcher, rvs);
+         coreLifecycleService.dispatchEvent(scriptEvent, dispatcher, rvs);
       }
 
       BaseTableController.loadTableData(rvs, event.getAssemblyName(), box.getMode(),
@@ -367,14 +367,14 @@ public class VSFormTableController {
       BaseTableController.loadTableData(rvs, assemblyName, box.getMode(),
          0, 100, linkUri, dispatcher);
       ChangedAssemblyList clist =
-         placeholderService.createList(false, dispatcher, rvs, linkUri);
-      this.placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-         false, false, true, clist);
+         coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
+      this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+                                                 false, false, true, clist);
    }
 
    private final ViewsheetService viewsheetService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
 
    /**
     * Event for viewsheet script, it keeps event source, assembly and other

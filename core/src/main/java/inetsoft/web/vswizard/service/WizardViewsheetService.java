@@ -27,7 +27,7 @@ import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.vswizard.command.RefreshNewObjectPositionCommand;
 import inetsoft.web.vswizard.command.SetWizardGridCommand;
 import inetsoft.web.vswizard.model.VSWizardConstants;
@@ -43,10 +43,10 @@ import java.util.*;
 public class WizardViewsheetService {
    @Autowired
    public WizardViewsheetService(ViewsheetService viewsheetService,
-                                 PlaceholderService placeholderService)
+                                 CoreLifecycleService coreLifecycleService)
    {
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    public void refreshWizardViewsheet(String runtimeId, String linkUri, Principal principal,
@@ -59,10 +59,10 @@ public class WizardViewsheetService {
          return;
       }
 
-      ChangedAssemblyList clist = placeholderService.createList(true, commandDispatcher, rtv,
-         linkUri);
-      placeholderService.refreshViewsheet(rtv, rtv.getID(), linkUri, commandDispatcher, false,
-         true, true, clist);
+      ChangedAssemblyList clist = coreLifecycleService.createList(true, commandDispatcher, rtv,
+                                                                  linkUri);
+      coreLifecycleService.refreshViewsheet(rtv, rtv.getID(), linkUri, commandDispatcher, false,
+                                            true, true, clist);
    }
 
    public void refreshWizardViewsheet(RuntimeViewsheet rvs, Viewsheet ovs,
@@ -94,7 +94,7 @@ public class WizardViewsheetService {
          if(oassembly == null || !Tool.equals(osize, assembly.getPixelSize()) ||
             (!Tool.equals(opoint, assembly.getPixelOffset()) && !editedObjs.contains(assembly)))
          {
-            placeholderService.refreshVSAssembly(rvs, (VSAssembly) assembly, commandDispatcher);
+            coreLifecycleService.refreshVSAssembly(rvs, (VSAssembly) assembly, commandDispatcher);
          }
       }
    }
@@ -1002,5 +1002,5 @@ public class WizardViewsheetService {
    private static final int NEW_BLOCK_COLUMN_COUNT = VSWizardConstants.NEW_BLOCK_COLUMN_COUNT;
    private static final int NEW_BLOCK_ROW_COUNT = VSWizardConstants.NEW_BLOCK_ROW_COUNT;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
 }

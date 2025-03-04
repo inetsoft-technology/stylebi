@@ -69,13 +69,11 @@ public class ComposerGroupColumnsController {
    @Autowired
    public ComposerGroupColumnsController(ViewsheetService viewsheetService,
                                          RuntimeViewsheetRef runtimeViewsheetRef,
-                                         PlaceholderService placeholderService,
                                          VSBindingService bfactory,
                                          VSObjectPropertyService vsObjectPropertyService)
    {
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.bfactory = bfactory;
    }
@@ -635,7 +633,6 @@ public class ComposerGroupColumnsController {
 
    private final ViewsheetService viewsheetService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
    private final VSBindingService bfactory;
    private final VSObjectPropertyService vsObjectPropertyService;
 }

@@ -64,10 +64,10 @@ public class VSTableDndController extends VSAssemblyDndController {
                                VSTableBindingHandler tableHandler,
                                VSObjectModelFactoryService objectModelService,
                                ViewsheetService viewsheetService,
-                               PlaceholderService placeholderService)
+                               CoreLifecycleService coreLifecycleService)
    {
       super(runtimeViewsheetRef, bfactory, assemblyInfoHandler, objectModelService,
-            viewsheetService, placeholderService);
+            viewsheetService, coreLifecycleService);
       this.tableHandler = tableHandler;
    }
 

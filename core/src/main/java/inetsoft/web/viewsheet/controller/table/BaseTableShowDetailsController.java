@@ -67,10 +67,10 @@ import java.util.stream.IntStream;
 public class BaseTableShowDetailsController extends BaseTableController<ShowDetailsEvent> {
    @Autowired
    public BaseTableShowDetailsController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                         PlaceholderService placeholderService,
+                                         CoreLifecycleService coreLifecycleService,
                                          ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    /**
@@ -186,7 +186,7 @@ public class BaseTableShowDetailsController extends BaseTableController<ShowDeta
       ChangedAssemblyList clist;
 
       if(dispatcher != null) {
-         clist = placeholderService.createList(false, dispatcher, rvs, null);
+         clist = coreLifecycleService.createList(false, dispatcher, rvs, null);
       }
       else {
          clist = new ChangedAssemblyList(false);

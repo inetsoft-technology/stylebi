@@ -27,7 +27,6 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
@@ -76,19 +75,21 @@ public class ComposerObjectController {
    @Autowired
    public ComposerObjectController(RuntimeViewsheetRef runtimeViewsheetRef,
                                    VSObjectTreeService vsObjectTreeService,
-                                   PlaceholderService placeholderService,
+                                   CoreLifecycleService coreLifecycleService,
                                    ViewsheetService engine,
                                    VSAssemblyInfoHandler assemblyHandler,
                                    VSObjectModelFactoryService objectModelService,
-                                   VSObjectService vsObjectService)
+                                   VSObjectService vsObjectService,
+                                   VSCompositionService vsCompositionService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.vsObjectTreeService = vsObjectTreeService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.engine = engine;
       this.assemblyHandler = assemblyHandler;
       this.objectModelService = objectModelService;
       this.vsObjectService = vsObjectService;
+      this.vsCompositionService = vsCompositionService;
    }
 
    /**
@@ -123,14 +124,14 @@ public class ComposerObjectController {
       assembly.getVSAssemblyInfo().setPixelOffset(position);
       viewsheet.addAssembly(assembly);
 
-      this.placeholderService.addDeleteVSObject(rvs, assembly, dispatcher);
+      this.coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher);
       BaseTableController.loadTableData(rvs, assembly.getAbsoluteName(), 0, 0, 100,
                                         linkUri, dispatcher);
 
       AssemblyRef[] vrefs = viewsheet.getViewDependings(assembly.getAssemblyEntry());
 
       for(AssemblyRef aref: vrefs) {
-         placeholderService.refreshVSAssembly(rvs, aref.getEntry().getAbsoluteName(), dispatcher);
+         coreLifecycleService.refreshVSAssembly(rvs, aref.getEntry().getAbsoluteName(), dispatcher);
       }
 
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
@@ -172,11 +173,11 @@ public class ComposerObjectController {
 
       rvs.initViewsheet(assembly, false);
 
-      placeholderService.refreshEmbeddedViewsheet(rvs, linkUri, dispatcher);
-      placeholderService.addDeleteVSObject(rvs, assembly, dispatcher);
-      placeholderService.initTable(rvs, dispatcher, linkUri, assembly.getAssemblies(true, false));
-      placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
-      placeholderService.shrinkZIndex(assembly, dispatcher);
+      coreLifecycleService.refreshEmbeddedViewsheet(rvs, linkUri, dispatcher);
+      coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher);
+      coreLifecycleService.initTable(rvs, dispatcher, linkUri, assembly.getAssemblies(true, false));
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
+      vsCompositionService.shrinkZIndex(assembly, dispatcher);
 
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
@@ -222,7 +223,7 @@ public class ComposerObjectController {
             .map(MoveVSObjectEvent::getName)
             .collect(Collectors.toList());
 
-      placeholderService.updateAnchoredLines(rvs, assemblies, dispatcher);
+      assemblyHandler.updateAnchoredLines(rvs, assemblies, dispatcher);
    }
 
    /**
@@ -267,10 +268,10 @@ public class ComposerObjectController {
 
          // if container assembly, re-layout viewsheet to refresh children
          if(assembly instanceof ContainerVSAssembly) {
-            ChangedAssemblyList clist = this.placeholderService.createList(
+            ChangedAssemblyList clist = this.coreLifecycleService.createList(
                false, dispatcher, rvs, linkUri);
-            this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-                                                    assembly.getAbsoluteName(), clist);
+            this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+                                                      assembly.getAbsoluteName(), clist);
          }
 
          if(assembly.getContainer() != null) {
@@ -278,7 +279,7 @@ public class ComposerObjectController {
                ((GroupContainerVSAssembly) assembly.getContainer()).updateGridSize();
             }
 
-            this.placeholderService.refreshVSAssembly(
+            this.coreLifecycleService.refreshVSAssembly(
                rvs, assembly.getContainer().getAbsoluteName(), dispatcher);
          }
       }
@@ -454,12 +455,12 @@ public class ComposerObjectController {
          }
 
          move(viewsheet, position, (VSAssembly) assembly);
-         ChangedAssemblyList clist = this.placeholderService.createList(false, dispatcher, rvs,
-                                                                        linkUri);
-         this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-                                                 info.getAbsoluteName(), clist);
-         this.placeholderService.refreshVSAssembly(rvs, assembly.getAbsoluteName(), dispatcher);
-         this.placeholderService.loadTableLens(rvs, assembly.getAbsoluteName(), linkUri, dispatcher);
+         ChangedAssemblyList clist = this.coreLifecycleService.createList(false, dispatcher, rvs,
+                                                                          linkUri);
+         this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+                                                   info.getAbsoluteName(), clist);
+         this.coreLifecycleService.refreshVSAssembly(rvs, assembly.getAbsoluteName(), dispatcher);
+         this.coreLifecycleService.loadTableLens(rvs, assembly.getAbsoluteName(), linkUri, dispatcher);
       }
    }
 
@@ -649,8 +650,8 @@ public class ComposerObjectController {
             }
          }
 
-         this.placeholderService.removeVSAssemblies(rvs, linkUri, dispatcher, false, true, true,
-                                                    assemblies.toArray(new VSAssembly[0]));
+         this.coreLifecycleService.removeVSAssemblies(rvs, linkUri, dispatcher, false, true, true,
+                                                      assemblies.toArray(new VSAssembly[0]));
 
          if(getGrayedOutFields) {
             assemblyHandler.getGrayedOutFields(rvs, dispatcher);
@@ -697,7 +698,7 @@ public class ComposerObjectController {
       }
 
       // First remove assembly
-      placeholderService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, true);
+      coreLifecycleService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, true);
 
       // Next if the assembly is a Selection or Group Container remove its children
       if(assembly instanceof CurrentSelectionVSAssembly ||
@@ -709,7 +710,7 @@ public class ComposerObjectController {
             final VSAssembly child = (VSAssembly) vs.getAssembly(childName);
 
             if(child != null) {
-               placeholderService.removeVSAssembly(rvs, linkUri, child, dispatcher, false, true);
+               coreLifecycleService.removeVSAssembly(rvs, linkUri, child, dispatcher, false, true);
             }
          }
       }
@@ -802,7 +803,7 @@ public class ComposerObjectController {
          assembly.setZIndex(event.getzIndex());
       }
 
-      this.placeholderService.shrinkZIndex(viewsheet, dispatcher);
+      this.vsCompositionService.shrinkZIndex(viewsheet, dispatcher);
    }
 
    /**
@@ -869,7 +870,7 @@ public class ComposerObjectController {
 
          // if format is defined for title, need to apply format to the new value
          if(titleFormat.getFormat() != null) {
-            this.placeholderService.refreshVSAssembly(rvs, (VSAssembly) assembly, dispatcher);
+            this.coreLifecycleService.refreshVSAssembly(rvs, (VSAssembly) assembly, dispatcher);
          }
       }
    }
@@ -903,7 +904,7 @@ public class ComposerObjectController {
          ((ShapeVSAssembly) assembly).setLocked(event.isLocked());
       }
 
-      this.placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+      this.coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
 
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
@@ -984,7 +985,7 @@ public class ComposerObjectController {
             if(container.getAssemblies().length == 1) {
                String lastAssemblyName = container.getAssemblies()[0];
                VSAssembly lastAssembly = viewsheet.getAssembly(lastAssemblyName);
-               placeholderService.removeVSAssembly(rvs, linkUri, container, dispatcher, false, true);
+               coreLifecycleService.removeVSAssembly(rvs, linkUri, container, dispatcher, false, true);
 
                // If the last assembly is a group container, refresh it's children to fix visibility
                if(lastAssembly instanceof GroupContainerVSAssembly) {
@@ -1007,8 +1008,8 @@ public class ComposerObjectController {
             else if(container instanceof TabVSAssembly) {
                ((TabVSAssemblyInfo) container.getVSAssemblyInfo())
                   .setSelectedValue(container.getAssemblies()[0]);
-               placeholderService.execute(rvs, container.getAbsoluteName(), linkUri,
-                                          VSAssembly.VIEW_CHANGED, dispatcher);
+               coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
+                                            VSAssembly.VIEW_CHANGED, dispatcher);
                return;
             }
             else if(container instanceof GroupContainerVSAssembly) {
@@ -1217,10 +1218,10 @@ public class ComposerObjectController {
 
       for(int i = 0; i < assemblies.size(); i++) {
          Assembly vsAssembly = assemblies.get(i);
-         this.placeholderService.addDeleteVSObject(rvs, (VSAssembly) vsAssembly, dispatcher);
-         this.placeholderService.refreshVSAssembly(rvs, (VSAssembly) vsAssembly, dispatcher);
-         this.placeholderService.loadTableLens(rvs, vsAssembly.getAbsoluteName(), null,
-                                               dispatcher);
+         this.coreLifecycleService.addDeleteVSObject(rvs, (VSAssembly) vsAssembly, dispatcher);
+         this.coreLifecycleService.refreshVSAssembly(rvs, (VSAssembly) vsAssembly, dispatcher);
+         this.coreLifecycleService.loadTableLens(rvs, vsAssembly.getAbsoluteName(), null,
+                                                 dispatcher);
       }
 
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
@@ -1310,11 +1311,12 @@ public class ComposerObjectController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSObjectTreeService vsObjectTreeService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService engine;
    private final VSAssemblyInfoHandler assemblyHandler;
    private final VSObjectModelFactoryService objectModelService;
    private final VSObjectService vsObjectService;
+   private final VSCompositionService vsCompositionService;
 
    public static final class DependentAssemblies {
       public DependentAssemblies(Map<String, String> assemblies) {

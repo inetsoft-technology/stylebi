@@ -30,7 +30,7 @@ import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,8 +48,7 @@ class LayoutOptionDialogControllerTest {
    @BeforeEach
    void setup() throws Exception {
       controller = new LayoutOptionDialogController(runtimeViewsheetRef, groupingService,
-         vsObjectTreeService, engine, vsTableService, placeholderService, infoHandler,
-         viewsheetService);
+                                                    vsObjectTreeService, engine, vsTableService, coreLifecycleService);
    }
 
    @Test
@@ -78,7 +77,8 @@ class LayoutOptionDialogControllerTest {
    @Mock CommandDispatcher dispatcher;
    @Mock LayoutOptionDialogModel model;
    @Mock VSTableService vsTableService;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock VSAssemblyInfoHandler infoHandler;
    @Mock ViewsheetService viewsheetService;
 

@@ -38,7 +38,7 @@ import inetsoft.web.viewsheet.controller.table.BaseTableDrillController;
 import inetsoft.web.viewsheet.handler.BaseDrillHandler;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -54,11 +54,11 @@ public class CrosstabDrillHandler
 {
    @Autowired
    public CrosstabDrillHandler(ViewsheetService viewsheetService,
-                               PlaceholderService placeholderService,
+                               CoreLifecycleService coreLifecycleService,
                                RuntimeViewsheetRef runtimeViewsheetRef)
    {
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
 
@@ -617,7 +617,7 @@ public class CrosstabDrillHandler
       }
 
       int hint = VSAssembly.INPUT_DATA_CHANGED;
-      ChangedAssemblyList clist = placeholderService.createList(false, dispatcher, rvs, linkUri);
+      ChangedAssemblyList clist = coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
       box.processChange(name, hint, clist);
 
       if(assembly instanceof CrosstabVSAssembly) {
@@ -627,7 +627,7 @@ public class CrosstabDrillHandler
             ((CrosstabVSAssembly) assembly).getCrosstabInfo(), nlens);
       }
 
-      placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true, refreshData);
+      coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true, refreshData);
    }
 
    public VSDimensionRef getDataRefByField(CrosstabTree crosstabTree,
@@ -801,6 +801,6 @@ public class CrosstabDrillHandler
    }
 
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
 }

@@ -55,13 +55,13 @@ public class SwapXYBindingController {
    public SwapXYBindingController(
       VSBindingService bindingFactory,
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       VSAssemblyInfoHandler assemblyInfoHandler,
       VSChartHandler chartHandler, ViewsheetService viewsheetService)
    {
       this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.chartHandler = chartHandler;
       this.viewsheetService = viewsheetService;
@@ -103,7 +103,7 @@ public class SwapXYBindingController {
 
          int hint = chart.setVSAssemblyInfo(ninfo);
          box.updateAssembly(chart.getAbsoluteName());
-         placeholderService.refreshVSAssembly(rvs, chart, dispatcher);
+         coreLifecycleService.refreshVSAssembly(rvs, chart, dispatcher);
          hint = hint | chartHandler.createCommands(oinfo, ninfo);
          boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) == VSAssembly.INPUT_DATA_CHANGED;
          VSSelection bselection = oinfo.getBrushSelection();
@@ -123,9 +123,9 @@ public class SwapXYBindingController {
          final double originalWidthRatio = cinfo.getInitialWidthRatio();
          final double originalHeightRatio = cinfo.getInitialHeightRatio();
 
-         ChangedAssemblyList clist = placeholderService.createList(true, dispatcher, rvs, linkUri);
+         ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
          box.processChange(name, hint, clist);
-         placeholderService.execute(rvs, name, linkUri, hint, dispatcher);
+         coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
          assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
 
          final VSChartInfo ncinfo = chart.getVSChartInfo();
@@ -140,7 +140,7 @@ public class SwapXYBindingController {
             ncinfo.setHeightResized(wresize);
             ncinfo.setUnitWidthRatio(hratio / originalHeightRatio * initialWidthRatio);
             ncinfo.setUnitHeightRatio(wratio / originalWidthRatio * initialHeightRatio);
-            placeholderService.execute(rvs, name, linkUri, hint, dispatcher);
+            coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
          }
 
          // force ratio to be recalculated
@@ -198,7 +198,7 @@ public class SwapXYBindingController {
 
    private final VSBindingService bindingFactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final VSChartHandler chartHandler;
    private final ViewsheetService viewsheetService;

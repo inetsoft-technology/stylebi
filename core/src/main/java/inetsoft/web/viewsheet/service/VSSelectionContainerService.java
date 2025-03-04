@@ -39,11 +39,11 @@ import java.util.List;
 public class VSSelectionContainerService {
    @Autowired
    public VSSelectionContainerService(VSObjectService service,
-                                      PlaceholderService placeholderService,
+                                      CoreLifecycleService coreLifecycleService,
                                       VSObjectModelFactoryService objectModelService)
    {
       this.service = service;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.objectModelService = objectModelService;
    }
 
@@ -192,7 +192,7 @@ public class VSSelectionContainerService {
       }
 
       if(targetAssembly.getContainer() == null) {
-         placeholderService.removeVSAssembly(rvs, linkUri, targetAssembly, dispatcher, false, false);
+         coreLifecycleService.removeVSAssembly(rvs, linkUri, targetAssembly, dispatcher, false, false);
       }
       else if(!haveDrop && targetAssembly.getContainer() != null &&
          !targetAssembly.getContainer().getViewsheet().isEmbedded())
@@ -205,6 +205,6 @@ public class VSSelectionContainerService {
    }
 
    private final VSObjectService service;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSObjectModelFactoryService objectModelService;
 }

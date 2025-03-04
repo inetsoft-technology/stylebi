@@ -65,24 +65,26 @@ public class VSRefreshController {
     * Creates a new instance of <tt>VSRefreshController</tt>.
     *
     * @param runtimeViewsheetRef reference to the runtime vs associated with the websocket
-    * @param placeholderService  service containing vs util functions
+    * @param coreLifecycleService  service containing vs util functions
     * @param viewsheetService    viewsheet service instance
     * @param vsObjectTreeService service for creating the vs object tree
     */
    @Autowired
    public VSRefreshController(RuntimeViewsheetRef runtimeViewsheetRef,
-                              PlaceholderService placeholderService,
+                              CoreLifecycleService coreLifecycleService,
                               ViewsheetService viewsheetService,
                               VSObjectTreeService vsObjectTreeService,
                               VSBookmarkService vsBookmarkService,
-                              VSChartDataHandler chartDataHandler)
+                              VSChartDataHandler chartDataHandler,
+                              ParameterService parameterService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.vsBookmarkService = vsBookmarkService;
       this.chartDataHandler = chartDataHandler;
+      this.parameterService = parameterService;
    }
 
    /**
@@ -110,10 +112,10 @@ public class VSRefreshController {
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
       if(event.parameters() != null) {
-         variables = placeholderService.readParameters(event.parameters());
+         variables = parameterService.readParameters(event.parameters());
       }
 
-      placeholderService.setExportType(rvs, commandDispatcher);
+      coreLifecycleService.setExportType(rvs, commandDispatcher);
 
       // don't pile up refresh
       if(pending.containsKey(id)) {
@@ -201,8 +203,8 @@ public class VSRefreshController {
    {
       vsBookmarkService.processBookmark(rvs.getID(), rvs, linkUri, principal, bookmarkName,
                                          bookmarkUser, null, commandDispatcher);
-      ChangedAssemblyList clist = placeholderService.createList(true, commandDispatcher,
-                                                                rvs, linkUri);
+      ChangedAssemblyList clist = coreLifecycleService.createList(true, commandDispatcher,
+                                                                  rvs, linkUri);
       ChangedAssemblyList.ReadyListener rlistener = clist.getReadyListener();
 
       if(principal instanceof SRPrincipal) {
@@ -284,7 +286,7 @@ public class VSRefreshController {
          final boolean mobile = "true".equals(rvs.getEntry().getProperty("_device_mobile"));
          // refreshViewsheet invokes onLoad, and should be called before reset(),
          // which execute the element scripts
-         placeholderService.refreshViewsheet(
+         coreLifecycleService.refreshViewsheet(
             rvs, rvs.getID(), linkUri, width, height, mobile, null, commandDispatcher,
             false, false, true, clist);
 
@@ -460,8 +462,8 @@ public class VSRefreshController {
       rlist.toArray(rarr);
       rvs.getViewsheetSandbox().reset(null, rarr, clist, false, false,
          null);
-      placeholderService.execute(rvs, assembly.getAbsoluteName(), linkUri, clist, dispatcher,
-         false);
+      coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri, clist, dispatcher,
+                                   false);
 
       // refresh new table data.
       if(assembly instanceof TableDataVSAssembly) {
@@ -484,10 +486,11 @@ public class VSRefreshController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSBookmarkService vsBookmarkService;
    private final VSChartDataHandler chartDataHandler;
+   private final ParameterService parameterService;
    private final ConcurrentMap<String, Boolean> pending = new ConcurrentHashMap<>();
 }

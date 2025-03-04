@@ -40,12 +40,12 @@ public class CrosstabDrillController extends BaseTableDrillController<DrillEvent
    @Autowired
    public CrosstabDrillController(CrosstabDrillHandler crosstabDrillHandler,
                                   RuntimeViewsheetRef runtimeViewsheetRef,
-                                  PlaceholderService placeholderService,
+                                  CoreLifecycleService coreLifecycleService,
                                   ViewsheetService viewsheetService,
                                   VSBindingService bindingFactory)
    {
-      super(crosstabDrillHandler, runtimeViewsheetRef, placeholderService,
-         viewsheetService, bindingFactory);
+      super(crosstabDrillHandler, runtimeViewsheetRef, coreLifecycleService,
+            viewsheetService, bindingFactory);
    }
 
    @Override

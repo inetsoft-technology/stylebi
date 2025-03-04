@@ -46,11 +46,13 @@ public class SelectionListTestController {
 
    @Autowired
    public SelectionListTestController(
-      PlaceholderService placeholderService,
-      ViewsheetService viewsheetService)
+      CoreLifecycleService coreLifecycleService,
+      ViewsheetService viewsheetService,
+      SharedFilterService sharedFilterService)
    {
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
+      this.sharedFilterService = sharedFilterService;
       this.dispatcher = new MockCommandDispatcher(null, null, null);
    }
 
@@ -87,7 +89,7 @@ public class SelectionListTestController {
          applySelection0(assembly, type, new int[]{state}, new String[]{value}, selectStart, selectEnd,
             principal, rvs, linkUri, viewsheet);
 
-         placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+         coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
 
          return "success";
       } catch(Exception e) {
@@ -223,13 +225,13 @@ public class SelectionListTestController {
          // deleted.  So, check if the assembly referenced is still in
          // the Viewsheet before deleting it.
          if(rvs.getViewsheet().getAssembly(assembly.getAbsoluteName()) != null) {
-            placeholderService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
+            coreLifecycleService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
          }
       }
 
       // Iterate over all assemblies and for add to view list if they have
       // hyperlinks that "send selection parameters"
-      placeholderService.executeInfluencedHyperlinkAssemblies(
+      coreLifecycleService.executeInfluencedHyperlinkAssemblies(
          viewsheet, dispatcher, rvs, linkUri, Collections.singletonList(table));
    }
 
@@ -465,7 +467,7 @@ public class SelectionListTestController {
       Principal principal)
       throws Exception
    {
-      ChangedAssemblyList clist = placeholderService.createList(true, dispatcher, rvs, linkUri);
+      ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
       if(box == null) {
@@ -478,13 +480,13 @@ public class SelectionListTestController {
 
       try {
          box.processChange(assembly.getAbsoluteName(), hint, clist);
-         placeholderService.processExtSharedFilters(assembly, hint, rvs, principal, dispatcher);
+         sharedFilterService.processExtSharedFilters(assembly, hint, rvs, principal, dispatcher);
       }
       finally {
          scope.removeVariable("event");
       }
 
-      placeholderService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher, true);
+      coreLifecycleService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher, true);
    }
 
    /**
@@ -625,7 +627,7 @@ public class SelectionListTestController {
    }
 
    /**
-    * mock a commandDispather for placeholderService
+    * mock a commandDispather for coreLifecycleService
     */
    class MockCommandDispatcher extends CommandDispatcher {
       public MockCommandDispatcher(StompHeaderAccessor headerAccessor,
@@ -646,7 +648,8 @@ public class SelectionListTestController {
       }
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
+   private final SharedFilterService sharedFilterService;
    private final CommandDispatcher dispatcher;
 }

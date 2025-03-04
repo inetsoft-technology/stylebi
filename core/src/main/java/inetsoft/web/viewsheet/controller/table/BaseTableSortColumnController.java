@@ -54,11 +54,11 @@ import java.util.*;
 public class BaseTableSortColumnController extends BaseTableController<SortColumnEvent> {
    @Autowired
    public BaseTableSortColumnController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                        PlaceholderService placeholderService,
+                                        CoreLifecycleService coreLifecycleService,
                                         ViewsheetService viewsheetService,
                                         VSBindingService bindingFactory)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
       this.bindingFactory = bindingFactory;
       this.viewsheetService = viewsheetService;
    }
@@ -222,12 +222,12 @@ public class BaseTableSortColumnController extends BaseTableController<SortColum
          dispatcher.sendCommand(
             name, UpdateSortInfoCommand.builder().sortOrders(sortColumns)
             .sortPositions(sortPositionColumns).build());
-         this.placeholderService.loadTableLens(rvs, name, null, dispatcher);
+         this.coreLifecycleService.loadTableLens(rvs, name, null, dispatcher);
       }
       else {
-         this.placeholderService.execute(rvs, name, linkUri, VSAssembly.INPUT_DATA_CHANGED,
-            dispatcher);
-         this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+         this.coreLifecycleService.execute(rvs, name, linkUri, VSAssembly.INPUT_DATA_CHANGED,
+                                           dispatcher);
+         this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
          BindingModel binding = bindingFactory.createModel(table);
          SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
          dispatcher.sendCommand(bcommand);
@@ -362,9 +362,9 @@ public class BaseTableSortColumnController extends BaseTableController<SortColum
 
          box.resetDataMap(name);
          ChangedAssemblyList clist =
-            placeholderService.createList(false, dispatcher, rvs, linkUri);
+            coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
          box.processChange(name, hint, clist);
-         placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true);
+         coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
 
          BindingModel binding = bindingFactory.createModel(assembly);
          SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);

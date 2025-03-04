@@ -74,10 +74,10 @@ public class VSChartShowDataController extends VSChartController<VSChartShowData
    @Autowired
    public VSChartShowDataController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      @SuppressWarnings("deprecation") PlaceholderService placeholderService,
+      @SuppressWarnings("deprecation") CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    @Override

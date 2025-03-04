@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.controller;
 
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.report.Margin;
+import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
@@ -31,6 +32,8 @@ import inetsoft.web.composer.model.vs.VSLayoutModel;
 import inetsoft.web.composer.model.vs.VSLayoutObjectModel;
 import inetsoft.web.composer.vs.command.ChangeCurrentLayoutCommand;
 import inetsoft.web.composer.vs.event.AddVSLayoutObjectEvent;
+import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
+import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -40,7 +43,9 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.util.List;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE;
 
@@ -941,6 +946,77 @@ public class VSLayoutService {
       }
 
       return psize;
+   }
+
+   public void makeUndoable(RuntimeSheet rs, CommandDispatcher dispatcher,
+                            String focusedLayoutName)
+   {
+      if(rs.isDisposed()) {
+         return;
+      }
+
+      if(rs instanceof RuntimeViewsheet && focusedLayoutName != null &&
+         !Catalog.getCatalog().getString("Master").equals(focusedLayoutName)) {
+         RuntimeViewsheet rvs = (RuntimeViewsheet) rs;
+         LayoutInfo info = rvs.getViewsheet().getLayoutInfo();
+         AbstractLayout abstractLayout;
+
+         if(Catalog.getCatalog().getString("Print Layout").equals(focusedLayoutName)) {
+            abstractLayout =  info.getPrintLayout();
+         }
+         else {
+            abstractLayout = info.getViewsheetLayouts()
+               .stream()
+               .filter(l -> l.getName().equals(focusedLayoutName))
+               .findFirst()
+               .orElse(null);
+         }
+
+         rvs.addLayoutCheckPoint(abstractLayout);
+
+         UpdateLayoutUndoStateCommand command = new UpdateLayoutUndoStateCommand();
+         command.setLayoutPoint(rvs.getLayoutPoint());
+         command.setLayoutPoints(rvs.getLayoutPointsSize());
+         command.setId(rs.getID());
+         dispatcher.sendCommand(command);
+      }
+      else {
+         rs.addCheckpoint(rs.getSheet().prepareCheckpoint());
+
+         UpdateUndoStateCommand command = new UpdateUndoStateCommand();
+         command.setPoints(rs.size());
+         command.setCurrent(rs.getCurrent());
+         command.setSavePoint(rs.getSavePoint());
+         command.setId(rs.getID());
+         dispatcher.sendCommand(command);
+      }
+   }
+
+   public void removeLayoutAssembly(Viewsheet vs, String aname) {
+      LayoutInfo layoutInfo = vs.getLayoutInfo();
+      PrintLayout printLayout = layoutInfo.getPrintLayout();
+      List<ViewsheetLayout> viewsheetLayouts = layoutInfo.getViewsheetLayouts();
+      Predicate<VSAssemblyLayout> assemblyLayoutPredicate = v -> v.getName().equals(aname);
+
+      if(printLayout != null) {
+         List<VSAssemblyLayout> headerLayouts = printLayout.getHeaderLayouts();
+         List<VSAssemblyLayout> footerLayouts = printLayout.getFooterLayouts();
+         List<VSAssemblyLayout> printVSAssemblyLayouts = printLayout.getVSAssemblyLayouts();
+
+         Stream.<List<VSAssemblyLayout>>builder()
+            .add(headerLayouts).add(footerLayouts).add(printVSAssemblyLayouts).build()
+            .forEach(l -> l.removeIf(assemblyLayoutPredicate));
+      }
+
+      if(viewsheetLayouts != null) {
+         for(ViewsheetLayout viewsheetLayout : viewsheetLayouts) {
+            List<VSAssemblyLayout> vsAssemblyLayouts = viewsheetLayout.getVSAssemblyLayouts();
+
+            if(vsAssemblyLayouts != null) {
+               vsAssemblyLayouts.removeIf(assemblyLayoutPredicate);
+            }
+         }
+      }
    }
 
    private final VSObjectModelFactoryService objectModelService;

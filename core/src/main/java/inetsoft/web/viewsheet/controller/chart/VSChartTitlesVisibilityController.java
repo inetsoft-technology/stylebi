@@ -38,11 +38,11 @@ import java.security.Principal;
 public class VSChartTitlesVisibilityController extends VSChartController<VSChartTitlesVisibilityEvent> {
    @Autowired
    public VSChartTitlesVisibilityController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                            PlaceholderService placeholderService,
+                                            CoreLifecycleService coreLifecycleService,
                                             VSObjectPropertyService vsObjectPropertyService,
                                             ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
       this.vsObjectPropertyService = vsObjectPropertyService;
    }
 

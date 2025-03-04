@@ -29,7 +29,7 @@ import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.table.ChangeFormTableCellInputEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,7 +48,7 @@ class VSFormTableControllerTest {
    @BeforeEach
    void setup() throws Exception {
       controller = new VSFormTableController(viewsheetService, runtimeViewsheetRef,
-                                             placeholderService);
+              coreLifecycleService);
    }
 
    // Empty input is valid, set form object to data
@@ -81,7 +81,8 @@ class VSFormTableControllerTest {
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock ViewsheetService viewsheetService;
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;

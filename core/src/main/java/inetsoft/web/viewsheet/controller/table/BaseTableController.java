@@ -70,11 +70,11 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
     *                            WebSocket session.
     */
    protected BaseTableController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                 PlaceholderService placeholderService,
+                                 CoreLifecycleService coreLifecycleService,
                                  ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -1183,7 +1183,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
    }
 
    protected final RuntimeViewsheetRef runtimeViewsheetRef;
-   protected final PlaceholderService placeholderService;
+   protected final CoreLifecycleService coreLifecycleService;
    protected final ViewsheetService viewsheetService;
    private static final Logger LOG = LoggerFactory.getLogger(BaseTableController.class);
 }

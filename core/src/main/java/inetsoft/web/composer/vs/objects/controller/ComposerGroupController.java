@@ -30,6 +30,7 @@ import inetsoft.util.Catalog;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.objects.event.GroupVSObjectsEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -57,16 +58,20 @@ public class ComposerGroupController {
     */
    @Autowired
    public ComposerGroupController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                  PlaceholderService placeholderService,
+                                  CoreLifecycleService coreLifecycleService,
                                   ViewsheetService viewsheetService,
                                   VSObjectTreeService vsObjectTreeService,
-                                  VSObjectPropertyService vsObjectPropertyService)
+                                  VSObjectPropertyService vsObjectPropertyService,
+                                  VSCompositionService vsCompositionService,
+                                  VSLayoutService vsLayoutService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.vsObjectPropertyService = vsObjectPropertyService;
+      this.vsCompositionService = vsCompositionService;
+      this.vsLayoutService = vsLayoutService;
    }
 
    /**
@@ -139,7 +144,7 @@ public class ComposerGroupController {
          childs.toArray(childsName);
 
          // grouped element shouldn't exist independently in layout
-         childs.forEach(c -> placeholderService.removeLayoutAssembly(viewsheet, c));
+         childs.forEach(c -> vsLayoutService.removeLayoutAssembly(viewsheet, c));
          Point[] locs = GroupContainerVSAssembly.getUpperLeftAndBottomRight(viewsheet, childsName);
          Point upperLeft = locs[0];
          Point bottomRight = locs[1];
@@ -212,7 +217,7 @@ public class ComposerGroupController {
 
          // remove the old groups after a new container is created
          for(VSAssembly vsobj : oldGroups) {
-            placeholderService.removeVSAssembly(rvs, linkUri, vsobj, dispatcher, false, true);
+            coreLifecycleService.removeVSAssembly(rvs, linkUri, vsobj, dispatcher, false, true);
          }
 
          if(oname != null && !group.getAbsoluteName().equals(oname)) {
@@ -232,16 +237,16 @@ public class ComposerGroupController {
          for(TabVSAssembly tab : tabParents) {
             ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).setSelectedValue(tab.getSelected());
             ((TabVSAssemblyInfo) tab.getVSAssemblyInfo()).setSelected(null);
-            placeholderService.execute(rvs, tab.getAbsoluteName(), linkUri, VSAssembly.VIEW_CHANGED,
-               dispatcher);
+            coreLifecycleService.execute(rvs, tab.getAbsoluteName(), linkUri, VSAssembly.VIEW_CHANGED,
+                                         dispatcher);
          }
 
-         ChangedAssemblyList clist = placeholderService.createList(false, dispatcher, rvs, linkUri);
+         ChangedAssemblyList clist = coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
          box.reset(null, arr, clist, false, false, null);
-         placeholderService.execute(rvs, group.getName(), linkUri, clist, dispatcher, true);
+         coreLifecycleService.execute(rvs, group.getName(), linkUri, clist, dispatcher, true);
          //VSEventUtil.fixTipOrPopAssemblies(rvs, command);
-         placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
-         placeholderService.addLayerCommand(viewsheet, dispatcher);
+         coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+         vsCompositionService.addLayerCommand(viewsheet, dispatcher);
          VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
          PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
          dispatcher.sendCommand(treeCommand);
@@ -287,10 +292,10 @@ public class ComposerGroupController {
       }
 
       updateTab(group, viewsheet);
-      placeholderService.removeVSAssembly(rvs, linkUri, group, dispatcher, false, true);
-      placeholderService.updateZIndex(viewsheet, group);
-      placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-         objectName, new ChangedAssemblyList());
+      coreLifecycleService.removeVSAssembly(rvs, linkUri, group, dispatcher, false, true);
+      vsCompositionService.updateZIndex(viewsheet, group);
+      coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+                                           objectName, new ChangedAssemblyList());
 
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
@@ -464,8 +469,10 @@ public class ComposerGroupController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSObjectPropertyService vsObjectPropertyService;
+   private final VSCompositionService vsCompositionService;
+   private final VSLayoutService vsLayoutService;
 }

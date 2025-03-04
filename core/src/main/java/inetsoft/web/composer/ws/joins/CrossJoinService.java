@@ -25,7 +25,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.vswizard.command.FireRecommandCommand;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +39,7 @@ import java.security.Principal;
 @Service
 public class CrossJoinService {
    @Autowired
-   public CrossJoinService(PlaceholderService service) {
+   public CrossJoinService(CoreLifecycleService service) {
       this.service = service;
    }
 
@@ -117,5 +117,5 @@ public class CrossJoinService {
 
 
    public static final String CONFIRM_CROSSJOIN = "confirm.crossjoin";
-   private final PlaceholderService service;
+   private final CoreLifecycleService service;
 }

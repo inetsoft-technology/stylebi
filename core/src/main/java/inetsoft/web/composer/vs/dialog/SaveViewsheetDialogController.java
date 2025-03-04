@@ -53,13 +53,13 @@ import java.util.Vector;
 public class SaveViewsheetDialogController {
    @Autowired
    public SaveViewsheetDialogController(
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       RuntimeViewsheetRef runtimeViewsheetRef,
       AssetRepository assetRepository,
       ViewsheetService viewsheetService,
       ViewsheetSettingsService viewsheetSettingsService)
    {
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
       this.viewsheetSettingsService = viewsheetSettingsService;
@@ -320,7 +320,7 @@ public class SaveViewsheetDialogController {
          rvs.setEntry(entry);
          rvs.setEditable(true);
 
-         placeholderService.setViewsheetInfo(rvs, linkUri, commandDispatcher);
+         coreLifecycleService.setViewsheetInfo(rvs, linkUri, commandDispatcher);
          SaveSheetCommand command = SaveSheetCommand.builder()
             .savePoint(rvs.getSavePoint())
             .id(rvs.getEntry().toIdentifier())
@@ -359,7 +359,7 @@ public class SaveViewsheetDialogController {
       AutoSaveUtils.recycleUserAutoSave(user);
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
    private final ViewsheetSettingsService viewsheetSettingsService;

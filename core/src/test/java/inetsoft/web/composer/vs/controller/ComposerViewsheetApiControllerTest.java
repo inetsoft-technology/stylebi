@@ -49,12 +49,13 @@ class ComposerViewsheetApiControllerTest {
    void setup() throws Exception {
       controller = new ComposerViewsheetController(runtimeViewsheetRef,
                                                    runtimeViewsheetManager,
-                                                   placeholderService,
+                                                   coreLifecycleService,
                                                    viewsheetService,
                                                    vsObjectTreeService,
                                                    refreshController,
                                                    vsLayoutService,
-                                                   objectModelService);
+                                                   objectModelService,
+                                                   vsCompositionService);
    }
 
    // Bug #10686 Make sure permissions are set for preview viewsheets
@@ -68,17 +69,17 @@ class ComposerViewsheetApiControllerTest {
       when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
 
       controller.previewViewsheet(event, principal, dispatcher, "");
-      final InOrder placeholderServiceOrder = inOrder(placeholderService);
+      final InOrder coreLifecycleServiceOrder = inOrder(coreLifecycleService);
 
       // first refresh
-      placeholderServiceOrder.verify(placeholderService).refreshViewsheet(
+      coreLifecycleServiceOrder.verify(coreLifecycleService).refreshViewsheet(
          eq(rvs), any(), any(), anyInt(),
          anyInt(), anyBoolean(), any(), eq(dispatcher),
          anyBoolean(), anyBoolean(), anyBoolean(), any()
       );
 
       // then set permissions
-      placeholderServiceOrder.verify(placeholderService)
+      coreLifecycleServiceOrder.verify(coreLifecycleService)
          .setPermission(eq(rvs), eq(principal), eq(dispatcher));
    }
 
@@ -94,7 +95,8 @@ class ComposerViewsheetApiControllerTest {
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock RuntimeViewsheetManager runtimeViewsheetManager;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock ViewsheetService viewsheetService;
    @Mock RuntimeViewsheet rvs;
    @Mock ViewsheetSandbox box;
@@ -108,6 +110,7 @@ class ComposerViewsheetApiControllerTest {
    @Mock VSRefreshController refreshController;
    @Mock VSLayoutService vsLayoutService;
    @Mock VSObjectModelFactoryService objectModelService;
+   @Mock VSCompositionService vsCompositionService;
 
 
    private ComposerViewsheetController controller;

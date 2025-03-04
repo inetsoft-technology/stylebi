@@ -38,10 +38,10 @@ import java.security.Principal;
 public class VSChartMaxModeController extends VSChartController<VSChartEvent> {
    @Autowired
    public VSChartMaxModeController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                   PlaceholderService placeholderService,
+                                   CoreLifecycleService coreLifecycleService,
                                    ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    /**

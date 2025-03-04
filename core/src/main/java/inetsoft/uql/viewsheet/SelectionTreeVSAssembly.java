@@ -1001,7 +1001,7 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
     * @return the change hint.
     */
    public int setStateCompositeSelectionValue(CompositeSelectionValue cval) {
-      // shouldn't ignore the value if it's disabled. the PlaceholderService.refreshViewsheet:1011
+      // shouldn't ignore the value if it's disabled. the CoreLifecycleService.refreshViewsheet:1011
       // sets the enabled to false during addDeletedVSObject(), so if we ignore the value here,
       // value set throught script would not be applied. (63150)
       //if(isEnabled()) {

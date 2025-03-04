@@ -46,12 +46,12 @@ import java.util.Arrays;
 public class VSChartDrillController extends VSChartController<VSChartDrillEvent> {
    @Autowired
    VSChartDrillController(RuntimeViewsheetRef runtimeViewsheetRef,
-                          PlaceholderService placeholderService,
+                          CoreLifecycleService coreLifecycleService,
                           VSBindingService bindingFactory,
                           ViewsheetService viewsheetService,
                           VSChartDrillHandler chartDrillHandler)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
 
       this.bindingFactory = bindingFactory;
       this.chartDrillHandler = chartDrillHandler;

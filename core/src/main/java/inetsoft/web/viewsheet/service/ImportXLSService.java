@@ -26,7 +26,7 @@ import java.util.Set;
 
 public interface ImportXLSService {
    void updateViewsheet(File excelFile, String type, RuntimeViewsheet rvs, String linkUri,
-                        CommandDispatcher dispatcher, PlaceholderService placeholderService,
+                        CommandDispatcher dispatcher, CoreLifecycleService coreLifecycleService,
                         Catalog catalog, List<String> assemblies, Set<String> notInRange)
       throws Exception;
 

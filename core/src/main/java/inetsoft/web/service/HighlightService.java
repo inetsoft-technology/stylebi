@@ -19,19 +19,24 @@ package inetsoft.web.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.data.BoxDataSet;
-import inetsoft.report.TableDataPath;
+import inetsoft.report.*;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.*;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.binding.BaseField;
+import inetsoft.report.internal.binding.Field;
+import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.asset.ColumnRef;
-import inetsoft.uql.asset.DateRangeRef;
-import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.viewsheet.XAggregateRef;
+import inetsoft.uql.XCube;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.*;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.adhoc.model.FontInfo;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -299,6 +304,436 @@ public class HighlightService {
          ((ColumnRef) ref).setDataType(
             DateRangeRef.getDataType(rangeRef.getDateOption(), originalType));
       }
+   }
+
+   /**
+    * Get data refs available for the assembly. Called from highlight and hyperlink dialogs
+    * to get available fields.
+    *
+    * @param rvs        the Runtime Viewsheet instance
+    * @param assembly   the VS Assembly
+    * @param row        the selected row
+    * @param col        the selected col
+    * @param dpath      the table data path for table assemblies
+    * @param colName    the selected column name
+    * @return  List of available data refs
+    * @throws Exception if failed to get data refs
+    */
+   public List<DataRef> getRefsForVSAssembly(RuntimeViewsheet rvs, VSAssembly assembly, int row,
+                                             int col, TableDataPath dpath, String colName,
+                                             boolean isHighlight)
+      throws Exception
+   {
+      return getRefsForVSAssembly(rvs, assembly, row, col, dpath, colName, isHighlight, false);
+   }
+
+   /**
+    * Get data refs available for the assembly. Called from highlight and hyperlink dialogs
+    * to get available fields.
+    *
+    * @param rvs        the Runtime Viewsheet instance
+    * @param assembly   the VS Assembly
+    * @param row        the selected row
+    * @param col        the selected col
+    * @param dpath      the table data path for table assemblies
+    * @param colName    the selected column name
+    * @param applyDiscrete whether to apply discrete for aggregate.
+    * @return  List of available data refs
+    * @throws Exception if failed to get data refs
+    */
+   public List<DataRef> getRefsForVSAssembly(RuntimeViewsheet rvs, VSAssembly assembly, int row,
+                                             int col, TableDataPath dpath, String colName,
+                                             boolean isHighlight, boolean applyDiscrete)
+      throws Exception
+   {
+      List<DataRef> fieldList = new ArrayList<>();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+
+      if(box == null) {
+         return fieldList;
+      }
+
+      if(assembly instanceof CrosstabVSAssembly) {
+         VSCrosstabInfo info = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
+         DataRef[] cheaders = info.getRuntimeColHeaders();
+         DataRef[] rheaders = isHighlight ?
+            info.getRuntimeRowHeaders() : info.getPeriodRuntimeRowHeaders();
+         XDimensionRef[] dcTempGroups = info.getDcTempGroups();
+         DataRef[] aggregates = info.getRuntimeAggregates();
+         Object data = box.getData(assembly.getAbsoluteName());
+
+         if(data instanceof TableLens) {
+            TableLens table = (TableLens) data;
+            Field[] fields = TableHighlightAttr.getAvailableFields(table, dpath);
+
+            if(fields != null && fields.length > 0) {
+               for(int i = 0; !isHighlight && i < fields.length; i++) {
+                  String name = fields[i].getName();
+
+                  if(name.equals(CrossTabFilter.ROW_GRAND_TOTAL_HEADER) ||
+                     name.equals(CrossTabFilter.COL_GRAND_TOTAL_HEADER))
+                  {
+                     AttributeRef attr = new AttributeRef(null, name);
+                     attr.setDataType(fields[i].getDataType());
+                     fieldList.add(attr);
+                  }
+               }
+
+               for(DataRef rheader : rheaders) {
+                  DataRef ref = getDimensionColumnRef(rheader);
+
+                  for(Field f : fields) {
+                     if(isSameField(ref, f)) {
+                        fieldList.add(ref);
+                        break;
+                     }
+                  }
+               }
+
+               for(DataRef cheader : cheaders) {
+                  DataRef ref = getDimensionColumnRef(cheader);
+
+                  for(Field f : fields) {
+                     if(isSameField(ref, f)) {
+                        fieldList.add(ref);
+                        break;
+                     }
+                  }
+               }
+
+               for(DataRef tempGroup : dcTempGroups) {
+                  DataRef ref = getDimensionColumnRef(tempGroup);
+
+                  for(Field f : fields) {
+                     if(isSameField(ref, f)) {
+                        fieldList.add(ref);
+                        break;
+                     }
+                  }
+               }
+
+               for(DataRef aggregate : aggregates) {
+                  DataRef ref = getAggregateColumn(aggregate);
+
+                  for(Field f : fields) {
+                     if(isSameField(ref, f, true)) {
+                        if(fieldList.contains(f)) {
+                           continue;
+                        }
+
+                        fieldList.add(f);
+                        break;
+                     }
+                  }
+               }
+            }
+         }
+      }
+      else if(assembly instanceof TableVSAssembly) {
+         Object data = box.getData(assembly.getAbsoluteName());
+         boolean iscrosstab = false;
+
+         if(data instanceof TableLens) {
+            TableLens table = (TableLens) data;
+            iscrosstab = table.getDescriptor().getType() == TableDataDescriptor.CROSSTAB_TABLE;
+            boolean vsAssemblyBinding = VSUtil.isVSAssemblyBinding(assembly);
+
+            while(!iscrosstab && table instanceof TableFilter && !vsAssemblyBinding) {
+               table = ((TableFilter) table).getTable();
+
+               if(table.getDescriptor().getType() == TableDataDescriptor.CROSSTAB_TABLE) {
+                  iscrosstab = true;
+               }
+            }
+
+            if(iscrosstab || vsAssemblyBinding) {
+               Field[] fields = vsAssemblyBinding ?
+                  TableHighlightAttr.getAvailableFields(table, row, col) :
+                  TableHighlightAttr.getAvailableFields((TableLens) data, dpath);
+
+               if(fields != null && fields.length > 0) {
+                  fieldList.addAll(Arrays.asList(fields));
+               }
+            }
+         }
+
+         if(fieldList.isEmpty()) {
+            if(!iscrosstab) {
+               ColumnSelection cols = VSUtil.getBaseColumns(assembly, true);
+               VSUtil.mergeColumnAlias(cols, ((TableVSAssembly)assembly).getColumnSelection());
+
+               for(int i = 0; i < cols.getAttributeCount(); i++) {
+                  fieldList.add(cols.getAttribute(i));
+               }
+            }
+            else {
+               Worksheet ws = box.getWorksheet();
+               AbstractTableAssembly tassembly = (AbstractTableAssembly)
+                  ws.getAssembly(assembly.getTableName());
+
+               if(tassembly.isAggregate()) {
+                  ColumnSelection columns = tassembly.getColumnSelection(true);
+                  columns = VSUtil.getVSColumnSelection(columns);
+
+                  for(int i = 0; i < columns.getAttributeCount(); i++) {
+                     fieldList.add(columns.getAttribute(i));
+                  }
+               }
+               else {
+                  DataVSAQuery query = (DataVSAQuery) VSAQuery.
+                     createVSAQuery(box, assembly, DataMap.NORMAL);
+                  ColumnSelection columns;
+                  columns = query.getDefaultColumnSelection();
+                  columns = VSUtil.getVSColumnSelection(columns);
+
+                  for(int i = 0; i < columns.getAttributeCount(); i++) {
+                     fieldList.add(columns.getAttribute(i));
+                  }
+               }
+            }
+         }
+      }
+      else if(assembly instanceof CalcTableVSAssembly) {
+         TableLens table = (TableLens) box.getData(assembly.getAbsoluteName());
+         Field[] fields = TableHighlightAttr.getAvailableFields(table, row, col);
+
+         if(fields != null && fields.length > 0) {
+            for(Field field : fields) {
+               if(!fieldList.contains(field)) {
+                  fieldList.add(field);
+               }
+            }
+         }
+      }
+      else if(assembly instanceof ChartVSAssembly) {
+         ChartVSAssemblyInfo assemblyInfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
+         SourceInfo sourceInfo = assemblyInfo.getSourceInfo();
+         String ctype = sourceInfo == null ? null :
+            VSUtil.getCubeType(sourceInfo.getPrefix(), sourceInfo.getSource());
+         VSChartInfo chartInfo = assemblyInfo.getVSChartInfo();
+         ColumnSelection columns = GraphUtil.createViewColumnSelection(chartInfo, colName,
+                                                                       applyDiscrete, assemblyInfo.getChartDescriptor());
+         columns = sortColumns(columns, ctype);
+
+         for(int i = 0; i < columns.getAttributeCount(); i++) {
+            fieldList.add(columns.getAttribute(i));
+         }
+      }
+
+      return fieldList;
+   }
+
+   public List<String> getNamedGroupFields(RuntimeCalcTableLens table, List<DataRef> fields) {
+      List<String> namedGroupFields = new ArrayList<>();
+      TableLayout layout = table.getElement().getTableLayout();
+
+      for(int i = 0; i < fields.size(); i++) {
+         if(fields.get(i) == null) {
+            continue;
+         }
+
+         String fieldName = fields.get(i).getName();
+         Point pos = table.getCellLocation(fieldName);
+         int row = pos.y;
+         int col = pos.x;
+         CellBinding binding = layout.getCellBinding(row, col);
+
+         if(binding.getBType() != TableCellBinding.GROUP) {
+            continue;
+         }
+
+         if(binding.getType() == TableCellBinding.BIND_FORMULA) {
+            String formula = binding.getValue();
+
+            if(formula == null || !formula.startsWith("mapList(")) {
+               continue;
+            }
+
+            namedGroupFields.add(fieldName);
+            continue;
+         }
+
+         TableCellBinding cellBinding = (TableCellBinding) binding;
+
+         if(cellBinding.getOrderInfo(false) != null &&
+            cellBinding.getOrderInfo(false).getRealNamedGroupInfo() != null)
+         {
+            namedGroupFields.add(fieldName);
+         }
+      }
+
+      return namedGroupFields;
+   }
+
+   /**
+    * Gets the correct group column reference for date range columns, Called from highlight.
+    * @param ref the base ref.
+    * @return the correct header ref.
+    */
+   public DataRef getDimensionColumnRef(DataRef ref) {
+      if(ref instanceof VSDimensionRef) {
+         VSDimensionRef dref = (VSDimensionRef) ref;
+         GroupRef gref = dref.createGroupRef(null);
+         ColumnRef cref = (ColumnRef) gref.getDataRef();
+
+         if(cref.getDataRef() instanceof DateRangeRef) {
+            cref.setView(Tool.localize(cref.toView()));
+            // @by davyc, DateRangeRef data type is number or timeinstant,
+            //  so here use original type, otherwise for part option, condition
+            //  editor will be error for time editor, in fact it is default
+            // cref.setDataType(XSchema.DATE);
+            cref.setDataType(cref.getDataRef().getDataType());
+            ref = cref;
+         }
+         // fix bug1288617773137, and crosstab highlight
+         else if(cref.getDataRef() instanceof NamedRangeRef) {
+            ref = cref;
+         }
+         else {
+            DataRef cdref = cref.getDataRef();
+
+            // for cube ref, use correct data ref
+            if((cdref.getRefType() & DataRef.CUBE) != 0) {
+               String attr = dref.getFullName();
+               attr = VSCubeTableLens.getDisplayFullValue(attr);
+               AttributeRef attrref = new AttributeRef(null, attr);
+               attrref.setDataType(cdref.getDataType());
+               attrref.setRefType(cdref.getRefType());
+               cref.setDataRef(attrref);
+               ref = cref;
+            }
+         }
+      }
+
+      return ref;
+   }
+
+   private boolean isSameField(DataRef ref1, DataRef ref2) {
+      return isSameField(ref1, ref2, false);
+   }
+
+   private boolean isSameField(DataRef ref1, DataRef ref2, boolean isAggregate) {
+      if(ref1 == null || ref2 == null) {
+         return false;
+      }
+
+      if(ref1.equals(ref2)) {
+         return true;
+      }
+
+      String refName1 = getDataRefName(ref1);
+      String refName2 = getDataRefName(ref2);
+
+      if(isAggregate) {
+         if(Tool.isEmptyString(refName1) || Tool.isEmptyString(refName2)) {
+            return false;
+         }
+
+         if(refName2.startsWith(refName1 + ".") ) {
+            return refName2.substring(refName1.length() + 1).matches("\\d+");
+         }
+      }
+
+      return Tool.equals(refName1, refName2);
+   }
+
+   private String getDataRefName(DataRef ref) {
+      String name = ref.getName();
+
+      if(ref instanceof ColumnRef && ((ColumnRef) ref).getDataRef() instanceof DateRangeRef) {
+         DateRangeRef dataRef = (DateRangeRef) ((ColumnRef) ref).getDataRef();
+         name = dataRef.getDateOption() == DateRangeRef.NONE_INTERVAL ? dataRef.getDataRef().getName() : name;
+      }
+
+      return name;
+   }
+
+   /**
+    * Add aggregate column.
+    */
+   private DataRef getAggregateColumn(DataRef dref) {
+      VSAggregateRef aggr = (VSAggregateRef) dref;
+      DataRef ref = aggr.getDataRef();
+
+      if(ref instanceof ColumnRef) {
+         ColumnRef col2 = (ColumnRef) ref;
+         DataRef bref = col2.getDataRef();
+
+         if(bref instanceof AliasDataRef || bref instanceof AttributeRef) {
+            int refType = bref.getRefType();
+            String field = bref.getAttribute();
+
+            if(aggr.getCalculator() != null) {
+               field = aggr.getFullName(field, null, aggr.getCalculator());
+            }
+
+            bref = new AttributeRef(field);
+            ((AttributeRef) bref).setRefType(refType);
+            col2 = (ColumnRef) col2.clone();
+            col2.setDataRef(bref);
+            col2.setView(dref.toView());
+            ref = col2;
+         }
+         else if(bref instanceof ExpressionRef) {
+            String field = bref.getAttribute();
+
+            if(aggr.getCalculator() != null) {
+               field = aggr.getFullName(field, null, aggr.getCalculator());
+            }
+
+            bref = (ExpressionRef) bref.clone();
+            ((ExpressionRef) bref).setName(field);
+            col2 = (ColumnRef) col2.clone();
+            col2.setDataRef(bref);
+            col2.setView(dref.toView());
+            ref = col2;
+         }
+
+         AggregateFormula formula = aggr.getFormula();
+
+         if(formula != null && formula.getDataType() != null) {
+            col2.setDataType(formula.getDataType());
+         }
+      }
+
+      return ref;
+   }
+
+   /**
+    * Sort the columns by name. For Chart GetChartColumnsEvent
+    */
+   private ColumnSelection sortColumns(ColumnSelection cols, String ctype) {
+      List<DataRef> list = new ArrayList<>();
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+
+         if(ref instanceof ColumnRef) {
+            String view = ((ColumnRef) ref).getView();
+            ColumnRef column = ((ColumnRef) ref).getDataRef() instanceof DateRangeRef ||
+               ((ColumnRef) ref).getDataRef() instanceof NamedRangeRef
+               ? ((ColumnRef) ref) : VSUtil.getVSColumnRef((ColumnRef) ref);
+
+            if(view != null && (XCube.SQLSERVER.equals(ctype) &&
+               (ref.getRefType() & DataRef.CUBE_MEASURE) ==
+                  DataRef.CUBE_MEASURE ||
+               cols.getProperty("View_" + view) != null))
+            {
+               column.setView(view);
+            }
+
+            list.add(column);
+         }
+      }
+
+      list.sort(new VSUtil.DataRefComparator());
+      cols.clear();
+
+      for(DataRef ref : list) {
+         cols.addAttribute(ref);
+      }
+
+      return cols;
    }
 
    private final DataRefModelFactoryService dataRefModelFactoryService;

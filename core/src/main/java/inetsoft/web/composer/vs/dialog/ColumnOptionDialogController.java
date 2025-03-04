@@ -50,18 +50,18 @@ public class ColumnOptionDialogController {
     * Creates a new instance of <tt>ColumnOptionDialogController</tt>.
     *
     * @param runtimeViewsheetRef RuntimeViewsheetRef instance
-    * @param placeholderService  PlaceholderService instance
+    * @param coreLifecycleService  CoreLifecycleService instance
     * @param viewsheetService    Viewsheet engine
     * @param vsInputService      VSInputService instance
     */
    @Autowired
    public ColumnOptionDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                       PlaceholderService placeholderService,
+                                       CoreLifecycleService coreLifecycleService,
                                        ViewsheetService viewsheetService,
                                        VSInputService vsInputService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.vsInputService = vsInputService;
    }
@@ -383,12 +383,12 @@ public class ColumnOptionDialogController {
       cols.setAttribute(col, formRef);
 
       int hint = VSAssembly.OUTPUT_DATA_CHANGED;
-      this.placeholderService
+      this.coreLifecycleService
          .execute(rvs, assembly.getAbsoluteName(), linkUri, hint, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSInputService vsInputService;
 }

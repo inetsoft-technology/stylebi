@@ -44,12 +44,14 @@ class VSAnnotationAddControllerTest {
    @BeforeEach
    void setUp() throws Exception {
       runtimeViewsheetRef = mock(RuntimeViewsheetRef.class);
-      placeholderService = mock(PlaceholderService.class);
+      coreLifecycleService = mock(CoreLifecycleService.class);
       viewsheetService = mock(ViewsheetService.class);
       securityEngine = mock(SecurityEngine.class);
-      service = new VSObjectService(placeholderService,
+      sharedFilterService = mock(SharedFilterService.class);
+      service = new VSObjectService(coreLifecycleService,
                                     viewsheetService,
-                                    securityEngine);
+                                    securityEngine,
+                                    sharedFilterService);
 
       principal = mock(Principal.class);
       dispatcher = mock(CommandDispatcher.class);
@@ -72,7 +74,7 @@ class VSAnnotationAddControllerTest {
    @AfterEach
    void tearDown() {
       runtimeViewsheetRef = null;
-      placeholderService = null;
+      coreLifecycleService = null;
       viewsheetService = null;
       securityEngine = null;
       principal = null;
@@ -99,18 +101,18 @@ class VSAnnotationAddControllerTest {
       controller.addViewsheetAnnotation(event, "", principal, dispatcher);
 
       // check annotation and annotation rectangle were created
-      verify(placeholderService)
+      verify(coreLifecycleService)
          .addDeleteVSObject(eq(rvs), isA(AnnotationVSAssembly.class), eq(dispatcher));
-      verify(placeholderService)
+      verify(coreLifecycleService)
          .addDeleteVSObject(eq(rvs), isA(AnnotationRectangleVSAssembly.class), eq(dispatcher));
 
       // check viewsheet was laid out
       final String id = rvs.getID();
-      verify(placeholderService)
+      verify(coreLifecycleService)
          .layoutViewsheet(eq(rvs), eq(id), nullable(String.class), eq(dispatcher));
 
       // check that parent assembly is null
-      verify(placeholderService)
+      verify(coreLifecycleService)
          .refreshVSAssembly(eq(rvs), (VSAssembly) isNull(), eq(dispatcher));
    }
 
@@ -145,24 +147,24 @@ class VSAnnotationAddControllerTest {
       controller.addAssemblyAnnotation(event, "", principal, dispatcher);
 
       // check annotation and annotation rectangle were created
-      verify(placeholderService)
+      verify(coreLifecycleService)
          .addDeleteVSObject(eq(rvs), isA(AnnotationVSAssembly.class), eq(dispatcher));
-      verify(placeholderService)
+      verify(coreLifecycleService)
          .addDeleteVSObject(eq(rvs), isA(AnnotationRectangleVSAssembly.class), eq(dispatcher));
 
       // get the names of the assemblies created
       ArgumentCaptor<VSAssembly> annotationArg = ArgumentCaptor.forClass(VSAssembly.class);
-      verify(placeholderService, times(2))
+      verify(coreLifecycleService, times(2))
          .addDeleteVSObject(eq(rvs), annotationArg.capture(), eq(dispatcher));
       final List<VSAssembly> annotations = annotationArg.getAllValues();
 
       // check viewsheet was laid out
       final String id = rvs.getID();
-      verify(placeholderService)
+      verify(coreLifecycleService)
          .layoutViewsheet(eq(rvs), eq(id), nullable(String.class), eq(dispatcher));
 
       // check that our parent assembly is refreshed
-      verify(placeholderService)
+      verify(coreLifecycleService)
          .refreshVSAssembly(eq(rvs), eq(parentAssembly), eq(dispatcher));
 
       // check that the name of the created annotation is referenced in the parent assembly
@@ -172,7 +174,7 @@ class VSAnnotationAddControllerTest {
    }
 
    private RuntimeViewsheetRef runtimeViewsheetRef;
-   private PlaceholderService placeholderService;
+   private CoreLifecycleService coreLifecycleService;
    private ViewsheetService viewsheetService;
    private SecurityEngine securityEngine;
    private Principal principal;
@@ -181,4 +183,5 @@ class VSAnnotationAddControllerTest {
    private Viewsheet viewsheet;
    private VSObjectService service;
    private VSAnnotationService annotationService;
+   private SharedFilterService sharedFilterService;
 }

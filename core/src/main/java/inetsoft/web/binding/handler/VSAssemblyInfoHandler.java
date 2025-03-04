@@ -54,8 +54,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableDrillController;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
-import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.*;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -65,15 +64,18 @@ import java.util.List;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 @Component
 public class VSAssemblyInfoHandler {
    @Autowired
-   public VSAssemblyInfoHandler(PlaceholderService placeholderService,
-                                DataRefModelFactoryService dataRefService)
+   public VSAssemblyInfoHandler(CoreLifecycleService coreLifecycleService,
+                                DataRefModelFactoryService dataRefService,
+                                ParameterService parameterService)
    {
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.dataRefService = dataRefService;
+      this.parameterService = parameterService;
    }
 
    public void apply(RuntimeViewsheet rvs, VSAssemblyInfo info, ViewsheetService engine)
@@ -173,7 +175,7 @@ public class VSAssemblyInfoHandler {
                if(!vars.isEmpty() && !vs.getViewsheetInfo().isDisableParameterSheet()) {
                   UserVariable[] vtable = new UserVariable[vars.size()];
                   vars.toArray(vtable);
-                  placeholderService.collectParameters(vs, vtable,
+                  parameterService.collectParameters(vs, vtable,
                                                        false, commandDispatcher);
                   return;
                }
@@ -262,8 +264,8 @@ public class VSAssemblyInfoHandler {
             }
 
             try {
-               this.placeholderService.execute(rvs, assembly.getAbsoluteName(),
-                                               linkUri, hint, refreshData, commandDispatcher);
+               this.coreLifecycleService.execute(rvs, assembly.getAbsoluteName(),
+                                                 linkUri, hint, refreshData, commandDispatcher);
 
                if(assembly instanceof CrosstabVSAssembly) {
                   TableLens lens2 = box.getVSTableLens(name, false);
@@ -273,13 +275,13 @@ public class VSAssemblyInfoHandler {
                      (CrosstabVSAssemblyInfo) assembly.getVSAssemblyInfo(), lens2);
 
                   if(changed) {
-                     this.placeholderService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
-                                                     refreshData, commandDispatcher);
+                     this.coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
+                                                       refreshData, commandDispatcher);
                   }
                }
             }
             catch(ConfirmException e) {
-               if(!this.placeholderService.waitForMV(e, rvs, commandDispatcher)) {
+               if(!this.coreLifecycleService.waitForMV(e, rvs, commandDispatcher)) {
                   throw e;
                }
             }
@@ -288,8 +290,8 @@ public class VSAssemblyInfoHandler {
             if(assembly instanceof TableVSAssembly && fixColumnWidths(assembly, box) &&
                commandDispatcher != null)
             {
-               this.placeholderService.refreshVSAssembly(rvs, assembly.getAbsoluteName(),
-                                                         commandDispatcher, true);
+               this.coreLifecycleService.refreshVSAssembly(rvs, assembly.getAbsoluteName(),
+                                                           commandDispatcher, true);
             }
 
             if(assembly instanceof TableDataVSAssembly) {
@@ -298,10 +300,10 @@ public class VSAssemblyInfoHandler {
 
             if(commandDispatcher != null) {
                try {
-                  this.placeholderService.layoutViewsheet(rvs, rvs.getID(), url, commandDispatcher);
+                  this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), url, commandDispatcher);
                }
                catch(ConfirmException e) {
-                  if(!this.placeholderService.waitForMV(e, rvs, commandDispatcher)) {
+                  if(!this.coreLifecycleService.waitForMV(e, rvs, commandDispatcher)) {
                      throw e;
                   }
                }
@@ -939,7 +941,7 @@ public class VSAssemblyInfoHandler {
     */
    private void updateLocalMap(Viewsheet vs, TableDataVSAssembly assembly) {
       ViewsheetInfo vinfo = vs.getViewsheetInfo();
-      String[] children = placeholderService.getChildNodes(assembly);
+      String[] children = getLocalizationComponents(assembly);
       String[] components = vinfo.getLocalComponents();
 
       for(String component : components) {
@@ -1299,7 +1301,159 @@ public class VSAssemblyInfoHandler {
       }
    }
 
+   /**
+    * Get localization components for the given assembly
+    */
+   public String[] getLocalizationComponents(Assembly assembly) {
+      String[] childNodes = null;
+      int type = assembly.getAssemblyType();
+
+      if(type == Viewsheet.CHART_ASSET) {
+         childNodes = new String[]{"Title", "X Axis Title" , "Y Axis Title",
+                                   "Secondary X Axis Title", "Secondary Y Axis Title",
+                                   "Color Legend Axis Title", "Shape Legend Axis Title",
+                                   "Size Legend Axis Title"};
+      }
+      else if(type == Viewsheet.CROSSTAB_ASSET) {
+         CrosstabVSAssembly crossTab = (CrosstabVSAssembly) assembly;
+         DataRef[] rows = null;
+         DataRef[] cols = null;
+         DataRef[] aggs = null;
+         List<String> list = new ArrayList<>();
+         list.add("Title");
+         list.add("Grand Total");
+         list.add("Group Total");
+
+         if(crossTab.getVSCrosstabInfo() != null) {
+            rows = crossTab.getVSCrosstabInfo().getRuntimeRowHeaders();
+            cols = crossTab.getVSCrosstabInfo().getRuntimeColHeaders();
+            aggs = crossTab.getVSCrosstabInfo().getRuntimeAggregates();
+         }
+
+         for(int j = 0; rows != null && j < rows.length; j++) {
+            list.add(rows[j].getName());
+         }
+
+         if(aggs != null && (aggs.length > 1 ||
+            cols == null || cols.length == 0 ||
+            rows == null || rows.length == 0))
+         {
+            for(DataRef agg : aggs) {
+               VSAggregateRef vref = (VSAggregateRef) agg;
+               String field = agg.getName();
+
+               if(vref.getCalculator() != null) {
+                  field = vref.getFullName(field, null, vref.getCalculator());
+               }
+
+               list.add(field);
+            }
+         }
+
+         childNodes = new String[list.size()];
+         list.toArray(childNodes);
+      }
+      else if(type == Viewsheet.FORMULA_TABLE_ASSET) {
+         TableLens lens = ((CalcTableVSAssembly) assembly).getBaseTable();
+         TableDataDescriptor desc =
+            lens != null ? lens.getDescriptor() : null;
+         List<String> list = new ArrayList<>();
+
+         for(int row = 0; desc != null && row < lens.getHeaderRowCount() && lens.moreRows(row);
+             row++)
+         {
+            for(int col = 0; col < lens.getColCount(); col++) {
+               TableDataPath path = desc.getCellDataPath(row, col);
+
+               if(path.getType() == TableDataPath.HEADER || row == 0) {
+                  String object = (String) lens.getObject(row, col);
+
+                  if(object != null && !object.startsWith("=")) {
+                     list.add(object);
+                  }
+               }
+            }
+         }
+
+         list.add("Title");
+         childNodes = new String[list.size()];
+         list.toArray(childNodes);
+      }
+      else if(type == Viewsheet.CHECKBOX_ASSET ||
+         type == Viewsheet.RADIOBUTTON_ASSET ||
+         type == Viewsheet.TABLE_VIEW_ASSET)
+      {
+         String[] title = new String[]{"Title"};
+         String[] columns = null;
+
+         if(type == Viewsheet.TABLE_VIEW_ASSET) {
+            ColumnSelection sel = ((TableVSAssembly) assembly).getColumnSelection();
+            columns = sel != null ? sel.stream().map(DataRef::getName).toArray(String[]::new) : null;
+         }
+
+         childNodes = (String[]) Tool.mergeArray(title, columns);
+      }
+      else if(type == Viewsheet.CALENDAR_ASSET ||
+         type == Viewsheet.SELECTION_TREE_ASSET ||
+         type == Viewsheet.SELECTION_LIST_ASSET ||
+         type == Viewsheet.CURRENTSELECTION_ASSET)
+      {
+         childNodes = new String[]{"Title"};
+      }
+
+      return childNodes;
+   }
+
+   /**
+    * When an assembly has been moved, check if any lines point to it and make sure
+    * the line endpoints are updated.
+    */
+   public void updateAnchoredLines(RuntimeViewsheet rvs, List<String> assemblies,
+                                   CommandDispatcher dispatcher)
+      throws Exception
+   {
+      Viewsheet viewsheet = rvs.getViewsheet();
+      //get all the line assemblies in the viewsheet
+      List<LineVSAssembly> lines = Arrays.stream(viewsheet.getAssemblies())
+         .filter(LineVSAssembly.class::isInstance)
+         .map(LineVSAssembly.class::cast)
+         .collect(Collectors.toList());
+
+      for(LineVSAssembly line: lines) {
+         updateAnchoredLinePosition(line, viewsheet, rvs, assemblies, dispatcher);
+      }
+   }
+
+   private void updateAnchoredLinePosition(LineVSAssembly line, Viewsheet viewsheet,
+                                           RuntimeViewsheet rvs,
+                                           List<String> assemblies,
+                                           CommandDispatcher dispatcher)
+      throws Exception
+   {
+      LineVSAssemblyInfo lineAssemblyInfo = (LineVSAssemblyInfo) line.getInfo();
+      line.updateAnchor(viewsheet);
+
+      //change endPos of the line
+      if(assemblies.contains(lineAssemblyInfo.getEndAnchorID())) {
+         Point currEndPos = line.getAnchorPos(viewsheet, lineAssemblyInfo,
+                                              lineAssemblyInfo.getEndAnchorID(),
+                                              lineAssemblyInfo.getEndAnchorPos());
+         line.setEndPos(currEndPos);
+      }
+
+      // change startPos of the line
+      if(assemblies.contains(lineAssemblyInfo.getStartAnchorID())) {
+         Point currStartPos = line.getAnchorPos(viewsheet, lineAssemblyInfo,
+                                                lineAssemblyInfo.getStartAnchorID(),
+                                                lineAssemblyInfo.getStartAnchorPos());
+         line.setStartPos(currStartPos);
+      }
+
+      coreLifecycleService.refreshVSAssembly(rvs, line, dispatcher);
+   }
+
    private static final int CELL_MARGIN = 6;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final DataRefModelFactoryService dataRefService;
+   private final ParameterService parameterService;
 }

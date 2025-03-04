@@ -63,10 +63,12 @@ import java.util.regex.Pattern;
 @Component
 public class VSExportService {
    @Autowired
-   public VSExportService(ViewsheetService viewsheetService, PlaceholderService placeholderService)
+   public VSExportService(ViewsheetService viewsheetService, CoreLifecycleService coreLifecycleService,
+                          ParameterService parameterService)
    {
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
+      this.parameterService = parameterService;
    }
 
    public void exportViewsheet(String path, int format, boolean match, boolean expandSelections,
@@ -141,10 +143,10 @@ public class VSExportService {
          rvs.getViewsheet().getViewsheetInfo().setMVOnDemand(false);
 
          CommandDispatcher.withDummyDispatcher(principal, d -> {
-            ChangedAssemblyList clist = this.placeholderService.createList(false, d, rvs,
-                                                                           null);
-            placeholderService.refreshViewsheet(rvs, rvs.getID(), null, d, false,
-                                                true, true, clist);
+            ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs,
+                                                                             null);
+            coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false,
+                                                  true, true, clist);
 
             return null;
          });
@@ -198,11 +200,11 @@ public class VSExportService {
       StompHeaderAccessor stompHeaderAccessor = StompHeaderAccessor.create(StompCommand.SEND);
       stompHeaderAccessor.setUser(principal);
       stompHeaderAccessor.setSessionId(sessionId);
-      VariableTable vt = placeholderService.readParameters(paramMap);
+      VariableTable vt = parameterService.readParameters(paramMap);
       String execSessionId =
          XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
-      return CommandDispatcher.withDummyDispatcher(principal, d -> placeholderService.openViewsheet(
+      return CommandDispatcher.withDummyDispatcher(principal, d -> coreLifecycleService.openViewsheet(
          viewsheetService, openViewsheetEvent, principal, null, null, entry, d, null,
          null, true, openViewsheetEvent.getDrillFrom(), vt,
          openViewsheetEvent.getFullScreenId(), execSessionId));
@@ -286,10 +288,10 @@ public class VSExportService {
       // execute the vs to ensure script variable is available(variable is isolated for threads).
       // see code VSAScriptable#varMap
       CommandDispatcher.withDummyDispatcher(principal, d -> {
-         ChangedAssemblyList clist = this.placeholderService.createList(false, d, rvs, null);
+         ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
          // do not reset the form table.
          rvs.getViewsheetSandbox().exportRefresh.set(true);
-         placeholderService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
+         coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
          rvs.getViewsheetSandbox().exportRefresh.set(false);
          return null;
       });
@@ -757,7 +759,8 @@ public class VSExportService {
    public static final int EXCEL_MAX_ROW = 50000;
    public static final int EXCEL_LIMIT_ROW = 5000;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
+   private final ParameterService parameterService;
 
    private static final Logger LOG = LoggerFactory.getLogger(VSExportService.class);
    private static final Pattern USER_PATH_PATTERN = Pattern.compile("^user/([^/]+)/(.+)$");
