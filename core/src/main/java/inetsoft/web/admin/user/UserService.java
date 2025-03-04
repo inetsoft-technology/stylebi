@@ -22,11 +22,21 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.MapSession;
-import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.viewsheet.ViewsheetService;
 import inetsoft.web.cluster.ServerClusterClient;
+import inetsoft.web.session.IgniteSessionRepository;
+import inetsoft.web.session.PrincipalChangedEvent;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.security.Principal;
 import java.util.*;
@@ -34,28 +44,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.session.FindByIndexNameSessionRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-
 @Service
 @Lazy(false)
 public class UserService
    extends MonitorLevelService
-   implements MessageListener, StatusUpdater, MapSessionRepository.PrincipalChangeListener
+   implements MessageListener, StatusUpdater, ApplicationListener<PrincipalChangedEvent>
 {
    @Autowired
    public UserService(ViewsheetService viewsheetService,
                       ServerClusterClient client, SecurityEngine securityEngine,
                       SecurityProvider securityProvider,
                       MonitoringDataService monitoringDataService,
-                      MapSessionRepository sessionRepository)
+                      IgniteSessionRepository sessionRepository)
    {
       super(lowAttrs, medAttrs, highAttrs);
       this.viewsheetService = viewsheetService;
@@ -70,7 +70,6 @@ public class UserService
    public void addListener() {
       cluster = Cluster.getInstance();
       cluster.addMessageListener(this);
-      sessionRepository.addPrincipalChangeListener(this);
    }
 
    @PreDestroy
@@ -78,8 +77,6 @@ public class UserService
       if(cluster != null) {
          cluster.removeMessageListener(this);
       }
-
-      sessionRepository.removePrincipalChangeListener(this);
    }
 
    @Override
@@ -358,15 +355,16 @@ public class UserService
 
       for(SRPrincipal principal : sessionRepository.getActiveSessions()) {
          if(principal != null && sessionId.equals(principal.getSessionID())) {
-            Map<String, MapSession> map = sessionRepository.findByIndexNameAndIndexValue(
+            Map<String, IgniteSessionRepository.IgniteSession> map =
+               sessionRepository.findByIndexNameAndIndexValue(
                FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, principal.getName());
 
-            for(Map.Entry<String, MapSession> e : map.entrySet()) {
+            for(Map.Entry<String, IgniteSessionRepository.IgniteSession> e : map.entrySet()) {
                SRPrincipal sessionPrincipal =
                   e.getValue().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
                if(sessionPrincipal != null && sessionId.equals(sessionPrincipal.getSessionID())) {
-                  sessionRepository.invalidate(e.getKey());
+                  sessionRepository.invalidateSession(e.getKey());
                   this.updateStatus();
                   return;
                }
@@ -400,7 +398,7 @@ public class UserService
    }
 
    @Override
-   public void principalChanged(MapSessionRepository.PrincipalChangeEvent event) {
+   public void onApplicationEvent(PrincipalChangedEvent event) {
       updateStatus();
    }
 
@@ -409,7 +407,7 @@ public class UserService
    private final SecurityEngine securityEngine;
    private final SecurityProvider securityProvider;
    private final MonitoringDataService monitoringDataService;
-   private final MapSessionRepository sessionRepository;
+   private final IgniteSessionRepository sessionRepository;
    private Cluster cluster;
 
    private static final String[] lowAttrs = {"sessionCount", "sessionInfo", "quotaInfo"};

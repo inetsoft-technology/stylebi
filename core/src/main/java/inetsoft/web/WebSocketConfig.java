@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.GroupedThread;
 import inetsoft.web.messaging.*;
+import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.viewsheet.service.CommandDispatcherArgumentResolver;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import org.slf4j.Logger;
@@ -59,11 +60,12 @@ public class WebSocketConfig<S extends Session> extends
    AbstractSessionWebSocketMessageBrokerConfigurer<S>
 {
    @Autowired
-   public WebSocketConfig(ObjectMapper objectMapper, MapSessionRepository mapSessionRepository,
+   public WebSocketConfig(ObjectMapper objectMapper,
+                          IgniteSessionRepository igniteSessionRepository,
                           SessionConnectionService connectionService)
    {
       this.objectMapper = objectMapper;
-      this.mapSessionRepository = mapSessionRepository;
+      this.igniteSessionRepository = igniteSessionRepository;
       this.connectionService = connectionService;
    }
 
@@ -136,7 +138,7 @@ public class WebSocketConfig<S extends Session> extends
       registration
          .interceptors(new MessageScopeInterceptor(),
                        messageInterceptor,
-                       new SessionAccessInterceptor(mapSessionRepository, objectMapper))
+                       new SessionAccessInterceptor(igniteSessionRepository, objectMapper))
          // This is the thread pool used to process asset events. In 12.2 we just spawned a new
          // thread every time that an event was received, so it was basically an unbounded pool.
          .taskExecutor(executor).corePoolSize(executor.getCorePoolSize());
@@ -234,7 +236,7 @@ public class WebSocketConfig<S extends Session> extends
    }
 
    private ObjectMapper objectMapper;
-   private MapSessionRepository mapSessionRepository;
+   private IgniteSessionRepository igniteSessionRepository;
    private SessionConnectionService connectionService;
    private static final Logger LOG = LoggerFactory.getLogger(WebSocketConfig.class);
 }

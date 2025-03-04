@@ -26,4 +26,12 @@ public interface MapChangeListener<K, V>  {
    void entryUpdated(EntryEvent<K, V> event);
 
    void entryRemoved(EntryEvent<K, V> event);
+
+   default void entryExpired(EntryEvent<K, V> event) {
+      // no-op
+   }
+
+   default void entryEvicted(EntryEvent<K, V> event) {
+      // no-op
+   }
 }

@@ -20,6 +20,8 @@ package inetsoft.sree.internal.cluster;
 import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.util.SingletonManager;
 
+import javax.cache.Cache;
+import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -183,6 +185,16 @@ public interface Cluster extends AutoCloseable {
     * Unlock a write lock on the named resource.
     */
    void unlockWrite(String name);
+
+   default <K, V> Cache <K, V> getCache(String name) {
+      return getCache(name, false);
+   }
+
+   default <K, V> Cache <K, V> getCache(String name, boolean replicated) {
+      return getCache(name, false, null);
+   }
+
+   <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy);
 
    /**
     * Get a distributed map.

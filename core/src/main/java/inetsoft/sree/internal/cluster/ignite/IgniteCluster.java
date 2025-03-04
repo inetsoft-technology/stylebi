@@ -44,6 +44,8 @@ import org.apache.ignite.ssl.SslContextFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.cache.Cache;
+import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
 import java.lang.invoke.MethodHandles;
 import java.net.UnknownHostException;
@@ -851,6 +853,27 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
    }
 
+   @Override
+   public <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy) {
+      CacheConfiguration<K, V> config;
+
+      if(replicated) {
+         config = getCacheConfiguration(name, CacheMode.REPLICATED, DEFAULT_BACKUP_COUNT);
+      }
+      else {
+         config = getCacheConfiguration(name);
+      }
+
+      config = config.setEagerTtl(expiryPolicy != null);
+      IgniteCache<K, V> cache = ignite.getOrCreateCache(config);
+
+      if(expiryPolicy != null) {
+         cache = cache.withExpiryPolicy(expiryPolicy);
+      }
+
+      return cache;
+   }
+
    private boolean isNodeStoppingException(Throwable t) {
       if(t == null) {
          return false;
@@ -1436,6 +1459,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
          else if(event.type() == EventType.EVT_CACHE_OBJECT_REMOVED) {
             listener.entryRemoved(entryEvent);
+         }
+         else if(event.type() == EventType.EVT_CACHE_OBJECT_EXPIRED) {
+            listener.entryExpired(entryEvent);
+         }
+         else if(event.type() == EventType.EVT_CACHE_ENTRY_EVICTED) {
+            listener.entryEvicted(entryEvent);
          }
 
          return true;

@@ -40,6 +40,7 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       });
    }
 
+   @SuppressWarnings("unchecked")
    @Override
    public boolean containsKey(Object key) {
       return executeWithRetry(() -> cache.containsKey((K) key));
@@ -58,6 +59,7 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       });
    }
 
+   @SuppressWarnings("unchecked")
    @Override
    public V get(Object key) {
       return executeWithRetry(() -> cache.get((K) key));
@@ -71,11 +73,13 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       });
    }
 
+   @SuppressWarnings("unchecked")
    @Override
    public V remove(Object key) {
       return executeWithRetry(() -> cache.getAndRemove((K) key));
    }
 
+   @SuppressWarnings("unchecked")
    @Override
    public boolean remove(Object key, Object value) {
       return executeWithRetry(() -> cache.remove((K) key, (V) value));
@@ -149,7 +153,7 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       try {
          getLock(key).tryLock(leaseTime, timeUnit);
       }
-      catch(InterruptedException e) {
+      catch(InterruptedException ignore) {
       }
    }
 
