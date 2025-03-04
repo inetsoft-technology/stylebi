@@ -1082,7 +1082,6 @@ public class HTMLUtil {
       }
 
       String imageProp = SreeEnv.getProperty("html.image.directory");
-      String htmlProp = SreeEnv.getProperty("html.directory");
       String sreeProp = SreeEnv.getProperty("sree.home");
 
       FileSystemService fileSystemService = FileSystemService.getInstance();
@@ -1094,8 +1093,6 @@ public class HTMLUtil {
          : fileSystemService.getFile(imageProp).getAbsolutePath();
       // @by jasons make sure that res paths don't get discarded because
       // different file path separtors are used.
-      String htmlDir = (htmlProp == null) ? "null"
-         : fileSystemService.getFile(htmlProp).getAbsolutePath();
       String sreeDir = (sreeProp == null) ? "null"
          : fileSystemService.getFile(sreeProp).getAbsolutePath();
 
@@ -1105,14 +1102,12 @@ public class HTMLUtil {
       // @by larryl, ignore the difference between slash and back slash
       resFile = resFile.replace('\\', '/');
       sreeDir = sreeDir.replace('\\', '/');
-      htmlDir = htmlDir.replace('\\', '/');
       imageDir = imageDir.replace('\\', '/');
 
       // @by larryl, ignore case if on windows
       if(File.separatorChar == '\\') {
          resFile = resFile.toLowerCase();
          sreeDir = sreeDir.toLowerCase();
-         htmlDir = htmlDir.toLowerCase();
          imageDir = imageDir.toLowerCase();
       }
 
@@ -1120,7 +1115,7 @@ public class HTMLUtil {
       // don't allow traversing up directory chain
       // @by amitm 2004-08-04
       // Allow image files from this predefined image directory
-      return (resFile.startsWith(htmlDir) || resFile.startsWith(sreeDir) ||
+      return (resFile.startsWith(sreeDir) ||
 	      resFile.startsWith(imageDir)) && location.indexOf("..") < 0;
    }
 
