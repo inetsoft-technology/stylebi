@@ -926,7 +926,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
          }
 
          if(checkLock) {
-            String lockedUser = getLockedBookmarkUser(name, user);
+            boolean isDefaultOrg = OrganizationManager.getInstance().getCurrentOrgID()
+               .equals( Organization.getDefaultOrganizationID());
+            String lockedUser = getLockedBookmarkUser(name, user, isDefaultOrg);
 
             if(lockedUser != null) {
                Catalog catalog = Catalog.getCatalog();
@@ -982,10 +984,12 @@ public class RuntimeViewsheet extends RuntimeSheet {
          }
 
          Map<String, String> lockedBKMap = new HashMap<>();
+         boolean isDefaultOrg = OrganizationManager.getInstance().getCurrentOrgID()
+            .equals( Organization.getDefaultOrganizationID());
 
          for(String name : names) {
             if(checkLock) {
-               String lockedUser = getLockedBookmarkUser(name, user);
+               String lockedUser = getLockedBookmarkUser(name, user, isDefaultOrg);
 
                if(lockedUser != null) {
                   lockedBKMap.put(name, lockedUser);
@@ -1246,10 +1250,26 @@ public class RuntimeViewsheet extends RuntimeSheet {
       lockManager.unlockAll(getUserName(), getID());
    }
 
-   private String getLockedBookmarkUser(String name, IdentityID owner) {
+   private String getLockedBookmarkUser(String name, IdentityID owner, boolean isDefaultOrg) {
       BookmarkLockManager lockManager = BookmarkLockManager.getManager();
       String lockUser = lockManager.getLockedBookmarkUser(getLockPath(name, owner), getUserName());
-      return lockUser == null ? null : IdentityID.getIdentityIDFromKey(lockUser).name;
+
+      if(lockUser == null) {
+         return null;
+      }
+
+      IdentityID lockId = IdentityID.getIdentityIDFromKey(lockUser);
+
+      if(isDefaultOrg) {
+         boolean exposeDefaultProp = Boolean.parseBoolean(
+            SreeEnv.getProperty("security.exposeDefaultOrgToAll", "false"));
+         boolean exposeDefaultOrgProp = lockId.getOrgID() != null && Boolean.parseBoolean(
+            SreeEnv.getProperty("security." + lockId.getOrgID() + ".exposeDefaultOrgToAll", "false"));
+
+         return exposeDefaultProp || exposeDefaultOrgProp ? lockId.getLabel() : lockId.name;
+      }
+
+      return lockId.name;
    }
 
    private String getUserName() {
