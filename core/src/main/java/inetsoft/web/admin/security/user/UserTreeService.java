@@ -34,6 +34,8 @@ import inetsoft.web.admin.general.LocalizationSettingsService;
 import inetsoft.web.admin.general.model.LocalizationModel;
 import inetsoft.web.admin.security.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -48,7 +50,9 @@ public class UserTreeService {
                           SystemAdminService systemAdminService,
                           IdentityService identityService,
                           LocalizationSettingsService localizationSettingsService,
-                          SecurityEngine securityEngine, IdentityThemeService themeService)
+                          SecurityEngine securityEngine,
+                          IdentityThemeService themeService,
+                          SimpMessagingTemplate messagingTemplate)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.systemAdminService = systemAdminService;
@@ -56,6 +60,8 @@ public class UserTreeService {
       this.localizationSettingsService = localizationSettingsService;
       this.securityEngine = securityEngine;
       this.themeService = themeService;
+      this.messagingTemplate = messagingTemplate;
+      this.editOrganizationListener = new EditOrganizationListener(messagingTemplate);
    }
 
    public List<String> getOrganizationTree(String providerName, Principal principal) {
@@ -799,6 +805,7 @@ public class UserTreeService {
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
       ThreadContext.setContextPrincipal(principal);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      String newOrgId = null;
 
       try {
          if(!(provider instanceof EditableAuthenticationProvider)) {
@@ -812,7 +819,6 @@ public class UserTreeService {
 
          if(Tool.isEmptyString(orgID)) {
             String prefix = "organization";
-
             for(int i = 0; ; i++) {
                final String orgKey = prefix + i;
                boolean found = Arrays.stream(getSecurityProvider().getOrganizationIDs()).anyMatch(o -> o.equalsIgnoreCase(orgKey)) ||
@@ -833,6 +839,9 @@ public class UserTreeService {
             //provided org name already exists, return error
             throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationName"));
          }
+
+         newOrgId = newOrgKey.orgID;
+         fireCreateOrganizationEvent(EditOrganizationEvent.STARTED, copyFromOrgID, newOrgId, principal);
 
          if(copyFromOrgID != null && !Tool.isEmptyString(copyFromOrgID)) {
             Organization fromOrg = provider.getOrganization(copyFromOrgID);
@@ -891,6 +900,10 @@ public class UserTreeService {
          throw e;
       }
       finally {
+         if(newOrgId != null) {
+            fireCreateOrganizationEvent(EditOrganizationEvent.FINSHED, copyFromOrgID, newOrgId, principal);
+         }
+
          ThreadContext.setContextPrincipal(oldPrincipal);
          Audit.getInstance().auditAction(actionRecord, principal);
 
@@ -1660,10 +1673,22 @@ public class UserTreeService {
       return orgMembers;
    }
 
+   @SubscribeMapping("/create-org-status-changed")
+   public void subscribeToTopic() {
+   }
+
+   public void fireCreateOrganizationEvent(int status, String fromOrgID, String toOrgID, Principal principal) {
+      EditOrganizationEvent event = new EditOrganizationEvent(status, fromOrgID, toOrgID);
+      String destination = SUtil.getUserDestination(principal);
+      editOrganizationListener.statusChanged(destination, event);
+   }
+
    private final AuthenticationProviderService authenticationProviderService;
    private final SystemAdminService systemAdminService;
    private final IdentityService identityService;
    private final LocalizationSettingsService localizationSettingsService;
    private final SecurityEngine securityEngine;
    private final IdentityThemeService themeService;
+   private final SimpMessagingTemplate messagingTemplate;
+   private final EditOrganizationListener editOrganizationListener;
 }
