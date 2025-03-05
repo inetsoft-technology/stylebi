@@ -82,6 +82,11 @@ public class SessionExpirationController {
 
       if(httpSessionId != null) {
          MapSession session = mapSessionRepository.findById(httpSessionId);
+
+         if(session == null) {
+            return;
+         }
+
          session.setLastAccessedTime(Instant.now());
 
          MapSessionRepository.SessionExpiringSoonEvent event =
