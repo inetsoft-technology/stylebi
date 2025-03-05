@@ -19,31 +19,33 @@
 package inetsoft.web.service;
 
 import inetsoft.sree.RepletRepository;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.web.session.IgniteSessionRepository;
-import inetsoft.web.session.SessionExpiringSoonEvent;
+import inetsoft.web.MapSession;
+import inetsoft.web.MapSessionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
 import java.security.Principal;
 import java.time.Instant;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
-public class SessionExpirationController implements ApplicationListener<SessionExpiringSoonEvent> {
+public class SessionExpirationController {
    @Autowired
    public SessionExpirationController(SimpMessagingTemplate messagingTemplate,
-                                      IgniteSessionRepository sessionRepository)
+                                      MapSessionRepository mapSessionRepository)
    {
       this.messagingTemplate = messagingTemplate;
-      this.sessionRepository = sessionRepository;
+      this.mapSessionRepository = mapSessionRepository;
    }
 
    @SubscribeMapping(TOPIC)
@@ -51,41 +53,26 @@ public class SessionExpirationController implements ApplicationListener<SessionE
       String httpSessionId =
          stompHeaderAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString();
       httpSessionIdMap.put(stompHeaderAccessor.getSessionId(), httpSessionId);
-
-      synchronized(subscribedSessionIds) {
-         subscribedSessionIds.add(httpSessionId);
-      }
+      mapSessionRepository.addSessionExpiringSoonListener(httpSessionId, this.listener);
    }
 
    @EventListener
    public void onSessionDisconnect(SessionDisconnectEvent event) {
-      synchronized(subscribedSessionIds) {
-         subscribedSessionIds.remove(event.getSessionId());
-      }
-
+      mapSessionRepository.removeSessionExpiringSoonListener(httpSessionIdMap.get(event.getSessionId()));
       httpSessionIdMap.remove(event.getSessionId());
    }
 
-   @Override
-   public void onApplicationEvent(SessionExpiringSoonEvent event) {
-      boolean subscribed = false;
+   private void sessionExpiringSoon(MapSessionRepository.SessionExpiringSoonEvent event) {
+      Principal principal = event.getSession().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
-      synchronized(subscribedSessionIds) {
-         subscribed = subscribedSessionIds.contains(event.getSession().getId());
-      }
-
-      if(subscribed) {
-         Principal principal = event.getSession().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
-
-         if(principal != null) {
-            SessionExpirationModel model = SessionExpirationModel.builder()
-               .remainingTime(event.getRemainingTime())
-               .expiringSoon(event.isExpiringSoon())
-               .nodeProtection(event.isNodeProtection())
-               .build();
-            messagingTemplate
-               .convertAndSendToUser(SUtil.getUserDestination(principal), TOPIC, model);
-         }
+      if(principal != null) {
+         SessionExpirationModel model = SessionExpirationModel.builder()
+            .remainingTime(event.getRemainingTime())
+            .expiringSoon(event.isExpiringSoon())
+            .nodeProtection(event.isNodeProtection())
+            .build();
+         messagingTemplate
+            .convertAndSendToUser(SUtil.getUserDestination(principal), TOPIC, model);
       }
    }
 
@@ -94,7 +81,7 @@ public class SessionExpirationController implements ApplicationListener<SessionE
       String httpSessionId = httpSessionIdMap.get(stompHeaderAccessor.getSessionId());
 
       if(httpSessionId != null) {
-         IgniteSessionRepository.IgniteSession session = sessionRepository.findById(httpSessionId);
+         MapSession session = mapSessionRepository.findById(httpSessionId);
 
          if(session == null) {
             return;
@@ -102,15 +89,16 @@ public class SessionExpirationController implements ApplicationListener<SessionE
 
          session.setLastAccessedTime(Instant.now());
 
-         SessionExpiringSoonEvent event =
-            new SessionExpiringSoonEvent(this, session, 0, false, false);
-         onApplicationEvent(event);
+         MapSessionRepository.SessionExpiringSoonEvent event =
+            new MapSessionRepository.SessionExpiringSoonEvent(this, session, 0,
+                                                              false, false);
+         sessionExpiringSoon(event);
       }
    }
 
    private final Map<String, String> httpSessionIdMap = new HashMap<>(); // key = simp session id, value = http session id
    private final SimpMessagingTemplate messagingTemplate;
-   private final IgniteSessionRepository sessionRepository;
-   private final Set<String> subscribedSessionIds = new HashSet<>();
+   private final MapSessionRepository mapSessionRepository;
+   private final MapSessionRepository.SessionExpiringSoonListener listener = this::sessionExpiringSoon;
    private static final String TOPIC = "/session-expiration";
 }
