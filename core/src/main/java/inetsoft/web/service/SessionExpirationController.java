@@ -95,6 +95,11 @@ public class SessionExpirationController implements ApplicationListener<SessionE
 
       if(httpSessionId != null) {
          IgniteSessionRepository.IgniteSession session = sessionRepository.findById(httpSessionId);
+
+         if(session == null) {
+            return;
+         }
+
          session.setLastAccessedTime(Instant.now());
 
          SessionExpiringSoonEvent event =
