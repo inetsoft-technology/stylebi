@@ -170,9 +170,16 @@ public interface PasswordEncryption {
       return SingletonManager.getInstance(PasswordEncryption.class);
    }
 
+   static PasswordEncryption newLocalInstance(boolean encrypt) {
+      if(encrypt && isEncryptForceLocal() || !encrypt && isDecryptForceLocal()) {
+         return newInstance(new SecretsConfig());
+      }
+
+      return newLocalInstance(InetsoftConfig.getInstance().getSecrets());
+   }
+
    static PasswordEncryption newLocalInstance() {
-      return isForceLocal() ? newInstance(new SecretsConfig()) :
-         newLocalInstance(InetsoftConfig.getInstance().getSecrets());
+      return newLocalInstance(InetsoftConfig.getInstance().getSecrets());
    }
 
    static PasswordEncryption newLocalInstance(SecretsConfig secretsConfig) {
@@ -223,19 +230,9 @@ public interface PasswordEncryption {
     * @return {@code true} to use the system master key; {@code false} to use the instance key.
     */
    static boolean isForceMaster() {
-      ThreadLocal<Boolean> forceMaster;
+      Boolean value = getConfigContext("inetsoft.util.PasswordEncryption.forceMaster");
 
-      synchronized(PasswordEncryption.class) {
-         ConfigurationContext context = ConfigurationContext.getContext();
-         forceMaster = context.get("inetsoft.util.PasswordEncryption.forceMaster");
-
-         if(forceMaster == null) {
-            forceMaster = ThreadLocal.withInitial(() -> false);
-            context.put("inetsoft.util.PasswordEncryption.forceMaster", forceMaster);
-         }
-      }
-
-      return forceMaster.get();
+      return value != null && value;
    }
 
    /**
@@ -246,62 +243,81 @@ public interface PasswordEncryption {
     *                    instance key.
     */
    static void setForceMaster(boolean forceMaster) {
-      ThreadLocal<Boolean> threadLocal;
-
-      synchronized(PasswordEncryption.class) {
-         ConfigurationContext context = ConfigurationContext.getContext();
-         threadLocal = context.get("inetsoft.util.PasswordEncryption.forceMaster");
-
-         if(threadLocal == null) {
-            threadLocal = ThreadLocal.withInitial(() -> false);
-            context.put("inetsoft.util.PasswordEncryption.forceMaster", threadLocal);
-         }
-      }
-
-      threadLocal.set(forceMaster);
+      setConfigContext("inetsoft.util.PasswordEncryption.forceMaster", forceMaster);
    }
 
    /**
-    * Gets a flag that indicates if the encryption should use the local encryption
+    * Gets a flag that indicates if decrypting should use the local encryption
     *
     * @return {@code true} to use the local encryption; {@code false} to use the config encryption.
     */
-   static boolean isForceLocal() {
-      ThreadLocal<Boolean> forceMaster;
+   static boolean isDecryptForceLocal() {
+      Boolean value = getConfigContext("inetsoft.util.PasswordEncryption.forceLocal.decrypt");
 
-      synchronized(PasswordEncryption.class) {
-         ConfigurationContext context = ConfigurationContext.getContext();
-         forceMaster = context.get("inetsoft.util.PasswordEncryption.local");
-
-         if(forceMaster == null) {
-            forceMaster = ThreadLocal.withInitial(() -> false);
-            context.put("inetsoft.util.PasswordEncryption.local", forceMaster);
-         }
-      }
-
-      return forceMaster.get();
+      return value != null && value;
    }
 
    /**
-    * Gets a flag that indicates if use the local encryption
+    * Gets a flag that indicates if decrypting the local encryption
     *
     * @param forceLocal {@code true} to use the local encryption; {@code false} to use the
     *                    cofing encryption.
     */
-   static void setForceLocal(boolean forceLocal) {
-      ThreadLocal<Boolean> threadLocal;
+   static void setDecryptForceLocal(boolean forceLocal) {
+      setConfigContext("inetsoft.util.PasswordEncryption.forceLocal.decrypt", forceLocal);
+   }
+
+   /**
+    * Gets a flag that indicates if encrypting should use the local encryption
+    *
+    * @return {@code true} to use the local encryption; {@code false} to use the config encryption.
+    */
+   static boolean isEncryptForceLocal() {
+      Boolean value = getConfigContext("inetsoft.util.PasswordEncryption.forceLocal.encrypt");
+
+      return value != null && value;
+   }
+
+   /**
+    * Gets a flag that indicates if encrypting use the local encryption
+    *
+    * @param forceLocal {@code true} to use the local encryption; {@code false} to use the
+    *                    cofing encryption.
+    */
+   static void setEncryptForceLocal(boolean forceLocal) {
+      setConfigContext("inetsoft.util.PasswordEncryption.forceLocal.encrypt", forceLocal);
+   }
+
+   private static <T> void setConfigContext(String name, T value) {
+      ThreadLocal<T> threadLocal;
 
       synchronized(PasswordEncryption.class) {
          ConfigurationContext context = ConfigurationContext.getContext();
-         threadLocal = context.get("inetsoft.util.PasswordEncryption.local");
+         threadLocal = context.get(name);
 
          if(threadLocal == null) {
-            threadLocal = ThreadLocal.withInitial(() -> false);
-            context.put("inetsoft.util.PasswordEncryption.local", threadLocal);
+            threadLocal = new ThreadLocal<>();
+            context.put(name, threadLocal);
          }
       }
 
-      threadLocal.set(forceLocal);
+      threadLocal.set(value);
+   }
+
+   private static <T> T getConfigContext(String name) {
+      ThreadLocal<T> forceLocal;
+
+      synchronized(PasswordEncryption.class) {
+         ConfigurationContext context = ConfigurationContext.getContext();
+         forceLocal = context.get(name);
+
+         if(forceLocal == null) {
+            forceLocal = new ThreadLocal<>();
+            context.put(name, forceLocal);
+         }
+      }
+
+      return forceLocal.get();
    }
 
    final class Reference extends SingletonManager.Reference<PasswordEncryption> {

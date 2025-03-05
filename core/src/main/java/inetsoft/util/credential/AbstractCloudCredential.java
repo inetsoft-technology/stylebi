@@ -23,10 +23,13 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
+import inetsoft.util.PasswordEncryption;
 import inetsoft.util.Tool;
 import org.apache.commons.lang3.StringUtils;
+import org.w3c.dom.Element;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 
 public abstract class AbstractCloudCredential extends AbstractCredential implements CloudCredential {
    @Override
@@ -68,6 +71,64 @@ public abstract class AbstractCloudCredential extends AbstractCredential impleme
       if(credential instanceof CloudCredential) {
          setId(credential.getId());
       }
+   }
+
+   /**
+    * Convert the current cloud credential to local credential.
+    */
+   private Credential convertToLocal() {
+      Credential local = createLocal();
+
+      if(local != null) {
+         copyToLocal(local);
+      }
+
+      return local;
+   }
+
+   public void writeXML(PrintWriter writer) {
+      if(isEmpty()) {
+         return;
+      }
+
+      if(PasswordEncryption.isEncryptForceLocal()) {
+         Credential newCredential = Tool.decryptPasswordToCredential(
+            getId(), getClass(), getDBType());
+
+         if(newCredential != null) {
+            newCredential.setId(getId());
+            refreshCredential(newCredential);
+         }
+
+         Credential localCredential = convertToLocal();
+
+         if(localCredential != null) {
+            localCredential.writeXML(writer);
+            return;
+         }
+      }
+
+      StringBuilder builder = new StringBuilder();
+      builder.append("<PasswordCredential cloud=\"true\"");
+      builder.append(" class=\"");
+      builder.append(this.getClass().getName());
+      builder.append("\" id=\"");
+      builder.append(getId());
+      builder.append("\" dbType=\"");
+      builder.append(getDBType() != null && !getDBType().isEmpty() ? getDBType() : "");
+      builder.append("\">");
+      builder.append("</PasswordCredential>");
+      writer.write(builder.toString());
+   }
+
+   public void parseXML(Element elem) throws Exception {
+      if(elem == null) {
+         return;
+      }
+
+      setId(elem.getAttribute("id"));
+      setDBType(elem.getAttribute("dbType"));
+      fetchCredential();
    }
 
    public static class Serializer<T extends AbstractCloudCredential> extends StdSerializer<T> {

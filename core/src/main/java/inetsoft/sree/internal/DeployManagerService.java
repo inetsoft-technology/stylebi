@@ -596,16 +596,14 @@ public class DeployManagerService {
                                    List<String> ignoreUserAssets)
       throws Exception
    {
-      PasswordEncryption.setForceMaster(true);
-      PasswordEncryption.setForceLocal(true);
+      PasswordEncryption.setDecryptForceLocal(true);
 
       try {
          importAssets0(overwriting, order, info, desktop, principal, ignoreList, actionRecord,
             failedList, targetFolderInfo, ignoreUserAssets);
       }
       finally {
-         PasswordEncryption.setForceMaster(false);
-         PasswordEncryption.setForceLocal(false);
+         PasswordEncryption.setDecryptForceLocal(false);
       }
    }
 

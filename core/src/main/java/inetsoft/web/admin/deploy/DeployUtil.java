@@ -116,7 +116,7 @@ public class DeployUtil {
       throws Exception
    {
       PasswordEncryption.setForceMaster(true);
-      PasswordEncryption.setForceLocal(true);
+      PasswordEncryption.setEncryptForceLocal(true);
 
       try(JarOutputStream out = new JarOutputStream(output)) {
          List<XAsset> assets = getEntryAssets(info);
@@ -143,7 +143,7 @@ public class DeployUtil {
       }
       finally {
          PasswordEncryption.setForceMaster(false);
-         PasswordEncryption.setForceLocal(false);
+         PasswordEncryption.setEncryptForceLocal(false);
       }
    }
 

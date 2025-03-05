@@ -19,56 +19,8 @@
 package inetsoft.util.credential;
 
 import inetsoft.util.*;
-import org.w3c.dom.Element;
-
-import java.io.PrintWriter;
 
 public interface CloudCredential extends Credential {
-   default void writeXML(PrintWriter writer) {
-      if(isEmpty()) {
-         return;
-      }
-
-      if(PasswordEncryption.isForceLocal()) {
-         Credential newCredential = Tool.decryptPasswordToCredential(
-            getId(), getClass(), getDBType());
-
-         if(newCredential != null) {
-            newCredential.setId(getId());
-            refreshCredential(newCredential);
-         }
-
-         Credential localCredential = convertToLocal();
-
-         if(localCredential != null) {
-            localCredential.writeXML(writer);
-            return;
-         }
-      }
-
-      StringBuilder builder = new StringBuilder();
-      builder.append("<PasswordCredential cloud=\"true\"");
-      builder.append(" class=\"");
-      builder.append(this.getClass().getName());
-      builder.append("\" id=\"");
-      builder.append(getId());
-      builder.append("\" dbType=\"");
-      builder.append(getDBType() != null && !getDBType().isEmpty() ? getDBType() : "");
-      builder.append("\">");
-      builder.append("</PasswordCredential>");
-      writer.write(builder.toString());
-   }
-
-   default void parseXML(Element elem) throws Exception {
-      if(elem == null) {
-         return;
-      }
-
-      setId(elem.getAttribute("id"));
-      setDBType(elem.getAttribute("dbType"));
-      fetchCredential();
-   }
-
    default void fetchCredential() {
       if(Tool.isEmptyString(getId())) {
          return;
@@ -93,20 +45,15 @@ public interface CloudCredential extends Credential {
       throw new RuntimeException("There's no secrets manager for cloud password credential!");
    }
 
-   default Credential createLocal() {
-      return null;
-   }
+   /**
+    * Create a new local credential.
+    */
+   Credential createLocal();
 
-   default void copyToLocal(Credential credential) {
-   }
-
-   default Credential convertToLocal() {
-      Credential local = createLocal();
-
-      if(local != null) {
-         copyToLocal(local);
-      }
-
-      return local;
-   }
+   /**
+    * Copy the credential to the new local credential.
+    *
+    * @param credential new local credential.
+    */
+   void copyToLocal(Credential credential);
 }
