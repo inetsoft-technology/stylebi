@@ -33,6 +33,8 @@ import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.*;
+import inetsoft.sree.web.SessionLicenseManager;
+import inetsoft.sree.web.SessionLicenseService;
 import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.storage.*;
@@ -67,11 +69,13 @@ public class IdentityService {
    @Autowired
    public IdentityService(SecurityEngine securityEngine,
                           SecurityProvider securityProvider,
-                          IdentityThemeService themeService)
+                          IdentityThemeService themeService,
+                          AuthenticationService authenticationService)
    {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
       this.themeService = themeService;
+      this.authenticationService = authenticationService;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -181,6 +185,7 @@ public class IdentityService {
 
                if(type == Identity.USER) {
                   deleteUserIDs.add(identityId);
+                  logoutSession(identityId);
                }
 
                syncIdentity(provider, identityId != null ? new DefaultIdentity(identityId, type) :
@@ -226,6 +231,21 @@ public class IdentityService {
       }
 
       return warnings;
+   }
+
+   private void logoutSession(IdentityID user) {
+      SessionLicenseManager sessionLicenseManager =
+         SessionLicenseService.getSessionLicenseService();
+      Set<SRPrincipal> principals = sessionLicenseManager.getActiveSessions();
+      Iterator<SRPrincipal> iterator  = principals.iterator();
+
+      while(iterator.hasNext()) {
+         SRPrincipal principal = iterator.next();
+
+         if(Tool.equals(principal.getIdentityID(), user)) {
+            authenticationService.logout(principal);
+         }
+      }
    }
 
    /**
@@ -2351,4 +2371,5 @@ public class IdentityService {
    private final SecurityProvider securityProvider;
    private final IdentityThemeService themeService;
    private final Logger LOG = LoggerFactory.getLogger(IdentityService.class);
+   private final AuthenticationService authenticationService;
 }
