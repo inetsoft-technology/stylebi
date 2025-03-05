@@ -78,8 +78,12 @@ public class PropertiesController {
       SreeEnv.setProperty(propertyName, value);
       SreeEnv.save();
 
-      if(Tool.equals(propertyName, "format.number.round") || Tool.equals(propertyName, "format.percent.round")) {
-         TableFormat.invalidateTableFormatCache();
+      if(Tool.equals(propertyName, "asset.max.idle")) {
+         RuntimeSheet.invalidateMaxIdle();
+      }
+
+      if(Tool.equals(propertyName,"http.session.timeout")) {
+         mapSessionRepository.updateSessionTimeout(value);
       }
    }
 
