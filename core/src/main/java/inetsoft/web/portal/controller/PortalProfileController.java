@@ -31,7 +31,6 @@ import inetsoft.report.filter.SortFilter;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.report.lens.DataSetTable;
 import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.util.XSourceInfo;
@@ -149,11 +148,12 @@ public class PortalProfileController {
    public PreviewTableCellModel[][] profileTable(
       @RequestParam(value = "showSummarize", required = false) boolean showSummarize,
       @RequestParam("isViewsheet") boolean isViewsheet,
+      @RequestParam("timeZone") String timeZone,
       @RequestBody ProfileTableDataEvent event,
       Principal principal) throws Exception
    {
-      Object[][] data = getTableData(
-         showSummarize, getRecordsKey(event.getObjectName(), isViewsheet, principal), principal);
+      Object[][] data = getTableData(showSummarize,
+         getRecordsKey(event.getObjectName(), isViewsheet, principal), timeZone, principal);
 
       if(data == null) {
          return null;
@@ -184,10 +184,11 @@ public class PortalProfileController {
    @HandleExceptions
    public void downloadTable(@RequestParam("name") String name,
                              @RequestParam("isViewsheet") boolean isViewsheet,
+                             @RequestParam("timeZone") String timeZone,
                              HttpServletResponse response, Principal principal) throws Exception
    {
       Object[][] data =
-         getTableData(false, getRecordsKey(name, isViewsheet, principal), principal);
+         getTableData(false, getRecordsKey(name, isViewsheet, principal), timeZone, principal);
 
       if(data == null) {
          data = new Object[][] {
@@ -211,7 +212,9 @@ public class PortalProfileController {
       }
    }
 
-   private Object[][] getTableData(boolean showSummarize, String name, Principal principal) {
+   private Object[][] getTableData(boolean showSummarize, String name, String timeZone,
+                                   Principal principal)
+   {
       Catalog catalog = Catalog.getCatalog(principal);
       ProfileInfo pinfo = Profile.getInstance().getProfileInfo();
       List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(name);
@@ -255,6 +258,8 @@ public class PortalProfileController {
          .sorted()
          .collect(Collectors.toList());
 
+      SimpleDateFormat formatter = new SimpleDateFormat("HH:mm:ss:SSS");
+      formatter.setTimeZone(TimeZone.getTimeZone(timeZone));
       Object[][] data = new Object[records.size() + 1][contexts.size() + 4];
       data[0][0] = catalog.getString("Cycle Name");
 
@@ -275,8 +280,8 @@ public class PortalProfileController {
             data[r][i + 1] = record.getContext(contexts.get(i));
          }
 
-         data[r][contexts.size() + 1] = record.getStartTimestamp();
-         data[r][contexts.size() + 2] = record.getEndTimestamp();
+         data[r][contexts.size() + 1] = formatter.format(record.getStartTimestamp());
+         data[r][contexts.size() + 2] = formatter.format(record.getEndTimestamp());
          data[r][contexts.size() + 3] = getSpendTime(record.getEndTimestamp(), record.getStartTimestamp());
       }
 
