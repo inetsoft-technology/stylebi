@@ -186,11 +186,6 @@
       "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
     },
     {
-      "name": "Contacts",
-      "pageType": 0,
-      "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?email={Contact Email Address(es)}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
-    },
-    {
       "name": "Contact By User Token",
       "pageType": 0,
       "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
