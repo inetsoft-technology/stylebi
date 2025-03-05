@@ -3303,7 +3303,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          sortCol: 0
       };
 
-      let params = new HttpParams().set("isViewsheet", "true").set("name", objName);
+      let params = new HttpParams()
+         .set("isViewsheet", "true")
+         .set("name", objName)
+         .set("timeZone", Intl.DateTimeFormat().resolvedOptions().timeZone);
 
       this.modelService.putModel(GET_PROFILE_TABLE_URL, event, params)
          .subscribe((data: any) => {
