@@ -64,6 +64,12 @@ public class MultiMeasureColorFrame extends CategoricalColorFrame {
       return clr != null ? process(clr, getBrightness(measure)) : super.getColor(val);
    }
 
+   @Override
+   public void setColor(Object val, Color color) {
+      String measure = val + "";
+      mcolors.put(measure, color);
+   }
+
    /**
     * Set the brightness for the specified measure.
     */
@@ -81,6 +87,16 @@ public class MultiMeasureColorFrame extends CategoricalColorFrame {
    @Override
    public String toString() {
       return super.toString() + mcolors;
+   }
+
+   @Override
+   public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
+      MultiMeasureColorFrame frame = (MultiMeasureColorFrame) obj;
+      return mcolors.equals(frame.mcolors) && brightnessMap.equals(frame.brightnessMap);
    }
 
    private final boolean force;
