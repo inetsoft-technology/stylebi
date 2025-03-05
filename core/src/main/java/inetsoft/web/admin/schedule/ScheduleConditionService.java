@@ -238,7 +238,7 @@ public class ScheduleConditionService {
             .type(type)
             .array(array)
             .value(value instanceof DynamicValueModel ? (DynamicValueModel) value
-               : new DynamicValueModel(value, DynamicValueModel.VALUE, type))
+               : new DynamicValueModel(value, DynamicValueModel.VALUE, type, array))
             .build();
 
          paramModels.add(paramModel);
@@ -400,6 +400,7 @@ public class ScheduleConditionService {
       String name = model.name();
       String type = model.type();
       DynamicParameterValue parameterValue = value.convertParameterValue();
+      parameterValue.setArray(model.array());
 
       if(model.array()) {
          parameterValue.setValue(getParamValueAsArray(type, value.getValue().toString()));
