@@ -18,6 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { Inject, Injectable, InjectionToken, OnDestroy, Optional } from "@angular/core";
 import { BehaviorSubject, Observable } from "rxjs";
+import { IdentityIdWithLabel } from "../../em/src/app/settings/security/users/idenity-id-with-label";
 import { IdentityId } from "../../em/src/app/settings/security/users/identity-id";
 import { UsersModel } from "./model/users-model";
 
@@ -25,7 +26,7 @@ export const PORTAL = new InjectionToken<boolean>("PORTAL");
 
 @Injectable()
 export class ScheduleUsersService implements OnDestroy {
-   owners = new BehaviorSubject<IdentityId[]>([]);
+   owners = new BehaviorSubject<IdentityIdWithLabel[]>([]);
    groups = new BehaviorSubject<IdentityId[]>([]);
    groupBaseNames = new BehaviorSubject<string[]>([]);
    emailGroups = new BehaviorSubject<IdentityId[]>([]);
@@ -77,7 +78,7 @@ export class ScheduleUsersService implements OnDestroy {
       }
    }
 
-   getOwners(): Observable<IdentityId[]> {
+   getOwners(): Observable<IdentityIdWithLabel[]> {
       return this.owners;
    }
 
