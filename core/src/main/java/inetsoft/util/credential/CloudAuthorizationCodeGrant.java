@@ -46,6 +46,7 @@ public class CloudAuthorizationCodeGrant extends CloudClientCredentialsGrant
       if(credential instanceof LocalAuthorizationCodeGrant localCredential) {
          localCredential.setAccountDomain(accountDomain);
          localCredential.setAuthorizationCode(authorizationCode);
+         super.copyToLocal(credential);
       }
    }
 
