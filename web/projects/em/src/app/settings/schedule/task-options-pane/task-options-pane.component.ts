@@ -35,6 +35,7 @@ import { TaskOptionsPaneModel } from "../../../../../../shared/schedule/model/ta
 import { TimeZoneModel } from "../../../../../../shared/schedule/model/time-zone-model";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
+import { IdentityIdWithLabel } from "../../security/users/idenity-id-with-label";
 import { KEY_DELIMITER, IdentityId } from "../../security/users/identity-id";
 import { DateTimeService } from "../task-condition-pane/date-time.service";
 import { ExecuteAsDialogComponent } from "./execute-as-dialog.component";
@@ -118,9 +119,9 @@ export class TaskOptionsPane {
 
    optionsForm: UntypedFormGroup;
    executeAsName: string;
-   filteredUsers: Observable<IdentityId[]>;
+   filteredUsers: Observable<IdentityIdWithLabel[]>;
    private _model: TaskOptionsPaneModel;
-   private owners: IdentityId[];
+   private owners: IdentityIdWithLabel[];
    public adminName: string = "";
    private _executeAs: string;
    public groupErrorState = new GroupErrorState();
@@ -152,7 +153,7 @@ export class TaskOptionsPane {
 
       this.http.get<string>("../api/em/navbar/organization")
          .subscribe((org) => {
-            this.owners = this.owners.filter((user) => user.orgID === org)
+            this.owners = this.owners.filter((user) => user.identityID.orgID === org)
          });
 
       usersService.getAdminName().subscribe(
@@ -173,7 +174,7 @@ export class TaskOptionsPane {
                if(input) {
                   const filterValue = input.toLowerCase();
                   return this.owners
-                     .filter((user) => user.name.toLowerCase().startsWith(filterValue))
+                     .filter((user) => user.identityID.name.toLowerCase().startsWith(filterValue))
                      .slice(0, 100);
                }
                else {
@@ -281,7 +282,7 @@ export class TaskOptionsPane {
       }
 
       return this.model && this.owners &&
-         this.owners.findIndex(u => u.name == control.value) === -1 ? {invalid: true} :
+         this.owners.findIndex(u => u.identityID.name == control.value) === -1 ? {invalid: true} :
          null;
    };
 

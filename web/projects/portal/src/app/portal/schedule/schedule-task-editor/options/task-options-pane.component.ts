@@ -19,6 +19,7 @@ import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup } from "@angular/forms";
 import { NgbDateStruct, NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { IdentityIdWithLabel } from "../../../../../../../em/src/app/settings/security/users/idenity-id-with-label";
 import { IdentityId } from "../../../../../../../em/src/app/settings/security/users/identity-id";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { TaskOptionsPaneModel } from "../../../../../../../shared/schedule/model/task-options-pane-model";
@@ -72,7 +73,7 @@ export class TaskOptionsPane implements OnInit {
    @Output() closeEditor = new EventEmitter<TaskOptionsPaneModel>();
    @Output() cancelTask = new EventEmitter();
    _model: TaskOptionsPaneModel;
-   owners: IdentityId[];
+   owners: IdentityIdWithLabel[];
    groups: IdentityId[];
    groupBaseNames: string[];
    adminName: string;

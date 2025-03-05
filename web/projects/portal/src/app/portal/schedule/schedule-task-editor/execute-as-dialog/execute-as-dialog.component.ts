@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output, ViewChild } from "@angular/core";
+import { IdentityIdWithLabel } from "../../../../../../../em/src/app/settings/security/users/idenity-id-with-label";
 import { IdentityId } from "../../../../../../../em/src/app/settings/security/users/identity-id";
 import { IdentityTreeComponent } from "../../../../widget/identity-tree/identity-tree.component";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
@@ -37,7 +38,7 @@ export class ExecuteAsDialog {
    @ViewChild("searchIdentityTree") searchIdentityTree: IdentityTreeComponent;
    @ViewChild("identityTree") identityTree: IdentityTreeComponent;
    private readonly MAX_NODES = 1000;
-   _users: IdentityId[] = [];
+   _users: IdentityIdWithLabel[] = [];
    _groups: IdentityId[] = [];
    selectedNode: TreeNodeModel;
    searchMode: boolean = false;
@@ -78,14 +79,14 @@ export class ExecuteAsDialog {
       children: []
    };
 
-   @Input() set users(_users: IdentityId[]) {
+   @Input() set users(_users: IdentityIdWithLabel[]) {
       this._users = _users;
       this.usersNode.children = this._users
          .slice(0, this.MAX_NODES)
          .map((user) => {
             return <TreeNodeModel>{
-               label: user?.name,
-               data: user,
+               label: user?.label ?? user.identityID.name,
+               data: user.identityID,
                type: String(IdentityType.USER),
                leaf: true,
                expanded: false
@@ -160,11 +161,11 @@ export class ExecuteAsDialog {
 
       if(this.type == IdentityType.USER) {
          children = this.users
-            .filter((user) => user.name.indexOf(this.searchText) != -1)
+            .filter((user) => user.identityID.name.indexOf(this.searchText) != -1)
             .map((user) => {
                return <TreeNodeModel>{
-                  label: user.name,
-                  data: user,
+                  label: user.label ?? user.identityID.name,
+                  data: user.identityID,
                   type: String(IdentityType.USER),
                   leaf: true,
                   expanded: false
