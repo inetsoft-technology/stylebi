@@ -113,8 +113,10 @@ public class DeployService {
                .lastModifiedTime(Tool.formatDateTime(entry.getLastModifiedTime()))
                .user(entry.getUser());
 
-            if(!SecurityEngine.getSecurity().isSecurityEnabled() && Tool.equals(entry.getType(), WSAutoSaveAsset.AUTOSAVEWS) ||
-                                                                    Tool.equals(entry.getType(), VSAutoSaveAsset.AUTOSAVEVS)) {
+            if(!SecurityEngine.getSecurity().isSecurityEnabled() &&
+               (Tool.equals(entry.getType(), WSAutoSaveAsset.AUTOSAVEWS) ||
+               Tool.equals(entry.getType(), VSAutoSaveAsset.AUTOSAVEVS)))
+            {
                throw new MessageException(Catalog.getCatalog().getString("em.import.fail.fileList") + " " +
                                              Catalog.getCatalog().getString("em.import.userNoSecurity"));
             }
