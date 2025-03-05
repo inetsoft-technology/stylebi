@@ -93,7 +93,20 @@ public interface CloudCredential extends Credential {
       throw new RuntimeException("There's no secrets manager for cloud password credential!");
    }
 
-   default Credential convertToLocal() {
+   default Credential createLocal() {
       return null;
+   }
+
+   default void copyToLocal(Credential credential) {
+   }
+
+   default Credential convertToLocal() {
+      Credential local = createLocal();
+
+      if(local != null) {
+         copyToLocal(local);
+      }
+
+      return local;
    }
 }
