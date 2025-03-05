@@ -40,6 +40,7 @@ import {
 } from "rxjs/operators";
 import { AssetType } from "../../../../../../shared/data/asset-type";
 import { RepositoryEntryType } from "../../../../../../shared/data/repository-entry-type.enum";
+import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { SortOptions } from "../../../../../../shared/util/sort/sort-options";
 import { SortTypes } from "../../../../../../shared/util/sort/sort-types";
@@ -781,8 +782,8 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
             createdDate: file.createdDate,
             editable: file.editable,
             deletable: file.deletable,
-            createdDateLabel:  file.createdDateLabel,
-            modifiedDateLabel: file.modifiedDateLabel
+            createdDateLabel:  DateTypeFormatter.getLocalTime(file.createdDate, file.dateFormat),
+            modifiedDateLabel: DateTypeFormatter.getLocalTime(file.modifiedDate, file.dateFormat)
          };
       }
 
