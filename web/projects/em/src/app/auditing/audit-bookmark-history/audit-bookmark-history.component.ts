@@ -143,7 +143,7 @@ export class AuditBookmarkHistoryComponent implements OnInit, OnDestroy {
       const selectedDashboards: string[] = additional.selectedDashboards;
 
       if(!!selectedDashboards && selectedDashboards.length > 0) {
-         selectedDashboards.forEach(h => params = params.append("dashboards", h));
+         selectedDashboards.forEach(h => params = params.append("dashboards", encodeURIComponent(h)));
       }
 
       const selectedHosts: string[] = additional.selectedHosts;
