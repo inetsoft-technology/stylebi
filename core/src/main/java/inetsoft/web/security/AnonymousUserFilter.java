@@ -49,7 +49,7 @@ public class AnonymousUserFilter extends AbstractSecurityFilter {
       if(!isPublicResource(httpRequest) && !isPublicApi(httpRequest)) {
          Principal reqPrincipal = SUtil.getPrincipal(httpRequest, true);
 
-         if(reqPrincipal == null) {
+         if(reqPrincipal == null && !isPageRequested("/vs-events/**", httpRequest)) {
             try {
                SRPrincipal principal = authenticateAnonymous(request);
 
