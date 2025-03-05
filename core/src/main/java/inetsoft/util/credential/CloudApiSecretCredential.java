@@ -45,6 +45,18 @@ public class CloudApiSecretCredential extends AbstractCloudCredential
    }
 
    @Override
+   public Credential createLocal() {
+      return new LocalApiSecretCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalApiSecretCredential localCredential) {
+         localCredential.setApiSecret(apiSecret);
+      }
+   }
+
+   @Override
    public boolean isEmpty() {
       return super.isEmpty() && StringUtils.isEmpty(apiSecret);
    }
