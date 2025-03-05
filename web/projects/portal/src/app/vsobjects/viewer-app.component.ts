@@ -863,7 +863,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    onKeyDown(event: KeyboardEvent) {
-      if(!this.saveCurrentBookmarkDisabled() && event.keyCode === 83 && event.ctrlKey) {
+      if(!this.saveCurrentBookmarkDisabled() && event.keyCode === 83 && event.ctrlKey &&
+         !this.isDefaultOrgAsset)
+      {
          event.preventDefault();
          this.saveBookmark();
       }
@@ -1683,7 +1685,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.vsBookmarkList.forEach((bm) => bm.currentBookmark = false);
       bookmark.currentBookmark = true;
 
-      if(this.annotationChanged) {
+      if(this.annotationChanged && !this.isDefaultOrgAsset) {
          ComponentTool.showAnnotationChangedDialog(this.modalService).then((value) => {
             if(value) {
                this.annotationChanged = false;
@@ -1692,6 +1694,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          });
       }
       else {
+         this.annotationChanged = false;
          this.sendBookmarkEvent("goto", bookmark);
       }
    }
