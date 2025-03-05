@@ -123,7 +123,7 @@ export class AuditScheduleHistoryComponent implements OnInit, OnDestroy {
       const selectedTasks: string[] = additional.selectedTasks;
 
       if(!!selectedTasks && selectedTasks.length > 0) {
-         selectedTasks.forEach(t => params = params.append("tasks", t));
+         selectedTasks.forEach(t => params = params.append("tasks", encodeURIComponent(t)));
       }
       const selectedUsers: string[] = additional.selectedUsers;
 
