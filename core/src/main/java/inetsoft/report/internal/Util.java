@@ -2752,7 +2752,13 @@ public class Util implements inetsoft.report.StyleConstants {
             return path;
          }
 
-         return "Recycle Bin/Auto Saved Files/" + strings[2] + "/Dashboard/" + strings[3];
+         String userName = strings[2];
+
+         if(userName.contains(IdentityID.KEY_DELIMITER)) {
+             userName = IdentityID.getIdentityIDFromKey(userName).name;
+         }
+
+         return "Recycle Bin/Auto Saved Files/" + userName + "/Dashboard/" + strings[3];
       case RepositoryEntry.AUTO_SAVE_WS:
          if(path == null) {
             return "";
