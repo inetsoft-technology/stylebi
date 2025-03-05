@@ -34,6 +34,7 @@ public class AmazonAuroraMySQLDataSourceListing extends DataSourceListing {
       ds.setURL("jdbc:mysql://instance.accountId.region.rds.amazonaws.com:3306/databaseName");
       ds.setDriver("com.mysql.jdbc.Driver");
       ds.setProductName("AMAZON AURORA");
+      ds.setCloudHosted(true);
 
       return ds;
    }
