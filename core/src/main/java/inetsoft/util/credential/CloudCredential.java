@@ -30,6 +30,14 @@ public interface CloudCredential extends Credential {
       }
 
       if(PasswordEncryption.isForceLocal()) {
+         Credential newCredential = Tool.decryptPasswordToCredential(
+            getId(), getClass(), getDBType());
+
+         if(newCredential != null) {
+            newCredential.setId(getId());
+            refreshCredential(newCredential);
+         }
+
          Credential localCredential = convertToLocal();
 
          if(localCredential != null) {
