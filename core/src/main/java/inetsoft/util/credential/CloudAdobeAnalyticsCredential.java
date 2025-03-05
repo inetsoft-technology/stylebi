@@ -45,6 +45,7 @@ public class CloudAdobeAnalyticsCredential extends AbstractCloudCredential
    public void copyToLocal(Credential credential) {
       if(credential instanceof LocalAdobeAnalyticsCredential localCredential) {
          localCredential.setApiKey(apiKey);
+         localCredential.setGlobalCompanyId(globalCompanyId);
       }
    }
 

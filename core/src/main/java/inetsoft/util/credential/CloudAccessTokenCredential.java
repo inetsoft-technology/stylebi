@@ -55,8 +55,8 @@ public class CloudAccessTokenCredential extends AbstractCloudCredential
 
    @Override
    public void copyToLocal(Credential credential) {
-      if(credential instanceof CloudAccessTokenCredential cloudCredential) {
-         cloudCredential.setAccessToken(accessToken);
+      if(credential instanceof LocalAccessTokenCredential localCredential) {
+         localCredential.setAccessToken(accessToken);
       }
    }
 
