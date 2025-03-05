@@ -406,7 +406,7 @@ public class VGraphPair {
                // and causes a 'column not found' exception, we should
                // continue and get a new dataset and re-generate
                // the egraph in the next block
-               LOG.debug("The binding has changed, the graph will be regenerated", ex);
+               LOG.debug("The binding has changed. The graph will be regenerated", ex);
                isChanged = true;
             }
 
@@ -444,6 +444,11 @@ public class VGraphPair {
             if(!"".equals(script)) {
                // clear one of chart's alert message
                Tool.getUserMessage();
+            }
+
+            if(cscript && isChanged && vbox.getMode() == Viewsheet.SHEET_DESIGN_MODE) {
+               CoreTool.addUserMessage(Catalog.getCatalog().getString(
+                  "viewer.viewsheet.chart.bindingScriptChangeIgnored"));
             }
 
             // execute on egraph2
