@@ -297,7 +297,7 @@ public abstract class AbstractEditableAuthenticationProvider
    protected void clearScopedProperties(String oldOrgId) {
       //loop through properties, delete any containing .thisOrg.
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org" + oldOrgId;
+      String oldOrgIdentifier = "inetsoft.org." + oldOrgId;
 
       for(Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
          String pName = (String) e.nextElement();

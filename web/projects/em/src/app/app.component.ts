@@ -78,7 +78,6 @@ export class AppComponent implements OnInit, OnDestroy {
 
       this.authzService.getPermissions("").subscribe(p => this.permissions = p);
 
-      console.log("=======")
       this.stompClient.connect("../vs-events", true).subscribe(connection => {
          this.connection = connection;
          this.subscription.add(connection.subscribe(
