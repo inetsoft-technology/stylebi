@@ -235,7 +235,7 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
                   this.repositoryTreeService.getFolder(
                      nextPath, this.permission, this.selector, this.detailType,
                      this.isFavoritesTree, null, this.checkDetailType, this.isReport,
-                     false, this.isPortalData, this.showVS, this.showBurstReport)
+                     false, this.isPortalData, this.showVS, this.showBurstReport, undefined, defaultAsset)
                      .subscribe((data) => {
                         child.children = data.children;
                         this.selectAndExpandToPath(path, child, defaultAsset);
