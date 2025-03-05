@@ -19,6 +19,7 @@ package inetsoft.web.admin.properties;
 
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -80,14 +81,6 @@ public class PropertiesController {
 
       SreeEnv.setProperty(propertyName, value);
       SreeEnv.save();
-
-      if(Tool.equals(propertyName, "asset.max.idle")) {
-         RuntimeSheet.invalidateMaxIdle();
-      }
-
-      if(Tool.equals(propertyName,"http.session.timeout")) {
-         mapSessionRepository.updateSessionTimeout(value);
-      }
    }
 
    @GetMapping("/api/admin/properties")

@@ -45,28 +45,20 @@ public abstract class RuntimeSheet {
     * @return max idle time.
     */
    public static long getMaxIdleTime() {
-      if(maxIdle == 0) {
+      long maxIdle = Integer.parseInt(SreeEnv.getProperty("asset.max.idle"));
+      String sessionTimeoutProperty = SreeEnv.getProperty("http.session.timeout");
+
+      if(sessionTimeoutProperty != null && !sessionTimeoutProperty.isEmpty()) {
          try {
-            maxIdle = Integer.parseInt(SreeEnv.getProperty("asset.max.idle"));
+            long sessionTimeout = TimeUnit.SECONDS.toMillis(Long.parseLong(sessionTimeoutProperty));
+            maxIdle = Math.min(sessionTimeout, maxIdle);
          }
-         catch(Exception ex) {
-            maxIdle = 7200000;
-         }
-
-         String property = SreeEnv.getProperty("http.session.timeout");
-
-         if(property != null && !property.isEmpty()) {
-            try {
-               long sessionTimeout = TimeUnit.SECONDS.toMillis(Long.parseLong(property));
-               maxIdle = Math.min(sessionTimeout, maxIdle);
+         catch(NumberFormatException e) {
+            if(LOG.isDebugEnabled()) {
+               LOG.warn("Invalid value of http.session.timeout property: {}", sessionTimeoutProperty, e);
             }
-            catch(NumberFormatException e) {
-               if(LOG.isDebugEnabled()) {
-                  LOG.warn("Invalid value of http.session.timeout property: {}", property, e);
-               }
-               else {
-                  LOG.warn("Invalid value of http.session.timeout property: {}", property);
-               }
+            else {
+               LOG.warn("Invalid value of http.session.timeout property: {}", sessionTimeoutProperty);
             }
          }
       }
@@ -719,12 +711,6 @@ public abstract class RuntimeSheet {
       private transient boolean isCountHM = false;
       private transient boolean isCountRW = false;
    }
-
-   public static void invalidateMaxIdle() {
-      maxIdle = 0;
-   }
-
-   private static long maxIdle;   // max idle time
 
    protected AssetEntry entry;      // asset entry
    protected long accessed;         // last accessed time

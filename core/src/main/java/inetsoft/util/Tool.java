@@ -24,6 +24,7 @@ import com.veracode.annotation.CRLFCleanser;
 import com.veracode.annotation.XSSCleanser;
 import inetsoft.report.*;
 import inetsoft.report.filter.ReversedComparer;
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
@@ -93,6 +94,9 @@ import java.util.zip.ZipOutputStream;
  * @author InetSoft Technology Corp
  */
 public final class Tool extends CoreTool {
+   static {
+      PropertiesEngine.getInstance().addPropertyChangeListener("string.compare.caseSensitive", evt -> invalidateCaseSensitive());
+   }
    /**
     * User defined type.
     */
@@ -2821,6 +2825,10 @@ public final class Tool extends CoreTool {
       }
 
       return sensitive;
+   }
+
+   public static void invalidateCaseSensitive() {
+      sinited = false;
    }
 
    /**
