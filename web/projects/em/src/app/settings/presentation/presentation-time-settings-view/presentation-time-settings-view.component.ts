@@ -61,7 +61,6 @@ export class PresentationTimeSettingsViewComponent {
   constructor(private fb: UntypedFormBuilder) {
     this.form = fb.group({
        weekStart: "",
-       localTimezone: "",
        scheduleTime12Hours: [true]
     });
   }
