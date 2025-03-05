@@ -23,7 +23,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 
 public class ActianVectorDataSourceListing extends DataSourceListing {
    public ActianVectorDataSourceListing() {
-      super("Actian Vector", "Relational Database", "/inetsoft/uql/listing/actian-vector.svg");
+      super("Actian", "Relational Database", "/inetsoft/uql/listing/actian-vector.svg");
    }
 
    @Override
