@@ -205,6 +205,14 @@ public class DatabaseDefinition {
       this.changeDefaultDB = changeDefaultDB;
    }
 
+   public String getCloudError() {
+      return cloudError;
+   }
+
+   public void setCloudError(String cloudError) {
+      this.cloudError = cloudError;
+   }
+
    private String name;
    private String oname;
    private String type;
@@ -223,4 +231,5 @@ public class DatabaseDefinition {
    private int option;
    private String defaultdb = null; // set the default database
    private boolean changeDefaultDB;
+   private String cloudError;
 }
