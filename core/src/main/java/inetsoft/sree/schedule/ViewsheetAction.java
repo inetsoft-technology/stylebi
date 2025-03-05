@@ -1808,22 +1808,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
    }
 
    private String getDecryptedPassword(String secretId) {
-      if(Tool.isEmptyString(secretId)) {
-         return secretId;
-      }
-
-      JsonNode jsonNode = Tool.loadCredentials(secretId);
-
-      if(jsonNode != null) {
-         try {
-            return jsonNode.get("password").asText();
-         }
-         catch(Exception e) {
-            throw new RuntimeException("Failed to load credential by secret ID '" + secretId + "'");
-         }
-      }
-
-      return null;
+      return EmailInfo.getDecryptedPassword(secretId);
    }
 
    /**

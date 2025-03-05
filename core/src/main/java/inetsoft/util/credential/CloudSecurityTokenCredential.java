@@ -73,6 +73,19 @@ public class CloudSecurityTokenCredential extends CloudPasswordCredential
       setSecurityToken(cloudCredential.getSecurityToken());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalSecurityTokenCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalSecurityTokenCredential localCredential) {
+         localCredential.setSecurityToken(securityToken);
+         super.copyToLocal(localCredential);
+      }
+   }
+
    public static class Serializer<T extends CloudSecurityTokenCredential>
       extends CloudPasswordCredential.Serializer<T>
    {
