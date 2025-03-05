@@ -248,8 +248,8 @@ function authenticateUser(userName, password, loginAsName, requestedUrl, firstLo
 
    headers["X-Requested-With"] = "XMLHttpRequest";
    headers["Authorization"] = "Basic " + btoa(encodeURIComponent(userName) + ":" + encodeURIComponent(password));
-   headers["LoginAsUser"] = loginAsName;
-   headers["FirstLogin"] = firstLogin;
+   headers["LoginAsUser"] = encodeURIComponent(loginAsName);
+   headers["FirstLogin"] = encodeURIComponent(firstLogin);
 
    $.ajax({
       url: requestedUrl,
