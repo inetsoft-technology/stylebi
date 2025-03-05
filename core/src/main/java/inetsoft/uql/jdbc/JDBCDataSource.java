@@ -985,6 +985,12 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          unasgn = "true".equalsIgnoreCase(attr);
       }
 
+      attr = Tool.getAttribute(root, "cloudHosted");
+
+      if(attr != null) {
+         cloudHosted = "true".equalsIgnoreCase(attr);
+      }
+
       setDatabaseType0();
       resetDatabaseDefinition();
    }
@@ -1004,7 +1010,8 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          "\" nameOption=\"" + option +
          "\" ansiJoin=\"" + ansiJoin +
          "\" unasgn=\"" + unasgn +
-         "\" custom=\"" + custom + "\"");
+         "\" custom=\"" + custom +
+         "\" cloudHosted=\"" + cloudHosted + "\"");
 
       if(defaultdb != null) {
          writer.print(" defaultDB=\"" + Tool.escape(defaultdb) + "\"");
@@ -1228,6 +1235,21 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
       return systemSchemas;
    }
 
+   /**
+    * Set if this data source is recognized as a cloud-hosted datasource
+    * @param cloudHosted indicates if the data source is cloud-hosted
+    */
+   public void setCloudHosted(boolean cloudHosted) {
+      this.cloudHosted = cloudHosted;
+   }
+
+   /**
+    * Get if this data source is recognized as a cloud-hosted datasource
+    * @return true if the datasource is cloud-hosted
+    */
+   public boolean isCloudHosted() {
+      return cloudHosted;
+   }
    /**
     * Get a list of the catalogs this datasource uses for system tables.
     */
@@ -1569,6 +1591,7 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
    private boolean custom = false;
    private boolean unasgn = false;
    private String runtimeProductName = null;
+   private boolean cloudHosted = false;
 
    public static final String JDBC_URL_TEMPLATE = "jdbc:<subprotocol>://<host>[:<port>]/databaseName";
 

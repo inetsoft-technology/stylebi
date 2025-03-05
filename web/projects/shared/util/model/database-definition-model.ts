@@ -35,4 +35,5 @@ export interface DatabaseDefinitionModel {
    tableNameOption: number;
    defaultDatabase: string;
    changeDefaultDB: boolean;
+   cloudError?: string;
 }

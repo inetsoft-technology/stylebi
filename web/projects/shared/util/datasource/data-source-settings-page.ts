@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient, HttpParams } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
 import { Directive, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { of } from "rxjs";
 import { catchError } from "rxjs/operators";
@@ -299,9 +299,19 @@ export abstract class DataSourceSettingsPage implements OnInit {
    testDatabase(): void {
       let params = new HttpParams().set("path", this.primaryDatabasePath);
       this.http.post<ConnectionStatus>(TEST_ADDITIONAL, this.database, {params}).pipe(
-         catchError(() => {
+         catchError((error: HttpErrorResponse) => {
             if(this.showTestMessage) {
-               this.showMessage("_#(js:em.data.databases.error)", "_#(js:Error)", true);
+               let message = "_#(js:em.data.databases.error)";
+
+               if(error.status === 504) {
+                  message = "_#(js:em.data.databases.error.gatewayTimeout)";
+               }
+
+               if(!!this.database.cloudError) {
+                  message += "\n" + this.database.cloudError;
+               }
+
+               this.showMessage(message, "ERROR", true);
             }
             else {
                this.onTested.emit({
@@ -315,7 +325,11 @@ export abstract class DataSourceSettingsPage implements OnInit {
       ).subscribe((connection: ConnectionStatus) => {
          this.databaseStatus = connection.status;
 
-         if(this.showTestMessage) {
+         if(this.showTestMessage && !!this.database.cloudError) {
+            if(!connection.connected) {
+               this.databaseStatus += "\n" + this.database.cloudError;
+            }
+
             this.showMessage(this.databaseStatus, connection.connected ? "OK" : "ERROR", true);
          }
          else {

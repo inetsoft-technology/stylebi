@@ -466,6 +466,7 @@ public class DatabaseDatasourcesService {
       jdbcDataSource.setTransactionIsolation(newSrc.getTransactionIsolation());
       jdbcDataSource.setTableNameOption(newSrc.getTableNameOption());
       jdbcDataSource.setAnsiJoin(newSrc.isAnsiJoin());
+      jdbcDataSource.setCloudHosted(database.getCloudError() != null);
 
       boolean additionalChange = false;
 
@@ -1029,6 +1030,7 @@ public class DatabaseDatasourcesService {
       xds.setTransactionIsolation(definition.getTransactionIsolation());
       xds.setCustomEditMode(definition.getInfo().isCustomEditMode());
       xds.setCustom(type.equals(CustomDatabaseType.TYPE));
+      xds.setCloudHosted(definition.getCloudError() != null);
       String url = databaseType.formatUrl(definition.getNetwork(), definition.getInfo());
 
       if(buildCustomUrl && definition.getInfo().isCustomEditMode()) {
