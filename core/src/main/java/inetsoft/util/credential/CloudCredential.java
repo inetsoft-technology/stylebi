@@ -28,10 +28,15 @@ public interface CloudCredential extends Credential {
       if(isEmpty()) {
          return;
       }
-// only consume secrets, so don't need to add secret to cloud secrets manager.
-//      if(!isUseCredential() || getId() == null) {
-//         setId(getSecretsManager().encryptCredential(this));
-//      }
+
+      if(PasswordEncryption.isForceLocal()) {
+         Credential localCredential = convertToLocal();
+
+         if(localCredential != null) {
+            localCredential.writeXML(writer);
+            return;
+         }
+      }
 
       StringBuilder builder = new StringBuilder();
       builder.append("<PasswordCredential cloud=\"true\"");
@@ -78,5 +83,9 @@ public interface CloudCredential extends Credential {
       }
 
       throw new RuntimeException("There's no secrets manager for cloud password credential!");
+   }
+
+   default Credential convertToLocal() {
+      return null;
    }
 }

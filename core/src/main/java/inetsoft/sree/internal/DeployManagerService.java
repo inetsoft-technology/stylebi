@@ -596,6 +596,30 @@ public class DeployManagerService {
                                    List<String> ignoreUserAssets)
       throws Exception
    {
+      PasswordEncryption.setForceMaster(true);
+      PasswordEncryption.setForceLocal(true);
+
+      try {
+         importAssets0(overwriting, order, info, desktop, principal, ignoreList, actionRecord,
+            failedList, targetFolderInfo, ignoreUserAssets);
+      }
+      finally {
+         PasswordEncryption.setForceMaster(false);
+         PasswordEncryption.setForceLocal(false);
+      }
+   }
+
+   private static void importAssets0(boolean overwriting,
+                                   final List<String> order,
+                                   DeploymentInfo info,
+                                   boolean desktop, Principal principal,
+                                   List<String> ignoreList,
+                                   ActionRecord actionRecord,
+                                   List<String> failedList,
+                                   ImportTargetFolderInfo targetFolderInfo,
+                                   List<String> ignoreUserAssets)
+      throws Exception
+   {
       List<AssetEntry> vss = new ArrayList<>();
       DataSpace space = DataSpace.getDataSpace();
       XAssetConfig config = new XAssetConfig();

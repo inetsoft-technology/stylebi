@@ -39,9 +39,10 @@ class JcePasswordEncryption extends LocalPasswordEncryption {
    JcePasswordEncryption() {
       super(false);
       char[] password = masterPassword.get();
+      char[] defaultPassword = new char[] { 's', 'u', 'c', 'c', 'e', 's', 's', '1', '2', '3' };
 
       if(password == null) {
-         password = new char[] { 's', 'u', 'c', 'c', 'e', 's', 's', '1', '2', '3' };
+         password = defaultPassword;
       }
 
       masterKey = createMasterKey(password);
@@ -55,6 +56,8 @@ class JcePasswordEncryption extends LocalPasswordEncryption {
       else {
          invalidMasterPassword = false;
       }
+
+      defaultMasterKey = createMasterKey(defaultPassword);
    }
 
    @Override
@@ -222,10 +225,12 @@ class JcePasswordEncryption extends LocalPasswordEncryption {
 
    @Override
    protected SecretKey getMasterKey() {
-      return masterKey;
+      return PasswordEncryption.isForceMaster() && PasswordEncryption.isForceLocal() ?
+         defaultMasterKey : masterKey;
    }
 
    private final SecretKey masterKey;
+   private final SecretKey defaultMasterKey;
    private static SecretKey masterKey0;
    private static String masterPassword0 = "";
    private final boolean invalidMasterPassword;

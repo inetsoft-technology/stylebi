@@ -171,7 +171,8 @@ public interface PasswordEncryption {
    }
 
    static PasswordEncryption newLocalInstance() {
-      return newLocalInstance(InetsoftConfig.getInstance().getSecrets());
+      return isForceLocal() ? newInstance(new SecretsConfig()) :
+         newLocalInstance(InetsoftConfig.getInstance().getSecrets());
    }
 
    static PasswordEncryption newLocalInstance(SecretsConfig secretsConfig) {
@@ -258,6 +259,49 @@ public interface PasswordEncryption {
       }
 
       threadLocal.set(forceMaster);
+   }
+
+   /**
+    * Gets a flag that indicates if the encryption should use the local encryption
+    *
+    * @return {@code true} to use the local encryption; {@code false} to use the config encryption.
+    */
+   static boolean isForceLocal() {
+      ThreadLocal<Boolean> forceMaster;
+
+      synchronized(PasswordEncryption.class) {
+         ConfigurationContext context = ConfigurationContext.getContext();
+         forceMaster = context.get("inetsoft.util.PasswordEncryption.local");
+
+         if(forceMaster == null) {
+            forceMaster = ThreadLocal.withInitial(() -> false);
+            context.put("inetsoft.util.PasswordEncryption.local", forceMaster);
+         }
+      }
+
+      return forceMaster.get();
+   }
+
+   /**
+    * Gets a flag that indicates if use the local encryption
+    *
+    * @param forceLocal {@code true} to use the local encryption; {@code false} to use the
+    *                    cofing encryption.
+    */
+   static void setForceLocal(boolean forceLocal) {
+      ThreadLocal<Boolean> threadLocal;
+
+      synchronized(PasswordEncryption.class) {
+         ConfigurationContext context = ConfigurationContext.getContext();
+         threadLocal = context.get("inetsoft.util.PasswordEncryption.local");
+
+         if(threadLocal == null) {
+            threadLocal = ThreadLocal.withInitial(() -> false);
+            context.put("inetsoft.util.PasswordEncryption.local", threadLocal);
+         }
+      }
+
+      threadLocal.set(forceLocal);
    }
 
    final class Reference extends SingletonManager.Reference<PasswordEncryption> {
