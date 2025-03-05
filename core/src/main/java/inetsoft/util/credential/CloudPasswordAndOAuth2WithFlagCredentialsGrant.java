@@ -77,6 +77,19 @@ public class CloudPasswordAndOAuth2WithFlagCredentialsGrant extends CloudPasswor
       setOauthFlags(cloudCredential.getOauthFlags());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalPasswordAndOAuth2WithFlagCredentialsGrant();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalPasswordAndOAuth2WithFlagCredentialsGrant localCredentials) {
+         localCredentials.setOauthFlags(oauthFlags);
+         super.copyToLocal(localCredentials);
+      }
+   }
+
    public static class Serializer<T extends CloudPasswordAndOAuth2WithFlagCredentialsGrant>
       extends CloudPasswordAndOAuth2CredentialsGrant.Serializer<T>
    {

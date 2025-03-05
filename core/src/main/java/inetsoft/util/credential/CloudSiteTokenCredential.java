@@ -77,6 +77,19 @@ public class CloudSiteTokenCredential extends CloudApiKeyCredential
       setSiteToken(cloudCredential.getSiteToken());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalSiteTokenCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalSiteTokenCredential localCredential) {
+         localCredential.setSiteToken(siteToken);
+         super.copyToLocal(localCredential);
+      }
+   }
+
    public static class Serializer<T extends CloudSiteTokenCredential>
       extends CloudApiKeyCredential.Serializer<T>
    {

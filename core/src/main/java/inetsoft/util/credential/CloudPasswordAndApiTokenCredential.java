@@ -69,6 +69,19 @@ public class CloudPasswordAndApiTokenCredential extends CloudPasswordCredential
    }
 
    @Override
+   public Credential createLocal() {
+      return new LocalPasswordAndApiTokenCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalPasswordAndApiTokenCredential localCredential) {
+         localCredential.setApiToken(apiToken);
+         super.copyToLocal(localCredential);
+      }
+   }
+
+   @Override
    public boolean isEmpty() {
       return super.isEmpty() && StringUtils.isEmpty(getApiToken());
    }

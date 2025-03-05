@@ -75,6 +75,19 @@ public class CloudClientKeyPasswordCredential extends CloudPasswordCredential
       setClientKey(credential0.getClientKey());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalClientKeyPasswordCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalClientKeyPasswordCredential localCredential) {
+         localCredential.setClientKey(clientKey);
+         super.copyToLocal(localCredential);
+      }
+   }
+
    public static class Serializer<T extends CloudClientKeyPasswordCredential>
       extends CloudPasswordCredential.Serializer<T>
    {

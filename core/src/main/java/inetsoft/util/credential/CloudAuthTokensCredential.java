@@ -78,6 +78,19 @@ public class CloudAuthTokensCredential extends AbstractCloudCredential implement
          Tool.equals(((CloudAuthTokensCredential) obj).refreshToken, refreshToken);
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalAuthTokensCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalAuthTokensCredential localCredential) {
+         localCredential.setAccessToken(accessToken);
+         localCredential.setRefreshToken(refreshToken);
+      }
+   }
+
    public static class Serializer<T extends CloudAuthTokensCredential> extends AbstractCloudCredential.Serializer<T> {
       public Serializer() {
          super((Class<T>) CloudAuthTokensCredential.class);

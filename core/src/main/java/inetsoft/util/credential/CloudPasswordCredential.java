@@ -94,6 +94,19 @@ public class CloudPasswordCredential extends AbstractCloudCredential
          StringUtils.isEmpty(getUser()) && StringUtils.isEmpty(getPassword());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalPasswordCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalPasswordCredential localCredential) {
+         localCredential.setUser(getUser());
+         localCredential.setPassword(getPassword());
+      }
+   }
+
    public static class Serializer<T extends CloudPasswordCredential> extends StdSerializer<T> {
       public Serializer() {
          super((Class<T>) CloudPasswordCredential.class);

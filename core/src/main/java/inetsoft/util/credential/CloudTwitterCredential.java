@@ -109,6 +109,21 @@ public class CloudTwitterCredential extends AbstractCloudCredential
       setConsumerSecret(cloudCredential.getConsumerSecret());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalTwitterCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalTwitterCredential localCredential) {
+         localCredential.setOauthToken(oauthToken);
+         localCredential.setTokenSecret(tokenSecret);
+         localCredential.setConsumerKey(consumerKey);
+         localCredential.setConsumerSecret(consumerSecret);
+      }
+   }
+
    public static class Serializer extends AbstractCloudCredential.Serializer<CloudTwitterCredential>
    {
       public Serializer() {
