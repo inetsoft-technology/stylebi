@@ -166,10 +166,10 @@ public class PoiImportXLSService implements ImportXLSService {
                }
 
                VSAssemblyInfo info = VSEventUtil.getAssemblyInfo(rvs, vsAssembly);
+               coreLifecycleService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(), dispatcher);
                BaseTableLoadDataController.loadTableData(rvs, name, 0, 0,
                                                          table.getRowCount(), linkUri,
                                                          dispatcher);
-               coreLifecycleService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(), dispatcher);
 
                // TODO Refresh scripts
 //               for(int r = 1; r < table.getRowCount(); r ++) {
