@@ -2328,7 +2328,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
     * is closed so they can save it in a bookmark
     */
    processAnnotationChangedCommand(command: AnnotationChangedCommand): void {
-      this.annotationChanged = command.isChanged;
+      this.annotationChanged = command.isChanged && !this.isDefaultOrgAsset;
       this.onAnnotationChanged.emit(this.annotationChanged);
 
       if(GuiTool.isIFrame()) {
