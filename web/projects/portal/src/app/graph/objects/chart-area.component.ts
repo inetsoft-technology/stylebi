@@ -43,6 +43,7 @@ import { DndService } from "../../common/dnd/dnd.service";
 import { GraphTypes } from "../../common/graph-types";
 import { ChartConstants } from "../../common/util/chart-constants";
 import { GuiTool } from "../../common/util/gui-tool";
+import { ChartActions } from "../../vsobjects/action/chart-actions";
 import { VSChartModel } from "../../vsobjects/model/vs-chart-model";
 import { VSFormatModel } from "../../vsobjects/model/vs-format-model";
 import { InteractInfo } from "../../widget/resize/element-interact.directive";
@@ -505,6 +506,11 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
             return region;
          });
+      }
+
+      if(GraphTypes.isMap(this.vsChartModel.chartType) &&
+         !ChartActions.isActionVisible(this.vsChartModel.actionNames,"MapSelectionEnabled")) {
+         return;
       }
 
       ChartTool.drawRegions(payload.context, regions, payload.canvasX, payload.canvasY,
