@@ -401,7 +401,7 @@ public final class CustomTheme implements XMLSerializable, Cloneable {
    }
 
    @Override
-   public Object clone() throws CloneNotSupportedException {
+   public Object clone() {
       CustomTheme clone = new CustomTheme();
       clone.name = name;
       clone.id = id;
