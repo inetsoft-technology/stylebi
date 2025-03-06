@@ -785,6 +785,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * @param name the specified bookmark name.
     */
    public Viewsheet getOriginalBookmark(String name) {
+      return getOriginalBookmark(name, null);
+   }
+
+   public Viewsheet getOriginalBookmark(String name, String orgID) {
       // fix bug1433297711278, if is shared bookmark, need to get the original
       // bookmark by name and owner.
       if(!VSBookmark.HOME_BOOKMARK.equals(name) && name.contains("(")) {
@@ -794,6 +798,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
          if(idx1 > idx0) {
             String bname = name.substring(0, idx0);
             IdentityID user = IdentityID.getIdentityIDFromKey(name.substring(idx0 + 1, idx1));
+
+            if(orgID != null) {
+               user.setOrgID(orgID);
+            }
+
             return getBookmark(bname, user);
          }
       }
@@ -813,7 +822,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       // viewsheet representing the initial state for the home bookmark.
       if(VSBookmark.HOME_BOOKMARK.equals(name)) {
          processedViewsheet = ibookmark.getBookmark(VSBookmark.INITIAL_STATE,
-            processedViewsheet);
+                                                    processedViewsheet);
       }
 
       return VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep);
