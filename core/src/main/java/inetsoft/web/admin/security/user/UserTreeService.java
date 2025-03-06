@@ -1678,6 +1678,10 @@ public class UserTreeService {
    }
 
    public void fireCreateOrganizationEvent(int status, String fromOrgID, String toOrgID, Principal principal) {
+      if(fromOrgID == null) {
+         return;
+      }
+
       EditOrganizationEvent event = new EditOrganizationEvent(status, fromOrgID, toOrgID);
       String destination = SUtil.getUserDestination(principal);
       editOrganizationListener.statusChanged(destination, event);
