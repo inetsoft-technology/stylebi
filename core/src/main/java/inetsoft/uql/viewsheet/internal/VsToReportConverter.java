@@ -169,7 +169,8 @@ public class VsToReportConverter {
          // will be added in the function which is used to add their
          // direct container.
          if(isInContainer(vsAssembly) ||
-            VSUtil.isTipView(vsAssembly.getAbsoluteName(), vsAssembly.getViewsheet()))
+            VSUtil.isTipView(vsAssembly.getAbsoluteName(), vsAssembly.getViewsheet()) ||
+            VSUtil.isPopComponent(vsAssembly.getAbsoluteName(), vsAssembly.getViewsheet()))
          {
             continue;
          }
