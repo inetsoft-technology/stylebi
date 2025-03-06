@@ -17,27 +17,14 @@
  */
 package inetsoft.sree.portal;
 
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.SecurityEngine;
-import inetsoft.sree.security.SecurityProvider;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
-import inetsoft.util.gui.GuiTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
-import javax.xml.xpath.*;
-import java.awt.*;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  *
@@ -97,6 +84,32 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
 
    public void loadThemes() {
       impl.loadThemes();
+   }
+
+   public void reloadThemes(String path) {
+      if(getCustomThemes() == null || getCustomThemes().isEmpty()) {
+         return;
+      }
+
+      Set<CustomTheme> newThemes = new HashSet<>();
+
+      getCustomThemes().forEach(theme -> {
+         String jarPath = theme.getJarPath();
+
+         if(jarPath != null && jarPath.startsWith(path)) {
+            CustomTheme newTheme = (CustomTheme) theme.clone();
+            newTheme.setEMDark(false);
+            newTheme.setPortalScript(null);
+            newTheme.setEmScript(null);
+            newThemes.add(newTheme);
+         }
+         else {
+            newThemes.add(theme);
+         }
+      });
+
+      setCustomThemes(newThemes);
+      save();
    }
 
    @Override

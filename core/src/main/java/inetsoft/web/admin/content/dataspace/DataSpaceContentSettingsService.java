@@ -22,6 +22,7 @@ import inetsoft.report.io.Builder;
 import inetsoft.report.io.ExportType;
 import inetsoft.sree.internal.HTMLUtil;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XSessionService;
@@ -227,6 +228,7 @@ public class DataSpaceContentSettingsService {
          ImageShapes.clearShapes();
       }
 
+      CustomThemesManager.getManager().reloadThemes(path);
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
