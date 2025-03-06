@@ -18,6 +18,8 @@
 
 package inetsoft.sree.security;
 
+import java.util.Objects;
+
 public class IdentityIDWithLabel implements Comparable<IdentityIDWithLabel> {
    public IdentityIDWithLabel() {
    }
@@ -49,5 +51,16 @@ public class IdentityIDWithLabel implements Comparable<IdentityIDWithLabel> {
    @Override
    public int compareTo(IdentityIDWithLabel o) {
       return this.identityID.compareTo(o.identityID);
+   }
+
+   @Override
+   public boolean equals(Object o) {
+      if(!(o instanceof IdentityIDWithLabel that)) return false;
+      return Objects.equals(identityID, that.identityID);
+   }
+
+   @Override
+   public int hashCode() {
+      return Objects.hashCode(identityID);
    }
 }
