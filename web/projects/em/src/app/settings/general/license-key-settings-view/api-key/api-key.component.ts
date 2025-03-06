@@ -29,11 +29,11 @@ import { EditLicenseKeyDialogComponent } from "../edit-license-key-dialog/edit-l
 import { LicenseKeyModel } from "../license-key-settings-model";
 
 @Component({
-   selector: "em-license-key-list",
-   templateUrl: "./license-key-list.component.html",
-   styleUrls: ["./license-key-list.component.scss"]
+   selector: "em-api-key",
+   templateUrl: "./api-key.component.html",
+   styleUrls: ["./api-key.component.scss"]
 })
-export class LicenseKeyListComponent implements OnInit {
+export class ApiKeyComponent implements OnInit {
    @Input() title: string;
    @Input() scheduler = false;
    @Input() isEnterpise: boolean;
@@ -51,8 +51,12 @@ export class LicenseKeyListComponent implements OnInit {
       this.updateSelection();
    }
 
-   get licenseKeyLabel() {
-      return this.isEnterpise ? "_#(js:License Key)" : "_#(js:API Key)";
+   get hasKey(): boolean {
+      return !!(this._keys?.length && this._keys[0]?.key?.trim());
+   }
+
+   getKey() {
+      return this._keys[0];
    }
 
    private get keyType(): LicenseKeyType {
@@ -80,57 +84,6 @@ export class LicenseKeyListComponent implements OnInit {
       });
    }
 
-   // returns true if all rows on page are selected
-   isAllSelected(): boolean {
-      let pageIndex = this.paginator.pageIndex;
-      let pageSize = this.paginator.pageSize;
-      let pgStart = pageIndex * pageSize;
-      // current page items
-      let pageItems = this.dataSource.data.slice(pgStart, pgStart + pageSize);
-      let all = true;
-      // if empty selected list
-      if(!this.selection.selected.length) {
-         return false;
-      }
-      // check if entire page is on selection model
-      pageItems.forEach(
-         row => {
-            if(!this.selection.selected.includes(row)) {
-               all = false;
-            }
-         }
-      );
-
-      return all;
-   }
-
-   masterToggle(): void {
-      if(this.isAllSelected()) {
-         this.selection.clear();
-      }
-      else {
-         let pageIndex = this.paginator.pageIndex;
-         let pageSize = this.paginator.pageSize;
-         let pgStart = pageIndex * pageSize;
-
-         let pageItems = this.dataSource.data.slice(pgStart, pgStart + pageSize);
-         pageItems.forEach(
-            row => this.selection.select(row)
-         );
-      }
-   }
-
-   addKey() {
-      this.openKeyDialog(this.keyType).subscribe(result => {
-         if(result) {
-            const values = this.keys;
-            values.push(result);
-            this.keys = values;
-            this.keysChange.emit(values);
-         }
-      });
-   }
-
    editKey(): void {
       const key = this.selection.selected[0];
       const index = this.keys.findIndex(k => k.key == key.key);
@@ -150,6 +103,16 @@ export class LicenseKeyListComponent implements OnInit {
                this.selection.select(...selected);
             }
 
+            this.keysChange.emit(values);
+         }
+      });
+   }
+
+   addKey() {
+      this.openKeyDialog(this.keyType).subscribe(result => {
+         if(result) {
+            const values = [result];
+            this.keys = values;
             this.keysChange.emit(values);
          }
       });
@@ -176,7 +139,7 @@ export class LicenseKeyListComponent implements OnInit {
          maxWidth: "100%",
          maxHeight: "100%",
          disableClose: true,
-         data: new EditLicenseKeyDialogData(key, type, this.keys, this.isEnterpise)
+         data: new EditLicenseKeyDialogData(key, type, this.keys, this.isEnterpise),
       }).afterClosed();
    }
 }

@@ -1,0 +1,52 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<mat-card appearance="outlined" class="em-card">
+  <mat-card-title class="flex-col">{{ title }}</mat-card-title>
+  <mat-card-content class="flex-col">
+    <div *ngIf="hasKey; else generateKey">
+      <table mat-table [dataSource]="[getKey()]">
+        <ng-container matColumnDef="key">
+          <th mat-header-cell *matHeaderCellDef>_#(API Key)</th>
+          <td mat-cell *matCellDef="let key">{{ key.key }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>_#(Type)</th>
+          <td mat-cell *matCellDef="let key">{{ key.type }}</td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="['key', 'type']"></tr>
+        <tr mat-row *matRowDef="let row; columns: ['key', 'type']"></tr>
+      </table>
+    </div>
+
+    <ng-template #generateKey>
+      <a mat-stroked-button class="generateKey" href="https://data.inetsoft.com/api-key-generator" target="_blank">
+        _#(Generate API Key)
+      </a>
+    </ng-template>
+  </mat-card-content>
+
+  <mat-card-actions>
+    <button mat-stroked-button [disabled]="hasKey" (click)="addKey()">_#(Add)</button>
+    <button mat-stroked-button [disabled]="!selection.hasValue() || selection.selected.length > 1" (click)="editKey()">_#(Edit)</button>
+    <button mat-stroked-button [disabled]="!selection.hasValue()" (click)="deleteKey()">_#(Delete)</button>
+  </mat-card-actions>
+</mat-card>
+
+

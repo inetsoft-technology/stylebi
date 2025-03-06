@@ -57,6 +57,7 @@ import { EmailSettingsViewComponent } from "./email-settings-view/email-settings
 import { GeneralRoutingModule } from "./general-routing.module";
 import { GeneralSaveGuard } from "./general-settings-page/general-save.guard";
 import { GeneralSettingsPageComponent } from "./general-settings-page/general-settings-page.component";
+import { ApiKeyComponent } from "./license-key-settings-view/api-key/api-key.component";
 import { EditLicenseKeyDialogComponent } from "./license-key-settings-view/edit-license-key-dialog/edit-license-key-dialog.component";
 import { LicenseKeyListComponent } from "./license-key-settings-view/license-key-list/license-key-list.component";
 import { LicenseKeySettingsViewComponent } from "./license-key-settings-view/license-key-settings-view.component";
@@ -108,6 +109,7 @@ import { PerformanceSettingsViewComponent } from "./performance-settings-view/pe
       EmailSettingsViewComponent,
       GeneralSettingsPageComponent,
       LicenseKeyListComponent,
+      ApiKeyComponent,
       LicenseKeySettingsViewComponent,
       LocalizationDialogComponent,
       LocalizationSettingsViewComponent,
