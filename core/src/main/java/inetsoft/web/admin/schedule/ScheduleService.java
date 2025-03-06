@@ -989,6 +989,7 @@ public class ScheduleService {
 
          List<SelectedAssetModel> assetModels = backupAction.getAssets()
             .stream()
+            .filter(XAsset::exists)
             .map((xAsset) -> SelectedAssetModel.builder()
                .label(getAssetLabel(xAsset))
                .path(xAsset.getPath())
