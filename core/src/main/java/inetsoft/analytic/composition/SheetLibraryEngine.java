@@ -35,17 +35,7 @@ public class SheetLibraryEngine implements SheetLibraryService {
          prefix = prefix + "-" + (counter++);
       }
 
-      IdentityID identityID = null;
-      int scope = AssetRepository.TEMPORARY_SCOPE;
-
-      if(Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(),
-                     Organization.getSelfOrganizationID()))
-      {
-         identityID = IdentityID.getIdentityIDFromKey(user.getName());
-         scope = AssetRepository.USER_SCOPE;
-      }
-
-      return new AssetEntry(scope, type, prefix, identityID);
+      return new AssetEntry(AssetRepository.TEMPORARY_SCOPE, type, prefix, null);
    }
 
    private static int counter = 1;
