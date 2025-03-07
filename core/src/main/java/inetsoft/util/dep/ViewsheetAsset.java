@@ -172,8 +172,8 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
                processDVScript(dvalues, dependencies, sheet);
                processScript(vinfo0.getScript(), dependencies, desc, sheet);
 
-               if(sheet.getBaseEntry() != null) {
-                  CalculateRef[] calcFields = sheet.getCalcFields(sheet.getBaseEntry().getName());
+               if(sheet.getBaseWorksheet() != null) {
+                  CalculateRef[] calcFields = sheet.getCalcFields(sheet.getBaseWorksheet().getPrimaryAssemblyName());
 
                   if(calcFields != null) {
                      for(CalculateRef calcRef : calcFields) {
