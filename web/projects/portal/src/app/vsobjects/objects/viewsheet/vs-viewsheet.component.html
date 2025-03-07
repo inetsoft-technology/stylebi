@@ -36,7 +36,6 @@
        *ngIf="vsInfo0"
        [class.prevent-scroll]="maxMode"
        [style.position]="viewer || preview || !showIconContainer && !deployed ? 'absolute' : 'relative'"
-       [style.z-index]="getZIndex()"
        [style.top.px]="maxMode ? '0' : viewer || preview || !showIconContainer && !deployed ? model.objectFormat.top : null"
        [style.left.px]="maxMode ? '0' : viewer || preview || !showIconContainer && !deployed ? model.objectFormat.left : null"
        [style.width.px]="model.bounds.width"

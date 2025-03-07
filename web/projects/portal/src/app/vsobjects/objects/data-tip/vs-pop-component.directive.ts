@@ -159,13 +159,19 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
 
       const alpha = this.popService.popAlpha;
       let parentElem: any = nativeElement;
+      let reducedEmbeddedVsTop = 0;
+      let reducedEmbeddedVsLeft = 0;
 
       while(true) {
          parentElem = GuiTool.closest(parentElem, ".embedded-viewsheet");
 
          if(parentElem) {
-            top -= parseInt(parentElem.style["top"], 10);
-            left -= parseInt(parentElem.style["left"], 10);
+            let parentTop = parseInt(parentElem.style["top"], 10);
+            reducedEmbeddedVsTop += parentTop;
+            top -= parentTop;
+            let parentLeft = parseInt(parentElem.style["left"], 10);
+            left -= parentLeft;
+            reducedEmbeddedVsLeft += parentLeft;
          }
          else {
             break;
@@ -203,20 +209,22 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
          }
       }
       // same as above for container itself or if not in container
-      else if(!containerInfo && left + popInfo.width > viewerRect.width) {
+      else if(!containerInfo &&
+         left + reducedEmbeddedVsLeft + popInfo.width > viewerRect.width)
+      {
          const selfWidth = popInfo.width;
 
          // place on left
-         if(left > selfWidth + leftOffset) {
+         if(left + reducedEmbeddedVsLeft > selfWidth + leftOffset) {
             leftOffset = -(selfWidth + leftOffset - viewerRect.scrollLeft);
          }
          // just shift up
          else {
-            if(left + viewerRect.scrollLeft > selfWidth) {
+            if(left + reducedEmbeddedVsLeft + viewerRect.scrollLeft > selfWidth) {
                leftOffset = viewerRect.scrollLeft - selfWidth;
             }
-            else if(left + selfWidth - viewerRect.width > 0) {
-               leftOffset = -(left + selfWidth - viewerRect.width);
+            else if(left + reducedEmbeddedVsLeft + selfWidth - viewerRect.width > 0) {
+               leftOffset = -(left + reducedEmbeddedVsLeft + selfWidth - viewerRect.width);
             }
 
             // Bug #58051, make sure it's not positioned outside the visible view
@@ -241,9 +249,13 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
       }
       // same as above for container itself or if not in container
       else if(!containerInfo && top + popInfo.height > viewerRect.height) {
-         const selfHeight = popInfo.height;
+         let selfHeight = popInfo.height;
 
-         // place on top
+         // popInfo height may not be accurate. Use css height of the component if possible
+         const cssHeightString = window.getComputedStyle(this.elementRef.nativeElement).height;
+         selfHeight = !!cssHeightString && cssHeightString.endsWith("px") ?
+            parseInt(cssHeightString.substring(0, cssHeightString.length - 2), 10) : selfHeight;
+
          if(selfHeight < top + topOffset) {
             topOffset -= selfHeight;
          }
@@ -296,12 +308,10 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
       }
 
       if(!this.popContainerName) {
-         this.renderer.setStyle(nativeElement, "z-index",
-            this.popZIndex + DateTipHelper.getPopUpBackgroundZIndex() + 2);
+         this.renderer.setStyle(nativeElement, "z-index", this.popZIndex + 99998);
       }
       else {
-         this.renderer.setStyle(nativeElement, "z-index",
-            this.popZIndex + DateTipHelper.getPopUpBackgroundZIndex() + 3);
+         this.renderer.setStyle(nativeElement, "z-index", this.popZIndex + 99999);
       }
 
       if(!nativeElement.style["background-color"]) {
