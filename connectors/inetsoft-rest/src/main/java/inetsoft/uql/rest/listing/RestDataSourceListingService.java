@@ -60,6 +60,7 @@ import inetsoft.uql.rest.datasource.lighthouse.LighthouseListing;
 import inetsoft.uql.rest.datasource.linkedin.LinkedinListing;
 import inetsoft.uql.rest.datasource.liveagent.LiveAgentListing;
 import inetsoft.uql.rest.datasource.mailchimp.MailchimpListing;
+import inetsoft.uql.rest.datasource.mailgun.MailgunListing;
 import inetsoft.uql.rest.datasource.mixpanel.MixpanelListing;
 import inetsoft.uql.rest.datasource.monday.MondayListing;
 import inetsoft.uql.rest.datasource.nicereply.NicereplyListing;
@@ -135,6 +136,7 @@ public class RestDataSourceListingService implements DataSourceListingService {
          new LinkedinListing(),
          new LiveAgentListing(),
          new MailchimpListing(),
+         new MailgunListing(),
          new MixpanelListing(),
          new MondayListing(),
          new NicereplyListing(),
