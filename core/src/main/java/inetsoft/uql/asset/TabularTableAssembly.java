@@ -168,7 +168,7 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
 
          query.loadOutputColumns(vtable);
       }
-      catch(TabularQuery.ParametersRequiredException ex) {
+      catch(Exception ex) {
          LOG.warn(
             "Failed to load the columns for the table", ex);
       }

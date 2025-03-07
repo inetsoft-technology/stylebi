@@ -21,8 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.PostProcessor;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.uql.*;
-import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.schema.XTypeNode;
+import inetsoft.uql.schema.*;
 import inetsoft.uql.service.XHandler;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.util.*;
@@ -31,8 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * This class implements the runtime of tabular services.
@@ -61,6 +59,8 @@ public class TabularHandler extends XHandler {
       TabularDataSource<?> xds =
          (TabularDataSource<?>) ConnectionProcessor.getInstance().getDatasource(user, query.getDataSource()).clone();
       query.setDataSource(xds);
+
+      fillNullVariablesWithEmptyString(runtime, query, params);
       TabularUtil.replaceVariables(xds, params);
       TabularUtil.replaceVariables(query, params);
 
@@ -179,6 +179,23 @@ public class TabularHandler extends XHandler {
       }
 
       return runtime;
+   }
+
+   private void fillNullVariablesWithEmptyString(TabularRuntime runtime, XQuery query,
+                                                 VariableTable vtable) throws Exception
+   {
+      if(!runtime.fillNullVariablesWithEmptyString()) {
+         return;
+      }
+
+      List<UserVariable> variables = TabularUtil.findVariables(query);
+      variables.addAll(TabularUtil.findVariables(query.getDataSource()));
+
+      for(UserVariable var : variables) {
+         if(vtable.get(var) == null) {
+            vtable.put(var.getName(), "");
+         }
+      }
    }
 
    private TabularDataSource<?> dataSource;
