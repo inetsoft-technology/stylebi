@@ -58,6 +58,7 @@ inetsoft.uql.rest.datasource.lighthouse.LighthouseService
 inetsoft.uql.rest.datasource.linkedin.LinkedinService
 inetsoft.uql.rest.datasource.liveagent.LiveAgentService
 inetsoft.uql.rest.datasource.mailchimp.MailchimpService
+inetsoft.uql.rest.datasource.mailgun.MailgunService
 inetsoft.uql.rest.datasource.mixpanel.MixpanelService
 inetsoft.uql.rest.datasource.nicereply.NicereplyService
 inetsoft.uql.rest.datasource.pipedrive.PipedriveService
