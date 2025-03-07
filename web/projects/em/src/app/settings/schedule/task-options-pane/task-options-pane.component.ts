@@ -34,6 +34,7 @@ import { map, startWith } from "rxjs/operators";
 import { TaskOptionsPaneModel } from "../../../../../../shared/schedule/model/task-options-pane-model";
 import { TimeZoneModel } from "../../../../../../shared/schedule/model/time-zone-model";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
+import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { KEY_DELIMITER, IdentityId } from "../../security/users/identity-id";
 import { DateTimeService } from "../task-condition-pane/date-time.service";
@@ -73,14 +74,18 @@ export class TaskOptionsPane {
          this._model = Object.assign({}, value);
 
          if(this.model.startFrom) {
-            this.optionsForm.get("startDate").setValue(new Date(this.model.startFrom));
+            this.optionsForm.get("startDate").setValue(new Date(
+               DateTypeFormatter.convertToLocalTimeZone(this.model.startFrom, this.model.timeZone,
+               this.timeZoneOptions)));
          }
          else {
             this.optionsForm.get("startDate").setValue(null);
          }
 
          if(this.model.stopOn) {
-            this.optionsForm.get("endDate").setValue(new Date(this.model.stopOn));
+            this.optionsForm.get("endDate").setValue(new Date(
+               DateTypeFormatter.convertToLocalTimeZone(this.model.stopOn, this.model.timeZone,
+               this.timeZoneOptions)));
          }
          else {
             this.optionsForm.get("endDate").setValue(null);
@@ -186,10 +191,13 @@ export class TaskOptionsPane {
    fireModelChanged(): void {
       this.model.enabled = !!this.optionsForm.get("taskEnabled").value;
       this.model.deleteIfNotScheduledToRun = !!this.optionsForm.get("deleteIfNotScheduledToRun").value;
+      this.model.timeZone = this.optionsForm.get("timeZone").value;
       let date: Date = this.optionsForm.get("startDate").value;
-      this.model.startFrom = date ? date.getTime() : 0;
+      this.model.startFrom = date ? DateTypeFormatter.convertToOtherTimeZone(date.getTime(),
+         this.model.timeZone, this.timeZoneOptions) : 0;
       date = this.optionsForm.get("endDate").value;
-      this.model.stopOn = date ? date.getTime() : 0;
+      this.model.stopOn = date ? DateTypeFormatter.convertToOtherTimeZone(date.getTime(),
+         this.model.timeZone, this.timeZoneOptions) : 0;
       this.model.description = this.optionsForm.get("description").value;
       this.model.timeZone = this.optionsForm.get("timeZone").value;
       const locale = this.optionsForm.get("locale").value;
