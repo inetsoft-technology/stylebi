@@ -91,6 +91,13 @@ public abstract class TabularRuntime {
       }
    }
 
+   /**
+    * Check whether to fill a null value in the variable table with an empty string
+    */
+   public boolean fillNullVariablesWithEmptyString() {
+      return false;
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(TabularRuntime.class);
 
    protected XTableNode handleError(VariableTable vars, Throwable e,
