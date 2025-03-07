@@ -748,7 +748,7 @@ public class VSExportService {
          }
 
          rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", "true");
-         Viewsheet vs = rvs.getOriginalBookmark(bookmark);
+         Viewsheet vs = rvs.getOriginalBookmark(bookmark, rvs.getEntry().getOrgID());
          rvs.getViewsheet().getRuntimeEntry().setProperty("keepAnnoVis", null);
          VSEventUtil.clearScale(vs);
          sandbox = new ViewsheetSandbox(vs, vmode, principal, false, rvs.getEntry());
