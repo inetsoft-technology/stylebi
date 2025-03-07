@@ -216,6 +216,23 @@ public class SecurityConfigController {
          .build();
    }
 
+   @GetMapping("/api/em/security/get-license-key")
+   public String getOpenSourceLicenseKey()
+   {
+      if(!LicenseManager.getInstance().isEnterprise()) {
+         return SreeEnv.getProperty("license.key");
+      }
+      return null;
+   }
+
+   @PostMapping("/api/em/security/set-license-key")
+   public void setOpenSourceLicenseKey(@RequestBody(required = false) String key)
+   {
+      if(!LicenseManager.getInstance().isEnterprise()) {
+         SreeEnv.setProperty("license.key", key);
+      }
+   }
+
    private boolean isCloudPlatform() {
       InetsoftConfig instance = InetsoftConfig.getInstance();
       CloudRunnerConfig cloudRunner = instance.getCloudRunner();

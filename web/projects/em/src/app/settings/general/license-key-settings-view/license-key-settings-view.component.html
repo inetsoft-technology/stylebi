@@ -22,7 +22,6 @@
 </em-license-key-list>
 <em-api-key *ngIf="!isEnterprise"
   title="_#(API License Key)"
-  [(keys)]="serverKeys"
 >
 </em-api-key>
 <mat-card appearance="outlined" class="em-card" *ngIf="isEnterprise && cluster && pooledClusterLicense">

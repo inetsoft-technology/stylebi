@@ -51,10 +51,6 @@ export class LicenseKeyListComponent implements OnInit {
       this.updateSelection();
    }
 
-   get licenseKeyLabel() {
-      return this.isEnterpise ? "_#(js:License Key)" : "_#(js:API Key)";
-   }
-
    private get keyType(): LicenseKeyType {
       return LicenseKeyType.SERVER;
    }
