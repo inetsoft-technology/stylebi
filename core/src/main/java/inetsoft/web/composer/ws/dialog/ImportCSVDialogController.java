@@ -970,10 +970,7 @@ public class ImportCSVDialogController extends WorksheetController {
          }
       }
 
-      assert dataTable != null;
-      nrow = dataTable.getRowCount();
-
-      if(!(ncol > 0 && nrow > 0)) {
+      if(dataTable == null || !(ncol > 0 && dataTable.getRowCount() > 0)) {
          String msg = Catalog.getCatalog().getString("Please check the csv file content");
 
          if(csvInfo.getSheet() != null &&
