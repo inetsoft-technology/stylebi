@@ -82,7 +82,7 @@ public class PropertiesController {
       SreeEnv.setProperty(propertyName, value);
       SreeEnv.save();
 
-      if(Tool.equals(propertyName, "format.number.round")) {
+      if(Tool.equals(propertyName, "format.number.round") || Tool.equals(propertyName, "format.percent.round")) {
          TableFormat.invalidateTableFormatCache();
       }
    }
