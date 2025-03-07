@@ -148,6 +148,22 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
 
          getDeviceDependency(sheet, dependencies);
 
+         if(sheet.getBaseWorksheet() != null) {
+            for(Assembly wassembly: sheet.getBaseWorksheet().getAssemblies()) {
+               CalculateRef[] calcFields = sheet.getCalcFields(wassembly.getName());
+
+               if(calcFields != null) {
+                  for(CalculateRef calcRef : calcFields) {
+                     DataRef ref = calcRef.getDataRef();
+
+                     if(ref instanceof ExpressionRef exprRef) {
+                        processScript(exprRef.getExpression(), dependencies, desc, sheet);
+                     }
+                  }
+               }
+            }
+         }
+
          // do not recursively get assemblies
          Assembly[] assemblies = sheet.getAssemblies();
 
@@ -171,21 +187,6 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
                List<DynamicValue> dvalues = vinfo0.getViewDynamicValues(false);
                processDVScript(dvalues, dependencies, sheet);
                processScript(vinfo0.getScript(), dependencies, desc, sheet);
-
-               if(sheet.getBaseEntry() != null) {
-                  CalculateRef[] calcFields = sheet.getCalcFields(sheet.getBaseEntry().getName());
-
-                  if(calcFields != null) {
-                     for(CalculateRef calcRef : calcFields) {
-                        DataRef ref = calcRef.getDataRef();
-
-                        if(ref != null && ref instanceof ExpressionRef) {
-                           ExpressionRef exprRef = (ExpressionRef) ref;
-                           processScript(exprRef.getExpression(), dependencies, desc, sheet);
-                        }
-                     }
-                  }
-               }
             }
 
             if(assembly instanceof ChartVSAssembly) {
