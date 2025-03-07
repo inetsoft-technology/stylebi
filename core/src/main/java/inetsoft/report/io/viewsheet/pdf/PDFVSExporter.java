@@ -331,8 +331,20 @@ public class PDFVSExporter extends AbstractVSExporter {
                      path.substring(ImageVSAssemblyInfo.SKIN_IMAGE.length()));
                }
                else if(path.startsWith(ImageVSAssemblyInfo.SERVER_IMAGE)) {
-                  svg = vs.getUploadedImageBytes(
-                     path.substring(ImageVSAssemblyInfo.SERVER_IMAGE.length()));
+                  String name = path.substring(ImageVSAssemblyInfo.SERVER_IMAGE.length());
+                  final String dir = SreeEnv.getProperty("html.image.directory");
+
+                  if(!Tool.isEmptyString(dir)) {
+                     final String imagePath =
+                        FileSystemService.getInstance().getPath(dir, name).toString();
+
+                     try(final InputStream stream =
+                            DataSpace.getDataSpace().getInputStream(null, imagePath))
+                     {
+                        svg = new byte[stream.available()];
+                        stream.read(svg);
+                     }
+                  }
                }
 
                if(svg != null) {

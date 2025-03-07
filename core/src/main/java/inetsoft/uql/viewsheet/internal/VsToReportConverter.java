@@ -40,6 +40,7 @@ import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.lens.DefaultTextLens;
 import inetsoft.report.painter.ImagePainter;
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
@@ -53,8 +54,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.*;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.*;
@@ -2059,8 +2059,20 @@ public class VsToReportConverter {
                      path.substring(ImageVSAssemblyInfo.SKIN_IMAGE.length()));
                }
                else if(path.startsWith(ImageVSAssemblyInfo.SERVER_IMAGE)) {
-                  svg = vs.getUploadedImageBytes(
-                     path.substring(ImageVSAssemblyInfo.SERVER_IMAGE.length()));
+                  String name = path.substring(ImageVSAssemblyInfo.SERVER_IMAGE.length());
+                  final String dir = SreeEnv.getProperty("html.image.directory");
+
+                  if(!Tool.isEmptyString(dir)) {
+                     final String imagePath =
+                        FileSystemService.getInstance().getPath(dir, name).toString();
+
+                     try(final InputStream stream =
+                            DataSpace.getDataSpace().getInputStream(null, imagePath))
+                     {
+                        svg = new byte[stream.available()];
+                        stream.read(svg);
+                     }
+                  }
                }
 
                try(FileOutputStream output = new FileOutputStream(tempFile)) {
