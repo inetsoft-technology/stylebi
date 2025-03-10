@@ -91,6 +91,10 @@ export class AppComponent implements OnInit, OnDestroy {
             "/user/license-changed",
             (message) => this.zone.run(
                () => this.processCloudLicenseStateChange(JSON.parse(message.frame.body)))));
+         this.subscription.add(connection.subscribe(
+            "/user/create-org-status-changed",
+            (message) => this.zone.run(
+               () => this.showEditOrgMessage(JSON.parse(message.frame.body)))));
       });
 
       this.subscription.add(this.breakpointObserver
@@ -131,9 +135,9 @@ export class AppComponent implements OnInit, OnDestroy {
       // TODO: display a message of some kind
    }
 
-   notify(notification: any): void {
+   notify(notification: any, width?: string): void {
       this.notificationMessage = notification.message;
-      this.dialog.open(this.notificationDialog, { width: "350px" });
+      this.dialog.open(this.notificationDialog, { width: !!width ? width : "350px" });
    }
 
    private showExpirationDialog(model: SessionExpirationModel): void {
@@ -194,5 +198,11 @@ export class AppComponent implements OnInit, OnDestroy {
       }
 
       this.logoutService.setInGracePeriod(state.gracePeriod);
+   }
+
+   private showEditOrgMessage(message: any) {
+      if(!!message) {
+         this.notify({message: message},  "600px");
+      }
    }
 }
