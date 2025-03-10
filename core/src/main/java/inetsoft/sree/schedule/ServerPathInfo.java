@@ -17,7 +17,9 @@
  */
 package inetsoft.sree.schedule;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import inetsoft.sree.internal.HttpXMLSerializable;
+import inetsoft.util.PasswordEncryption;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
 import org.w3c.dom.Element;
@@ -130,11 +132,26 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
       if(getPath() != null) {
          writer.print(" path=\"" + Tool.escape(byteEncode(getPath())) + "\"");
       }
-
-      writer.print(" useCredential=\"" + isUseCredential() + "\"");
+      boolean encryptForceLocal = PasswordEncryption.isEncryptForceLocal();
+      writer.print(" useCredential=\"" + (!encryptForceLocal && isUseCredential()) + "\"");
 
       if(isUseCredential()) {
-         writer.print(" secretId=\"" + Tool.escape(byteEncode(getSecretId())) + "\"");
+         if(encryptForceLocal) {
+            JsonNode credentials = Tool.loadCredentials(getSecretId());
+
+            if(credentials != null) {
+               if(credentials.has("username")) {
+                  writer.print(" username=\"" + Tool.escape(byteEncode(credentials.get("username").asText())) + "\"");
+               }
+
+               if(credentials.has("password")) {
+                  writer.print(" password=\"" + Tool.encryptPassword(credentials.get("password").asText()) + "\"");
+               }
+            }
+         }
+         else {
+            writer.print(" secretId=\"" + Tool.escape(byteEncode(getSecretId())) + "\"");
+         }
       }
       else {
          if(getUsername() != null && !getUsername().isEmpty()) {
