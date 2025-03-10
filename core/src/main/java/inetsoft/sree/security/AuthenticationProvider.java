@@ -490,6 +490,7 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
    default boolean containsAnonymousUser(String orgId) {
       return Arrays.stream(getUsers())
          .filter(id -> Tool.equals(id.getOrgID(), orgId))
+         .filter(user -> getUser(user).isActive())
          .map(id -> id.name)
          .anyMatch(i -> i.equals(ClientInfo.ANONYMOUS));
    }
