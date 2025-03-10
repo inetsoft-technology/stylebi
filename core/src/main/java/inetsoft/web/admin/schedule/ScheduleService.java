@@ -670,7 +670,8 @@ public class ScheduleService {
          allowedUsers = allUsers.values().stream()
             .map(u -> new IdentityIDWithLabel(u.getIdentityID(), u.getAlias()))
             .filter(u -> securityProvider.checkPermission(
-               principal, ResourceType.SECURITY_USER, u.getIdentityID().convertToKey(), ResourceAction.ADMIN))
+               principal, ResourceType.SECURITY_USER,
+               u.getIdentityID().convertToKey(), ResourceAction.ADMIN))
             .sorted()
             .toArray(IdentityIDWithLabel[]::new);
       }
