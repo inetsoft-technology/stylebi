@@ -1020,10 +1020,11 @@ public class LocalDependencyHandler implements DependencyHandler {
                                                    boolean cache)
       throws Exception
    {
+      AssetEntry base = vs.getBaseEntry();
       updateRunQueryDependencies(vs, entry, add, cache);
       updateScriptDependencies(vs, entry, add, cache);
       updateDeviceDependencies(vs, entry, add, cache);
-      AssetEntry base = vs.getBaseEntry();
+      updateScriptDependencies(vs, base, entry, add, cache);
 
       for(Assembly assembly : vs.getAssemblies()) {
          if(assembly instanceof Viewsheet) {
@@ -1321,6 +1322,27 @@ public class LocalDependencyHandler implements DependencyHandler {
       VSAssemblyInfo vinfo = assembly.getVSAssemblyInfo();
       String script = vinfo.getScript();
       updateScriptDependencies(script, entry, add, cache);
+   }
+
+   private void updateScriptDependencies(Viewsheet vs, AssetEntry base, AssetEntry entry,
+                                         boolean add, boolean cache)
+   {
+      if(base == null) {
+         return;
+      }
+
+      CalculateRef[] calcFields = vs.getCalcFields(base.getName());
+
+      if(calcFields != null) {
+         for(CalculateRef calcRef : calcFields) {
+            DataRef ref = calcRef.getDataRef();
+
+            if(ref instanceof ExpressionRef exprRef) {
+               String script = exprRef.getScriptExpression();
+               updateScriptDependencies(script, entry, add, cache);
+            }
+         }
+      }
    }
 
    private void addScriptDependencyToFile(String id, AssetObject entry, boolean cache) {
