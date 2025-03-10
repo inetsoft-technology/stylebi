@@ -8610,7 +8610,7 @@ public final class VSUtil {
          return false;
       }
 
-      String orgId = ((XPrincipal) principal).getCurrentOrgId();
+      String orgId = ((XPrincipal) principal).getOrgId();
 
       return SUtil.isDefaultVSGloballyVisible(principal) &&
          !orgId.equals(Organization.getDefaultOrganizationID()) &&

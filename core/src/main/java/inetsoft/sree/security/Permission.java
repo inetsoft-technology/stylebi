@@ -305,6 +305,10 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       return getGrants(action, Identity.ORGANIZATION);
    }
 
+   public Set<PermissionIdentity> getAllOrganizationGrants(ResourceAction action) {
+      return getGrants(action, Identity.ORGANIZATION, null);
+   }
+
    /**
     * Gets the organizations that have been granted permission under the given organization to perform the specified action.
     *
@@ -369,7 +373,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    {
       oldOrgId = oldOrgId == null ? newOrgId : oldOrgId;
       final String org = oldOrgId == null ? globalOrgId : oldOrgId;
-      Set<PermissionIdentity> orgGrants = getOrganizationGrants(action);
+      Set<PermissionIdentity> orgGrants = getAllOrganizationGrants(action);
       Set<PermissionIdentity> updatedGrants = orgGrants.stream()
          .filter(pId -> !org.equals(pId.organizationID))
          .collect(Collectors.toSet());

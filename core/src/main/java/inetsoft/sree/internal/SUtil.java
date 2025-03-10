@@ -1844,7 +1844,7 @@ public class SUtil {
                   alias = registry.getFolderAlias(curPath);
                }
                else {
-                  alias = isReplet && i == values.length - 1 ? dregistry.getFolderAlias(curPath) : "";
+                  alias = dregistry.getFolderAlias(curPath);
                }
             }
 
@@ -2831,8 +2831,15 @@ public class SUtil {
    }
 
    public static boolean isDefaultVSGloballyVisible(Principal principal) {
-      String orgId = principal == null ?
-         OrganizationManager.getInstance().getCurrentOrgID() : ((XPrincipal) principal).getOrgId();
+      String orgId = Organization.getDefaultOrganizationID();
+
+      if(principal == null) {
+         principal = ThreadContext.getContextPrincipal();
+      }
+
+      if(principal != null) {
+         orgId = ((XPrincipal) principal).getOrgId();
+      }
 
       String orgScopedProperty = "security." + orgId + ".exposeDefaultOrgToAll";
       return SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal) &&

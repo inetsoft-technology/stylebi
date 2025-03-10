@@ -20,6 +20,7 @@ package inetsoft.web.admin.schedule.model;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.IdentityIDWithLabel;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -34,8 +35,8 @@ public abstract class UsersModel {
    public abstract String adminName();
 
    @Value.Default
-   public IdentityID[] owners() {
-      return new IdentityID[0];
+   public IdentityIDWithLabel[] owners() {
+      return new IdentityIDWithLabel[0];
    }
 
    @Value.Default

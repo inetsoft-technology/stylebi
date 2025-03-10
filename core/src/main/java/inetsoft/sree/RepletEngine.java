@@ -29,6 +29,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.sync.RenameDependencyInfo;
 import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -1258,7 +1259,19 @@ public class RepletEngine extends AbstractAssetEngine
                                IndexedStorage nstorage, boolean root, boolean callFireEvent)
       throws Exception
    {
-      super.changeSheet0(oentry, ostorage, nentry, nstorage, root, callFireEvent);
+      changeSheet0(oentry, ostorage, nentry, nstorage, root, callFireEvent, null);
+   }
+
+   /**
+    * {@inheritDoc}
+    */
+   @Override
+   protected void changeSheet0(AssetEntry oentry, IndexedStorage ostorage, AssetEntry nentry,
+                               IndexedStorage nstorage, boolean root, boolean callFireEvent,
+                               List<RenameDependencyInfo> renameDependencyInfos)
+      throws Exception
+   {
+      super.changeSheet0(oentry, ostorage, nentry, nstorage, root, callFireEvent, null);
 
       if(oentry.getScope() == GLOBAL_SCOPE) {
          SecurityEngine security = getSecurity();
