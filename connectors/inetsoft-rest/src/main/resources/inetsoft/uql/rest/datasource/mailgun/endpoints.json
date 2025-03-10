@@ -1,2 +1,364 @@
 {
+  "endpoints": [
+    {
+      "name": "Retrieve a Stored Email",
+      "suffix": "/v3/domains/{Domain Name}/messages/{Storage Key}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Messages Queue Status",
+      "suffix": "/v3/domains/{Domain Name}/sending_queues",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Domains",
+      "suffix": "/v4/domains?state={State?:active|unverified|disabled}&sort={Sort?:name:asc|name:desc}&authority={Authority?}&search={Search?}&include_subaccounts={Include Subaccounts?:true|false}",
+      "paged": "true",
+      "pageType": "TOTAL_COUNT_AND_OFFSET"
+    },
+    {
+      "name": "Domain Details",
+      "suffix": "/v4/domains/{Domain Name}?h:extended={Extended?:true|false}&h:with_dns={With DNS?:true|false}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Connection Details",
+      "suffix": "/v3/domains/{Domain Name}/connection",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Domains Keys",
+      "suffix": "/v1/dkim/keys?signing_domain={Signing Domain?}&selector={Selector?}",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Domain Keys",
+      "suffix": "/v4/domains/{Authority Name}/keys",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Tracking Settings",
+      "suffix": "/v3/domains/{Domain Name}/tracking",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Status of x509 TLS Certificate",
+      "suffix": "/v2/x509/{Domain Name}/status",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Webhooks",
+      "suffix": "/v3/domains/{Domain Name}/webhooks",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Webhooks by Type",
+      "suffix": "/v3/domains/{Domain Name}/webhooks/{Webhook Name}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Tags",
+      "suffix": "/v3/{Domain Name}/tags?prefix={Prefix?}",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Aggregate Stat Types by Tag",
+      "suffix": "/v3/{Domain Name}/tag/stats/aggregates?tag={Tag}&type={Type:country|device|provider}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Stats by Tag",
+      "suffix": "/v3/{Domain Name}/tag/stats?tag={Tag}&event={Event}&start={Start Date?}&end={End Date?}&resolution={Resolution?}&duration={Duration?}&provider={Provider?}&device={Device?}&country={Country?}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Tag Limits",
+      "suffix": "/v3/{Domain Name}/limits/tag",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Totals For Entire Account",
+      "suffix": "/v3/stats/total?event={Event}&start={Start Date?}&end={End Date?}&resolution={Resolution?}&duration={Duration?}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Totals For Entire Domain",
+      "suffix": "/v3/{Domain Name}/stats/total?event={Event}&start={Start Date?}&end={End Date?}&resolution={Resolution?}&duration={Duration?}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Totals For Account Domains For Single Time Resolution",
+      "suffix": "/v3/stats/total/domains?event={Event}&timestamp={Timestamp}&limit={Limit?}&resolution={Resolution?}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Filtered/Grouped Totals For Entire Account",
+      "suffix": "/v3/stats/filter?event={Event}&start={Start Date?}&end={End Date?}&resolution={Resolution?}&duration={Duration?}&filter={Filter?}&group={Group?}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Aggregate Counts by ESP",
+      "suffix": "/v3/{Domain Name}/aggregates/providers",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Aggregate Counts by Devices Triggering Events",
+      "suffix": "/v3/{Domain Name}/aggregates/devices",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Aggregate Counts by Country",
+      "suffix": "/v3/{Domain Name}/aggregates/countries",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Events",
+      "suffix": "/v3/{Domain Name}/events",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "View an Unsubscribe",
+      "suffix": "/v3/{Domain ID}/unsubscribes/{Address}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Unsubscribes",
+      "suffix": "/v3/{Domain ID}/unsubscribes",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Complaint Record",
+      "suffix": "/v3/{Domain ID}/complaints/{Address}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Complaints",
+      "suffix": "/v3/{Domain ID}/complaints",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Bounce Event",
+      "suffix": "/v3/{Domain ID}/bounces/{Address}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Bounces",
+      "suffix": "/v3/{Domain ID}/bounces",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Whitelist Record",
+      "suffix": "/v3/{Domain ID}/whitelists/{Address}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Whitelist Records",
+      "suffix": "/v3/{Domain ID}/whitelists",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Routes",
+      "suffix": "/v3/routes",
+      "paged": "true",
+      "pageType": "TOTAL_COUNT_AND_OFFSET"
+    },
+    {
+      "name": "Route",
+      "suffix": "/v3/routes/{Route ID}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Match Address to Route",
+      "suffix": "/v3/routes/match?address={Address?}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Mailing Lists",
+      "suffix": "/v3/lists",
+      "paged": "true",
+      "pageType": "TOTAL_COUNT_AND_OFFSET"
+    },
+    {
+      "name": "Mailing List Members",
+      "suffix": "/v3/lists/{List Address}/members?address={Address?}&subscribed={Subscribed?:true|false}",
+      "paged": "true",
+      "pageType": "TOTAL_COUNT_AND_OFFSET"
+    },
+    {
+      "name": "Mailing List Member",
+      "suffix": "/v3/lists/{List Address}/members/{Member Address}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Mailing List by Address",
+      "suffix": "/v3/lists/{List Address}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Templates",
+      "suffix": "/v3/{Domain Name}/templates",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Template Versions",
+      "suffix": "/v3/{Domain Name}/templates/{Template Name}/versions",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Template",
+      "suffix": "/v3/{Domain Name}/templates/{Template Name}?active={Active?}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Template Version",
+      "suffix": "/v3/{Domain Name}/templates/{Template Name}/versions/{Version Name}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Dedicated IP Pools",
+      "suffix": "/v3/ip_pools",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Dedicated IP Pools Details",
+      "suffix": "/v3/ip_pools/{Pool ID}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Domains Linked to DIPP",
+      "suffix": "/v3/ip_pools/{Pool ID}/domains",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "IPs",
+      "suffix": "/v3/ips",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "IP Details",
+      "suffix": "/v3/ips/{IP}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Domains Assigned to IP",
+      "suffix": "/v3/ips/{IP}/domains",
+      "paged": "true",
+      "pageType": "TOTAL_COUNT_AND_OFFSET"
+    },
+    {
+      "name": "Number of IPs Available to Account",
+      "suffix": "/v3/ips/request/new",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Subaccount",
+      "suffix": "/v5/accounts/subacccounts/{Subaccount ID}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Subaccounts",
+      "suffix": "/v5/accounts/subacccounts?{Sort?:asc|desc}&filter={Filter}&enabled={Enabled?:true|false}",
+      "paged": "true",
+      "pageType": "TOTAL_COUNT_AND_OFFSET"
+    },
+    {
+      "name": "Custom Sending Limit",
+      "suffix": "/v5/accounts/limit/custom/monthly",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Account Webhook Signing Key",
+      "suffix": "/v5/accounts/http_signing_key",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Authorized Email Recipients For Sandbox Domain",
+      "suffix": "/v5/sandbox/auth_recipients",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "API Keys",
+      "suffix": "/v1/keys?kind={Kind?:domain,user,web}",
+      "paged": "true",
+      "pageType": "TOTAL_COUNT_AND_OFFSET"
+    },
+    {
+      "name": "Mailgun SMTP Credential Metadata For Domain",
+      "suffix": "/v3/domains/{Domain Name}/credentials",
+      "paged": "true",
+      "pageType": "LINK_ITERATION"
+    },
+    {
+      "name": "Mailgun Account IP Allowlist",
+      "suffix": "/v2/ip_whitelist",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Users",
+      "suffix": "/v5/users?role={Role?:basic|billing|support|developer|admin}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "User Details",
+      "suffix": "/v5/users/{User ID}",
+      "paged": "false",
+      "pageType": 0
+    },
+    {
+      "name": "Current User Details",
+      "suffix": "/v5/users/me",
+      "paged": "false",
+      "pageType": 0
+    }
+  ]
 }
