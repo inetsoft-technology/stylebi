@@ -43,6 +43,7 @@ import java.util.*;
 public class TableFormat implements XMLSerializable, Serializable, Cloneable {
    static {
       PropertiesEngine.getInstance().addPropertyChangeListener("format.number.round", evt -> invalidateTableFormatCache());
+      PropertiesEngine.getInstance().addPropertyChangeListener("format.percent.round", evt -> invalidateTableFormatCache());
    }
 
    /**
