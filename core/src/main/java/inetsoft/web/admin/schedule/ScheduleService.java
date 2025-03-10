@@ -655,11 +655,12 @@ public class ScheduleService {
 
    public UsersModel getUsersModel(Principal principal, boolean em) {
       Map<IdentityID, User> allUsers = new HashMap<>();
-      IdentityID[] allowedUsers;
+      IdentityIDWithLabel[] allowedUsers;
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(Organization.getSelfOrganizationID().equals(((XPrincipal) principal).getOrgId())) {
-         allowedUsers = new IdentityID[] { IdentityID.getIdentityIDFromKey(principal.getName()) };
+         allowedUsers = new IdentityIDWithLabel[] {
+            new IdentityIDWithLabel(IdentityID.getIdentityIDFromKey(principal.getName()), ((XPrincipal) principal).getAlias()) };
       }
       else {
          Arrays.stream(securityProvider.getUsers())
@@ -667,11 +668,11 @@ public class ScheduleService {
             .forEach(u -> allUsers.put(u, securityProvider.getUser(u)));
 
          allowedUsers = allUsers.values().stream()
-            .map(User::getIdentityID)
+            .map(u -> new IdentityIDWithLabel(u.getIdentityID(), u.getAlias()))
             .filter(u -> securityProvider.checkPermission(
-               principal, ResourceType.SECURITY_USER, u.convertToKey(), ResourceAction.ADMIN))
+               principal, ResourceType.SECURITY_USER, u.getIdentityID().convertToKey(), ResourceAction.ADMIN))
             .sorted()
-            .toArray(IdentityID[]::new);
+            .toArray(IdentityIDWithLabel[]::new);
       }
 
       Map<IdentityID, Group> allGroups = new HashMap<>();
