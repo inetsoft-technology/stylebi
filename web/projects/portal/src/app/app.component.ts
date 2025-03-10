@@ -172,6 +172,11 @@ export class AppComponent implements OnInit, OnDestroy {
          this.setExpirationDialog(null, model.nodeProtection);
          this.logoutService.logout();
       });
+
+      expirationDialog.onTimerFinished.subscribe(() => {
+         this.setExpirationDialog(null, model.nodeProtection);
+         this.logoutService.logout();
+      });
    }
 
    private setExpirationDialog(dialog: SessionExpirationDialog, nodeProtection: boolean) {

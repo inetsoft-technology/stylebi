@@ -173,6 +173,10 @@ export class AppComponent implements OnInit, OnDestroy {
       expirationDialog.componentInstance.onLogout.subscribe(() => {
          this.logoutService.logout(false, true);
       });
+
+      expirationDialog.componentInstance.onTimerFinished.subscribe(() => {
+         this.logoutService.logout(false, true);
+      });
    }
 
    private setExpirationDialog(dialog: MatDialogRef<SessionExpirationDialog>, nodeProtection: boolean) {
