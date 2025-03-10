@@ -164,6 +164,11 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
       return (AbstractRestDataSource) query.getDataSource();
    }
 
+   @Override
+   public boolean fillNullVariablesWithEmptyString() {
+      return true;
+   }
+
    public static boolean isHttpUrl(String url) {
       return url.startsWith("http");
    }
