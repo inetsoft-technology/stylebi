@@ -30,6 +30,7 @@ import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.Identity;
@@ -228,7 +229,7 @@ public class VSEmailService {
          }
 
          if(isSendLink && linkUri != null && entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
-            String encodeUri = getLink(linkUri, rvs, entry);
+            String encodeUri = getLink(linkUri, rvs, entry, principal);
             StringBuilder includeBookMark = new StringBuilder();
             String includeLink;
 
@@ -334,7 +335,7 @@ public class VSEmailService {
                    final PrintWriter htmlWriter = new PrintWriter(outputWriter))
                {
                   if(isSendLink) {
-                     htmlWriter.write("<a href=\"" + getLink(linkUri, rvs, entry) + "\" >");
+                     htmlWriter.write("<a href=\"" + getLink(linkUri, rvs, entry, principal) + "\" >");
                      htmlWriter.write("<img src=\"cid:" + pngFile.getName() + "\" /></a>");
                   }
                   else {
@@ -359,7 +360,7 @@ public class VSEmailService {
                      final File pngFile = fileList.get(i);
 
                      if(isSendLink) {
-                        htmlWriter.write("<a href=\"" + getLink(linkUri, rvs, entry) + "\" >");
+                        htmlWriter.write("<a href=\"" + getLink(linkUri, rvs, entry, principal) + "\" >");
                         htmlWriter.write("<img src=\"cid:" + pngFile.getName() + "\" /></a>");
                      }
                      else {
@@ -553,14 +554,17 @@ public class VSEmailService {
     * @param entry viewsheet entry
     * @return
     */
-   private String getLink(String linkUri, RuntimeViewsheet rvs, AssetEntry entry) {
+   private String getLink(String linkUri, RuntimeViewsheet rvs, AssetEntry entry, Principal principal) {
       StringBuilder url = new StringBuilder().append(linkUri).append("app/viewer/view/");
 
       if(rvs.getEntry().getScope() == AssetRepository.USER_SCOPE) {
          url.append("user/").append(entry.getUser().name).append('/');
       }
       else {
-         url.append("global/");
+         boolean globalShare = SUtil.isDefaultVSGloballyVisible(principal) &&
+            !Tool.equals(((XPrincipal)principal).getOrgId(), entry.getOrgID()) &&
+            Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID());
+         url.append(globalShare ? "shared_global/" : "global/");
       }
 
       url.append(entry.getPath());
