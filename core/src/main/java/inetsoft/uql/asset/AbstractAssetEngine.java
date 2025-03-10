@@ -4167,6 +4167,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       AssetEntry bookmarkEntry = getVSBookmarkEntry(entry, null);
       IndexedStorage storage = getStorage(entry);
       final ArrayList<IdentityID> userList = new ArrayList<>();
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
       if(bookmarkEntry == null) {
          // A User Scoped VS, should only have bookmarks from the user who
@@ -4201,7 +4202,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       storage.getKeys(filter, entry.getOrgID());
 
-      return userList.stream().sorted().toList();
+      return userList.stream().filter(id ->  provider.getOrganization(id.orgID) != null).sorted().toList();
    }
 
    /**
