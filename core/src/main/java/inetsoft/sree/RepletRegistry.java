@@ -238,8 +238,11 @@ public class RepletRegistry implements Serializable {
       try {
          String registryKey = getRegistryKey(id == null ? null : id.convertToKey());
          RepletRegistry registry = getRegistryCache().get(registryKey);
-         registry.moveFolderMap(oOrgID, nOrgID);
-         registry.save();
+
+         if(registry.hasFolders(oOrgID)) {
+            registry.moveFolderMap(oOrgID, nOrgID);
+            registry.save();
+         }
       }
       catch(Exception ex) {
          LOG.error("Failed to move private folders from " + oOrgID + " to " + nOrgID, ex);
@@ -1078,6 +1081,10 @@ public class RepletRegistry implements Serializable {
          Hashtable<String, FolderContext> orgFolderContext = foldercontextmap.remove(oOrgID);
          foldercontextmap.put(nOrgID, orgFolderContext);
       }
+   }
+
+   public synchronized boolean hasFolders(String orgID) {
+      return folders.containsKey(orgID) || foldercontextmap.containsKey(orgID);
    }
 
    private synchronized Hashtable<String, FolderContext> getFolderContextmap() {

@@ -276,18 +276,20 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
       DataSpace space = DataSpace.getDataSpace();
       String[] paths = ((AbstractFileSystem) target).getPaths();
 
-      for(String path : paths) {
-         try(DataSpace.Transaction tx = space.beginTransaction();
-             OutputStream out = tx.newStream(null, path))
-         {
-            PrintWriter writer =
-               new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
-            writeXML(writer);
-            writer.flush();
-            tx.commit();
-         }
-         catch(Throwable exc) {
-            LOG.error("Failed to copy file map: {}", path, exc);
+      if(list().length != 0) {
+         for(String path : paths) {
+            try(DataSpace.Transaction tx = space.beginTransaction();
+                OutputStream out = tx.newStream(null, path))
+            {
+               PrintWriter writer =
+                  new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
+               writeXML(writer);
+               writer.flush();
+               tx.commit();
+            }
+            catch(Throwable exc) {
+               LOG.error("Failed to copy file map: {}", path, exc);
+            }
          }
       }
    }
