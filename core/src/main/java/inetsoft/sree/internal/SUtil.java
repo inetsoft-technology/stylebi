@@ -1844,7 +1844,7 @@ public class SUtil {
                   alias = registry.getFolderAlias(curPath);
                }
                else {
-                  alias = isReplet && i == values.length - 1 ? dregistry.getFolderAlias(curPath) : "";
+                  alias = dregistry.getFolderAlias(curPath);
                }
             }
 
