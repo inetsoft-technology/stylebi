@@ -24,7 +24,7 @@ import {
    OnChanges,
    OnInit,
    Output,
-   SimpleChanges
+   SimpleChanges, ViewChild
 } from "@angular/core";
 import {HttpClient, HttpParams} from "@angular/common/http";
 import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from "@angular/material/dialog";
@@ -35,6 +35,7 @@ import { AppInfoService } from "../../../../../../../shared/util/app-info.servic
 import {Tool} from "../../../../../../../shared/util/tool";
 import {FileData} from "../../../../../../../shared/util/model/file-data";
 import {DataSpaceTreeNode} from "../data-space-tree-node";
+import { TextFileContentViewComponent } from "../text-file-content-view/text-file-content-view.component";
 import {DataSpaceFileSettingsModel} from "./data-space-file-settings-model";
 import {DataSpaceFileChange} from "../data-space-editor-page/data-space-editor-page.component";
 import {UntypedFormControl, Validators} from "@angular/forms";
@@ -47,6 +48,10 @@ import {DataSpaceFileContentModel} from "../text-file-content-view/data-space-fi
    styleUrls: ["./data-space-file-settings-view.component.scss"]
 })
 export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
+   @ViewChild("textContent") textContent: TextFileContentViewComponent;
+
+
+
    @Input() data: DataSpaceTreeNode;
    @Input() newFile: boolean;
    @Input() newFolder: boolean;
@@ -157,6 +162,10 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
 
             this.newFile = false;
             this.files = null;
+
+            if(this.textContent != null) {
+               this.textContent.fetchContent();
+            }
          },
          (error) => {
             let message = "";
