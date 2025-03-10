@@ -103,7 +103,7 @@ public class RepositoryTreeController {
       Principal principal) throws Exception
    {
       if(OrganizationManager.getGlobalDefOrgFolderName().equals(path) && isDefaultOrgAsset) {
-         return getGlobalRootNode(principal);
+         return getGlobalRootNode(principal, isReport, isFavoritesTree, isGlobal, isPortalData, showVS);
       }
 
       TreeNodeModel rootNode = getTargetNode(path, permission, selector, detailType, isArchive,
@@ -114,7 +114,7 @@ public class RepositoryTreeController {
       if(("/".equals(path)) && isPortalRepo && SUtil.isDefaultVSGloballyVisible(principal) &&
          !orgId.equals(Organization.getDefaultOrganizationID()))
       {
-         TreeNodeModel globalRootNode = getGlobalRootNode(principal);
+         TreeNodeModel globalRootNode = getGlobalRootNode(principal, isReport, isFavoritesTree, isGlobal, isPortalData, showVS);
 
          if(OrganizationManager.getGlobalDefOrgFolderName().equals(path)) {
             return globalRootNode;
@@ -237,7 +237,9 @@ public class RepositoryTreeController {
       return Stream.concat(folderNodes.stream(), fileNodes.stream()).toArray(TreeNodeModel[]::new);
    }
 
-   public TreeNodeModel getGlobalRootNode(Principal principal) throws Exception {
+   public TreeNodeModel getGlobalRootNode(Principal principal, boolean isReport,
+                                          boolean isFavoritesTree, boolean isGlobal,
+                                          boolean isPortalData, boolean showVS) throws Exception {
       String globalDefOrgFolderName = OrganizationManager.getGlobalDefOrgFolderName();
       RepositoryEntry parentEntry = new RepositoryEntry(globalDefOrgFolderName, RepositoryEntry.FOLDER);
       parentEntry.setDefaultOrgAsset(true);
@@ -249,17 +251,25 @@ public class RepositoryTreeController {
          .label(globalDefOrgFolderName)
          .data(parentEntryModel)
          .defaultOrgAsset(true)
-         .addChildren(getGlobalChildrenNodes(principal))
+         .addChildren(getGlobalChildrenNodes(principal, isReport, isFavoritesTree, isGlobal, isPortalData, showVS))
          .build();
    }
 
-   public TreeNodeModel[] getGlobalChildrenNodes(Principal principal) throws Exception {
+   public TreeNodeModel[] getGlobalChildrenNodes(Principal principal, boolean isReport,
+                                                 boolean isFavoritesTree, boolean isGlobal,
+                                                 boolean isPortalData, boolean showVS) throws Exception
+   {
       AnalyticEngine engine = (AnalyticEngine) analyticRepository;
       RepositoryEntry[] entries = engine.getDefaultOrgRepositoryEntries(principal);
       List<TreeNodeModel> folderNodes = new ArrayList<>();
       List<TreeNodeModel> fileNodes = new ArrayList<>();
 
       for(RepositoryEntry entry : entries) {
+
+         if(!isVisible(entry, isReport, isPortalData, isFavoritesTree, isGlobal, showVS, principal)) {
+            continue;
+         }
+
          RepositoryEntryModel<RepositoryEntry> entryModel =
             repositoryEntryModelFactoryService.createModel(entry);
          entryModel.setOp(repositoryTreeService.getSupportedOperations(entry, principal));
