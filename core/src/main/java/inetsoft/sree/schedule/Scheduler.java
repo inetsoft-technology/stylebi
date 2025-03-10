@@ -878,21 +878,29 @@ public class Scheduler {
       if(date != null && time != null) {
          Calendar time1 = Calendar.getInstance();
          Calendar date1 = Calendar.getInstance();
+         time1.setTime(time);
+         date1.setTime(date);
 
          if(timeZone != null) {
             time1.setTimeZone(TimeZone.getTimeZone(timeZone));
             date1.setTimeZone(TimeZone.getTimeZone(timeZone));
          }
 
-         time1.setTime(time);
-         date1.setTime(date);
          date1.set(Calendar.HOUR_OF_DAY, time1.get(Calendar.HOUR_OF_DAY));
          date1.set(Calendar.MINUTE, time1.get(Calendar.MINUTE));
          date1.set(Calendar.SECOND, time1.get(Calendar.SECOND));
          time = date1.getTime();
       }
 
-      return time;
+      return toServerDate(time);
+   }
+
+   private static Date toServerDate(Date targetDate) {
+      Calendar calendar = Calendar.getInstance();
+      calendar.setTime(targetDate);
+      calendar.setTimeZone(TimeZone.getDefault());
+
+      return calendar.getTime();
    }
 
    /**
