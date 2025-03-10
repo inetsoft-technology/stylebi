@@ -1896,6 +1896,20 @@ public class DeployManagerService {
          return ((DeviceAsset) asset).getDeviceInfo() != null ? ((DeviceAsset) asset).getDeviceInfo().getName() : null;
       }
 
+      if(asset instanceof VSAutoSaveAsset) {
+         VSAutoSaveAsset autoSaveAsset = (VSAutoSaveAsset) asset;
+
+         String path = autoSaveAsset.getPath();
+
+         if(path.contains("^")) {
+            String[] paths = path.split("\\^");
+
+            if(paths.length > 3) {
+               return paths[2] + "/" + paths[3];
+            }
+         }
+      }
+
       if(!Tool.equals(ViewsheetAsset.VIEWSHEET, asset.getType())) {
          return oname;
       }
