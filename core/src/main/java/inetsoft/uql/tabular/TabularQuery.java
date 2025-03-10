@@ -41,37 +41,18 @@ public abstract class TabularQuery extends XQuery {
    }
 
    public void loadOutputColumns(VariableTable vtable) throws Exception {
-      List<UserVariable> variables = TabularUtil.findVariables(this);
-      if(this.getDataSource() != null) {
-         variables.addAll(TabularUtil.findVariables(this.getDataSource()));
-      }
-      boolean paramsRequired = false;
+      TabularHandler handler = new TabularHandler();
+      int maxRows = getMaxRows();
+      setMaxRows(100);
 
-      for(UserVariable var : variables) {
-         if(vtable.get(var) == null) {
-            paramsRequired = true;
-            break;
-         }
+      try {
+         // not need to get most up-to-date data for refreshing columns.
+         vtable.put(XQuery.HINT_PREVIEW, "true");
+         handler.execute(this, vtable, null, null);
       }
-
-      if(paramsRequired) {
-         throw new ParametersRequiredException(
-            "Parameters required to get the metadata for the query");
-      }
-      else {
-         TabularHandler handler = new TabularHandler();
-         int maxRows = getMaxRows();
-         setMaxRows(100);
-
-         try {
-            // not need to get most up-to-date data for refreshing columns.
-            vtable.put(XQuery.HINT_PREVIEW, "true");
-            handler.execute(this, vtable, null, null);
-         }
-         finally {
-            vtable.remove(XQuery.HINT_PREVIEW);
-            setMaxRows(maxRows);
-         }
+      finally {
+         vtable.remove(XQuery.HINT_PREVIEW);
+         setMaxRows(maxRows);
       }
    }
 
@@ -355,12 +336,6 @@ public abstract class TabularQuery extends XQuery {
       }
 
       return copy;
-   }
-
-   public static class ParametersRequiredException extends Exception {
-      public ParametersRequiredException(String msg) {
-         super(msg);
-      }
    }
 
    private XTypeNode[] cols;
