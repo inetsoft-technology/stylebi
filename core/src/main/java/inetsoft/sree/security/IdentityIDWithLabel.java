@@ -55,7 +55,10 @@ public class IdentityIDWithLabel implements Comparable<IdentityIDWithLabel> {
 
    @Override
    public boolean equals(Object o) {
-      if(!(o instanceof IdentityIDWithLabel that)) return false;
+      if(!(o instanceof IdentityIDWithLabel that)) {
+         return false;
+      }
+
       return Objects.equals(identityID, that.identityID);
    }
 
