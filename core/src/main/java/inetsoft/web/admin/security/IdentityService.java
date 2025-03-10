@@ -243,7 +243,7 @@ public class IdentityService {
          SRPrincipal principal = iterator.next();
 
          if(Tool.equals(principal.getIdentityID(), user)) {
-            authenticationService.logout(principal, true);
+            authenticationService.logout(principal);
          }
       }
    }
