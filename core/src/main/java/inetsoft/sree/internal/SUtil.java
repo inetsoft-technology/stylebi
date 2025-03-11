@@ -2083,19 +2083,16 @@ public class SUtil {
    }
 
    public static String addAutoSaveOrganization(String path) {
-      //only add when security is enabled
-      if(SecurityEngine.getSecurity().isSecurityEnabled()) {
-         if(path != null && path.contains("^")) {
-            String[] paths = Tool.split(path, '^');
+      if(path != null && path.contains("^")) {
+         String[] paths = Tool.split(path, '^');
 
-            if(paths.length > 3) {
-               String user = paths[2];
+         if(paths.length > 3) {
+            String user = paths[2];
 
-               if(!user.contains(IdentityID.KEY_DELIMITER)) {
-                  paths[2] =
-                     user + IdentityID.KEY_DELIMITER + OrganizationManager.getInstance().getCurrentOrgID();
-                  path = String.join("^", paths);
-               }
+            if(!user.contains(IdentityID.KEY_DELIMITER)) {
+               paths[2] =
+                  user + IdentityID.KEY_DELIMITER + OrganizationManager.getInstance().getCurrentOrgID();
+               path = String.join("^", paths);
             }
          }
       }
