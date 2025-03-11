@@ -61,7 +61,9 @@ export class RepositoryViewsheetSettingsPageComponent implements OnChanges {
 
    editSheet(model: RepositorySheetSettingsModel) {
       const url = "../api/em/content/repository/viewsheet";
-      let params = new HttpParams().set("path", Tool.byteEncode(this.model.path));
+      let params = new HttpParams()
+         .set("path", Tool.byteEncode(this.model.path))
+         .set("timeZone", Intl.DateTimeFormat().resolvedOptions().timeZone);
       params = this.model.owner != null ? params.set("owner", convertToKey(this.model.owner)) : params;
       this.http.post<RepositorySheetSettingsModel>(url, model, {params})
          .subscribe(
