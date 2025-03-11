@@ -32,7 +32,7 @@ import {
    ViewChild
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { merge as observableMerge, Observable, throwError } from "rxjs";
+import { forkJoin, merge as observableMerge, Observable, throwError } from "rxjs";
 import { catchError, finalize, map } from "rxjs/operators";
 import { AssetEntry } from "../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../shared/data/asset-type";
@@ -136,17 +136,17 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    ngOnInit() {
-      this.loadAssetTree();
       this.setupAssetClientService();
 
-      this.http.get<string>("../api/em/navbar/organization")
-         .subscribe((org) => this.currOrgID = org);
-
-      this.http.get<string[]>("../api/em/security/users/get-all-organization-ids/").subscribe(
-         (orgIDList) => {
+      //Use forkJoin to wait for multiple HTTP requests to complete simultaneously.
+      forkJoin({
+         org: this.http.get<string>("../api/em/navbar/organization"),
+         orgIDList: this.http.get<string[]>("../api/em/security/users/get-all-organization-ids/")
+      }).subscribe(({ org, orgIDList }) => {
+            this.currOrgID = org;
             this.organizations = orgIDList;
-         }
-      );
+            this.loadAssetTree();
+         });
    }
 
    loadAssetTree() {
@@ -159,7 +159,8 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
       }
       else if(this.defaultFolder) {
          loadAssetTreeNodesEvent.setPath(this.defaultFolder.path.split("/"));
-         loadAssetTreeNodesEvent.setScope(this.defaultFolder.scope);
+         loadAssetTreeNodesEvent.setScope(this.currOrgID == "SELF" ?
+            AssetConstants.USER_SCOPE : this.defaultFolder.scope);
          loadAssetTreeNodesEvent.setIndex(-1);
       }
 
@@ -184,7 +185,8 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
             if(this.defaultFolder) {
                const selectedNode: TreeNodeModel = this.getNodeByPath(
-                  this.defaultFolder.path, this.root, this.defaultFolder.scope);
+                  this.defaultFolder.path, this.root, this.currOrgID == "SELF" ?
+                  AssetConstants.USER_SCOPE : this.defaultFolder.scope);
 
                if(selectedNode) {
                   this.selectNodes([selectedNode]);
