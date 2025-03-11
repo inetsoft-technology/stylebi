@@ -1470,7 +1470,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.viewsheetClient.sendEvent(TOGGLE_STATUS_URI, event);
    }
 
-   showBookmarks(): void {
+   showBookmarks(gotoBookmark: boolean = true): void {
       this.http.get<boolean>("../api/vs/bookmark/isDefaultOrgAsset/" + Tool.byteEncode(this.runtimeId)).subscribe( (isDefaultOrgAsset) => this.isDefaultOrgAsset = isDefaultOrgAsset);
 
       let bookmarkName: string = null;
@@ -1490,7 +1490,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.getBookmarks().subscribe(data => {
             this.vsBookmarkList = data;
 
-            if(bookmarkName != null) {
+            if(bookmarkName != null && gotoBookmark) {
                let bookmark = this.vsBookmarkList.find(
                   f => f.name == bookmarkName && (!bookmarkUser || bookmarkUser == convertToKey(f.owner))
                );
