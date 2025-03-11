@@ -296,7 +296,9 @@ export class ContentRepositoryService implements OnDestroy {
       }
 
       if(data.type === RepositoryEntryType.VIEWSHEET) {
-         let params = new HttpParams().set("path", Tool.byteEncode(data.path));
+         let params = new HttpParams()
+            .set("path", Tool.byteEncode(data.path))
+            .set("timeZone", Intl.DateTimeFormat().resolvedOptions().timeZone);
          params = data.owner != null ? params.set("owner", convertToKey(data.owner)) : params;
 
          return this.http.get<RepositorySheetSettingsModel>(
@@ -319,7 +321,9 @@ export class ContentRepositoryService implements OnDestroy {
       }
 
       if(data.type === RepositoryEntryType.WORKSHEET) {
-         let params = new HttpParams().set("path", Tool.byteEncode(data.path));
+         let params = new HttpParams()
+            .set("path", Tool.byteEncode(data.path))
+            .set("timeZone", Intl.DateTimeFormat().resolvedOptions().timeZone);
          params = data.owner != null ? params.set("owner", convertToKey(data.owner)) : params;
 
          return this.http.get<RepositorySheetSettingsModel>(
