@@ -462,7 +462,7 @@ public class ContentRepositoryTreeService {
                   nodes.add(node);
                   map.put(key, nodes);
                }
-               else {
+               else if(!map.get(key).contains(node)) {
                   map.get(key).add(node);
                }
             }
