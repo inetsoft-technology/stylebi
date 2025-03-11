@@ -194,6 +194,12 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
    public selectAndExpandToPath(path: string, node: TreeNodeModel = this.root,
                                 defaultAsset: boolean = false): void
    {
+      if(this.tree && !!node && path == node.label) {
+         this.tree.selectAndExpandToNode(node);
+         this._selectedNode = node;
+         return;
+      }
+
       if(node != null && node.children != null && node.type == "None") {
          for(let i = 0; i < node.children.length; i++) {
             let child = node.children[i];
