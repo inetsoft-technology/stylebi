@@ -24,8 +24,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.util.Catalog;
-import inetsoft.util.MissingAssetClassNameException;
+import inetsoft.util.*;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.security.auth.MissingResourceException;
 import org.slf4j.Logger;
@@ -36,6 +35,7 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.text.SimpleDateFormat;
 import java.util.EnumSet;
+import java.util.TimeZone;
 
 @Service
 public class SheetService {
@@ -47,6 +47,7 @@ public class SheetService {
 
    public RepositorySheetSettingsModel getSheetSettings(AssetEntry entry0,
                                                         ResourceType resourceType,
+                                                        String timeZone,
                                                         String owner,
                                                         Principal principal) throws Exception
    {
@@ -92,6 +93,7 @@ public class SheetService {
       String unknown = Catalog.getCatalog().getString("Unknown");
 
       SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      format.setTimeZone(TimeZone.getTimeZone(timeZone));
       String created = entry.getCreatedUsername() == null ?
          unknown : entry.getCreatedUsername();
       created += " - ";

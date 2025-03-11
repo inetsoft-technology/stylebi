@@ -41,6 +41,7 @@ public class RepositoryViewsheetController {
    @GetMapping("/api/em/content/repository/viewsheet")
    public RepositorySheetSettingsModel getViewsheetSettings(
       @DecodeParam("path") String path,
+      @RequestParam("timeZone") String timeZone,
       @RequestParam(value = "owner", required = false) String owner,
       Principal principal
    ) throws Exception
@@ -49,12 +50,13 @@ public class RepositoryViewsheetController {
       path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, ownerID);
-      return sheetService.getSheetSettings(entry, ResourceType.REPORT, owner, principal);
+      return sheetService.getSheetSettings(entry, ResourceType.REPORT, timeZone, owner, principal);
    }
 
    @PostMapping("/api/em/content/repository/viewsheet")
    public RepositorySheetSettingsModel setViewsheetSettings(
       @DecodeParam("path") String path,
+      @RequestParam("timeZone") String timeZone,
       @RequestParam(value = "owner", required = false) String owner,
       @RequestBody() RepositorySheetSettingsModel model, Principal principal) throws Exception
    {
@@ -70,7 +72,7 @@ public class RepositoryViewsheetController {
                                                   model.permissionTableModel(), principal);
       }
 
-      return sheetService.getSheetSettings(newEntry, ResourceType.REPORT, owner, principal);
+      return sheetService.getSheetSettings(newEntry, ResourceType.REPORT, timeZone, owner, principal);
    }
 
    private final SheetService sheetService;
