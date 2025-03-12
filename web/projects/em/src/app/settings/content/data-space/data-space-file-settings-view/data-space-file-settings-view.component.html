@@ -59,7 +59,7 @@
           </mat-form-field>
         </ng-container>
       </div>
-      <em-text-file-content-view id="content" *ngIf="contentEditorVisible"
+      <em-text-file-content-view  #textContent id="content" *ngIf="contentEditorVisible"
                                  [path]="data.path" [editMode]="contentEditMode"
                                  (contentChanged)="content = $event">
       </em-text-file-content-view>
