@@ -1,4 +1,4 @@
-/*
+/*!
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,24 +15,34 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { LicenseKeyModel } from "../license-key-settings-model";
+:host {
+  .mat-mdc-table {
+    width: 100%;
+    margin: 1em 0;
 
-export enum LicenseKeyType {
-   SERVER, SCHEDULER
-}
+    tr {
+      overflow: hidden;
 
-export class EditLicenseKeyDialogData {
-   keys: LicenseKeyModel[];
-   isEnterprise: boolean;
-
-   constructor(public model: LicenseKeyModel, public type: LicenseKeyType, keys: LicenseKeyModel[], isEnterprise: boolean) {
-      if(model) {
-         this.keys = keys.filter(k => k.key !== model.key);
-      }
-      else {
-         this.keys = keys;
+      .select {
+        width: 50px;
       }
 
-      this.isEnterprise = isEnterprise;
-   }
+      td {
+        overflow: hidden;
+
+        div {
+          max-width: 500px;
+          overflow: hidden;
+          -ms-text-overflow: ellipsis;
+          text-overflow: ellipsis;
+          white-space: normal;
+        }
+      }
+    }
+  }
+  .generateKey {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
 }

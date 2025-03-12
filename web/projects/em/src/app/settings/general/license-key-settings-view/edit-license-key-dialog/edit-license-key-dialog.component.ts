@@ -36,6 +36,7 @@ import { EditLicenseKeyDialogData } from "./edit-license-key-dialog-data";
    styleUrls: ["./edit-license-key-dialog.component.scss"]
 })
 export class EditLicenseKeyDialogComponent implements OnInit {
+   isEnterprise: boolean;
    add = false;
    server = false;
    form: UntypedFormGroup;
@@ -49,6 +50,8 @@ export class EditLicenseKeyDialogComponent implements OnInit {
                private dialogRef: MatDialogRef<EditLicenseKeyDialogComponent>,
                @Inject(MAT_DIALOG_DATA) data: EditLicenseKeyDialogData, fb: UntypedFormBuilder)
    {
+      this.isEnterprise = data.isEnterprise;
+
       switch(data.type) {
       default:
          this.server = true;
@@ -64,6 +67,10 @@ export class EditLicenseKeyDialogComponent implements OnInit {
    }
 
    ngOnInit() {
+   }
+
+   get licenseKeyLabel() {
+      return this.isEnterprise ? "_#(js:License Key)" : "_#(js:API Key)"
    }
 
    onLicenseKeyChange(): void {
