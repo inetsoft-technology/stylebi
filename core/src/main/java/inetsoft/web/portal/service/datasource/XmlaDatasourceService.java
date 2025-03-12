@@ -51,8 +51,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class XmlaDatasourceService extends DatasourcesBaseService {
-   public XmlaDatasourceService(XRepository repository, SecurityProvider securityProvider) {
-      super(repository, securityProvider);
+   public XmlaDatasourceService(XRepository repository, SecurityProvider securityProvider,
+                                DataSourceStatusService dataSourceStatusService)
+   {
+      super(repository, securityProvider, dataSourceStatusService);
    }
 
    public DataSourceXmlaDefinition getNewDataSourceModel(String parentPath) throws Exception {

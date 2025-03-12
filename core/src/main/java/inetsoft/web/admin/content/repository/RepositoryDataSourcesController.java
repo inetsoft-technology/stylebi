@@ -41,12 +41,10 @@ import java.util.Objects;
 public class RepositoryDataSourcesController {
    @Autowired
    public RepositoryDataSourcesController(DatabaseDatasourcesService databaseDatasourcesService,
-                                          ResourcePermissionService permissionService,
-                                          DataSourceBrowserService dataSourceBrowserService)
+                                          ResourcePermissionService permissionService)
    {
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.permissionService = permissionService;
-      this.dataSourceBrowserService = dataSourceBrowserService;
    }
 
    @GetMapping("/api/em/settings/content/repository/dataSource/driverAvailability")
@@ -138,9 +136,6 @@ public class RepositoryDataSourcesController {
 
          status = databaseDatasourcesService.saveDatabase(path,
             model, actionName, fullPath, actionError, principal);
-
-         String dsFullName = this.databaseDatasourcesService.getDataSourceFullName(path, database);
-         dataSourceBrowserService.updateDataSourceConnectionStatus(dsFullName, principal);
       }
 
       if(model.permissions() != null && model.permissions().changed()) {
@@ -186,5 +181,4 @@ public class RepositoryDataSourcesController {
 
    private final DatabaseDatasourcesService databaseDatasourcesService;
    private final ResourcePermissionService permissionService;
-   private final DataSourceBrowserService dataSourceBrowserService;
 }

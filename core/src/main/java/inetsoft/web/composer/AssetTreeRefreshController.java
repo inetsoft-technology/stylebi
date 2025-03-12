@@ -97,7 +97,7 @@ public class AssetTreeRefreshController {
                .build();
 
             debouncer.debounce("change" + (event.getAssetEntry().getParent() != null ?
-               event.getAssetEntry().getParent().toIdentifier() : ""), 1, TimeUnit.SECONDS, () ->
+               event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS, () ->
                messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel)
             );
          }
@@ -153,7 +153,7 @@ public class AssetTreeRefreshController {
       }
    };
 
-   final private Debouncer debouncer = new DefaultDebouncer<>();
+   final private Debouncer debouncer = new DefaultDebouncer<>(false);
    private static final String TABLE_STYLE = "Table Style";
    private static final String SCRIPT = "Script Function";
 }

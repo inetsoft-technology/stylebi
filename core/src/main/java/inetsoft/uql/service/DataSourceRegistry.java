@@ -446,7 +446,7 @@ public class DataSourceRegistry implements MessageListener {
     * @param dx the specified data source.
     */
    public synchronized void setDataSource(XDataSource dx, boolean isImport) {
-      setDataSource(dx, null, true, false, isImport);
+      setDataSource(dx, null, true, false, isImport, true);
    }
 
    /**
@@ -455,9 +455,10 @@ public class DataSourceRegistry implements MessageListener {
     * @param oname        only used in RempteDataSourceRegistry.
     * @param actionRecord only used in RemoteDataSourceRegistry.
     * @param checkDelete  check the delete permission.
+    * @param fireEvent    whether to fire an event after storing the object
     */
    public synchronized void setDataSource(XDataSource dx, String oname, Boolean actionRecord,
-                                          boolean checkDelete, boolean isImport)
+                                          boolean checkDelete, boolean isImport, boolean fireEvent)
    {
       for(String existQueryFolder : existQueryFolders) {
          dx.addFolder(existQueryFolder);
@@ -523,7 +524,7 @@ public class DataSourceRegistry implements MessageListener {
                dx.setLastModified(System.currentTimeMillis());
             }
 
-            setObject(entry, new XDataSourceWrapper(dx));
+            setObject(entry, new XDataSourceWrapper(dx), fireEvent);
 
             if(dx.getType().equals("jdbc")) {
                AssetEntry dEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
@@ -1257,6 +1258,16 @@ public class DataSourceRegistry implements MessageListener {
     * @param obj   the Object to be stored
     */
    public void setObject(AssetEntry entry, XMLSerializable obj) {
+      setObject(entry, obj, true);
+   }
+
+   /**
+    * Stores an object.
+    * @param entry AssetEntry that describes the object
+    * @param obj   the Object to be stored
+    * @param fireEvent whether to fire an event after storing the object
+    */
+   public void setObject(AssetEntry entry, XMLSerializable obj, boolean fireEvent) {
       try {
          AssetFolder root = getRoot(entry.getOrgID());
 
@@ -1277,7 +1288,17 @@ public class DataSourceRegistry implements MessageListener {
          clearCache2();
          Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent());
 
-         fireModifiedEvent();
+         if(fireEvent) {
+            fireModifiedEvent();
+         }
+         else {
+            // update the last modified timestamp to prevent firing of the storage refresh event
+            String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+            if(orgId != null) {
+               this.ts.put(orgId, System.currentTimeMillis());
+            }
+         }
       }
       catch(Exception e) {
          LOG.error("Failed to set object: " + entry.getPath(), e);
