@@ -19,43 +19,8 @@
 package inetsoft.util.credential;
 
 import inetsoft.util.*;
-import org.w3c.dom.Element;
-
-import java.io.PrintWriter;
 
 public interface CloudCredential extends Credential {
-   default void writeXML(PrintWriter writer) {
-      if(isEmpty()) {
-         return;
-      }
-// only consume secrets, so don't need to add secret to cloud secrets manager.
-//      if(!isUseCredential() || getId() == null) {
-//         setId(getSecretsManager().encryptCredential(this));
-//      }
-
-      StringBuilder builder = new StringBuilder();
-      builder.append("<PasswordCredential cloud=\"true\"");
-      builder.append(" class=\"");
-      builder.append(this.getClass().getName());
-      builder.append("\" id=\"");
-      builder.append(getId());
-      builder.append("\" dbType=\"");
-      builder.append(getDBType() != null && !getDBType().isEmpty() ? getDBType() : "");
-      builder.append("\">");
-      builder.append("</PasswordCredential>");
-      writer.write(builder.toString());
-   }
-
-   default void parseXML(Element elem) throws Exception {
-      if(elem == null) {
-         return;
-      }
-
-      setId(elem.getAttribute("id"));
-      setDBType(elem.getAttribute("dbType"));
-      fetchCredential();
-   }
-
    default void fetchCredential() {
       if(Tool.isEmptyString(getId())) {
          return;
@@ -79,4 +44,16 @@ public interface CloudCredential extends Credential {
 
       throw new RuntimeException("There's no secrets manager for cloud password credential!");
    }
+
+   /**
+    * Create a new local credential.
+    */
+   Credential createLocal();
+
+   /**
+    * Copy the credential to the new local credential.
+    *
+    * @param credential new local credential.
+    */
+   void copyToLocal(Credential credential);
 }

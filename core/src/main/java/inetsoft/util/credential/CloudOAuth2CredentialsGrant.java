@@ -102,6 +102,21 @@ public class CloudOAuth2CredentialsGrant extends CloudClientCredentialsGrant
       setAuthorizationUri(cloudCredential.getAuthorizationUri());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalOAuth2CredentialsGrant();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalOAuth2CredentialsGrant localCredentials) {
+         localCredentials.setScope(scope);
+         localCredentials.setTokenUri(tokenUri);
+         localCredentials.setAuthorizationUri(authorizationUri);
+         super.copyToLocal(localCredentials);
+      }
+   }
+
    public static class Serializer<T extends CloudOAuth2CredentialsGrant>
       extends CloudClientCredentialsGrant.Serializer<T>
    {

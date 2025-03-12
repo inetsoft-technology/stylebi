@@ -35,6 +35,21 @@ public class CloudAuthorizationCodeGrant extends CloudClientCredentialsGrant
    public CloudAuthorizationCodeGrant() {
       super();
    }
+
+   @Override
+   public Credential createLocal() {
+      return new LocalAuthorizationCodeGrant();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalAuthorizationCodeGrant localCredential) {
+         localCredential.setAccountDomain(accountDomain);
+         localCredential.setAuthorizationCode(authorizationCode);
+         super.copyToLocal(credential);
+      }
+   }
+
    @Override
    public String getAuthorizationCode() {
       return authorizationCode;

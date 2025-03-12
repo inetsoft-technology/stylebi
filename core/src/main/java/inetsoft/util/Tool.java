@@ -2003,7 +2003,7 @@ public final class Tool extends CoreTool {
    public static String encryptPassword(String pw, boolean forceLocal) {
       if(forceLocal) {
          // use local PasswordEncryption, when user force to user detail secret value insteadof a secret id.
-         return PasswordEncryption.newLocalInstance().encryptPassword(pw);
+         return PasswordEncryption.newLocalInstance(true).encryptPassword(pw);
       }
 
       return PasswordEncryption.newInstance().encryptPassword(pw);
@@ -2050,7 +2050,7 @@ public final class Tool extends CoreTool {
     */
    public static String decryptPassword(String encryptedPassword, boolean local) {
       if(local) {
-         return PasswordEncryption.newLocalInstance().decryptPassword(encryptedPassword);
+         return PasswordEncryption.newLocalInstance(false).decryptPassword(encryptedPassword);
       }
 
       return PasswordEncryption.newInstance().decryptPassword(encryptedPassword);

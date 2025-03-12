@@ -37,6 +37,19 @@ public class CloudAdobeAnalyticsCredential extends AbstractCloudCredential
    }
 
    @Override
+   public Credential createLocal() {
+      return new LocalAdobeAnalyticsCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalAdobeAnalyticsCredential localCredential) {
+         localCredential.setApiKey(apiKey);
+         localCredential.setGlobalCompanyId(globalCompanyId);
+      }
+   }
+
+   @Override
    public String getApiKey() {
       return apiKey;
    }
