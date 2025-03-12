@@ -411,6 +411,8 @@ public class VSTableService {
       sinfo.setType(SourceInfo.ASSET);
       sinfo.setSource(tassembly.getName());
       ColumnSelection columns = getColumnSelection(tassembly, entry, rvs, viewsheetService);
+      columns = columns.clone();
+
       // add calculate fields.
       CalculateRef[] calcs = viewsheet.getCalcFields(
                entry.isTable() ? entry.getName() : tassembly.getName());
