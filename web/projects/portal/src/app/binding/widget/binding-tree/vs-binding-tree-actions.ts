@@ -57,6 +57,7 @@ import { VsWizardEditModes } from "../../../vs-wizard/model/vs-wizard-edit-modes
 
 const MODIFY_CALC_URI: string = "/events/vs/calculate/modifyCalculateField";
 const CHECK_CALC_TRAP: string = "../api/vs/calculate/checkCalcTrap";
+const CHECK_IN_USED_ASSEMBLIES: string = "../api/vs/calculate/get-in-use-assemblies/";
 
 /**
  * Base class for chart-specific actions shared by all contexts.
@@ -293,7 +294,7 @@ export class VSBindingTreeActions extends ContextMenuActions {
             if("yes" == result) {
                let tableName: string = this.getTableName(this.currentEntry);
                let refName: string = this.currentEntry.properties["attribute"];
-               this.modifyCalculateField(tableName, null, true, false, refName, null, true);
+               this.modifyCalculateField(tableName, null, true, false, refName, null, false, true);
             }
          });
    }
@@ -348,13 +349,9 @@ export class VSBindingTreeActions extends ContextMenuActions {
          null : this.getNameFromPath(this.currentEntry.path);
       let needConfirm: boolean = false;
 
-      if(refName != obj.formulaName) {
-         needConfirm = true;
-
-         if(!this.isValidName(obj.formulaName, fieldsInfo.allcolumns)) {
-            ComponentTool.showMessageDialog(this.dialogService, "_#(js:Error)", "_#(js:Duplicate Name)!");
-            return;
-         }
+      if(refName != obj.formulaName && !this.isValidName(obj.formulaName, fieldsInfo.allcolumns)) {
+         ComponentTool.showMessageDialog(this.dialogService, "_#(js:Error)", "_#(js:Duplicate Name)!");
+         return;
       }
 
       let oCalcType = "true" != this.currentEntry.properties["basedOnDetail"] ?
@@ -502,17 +499,42 @@ export class VSBindingTreeActions extends ContextMenuActions {
       return this.modelService.getModel("../api/composer/vsformula/fields" + params);
    }
 
-   private modifyCalculateField(tname: string, cref: CalculateRef, remove: boolean,
-      create: boolean, refname: string, dimtype: string, needConfirm: boolean = false): void
+   private modifyCalculateField(tname: string, cref: CalculateRef, remove: boolean, create: boolean,
+                                refname: string, dimtype: string, needConfirm: boolean = false,
+                                confirmed: boolean = false): void
    {
-      const name: string = this.assemblyName;
-      const event: ModifyCalculateFieldEvent = new ModifyCalculateFieldEvent(name,
-         cref, tname, remove, create, refname, dimtype, false, false,
-         this.isWizard, this.wizardOriginalMode);
       const params = new HttpParams()
          .set("tname", tname)
          .set("refname", refname);
-      this.checkTrap(cref, params, event, remove);
+
+      if(!needConfirm || confirmed) {
+         const name: string = this.assemblyName;
+         const event: ModifyCalculateFieldEvent = new ModifyCalculateFieldEvent(name,
+            cref, tname, remove, create, refname, dimtype, false, true,
+            this.isWizard, this.wizardOriginalMode);
+
+         this.checkTrap(cref, params, event, remove);
+         return;
+      }
+
+      let url: string = CHECK_IN_USED_ASSEMBLIES + Tool.encodeURIComponentExceptSlash(this.runtimeId);
+
+      this.modelService.getModel<string>(url, params).subscribe(names => {
+         if(!!names) {
+            let msg = "_#(js:common.tree.editCalcField)" + "_*" + names;
+
+            ComponentTool.showConfirmDialog(this.dialogService, "_#(js:Confirm)", msg,
+               {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
+               .then((result: string) => {
+                  if("yes" == result) {
+                     this.modifyCalculateField(tname, cref, remove, create, refname, dimtype, false, true);
+                  }
+               });
+         }
+         else {
+            this.modifyCalculateField(tname, cref, remove, create, refname, dimtype, false, true);
+         }
+      });
    }
 
    private checkTrap(calc: CalculateRef, params: HttpParams, event: ModifyCalculateFieldEvent,

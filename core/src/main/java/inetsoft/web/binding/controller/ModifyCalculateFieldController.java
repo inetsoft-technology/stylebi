@@ -147,7 +147,7 @@ public class ModifyCalculateFieldController {
       boolean changeCalcType = !create && cref != null && oldCalcRef != null &&
          oldCalcRef.isBaseOnDetail() != cref.isBaseOnDetail();
       String oldPath = null;
-      VSAssembly ass = (VSAssembly) vs.getAssembly(event.name());
+      VSAssembly ass = vs.getAssembly(event.name());
       String wizardFixedTableName = tname;
 
       if(rename && event.wizard()) {
@@ -185,17 +185,7 @@ public class ModifyCalculateFieldController {
 
       try {
          if(remove) {
-            if(!getEffectedAssembly(false, tname, refname, vs, rename, changeCalcType, cref,
-               event, dispatcher, rvs, linkUri) && !event.confirmed())
-            {
-               MessageCommand messageCommand = new MessageCommand();
-               messageCommand.setMessage(Catalog.getCatalog().getString("field.vsused.warning") +
-                                            " but client side did not check whether to remove it.");
-               messageCommand.setType(MessageCommand.Type.ERROR);
-               dispatcher.sendCommand(messageCommand);
-               return;
-            }
-
+            syncAssemblies(tname, refname, vs, rename, changeCalcType, cref, dispatcher, rvs, linkUri);
             vs.removeCalcField(tname, refname);
          }
          else {
@@ -209,18 +199,7 @@ public class ModifyCalculateFieldController {
                oldCalc = vs.getCalcField(tname, refname);
                vs.removeCalcField(tname, refname);
                vs.addCalcField(tname, cref);
-
-               if(!getEffectedAssembly(false, tname, refname, vs, rename, changeCalcType,
-                       cref, event, dispatcher, rvs, linkUri) && !event.confirmed())
-               {
-                  MessageCommand messageCommand = new MessageCommand();
-                  messageCommand.setMessage(Catalog.getCatalog().getString("field.vsused.warning") +
-                                            " but client side did not check whether to rename it.");
-                  messageCommand.setType(MessageCommand.Type.ERROR);
-                  dispatcher.sendCommand(messageCommand);
-                  return;
-               }
-
+               syncAssemblies(tname, refname, vs, rename, changeCalcType, cref, dispatcher, rvs, linkUri);
                Assembly assembly = vs.getAssembly(event.name());
 
                if(assembly instanceof CalcTableVSAssembly) {
@@ -230,16 +209,7 @@ public class ModifyCalculateFieldController {
             }
             // If only change calc type, not change name. Check if support or not. If not, remove it
             else if(changeCalcType) {
-               if(!getEffectedAssembly(false, tname, refname, vs, rename, changeCalcType,
-                  cref, event, dispatcher, rvs, linkUri) && !event.confirmed())
-               {
-                  MessageCommand messageCommand = new MessageCommand();
-                  messageCommand.setMessage(Catalog.getCatalog().getString("field.vsused.warning") +
-                          " but client side did not check whether to rename it.");
-                  messageCommand.setType(MessageCommand.Type.ERROR);
-                  dispatcher.sendCommand(messageCommand);
-                  return;
-               }
+               syncAssemblies(tname, refname, vs, rename, changeCalcType, cref, dispatcher, rvs, linkUri);
             }
 
             convertUsedAggregateRef(cref, tname, vs);
@@ -247,10 +217,8 @@ public class ModifyCalculateFieldController {
          }
       }
       catch(Exception e) {
-         if(e instanceof ConfirmException) {
-            throw e;
-         }
-
+         MessageCommand command = new MessageCommand();
+         command.setMessage(e.getMessage());
          dispatcher.sendCommand(new MessageCommand());
          return;
       }
@@ -483,6 +451,48 @@ public class ModifyCalculateFieldController {
    }
 
    @RequestMapping(
+      value = "/api/vs/calculate/get-in-use-assemblies/**",
+      method = RequestMethod.GET
+   )
+   @ResponseBody
+   public String getInUseAssemblies(@RemainingPath String runtimeId,
+                                    @RequestParam("tname") String tname,
+                                    @RequestParam("refname") String refname,
+                                    Principal principal)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null || tname == null || refname == null) {
+         return "";
+      }
+
+      Assembly[] assembies = vs.getAssemblies();
+
+      for(int i = 0; i < assembies.length; i++) {
+         if(!(assembies[i] instanceof BindableVSAssembly) || assembies[i] instanceof InputVSAssembly) {
+            continue;
+         }
+
+         BindableVSAssembly bind = ((BindableVSAssembly) assembies[i]);
+         String vtable = bind.getTableName();
+
+         if(!Tool.equals(tname, vtable)) {
+            continue;
+         }
+
+         List<String> list = getUsingAssemblies(bind, refname);
+
+         if(list.size() > 0) {
+            return String.join(", ", list);
+         }
+      }
+
+      return "";
+   }
+
+   @RequestMapping(
       value = "/api/vs/calculate/checkCalcTrap",
       method = RequestMethod.PUT
    )
@@ -601,53 +611,48 @@ public class ModifyCalculateFieldController {
    /**
     * Get the binding vsassembly which binding to the tname source.
     */
-   private boolean getEffectedAssembly(boolean check, String tname, String refname,
-                                       Viewsheet vs, boolean rename, boolean changeCalcType,
-                                       CalculateRef cref, ModifyCalculateFieldEvent event,
-                                       CommandDispatcher dispatcher, RuntimeViewsheet rvs,
-                                       String linkUri) throws Exception
+   private void syncAssemblies(String tname, String refname, Viewsheet vs, boolean rename,
+                               boolean changeCalcType, CalculateRef cref,
+                               CommandDispatcher dispatcher, RuntimeViewsheet rvs,
+                               String linkUri)
+      throws Exception
    {
       Assembly[] assembies = vs.getAssemblies();
 
       for(int i = 0; i < assembies.length; i++) {
-         if(assembies[i] instanceof BindableVSAssembly &&
-            !(assembies[i] instanceof InputVSAssembly))
+         if(!(assembies[i] instanceof BindableVSAssembly) ||
+            assembies[i] instanceof InputVSAssembly)
          {
-            BindableVSAssembly bind = ((BindableVSAssembly) assembies[i]);
-            String vtable = bind.getTableName();
-
-            if(Tool.equals(tname, vtable)) {
-               if(event.confirmed()) {
-                  // when rename and change calc type affect on one action, fix calc type before
-                  // rename. So the refname will same when change calc type.
-                  if(rename) {
-                     if(changeCalcType) {
-                        bind.changeCalcType(refname, cref);
-                     }
-
-                     bind.renameBindingCol(refname, cref.getName());
-                  }
-                  else if(changeCalcType) {
-                     bind.changeCalcType(refname, cref);
-                  }
-                  else {
-                     bind.removeBindingCol(refname);
-                  }
-
-                  assemblyInfoHandler.apply(rvs, bind.getVSAssemblyInfo().clone(), viewsheetService,
-                                            false, false, false, false, dispatcher, null, null,
-                                            linkUri, null);
-               }
-               else {
-                  if(getUsingAssemblies(bind, refname).size() > 0) {
-                     return false;
-                  }
-               }
-            }
+            continue;
          }
-      }
 
-      return true;
+         BindableVSAssembly bind = ((BindableVSAssembly) assembies[i]);
+         String vtable = bind.getTableName();
+
+         if(!Tool.equals(tname, vtable)) {
+            continue;
+         }
+
+         // when rename and change calc type affect on one action, fix calc type before
+         // rename. So the refname will same when change calc type.
+         if(rename) {
+            if(changeCalcType) {
+               bind.changeCalcType(refname, cref);
+            }
+
+            bind.renameBindingCol(refname, cref.getName());
+         }
+         else if(changeCalcType) {
+            bind.changeCalcType(refname, cref);
+         }
+         else {
+            bind.removeBindingCol(refname);
+         }
+
+         assemblyInfoHandler.apply(rvs, bind.getVSAssemblyInfo().clone(), viewsheetService,
+                                   false, false, false, false, dispatcher, null, null,
+                                   linkUri, null);
+      }
    }
 
    private List<String> getUsingAssemblies(BindableVSAssembly bind, String refname) {
