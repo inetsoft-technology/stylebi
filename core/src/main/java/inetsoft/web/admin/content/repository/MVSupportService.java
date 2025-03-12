@@ -933,6 +933,7 @@ public class MVSupportService {
          this.plans = plans;
          this.reanalyze = reanalyze;
          this.portal = portal;
+         this.principal = principal;
 
          jobs = new AnalysisJob[identifiers.size()];
 
@@ -945,6 +946,9 @@ public class MVSupportService {
 
       @Override
       public List<MVStatus> call() {
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
+         ThreadContext.setContextPrincipal(principal);
+
          try {
             MVDef.REJECT_VPM.set(portal);
             return _call();
@@ -955,6 +959,7 @@ public class MVSupportService {
          }
          finally {
             MVDef.REJECT_VPM.remove();
+            ThreadContext.setContextPrincipal(oldPrincipal);
          }
       }
 
@@ -1013,6 +1018,7 @@ public class MVSupportService {
       private final List<UserInfo> exceptions;
       private final Map<String, StringBuffer> plans;
       private final boolean portal;
+      private final Principal principal;
    }
 
    private static final class AnalysisJob {
