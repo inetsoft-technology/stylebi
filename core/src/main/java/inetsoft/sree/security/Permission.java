@@ -60,6 +60,10 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       return getGrants(action, Identity.USER);
    }
 
+   public Set<PermissionIdentity> getUserGrants(ResourceAction action, String orgID) {
+      return getGrants(action, Identity.USER, orgID);
+   }
+
    public Set<PermissionIdentity> getAllUserGrants(ResourceAction action) {
       return getGrants(action, Identity.USER, null);
    }
@@ -74,7 +78,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     */
    public Set<IdentityID> getOrgScopedUserGrants(ResourceAction action, String orgId) {
       String thisOrgID = orgId == null ? globalOrgId : orgId;
-      return getUserGrants(action).stream()
+      return getUserGrants(action, orgId).stream()
          .filter(pId -> thisOrgID.equals(pId.organizationID) ||
                         globalOrgId.equals(pId.organizationID))
          .map(pI -> new IdentityID(pI.name, thisOrgID))
@@ -216,6 +220,10 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       return getGrants(action, Identity.GROUP);
    }
 
+   public Set<PermissionIdentity> getGroupGrants(ResourceAction action, String orgID) {
+      return getGrants(action, Identity.GROUP, orgID);
+   }
+
    public Set<PermissionIdentity> getAllGroupGrants(ResourceAction action) {
       return getGrants(action, Identity.GROUP, null);
    }
@@ -230,7 +238,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     */
    public Set<IdentityID> getOrgScopedGroupGrants(ResourceAction action, String orgId) {
       String thisOrgID = orgId == null ? globalOrgId : orgId;
-      return getGroupGrants(action).stream()
+      return getGroupGrants(action, orgId).stream()
          .filter(pId -> thisOrgID.equals(pId.organizationID) ||
                         globalOrgId.equals(pId.organizationID))
          .map(pI -> new IdentityID(pI.name, thisOrgID))
