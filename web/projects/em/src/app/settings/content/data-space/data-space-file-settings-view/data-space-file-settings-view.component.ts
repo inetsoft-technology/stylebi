@@ -49,9 +49,6 @@ import {DataSpaceFileContentModel} from "../text-file-content-view/data-space-fi
 })
 export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
    @ViewChild("textContent") textContent: TextFileContentViewComponent;
-
-
-
    @Input() data: DataSpaceTreeNode;
    @Input() newFile: boolean;
    @Input() newFolder: boolean;
