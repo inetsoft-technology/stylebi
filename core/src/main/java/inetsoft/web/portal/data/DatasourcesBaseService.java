@@ -37,6 +37,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.composer.model.ws.TabularOAuthParams;
+import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.security.PermissionPath;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
@@ -51,10 +52,12 @@ import java.util.stream.Collectors;
 
 public abstract class DatasourcesBaseService {
    public DatasourcesBaseService(XRepository repository,
-                                 SecurityProvider securityProvider)
+                                 SecurityProvider securityProvider,
+                                 DataSourceStatusService dataSourceStatusService)
    {
       this.repository = repository;
       this.securityProvider = securityProvider;
+      this.dataSourceStatusService = dataSourceStatusService;
    }
 
    protected XRepository getRepository() {
@@ -334,6 +337,7 @@ public abstract class DatasourcesBaseService {
          ds.setCreated(System.currentTimeMillis());
          ds.setLastModified(System.currentTimeMillis());
 
+         dataSourceStatusService.updateStatus(ds);
          repository.updateDataSource(ds, null, false);
          afterUpdateSourceCallback(definition, ds, true);
 
@@ -453,6 +457,7 @@ public abstract class DatasourcesBaseService {
             date = entry.getCreatedDate();
          }
 
+         dataSourceStatusService.updateStatus(newSrc);
          repository.updateDataSource(newSrc, oldName, false);
          afterUpdateSourceCallback(definition, newSrc, true);
          entry = new AssetEntry(
@@ -579,19 +584,8 @@ public abstract class DatasourcesBaseService {
       return result;
    }
 
-   public String getDataSourceFullName(BaseDataSourceDefinition definition) throws Exception {
-      String parentPath = "";
-
-      if(definition.getParentPath() != null && !definition.getParentPath().isEmpty() &&
-         !"/".equals(definition.getParentPath()))
-      {
-         parentPath = definition.getParentPath() + "/";
-      }
-
-      return "/".equals(parentPath) ? definition.getName() : parentPath + definition.getName();
-   }
-
    private final XRepository repository;
    private final SecurityProvider securityProvider;
+   private final DataSourceStatusService dataSourceStatusService;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);
 }

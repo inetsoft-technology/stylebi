@@ -308,7 +308,7 @@ public class XEngine implements XRepository, XQueryRepository {
       getDSRegistry().renameDatasource(oname, dx.getFullName());
 
       if(nameChanged || changed || odx == null) {
-         getDSRegistry().setDataSource(dx, oname, actionRecord, checkDelete, false);
+         getDSRegistry().setDataSource(dx, oname, actionRecord, checkDelete, false, true);
       }
 
       // Only add transform task when data source is renamed, if folder is reanmed, it will add task in renama action.
@@ -347,6 +347,11 @@ public class XEngine implements XRepository, XQueryRepository {
             base.addDatasource(jds);
          }
       }
+   }
+
+   @Override
+   public void updateDataSourceStatus(XDataSource dx) {
+      getDSRegistry().setDataSource(dx, null, false, false, false, false);
    }
 
    /**

@@ -22,6 +22,7 @@ import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.util.Config;
+import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,9 +32,10 @@ import org.springframework.stereotype.Service;
 public class DatasourcesService extends DatasourcesBaseService {
    @Autowired
    public DatasourcesService(XRepository repository,
-                             SecurityProvider securityProvider)
+                             SecurityProvider securityProvider,
+                             DataSourceStatusService dataSourceStatusService)
    {
-      super(repository, securityProvider);
+      super(repository, securityProvider, dataSourceStatusService);
    }
 
    /**

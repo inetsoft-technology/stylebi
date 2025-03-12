@@ -34,11 +34,8 @@ import java.util.List;
 
 @RestController
 public class XmlaDataSourceController {
-   public XmlaDataSourceController(XmlaDatasourceService xmlaDatasourceService,
-                                   DataSourceBrowserService dataSourceBrowserService)
-   {
+   public XmlaDataSourceController(XmlaDatasourceService xmlaDatasourceService) {
       this.xmlaDatasourceService = xmlaDatasourceService;
-      this.dataSourceBrowserService = dataSourceBrowserService;
    }
 
    @PostMapping("api/portal/data/datasource/xmla/new")
@@ -46,8 +43,6 @@ public class XmlaDataSourceController {
       throws Exception
    {
       xmlaDatasourceService.createNewDataSource(model, true, principal);
-      dataSourceBrowserService.updateDataSourceConnectionStatus(
-         xmlaDatasourceService.getDataSourceFullName(model), principal);
    }
 
    @GetMapping("api/portal/data/datasource/xmla/new")
@@ -77,8 +72,6 @@ public class XmlaDataSourceController {
       throws Exception
    {
       xmlaDatasourceService.updateDataSource(path, model, principal);
-      dataSourceBrowserService.updateDataSourceConnectionStatus(
-         xmlaDatasourceService.getDataSourceFullName(model), principal);
    }
 
    @PostMapping("api/portal/data/datasource/xmla/catalogs")
@@ -111,5 +104,4 @@ public class XmlaDataSourceController {
    }
 
    private final XmlaDatasourceService xmlaDatasourceService;
-   private final DataSourceBrowserService dataSourceBrowserService;
 }

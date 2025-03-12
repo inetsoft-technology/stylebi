@@ -44,7 +44,7 @@
           </i>
           <i role="button" class="btn py-1 refresh-icon"
              title="_#(data.datasources.refreshStatus)"
-             [class.disabled]="selectionOn && selectedItems.length == 0"
+             [class.disabled]="(selectionOn && selectedItems.length == 0) || updatingStatus"
              (click)="loadDataSourceStatus()">
           </i>
           <i *ngIf="newDatasourceEnabled && !selectionOn" class="btn database-plus-icon py-1 no-caret"
