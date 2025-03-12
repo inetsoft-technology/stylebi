@@ -782,7 +782,6 @@ export class GuiTool {
       { dragName: "dragcombobox", width: 100, height: 20 },
       { dragName: "dragtextinput", width: 100, height: 20 },
       { dragName: "dragsubmit", width: 100, height: 20 },
-      { dragName: "dragupload", width: 220, height: 24 },
       { dragName: "dragline", width: 50, height: 50 },
       { dragName: "dragrectangle", width: 100, height: 75 },
       { dragName: "dragoval", width: 100, height: 75 },

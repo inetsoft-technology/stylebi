@@ -2071,8 +2071,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          info instanceof NumericRangeVSAssemblyInfo ||
          info instanceof RangeOutputVSAssemblyInfo ||
          info instanceof SubmitVSAssemblyInfo || info instanceof TabVSAssemblyInfo ||
-         info instanceof TextInputVSAssemblyInfo || info instanceof TextVSAssemblyInfo ||
-         info instanceof UploadVSAssemblyInfo)
+         info instanceof TextInputVSAssemblyInfo || info instanceof TextVSAssemblyInfo)
       {
          return true;
       }

@@ -107,8 +107,7 @@ public class VsToReportConverter {
 
       for(Assembly assembly : allAssemblies) {
          if(!isVisibleInPrintLayout((VSAssembly) assembly, false) ||
-            assembly instanceof ContainerVSAssembly || assembly instanceof ShapeVSAssembly ||
-            assembly instanceof UploadVSAssembly)
+            assembly instanceof ContainerVSAssembly || assembly instanceof ShapeVSAssembly)
          {
             continue;
          }

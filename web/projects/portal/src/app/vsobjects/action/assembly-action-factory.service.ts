@@ -42,7 +42,6 @@ import { VSTabModel } from "../model/vs-tab-model";
 import { VSTableModel } from "../model/vs-table-model";
 import { VSTextInputModel } from "../model/vs-text-input-model";
 import { VSTextModel } from "../model/output/vs-text-model";
-import { VSUploadModel } from "../model/vs-upload-model";
 import { VSViewsheetModel } from "../model/vs-viewsheet-model";
 import { AbstractVSActions } from "./abstract-vs-actions";
 import { ActionStateProvider } from "./action-state-provider";
@@ -72,7 +71,6 @@ import { TabActions } from "./tab-actions";
 import { TableActions } from "./table-actions";
 import { TextActions } from "./text-actions";
 import { TextInputActions } from "./text-input-actions";
-import { UploadActions } from "./upload-actions";
 import { ViewsheetActions } from "./viewsheet-actions";
 import { ContextProvider } from "../context-provider.service";
 import { CylinderActions } from "./cylinder-actions";
@@ -234,10 +232,6 @@ export class AssemblyActionFactory {
       case "VSThermometer":
          return new ThermometerActions(
             <VSThermometerModel> model, this.contextProvider,
-            this.securityEnabled, this.stateProvider, this.dataTipService, this.popService, this.miniToolbarService);
-      case "VSUpload":
-         return new UploadActions(
-            <VSUploadModel> model, this.contextProvider,
             this.securityEnabled, this.stateProvider, this.dataTipService, this.popService, this.miniToolbarService);
       case "VSViewsheet":
          return new ViewsheetActions(

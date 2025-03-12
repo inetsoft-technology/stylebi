@@ -138,8 +138,6 @@
       <vs-text-input *ngIf="model.objectModel.objectType =='VSTextInput'"
                      [model]="model.objectModel" [vsInfo]="vsInfo"
                      [selected]="selected"></vs-text-input>
-      <vs-upload *ngIf="model.objectModel.objectType =='VSUpload'"
-                 [model]="model.objectModel" [vsInfo]="vsInfo"></vs-upload>
       <vs-page-break *ngIf="model.objectModel.objectType == 'VSPageBreak'"
                      [model]="model.objectModel" [vsInfo]="vsInfo"></vs-page-break>
       <vs-viewsheet *ngIf="model.objectModel.objectType == 'VSViewsheet'"
@@ -206,8 +204,6 @@
              [vsInfo]="vsInfo"></vs-text>
     <vs-text-input *ngIf="childModel.objectType =='VSTextInput'"
                    [model]="childModel" [vsInfo]="vsInfo"></vs-text-input>
-    <vs-upload *ngIf="childModel.objectType =='VSUpload'"
-               [model]="childModel" [vsInfo]="vsInfo"></vs-upload>
     <vs-page-break *ngIf="model.objectModel.objectType == 'VSPageBreak'"
                    [model]="model.objectModel" [vsInfo]="vsInfo"></vs-page-break>
     <vs-viewsheet *ngIf="childModel.objectType == 'VSViewsheet'"

@@ -1242,10 +1242,6 @@ public abstract class AbstractVSExporter implements VSExporter {
                String name = assembly.getAbsoluteName();
                VSTableLens lens = null;
 
-               if(type == AbstractSheet.UPLOAD_ASSET) {
-                  continue;
-               }
-
                switch(type) {
                case AbstractSheet.IMAGE_ASSET:
                   writeImageAssembly((ImageVSAssembly) assembly, helper);

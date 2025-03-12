@@ -70,7 +70,6 @@ const DRAG_NAMES_MAP = new Map<string, AssemblyType>([
    ["dragcombobox", AssemblyType.COMBOBOX_ASSET],
    ["dragtextinput", AssemblyType.TEXTINPUT_ASSET],
    ["dragsubmit", AssemblyType.SUBMIT_ASSET],
-   ["dragupload", AssemblyType.UPLOAD_ASSET],
    ["dragline", AssemblyType.LINE_ASSET],
    ["dragrectangle", AssemblyType.RECTANGLE_ASSET],
    ["dragoval", AssemblyType.OVAL_ASSET],

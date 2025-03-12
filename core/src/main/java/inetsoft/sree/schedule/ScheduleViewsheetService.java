@@ -89,7 +89,6 @@ public class ScheduleViewsheetService {
          new VSTextInputModel.VSTextInputModelFactory(),
          new VSTextModel.VSTextModelFactory(),
          new VSThermometerModel.VSThermometerModelFactory(),
-         new VSUploadModel.VSUploadModelFactory(),
          new VSViewsheetModel.VSViewsheetModelFactory()
       );
       VSObjectModelFactoryService objectModelFactoryService =
