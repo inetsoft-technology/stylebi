@@ -160,12 +160,10 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
                      identityID.setName(getNewName());
                   }
                }
-               else {
-                  if(Tool.equals(getOldName(), identityID.getName()) &&
+               else if(Tool.equals(getOldName(), identityID.getName()) &&
                      Tool.equals(getOldOrganization().getOrganizationID(), identityID.getOrgID()))
-                  {
-                     identityID.setOrgID(((Organization)getNewOrganization()).getId());
-                  }
+               {
+                  identityID.setOrgID(((Organization)getNewOrganization()).getId());
                }
 
                bookmark.setAttribute("user", identityID.convertToKey());
