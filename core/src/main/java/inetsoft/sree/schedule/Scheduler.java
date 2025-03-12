@@ -892,15 +892,7 @@ public class Scheduler {
          time = date1.getTime();
       }
 
-      return toServerDate(time);
-   }
-
-   private static Date toServerDate(Date targetDate) {
-      Calendar calendar = Calendar.getInstance();
-      calendar.setTime(targetDate);
-      calendar.setTimeZone(TimeZone.getDefault());
-
-      return calendar.getTime();
+      return time;
    }
 
    /**
