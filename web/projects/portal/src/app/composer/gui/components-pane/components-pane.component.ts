@@ -325,8 +325,6 @@ export class ComponentsPane implements OnChanges, OnInit{
          return "chart-icon";
       case "VSCalendar":
          return "calendar-icon";
-      case "VSUpload":
-         return "upload-icon";
       case "VSSubmit":
          return "submit-icon";
       case "VSText":

@@ -40,7 +40,6 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
    @Input() public popZIndex: number;
    @Input() public popBackground: string = "white";
    @Input() public miniToolbar: boolean = false;
-   @Input() isUpload: boolean = false;
    @Input() containerBounds: DOMRectInit;
    @Input() actionsWidth: number;
    mobileDevice: boolean = GuiTool.isMobileDevice();
@@ -273,11 +272,7 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
       top += topOffset;
       left += leftOffset;
 
-
-      if(this.mobileDevice && this.isUpload) {
-         this.renderer.setStyle(nativeElement, "display", "none");
-      }
-      else if(!this.miniToolbar) {
+      if(!this.miniToolbar) {
          this.renderer.setStyle(nativeElement, "display", "block");
       }
       else {

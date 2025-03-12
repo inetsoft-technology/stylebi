@@ -777,9 +777,6 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
       else if(assembly instanceof SubmitVSAssembly) {
          scriptable = new SubmitVSAScriptable(box);
       }
-      else if(assembly instanceof UploadVSAssembly) {
-         scriptable = new UploadVSAScriptable(box);
-      }
       else if(assembly instanceof Viewsheet) {
          scriptable = new ViewsheetVSAScriptable(box);
       }

@@ -75,7 +75,6 @@ import { VSSliderModel } from "../../vsobjects/model/vs-slider-model";
 import { VSTabModel } from "../../vsobjects/model/vs-tab-model";
 import { VSTableModel } from "../../vsobjects/model/vs-table-model";
 import { VSTextInputModel } from "../../vsobjects/model/vs-text-input-model";
-import { VSUploadModel } from "../../vsobjects/model/vs-upload-model";
 import { VSViewsheetModel } from "../../vsobjects/model/vs-viewsheet-model";
 import { ColorInfo, MeasureInfo, StrategyInfo, TargetInfo } from "../../widget/target/target-info";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
@@ -1171,20 +1170,6 @@ export namespace TestUtils {
          refresh: true,
          clickable: false
       }, createMockVSObjectModel("VSSubmit", name));
-   }
-
-   /**
-    * Creates a new, empty instance of VSUploadModel.
-    *
-    * @param name  the VSUpload name.
-    */
-   export function createMockVSUploadModel(name): VSUploadModel {
-      return Object.assign({
-         label: "Upload",
-         fileName: "",
-         refresh: true,
-         submitOnChange: true
-      }, createMockVSObjectModel("VSUpload", name));
    }
 
    /**

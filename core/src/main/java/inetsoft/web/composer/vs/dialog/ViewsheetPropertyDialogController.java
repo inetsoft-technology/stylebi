@@ -1366,8 +1366,7 @@ public class ViewsheetPropertyDialogController {
          type != Viewsheet.RECTANGLE_ASSET && type != Viewsheet.OVAL_ASSET &&
          type != Viewsheet.TAB_ASSET &&
          type != Viewsheet.GROUPCONTAINER_ASSET &&
-         type != Viewsheet.VIEWSHEET_ASSET &&
-         type != Viewsheet.UPLOAD_ASSET;
+         type != Viewsheet.VIEWSHEET_ASSET;
    }
 
    private String getIcon(int type) {
@@ -1410,8 +1409,6 @@ public class ViewsheetPropertyDialogController {
             return "text-input-icon";
          case Viewsheet.SUBMIT_ASSET:
             return "submit-icon";
-         case Viewsheet.UPLOAD_ASSET:
-            return "upload-icon";
          case Viewsheet.LINE_ASSET:
             return "line-icon";
          case Viewsheet.RECTANGLE_ASSET:

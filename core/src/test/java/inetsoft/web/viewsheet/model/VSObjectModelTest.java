@@ -110,7 +110,6 @@ class VSObjectModelTest {
       VSTextInputModel.class,
       VSTextModel.class,
       VSThermometerModel.class,
-      VSUploadModel.class,
       VSViewsheetModel.class,
       VSSelectionContainerModel.class
    ));

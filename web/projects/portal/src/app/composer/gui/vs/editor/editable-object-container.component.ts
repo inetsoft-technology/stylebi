@@ -1318,8 +1318,7 @@ export class EditableObjectContainer extends AbstractActionComponent
          || this.vsObject.objectType == "VSRadioButton"
          || this.vsObject.objectType == "VSComboBox"
          || this.vsObject.objectType == "VSTextInput"
-         || this.vsObject.objectType == "VSSubmit"
-         || this.vsObject.objectType == "VSUpload";
+         || this.vsObject.objectType == "VSSubmit";
    }
 
    isPreventResize(): boolean {

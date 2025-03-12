@@ -190,10 +190,6 @@ public abstract class AbstractSheet implements AssetObject {
     */
    public static final int SUBMIT_ASSET = 130;
    /**
-    * Upload asset.
-    */
-   public static final int UPLOAD_ASSET = 134;
-   /**
     * PageBreak asset.
     */
    public static final int PAGEBREAK_ASSET = 135;

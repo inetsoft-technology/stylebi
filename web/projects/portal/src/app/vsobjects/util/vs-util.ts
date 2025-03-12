@@ -66,7 +66,6 @@ const KEY_NAV_ENABLED = {
    "VSTextInput": true,
    "VSSubmit": true,
    "VSTab": true,
-   "VSUpload": true,
    "VSViewsheet": true
 };
 
