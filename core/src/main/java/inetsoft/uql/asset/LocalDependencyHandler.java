@@ -1024,7 +1024,12 @@ public class LocalDependencyHandler implements DependencyHandler {
       updateRunQueryDependencies(vs, entry, add, cache);
       updateScriptDependencies(vs, entry, add, cache);
       updateDeviceDependencies(vs, entry, add, cache);
-      updateScriptDependencies(vs, base, entry, add, cache);
+
+      if(!vs.getCalcFieldSources().isEmpty()) {
+         for(String calcField : vs.getCalcFieldSources()) {
+            updateScriptDependencies(vs, calcField, entry, add, cache);
+         }
+      }
 
       for(Assembly assembly : vs.getAssemblies()) {
          if(assembly instanceof Viewsheet) {
@@ -1324,14 +1329,10 @@ public class LocalDependencyHandler implements DependencyHandler {
       updateScriptDependencies(script, entry, add, cache);
    }
 
-   private void updateScriptDependencies(Viewsheet vs, AssetEntry base, AssetEntry entry,
+   private void updateScriptDependencies(Viewsheet vs, String calcField, AssetEntry entry,
                                          boolean add, boolean cache)
    {
-      if(base == null) {
-         return;
-      }
-
-      CalculateRef[] calcFields = vs.getCalcFields(base.getName());
+      CalculateRef[] calcFields = vs.getCalcFields(calcField);
 
       if(calcFields != null) {
          for(CalculateRef calcRef : calcFields) {
