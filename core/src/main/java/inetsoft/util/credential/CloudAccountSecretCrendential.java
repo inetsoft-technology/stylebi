@@ -52,6 +52,20 @@ public class CloudAccountSecretCrendential extends AbstractCloudCredential
    }
 
    @Override
+   public Credential createLocal() {
+      return new LocalAccountSecretCrendential();
+
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalAccountSecretCrendential localCrendential) {
+         localCrendential.setSecretKey(secretKey);
+         localCrendential.setAccountToken(accountToken);
+      }
+   }
+
+   @Override
    public boolean isEmpty() {
       return super.isEmpty() && StringUtils.isEmpty(accountToken) && StringUtils.isEmpty(secretKey);
    }
