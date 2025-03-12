@@ -19,4 +19,5 @@ export interface TimeZoneModel {
    timeZoneId: string;
    label: string;
    hourOffset: string;
+   minuteOffset: number;
 }
