@@ -1026,8 +1026,8 @@ public class LocalDependencyHandler implements DependencyHandler {
       updateDeviceDependencies(vs, entry, add, cache);
 
       if(!vs.getCalcFieldSources().isEmpty()) {
-         for(String calcField : vs.getCalcFieldSources()) {
-            updateScriptDependencies(vs, calcField, entry, add, cache);
+         for(String tname : vs.getCalcFieldSources()) {
+            updateScriptDependencies(vs, tname, entry, add, cache);
          }
       }
 
@@ -1329,10 +1329,10 @@ public class LocalDependencyHandler implements DependencyHandler {
       updateScriptDependencies(script, entry, add, cache);
    }
 
-   private void updateScriptDependencies(Viewsheet vs, String calcField, AssetEntry entry,
+   private void updateScriptDependencies(Viewsheet vs, String tname, AssetEntry entry,
                                          boolean add, boolean cache)
    {
-      CalculateRef[] calcFields = vs.getCalcFields(calcField);
+      CalculateRef[] calcFields = vs.getCalcFields(tname);
 
       if(calcFields != null) {
          for(CalculateRef calcRef : calcFields) {
