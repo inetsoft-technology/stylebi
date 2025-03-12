@@ -158,6 +158,7 @@ class MVDefMap extends AbstractMap<String, MVDef> {
             rootFolders.put(orgId, (AssetFolder) indexedStorage
                .getXMLSerializable(getRootIdentifier(orgId), null, orgId));
             rootTS.put(orgId, indexedStorage.lastModified(getRootIdentifier(orgId)));
+            cache.remove(identifier);
          }
          catch(Exception e) {
             throw new RuntimeException("Failed to remove MV definition: " + key, e);
