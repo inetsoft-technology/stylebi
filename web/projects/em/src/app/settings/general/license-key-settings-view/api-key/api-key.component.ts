@@ -49,7 +49,7 @@ export class ApiKeyComponent implements OnInit {
 
    fetchKey() {
       this.loading = true;
-      this.http.get<string>("../api/em/security/get-license-key")
+      this.http.get<string>("../api/em/security/get-api-key")
          .subscribe((response) => {
             this.key = response || "";
             this.loading = false;
@@ -67,7 +67,7 @@ export class ApiKeyComponent implements OnInit {
 
    saveKey() {
       const newKey = this.editValue.trim();
-      this.http.post("../api/em/security/set-license-key", newKey).subscribe(() => {
+      this.http.post("../api/em/security/set-api-key", newKey).subscribe(() => {
             this.key = newKey;
             this.editing = false;
       });
@@ -82,7 +82,7 @@ export class ApiKeyComponent implements OnInit {
          }
       }).afterClosed().subscribe(result => {
             if(result) {
-               this.http.post("../api/em/security/set-license-key", "").subscribe(() => {
+               this.http.post("../api/em/security/set-api-key", "").subscribe(() => {
                      this.key = "";
                      this.editing = false;
                   }
