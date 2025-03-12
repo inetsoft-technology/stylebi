@@ -148,9 +148,9 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
 
          getDeviceDependency(sheet, dependencies);
 
-         if(sheet.getBaseWorksheet() != null) {
-            for(Assembly wassembly: sheet.getBaseWorksheet().getAssemblies()) {
-               CalculateRef[] calcFields = sheet.getCalcFields(wassembly.getName());
+         if(sheet.getCalcFieldSources() != null) {
+            for(String calcField: sheet.getCalcFieldSources()) {
+               CalculateRef[] calcFields = sheet.getCalcFields(calcField);
 
                if(calcFields != null) {
                   for(CalculateRef calcRef : calcFields) {
