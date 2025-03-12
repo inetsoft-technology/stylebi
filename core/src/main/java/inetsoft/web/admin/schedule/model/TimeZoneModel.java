@@ -33,6 +33,7 @@ public interface TimeZoneModel {
    String timeZoneId();
    @Nullable String label();
    @Nullable String hourOffset();
+   int minuteOffset();
 
    static TimeZoneModel.Builder builder() {
       return new TimeZoneModel.Builder();
@@ -91,6 +92,7 @@ public interface TimeZoneModel {
                     .timeZoneId(TimeZone.getDefault().getID())
                     .label(TimeZone.getDefault().getDisplayName() + " (" + Catalog.getCatalog().getString("em.scheduler.servertimezone") + ")")
                     .hourOffset(Catalog.getCatalog().getString(""))
+                    .minuteOffset(TimeZone.getDefault().getRawOffset()/60000)
                     .build());
 
       LocalDateTime now = LocalDateTime.now();
@@ -101,11 +103,13 @@ public interface TimeZoneModel {
             .getId()
             .replace("Z", "+00:00");
          offset = "(UTC" + offset + ")";
+         int minuteOffset = 0;
 
          tzList.add(TimeZoneModel.builder()
                        .timeZoneId(id)
                        .label(tz.getDisplayName())
                        .hourOffset(offset)
+                       .minuteOffset(tz.getRawOffset()/60000)
                        .build());
       }
 
