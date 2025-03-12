@@ -197,7 +197,6 @@ import { VSTextInput } from "./objects/text-input/vs-text-input.component";
 import { VSThermometer } from "./objects/thermometer/vs-thermometer.component";
 import { TitleCell } from "./objects/title-cell/title-cell.component";
 import { VSTitleModule } from "./objects/title/vs-title.module";
-import { VSUpload } from "./objects/upload/vs-upload.component";
 import { ViewerFormatPane } from "./objects/viewer-format-pane.component";
 import { ViewerMobileToolbarComponent } from "./objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component";
 import { VSViewsheet } from "./objects/viewsheet/vs-viewsheet.component";
@@ -374,7 +373,6 @@ import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
       VSText,
       VSTextInput,
       VSThermometer,
-      VSUpload,
       VSViewsheet,
       YearCalendar,
       TableCellResizeDialogComponent,
@@ -485,7 +483,6 @@ import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
       VSText,
       VSTextInput,
       VSThermometer,
-      VSUpload,
       VSViewsheet,
       YearCalendar
    ],

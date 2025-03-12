@@ -73,7 +73,6 @@ import java.util.stream.Collectors;
    @JsonSubTypes.Type(value = VSTextInputModel.class, name = "VSTextInput"),
    @JsonSubTypes.Type(value = VSTextModel.class, name = "VSText"),
    @JsonSubTypes.Type(value = VSThermometerModel.class, name = "VSThermometer"),
-   @JsonSubTypes.Type(value = VSUploadModel.class, name = "VSUpload"),
    @JsonSubTypes.Type(value = VSViewsheetModel.class, name = "VSViewsheet"),
    @JsonSubTypes.Type(value = VSSelectionContainerModel.class, name = "VSSelectionContainer")
 })

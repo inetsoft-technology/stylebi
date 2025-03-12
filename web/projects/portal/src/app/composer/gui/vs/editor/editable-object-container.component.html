@@ -341,9 +341,6 @@
                    [selected]="selected"
                    [model]="vsObject"
                    (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-text-input>
-    <vs-upload *ngSwitchCase="'VSUpload'" #objectComponent cUploadActionHandler
-               [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
-               (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-upload>
     <vs-viewsheet *ngIf="vsObject.objectType == 'VSViewsheet'" #objectComponent
                   cViewsheetActionHandler [vsInfo]="viewsheet" [actions]="actions"
                   [containerRef]="vsPaneRef"

@@ -111,7 +111,6 @@ public class ControllersExtension extends MockMessageExtension {
          new VSTextInputModel.VSTextInputModelFactory(),
          new VSTextModel.VSTextModelFactory(),
          new VSThermometerModel.VSThermometerModelFactory(),
-         new VSUploadModel.VSUploadModelFactory(),
          new VSViewsheetModel.VSViewsheetModelFactory(),
          new VSAnnotationModel.VSAnnotationModelFactory(),
          new VSCalendarModel.VSCalendarModelFactory(),

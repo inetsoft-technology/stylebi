@@ -46,5 +46,4 @@ export type VSObjectType =
    | "VSText"
    | "VSTextInput"
    | "VSThermometer"
-   | "VSUpload"
    | "VSViewsheet";

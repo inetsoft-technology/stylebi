@@ -138,8 +138,6 @@ import { TextPropertyDialog } from "./dialog/vs/text-property-dialog.component";
 import { TextInputColumnOptionPane } from "./dialog/vs/textinput-column-option-pane.component";
 import { TextInputGeneralPane } from "./dialog/vs/textinput-general-pane.component";
 import { TextInputPropertyDialog } from "./dialog/vs/textinput-property-dialog.component";
-import { UploadGeneralPane } from "./dialog/vs/upload-general-pane.component";
-import { UploadPropertyDialog } from "./dialog/vs/upload-property-dialog.component";
 import { ViewsheetDeviceLayoutDialog } from "./dialog/vs/viewsheet-device-layout-dialog.component";
 import {
    ViewsheetObjectPropertyDialog
@@ -237,7 +235,6 @@ import { TextActionHandlerDirective } from "./gui/vs/action/text-action-handler.
 import {
    TextInputActionHandlerDirective
 } from "./gui/vs/action/text-input-action-handler.directive";
-import { UploadActionHandlerDirective } from "./gui/vs/action/upload-action-handler.directive";
 import {
    ViewsheetActionHandlerDirective
 } from "./gui/vs/action/viewsheet-action-handler.directive";
@@ -605,8 +602,6 @@ import { ScrollingModule } from "@angular/cdk/scrolling";
       TextPane,
       TextPropertyDialog,
       ToolboxPane,
-      UploadGeneralPane,
-      UploadPropertyDialog,
       VariableAssemblyDialog,
       VariableTableListDialog,
       VariableThumbnail,
@@ -659,7 +654,6 @@ import { ScrollingModule } from "@angular/cdk/scrolling";
       TableActionHandlerDirective,
       TextActionHandlerDirective,
       TextInputActionHandlerDirective,
-      UploadActionHandlerDirective,
       ViewsheetActionHandlerDirective,
       ShowHideColumnsDialogComponent,
       ScriptEditPaneComponent,
