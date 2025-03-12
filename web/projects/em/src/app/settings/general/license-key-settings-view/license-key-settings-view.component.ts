@@ -47,6 +47,7 @@ export interface ClusterLicense {
    styleUrls: ["./license-key-settings-view.component.scss"]
 })
 export class LicenseKeySettingsViewComponent {
+   @Input() isEnterprise: boolean;
    @Output() modelChanged = new EventEmitter<GeneralSettingsChanges>();
 
    @Input()
