@@ -117,7 +117,7 @@ public class RepositoryTreeChangeController {
    private final AssetChangeListener viewsheetListener = new AssetChangeListener() {
       @Override
       public void assetChanged(AssetChangeEvent event) {
-         if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED) {
+         if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED && principal != null) {
             messagingTemplate
                .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
          }
