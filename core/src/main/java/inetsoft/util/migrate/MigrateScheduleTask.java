@@ -25,8 +25,12 @@ import inetsoft.uql.util.*;
 import inetsoft.util.MigrateUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
+import org.apache.commons.lang.StringUtils;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class MigrateScheduleTask extends MigrateDocumentTask {
    public MigrateScheduleTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg) {
@@ -60,8 +64,6 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
          task.setAttribute("name", MigrateUtil.getNewOrgTaskName(name, ((Organization) getOldOrganization()).getId(),
                                                                  ((Organization) getNewOrganization()).getId()));
       }
-
-
 
       String user = task.getAttribute("owner");
 
@@ -126,6 +128,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             continue;
          }
 
+         updateEmailTo(item);
          String type = Tool.getAttribute(item, "type");
 
          if(type == null) {
@@ -233,6 +236,45 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
                updateMVDef(element);
             }
          }
+      }
+   }
+
+   private void updateEmailTo(Element actionNode) {
+      if(actionNode == null) {
+         return;
+      }
+
+      NodeList mailTo = getChildNodes(actionNode, "./MailTo");
+
+      for(int i = 0; mailTo != null && i < mailTo.getLength(); i++) {
+         Element mailToItem = (Element) mailTo.item(i);
+
+         if(mailToItem == null) {
+            continue;
+         }
+
+         String emails = mailToItem.getAttribute("email");
+         List<String> emailList = new ArrayList<>();
+
+         for(String email : emails.split("[;,]", 0)) {
+            email = StringUtils.normalizeSpace(email);
+
+            if(Tool.matchEmail(email) || !email.endsWith(Identity.USER_SUFFIX)) {
+               emailList.add(email);
+               continue;
+            }
+
+            String userName = email.substring(0, email.lastIndexOf(Identity.USER_SUFFIX));
+
+            if(!Tool.equals(getOldName(), userName)) {
+               emailList.add(email);
+               continue;
+            }
+
+            emailList.add(getNewName() + Identity.USER_SUFFIX);
+         }
+
+         mailToItem.setAttribute("email", String.join(",", emailList));
       }
    }
 }

@@ -17,9 +17,11 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Inject, Injectable, InjectionToken, OnDestroy, Optional } from "@angular/core";
-import { BehaviorSubject, Observable } from "rxjs";
+import { BehaviorSubject, Observable, Subscription } from "rxjs";
 import { IdentityIdWithLabel } from "../../em/src/app/settings/security/users/idenity-id-with-label";
 import { IdentityId } from "../../em/src/app/settings/security/users/identity-id";
+import { StompClientConnection } from "../stomp/stomp-client-connection";
+import { StompClientService } from "../stomp/stomp-client.service";
 import { UsersModel } from "./model/users-model";
 
 export const PORTAL = new InjectionToken<boolean>("PORTAL");
@@ -36,15 +38,26 @@ export class ScheduleUsersService implements OnDestroy {
    private reload = false;
    private loading = false;
    private url = "../api/em/schedule/users-model";
+   private connection: StompClientConnection;
+   private subscription = new Subscription();
 
    get isLoading(): boolean {
       return this.loading;
    }
 
-   constructor(private http: HttpClient, @Optional() @Inject(PORTAL) private portal: boolean) {
+   constructor(private http: HttpClient, private stompClient: StompClientService,
+               @Optional() @Inject(PORTAL) private portal: boolean)
+   {
       if(portal) {
          this.url = "../api/portal/schedule/users-model";
       }
+
+      this.stompClient.connect("../vs-events", true).subscribe(connection => {
+         this.connection = connection;
+
+         this.subscription.add(connection.subscribe("/user/schedule/users-change",
+            (message) => this.loadScheduleUsers()));
+      });
 
       this.loadScheduleUsers();
    }
@@ -107,6 +120,13 @@ export class ScheduleUsersService implements OnDestroy {
    }
 
    ngOnDestroy(): void {
+      this.subscription.unsubscribe();
+
+      if(this.connection) {
+         this.connection.disconnect();
+         this.connection = null;
+      }
+
       this.owners.complete();
       this.groups.complete();
       this.emailGroups.complete();
