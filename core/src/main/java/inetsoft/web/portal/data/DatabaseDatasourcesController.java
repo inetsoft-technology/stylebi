@@ -34,9 +34,7 @@ import inetsoft.web.portal.model.database.StringWrapper;
 import inetsoft.web.portal.model.database.events.CheckDependenciesEvent;
 import inetsoft.web.security.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.ArrayList;
@@ -113,13 +111,6 @@ public class DatabaseDatasourcesController {
                                                     @RequestBody() DatabaseDefinition model,
                                                     Principal principal)
    {
-      boolean test504 = true;
-
-      if(test504) {
-         throw new ResponseStatusException(HttpStatus.GATEWAY_TIMEOUT, "504 Gateway Timeout");
-      }
-
-
       return this.databaseDatasourcesService.testDataSourceConnection(path, model, principal);
    }
 
