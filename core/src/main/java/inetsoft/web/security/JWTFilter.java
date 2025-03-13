@@ -102,6 +102,14 @@ public class JWTFilter extends AbstractSecurityFilter {
       try {
          chain.doFilter(httpRequest, response);
       }
+      catch(Exception ex) {
+         if(ex.getCause() instanceof UnauthorizedAccessException) {
+            handleUnauthorized((HttpServletResponse) response, (UnauthorizedAccessException) ex.getCause());
+            return;
+         }
+
+         throw ex;
+      }
       finally {
          ThreadContext.setContextPrincipal(oldPrincipal);
          ThreadContext.setLocale(oldLocale);
