@@ -478,6 +478,15 @@ public class VsToReportConverter {
          return false;
       }
 
+      Viewsheet viewsheet = assembly.getViewsheet();
+
+      if(viewsheet != null &&
+         (VSUtil.isPopComponent(assembly.getAbsoluteName(), viewsheet) ||
+         VSUtil.isTipView(assembly.getAbsoluteName(), viewsheet)))
+      {
+         return false;
+      }
+
       VSAssembly container = assembly.getContainer();
 
       while(container != null) {
