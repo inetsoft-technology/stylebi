@@ -39,7 +39,7 @@ export class TabularBooleanEditor implements OnInit, OnChanges {
    valueControl: UntypedFormControl;
 
    ngOnInit(): void {
-      this.valueControl = new UntypedFormControl();
+      this.valueControl = new UntypedFormControl(this.value);
 
       if(!this.enabled) {
          this.valueControl.disable();
