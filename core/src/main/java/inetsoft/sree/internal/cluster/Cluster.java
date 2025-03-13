@@ -186,15 +186,77 @@ public interface Cluster extends AutoCloseable {
     */
    void unlockWrite(String name);
 
+   /**
+    * Gets the named cache. The cache will be partitioned and use the default expiry policy.
+    *
+    * @param name the name of the cache.
+    *
+    * @return the cache.
+    *
+    * @param <K> the key type.
+    * @param <V> the value type.
+    */
    default <K, V> Cache <K, V> getCache(String name) {
       return getCache(name, false);
    }
 
+   /**
+    * Gets the named cache. The default expiry policy will be used.
+    *
+    * @param name       the name of the cache.
+    * @param replicated {@code true} if the cache is replicated, {@code false} if it partitioned.
+    *
+    * @return the cache.
+    *
+    * @param <K> the key type.
+    * @param <V> the value type.
+    */
    default <K, V> Cache <K, V> getCache(String name, boolean replicated) {
       return getCache(name, false, null);
    }
 
+   /**
+    * Gets the named cache.
+    *
+    * @param name         the name of the cache.
+    * @param replicated   {@code true} if the cache is replicated, {@code false} if it partitioned.
+    * @param expiryPolicy the expiry policy for the cache.
+    *
+    * @return the cache.
+    *
+    * @param <K> the key type.
+    * @param <V> the value type.
+    */
    <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy);
+
+   /**
+    * Gets the keys in the cache for which the current node is the primary partition owner.
+    *
+    * @param cache the cache.
+    * @param keys  the keys to query.
+    *
+    * @return the set of keys for which the current node is the primary partition owner.
+    *
+    * @param <K> the key type.
+    * @param <V> the value type.
+    */
+   <K, V> Collection<K> getLocalCacheKeys(Cache<K, V> cache, Collection<K> keys);
+
+   /**
+    * Adds a listener that is notified when a cache is rebalanced.
+    *
+    * @param cacheName the name of the cache.
+    * @param listener  the listener to add.
+    */
+   void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener);
+
+   /**
+    * Removes a cache rebalance listener.
+    *
+    * @param cacheName the name of the cache.
+    * @param listener  the listener to remove.
+    */
+   void removeCacheRebalanceListener(String cacheName, CacheRebalanceListener listener);
 
    /**
     * Get a distributed map.
