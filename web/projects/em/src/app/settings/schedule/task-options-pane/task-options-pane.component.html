@@ -86,7 +86,7 @@
           <input matInput placeholder="_#(Owner)" formControlName="owner"
                  [matAutocomplete]="auto" (change)="fireModelChanged()">
           <mat-autocomplete #auto="matAutocomplete" (optionSelected)="fireModelChanged()">
-            <mat-option *ngFor="let user of filteredUsers | async" [value]="user.name">{{ user?.name }}</mat-option>
+            <mat-option *ngFor="let user of filteredUsers | async" [value]="user.identityID.name">{{ user?.label || user.identityID.name }}</mat-option>
           </mat-autocomplete>
           <mat-error *ngIf="optionsForm.controls['owner'].errors && optionsForm.controls['owner'].errors['invalid']">
             _#(Invalid user)
