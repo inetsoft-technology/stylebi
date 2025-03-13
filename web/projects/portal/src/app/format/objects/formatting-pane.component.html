@@ -72,7 +72,7 @@
       <label>_#(Custom Format)</label>
     </div>
     <div class="form-floating" *ngIf="formatModel?.format == 'DecimalFormat'">
-      <combo-box [dataModel]="formatModel?.formatSpec" [dataValues]="this.decimalFmts"
+      <combo-box [dataModel]="formatModel?.formatSpec" [dataValues]="getDecimalFormats()"
                  (onDataChange)="changeModel($event)" data-test="custom-number-format-dropdown">
       </combo-box>
       <label>_#(Custom Format)</label>
