@@ -26,6 +26,7 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 
 import inetsoft.sree.security.SecurityException;
+import inetsoft.web.security.auth.UnauthorizedAccessException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -92,7 +93,7 @@ public class DeniedMultiTenancyOrgUserAspect {
       }
 
       if(user == null || !OrganizationManager.getInstance().isSiteAdmin(user)) {
-         throw new SecurityException(
+         throw new UnauthorizedAccessException(
             "Unauthorized access to resource \"" + uri + "\" by user " + user);
       }
 
