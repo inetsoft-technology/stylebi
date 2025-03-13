@@ -59,7 +59,9 @@ export class RepositoryWorksheetSettingsPageComponent implements OnChanges {
 
    editSheet(model: RepositorySheetSettingsModel) {
       const url = "../api/em/content/repository/worksheet";
-      const params = new HttpParams().set("path", Tool.byteEncode(this.model.path));
+      const params = new HttpParams()
+         .set("path", Tool.byteEncode(this.model.path))
+         .set("timeZone", Intl.DateTimeFormat().resolvedOptions().timeZone);
       this.http.post(url, model, {
          params: this.model.owner != null ? params.set("owner", convertToKey(this.model.owner)) : params
       }).subscribe(

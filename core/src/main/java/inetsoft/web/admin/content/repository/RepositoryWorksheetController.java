@@ -43,6 +43,7 @@ public class RepositoryWorksheetController {
    @GetMapping("/api/em/content/repository/worksheet")
    public RepositorySheetSettingsModel getWorksheetSettings(
       @DecodeParam("path") String path,
+      @RequestParam("timeZone") String timeZone,
       @RequestParam(value = "owner", required = false) String owner,
       Principal principal
    ) throws Exception
@@ -60,15 +61,17 @@ public class RepositoryWorksheetController {
 
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       final AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, path, ownerID);
-      return sheetService.getSheetSettings(entry, ResourceType.ASSET, owner, principal);
+      return sheetService.getSheetSettings(entry, ResourceType.ASSET, timeZone, owner, principal);
    }
 
    @PostMapping("/api/em/content/repository/worksheet")
-   public RepositorySheetSettingsModel setWorksheetSettings(@DecodeParam("path") String path,
-                                                            @RequestParam(value = "owner", required = false) String owner,
-                                                            @RequestBody() RepositorySheetSettingsModel model,
-                                                            Principal principal)
-      throws Exception
+   public RepositorySheetSettingsModel setWorksheetSettings(
+      @DecodeParam("path") String path,
+      @RequestParam("timeZone") String timeZone,
+      @RequestParam(value = "owner", required = false) String owner,
+      @RequestBody() RepositorySheetSettingsModel model,
+      Principal principal
+   ) throws Exception
    {
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       final int scope = treeService.getAssetScope(path);
@@ -90,7 +93,7 @@ public class RepositoryWorksheetController {
 
       AssetEntry newEntry = sheetService.setSheetSettings(entry.toIdentifier(), principal, model);
 
-      return sheetService.getSheetSettings(newEntry, ResourceType.ASSET, owner, principal);
+      return sheetService.getSheetSettings(newEntry, ResourceType.ASSET, timeZone, owner, principal);
    }
 
    private final SheetService sheetService;

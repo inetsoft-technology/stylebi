@@ -86,6 +86,19 @@ public class CloudSignatureCredential extends AbstractCloudCredential
       setAccountKey(credential0.getAccountKey());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalSignatureCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalSignatureCredential localCredential) {
+         localCredential.setAccountName(accountName);
+         localCredential.setAccountKey(accountKey);
+      }
+   }
+
    public static class Serializer<T extends CloudSignatureCredential>
       extends AbstractCloudCredential.Serializer<T>
    {

@@ -44,6 +44,7 @@ import inetsoft.web.admin.general.DatabaseSettingsService;
 import inetsoft.web.admin.general.model.DatabaseSettingsModel;
 import inetsoft.web.admin.security.*;
 import inetsoft.web.portal.data.DeleteDatasourceInfo;
+import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.viewsheet.*;
 import org.apache.commons.io.FileExistsException;
 import org.slf4j.Logger;
@@ -65,13 +66,15 @@ public class DatabaseDatasourcesService {
                                      SecurityEngine securityEngine,
                                      DatabaseSettingsService databaseSettingsService,
                                      XRepository repository,
-                                     ResourcePermissionService resourcePermissionService)
+                                     ResourcePermissionService resourcePermissionService,
+                                     DataSourceStatusService dataSourceStatusService)
    {
       this.databaseTypeService = databaseTypeService;
       this.securityEngine = securityEngine;
       this.databaseSettingsService = databaseSettingsService;
       this.repository = repository;
       this.resourcePermissionService = resourcePermissionService;
+      this.dataSourceStatusService = dataSourceStatusService;
    }
 
    public DriverAvailability getDriverAvailability() {
@@ -483,6 +486,7 @@ public class DatabaseDatasourcesService {
          additionalChange = true;
       }
       else {
+         dataSourceStatusService.updateStatus(jdbcDataSource);
          repository.updateDataSource(jdbcDataSource, fullName, false);
 
          // some kind private datasource of the current user
@@ -1171,4 +1175,5 @@ public class DatabaseDatasourcesService {
    private final DatabaseTypeService databaseTypeService;
    private final DatabaseSettingsService databaseSettingsService;
    private final ResourcePermissionService resourcePermissionService;
+   private final DataSourceStatusService dataSourceStatusService;
 }

@@ -30,7 +30,7 @@ import java.util.Objects;
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
-   @View1(value = "serviceName", visibleMethod = "useCredential"),
+   @View1(value = "serviceName"),
    @View1(value = "apiKey", visibleMethod = "useCredential"),
    @View1("URL")
 })
@@ -48,7 +48,6 @@ public class AzureSearchDataSource extends EndpointJsonDataSource<AzureSearchDat
    }
 
    @Property(label = "Search Service Name", required = true)
-   @PropertyEditor(dependsOn = "useCredentialId")
    public String getServiceName() {
       return serviceName;
    }

@@ -17,9 +17,11 @@
  */
 package inetsoft.sree.schedule;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.sree.internal.HttpXMLSerializable;
 import inetsoft.uql.asset.SourceInfo;
+import inetsoft.util.PasswordEncryption;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
 
@@ -229,18 +231,27 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
       }
 
       if(getFileFormat() != null) {
+         boolean forceLocal = PasswordEncryption.isEncryptForceLocal();
          writer.print(" format=\"" + byteEncode(getFileFormat()) + "\"");
          writer.print(" compressFile=\"" + isCompressFile() + "\"");
          writer.print(" matched=\"" + isMatchLayout() + "\"");
          writer.print(" expandSelections=\"" + isExpandSelections() + "\"");
          writer.print(" onlyDataComponents=\"" + isOnlyDataComponents() + "\"");
          writer.print(" exportAllTabbedTables=\"" + isExportAllTabbedTables() + "\"");
-         writer.print(" useCredential=\"" + isUseCredential() + "\"");
+         writer.print(" useCredential=\"" + (!forceLocal && isUseCredential()) + "\"");
 
          if(!Tool.isEmptyString(getSecretId()) || !Tool.isEmptyString(getPassword())) {
             if(isUseCredential()) {
-               String secretId = getSecretId() != null ? byteEncode(getSecretId()) : "";
-               writer.print(" secretId=\"" + secretId + "\"");
+               if(forceLocal) {
+                  String decryptedPassword = getDecryptedPassword(getSecretId());
+                  String password =
+                     decryptedPassword != null ? Tool.encryptPassword(byteEncode(decryptedPassword)) : "";
+                  writer.print(" password=\"" + password + "\"");
+               }
+               else {
+                  String secretId = getSecretId() != null ? byteEncode(getSecretId()) : "";
+                  writer.print(" secretId=\"" + secretId + "\"");
+               }
             }
             else {
                String password =
@@ -559,6 +570,25 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
 
    public void setExportAllTabbedTables(boolean exportAllTabbedTables) {
       this.exportAllTabbedTables = exportAllTabbedTables;
+   }
+
+   public static String getDecryptedPassword(String secretId) {
+      if(Tool.isEmptyString(secretId)) {
+         return secretId;
+      }
+
+      JsonNode jsonNode = Tool.loadCredentials(secretId);
+
+      if(jsonNode != null) {
+         try {
+            return jsonNode.get("password").asText();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to load credential by secret ID '" + secretId + "'");
+         }
+      }
+
+      return null;
    }
 
    private String emails = "";

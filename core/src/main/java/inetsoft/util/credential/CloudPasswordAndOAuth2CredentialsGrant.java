@@ -90,6 +90,20 @@ public class CloudPasswordAndOAuth2CredentialsGrant extends CloudOAuth2Credentia
       setPassword(cloudCredential.getPassword());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalPasswordAndOAuth2CredentialsGrant();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalPasswordAndOAuth2CredentialsGrant localCredentials) {
+         localCredentials.setUser(user);
+         localCredentials.setPassword(password);
+         super.copyToLocal(localCredentials);
+      }
+   }
+
    public static class Serializer<T extends CloudPasswordAndOAuth2CredentialsGrant>
       extends CloudOAuth2CredentialsGrant.Serializer<T>
    {

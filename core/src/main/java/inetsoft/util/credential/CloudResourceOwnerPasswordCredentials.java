@@ -92,6 +92,21 @@ public class CloudResourceOwnerPasswordCredentials extends CloudPasswordCredenti
       setTenantId(credential0.getTenantId());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalResourceOwnerPasswordCredentials();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalResourceOwnerPasswordCredentials localCredentials) {
+         localCredentials.setClientId(clientId);
+         localCredentials.setClientSecret(clientSecret);
+         localCredentials.setTenantId(tenantId);
+         super.copyToLocal(localCredentials);
+      }
+   }
+
    public static class Serializer<T extends CloudResourceOwnerPasswordCredentials>
       extends CloudPasswordCredential.Serializer<T>
    {

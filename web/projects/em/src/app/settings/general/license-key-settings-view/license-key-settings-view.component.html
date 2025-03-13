@@ -15,12 +15,16 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<em-license-key-list
+<em-license-key-list *ngIf="isEnterprise"
   title="_#(Server Licenses)"
   [(keys)]="serverKeys"
 >
 </em-license-key-list>
-<mat-card appearance="outlined" class="em-card" *ngIf="cluster && pooledClusterLicense">
+<em-api-key *ngIf="!isEnterprise"
+  title="_#(API Key)"
+>
+</em-api-key>
+<mat-card appearance="outlined" class="em-card" *ngIf="isEnterprise && cluster && pooledClusterLicense">
   <mat-card-title class="flex-col">_#(Cluster Licenses)</mat-card-title>
   <mat-card-content class="flex-col">
     <table mat-table [dataSource]="clusterDataSource">

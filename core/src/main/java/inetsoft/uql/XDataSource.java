@@ -17,7 +17,6 @@
  */
 package inetsoft.uql;
 
-import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.*;
@@ -307,6 +306,13 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
             this.dependencies.add(entry);
          }
       }
+
+      Element statusNode = Tool.getChildNodeByTagName(root, "status");
+
+      if(statusNode != null) {
+         status = new Status();
+         status.parseXML(statusNode);
+      }
    }
 
    /**
@@ -348,6 +354,10 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
 
          writer.println("</dependencies>");
       }
+
+      if(status != null) {
+         status.writeXML(writer);
+      }
    }
 
    /**
@@ -379,6 +389,11 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
          source.folders = (ArrayList<String>) folders.clone();
          source.dependencies = new HashSet<>(dependencies);
          source.fromPortal = fromPortal;
+
+         if(status != null) {
+            source.status = (Status) status.clone();
+         }
+
          return source;
       }
       catch(CloneNotSupportedException ex) {
@@ -478,6 +493,14 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
       this.fromPortal = fromPortal;
    }
 
+   public Status getStatus() {
+      return status;
+   }
+
+   public void setStatus(Status status) {
+      this.status = status;
+   }
+
    private String name;
    private String type;
    private String desc;
@@ -488,5 +511,90 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
    private ArrayList<String> folders = new ArrayList<>();
    private HashSet dependencies = new HashSet();
    private Boolean fromPortal = false; // for portal data model.
+   private Status status;
+
+   public static class Status implements Serializable, Cloneable, XMLSerializable {
+      public Status() {
+      }
+
+      public Status(String errorMessage, boolean connected, long lastUpdateTime) {
+         this.errorMessage = errorMessage;
+         this.connected = connected;
+         this.lastUpdateTime = lastUpdateTime;
+      }
+
+      public String getErrorMessage() {
+         return errorMessage;
+      }
+
+      public void setErrorMessage(String errorMessage) {
+         this.errorMessage = errorMessage;
+      }
+
+      public boolean isConnected() {
+         return connected;
+      }
+
+      public void setConnected(boolean connected) {
+         this.connected = connected;
+      }
+
+      public long getLastUpdateTime() {
+         return lastUpdateTime;
+      }
+
+      public void setLastUpdateTime(long lastUpdateTime) {
+         this.lastUpdateTime = lastUpdateTime;
+      }
+
+      @Override
+      public void writeXML(PrintWriter writer) {
+         writer.println("<status connected=\"" + connected + "\">");
+
+         if(errorMessage != null) {
+            writer.println("<errorMessage><![CDATA[" + errorMessage + "]]></errorMessage>");
+         }
+
+         writer.println("<lastUpdateTime><![CDATA[" + lastUpdateTime + "]]></lastUpdateTime>");
+         writer.println("</status>");
+      }
+
+      @Override
+      public void parseXML(Element tag) throws Exception {
+         String value;
+
+         if((value = Tool.getAttribute(tag, "connected")) != null) {
+            connected = "true".equals(value);
+         }
+
+         errorMessage = Tool.getChildValueByTagName(tag, "errorMessage");
+         value = Tool.getChildValueByTagName(tag, "lastUpdateTime");
+
+         if(value != null) {
+            lastUpdateTime = Long.parseLong(value);
+         }
+      }
+
+      /**
+       * Create a clone of this object.
+       */
+      @Override
+      @SuppressWarnings("unchecked")
+      public Object clone() {
+         try {
+            return super.clone();
+         }
+         catch(CloneNotSupportedException ex) {
+            LOG.error("Failed to clone Status", ex);
+         }
+
+         return null;
+      }
+
+      private String errorMessage;
+      private boolean connected;
+      private long lastUpdateTime;
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(XDataSource.class);
 }

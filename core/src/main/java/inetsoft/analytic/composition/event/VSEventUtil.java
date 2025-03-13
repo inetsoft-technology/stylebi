@@ -829,7 +829,6 @@ public final class VSEventUtil {
       return assembly instanceof InputVSAssembly ||
          assembly instanceof SubmitVSAssembly ||
          assembly instanceof TimeSliderVSAssembly ||
-         assembly instanceof UploadVSAssembly ||
          assembly instanceof TabVSAssembly;
    }
 
@@ -2013,9 +2012,6 @@ public final class VSEventUtil {
          break;
       case AbstractSheet.SUBMIT_ASSET:
          assembly = new SubmitVSAssembly(vs, name);
-         break;
-      case AbstractSheet.UPLOAD_ASSET:
-         assembly = new UploadVSAssembly(vs, name);
          break;
       case AbstractSheet.ANNOTATION_ASSET:
          assembly = new AnnotationVSAssembly(vs, name);

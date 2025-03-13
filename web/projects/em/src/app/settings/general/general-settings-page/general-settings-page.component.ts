@@ -171,7 +171,7 @@ export class GeneralSettingsPageComponent implements OnInit, OnDestroy {
          this.changed = false;
          this.loading = false;
 
-         if(licenseKeyChanged) {
+         if(licenseKeyChanged && this.isEnterprise) {
             this.licenseKeyChanged = false;
             this.snackBar.open(
                "_#(js:em.license.restartRequired)", "_#(js:Close)",

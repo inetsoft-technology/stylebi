@@ -87,6 +87,19 @@ public class CloudAuthorizationTokenCredential extends AbstractCloudCredential
       setAuthorizationToken(credential0.getAuthorizationToken());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalAuthorizationTokenCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalAuthorizationTokenCredential localCredential) {
+         localCredential.setApplicationId(applicationId);
+         localCredential.setAuthorizationToken(authorizationToken);
+      }
+   }
+
    public static class Serializer<T extends CloudAuthorizationTokenCredential>
       extends AbstractCloudCredential.Serializer<T>
    {

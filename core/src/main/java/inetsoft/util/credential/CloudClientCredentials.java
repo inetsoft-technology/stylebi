@@ -83,6 +83,19 @@ public class CloudClientCredentials extends AbstractCloudCredential
       setClientSecret(cloudCredential.getClientSecret());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalClientCredentials();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalClientCredentials localCredentials) {
+         localCredentials.setClientId(clientId);
+         localCredentials.setClientSecret(clientSecret);
+      }
+   }
+
    public static class Serializer<T extends CloudClientCredentials>
       extends AbstractCloudCredential.Serializer<T>
    {

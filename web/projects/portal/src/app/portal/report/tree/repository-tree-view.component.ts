@@ -63,7 +63,7 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
       this.loading = node == null;
 
       if(doSelectEntry) {
-         this.selectEntry(this._selectedEntry);
+         this.selectEntry(this._selectedEntry, true);
       }
    }
 
@@ -217,7 +217,7 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
       }
    }
 
-   private selectEntry(entry: RepositoryEntry): void {
+   private selectEntry(entry: RepositoryEntry, expandToPath: boolean = false): void {
       if(this.repositoryTree && this.rootNode) {
          if(entry) {
             this.selectedNode = GuiTool.findNode(this.rootNode, (node) => {
@@ -236,7 +236,7 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
 
             // selected node wasn't found so check along the path.
             // it may not have been loaded yet.
-            if(this.selectedNode == null) {
+            if(this.selectedNode == null || expandToPath) {
                let defaultOrgAsset = this.currOrgID != entry.entry.organization;
                this.repositoryTree.selectAndExpandToPath(entry.path, this.rootNode, defaultOrgAsset);
             }

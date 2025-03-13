@@ -155,12 +155,6 @@ let form: TreeNodeModel = {
          leaf: true,
          dragName: "dragsubmit"
       },
-      {
-         label: "_#(js:Upload)",
-         icon: "upload-icon",
-         leaf: true,
-         dragName: "dragupload"
-      },
    ],
    icon: "folder-toolbox-icon"
 };

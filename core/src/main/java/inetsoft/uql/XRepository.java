@@ -142,7 +142,13 @@ public interface XRepository extends XDataService, XQueryRepository {
    void updateDataSource(XDataSource dx, String oname,
                          Boolean actionRecord, boolean checkDelete) throws Exception;
 
-    /**
+   /**
+    * Update a data source status.
+    * @param dx data source.
+    */
+   void updateDataSourceStatus(XDataSource dx) throws Exception;
+
+   /**
     * Add or replace a data source folder in the repository.
     * @param dx new data source folder.
     * @param oname old name of the data source folder, if the name has been

@@ -23,13 +23,16 @@ export enum LicenseKeyType {
 
 export class EditLicenseKeyDialogData {
    keys: LicenseKeyModel[];
+   isEnterprise: boolean;
 
-   constructor(public model: LicenseKeyModel, public type: LicenseKeyType, keys: LicenseKeyModel[]) {
+   constructor(public model: LicenseKeyModel, public type: LicenseKeyType, keys: LicenseKeyModel[], isEnterprise: boolean) {
       if(model) {
          this.keys = keys.filter(k => k.key !== model.key);
       }
       else {
          this.keys = keys;
       }
+
+      this.isEnterprise = isEnterprise;
    }
 }

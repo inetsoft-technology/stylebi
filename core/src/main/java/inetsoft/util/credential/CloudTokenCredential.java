@@ -75,6 +75,18 @@ public class CloudTokenCredential extends AbstractCloudCredential
       setToken(credential0.getToken());
    }
 
+   @Override
+   public Credential createLocal() {
+      return new LocalTokenCredential();
+   }
+
+   @Override
+   public void copyToLocal(Credential credential) {
+      if(credential instanceof LocalTokenCredential localCredential) {
+         localCredential.setToken(token);
+      }
+   }
+
    public static class Serializer<T extends CloudTokenCredential>
       extends AbstractCloudCredential.Serializer<T>
    {

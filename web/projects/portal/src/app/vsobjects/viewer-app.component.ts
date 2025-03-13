@@ -52,6 +52,7 @@ import { map, mergeMap } from "rxjs/operators";
 import { convertToKey, KEY_DELIMITER} from "../../../../em/src/app/settings/security/users/identity-id";
 import { AssetEntry, createAssetEntry } from "../../../../shared/data/asset-entry";
 import { DownloadService } from "../../../../shared/download/download.service";
+import { DateTypeFormatter } from "../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../common/action/assembly-action-group";
 import { Dimension } from "../common/data/dimension";
@@ -1321,6 +1322,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             (data: ScheduleDialogModel) => {
                this.waiting = false;
                this.scheduleDialogModel = data;
+               this.scheduleDialogModel.bookmark = DateTypeFormatter.format(new Date(), "YYYY-MM-DD HH:mm:ss");
                const options: SlideOutOptions = {backdrop: "static", popup: true};
                this.dialogService.open(this.scheduleDialog, options).result.then(
                   (result: ScheduleDialogModel) => {
@@ -1470,7 +1472,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.viewsheetClient.sendEvent(TOGGLE_STATUS_URI, event);
    }
 
-   showBookmarks(): void {
+   showBookmarks(gotoBookmark: boolean = true): void {
       this.http.get<boolean>("../api/vs/bookmark/isDefaultOrgAsset/" + Tool.byteEncode(this.runtimeId)).subscribe( (isDefaultOrgAsset) => this.isDefaultOrgAsset = isDefaultOrgAsset);
 
       let bookmarkName: string = null;
@@ -1490,7 +1492,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.getBookmarks().subscribe(data => {
             this.vsBookmarkList = data;
 
-            if(bookmarkName != null) {
+            if(bookmarkName != null && gotoBookmark) {
                let bookmark = this.vsBookmarkList.find(
                   f => f.name == bookmarkName && (!bookmarkUser || bookmarkUser == convertToKey(f.owner))
                );

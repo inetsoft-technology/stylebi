@@ -30,7 +30,7 @@ import java.util.Objects;
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
-   @View1(value = "userEmail", visibleMethod = "useCredential"),
+   @View1(value = "userEmail"),
    @View1(value = "apiKey", visibleMethod = "useCredential")
 })
 public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
@@ -52,7 +52,6 @@ public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
     * @return the email address.
     */
    @Property(label = "Email", required = true)
-   @PropertyEditor(dependsOn = "useCredentialId")
    public String getUserEmail() {
       return userEmail;
    }

@@ -36,6 +36,7 @@ import { LicenseKeyModel } from "../license-key-settings-model";
 export class LicenseKeyListComponent implements OnInit {
    @Input() title: string;
    @Input() scheduler = false;
+   @Input() isEnterpise: boolean;
    @Output() keysChange = new EventEmitter<LicenseKeyModel[]>();
    @ViewChild(MatPaginator, { static: true }) paginator: MatPaginator;
 
@@ -171,7 +172,7 @@ export class LicenseKeyListComponent implements OnInit {
          maxWidth: "100%",
          maxHeight: "100%",
          disableClose: true,
-         data: new EditLicenseKeyDialogData(key, type, this.keys)
+         data: new EditLicenseKeyDialogData(key, type, this.keys, this.isEnterpise)
       }).afterClosed();
    }
 }

@@ -107,8 +107,7 @@ public class VsToReportConverter {
 
       for(Assembly assembly : allAssemblies) {
          if(!isVisibleInPrintLayout((VSAssembly) assembly, false) ||
-            assembly instanceof ContainerVSAssembly || assembly instanceof ShapeVSAssembly ||
-            assembly instanceof UploadVSAssembly)
+            assembly instanceof ContainerVSAssembly || assembly instanceof ShapeVSAssembly)
          {
             continue;
          }
@@ -476,6 +475,15 @@ public class VsToReportConverter {
    {
       // return false if need to filter out the header/footer elements
       if(filterHeaderFooters && isHeaderFooterElement(assembly)) {
+         return false;
+      }
+
+      Viewsheet viewsheet = assembly.getViewsheet();
+
+      if(viewsheet != null &&
+         (VSUtil.isPopComponent(assembly.getAbsoluteName(), viewsheet) ||
+         VSUtil.isTipView(assembly.getAbsoluteName(), viewsheet)))
+      {
          return false;
       }
 

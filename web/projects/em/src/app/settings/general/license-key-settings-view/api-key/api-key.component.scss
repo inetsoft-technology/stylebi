@@ -1,4 +1,4 @@
-/*
+/*!
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,11 +15,34 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { UploadGeneralPaneModel } from "./upload-general-pane-model";
-import { VSAssemblyScriptPaneModel } from "../../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane-model";
+:host {
+  .mat-mdc-table {
+    width: 100%;
+    margin: 1em 0;
 
-export interface UploadPropertyDialogModel {
-   id: string;
-   uploadGeneralPaneModel: UploadGeneralPaneModel;
-   vsAssemblyScriptPaneModel: VSAssemblyScriptPaneModel;
+    tr {
+      overflow: hidden;
+
+      .select {
+        width: 50px;
+      }
+
+      td {
+        overflow: hidden;
+
+        div {
+          max-width: 500px;
+          overflow: hidden;
+          -ms-text-overflow: ellipsis;
+          text-overflow: ellipsis;
+          white-space: normal;
+        }
+      }
+    }
+  }
+  .generateKey {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
 }

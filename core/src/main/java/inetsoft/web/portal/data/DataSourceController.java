@@ -39,6 +39,7 @@ import inetsoft.web.notifications.NotificationService;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.model.database.StringWrapper;
 import inetsoft.web.portal.model.database.events.CheckDependenciesEvent;
+import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.security.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,12 +61,14 @@ public class DataSourceController {
    public DataSourceController(DatasourcesService datasourcesService,
                                DataSourceBrowserService dataSourceBrowserService,
                                DatabaseDatasourcesService databaseDatasourcesService,
-                               SecurityEngine securityEngine)
+                               SecurityEngine securityEngine,
+                               DataSourceStatusService dataSourceStatusService)
    {
       this.datasourcesService = datasourcesService;
       this.dataSourceBrowserService = dataSourceBrowserService;
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.securityEngine = securityEngine;
+      this.dataSourceStatusService = dataSourceStatusService;
    }
 
    /**
@@ -285,11 +288,10 @@ public class DataSourceController {
     */
    @PostMapping("/api/data/datasources/statuses")
    public List<DataSourceStatus> getConnectionStatuses(
-      @RequestBody DataSourceConnectionStatusRequest request,
-      Principal principal)
+      @RequestBody DataSourceConnectionStatusRequest request, Principal principal)
       throws Exception
    {
-      return dataSourceBrowserService.getDataSourceConnectionStatuses(request, principal);
+      return dataSourceStatusService.getDataSourceConnectionStatuses(request, principal);
    }
 
    /**
@@ -591,8 +593,6 @@ public class DataSourceController {
       throws Exception
    {
       datasourcesService.createNewDataSource(definition, false, principal);
-      dataSourceBrowserService.updateDataSourceConnectionStatus(
-         datasourcesService.getDataSourceFullName(definition), principal);
    }
 
    /**
@@ -626,8 +626,6 @@ public class DataSourceController {
       throws Exception
    {
       datasourcesService.updateDataSource(name, definition, principal);
-      dataSourceBrowserService.updateDataSourceConnectionStatus(
-         datasourcesService.getDataSourceFullName(definition), principal);
    }
 
    /**
@@ -739,6 +737,7 @@ public class DataSourceController {
    private final DataSourceBrowserService dataSourceBrowserService;
    private final DatabaseDatasourcesService databaseDatasourcesService;
    private final SecurityEngine securityEngine;
+   private final DataSourceStatusService dataSourceStatusService;
 
    @Autowired
    private NotificationService notificationService;

@@ -41,7 +41,6 @@ const CSS_CLASSES: {[type: string]: string} = {
    "VSComboBox": "combobox",
    "VSTextInput": "textinput",
    "VSSubmit": "submit",
-   "VSUpload": "upload",
    "VSLine": "line",
    "VSRectangle": "rectangle",
    "VSOval": "oval",

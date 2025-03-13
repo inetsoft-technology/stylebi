@@ -602,10 +602,20 @@ public class ExtendedDateFormat extends SimpleDateFormat {
          in the string, use java's current time zone offset to avoid impact caused
          by time zone offset changes.
          */
-         ZoneRules zoneRules = ZoneId.systemDefault().getRules();
-         ZoneOffset currentOffset = zoneRules.getOffset(Instant.now());
-         OffsetDateTime offsetDateTime = LocalDateTime.of(year, month, day, hour, minute, second, nanosecond).atOffset(currentOffset);
-         return new Date(offsetDateTime.toInstant().toEpochMilli());
+         if(zone.getID().equals("Asia/Shanghai") && year < 1901) {
+            ZoneRules zoneRules = ZoneId.systemDefault().getRules();
+            ZoneOffset currentOffset = zoneRules.getOffset(Instant.now());
+            OffsetDateTime offsetDateTime = LocalDateTime
+               .of(year, month, day, hour, minute, second, nanosecond)
+               .atOffset(currentOffset);
+            return new Date(offsetDateTime.toInstant().toEpochMilli());
+         }
+         else {
+            ZonedDateTime dateTime = LocalDateTime
+               .of(year, month, day, hour, minute, second, nanosecond)
+               .atZone(ZoneId.systemDefault());
+            return new Date(dateTime.toInstant().toEpochMilli());
+         }
       }
 
       return super.parse(str, pos);

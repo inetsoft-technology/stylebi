@@ -22,7 +22,6 @@
          VSDataTip [dataTipName]="vsObject.absoluteName"
          VSPopComponent [popComponentName]="vsObject.absoluteName"
          [popContainerName]="vsObject.container"
-         [isUpload]="vsObject.objectType == 'VSUpload'"
          [popZIndex]="zIndex(vsObject)"
          [popBackground]="vsObject.objectType == 'VSGauge' ? 'transparent' : 'white'"
          [style.display]="!viewer || vsObject.visible && (vsObject.container && vsObject.active || !vsObject.container) && vsObject.containerType ? null : 'none'"
@@ -265,12 +264,6 @@
                       [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
                       [model]="vsObject">
       </vs-thermometer>
-
-      <vs-upload *ngIf="vsObject.objectType == 'VSUpload'"
-                 [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
-                 [model]="vsObject" [submitted]="submitted"
-                 [keyNavigation]="keyNavigation">
-      </vs-upload>
 
       <vs-viewsheet *ngIf="vsObject.objectType == 'VSViewsheet'"
                     [model]="vsObject"

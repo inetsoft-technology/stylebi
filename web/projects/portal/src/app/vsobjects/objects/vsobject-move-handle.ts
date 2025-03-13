@@ -81,7 +81,6 @@ export namespace VSObjectMoveHandle {
          case "VSTab":
          case "VSTextInput":
          case "VSThermometer":
-         case "VSUpload":
          case "VSViewsheet":
             moveHandle = null;
             break;

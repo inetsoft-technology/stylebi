@@ -1728,9 +1728,6 @@ public class AssetUtil {
       else if(type == AbstractSheet.ANNOTATION_RECTANGLE_ASSET) {
          prefix = "AnnotationRectangle";
       }
-      else if(type == AbstractSheet.UPLOAD_ASSET) {
-         prefix = "Upload";
-      }
       else {
          throw new RuntimeException("Unsupported type found: " + type);
       }
