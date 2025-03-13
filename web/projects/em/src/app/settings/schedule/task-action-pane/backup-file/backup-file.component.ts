@@ -368,43 +368,43 @@ export class BackupFileComponent implements OnDestroy {
       while(queue.length > 0) {
          const node = queue.shift();
 
-         node.children.filter((child) =>
-            child.path.indexOf(Tool.BUILT_IN_ADMIN_REPORTS) == -1)
-            .forEach((child) => {
-               let type = child.type;
-               let path = child.path ? child.path : child.label;
-               let label = this.getExportableLabel(child);
+         if(node.path.indexOf(Tool.BUILT_IN_ADMIN_REPORTS) != -1) {
+            continue;
+         }
 
-               if((type & RepositoryEntryType.FOLDER) == RepositoryEntryType.FOLDER) {
-                  queue.push(child);
-               }
+         let type = node.type;
+         let path = node.path ? node.path : node.label;
+         let label = this.getExportableLabel(node);
 
-               if(!this.selectedEntities.some((entity) => entity.path == path)) {
-                  //additional datasource connection should not be exported
-                  if(type == RepositoryEntryType.DATA_SOURCE) {
-                     return;
-                  }
+         if((type & RepositoryEntryType.FOLDER) == RepositoryEntryType.FOLDER && node.children.length > 0) {
+            node.children.forEach(child => queue.push(child))
+         }
 
-                  if(child.label !== "_#(js:Data Model)" &&
-                     ((type & RepositoryEntryType.FOLDER) != RepositoryEntryType.FOLDER ||
-                        (type & RepositoryEntryType.DATA_SOURCE) == RepositoryEntryType.DATA_SOURCE ||
-                        ((type & RepositoryEntryType.LOGIC_MODEL) == RepositoryEntryType.LOGIC_MODEL &&
-                           child.children.length === 0) ||
-                        ((type & RepositoryEntryType.PARTITION) == RepositoryEntryType.PARTITION &&
-                           child.children.length === 0))) {
-                     assets.push(<SelectedAssetModel>{
-                        label: label,
-                        path: path,
-                        type: type,
-                        typeName: "",
-                        typeLabel: "",
-                        user: child.owner,
-                        description: child.description,
-                        icon: child.icon
-                     });
-                  }
-               }
-            });
+         if(!this.selectedEntities.some((entity) => entity.path == path)) {
+            //additional datasource connection should not be exported
+            if(type == RepositoryEntryType.DATA_SOURCE) {
+               return;
+            }
+
+            if(node.label !== "_#(js:Data Model)" &&
+               ((type & RepositoryEntryType.FOLDER) != RepositoryEntryType.FOLDER ||
+                  (type & RepositoryEntryType.DATA_SOURCE) == RepositoryEntryType.DATA_SOURCE ||
+                  ((type & RepositoryEntryType.LOGIC_MODEL) == RepositoryEntryType.LOGIC_MODEL &&
+                     node.children.length === 0) ||
+                  ((type & RepositoryEntryType.PARTITION) == RepositoryEntryType.PARTITION &&
+                     node.children.length === 0))) {
+               assets.push(<SelectedAssetModel>{
+                  label: label,
+                  path: path,
+                  type: type,
+                  typeName: "",
+                  typeLabel: "",
+                  user: node.owner,
+                  description: node.description,
+                  icon: node.icon
+               });
+            }
+         }
       }
    }
 
