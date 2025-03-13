@@ -17,12 +17,10 @@
  */
 package inetsoft.sree.internal;
 
-import inetsoft.sree.*;
-import inetsoft.util.GroupedThread;
+import inetsoft.sree.RepletRegistry;
+import inetsoft.sree.SreeEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.*;
 
 /**
  * AnalyticRegistry stores temporary reports, which are not yet saved.
@@ -71,9 +69,7 @@ public class AnalyticRegistry extends RepletRegistry {
     * @param name the specified temporary replet name.
     */
    public void access(String name) {
-      if(accessmap.containsKey(name)) {
-         accessmap.put(name, Long.valueOf(System.currentTimeMillis()));
-      }
+      // no-op
    }
 
    /**
@@ -93,9 +89,5 @@ public class AnalyticRegistry extends RepletRegistry {
    private static long lrtime = System.currentTimeMillis();
    // time out period
    private static int TIMEOUT_PERIOD = 1000 * 60 * 10;
-   // replet access map
-   private Map accessmap = new Hashtable();
-
-   private static final Logger LOG =
-      LoggerFactory.getLogger(AnalyticRegistry.class);
+   private static final Logger LOG = LoggerFactory.getLogger(AnalyticRegistry.class);
 }

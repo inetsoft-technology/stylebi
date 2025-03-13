@@ -619,20 +619,6 @@ public class RepletEngine extends AbstractAssetEngine
       return true;
    }
 
-   @Override
-   protected void finalize() throws Throwable {
-      Enumeration<FileInfo> iter = resmap.elements();
-
-      while(iter.hasMoreElements()) {
-         FileInfo info = iter.nextElement();
-
-         info.close();
-         info.delete();
-      }
-
-      super.finalize();
-   }
-
    /**
     * Check if the access matches license.
     */
@@ -651,7 +637,6 @@ public class RepletEngine extends AbstractAssetEngine
     * {@inheritDoc}
     */
    @Override
-   @SuppressWarnings("unchecked")
    public RepositoryEntry[] getRepositoryEntries(String folder, Principal user,
       ResourceAction action, int selector, boolean isDefaultOrgAsset) throws RemoteException
    {
@@ -2159,21 +2144,12 @@ public class RepletEngine extends AbstractAssetEngine
 
    @Override
    public void loggedOut(SessionEvent event) {
-      Principal principal = event.getPrincipal();
-      sessionmap.remove(new SessionKey(principal));
+      // no-op
    }
 
     // server ip address
    private static String ipAddress = null;
    private static long lastUpdateMillis = 0;
-
-   // id -> principal
-    // fid -> {File, FileInputStream} res
-   private Hashtable<String, FileInfo> resmap = new Hashtable<>();
-   // id -> FileInfo List
-   private Hashtable<Object, List<FileInfo>> resmap2 = new Hashtable<>();
-   // principal -> Vector of id
-   private Hashtable<SessionKey, Vector<Object>> sessionmap = new Hashtable<>();
 
    protected String cdir = ".";
 
@@ -2187,10 +2163,9 @@ public class RepletEngine extends AbstractAssetEngine
    private boolean logExport = false;
    private final ReentrantLock writeLock = new ReentrantLock();
    private boolean scriptEnvInitialized = false;
-    private CountDownLatch initLatch;
+   private CountDownLatch initLatch;
 
    protected Properties inserts = new Properties(); // html/js inserts
 
-   private static final Logger LOG =
-      LoggerFactory.getLogger(RepletEngine.class);
+   private static final Logger LOG = LoggerFactory.getLogger(RepletEngine.class);
 }
