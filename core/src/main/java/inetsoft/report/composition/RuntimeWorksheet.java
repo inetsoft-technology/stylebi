@@ -17,8 +17,9 @@
  */
 package inetsoft.report.composition;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.composition.execution.*;
-import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.QueryManager;
@@ -31,7 +32,6 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
 import java.util.Arrays;
-import java.util.LinkedList;
 
 /**
  * RuntimeWorksheet represents a runtime worksheet in editing time.
@@ -96,6 +96,38 @@ public class RuntimeWorksheet extends RuntimeSheet
       if(syncData) {
          DataSourceRegistry.getRegistry().addRefreshedListener(this);
          DataSourceRegistry.getRegistry().addModifiedListener(this);
+      }
+   }
+
+   RuntimeWorksheet(RuntimeWorksheetState state, ObjectMapper mapper) {
+      super(state, mapper);
+
+      if(state.getWs() != null) {
+         ws = loadXml(new Worksheet(), state.getWs());
+      }
+
+      VariableTable vars;
+
+      if(state.getVars() == null) {
+         vars = new VariableTable();
+      }
+      else {
+         vars = loadJson(VariableTable.class, state.getVars(), mapper);
+      }
+
+      box = new AssetQuerySandbox(ws, (XPrincipal) getUser(), vars);
+      box.setWSName(entry.getSheetName());
+      box.setWSEntry(entry);
+      box.setBaseUser(user);
+      box.setActive(true);
+      box.setQueryManager(new QueryManager());
+      preview = state.isPreview();
+      gettingStarted = state.isGettingStarted();
+      pid = state.getPid();
+      syncData = state.isSyncData();
+
+      if(state.getJoinWS() != null) {
+         joinWS = new RuntimeWorksheet(state.getJoinWS(), mapper);
       }
    }
 
@@ -412,6 +444,29 @@ public class RuntimeWorksheet extends RuntimeSheet
             }
          }
       }
+   }
+
+   @Override
+   RuntimeWorksheetState saveState(ObjectMapper mapper) {
+      RuntimeWorksheetState state = new RuntimeWorksheetState();
+      super.saveState(state, mapper);
+
+      state.setWs(saveXml(ws));
+
+      if(box != null && box.getVariableTable() != null) {
+         state.setVars(saveJson(box.getVariableTable(), mapper));
+      }
+
+      state.setPreview(preview);
+      state.setGettingStarted(gettingStarted);
+      state.setPid(pid);
+      state.setSyncData(syncData);
+
+      if(joinWS != null) {
+         state.setJoinWS(joinWS.saveState(mapper));
+      }
+
+      return state;
    }
 
    private Worksheet ws;          // worksheet

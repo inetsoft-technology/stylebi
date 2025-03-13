@@ -24,6 +24,7 @@ import inetsoft.util.*;
 import inetsoft.util.config.*;
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
+import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
 import org.apache.ignite.cache.query.SqlFieldsQuery;
 import org.apache.ignite.cluster.ClusterGroup;
@@ -149,6 +150,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          int[] includedEvents = new int[]{
             EventType.EVT_CACHE_OBJECT_PUT,
             EventType.EVT_CACHE_OBJECT_REMOVED,
+            EventType.EVT_CACHE_OBJECT_EXPIRED,
+            EventType.EVT_CACHE_ENTRY_EVICTED,
+            EventType.EVT_CACHE_REBALANCE_STOPPED,
             EventType.EVT_NODE_JOINED,
             EventType.EVT_NODE_LEFT
          };
@@ -874,6 +878,33 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       return cache;
    }
 
+   @Override
+   public <K, V> Collection<K> getLocalCacheKeys(Cache<K, V> cache, Collection<K> keys) {
+      Affinity<K> affinity = ignite.affinity(cache.getName());
+      ClusterNode localNode = ignite.cluster().localNode();
+      return keys.stream()
+         .filter(k -> affinity.isPrimary(localNode, k))
+         .toList();
+   }
+
+   @Override
+   public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      UUID id = ignite.events()
+         .remoteListen(new RebalanceListenerAdapter(listener),
+                       new RebalanceEventFilter(cacheName),
+                       EventType.EVT_CACHE_REBALANCE_STOPPED);
+      rebalanceListeners.put(listener, id);
+   }
+
+   @Override
+   public void removeCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      UUID id = rebalanceListeners.remove(listener);
+
+      if(id != null) {
+         ignite.events(ignite.cluster().forRemotes()).stopRemoteListen(id);
+      }
+   }
+
    private boolean isNodeStoppingException(Throwable t) {
       if(t == null) {
          return false;
@@ -1310,6 +1341,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final Map<MapChangeListener<?, ?>, UUID> mapListeners = new ConcurrentHashMap<>();
    private final Map<MapChangeListener<?, ?>, UUID> multiMapListeners = new ConcurrentHashMap<>();
    private final Map<MapChangeListener<?, ?>, UUID> replicatedMapListeners = new ConcurrentHashMap<>();
+   private final Map<CacheRebalanceListener, UUID> rebalanceListeners = new ConcurrentHashMap<>();
    private final Set<ClusterLifecycleListener> lifecycleListeners =
       new CopyOnWriteArraySet<>();
    private final Map<String, LockInfo> lockInfos = new ConcurrentHashMap<>();
@@ -1480,6 +1512,40 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       @Override
       public boolean apply(CacheEvent event) {
+         return Objects.equals(event.cacheName(), cacheName);
+      }
+
+      private final String cacheName;
+   }
+
+   private static final class RebalanceListenerAdapter
+      implements IgniteBiPredicate<UUID, CacheRebalancingEvent>
+   {
+      RebalanceListenerAdapter(CacheRebalanceListener listener) {
+         this.listener = listener;
+      }
+
+      @Override
+      public boolean apply(UUID nodeId, CacheRebalancingEvent event) {
+         if(event.type() == EventType.EVT_CACHE_REBALANCE_STOPPED) {
+            CacheRebalanceEvent newEvent = new CacheRebalanceEvent(
+               this, event.cacheName(), event.timestamp(), event.partition());
+            listener.cacheRebalanced(newEvent);
+         }
+
+         return true;
+      }
+
+      private final CacheRebalanceListener listener;
+   }
+
+   private static class RebalanceEventFilter implements IgnitePredicate<CacheRebalancingEvent> {
+      public RebalanceEventFilter(String cacheName) {
+         this.cacheName = cacheName;
+      }
+
+      @Override
+      public boolean apply(CacheRebalancingEvent event) {
          return Objects.equals(event.cacheName(), cacheName);
       }
 

@@ -506,6 +506,23 @@ public class TestCluster implements Cluster {
       return new LocalCache<>(name, getMap(name));
    }
 
+   @Override
+   public <K, V> Collection<K> getLocalCacheKeys(Cache<K, V> cache, Collection<K> keys) {
+      return keys.stream()
+         .filter(cache::containsKey)
+         .toList();
+   }
+
+   @Override
+   public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      // no-op
+   }
+
+   @Override
+   public void removeCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
+      // no-op
+   }
+
    private final ConcurrentMap<String, Map<String, Object>> clusterNodeProperties =
       new ConcurrentHashMap<>();
    private final ConcurrentMap<String, Lock> locks = new ConcurrentHashMap<>();

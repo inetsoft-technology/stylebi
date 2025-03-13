@@ -17,7 +17,9 @@
  */
 package inetsoft.report.composition;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.util.*;
@@ -32,6 +34,7 @@ import java.io.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 /**
  * RuntimeSheet represents a abstract runtime sheet in editing time.
@@ -87,6 +90,38 @@ public abstract class RuntimeSheet {
       points = new XSwappableSheetList(this.contextPrincipal);
 
       access(true);
+   }
+
+   @SuppressWarnings("unchecked")
+   RuntimeSheet(RuntimeSheetState state, ObjectMapper mapper) {
+      entry = loadXml(new AssetEntry(), state.getEntry());
+      accessed = state.getAccessed();
+      user = loadXPrincipal(state.getUser());
+      contextPrincipal = loadXPrincipal(state.getContextPrincipal());
+      editable = state.isEditable();
+
+      if(state.getPoints() != null) {
+         points = new XSwappableSheetList(contextPrincipal);
+
+         for(String p : state.getPoints()) {
+            String[] split = p.split(":");
+            points.add(loadSheet(split[0], split[1]));
+         }
+      }
+
+      point = state.getPoint();
+      max = state.getMax();
+      savePoint = state.getSavePoint();
+      eid = state.getEid();
+      id = state.getId();
+      socketSessionId = state.getSocketSessionId();
+      socketUserName = state.getSocketUserName();
+      lowner = state.getLowner();
+      isLockProcessed = state.isLockProcessed();
+      disposed = state.isDisposed();
+      heartbeat = state.getHeartbeat();
+      prop = loadJson(HashMap.class, state.getProp(), mapper);
+      previousURL = state.getPreviousURL();
    }
 
    /**
@@ -442,6 +477,139 @@ public abstract class RuntimeSheet {
     * otherwise.
     */
    public abstract boolean isPreview();
+
+   abstract RuntimeSheetState saveState(ObjectMapper mapper);
+
+   void saveState(RuntimeSheetState state, ObjectMapper mapper) {
+      state.setEntry(saveXml(entry));
+      state.setAccessed(accessed);
+
+      if(user instanceof XPrincipal xuser) {
+         state.setUser(saveXml(xuser));
+      }
+
+      state.setContextPrincipal(saveXml(contextPrincipal));
+      state.setEditable(editable);
+
+      if(points != null) {
+         List<String> values = new ArrayList<>();
+
+         for(int i = 0; i < points.size(); i++) {
+            AbstractSheet sheet = points.get(i);
+
+            if(sheet != null) {
+               values.add(sheet.getClass().getName() + ": " + saveXml(sheet));
+            }
+         }
+
+         state.setPoints(values);
+      }
+
+      state.setPoint(point);
+      state.setMax(max);
+      state.setSavePoint(savePoint);
+      state.setEid(eid);
+      state.setId(id);
+      state.setSocketSessionId(socketSessionId);
+      state.setSocketUserName(socketUserName);
+      state.setLowner(lowner);
+      state.setLockProcessed(isLockProcessed);
+      state.setDisposed(disposed);
+      state.setHeartbeat(heartbeat);
+      state.setProp(saveJson(prop, mapper));
+      state.setPreviousURL(previousURL);
+   }
+
+   String saveXml(XMLSerializable value) {
+      return saveXml(value, XMLSerializable::writeXML);
+   }
+
+   String saveXml(XPrincipal value) {
+      return saveXml(value, XPrincipal::writeXML);
+   }
+
+   private <T> String saveXml(T value, BiConsumer<T, PrintWriter> fn) {
+      if(value == null) {
+         return null;
+      }
+
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      fn.accept(value, writer);
+      writer.flush();
+      return buffer.toString();
+   }
+
+   String saveJson(Object value, ObjectMapper mapper) {
+      if(value == null) {
+         return null;
+      }
+
+      try {
+         return mapper.writeValueAsString(value);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to save runtime sheet properties", e);
+         return null;
+      }
+   }
+
+   private static AbstractSheet loadSheet(String className, String xml) {
+      try {
+         AbstractSheet sheet =
+            (AbstractSheet) Class.forName(className).getConstructor().newInstance();
+         return loadXml(sheet, xml);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load sheet", e);
+         return null;
+      }
+   }
+
+   static <T extends XMLSerializable> T loadXml(T value, String xml) {
+      if(xml == null) {
+         return null;
+      }
+
+      try {
+         Document document = Tool.parseXML(new StringReader(xml));
+         value.parseXML(document.getDocumentElement());
+         return value;
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load value", e);
+      }
+
+      return null;
+   }
+
+   private static XPrincipal loadXPrincipal(String xml) {
+      if(xml == null) {
+         return null;
+      }
+
+      try {
+         Document document = Tool.parseXML(new StringReader(xml));
+         SRPrincipal principal = new SRPrincipal();
+         principal.parseXML(document.getDocumentElement());
+         return principal;
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load value", e);
+      }
+
+      return null;
+   }
+
+   static <T> T loadJson(Class<T> clazz, String json, ObjectMapper mapper) {
+      try {
+         return mapper.readValue(json, clazz);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load value", e);
+         return null;
+      }
+   }
 
    static final class XSwappableSheetList {
       public XSwappableSheetList(XPrincipal contextPrincipal) {

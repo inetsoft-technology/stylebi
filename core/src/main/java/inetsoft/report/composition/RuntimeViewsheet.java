@@ -17,7 +17,8 @@
  */
 package inetsoft.report.composition;
 
-import inetsoft.analytic.composition.event.VSEventUtil;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
@@ -41,8 +42,11 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 import java.awt.event.ActionListener;
+import java.io.StringReader;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
@@ -136,6 +140,75 @@ public class RuntimeViewsheet extends RuntimeSheet {
       // the cloned viewsheet is for undo/redo, and we should share the cloned
       // viewsheet in cached query and undo/redo
       addCheckpoint(this.vs.prepareCheckpoint());
+   }
+
+   RuntimeViewsheet(RuntimeViewsheetState state, ObjectMapper mapper) {
+      super(state, mapper);
+      bindingID = state.getBindingId();
+
+      if(state.getVs() != null) {
+         vs = loadXml(new Viewsheet(), state.getVs());
+      }
+
+      if(state.getOriginalVs() != null) {
+         originalVs = loadXml(new Viewsheet(), state.getOriginalVs());
+      }
+
+      if(state.getVars() != null) {
+         vars = loadJson(VariableTable.class, state.getVars(), mapper);
+      }
+
+      viewer = state.isViewer();
+      preview = state.isPreview();
+      needRefresh = state.isNeedsRefresh();
+      mode = state.getMode();
+      box = new ViewsheetSandbox(vs, mode, getUser(), entry);
+      rep = (AssetRepository) AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
+      execSessionID = state.getExecSessionId();
+      touchts = state.getTouchts();
+      tipviews = state.getTipviews();
+      popcomponents = state.getPopcomponents();
+
+      if(state.getBookmarksMap() != null) {
+         bookmarksMap = new HashMap<>();
+
+         for(Map.Entry<String, String> e : state.getBookmarksMap().entrySet()) {
+            bookmarksMap.put(e.getKey(), loadXml(new VSBookmark(), e.getValue()));
+         }
+      }
+
+      if(state.getIbookmark() != null) {
+         ibookmark = loadXml(new VSBookmark(), state.getIbookmark());
+      }
+
+      if(state.getOpenedBookmark() != null) {
+         openedBookmark = loadXml(new VSBookmarkInfo(), state.getOpenedBookmark());
+      }
+
+      lastReset = state.getLastReset();
+      dateCreated = state.getDateCreated();
+      engine = WorksheetEngine.getWorksheetService();
+      notHitMVs = new HashSet<>();
+
+      if(state.getRvsLayout() != null) {
+         rvsLayout = loadXml(new ViewsheetLayout(), state.getRvsLayout());
+      }
+
+      if(state.getLayoutPoints() != null) {
+         layoutPoints = new ArrayList<>();
+
+         for(String xml : state.getLayoutPoints()) {
+            layoutPoints.add(loadLayout(xml));
+         }
+      }
+
+      layoutPointLock = new ReentrantLock();
+      layoutPoint = state.getLayoutPoint();
+      wizardViewsheet = state.isWizardViewsheet();
+
+      if(state.getEmbedAssemblyInfo() != null) {
+         embedAssemblyInfo = loadJson(EmbedAssemblyInfo.class, state.getEmbedAssemblyInfo(), mapper);
+      }
    }
 
    /**
@@ -2401,6 +2474,80 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
    }
 
+   @Override
+   RuntimeViewsheetState saveState(ObjectMapper mapper) {
+      RuntimeViewsheetState state = new RuntimeViewsheetState();
+      super.saveState(state, mapper);
+      state.setBindingId(bindingID);
+      state.setVs(saveXml(vs));
+      state.setOriginalVs(saveXml(originalVs));
+      state.setVars(saveJson(vars, mapper));
+      state.setViewer(viewer);
+      state.setPreview(preview);
+      state.setNeedsRefresh(needRefresh);
+      state.setMode(mode);
+      state.setExecSessionId(execSessionID);
+      state.setTouchts(touchts);
+      state.setTipviews(tipviews);
+      state.setPopcomponents(popcomponents);
+
+      if(bookmarksMap == null) {
+         state.setBookmarksMap(null);
+      }
+      else {
+         Map<String, String> map = new HashMap<>();
+
+         for(Map.Entry<String, VSBookmark> e : bookmarksMap.entrySet()) {
+            map.put(e.getKey(), saveXml(e.getValue()));
+         }
+
+         state.setBookmarksMap(map);
+      }
+
+      state.setIbookmark(saveXml(ibookmark));
+      state.setOpenedBookmark(saveXml(openedBookmark));
+      state.setLastReset(lastReset);
+      state.setDateCreated(dateCreated);
+      state.setRvsLayout(saveXml(rvsLayout));
+
+      if(layoutPoints == null) {
+         state.setLayoutPoints(null);
+      }
+      else {
+         List<String> list = new ArrayList<>();
+
+         for(AbstractLayout layout : layoutPoints) {
+            StringBuilder xml = new StringBuilder("<layout class=\"")
+               .append(layout.getClass().getName()).append("\">");
+            xml.append(saveXml(layout));
+            xml.append("</layout>");
+            list.add(xml.toString());
+         }
+
+         state.setLayoutPoints(list);
+      }
+
+      state.setLayoutPoint(layoutPoint);
+      state.setEmbedAssemblyInfo(saveJson(embedAssemblyInfo, mapper));
+      return state;
+   }
+
+   private static AbstractLayout loadLayout(String xml) {
+      try {
+         Document document = Tool.parseXML(new StringReader(xml));
+         Element root = document.getDocumentElement();
+         String className = root.getAttribute("class");
+         AbstractLayout layout =
+            (AbstractLayout) Class.forName(className).getConstructor().newInstance();
+         layout.parseXML(Tool.getFirstChildNode(root));
+         return layout;
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load layout", e);
+         return null;
+      }
+   }
+
    private String bindingID;
    private Viewsheet vs; // viewsheet
    private Viewsheet originalVs;
@@ -2424,7 +2571,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private transient Set<String> notHitMVs = new HashSet<>();
    private ViewsheetLayout rvsLayout;
    private List<AbstractLayout> layoutPoints = new ArrayList<>();
-   private final ReentrantLock layoutPointLock = new ReentrantLock();
+   private transient ReentrantLock layoutPointLock = new ReentrantLock();
    private int layoutPoint = -1;
    private VSTemporaryInfo temporaryInfo;
    private boolean wizardViewsheet = false;
