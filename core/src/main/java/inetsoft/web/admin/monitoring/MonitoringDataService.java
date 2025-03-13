@@ -18,6 +18,7 @@
 package inetsoft.web.admin.monitoring;
 
 import inetsoft.util.*;
+import inetsoft.web.service.BaseSubscribeChangHandler;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,13 +52,13 @@ import java.util.stream.Stream;
  */
 @Service
 @Lazy(false)
-public class MonitoringDataService {
+public class MonitoringDataService extends BaseSubscribeChangHandler {
    @Autowired
    public MonitoringDataService(SimpUserRegistry userRegistry,
                                 SimpMessagingTemplate messageTemplate)
    {
+      super(messageTemplate);
       this.userRegistry = userRegistry;
-      this.messageTemplate = messageTemplate;
       this.debouncer = new DefaultDebouncer<>();
    }
 
@@ -71,21 +72,7 @@ public class MonitoringDataService {
     */
    @EventListener
    public void handleUnsubscribe(SessionUnsubscribeEvent event) {
-      final Message<byte[]> message = event.getMessage();
-      final MessageHeaders headers = message.getHeaders();
-      final String subscriptionId =
-         (String) headers.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-
-      if(subscriptionId != null) {
-         lock.lock();
-
-         try {
-            subscribers.removeIf(sub -> subscriptionId.equals(sub.getSubscriptionId()));
-         }
-         finally {
-            lock.unlock();
-         }
-      }
+      super.handleUnsubscribe(event);
    }
 
    /**
@@ -93,18 +80,7 @@ public class MonitoringDataService {
     */
    @EventListener
    public void handleDisconnect(SessionDisconnectEvent event) {
-      final String sessionId = event.getSessionId();
-
-      if(sessionId != null) {
-         lock.lock();
-
-         try {
-            subscribers.removeIf(sub -> sessionId.equals(sub.getSessionId()));
-         }
-         finally {
-            lock.unlock();
-         }
-      }
+      super.handleDisconnect(event);
    }
 
    /**
@@ -130,20 +106,20 @@ public class MonitoringDataService {
          new MonitoringSubscriber(sessionId, subscriptionId,
                                   lookupDestination, destination, supplier, headerAccessor.getUser());
 
-      lock.lock();
+      return (T) addSubscriber(subscriber);
+   }
 
-      try {
-         if(sessionId != null && lookupDestination != null && subscriptionId != null) {
-            assert !subscribers.contains(subscriber) :
-               "monitoring destination already subscribed on this socket, overwriting";
-            subscribers.add(subscriber);
-         }
+   @Override
+   public Object getData(BaseSubscriber subscriber) {
+      MonitoringSubscriber monitoringSubscriber = ((MonitoringSubscriber) subscriber);
+      final Object monitoringData = dataCache.get(subscriber, monitoringSubscriber::get);
 
-         return dataCache.get(subscriber, supplier::get);
+      if(monitoringData == null) {
+         LOG.warn("Monitoring data is missing: " + monitoringSubscriber.supplier);
+         return null;
       }
-      finally {
-         lock.unlock();
-      }
+
+      return monitoringData;
    }
 
    /**
@@ -154,15 +130,15 @@ public class MonitoringDataService {
    }
 
    private void doUpdate() {
-      lock.lock();
+      lock();
 
       try {
          removeDisconnectedSubscribers();
          dataCache.clear();
-         subscribers.forEach(this::sendToSubscriber);
+         getSubscribers().forEach(this::sendToSubscriber);
       }
       finally {
-         lock.unlock();
+         unlock();
       }
    }
 
@@ -186,10 +162,10 @@ public class MonitoringDataService {
    }
 
    private void updateSession(String sessionId) {
-      lock.lock();
+      lock();
 
       try {
-         subscribers.stream()
+         getSubscribers().stream()
             .filter(subscriber -> subscriber.getSessionId().equals(sessionId))
             .forEach(subscriber -> {
                dataCache.evict(subscriber);
@@ -197,34 +173,8 @@ public class MonitoringDataService {
             });
       }
       finally {
-         lock.unlock();
+         unlock();
       }
-   }
-
-   /**
-    * Send monitoring data to a subscriber. Loads and returns data from the data cache.
-    */
-   private void sendToSubscriber(MonitoringSubscriber subscriber) {
-      final Object monitoringData = dataCache.get(subscriber, subscriber::get);
-
-      if(monitoringData == null) {
-         LOG.warn("Monitoring data is missing: " + subscriber.supplier);
-         return;
-      }
-
-      final String subscriptionId = subscriber.getSubscriptionId();
-      final String destination = subscriber.getLookupDestination();
-      final String sessionId = subscriber.getSessionId();
-
-      // create headers to send to session
-      SimpMessageHeaderAccessor headerAccessor = StompHeaderAccessor.create();
-      headerAccessor.setSubscriptionId(subscriptionId);
-      headerAccessor.setDestination(destination);
-      headerAccessor.setSessionId(sessionId);
-      headerAccessor.setLeaveMutable(true);
-      headerAccessor.setUser(subscriber.getUser());
-      final MessageHeaders headers = headerAccessor.getMessageHeaders();
-      messageTemplate.convertAndSendToUser(sessionId, destination, monitoringData, headers);
    }
 
    /**
@@ -241,7 +191,7 @@ public class MonitoringDataService {
          getSubscriptions().map(SimpSubscription::getDestination)
                            .collect(Collectors.toSet());
 
-      subscribers.removeIf(subscriber -> {
+      getSubscribers().removeIf(subscriber -> {
          final String destination = subscriber.getDestination();
          final String sessionId = subscriber.getSessionId();
          final String subscriptionId = subscriber.getSubscriptionId();
@@ -269,7 +219,7 @@ public class MonitoringDataService {
          .flatMap((session) -> session.getSubscriptions().stream());
    }
 
-   private static class MonitoringSubscriber {
+   private static class MonitoringSubscriber extends BaseSubscriber {
       public MonitoringSubscriber(String sessionId,
                                   String subscriptionId,
                                   String lookupDestination,
@@ -277,28 +227,8 @@ public class MonitoringDataService {
                                   Supplier<?> supplier,
                                   Principal principal)
       {
-         this.sessionId = sessionId;
-         this.subscriptionId = subscriptionId;
-         this.lookupDestination = lookupDestination;
-         this.destination = destination;
+         super(sessionId, subscriptionId, lookupDestination, destination, principal);
          this.supplier = supplier;
-         this.principal = principal;
-      }
-
-      public String getSessionId() {
-         return sessionId;
-      }
-
-      public String getSubscriptionId() {
-         return subscriptionId;
-      }
-
-      public String getLookupDestination() {
-         return lookupDestination;
-      }
-
-      public String getDestination() {
-         return destination;
       }
 
       public Object get() {
@@ -327,10 +257,6 @@ public class MonitoringDataService {
          return result;
       }
 
-      public Principal getUser() {
-         return principal;
-      }
-
       @Override
       public boolean equals(Object o) {
          if(this == o) {
@@ -342,44 +268,34 @@ public class MonitoringDataService {
 
          MonitoringSubscriber that = (MonitoringSubscriber) o;
 
-         if(!sessionId.equals(that.sessionId)) {
+         if(!getSessionId().equals(that.getSessionId())) {
             return false;
          }
-         if(!subscriptionId.equals(that.subscriptionId)) {
+         if(!getSubscriptionId().equals(that.getSubscriptionId())) {
             return false;
          }
-         if(!destination.equals(that.destination)) {
+         if(!getDestination().equals(that.getDestination())) {
             return false;
          }
-         if(!lookupDestination.equals(that.lookupDestination)) {
+         if(!getLookupDestination().equals(that.getLookupDestination())) {
             return false;
          }
+
          return supplier.equals(that.supplier);
       }
 
       @Override
       public int hashCode() {
-         int result = sessionId.hashCode();
-         result = 31 * result + subscriptionId.hashCode();
-         result = 31 * result + destination.hashCode();
-         result = 31 * result + lookupDestination.hashCode();
+         int result = supplier.hashCode();
          result = 31 * result + supplier.hashCode();
          return result;
       }
 
-      private final String sessionId;
-      private final String subscriptionId;
-      private final String destination;
-      private final String lookupDestination;
       private final Supplier<?> supplier;
-      private final Principal principal;
    }
 
-   private final SimpUserRegistry userRegistry;
-   private final SimpMessagingTemplate messageTemplate;
-   private final Set<MonitoringSubscriber> subscribers = new HashSet<>();
    private final ConcurrentMapCache dataCache = new ConcurrentMapCache("MonitoringCache");
-   private final Lock lock = new ReentrantLock();
+   private final SimpUserRegistry userRegistry;
    private final Debouncer<String> debouncer;
    private static final Logger LOG = LoggerFactory.getLogger(MonitoringDataService.class);
 }
