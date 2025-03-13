@@ -44,7 +44,8 @@ export class TimeZoneService {
       const localTimeZone = <TimeZoneModel>{
          timeZoneId: localTimeZoneId,
          label: this.getTimeZoneName(localTimeZoneId) + " (_#(js:em.scheduler.localtimezone))",
-         hourOffset: ""
+         hourOffset: "",
+         minuteOffset: this.calculateTimezoneOffset(localTimeZoneId) / 60000
       };
 
       if(timeZoneOptions[0].label != localTimeZone.label) {
