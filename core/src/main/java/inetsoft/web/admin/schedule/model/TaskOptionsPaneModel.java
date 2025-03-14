@@ -94,6 +94,9 @@ public abstract class TaskOptionsPaneModel {
    }
 
    @Nullable
+   public abstract String idAlias();
+
+   @Nullable
    public abstract String ownerAlias();
 
    public static Builder builder() {

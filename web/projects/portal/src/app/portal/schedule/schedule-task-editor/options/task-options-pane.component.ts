@@ -146,8 +146,15 @@ export class TaskOptionsPane implements OnInit {
    }
 
    private getExecuteAsName(): void {
-      const idName: string = this._model.idName == null ? this._model.owner
-         : this._model.idName;
+      let idName = this._model.owner;
+
+      if(this._model.idName != null) {
+         idName = this._model.idAlias == null ? this._model.idName : this._model.idAlias;
+      }
+      else if(this._model.ownerAlias != null) {
+         idName = this._model.ownerAlias;
+      }
+
       let _executeAsName = "";
 
       if(this.adminName && !this._model.securityEnabled) {
@@ -208,9 +215,10 @@ export class TaskOptionsPane implements OnInit {
 
    public openExecuteAsDialog(): void {
       let dialog: ExecuteAsDialog = ComponentTool.showDialog(this.modalService, ExecuteAsDialog,
-         (identity: {name: string, type: number}) => {
+         (identity: {name: string, type: number, alias?: string}) => {
             this._model.idName = identity.name;
             this._model.idType = identity.type;
+            this._model.idAlias = identity.alias;
             this.getExecuteAsName();
          });
 

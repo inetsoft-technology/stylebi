@@ -27,6 +27,7 @@ export interface TaskOptionsPaneModel {
    securityEnabled: boolean;
    idName: string;
    idType: number;
+   idAlias?: string;
    ownerAlias?: string;
    organizationName: string;
    selfOrg?: boolean;
