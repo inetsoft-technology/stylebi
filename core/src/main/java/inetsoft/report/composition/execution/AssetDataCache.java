@@ -113,6 +113,15 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
       TableFilter2 filter = (TableFilter2) cache.get(key, ts);
 
+      if(filter == null) {
+         DistributedTableCache distributedCache = DistributedTableCache.getInstance();
+         filter = (TableFilter2) distributedCache.get(key);
+
+         if(filter != null) {
+            cache.put(key, filter);
+         }
+      }
+
       if(filter != null && (filter.isChanged() || isCancelled(filter))) {
          filter = null;
       }
@@ -1140,6 +1149,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    public synchronized CacheEntry<DataKey, TableLens> put(DataKey key, TableLens data, long timeout)
    {
       CacheEntry<DataKey, TableLens> entry = super.put(key, data, timeout);
+      DistributedTableCache distributedCache = DistributedTableCache.getInstance();
+      distributedCache.put(key, data);
       lockEntries.get().monitor(entry);
       return entry;
    }
