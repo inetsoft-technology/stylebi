@@ -2071,15 +2071,28 @@ public class IdentityService {
          return new IdentityID(nIdentityName, norgID).convertToKey();
       }
 
-      if(type == ResourceType.SCHEDULE_TASK && changeIdentityType == Identity.USER) {
-         IdentityID oldIdentityID = new IdentityID(oIdentityName, oorgID);
-         IdentityID newIdentityID = new IdentityID(nIdentityName, norgID);
-         ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(secondPath);
+      if(type == ResourceType.SCHEDULE_TASK) {
+         if(changeIdentityType == Identity.USER) {
+            IdentityID oldIdentityID = new IdentityID(oIdentityName, oorgID);
+            IdentityID newIdentityID = new IdentityID(nIdentityName, norgID);
+            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(secondPath);
 
-         if(Tool.equals(taskMetaData.getTaskOwnerId(), oldIdentityID.convertToKey())) {
-            taskMetaData.setTaskOwnerId(newIdentityID.convertToKey());
+            if(Tool.equals(taskMetaData.getTaskOwnerId(), oldIdentityID.convertToKey())) {
+               taskMetaData.setTaskOwnerId(newIdentityID.convertToKey());
 
-            return taskMetaData.getTaskId();
+               return taskMetaData.getTaskId();
+            }
+         }
+         else if(changeIdentityType == Identity.ORGANIZATION) {
+            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(secondPath);
+            IdentityID ownerIdentityID = IdentityID.getIdentityIDFromKey(taskMetaData.getTaskOwnerId());
+
+            if(ownerIdentityID != null && Tool.equals(ownerIdentityID.getOrgID(), oorgID)) {
+               ownerIdentityID = new IdentityID(ownerIdentityID.getName(), norgID);
+               taskMetaData.setTaskOwnerId(ownerIdentityID.convertToKey());
+
+               return taskMetaData.getTaskId();
+            }
          }
       }
 
