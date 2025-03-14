@@ -566,7 +566,16 @@ public class RuntimeViewsheet extends RuntimeSheet {
     */
    public boolean gotoBookmark(String name, IdentityID user) throws Exception {
       boolean isHome = VSBookmark.HOME_BOOKMARK.equals(name);
-      VSBookmark bookmark = getUserBookmark(user);
+      VSBookmark bookmark = null;
+
+      if(bookmarkUpdated(name, user)) {
+         bookmark = rep.getVSBookmark(entry, new XPrincipal(user));
+         bookmarksMap.put(user.convertToKey(), bookmark);
+      }
+      else {
+         bookmark = getUserBookmark(user);
+      }
+
       Viewsheet processedViewsheet = null;
 
       // @by davidd bug1370989280980, If goto Home bookmark but it does not
