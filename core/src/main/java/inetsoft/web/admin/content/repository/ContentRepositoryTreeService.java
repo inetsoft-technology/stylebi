@@ -419,14 +419,15 @@ public class ContentRepositoryTreeService {
             }
 
             String[] attrs = Tool.split(asset, '^');
+            String nullUser = new IdentityID("_NULL_",Organization.getDefaultOrganizationID()).convertToKey();
 
             if(attrs.length > 3) {
                String type = attrs[1];
                String user = attrs[2];
                String name = attrs[3];
-               user = "anonymous".equals(user) ? "_NULL_" : user;
+               user = "anonymous".equals(user) ? nullUser : user;
 
-               if(!Tool.equals(user, "_NULL_") && userNode.user != null &&
+               if(!Tool.equals(user, nullUser) && userNode.user != null &&
                   !user.equals(userNode.user.convertToKey()))
                {
                   continue;
@@ -500,10 +501,11 @@ public class ContentRepositoryTreeService {
          unodes.add(ws);
          unodes.add(vs);
          IdentityID userID = IdentityID.getIdentityIDFromKey(user);
+         String nullUser = new IdentityID("_NULL_",Organization.getDefaultOrganizationID()).convertToKey();
 
          userNodes.add(ContentRepositoryTreeNode.builder()
-                 .label("_NULL_".equals(user) ? "anonymous" : userID == null ? user : userID.getName())
-                 .path("_NULL_".equals(user) ? "anonymous" : user)
+                 .label(nullUser.equals(user) ? "anonymous" : userID == null ? user : userID.getName())
+                 .path(nullUser.equals(user) ? "anonymous" : user)
                  .type(AUTO_SAVE_FOLDER)
                  .owner(null)
                  .children(unodes)
