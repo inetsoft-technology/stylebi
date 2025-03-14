@@ -77,12 +77,14 @@ public class ScheduleTaskService {
    public ScheduleTaskDialogModel getNewTaskDialogModel(PortalNewTaskRequest model,
                                                         Principal principal) throws Exception
    {
-      return getNewTaskDialogModel(model.getConditionModel(), principal, true, false, model.getParentEntry());
+      return getNewTaskDialogModel(model.getConditionModel(), principal, true, false,
+         model.getParentEntry(), null);
    }
 
    public ScheduleTaskDialogModel getNewTaskDialogModel(ScheduleConditionModel model,
                                                         Principal principal, boolean save,
-                                                        boolean em,  AssetEntry parent)
+                                                        boolean em,  AssetEntry parent,
+                                                        String timeZoneId)
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
@@ -130,6 +132,10 @@ public class ScheduleTaskService {
          ((TimeCondition) condition).setHourEnd(1);
          ((TimeCondition) condition).setMinuteEnd(30);
          ((TimeCondition) condition).setSecondEnd(0);
+
+         if(timeZoneId != null) {
+            ((TimeCondition) condition).setTimeZone(TimeZone.getTimeZone(timeZoneId));
+         }
       }
 
       ScheduleTask task = new ScheduleTask(taskName);
