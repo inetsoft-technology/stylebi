@@ -64,5 +64,9 @@ export class TabularBooleanEditor implements OnInit, OnChanges {
             }
          }
       }
+
+      if(changes["value"] && changes["value"].currentValue != this.value) {
+         this.valueControl.setValue(changes["value"].currentValue, {emitEvent: false});
+      }
    }
 }
