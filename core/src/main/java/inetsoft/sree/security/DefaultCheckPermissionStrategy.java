@@ -207,12 +207,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          if(isOrgAdministrator && type == ResourceType.EM_COMPONENT &&
             "settings/content/data-space".equals(resource))
          {
-            if(Tool.equals(organization, Organization.getDefaultOrganizationID())) {
-               return true;
-            }
-            else {
-               return false;
-            }
+            return false;
          }
 
          if(isOrgAdministrator) {
