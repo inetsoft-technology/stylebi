@@ -1557,6 +1557,7 @@ public class IdentityService {
                   user.setPasswordAlgorithm(npw.getAlgorithm());
                   user.setPasswordSalt(null);
                   user.setAppendPasswordSalt(false);
+                  logoutSession(oIdentity);
                }
             }
          }
