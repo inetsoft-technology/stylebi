@@ -886,6 +886,10 @@ public class ScheduleTaskService {
 
          model.idName(idName.getName());
          model.idType(type);
+
+         if(type == Identity.Type.USER.code()) {
+            model.idAlias(((User) task.getIdentity()).getAlias());
+         }
       }
 
 //      if(SUtil.isAdmin(principal)) {

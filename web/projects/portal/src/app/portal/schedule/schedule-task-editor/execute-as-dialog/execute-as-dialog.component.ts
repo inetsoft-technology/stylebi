@@ -32,7 +32,7 @@ import { SearchComparator } from "../../../../widget/tree/search-comparator";
 })
 export class ExecuteAsDialog {
    @Input() type: number;
-   @Output() onCommit: EventEmitter<{name: string, type: number}> =
+   @Output() onCommit: EventEmitter<{name: string, type: number, alias?: string}> =
       new EventEmitter<{name: string, type: number}>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    @ViewChild("searchIdentityTree") searchIdentityTree: IdentityTreeComponent;
@@ -212,7 +212,9 @@ export class ExecuteAsDialog {
       {
          this.onCommit.emit({
             name: (<IdentityId> this.selectedNode.data).name,
-            type: parseInt(this.selectedNode.type)
+            type: parseInt(this.selectedNode.type),
+            alias: this.selectedNode.type === IdentityType.USER.toString() ?
+               this.selectedNode.alias : null
          });
       }
    }
