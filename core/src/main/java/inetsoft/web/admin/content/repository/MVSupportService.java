@@ -317,6 +317,28 @@ public class MVSupportService {
     *
     */
    private String createMVForeground(List<MVStatus> views, boolean noData, Principal principal) {
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
+
+      try {
+         ThreadContext.setContextPrincipal(principal);
+         return createMVForeground0(views, noData, principal);
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldPrincipal);
+      }
+   }
+   /**
+    * Creates a set of materialized views.
+    *
+    * @param views     the materialized views being created.
+    * @param noData    <tt>true</tt> if no data should be generated for the
+    *                  materialized views at this time.</tt>
+    * @param principal the principal that identifies the current user.
+    *
+    * @return any warning messages generated during the creation process.
+    *
+    */
+   private String createMVForeground0(List<MVStatus> views, boolean noData, Principal principal) {
       MVManager manager = MVManager.getManager();
       final String prefix = principal.getName() + ":";
       ScheduleTask task = new ScheduleTask(
