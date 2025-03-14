@@ -17,6 +17,8 @@
  */
 package inetsoft.uql;
 
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.*;
@@ -499,6 +501,10 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
 
    public void setStatus(Status status) {
       this.status = status;
+   }
+
+   public boolean displayAPIKeyTip() {
+      return !LicenseManager.getInstance().isEnterprise() && Tool.isEmptyString(SreeEnv.getProperty("license.key"));
    }
 
    private String name;

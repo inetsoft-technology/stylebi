@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.rest;
 
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ListedDataSource;
 import inetsoft.uql.XFactory;
 import inetsoft.uql.rest.auth.*;
@@ -61,6 +63,8 @@ import java.util.*;
                method = "updateTokens",
                oauth = @Button.OAuth)
          ),
+         @View2(type = ViewType.LABEL, text = "em.license.communityAPIKeyRequired", align = ViewAlign.FILL,
+            wrap = true, colspan = 2, visibleMethod ="displayAPIKeyTip"),
          @View2(value = "accessToken", visibleMethod = "isOauth"),
          @View2(value = "refreshToken", visibleMethod = "isOauth")
       }
