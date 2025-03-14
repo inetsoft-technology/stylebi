@@ -336,8 +336,11 @@ public class ScheduleConditionService {
          }
 
          value = parameterValue.getValue();
-      }
 
+         if(value instanceof Date) {
+            return parameterValue.getDataType();
+         }
+      }
 
       if(value instanceof Boolean) {
          type = XSchema.BOOLEAN;
