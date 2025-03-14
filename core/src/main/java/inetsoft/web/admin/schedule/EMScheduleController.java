@@ -46,6 +46,8 @@ import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.security.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.bind.annotation.*;
 
 import java.awt.*;
@@ -59,12 +61,14 @@ import java.util.*;
 public class EMScheduleController {
    @Autowired
    public EMScheduleController(ScheduleManager scheduleManager, ScheduleService scheduleService,
-                               ScheduleTaskService taskService, ScheduleTaskFolderService taskFolderService)
+                               ScheduleTaskService taskService, ScheduleTaskFolderService taskFolderService,
+                               ScheduleUsersChangeService usersChangeService)
    {
       this.scheduleService = scheduleService;
       this.scheduleManager = scheduleManager;
       this.taskService = taskService;
       this.taskFolderService = taskFolderService;
+      this.usersChangeService = usersChangeService;
    }
 
    /**
@@ -191,6 +195,11 @@ public class EMScheduleController {
             throw new MessageException(e.getMessage());
          }
       }
+   }
+
+   @SubscribeMapping("/schedule/users-change")
+   public void subscribeToDataCycleNames(StompHeaderAccessor stompHeaderAccessor) {
+      this.usersChangeService.addSubscriber(stompHeaderAccessor);
    }
 
    @GetMapping("/api/em/schedule/users-model")
@@ -489,4 +498,5 @@ public class EMScheduleController {
    private final ScheduleManager scheduleManager;
    private final ScheduleTaskService taskService;
    private final ScheduleTaskFolderService taskFolderService;
+   private final ScheduleUsersChangeService usersChangeService;
 }

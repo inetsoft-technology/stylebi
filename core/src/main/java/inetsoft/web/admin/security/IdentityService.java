@@ -29,6 +29,7 @@ import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
@@ -50,6 +51,7 @@ import inetsoft.util.css.CSSDictionary;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoriteList;
+import inetsoft.web.admin.schedule.IdentityChangedMessage;
 import inetsoft.web.admin.security.user.*;
 
 import java.io.*;
@@ -1426,6 +1428,8 @@ public class IdentityService {
             setOrganizationInfo((FSOrganization) identity, (EditOrganizationPaneModel) model,
                                 eprovider, principal);
          }
+
+         Cluster.getInstance().sendMessage(new IdentityChangedMessage(type, identity.getIdentityID()));
       }
       catch(Exception e) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
