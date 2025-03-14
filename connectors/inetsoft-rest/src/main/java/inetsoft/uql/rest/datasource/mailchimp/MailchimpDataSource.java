@@ -28,9 +28,9 @@ import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
+   @View1("datacenter"),
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
-   @View1(value = "datacenter", visibleMethod = "useCredential"),
    @View1(value = "apiKey", visibleMethod = "useCredential"),
    @View1("URL")
 })
@@ -48,7 +48,6 @@ public class MailchimpDataSource extends EndpointJsonDataSource<MailchimpDataSou
    }
 
    @Property(label = "Data Center", required = true)
-   @PropertyEditor(dependsOn = "useCredentialId")
    public String getDatacenter() {
       return datacenter;
    }
