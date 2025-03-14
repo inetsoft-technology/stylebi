@@ -44,6 +44,8 @@ public class PermissionChecker {
    public boolean checkPermission(Identity identity, Permission permission,
                                   ResourceAction action, boolean recursive) {
       this.info = new ArrayList<>();
+      String orgID = identity != null ? identity.getOrganizationID() :
+         OrganizationManager.getInstance().getCurrentOrgID();
       boolean useAnd = "true".equals(andCond.get());
       boolean userGroupPermission = checkUserGroupPermission(identity,
          permission, action, recursive, info);
@@ -51,10 +53,10 @@ public class PermissionChecker {
       boolean rolePermission = checkRolePermission(identity, permission, action,
          recursive, info);
       boolean isUserGroupEmpty =
-         isEmptyPermission(permission, Identity.USER, action, identity.getOrganizationID()) &&
-         isEmptyPermission(permission, Identity.GROUP, action, identity.getOrganizationID());
+         isEmptyPermission(permission, Identity.USER, action, orgID) &&
+         isEmptyPermission(permission, Identity.GROUP, action, orgID);
       boolean isRoleEmpty =
-         isEmptyPermission(permission, Identity.ROLE, action, identity.getOrganizationID());
+         isEmptyPermission(permission, Identity.ROLE, action, orgID);
 
       // Only read/write/delete type permission can call this. To other type
       // permission, if the two permission is empty, it will not call this but
