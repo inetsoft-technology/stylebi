@@ -146,9 +146,13 @@ export class AppComponent implements OnInit, OnDestroy {
       // TODO: display a message of some kind
    }
 
-   notify(notification: any, width?: string): void {
+   notify(notification: any, width?: string, duration?: number): void {
       this.notificationMessage = notification.message;
-      this.dialog.open(this.notificationDialog, { width: !!width ? width : "350px" });
+      const dialog = this.dialog.open(this.notificationDialog, { width: !!width ? width : "350px" });
+
+      if(!!duration) {
+         setTimeout(() => { dialog.close(); }, duration);
+      }
    }
 
    private showExpirationDialog(model: SessionExpirationModel): void {
@@ -213,7 +217,7 @@ export class AppComponent implements OnInit, OnDestroy {
 
    private showEditOrgMessage(message: any) {
       if(!!message) {
-         this.notify({message: message},  "600px");
+         this.notify({message: message},  "600px", 5000);
       }
    }
 }

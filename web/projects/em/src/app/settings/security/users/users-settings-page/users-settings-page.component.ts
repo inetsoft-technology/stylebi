@@ -186,6 +186,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    public newOrganization(parentGroup: string) {
+      this.loading = true;
       const uri = "../api/em/security/users/create-organization/" + Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.post<EditOrganizationPaneModel>(uri, {parentGroup})
          .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
@@ -194,6 +195,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                let id: IdentityId = {name: model.name, orgID: model.id};
                this.refreshTree(id, IdentityType.ORGANIZATION);
             }
+
+            this.loading = false;
          });
    }
 
