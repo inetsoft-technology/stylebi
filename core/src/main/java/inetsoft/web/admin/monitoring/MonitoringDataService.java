@@ -286,7 +286,7 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
 
       @Override
       public int hashCode() {
-         int result = supplier.hashCode();
+         int result = super.hashCode();
          result = 31 * result + supplier.hashCode();
          return result;
       }
