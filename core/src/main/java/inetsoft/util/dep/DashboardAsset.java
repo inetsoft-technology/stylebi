@@ -295,6 +295,13 @@ public class DashboardAsset extends AbstractXAsset {
          if(cls != null) {
             board = new VSDashboard();
             board.parseXML(node);
+
+            // Update vs to use current org's ID
+            String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+            AssetEntry assetEntry = AssetEntry.createAssetEntry(((VSDashboard) board).getViewsheet().getIdentifier());
+            assetEntry = assetEntry.cloneAssetEntry(currOrgID, "");
+            ((VSDashboard) board).getViewsheet().setIdentifier(assetEntry.toIdentifier());
+
             registry.addDashboard(dashboard, board);
             registry.save();
          }
