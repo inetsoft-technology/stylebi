@@ -29,7 +29,7 @@ import {
    templateUrl: "formatting-pane.component.html",
    styleUrls: ["formatting-pane.component.scss"]
 })
-export class FormattingPane implements OnInit {
+export class FormattingPane {
    @Input() formatModel: FormatInfoModel;
    @Input() dynamic: boolean = false;
    @Input() vsId: string = null;
@@ -72,17 +72,6 @@ export class FormattingPane implements OnInit {
          "\u00A4#,##0.00;(\u00A4#,##0.00)"];
 
       this.durationFmts = ["", "dd HH:mm", "dd HH:mm:ss", "HH:mm", "HH:mm:ss", "mm", "mm:ss", "ss"];
-   }
-
-   ngOnInit() {
-      this.getDecimalFormats();
-
-      if(this.formatModel.format == "DecimalFormat") {
-         if(this.decimalFmts.indexOf(this.formatModel.formatSpec) == -1) {
-            this.formatModel.format = null;
-            this.formatModel.formatSpec = null;
-         }
-      }
    }
 
    getDecimalFormats(): string[] {
