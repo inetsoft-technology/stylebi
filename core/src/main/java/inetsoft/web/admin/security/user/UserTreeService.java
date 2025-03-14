@@ -900,10 +900,6 @@ public class UserTreeService {
          throw e;
       }
       finally {
-         if(newOrgId != null) {
-            fireCreateOrganizationEvent(EditOrganizationEvent.FINSHED, copyFromOrgID, newOrgId, principal);
-         }
-
          ThreadContext.setContextPrincipal(oldPrincipal);
          Audit.getInstance().auditAction(actionRecord, principal);
 
