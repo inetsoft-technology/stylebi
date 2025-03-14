@@ -44,6 +44,8 @@ import org.apache.http.HttpHeaders;
             )
          )
       }),
+   @View1(type = ViewType.LABEL, text = "em.license.communityAPIKeyRequired", align = ViewAlign.FILL,
+      wrap = true, colspan = 2, visibleMethod ="displayAPIKeyTip"),
    @View1("accessToken"),
 })
 public class GitHubDataSource extends OAuthEndpointJsonDataSource<GitHubDataSource> {

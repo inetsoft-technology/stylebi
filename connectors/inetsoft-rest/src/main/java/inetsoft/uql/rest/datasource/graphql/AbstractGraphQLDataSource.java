@@ -48,6 +48,8 @@ import inetsoft.util.credential.CredentialType;
                method = "updateTokens",
                oauth = @Button.OAuth)
          ),
+         @View2(type = ViewType.LABEL, text = "em.license.communityAPIKeyRequired", align = ViewAlign.FILL,
+            wrap = true, colspan = 2, visibleMethod ="displayAPIKeyTip"),
          @View2(value = "accessToken", visibleMethod = "isOauth"),
          @View2(value = "refreshToken", visibleMethod = "isOauth")
       }

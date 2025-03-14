@@ -40,6 +40,8 @@ import java.util.concurrent.TimeUnit;
          type = ButtonType.OAUTH,
          method = "updateTokens",
          oauth = @Button.OAuth(serviceName = "adobe-analytics"))),
+   @View1(type = ViewType.LABEL, text = "em.license.communityAPIKeyRequired", align = ViewAlign.FILL,
+      wrap = true, colspan = 2, visibleMethod ="displayAPIKeyTip"),
    @View1("accessToken"),
    @View1("refreshToken"),
    @View1("tokenExpiration")
