@@ -563,7 +563,7 @@ public class ScheduleService {
       builder.timeFormat(dtfmt);
       builder.showOwners(isSecurityEnabled());
 
-      Map<String, TaskActivity> taskActivities = getTaskActivities();
+      Map<String, TaskActivity> taskActivities = getTaskActivities(false);
       AssetEntry[] entries = null;
 
       if(parentEntry != null) {
