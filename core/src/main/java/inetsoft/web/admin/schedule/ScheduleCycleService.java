@@ -354,6 +354,7 @@ public class ScheduleCycleService {
       if(orgID == null || !SUtil.isMultiTenant() ) {
          orgID = Organization.getDefaultOrganizationID();
       }
+
       return new IdentityID(name, orgID).convertToKey();
    }
 
