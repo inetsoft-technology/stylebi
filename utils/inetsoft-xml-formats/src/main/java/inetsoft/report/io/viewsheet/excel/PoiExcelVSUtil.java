@@ -2017,14 +2017,16 @@ public class PoiExcelVSUtil {
          }
       }
 
-      if(sheetName.contains(" ")) {
-         sheetName = "'" + sheetName + "'";
-      }
-
+      // export form server, the sheet name of RefersToFormula always quoted, see PoiExcelVSUtil#setCellName.
+      // after edit sheet, the quote will be auto removed.
+      // so use them together to match
+      String quotedCellRef = "'" + sheetName + "'" + getCellReference(new Cell[] {cell});
       String cellRef = sheetName + getCellReference(new Cell[] {cell});
 
       for(int i = 0; i < sheetNames.size(); i++) {
-         if(sheetNames.get(i).getRefersToFormula().equals(cellRef)) {
+         String refersFormula = sheetNames.get(i).getRefersToFormula();
+
+         if(Tool.equals(refersFormula, quotedCellRef) || Tool.equals(refersFormula, cellRef)) {
             return sheetNames.get(i);
          }
       }
