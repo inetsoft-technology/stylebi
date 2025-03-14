@@ -35,6 +35,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.viewsheet.controller.dialog.ExportDialogController;
@@ -252,12 +253,14 @@ public class VSEmailService {
                         break;
                      }
 
-                     if(!currUser.equals(bminfo.getOwner())) {
+                     IdentityID owner = bminfo.getOwner();
+
+                     if(!currUser.equals(owner)) {
                         if(VSBookmarkInfo.PRIVATE == bminfo.getType()) {
                            continue;
                         }
                         else if(VSBookmarkInfo.GROUPSHARE == bminfo.getType() &&
-                           !rvs.isSameGroup(bminfo.getOwner(), currUser)) {
+                           !rvs.isSameGroup(owner, currUser)) {
                            continue;
                         }
                      }
@@ -268,8 +271,8 @@ public class VSEmailService {
                      }
 
                      if(book.equals(bminfo.getName()) ||
-                        book.equals(bminfo.getName() +
-                                       "(" + bminfo.getOwner() + ")")) {
+                        book.equals(bminfo.getName() + "(" + VSUtil.getUserAlias(owner) + ")"))
+                     {
                         binfo = bminfo;
                         break;
                      }
