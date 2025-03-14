@@ -30,6 +30,8 @@ import inetsoft.util.credential.CredentialType;
          type = ButtonType.OAUTH,
          method = "updateTokens",
          oauth = @Button.OAuth(serviceName = XeroDataSource.SERVICE_NAME))),
+   @View1(type = ViewType.LABEL, text = "em.license.communityAPIKeyRequired", align = ViewAlign.FILL,
+      wrap = true, colspan = 2),
    @View1("accessToken"),
    @View1("refreshToken"),
    @View1("tokenExpiration")

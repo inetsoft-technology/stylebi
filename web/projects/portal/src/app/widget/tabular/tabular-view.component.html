@@ -29,7 +29,7 @@
                [style.padding-right.px]="cell.view.paddingRight"
                [style.padding-top.px]="cell.view.paddingTop"
                [style.padding-bottom.px]="cell.view.paddingBottom">
-            <div *ngIf="cell.type === 'COMPONENT' || cell.type === 'LABEL'"
+            <div *ngIf="cell.type === 'COMPONENT' || (cell.type === 'LABEL' && cell.view.text == 'authorization.note')"
                  [class.form-floating]="cell.type === 'COMPONENT' && cell.view.editor.type !== 'REST_PARAMETERS'"
                  [class.list-group-item]="cell.type == 'COMPONENT' && cell.view.editor.subtype == 'HTTP_PARAMETER'"
                  [class.not-selectable]="cell.type == 'COMPONENT' && cell.view.editor.subtype == 'HTTP_PARAMETER'"
@@ -159,6 +159,10 @@
                 <span class="align-middle" [class.pl-1]="cell.view?.button?.loading">{{cell.view.displayLabel}}</span>
               </ng-container>
             </button>
+            <div *ngIf="(cell.type === 'LABEL' && cell.view.text == 'em.license.communityAPIKeyRequired')"
+                 [style.color]="cell.view.color" [style.font]="cell.view.font">
+              <label [innerHTML]="cell.view.displayLabel"></label>
+            </div>
             <div *ngIf="cell.type === 'PANEL'">
               <label *ngIf="cell.view.displayLabel" [style.color]="cell.view.color"
                      [style.font]="cell.view.font">

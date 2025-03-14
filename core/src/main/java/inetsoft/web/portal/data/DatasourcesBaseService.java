@@ -139,7 +139,7 @@ public abstract class DatasourcesBaseService {
          .license(license);
 
       if(!LicenseManager.getInstance().isEnterprise() && (license == null || license.isEmpty())) {
-         return builder.error(Catalog.getCatalog().getString("em.license.communityLicenseRequired"))
+         return builder.error(Catalog.getCatalog().getString("em.license.communityAPIKeyMissing"))
             .build();
       }
 

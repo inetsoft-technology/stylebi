@@ -59,6 +59,8 @@ import java.util.*;
                )
             )
          }),
+      @View1(type = ViewType.LABEL, text = "em.license.communityAPIKeyRequired", align = ViewAlign.FILL,
+         wrap = true, colspan = 2, visibleMethod ="displayAPIKeyTip"),
       @View1("accessToken"),
       @View1("refreshToken"),
       @View1("tokenExpiration")
