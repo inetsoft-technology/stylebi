@@ -95,7 +95,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     */
    public Set<IdentityID> getOrgScopedUserGrants(ResourceAction action, Organization organization) {
       String thisOrgID = organization == null ? globalOrgId : organization.getId();
-      return getUserGrants(action).stream()
+      return getAllUserGrants(action).stream()
          .filter(pId -> thisOrgID.equals(pId.organizationID) ||
             globalOrgId.equals(pId.organizationID))
          .map(pI -> new IdentityID(pI.name, thisOrgID))
@@ -162,7 +162,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
 
    public Set<IdentityID> getOrgScopedRoleGrants(ResourceAction action, Organization organization) {
       String thisOrgID = organization == null ? globalOrgId : organization.getOrganizationID();
-      return getRoleGrants(action).stream()
+      return getAllRoleGrants(action).stream()
          .filter(pId -> thisOrgID.equals(pId.organizationID) ||
             globalOrgId.equals(pId.organizationID))
          .map(pI -> new IdentityID(pI.name, globalOrgId.equals(pI.organizationID) ? null : thisOrgID))
@@ -255,7 +255,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     */
    public Set<IdentityID> getOrgScopedGroupGrants(ResourceAction action, Organization organization) {
       String thisOrgID = organization == null ? globalOrgId : organization.getOrganizationID();
-      return getGroupGrants(action).stream()
+      return getAllGroupGrants(action).stream()
          .filter(pId -> thisOrgID.equals(pId.organizationID) ||
             globalOrgId.equals(pId.organizationID))
          .map(pI -> new IdentityID(pI.name, thisOrgID))
@@ -331,7 +331,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     */
    public Set<IdentityID> getOrgScopedOrganizationGrants(ResourceAction action, String orgId) {
       String thisOrgID = orgId == null ? globalOrgId : orgId;
-      return getOrganizationGrants(action).stream()
+      return getAllOrganizationGrants(action).stream()
          .filter(pId -> thisOrgID.equals(pId.organizationID) ||
                         globalOrgId.equals(pId.organizationID))
          .map(pI -> new IdentityID(pI.name, thisOrgID))
