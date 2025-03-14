@@ -796,9 +796,15 @@ public class DeployManagerService {
                   changeAssetMap.put(entry, getAssetObjectByAsset(nAsset));
                }
 
-               importAsset(file, nAsset, ignoreSub, failedList, embeddedTables,
-                  ignoreAssets, vss, overwriting, actionRecord, info, desktop, config,
-                  space, principal);
+               try {
+                  IS_IMPORTING.set(true);
+                  importAsset(file, nAsset, ignoreSub, failedList, embeddedTables,
+                              ignoreAssets, vss, overwriting, actionRecord, info, desktop, config,
+                              space, principal);
+               }
+               finally {
+                  IS_IMPORTING.remove();
+               }
             }
 
             for(int i = 0; i < unImportedFile.size(); i++) {
@@ -2035,5 +2041,6 @@ public class DeployManagerService {
       }
    }
 
+   public static final ThreadLocal<Boolean> IS_IMPORTING = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(DeployManagerService.class);
 }
