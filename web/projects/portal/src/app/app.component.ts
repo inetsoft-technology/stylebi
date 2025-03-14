@@ -96,12 +96,24 @@ export class AppComponent implements OnInit, OnDestroy {
             (message) => this.zone.run(() => this.notify(JSON.parse(message.frame.body)))));
          this.subscription.add(connection.subscribe(
             "/user/session-expiration",
-            (message) => this.zone.run(
-               () => this.showExpirationDialog(JSON.parse(message.frame.body)))));
+            (message) => {
+               const parsedMessage = JSON.parse(message.frame.body);
+               localStorage.setItem("session-expiration", JSON.stringify({data: parsedMessage, timestamp: Date.now()}));
+               this.zone.run(() => this.showExpirationDialog(parsedMessage));
+            })
+         );
          this.subscription.add(connection.subscribe(
             "/user/license-changed",
             (message) => this.zone.run(
                () => this.processCloudLicenseStateChange(JSON.parse(message.frame.body)))));
+      });
+
+
+      window.addEventListener("storage", (event) => {
+         if (event.key === "session-expiration" && event.newValue) {
+            const parsedMessage = JSON.parse(event.newValue);
+            this.zone.run(() => this.showExpirationDialog(parsedMessage.data));
+         }
       });
 
       this.ssoHeartbeatDispatcher.dispatch();
