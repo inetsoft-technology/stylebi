@@ -444,7 +444,11 @@ public class RepositoryDashboardService {
       while(iterator.hasNext()) {
          IdentityID elem = iterator.next();
 
-         if(grants.contains(elem.name)) {
+         //exempt previously enabled admin from being removed by permission change
+         boolean isAdmin = OrganizationManager.getInstance().isSiteAdmin(elem) ||
+                           OrganizationManager.getInstance().isOrgAdmin(elem);
+
+         if(isAdmin || grants.contains(elem.name)) {
             iterator.remove();
          }
       }
