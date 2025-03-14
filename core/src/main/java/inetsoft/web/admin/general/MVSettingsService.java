@@ -36,6 +36,8 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.*;
 
+import static inetsoft.web.admin.schedule.ScheduleCycleService.getCyclePermissionID;
+
 @Service
 public class MVSettingsService {
    public MVSettingsService(MVSupportService mvSupport, SecurityEngine securityEngine) {
@@ -54,7 +56,7 @@ public class MVSettingsService {
             String cycleName = cycles.nextElement();
 
             if(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
-                                              cycleName, ResourceAction.ACCESS))
+                                              getCyclePermissionID(cycleName, orgId), ResourceAction.ACCESS))
             {
                cycleNames.add(cycleName);
             }

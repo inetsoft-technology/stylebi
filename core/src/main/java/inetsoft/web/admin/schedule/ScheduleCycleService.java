@@ -57,10 +57,11 @@ public class ScheduleCycleService {
 
    public DataCycleListModel getCycleInfos(Principal principal) throws Exception {
       List<DataCycleInfo> dataCycleInfoList = new ArrayList<>();
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(DataCycleInfo cycleInfo : schedulerMonitoringService.getCycleInfo()) {
          if(securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
-                                           cycleInfo.getName(), ResourceAction.ACCESS))
+                                           getCyclePermissionID(cycleInfo.getName(), orgId), ResourceAction.ACCESS))
          {
             dataCycleInfoList.add(cycleInfo);
          }
@@ -85,7 +86,7 @@ public class ScheduleCycleService {
 
       boolean noDefaultTime = "false".equals(SreeEnv.getProperty("schedule.condition.taskDefaultTime"));
       final ResourcePermissionModel tableModel = permissionService.getTableModel(
-         cycleName, ResourceType.SCHEDULE_CYCLE, EnumSet.of(ResourceAction.ACCESS), principal);
+         getCyclePermissionID(cycleName, orgId), ResourceType.SCHEDULE_CYCLE, EnumSet.of(ResourceAction.ACCESS), principal);
       List<TimeZoneModel> timeZoneOptions = TimeZoneModel.getTimeZoneOptions();;
       boolean startTimeEnabled = securityEngine.getSecurityProvider().checkPermission(
          principal, ResourceType.SCHEDULE_OPTION, "startTime", ResourceAction.READ);
@@ -216,7 +217,7 @@ public class ScheduleCycleService {
                }
             }
 
-            removeCyclePermission(oldName);
+            removeCyclePermission(oldName, orgId);
          }
          else if(newName == null || "".equals(newName)) {
             throw new Exception(catalog.getString("em.scheduler.emptyCycleName"));
@@ -247,7 +248,7 @@ public class ScheduleCycleService {
 
          if(model.permissionModel() != null &&
             (model.permissionModel().changed() || !newName.equals(oldName))) {
-            permissionService.setResourcePermissions(newName, ResourceType.SCHEDULE_CYCLE,
+            permissionService.setResourcePermissions(getCyclePermissionID(newName, orgId), ResourceType.SCHEDULE_CYCLE,
                                                      model.permissionModel(), principal);
          }
       }
@@ -304,7 +305,7 @@ public class ScheduleCycleService {
             if(!dataCycleManager.hasPregeneratedDependency(cycleName)) {
                dataCycleManager.removeDataCycle(cycleName, orgId);
                dataCycleManager.save();
-               removeCyclePermission(cycleName);
+               removeCyclePermission(cycleName, orgId);
             }
             // warning if some replet uses the cycle
             else {
@@ -337,16 +338,24 @@ public class ScheduleCycleService {
       perm.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
       perm.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
       perm.updateGrantAllByOrg(orgId, true);
-      securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE, cycleName, perm);
+      securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(cycleName, orgId), perm);
    }
 
-   private void removeCyclePermission(String cycleName) {
+   private void removeCyclePermission(String cycleName, String orgId) {
       try {
-         securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE, cycleName, null);
+         securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE, getCyclePermissionID(cycleName, orgId), null);
       }
       catch(Exception ex) {
          LOG.error("Failed to clear permissions for schedule cycle {}", cycleName, ex);
       }
+   }
+
+   public static String getCyclePermissionID(String name, String orgID) {
+      if(orgID == null || !SUtil.isMultiTenant() ) {
+         orgID = Organization.getDefaultOrganizationID();
+      }
+
+      return new IdentityID(name, orgID).convertToKey();
    }
 
    private final DataCycleManager dataCycleManager;

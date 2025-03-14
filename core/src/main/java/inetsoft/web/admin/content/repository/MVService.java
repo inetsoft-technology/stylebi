@@ -41,6 +41,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static inetsoft.web.RecycleUtils.RECYCLE_BIN_FOLDER;
+import static inetsoft.web.admin.schedule.ScheduleCycleService.getCyclePermissionID;
 
 @Service
 public class MVService {
@@ -462,7 +463,7 @@ public class MVService {
          String cycle = (String) cycles.nextElement();
 
          if(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
-                                                         cycle, ResourceAction.ACCESS))
+                                                         getCyclePermissionID(cycle, orgId), ResourceAction.ACCESS))
          {
             dataCycles.add(NameLabelTuple.builder().from(cycle, catalog).build());
          }
