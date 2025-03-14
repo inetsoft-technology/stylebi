@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.*;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.DeployManagerService;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -296,12 +297,10 @@ public class AssetUtil {
    public static void updateMetaData(AssetEntry entry, Principal user, long time) {
       String username = user == null ? null : IdentityID.getIdentityIDFromKey(user.getName()).name;
       Date now = new Date(time);
+      boolean isImport = DeployManagerService.IS_IMPORTING.get();
 
-      if (entry.getModifiedDate() == null) {
+      if(!isImport) {
          entry.setModifiedDate(now);
-      }
-
-      if (entry.getModifiedUsername() == null) {
          entry.setModifiedUsername(username);
       }
 
