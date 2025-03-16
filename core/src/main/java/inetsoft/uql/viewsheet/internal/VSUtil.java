@@ -79,6 +79,7 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.lang.reflect.Array;
 import java.security.Principal;
+import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -6911,24 +6912,32 @@ public final class VSUtil {
     * @param info bookmark info.
     * @return
     */
-   public static String getBookmarkTooltip(VSBookmarkInfo info) {
+   public static String getBookmarkTooltip(VSBookmarkInfo info, String timeZoneId) {
       Catalog catalog = Catalog.getCatalog();
       StringBuilder stringBuilder = new StringBuilder();
 
       if(info.getCreateTime() > 0) {
          stringBuilder.append(catalog.getString("Created Time"));
          stringBuilder.append(": ");
-         stringBuilder.append(Tool.formatDate(new Date(info.getCreateTime())));
+         stringBuilder.append(getLocalDate(new Date(info.getCreateTime()), timeZoneId));
       }
 
       if(info.getLastAccessed() > 0) {
          stringBuilder.append("\n");
          stringBuilder.append(catalog.getString("Last Accessed Time"));
          stringBuilder.append(": ");
-         stringBuilder.append(Tool.formatDate(new Date(info.getLastAccessed())));
+         stringBuilder.append(getLocalDate(new Date(info.getLastAccessed()), timeZoneId));
       }
 
       return stringBuilder.toString();
+   }
+
+   private static String getLocalDate(Date date, String timeZoneId) {
+      SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+      TimeZone timeZone = TimeZone.getTimeZone(timeZoneId);
+      sdf.setTimeZone(timeZone);
+
+      return sdf.format(date);
    }
 
    /**

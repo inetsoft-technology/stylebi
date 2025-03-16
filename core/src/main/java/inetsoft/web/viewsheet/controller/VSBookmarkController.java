@@ -472,7 +472,8 @@ public class VSBookmarkController {
    @RequestMapping(value="/api/vs/bookmark/get-bookmarks/**", method = RequestMethod.GET)
    @ResponseBody
    public VSBookmarkInfoModel[] getBookmarks(@RemainingPath String runtimeId,
-                                             Principal principal)
+      @RequestParam(value = "localTimeZone", defaultValue = "") String localTimeZone,
+      Principal principal)
       throws Exception
    {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -526,7 +527,7 @@ public class VSBookmarkController {
                   .currentBookmark(currentBookmark != null &&
                                       currentBookmark.getName().equals(vsBookmarkInfo.getName()) &&
                                       currentBookmark.getOwner().equals(vsBookmarkInfo.getOwner()))
-                  .tooltip(VSUtil.getBookmarkTooltip(vsBookmarkInfo))
+                  .tooltip(VSUtil.getBookmarkTooltip(vsBookmarkInfo, localTimeZone))
                   .build()
             );
          }
