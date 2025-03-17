@@ -1435,7 +1435,8 @@ public class VLabel extends BoundedVisualizable {
     * Get the string representation.
     */
    public String toString() {
-      return "VLabel" + System.identityHashCode(this) + "[" + label + "]";
+      String str = super.toString();
+      return str.substring(str.lastIndexOf('.') + 1) + "[" + label + "]";
    }
 
    /**
