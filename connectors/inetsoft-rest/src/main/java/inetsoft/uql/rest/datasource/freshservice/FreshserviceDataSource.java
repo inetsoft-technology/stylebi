@@ -28,15 +28,15 @@ import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
+   @View1(value = "domain"),
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
-   @View1(value = "domain", visibleMethod = "useCredential"),
    @View1("URL"),
    @View1(value = "apiKey", visibleMethod = "useCredential")
 })
 public class FreshserviceDataSource extends EndpointJsonDataSource<FreshserviceDataSource> {
    static final String TYPE = "Rest.Freshservice";
-   
+
    public FreshserviceDataSource() {
       super(TYPE, FreshserviceDataSource.class);
       setAuthType(AuthType.BASIC);
@@ -48,7 +48,6 @@ public class FreshserviceDataSource extends EndpointJsonDataSource<FreshserviceD
    }
 
    @Property(label = "Domain", required = true)
-   @PropertyEditor(dependsOn = "useCredentialId")
    public String getDomain() {
       return domain;
    }
