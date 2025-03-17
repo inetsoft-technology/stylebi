@@ -302,8 +302,6 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          }
       }
 
-      curr = toLocalTimeZone(curr);
-      lastRun = toLocalTimeZone(lastRun);
       Calendar cal1 = Calendar.getInstance(getTimeZone());
 
       if(getInterval() > 1 && lastRun > 0) {
@@ -452,27 +450,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          break;
       }
 
-      scheduleTime = cal1.getTimeInMillis();
-
-      return toServerTimeZone(scheduleTime);
-   }
-
-   private long toLocalTimeZone(long timemillis) {
-      Calendar calendar = Calendar.getInstance();
-      calendar.setTimeInMillis(timemillis);
-      calendar.setTimeZone(getTimeZone());
-      long ntimemillis = calendar.getTimeInMillis();
-
-      return ntimemillis;
-   }
-
-   private long toServerTimeZone(long timemillis) {
-      Calendar calendar = Calendar.getInstance();
-      calendar.setTimeInMillis(timemillis);
-      calendar.setTimeZone(TimeZone.getDefault());
-      long ntimemillis = calendar.getTimeInMillis();
-
-      return ntimemillis;
+      return cal1.getTimeInMillis();
    }
 
    public String toString() {
