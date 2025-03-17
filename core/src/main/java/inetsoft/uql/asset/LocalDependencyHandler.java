@@ -2028,8 +2028,11 @@ public class LocalDependencyHandler implements DependencyHandler {
                LibManager manager = LibManager.getManager();
                String path = asset.getPath();
                XTableStyle style = manager.getTableStyle(path);
-               entry = new AssetEntry(
-                  AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.TABLE_STYLE, style.getID(), null);
+
+               if(style != null) {
+                  entry = new AssetEntry(
+                     AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.TABLE_STYLE, style.getID(), null);
+               }
             }
             else if(asset instanceof ViewsheetAsset) {
                entry = ((ViewsheetAsset) asset).getAssetEntry();
