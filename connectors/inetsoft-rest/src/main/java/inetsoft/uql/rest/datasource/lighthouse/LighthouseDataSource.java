@@ -28,15 +28,15 @@ import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
+   @View1(value = "domain"),
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
-   @View1(value = "domain", visibleMethod = "useCredential"),
    @View1(value = "apiToken", visibleMethod = "useCredential"),
    @View1("URL")
 })
 public class LighthouseDataSource extends EndpointJsonDataSource<LighthouseDataSource> {
    static final String TYPE = "Rest.Lighthouse";
-   
+
    public LighthouseDataSource() {
       super(TYPE, LighthouseDataSource.class);
       setAuthType(AuthType.NONE);
@@ -48,7 +48,6 @@ public class LighthouseDataSource extends EndpointJsonDataSource<LighthouseDataS
    }
 
    @Property(label = "Domain", required = true)
-   @PropertyEditor(dependsOn = "useCredentialId")
    public String getDomain() {
       return domain;
    }
