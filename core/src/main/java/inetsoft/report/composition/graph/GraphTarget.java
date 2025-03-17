@@ -746,6 +746,31 @@ public class GraphTarget implements Cloneable, Serializable, XMLSerializable {
       return this.index;
    }
 
+   @Override
+   public boolean equals(Object o) {
+      if(this == o) return true;
+      if(o == null || getClass() != o.getClass()) return false;
+      GraphTarget that = (GraphTarget) o;
+      return lineStyle == that.lineStyle && alphaValue == that.alphaValue &&
+         chartScope == that.chartScope && index == that.index &&
+         dateField == that.dateField && timeField == that.timeField &&
+         Objects.equals(field, that.field) && Objects.equals(fieldLabel, that.fieldLabel) &&
+         Objects.deepEquals(labelFormats, that.labelFormats) &&
+         Objects.equals(localizedStr, that.localizedStr) &&
+         Objects.equals(lineColor, that.lineColor) &&
+         Objects.equals(fillAboveColor, that.fillAboveColor) &&
+         Objects.equals(fillBelowColor, that.fillBelowColor) &&
+         Objects.equals(strategy, that.strategy) && Objects.equals(fmt, that.fmt) &&
+         Objects.equals(bandFill, that.bandFill);
+   }
+
+   @Override
+   public int hashCode() {
+      return Objects.hash(field, fieldLabel, lineStyle, Arrays.hashCode(labelFormats),
+                          localizedStr, lineColor, fillAboveColor, fillBelowColor, alphaValue,
+                          chartScope, strategy, fmt, index, dateField, timeField, bandFill);
+   }
+
    private String field;
    private String fieldLabel;
    private int lineStyle = GraphConstants.THIN_LINE;
