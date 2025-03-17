@@ -93,6 +93,11 @@ public class LinkedinDataSource extends OAuthEndpointJsonDataSource<LinkedinData
    }
 
    @Override
+   protected boolean supportCredentialId() {
+      return false;
+   }
+
+   @Override
    protected String getTestSuffix() {
       return "/v2/me";
    }
