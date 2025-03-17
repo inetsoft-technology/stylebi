@@ -110,7 +110,11 @@ public class BarVO extends ElementVO {
          }
 
          if(label != null) {
-            if(isPolar()) {
+            if(isPolar() && elem.getLabelPlacement() == GraphConstants.CENTER) {
+               vtext = new CircularVOText(label, this, getMeasureName(), coord.getDataSet(),
+                                     geom.getSubRowIndex(), geom);
+            }
+            else if(isPolar()) {
                vtext = new ArcVOText(label, this, getMeasureName(), coord.getDataSet(),
                                      geom.getSubRowIndex(), geom);
             }
@@ -445,7 +449,7 @@ public class BarVO extends ElementVO {
 
       if(arc != null) {
          if(vtext != null) {
-            layoutTextArc(vgraph, arc);
+            layoutTextArc(vgraph, arc, shape);
          }
       }
       else {
@@ -469,14 +473,14 @@ public class BarVO extends ElementVO {
    /**
     * Layout label on an arc.
     */
-   private void layoutTextArc(VGraph vgraph, Arc2D arc) {
+   private void layoutTextArc(VGraph vgraph, Arc2D arc, Shape slice) {
       double w = arc.getWidth();
       double h = arc.getHeight();
       double cx = arc.getX() + w / 2;
       double cy = arc.getY() + h / 2;
       double wr = (w / 2);
       double hr = (h / 2);
-      double angle = -(arc.getAngleStart() + arc.getAngleExtent() / 2) * Math.PI / 180;
+      double angle = -Math.toRadians(arc.getAngleStart() + arc.getAngleExtent() / 2);
 
       Rectangle2D bounds = vgraph.getPlotBounds();
       double plotw = bounds.getWidth();
@@ -491,10 +495,18 @@ public class BarVO extends ElementVO {
          placement == GraphConstants.CENTER ||
          placement == GraphConstants.CENTER_FILL;
 
+      if(vtext instanceof CircularVOText) {
+         double r = Math.min(wr, hr);
+         Arc2D inner = slice instanceof Donut ? ((Donut) slice).getInnerArc() : null;
+         double innerR = inner != null ? Math.min(inner.getWidth(), inner.getHeight()) / 2 : r / 2;
+         ((CircularVOText) vtext).setCircle(cx, cy, r, innerR,
+                                            Math.toRadians(arc.getAngleStart()),
+                                            Math.toRadians(arc.getAngleExtent()));
+      }
       // center label, changed to VOText in transform().
       // only place label in middle for center/auto placement, or the label of outer
       // pie would collide with middle label in donut chart. (57561)
-      if(autoCenter && arc.getAngleStart() == 0 && arc.getAngleExtent() == 360) {
+      else if(autoCenter && arc.getAngleStart() == 0 && arc.getAngleExtent() == 360) {
          if(placement == GraphConstants.CENTER_FILL) {
             vtext.setFont(PolarUtil.fillCircle(Math.min(wr, hr), vtext.getText(),
                                                vtext.getFont(), 24));

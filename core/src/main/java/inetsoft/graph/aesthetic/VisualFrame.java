@@ -582,7 +582,8 @@ public abstract class VisualFrame implements Cloneable, Serializable {
    @Override
    public String toString() {
       String cls = getClass().toString();
-      return cls.substring(cls.lastIndexOf('.') + 1) + "@" + super.hashCode();
+      return cls.substring(cls.lastIndexOf('.') + 1) + "@" + super.hashCode() +
+         (field != null ? "(" + field + ")" : "");
    }
 
    // Try to format value using the text format

@@ -1739,7 +1739,7 @@ public class PlotDescriptor implements AssetObject, ContentObject {
          Tool.equals(webMapStyle, desc.webMapStyle) &&
          includeParentLabels == desc.includeParentLabels &&
          applyAestheticsToSource == desc.applyAestheticsToSource &&
-         wordCloudFontScale == desc.wordCloudFontScale &&
+         Tool.equals(wordCloudFontScale, desc.wordCloudFontScale) &&
          pieRatio == desc.pieRatio &&
          circleFormats.equals(desc.circleFormats) &&
          Tool.equals(errorFormat, desc.errorFormat) &&
