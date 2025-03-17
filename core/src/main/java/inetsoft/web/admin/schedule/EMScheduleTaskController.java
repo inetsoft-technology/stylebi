@@ -26,8 +26,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
-import inetsoft.web.security.RequiredPermission;
-import inetsoft.web.security.Secured;
+import inetsoft.web.security.*;
 import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -73,7 +72,9 @@ public class EMScheduleTaskController {
    )
    @PostMapping("/api/em/schedule/new")
    public ScheduleTaskDialogModel getNewTaskDialogModel(
-      @RequestBody(required = false) ContentRepositoryTreeNode parentInfo, Principal principal) throws Exception
+      @RequestParam("timeZone") String timeZone,
+      @RequestBody(required = false) ContentRepositoryTreeNode parentInfo,
+      Principal principal) throws Exception
    {
       AssetEntry parentEntry = null;
 
@@ -93,7 +94,7 @@ public class EMScheduleTaskController {
             "schedule.tasks.nopermission.create"));
       }
 
-      return scheduleTaskService.getNewTaskDialogModel(null, principal, true, true, parentEntry);
+      return scheduleTaskService.getNewTaskDialogModel(null, principal, true, true, parentEntry, timeZone);
    }
 
    /**
