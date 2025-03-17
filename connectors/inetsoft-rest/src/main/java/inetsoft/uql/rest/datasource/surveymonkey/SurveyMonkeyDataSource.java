@@ -134,5 +134,10 @@ public class SurveyMonkeyDataSource extends OAuthEndpointJsonDataSource<SurveyMo
       return Objects.hash(super.hashCode(), rowLimit);
    }
 
+   @Override
+   protected boolean supportCredentialId() {
+      return false;
+   }
+
    private int rowLimit = 0;
 }
