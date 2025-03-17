@@ -301,8 +301,11 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    newTask(): void {
+      const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const params = new HttpParams().set("timeZone", localTimeZoneId);
+
       // http REST requests use URI and a body object with data
-      this.http.post(NEW_TASKS_URI, this.currentFolder).subscribe(
+      this.http.post(NEW_TASKS_URI, this.currentFolder, {params}).subscribe(
          (model: ScheduleTaskDialogModel) => this.navigateToTaskEditor(model.name),
          (error) => {
             let message = error?.error?.type == "SecurityException" ? error.error.message : "Failed to get schedule task model";
