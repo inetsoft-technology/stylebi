@@ -1511,7 +1511,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    private getBookmarks(): Observable<VSBookmarkInfoModel[]> {
       const modelUri: string = "../api/" + BOOKMARK_URIS["get"] + "/" +
          Tool.byteEncode(this.runtimeId);
-      return this.modelService.getModel(modelUri);
+      const params = new HttpParams().set("localTimeZone",
+         Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+      return this.modelService.getModel(modelUri, params);
    }
 
    isBookmarkHome(name: string): boolean {
