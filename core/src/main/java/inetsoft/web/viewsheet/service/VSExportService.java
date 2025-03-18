@@ -121,7 +121,10 @@ public class VSExportService {
          LOG.error(
             "Failed to export viewsheet since {} have no permission for viewsheet export.",
             principal.getName());
-         return;
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         String user = identityID != null ? identityID.getName() : principal.getName();
+         throw new MessageException(Catalog.getCatalog().getString(
+            "viewer.viewsheet.exporting.failed", user), LogLevel.INFO, false);
       }
 
       //if there is an outtype param, its value overrides the format value
