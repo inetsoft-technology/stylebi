@@ -94,9 +94,6 @@ import java.util.zip.ZipOutputStream;
  * @author InetSoft Technology Corp
  */
 public final class Tool extends CoreTool {
-   static {
-      PropertiesEngine.getInstance().addPropertyChangeListener("string.compare.caseSensitive", evt -> invalidateCaseSensitive());
-   }
    /**
     * User defined type.
     */
@@ -2814,21 +2811,7 @@ public final class Tool extends CoreTool {
     * @return <tt>true</tt> if case sensitive, <tt>false</tt> otherwise.
     */
    public static boolean isCaseSensitive() {
-      if(!sinited) {
-         synchronized(Tool.class) {
-            if(!sinited) {
-               String cs = SreeEnv.getProperty("string.compare.caseSensitive");
-               sensitive = "true".equals(cs);
-               sinited = true;
-            }
-         }
-      }
-
-      return sensitive;
-   }
-
-   public static void invalidateCaseSensitive() {
-      sinited = false;
+      return "true".equals(SreeEnv.getProperty("string.compare.caseSensitive"));
    }
 
    /**
@@ -3899,19 +3882,15 @@ public final class Tool extends CoreTool {
     * @param supportNull - <tt>true</tt> if support null value, <tt>false</tt> otherwise.
     * @return true if it is found.
     */
-   public static boolean contains(String[] strs, String str, boolean strict, boolean supportNull) {
-      return contains(strs, str, strict, supportNull, sensitive);
-   }
 
-   public static boolean contains(String[] strs, String str, boolean strict, boolean supportNull,
-                                  boolean sensitive)
+   public static boolean contains(String[] strs, String str, boolean strict, boolean supportNull)
    {
       if(strs == null || strs.length == 0 || str == null && !supportNull) {
          return false;
       }
 
       for(String str1 : strs) {
-         if(Tool.equals(str1, str, sensitive)) {
+         if(Tool.equals(str1, str, isCaseSensitive())) {
             return true;
          }
       }
@@ -5052,8 +5031,6 @@ public final class Tool extends CoreTool {
    private static final int[] pwdMask = { 106, 65, 115, 111, 78, 82, 85, 76,
       101, 115 };
    private static Frame root = null;
-   private static volatile boolean sinited;
-   private static boolean sensitive;
 
    private static final Color[] colors = {new Color(126, 194, 230),
                                           new Color(152, 230, 115), new Color(230, 195, 126),
