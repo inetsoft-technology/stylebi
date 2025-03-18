@@ -238,6 +238,10 @@ public class DeploymentInfo {
 
             if(QueryToWsConverter.isIgnoredQuery(file)) {
                nnames.put(fileName, entry.getValue());
+               String identifier = entry.getValue();
+               identifier = identifier.substring("XQUERY_".length());
+               String path = XAssetUtil.createXAsset(identifier).getPath();
+               ignoredQueries.add(path);
                continue;
             }
 
@@ -444,6 +448,10 @@ public class DeploymentInfo {
          .orElse(null);
    }
 
+   public Set<String> getIgnoredQueries() {
+      return ignoredQueries;
+   }
+
    private File[] files;
    private String filePath;
    private List<SelectedAsset> selectedEntries;
@@ -453,6 +461,7 @@ public class DeploymentInfo {
    private Map<File, Integer> queryTypeMap = new HashMap<>();
    private Map<String, File> queryFileMap = new HashMap<>(); // key -> query name, value -> file
    private Map<String, String> convertedNameMap = new HashMap<>(); // key -> query name, value-> file name
+   private Set<String> ignoredQueries = new HashSet<>();
    private List<File> queryFiles = new ArrayList<>(); // key -> query name, value-> file name
    private PartialDeploymentJarInfo jarInfo;
    private ImportJarProperties properties;
