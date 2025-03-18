@@ -34,6 +34,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -121,7 +122,8 @@ public class VSExportService {
          LOG.error(
             "Failed to export viewsheet since {} have no permission for viewsheet export.",
             principal.getName());
-         return;
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "viewer.viewsheet.export.noSecurity", principal.getName()));
       }
 
       //if there is an outtype param, its value overrides the format value
