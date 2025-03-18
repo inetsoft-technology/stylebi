@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.AssetChangedEvent;
 import inetsoft.uql.asset.AssetEntry;
 
@@ -24,4 +25,27 @@ public class ViewsheetBookmarkChangedEvent extends AssetChangedEvent {
    public ViewsheetBookmarkChangedEvent(AssetEntry viewsheetEntry) {
       super(viewsheetEntry);
    }
+
+   public ViewsheetBookmarkChangedEvent(RuntimeViewsheet rvs, boolean deleted, String bookmark) {
+      super(rvs.getEntry());
+      rvsID = rvs.getID();
+      this.deleted = deleted;
+      this.bookmark = bookmark;
+   }
+
+   public String getID() {
+      return rvsID;
+   }
+
+   public String getBookmark() {
+      return bookmark;
+   }
+
+   public boolean isDeleted() {
+      return deleted;
+   }
+
+   public String rvsID;
+   public boolean deleted = false;
+   public String bookmark = "";
 }

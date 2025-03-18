@@ -400,6 +400,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    submitClicked: Subject<boolean> = new Subject<boolean>();
    expired = false;
    transformFinished = false;
+   editBookmarkFinished = false;
    mobileDevice: boolean = GuiTool.isMobileDevice();
    gotoBindingPane: boolean = false;
    shareConfig: ShareConfig;
@@ -569,7 +570,14 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       this.subscriptions.add(this.viewsheetClient.onRenameTransformFinished.subscribe(
       (message) => {
-         if(message.id == this.runtimeId) {
+         if(message.bookmark != undefined) {
+            const currentBookmark = this.vsBookmarkList.find((vsBookmark) => vsBookmark.currentBookmark);
+
+            if(currentBookmark != null && message.bookmark == currentBookmark.name && message.id == this.runtimeId) {
+               this.editBookmarkFinished = true;
+            }
+         }
+         else if(message.id == this.runtimeId) {
             this.transformFinished = true;
          }
       }));
@@ -1199,6 +1207,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       this.expired = false;
       this.transformFinished = false;
+      this.editBookmarkFinished = false;
    }
 
    refreshViewsheet(confirmed: boolean = false, resizing: boolean = false): void {
@@ -3704,6 +3713,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       if(this.transformFinished) {
          return "_#(js:viewer.expiration.renameTransformFinished)";
+      }
+
+      if(this.editBookmarkFinished) {
+         return "_#(js:viewer.expiration.editBookmarkFinished)";
       }
 
       return "";

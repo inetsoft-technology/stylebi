@@ -20,6 +20,7 @@ package inetsoft.web.composer;
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeSheet;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
@@ -70,8 +71,14 @@ public class RuntimeSheetTransformController implements MessageListener {
       }
 
       if(event.getMessage() instanceof ViewsheetBookmarkChangedEvent) {
-         viewsheetService.updateBookmarks(
-            ((ViewsheetBookmarkChangedEvent) event.getMessage()).getAssetEntry());
+         AssetEntry asset = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getAssetEntry();
+         String id = ((ViewsheetBookmarkChangedEvent) event.getMessage()).rvsID;
+         viewsheetService.updateBookmarks(asset);
+
+         if(((ViewsheetBookmarkChangedEvent) event.getMessage()).deleted) {
+            String bookmark = ((ViewsheetBookmarkChangedEvent) event.getMessage()).bookmark;
+            handleMessageForBookmarks(asset, id, bookmark, true);
+         }
       }
       else if(event.getMessage() instanceof RenameTransformFinishedEvent) {
          RenameTransformFinishedEvent renameEvent = (RenameTransformFinishedEvent) event.getMessage();
@@ -150,6 +157,35 @@ public class RuntimeSheetTransformController implements MessageListener {
                  viewsheetService.updateRenameInfos(sheet.getID(), entry, infos);
                  sendMessage(sheet.getID(), entry, reload);
               });
+   }
+
+   private void handleMessageForBookmarks(AssetEntry entry, String id, String bookmark, boolean reload) {
+      RuntimeViewsheet[] sheets = null;
+
+      if(viewsheetService instanceof ViewsheetEngine) {
+         ViewsheetEngine engine = (ViewsheetEngine) viewsheetService;
+
+         if(entry.isViewsheet()) {
+            sheets = engine.getAllRuntimeViewsheets();
+         }
+      }
+
+      if(sheets == null || sheets.length == 0) {
+         return;
+      }
+
+      Arrays.stream(sheets)
+         .filter(sheet -> Tool.equals(entry, sheet.getEntry()) && !Tool.equals(sheet.getID(), id))
+         .filter(sheet -> Tool.equals(sheet.getOpenedBookmark().getName(), bookmark))
+         .forEach(sheet -> {
+            RenameEventModel model = RenameEventModel.builder()
+               .id(sheet.getID())
+               .bookmark(bookmark)
+               .reload(reload)
+               .entry(entry)
+               .build();
+            messagingTemplate.convertAndSendToUser(destination, "/dependency-changed", model);
+         });
    }
 
    /**

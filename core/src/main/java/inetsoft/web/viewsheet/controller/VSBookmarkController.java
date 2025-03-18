@@ -313,6 +313,9 @@ public class VSBookmarkController {
                                             rvs, (XPrincipal) principal, value, linkUri,
                                             rvs.getID(), commandDispatcher);
          }
+
+         Cluster.getInstance().sendMessage(new ViewsheetBookmarkChangedEvent(rvs,
+                                           true, currBookmark.getName()));
       }
       catch(MessageException ex) {
          MessageCommand command = new MessageCommand();

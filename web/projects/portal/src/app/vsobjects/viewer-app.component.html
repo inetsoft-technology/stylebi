@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<ng-container *ngIf="expired || transformFinished">
+<ng-container *ngIf="expired || transformFinished || editBookmarkFinished">
   <div class="expired-vs-banner alert-danger" role="alert">
     <div class="p-2">{{getReloadMessage()}}</div>
     <div class="ms-auto me-1">

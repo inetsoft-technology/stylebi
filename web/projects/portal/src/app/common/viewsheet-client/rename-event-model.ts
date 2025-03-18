@@ -23,5 +23,6 @@ import { AssetEntry } from "../../../../../shared/data/asset-entry";
 export interface RenameEventModel {
    entry: AssetEntry;
    id?: string;
+   bookmark?: string;
    reload: boolean;
 }
