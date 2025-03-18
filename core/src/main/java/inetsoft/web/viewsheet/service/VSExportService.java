@@ -39,8 +39,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
-import inetsoft.uql.viewsheet.internal.VsToReportConverter;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
@@ -166,6 +165,17 @@ public class VSExportService {
       // Tables need to be reset as they may contain old format.
       // The tables will be reloaded after the css is updated in AbstractVSExporter.
       Viewsheet vs = rvs.getViewsheet();
+
+      if("CSV".equals(type) && vs != null) {
+         boolean foundTable = VSUtil.getTableDataAssemblies(vs, true)
+            .stream()
+            .anyMatch(assembly -> CSVUtil.needExport(assembly));
+
+         if(!foundTable) {
+            throw new MessageException(Catalog.getCatalog().getString(
+               "common.repletAction.exportFailed.cvs"));
+         }
+      }
 
       for(Assembly assembly : vs.getAssemblies()) {
          if(assembly instanceof TableDataVSAssembly) {
