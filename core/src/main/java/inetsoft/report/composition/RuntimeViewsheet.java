@@ -903,6 +903,13 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
+    * set specified user bookmark.
+    */
+   private void setUserBookmark(String userID, VSBookmark bookmark) {
+      bookmarksMap.put(userID, bookmark);
+   }
+
+   /**
     * Get specified user bookmark.
     */
    private VSBookmark getUserBookmark(Principal user) {
@@ -1503,6 +1510,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          }
 
          bookmark.setDefaultBookmark(defBookmark);
+         setUserBookmark(user.getName(), bookmark);
          AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
          rep.setVSBookmark(entry, bookmark, user);
       }
