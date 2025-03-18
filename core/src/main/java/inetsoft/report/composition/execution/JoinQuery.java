@@ -368,7 +368,7 @@ public class JoinQuery extends AssetQuery {
          lenses[0] = table;
 
          join1:
-         for(int i = 1; i < tables.length; i++) {
+         for(int i = 1; i < tables.length && i < results.size(); i++) {
             TableLens table2;
 
             try {
