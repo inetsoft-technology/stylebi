@@ -157,7 +157,7 @@ public class DashboardRegistry implements SessionListener {
             nregistry = new DashboardRegistry(norg.getId());
          }
          else {
-            nregistry = new UserDashboardRegistry(identityID);
+            nregistry = new UserDashboardRegistry(new IdentityID(name, norg.getId()));
          }
 
          String[] dashboardNames = registry.getDashboardNames();

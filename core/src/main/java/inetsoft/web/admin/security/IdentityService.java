@@ -1022,7 +1022,7 @@ public class IdentityService {
    public void copyDashboardRegistry(Organization oorg, Organization norg) {
       DashboardRegistry.copyRegistry(null, oorg, norg);
 
-      for(IdentityID user : securityEngine.getUsers()) {
+      for(IdentityID user : securityEngine.getOrgUsers(oorg.getId())) {
          DashboardRegistry.copyRegistry(user, oorg, norg);
       }
    }
