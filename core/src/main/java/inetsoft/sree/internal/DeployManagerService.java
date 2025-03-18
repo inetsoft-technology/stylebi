@@ -601,6 +601,14 @@ public class DeployManagerService {
       try {
          importAssets0(overwriting, order, info, desktop, principal, ignoreList, actionRecord,
             failedList, targetFolderInfo, ignoreUserAssets);
+         Set<String> ignoredQueries = info.getIgnoredQueries();
+
+         if(ignoredQueries.size() > 0) {
+            Catalog catalog = Catalog.getCatalog();
+            String queries = String.join(", ", ignoredQueries);
+            String msg = ignoredQueries.size() > 1 ? "em.import.ignoredQueries" : "em.import.ignoredQuery";
+            failedList.add(catalog.getString(msg, queries));
+         }
       }
       finally {
          PasswordEncryption.setDecryptForceLocal(false);
