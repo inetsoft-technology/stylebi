@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller.database;
 
 import inetsoft.sree.security.ResourceAction;
+import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,8 +37,10 @@ public class DatabaseDataSourceModelController {
                                         Principal principal)
       throws Exception
    {
+      String path = Tool.byteDecode(databasePath);
+
       return dataSourceService.checkPermission(
-         databasePath, folder, ResourceAction.WRITE, principal);
+         path, folder, ResourceAction.WRITE, principal);
    }
 
    private final DataSourceService dataSourceService;
