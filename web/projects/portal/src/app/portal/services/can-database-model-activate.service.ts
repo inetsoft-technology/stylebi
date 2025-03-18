@@ -39,10 +39,10 @@ export class CanDatabaseModelActivateService implements CanActivate {
       let databasePath;
 
       if(/datasources\/database\/[\s\S]+\/physicalModel\/[\s\S]+/.test(routeUrl)) {
-         databasePath = Tool.byteDecode(route.params["databasePath"]);
+         databasePath = route.params["databasePath"];
       }
       else if(routeUrl.startsWith("/portal/tab/data/datasources/database/vpm")) {
-         modelPath = Tool.byteDecode(route.params["vpmPath"]);
+         modelPath = route.params["vpmPath"];
          let idx = !modelPath ? -1 : modelPath.lastIndexOf("/");
 
          if(idx == -1 || idx >= modelPath.length) {
@@ -53,7 +53,7 @@ export class CanDatabaseModelActivateService implements CanActivate {
       }
 
       if(/datasources\/database\/[\s\S]+\/physicalModel\/[\s\S]+\/logicalModel\/[\s\S]+/.test(routeUrl)){
-         databasePath = Tool.byteDecode(route.params["databasePath"]);
+         databasePath = route.params["databasePath"];
          logicalModel = true;
       }
 
@@ -81,7 +81,7 @@ export class CanDatabaseModelActivateService implements CanActivate {
          }));
       }
       else {
-         let logicalName = Tool.byteDecode(route.params["logicalModelName"]);
+         let logicalName = route.params["logicalModelName"];
          params = params
             .set("database", databasePath)
             .set("name", logicalName);
