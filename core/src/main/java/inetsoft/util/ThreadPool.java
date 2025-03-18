@@ -18,8 +18,10 @@
 package inetsoft.util;
 
 import inetsoft.report.internal.license.*;
+import inetsoft.sree.security.OrganizationContextHolder;
 import org.slf4j.*;
 
+import java.lang.reflect.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
@@ -232,8 +234,28 @@ public class ThreadPool {
          cid = ((IDRunnable) cmd).getContextID();
       }
 
-      queue.add(cmd);
+      queue.add(getRunnableProxy(cmd));
       checkThread();
+   }
+
+   private Runnable getRunnableProxy(Runnable cmd) {
+      if(cmd == null) {
+         return null;
+      }
+
+      List<Class<?>> interfaces = new ArrayList<>();
+      interfaces.add(Runnable.class);
+
+      if(cmd instanceof PoolRunnable) {
+         interfaces.add(PoolRunnable.class);
+      }
+
+      if(cmd instanceof ContextRunnable) {
+         interfaces.add(ContextRunnable.class);
+      }
+
+      return (Runnable) Proxy.newProxyInstance(cmd.getClass().getClassLoader(),
+         interfaces.toArray(new Class[0]), new RunnableHandler(cmd));
    }
 
    /**
@@ -517,6 +539,36 @@ public class ThreadPool {
    public abstract static class AbstractPoolRunnable
       extends AbstractContextRunnable implements PoolRunnable
    {
+   }
+
+   private static class RunnableHandler implements InvocationHandler {
+      public RunnableHandler(Object target) {
+         this.target = target;
+         this.tempOrg = OrganizationContextHolder.getCurrentOrgId();
+      }
+
+      @Override
+      public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+         if(method.getName().equals("run")) {
+            try {
+               if(tempOrg != null) {
+                  OrganizationContextHolder.setCurrentOrgId(tempOrg);
+               }
+
+               return method.invoke(target, args);
+            }
+            finally {
+               if(tempOrg != null) {
+                  OrganizationContextHolder.clear();
+               }
+            }
+         }
+
+         return method.invoke(target, args);
+      }
+
+      private final Object target;
+      private final String tempOrg;
    }
 
    /**
