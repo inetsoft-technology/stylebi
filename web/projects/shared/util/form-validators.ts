@@ -668,7 +668,7 @@ export class FormValidators {
 
    public static assetEntryBannedCharacters(control: UntypedFormControl): ValidationErrors {
       const name: string = control.value;
-      const pattern = /[\\\/"<%^]/;
+      const pattern = /[\\\/"<%^~]/;
       const containsSpecialChars: boolean = name ?
          pattern.test(name) : false;
 
