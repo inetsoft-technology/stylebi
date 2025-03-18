@@ -21,7 +21,7 @@ StyleBI Open Source has robust and fine granular security on both data and visua
 
 You will need Docker installed with a version 1.29.0 or later of Docker Compose. If you are using Docker Desktop, Docker Compose is already included.
 
-Copy the [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file from this repository to the Docker host machine.
+Save [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file to the Docker host machine by clicking on the link then click "Download raw file" button at upper right corner of the file editing area
 
 For Docker Desktop, start it first then open a Command Prompt window. In the directory containing the .yaml file, run the following command:
 
