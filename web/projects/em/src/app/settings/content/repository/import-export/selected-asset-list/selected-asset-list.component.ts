@@ -19,6 +19,7 @@ import { SelectionModel } from "@angular/cdk/collections";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { MatSort } from "@angular/material/sort";
 import { MatTableDataSource } from "@angular/material/table";
+import { Tool } from "../../../../../../../../shared/util/tool";
 import { SelectedAssetModel } from "../selected-asset-model";
 
 @Component({
@@ -80,6 +81,10 @@ export class SelectedAssetListComponent implements OnInit {
          let paths = path.split("^");
 
          if(paths.length > 3) {
+            if(Tool.isEquals(paths[2], "_NULL_")) {
+               paths[2] = "anonymous"
+            }
+
             return paths[2] + "/" + paths[3];
          }
       }
