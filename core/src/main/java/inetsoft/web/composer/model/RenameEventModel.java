@@ -32,6 +32,9 @@ public abstract class RenameEventModel {
    @Nullable
    public abstract String id();
 
+   @Nullable
+   public abstract String bookmark();
+
    public abstract boolean reload();
 
    public static Builder builder() {
