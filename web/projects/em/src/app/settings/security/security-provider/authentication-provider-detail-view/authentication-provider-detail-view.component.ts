@@ -46,12 +46,14 @@ export class AuthenticationProviderDetailViewComponent implements OnInit, OnDest
 
    @Input()
    set model(model: AuthenticationProviderModel) {
-      this._model = model;
-      this._original = Tool.clone(model);
+      if(model == null || !!model.providerType) {
+         this._model = model;
+         this._original = Tool.clone(model);
 
-      if(model && this.form) {
-         this.providerName = this.model.providerName;
-         this.providerType = this.model.providerType;
+         if(model && this.form) {
+            this.providerName = this.model.providerName;
+            this.providerType = this.model.providerType;
+         }
       }
    }
 
