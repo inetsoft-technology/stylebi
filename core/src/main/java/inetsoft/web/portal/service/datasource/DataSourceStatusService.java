@@ -142,10 +142,10 @@ public class DataSourceStatusService {
 
       Catalog catalog = Catalog.getCatalog(principal);
       String errorMessage = status.getErrorMessage();
+      String time = Tool.formatDateTime(status.getLastUpdateTime());
       String message;
 
       if(status.isConnected()) {
-         String time = Tool.formatDateTime(status.getLastUpdateTime());
          message = catalog.getString("data.datasources.dataSourceConnected", time);
       }
       else {
@@ -160,6 +160,8 @@ public class DataSourceStatusService {
          else {
             message += ": " + errorMessage;
          }
+
+         message += " " + time;
       }
 
       return DataSourceStatus.builder()
