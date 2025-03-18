@@ -214,7 +214,7 @@ export class ExecuteAsDialog {
             name: (<IdentityId> this.selectedNode.data).name,
             type: parseInt(this.selectedNode.type),
             alias: this.selectedNode.type === IdentityType.USER.toString() ?
-               this.selectedNode.alias : null
+               this.selectedNode.label : null
          });
       }
    }
