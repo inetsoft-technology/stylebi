@@ -69,7 +69,8 @@ export class ScheduleCycleListPageComponent {
    }
 
    addCycle(): void {
-      this.http.get(ADD_CYCLE_URI).subscribe(
+      const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      this.http.get(ADD_CYCLE_URI + localTimeZone).subscribe(
          (cycle: DataCycleInfo) => {
             this.dataService.sendMessage(UPDATE_CYCLES_URI);
             this.router.navigate(["/settings/schedule/cycles", cycle.name]);
