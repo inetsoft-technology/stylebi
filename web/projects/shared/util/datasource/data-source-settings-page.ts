@@ -325,8 +325,8 @@ export abstract class DataSourceSettingsPage implements OnInit {
       ).subscribe((connection: ConnectionStatus) => {
          this.databaseStatus = connection.status;
 
-         if(this.showTestMessage && !!this.database.cloudError) {
-            if(!connection.connected) {
+         if(this.showTestMessage) {
+            if(!connection.connected && !!this.database.cloudError) {
                this.databaseStatus += "\n" + this.database.cloudError;
             }
 
