@@ -263,7 +263,9 @@ public class LogicalModelController {
                                           @RequestParam(value = "folder", required = false) String folder,
                                           Principal principal)
    {
-      return modelService.checkPermission(database, folder, name, null,
+      String databasePath = Tool.byteDecode(database);
+
+      return modelService.checkPermission(databasePath, folder, name, null,
          ResourceAction.WRITE, principal);
    }
 
