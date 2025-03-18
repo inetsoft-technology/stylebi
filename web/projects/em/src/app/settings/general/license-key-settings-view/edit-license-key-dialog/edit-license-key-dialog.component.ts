@@ -69,10 +69,6 @@ export class EditLicenseKeyDialogComponent implements OnInit {
    ngOnInit() {
    }
 
-   get licenseKeyLabel() {
-      return this.isEnterprise ? "_#(js:License Key)" : "_#(js:API Key)"
-   }
-
    onLicenseKeyChange(): void {
       this.keyInvalid = false;
       this.form.get("key").updateValueAndValidity();

@@ -20,7 +20,7 @@
 <div mat-dialog-content [formGroup]="form">
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(License Key)</mat-label>
-    <input matInput placeholder="{{licenseKeyLabel}}" formControlName="key" autofocus (change)="onLicenseKeyChange()"/>
+    <input matInput placeholder="_#(License Key)" formControlName="key" autofocus (change)="onLicenseKeyChange()"/>
     <mat-error *ngIf="form.controls.key?.errors?.required">_#(em.license.emptyKey)</mat-error>
     <mat-error *ngIf="form.controls.key?.errors?.duplicateName">_#(em.license.duplicateKey)</mat-error>
     <mat-error *ngIf="form.controls.key?.errors?.invalidKey">_#(em.license.invalidKey)</mat-error>
