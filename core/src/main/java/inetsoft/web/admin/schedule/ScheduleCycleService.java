@@ -139,7 +139,7 @@ public class ScheduleCycleService {
          .build();
    }
 
-   public String addDataCycle(Principal principal) {
+   public String addDataCycle(Principal principal, String timeZoneId) {
       ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
                                                         null, ActionRecord.OBJECT_TYPE_CYCLE);
 
@@ -158,6 +158,7 @@ public class ScheduleCycleService {
          actionRecord.setObjectName(cycleName);
          actionRecord.setObjectUser(identity.name);
          ScheduleCondition condition = TimeCondition.at(1, 30, 0);
+         ((TimeCondition) condition).setTimeZone(TimeZone.getTimeZone(timeZoneId));
          ((TimeCondition) condition).setInterval(1);
 
          Calendar calendar = Calendar.getInstance();

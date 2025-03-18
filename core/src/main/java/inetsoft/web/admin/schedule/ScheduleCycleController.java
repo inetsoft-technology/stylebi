@@ -62,9 +62,9 @@ public class ScheduleCycleController {
       return this.scheduleCycleService.getDialogModel(cycleName, principal);
    }
 
-   @GetMapping("/api/em/schedule/add-cycle")
-   public DataCycleInfo addDataCycle(Principal principal) {
-      String newCycleName = this.scheduleCycleService.addDataCycle(principal);
+   @GetMapping("/api/em/schedule/add-cycle/{timeZoneId}")
+   public DataCycleInfo addDataCycle(@PathVariable("timeZoneId") String timeZoneId, Principal principal) {
+      String newCycleName = this.scheduleCycleService.addDataCycle(principal, timeZoneId);
       return new DataCycleInfo(newCycleName);
    }
 
