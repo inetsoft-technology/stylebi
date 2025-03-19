@@ -39,11 +39,13 @@ public class EMScheduleTaskActionController {
    @Autowired
    public EMScheduleTaskActionController(ScheduleTaskActionService actionService,
                                          SecurityProvider securityProvider,
-                                         AssetRepository assetRepository)
+                                         AssetRepository assetRepository,
+                                         EMScheduleTaskActionServiceProxy emActionService)
    {
       this.actionService = actionService;
       this.securityProvider = securityProvider;
       this.assetRepository = assetRepository;
+      this.emActionService = emActionService;
    }
 
    @GetMapping("/api/em/schedule/task/action/emails")
@@ -259,7 +261,7 @@ public class EMScheduleTaskActionController {
       @DecodeParam("id") String identifier,
       Principal principal) throws Exception
    {
-      return actionService.getViewsheetTableDataAssemblies(identifier, principal);
+      return emActionService.getViewsheetTableDataAssemblies(identifier, principal);
    }
 
    @GetMapping("/api/em/schedule/task/action/viewsheet/folders")
@@ -365,4 +367,5 @@ public class EMScheduleTaskActionController {
    private final ScheduleTaskActionService actionService;
    private final SecurityProvider securityProvider;
    private final AssetRepository assetRepository;
+   private final EMScheduleTaskActionServiceProxy emActionService;
 }
