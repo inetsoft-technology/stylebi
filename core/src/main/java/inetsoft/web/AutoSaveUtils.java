@@ -138,13 +138,20 @@ public final class AutoSaveUtils {
       try {
          sheet = (Worksheet)
             assetRepository.getSheet(entry, user, false, AssetContent.NO_DATA);
+
+         if(sheet == null) {
+            IndexedStorage storage =  assetRepository.getStorage(entry);
+            XMLSerializable obj = ((AbstractIndexedStorage) storage).getAutoSavedSheet(entry, user);
+
+            if(obj == null) {
+               return false;
+            }
+
+            sheet = (Worksheet)obj;
+         }
       }
       catch(Exception e) {
          // ignore
-      }
-
-      if(sheet == null) {
-         return false;
       }
 
       for(Assembly assembly : sheet.getAssemblies()) {
