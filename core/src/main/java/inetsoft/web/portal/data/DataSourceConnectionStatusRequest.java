@@ -29,4 +29,6 @@ public interface DataSourceConnectionStatusRequest {
    List<String> paths();
 
    boolean updateStatus();
+
+   String timeZone();
 }
