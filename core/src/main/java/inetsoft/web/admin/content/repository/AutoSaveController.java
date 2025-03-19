@@ -39,8 +39,7 @@ import java.util.*;
 @RestController
 public class AutoSaveController {
    @Autowired
-   public AutoSaveController(ViewsheetService viewsheetService, AutoSaveServiceProxy autoSaveService) {
-      this.viewsheetService = viewsheetService;
+   public AutoSaveController(AutoSaveServiceProxy autoSaveService) {
       this.autoSaveService = autoSaveService;
    }
 
@@ -220,6 +219,5 @@ public class AutoSaveController {
       return entry != null && entry.isWorksheetFolder() && !entry.isRepositoryFolder();
    }
 
-   private final ViewsheetService viewsheetService;
    private final AutoSaveServiceProxy autoSaveService;
 }
