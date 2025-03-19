@@ -234,28 +234,8 @@ public class ThreadPool {
          cid = ((IDRunnable) cmd).getContextID();
       }
 
-      queue.add(getRunnableProxy(cmd));
+      queue.add(new RunnableWrapper(cmd));
       checkThread();
-   }
-
-   private Runnable getRunnableProxy(Runnable cmd) {
-      if(cmd == null) {
-         return null;
-      }
-
-      List<Class<?>> interfaces = new ArrayList<>();
-      interfaces.add(Runnable.class);
-
-      if(cmd instanceof PoolRunnable) {
-         interfaces.add(PoolRunnable.class);
-      }
-
-      if(cmd instanceof ContextRunnable) {
-         interfaces.add(ContextRunnable.class);
-      }
-
-      return (Runnable) Proxy.newProxyInstance(cmd.getClass().getClassLoader(),
-         interfaces.toArray(new Class[0]), new RunnableHandler(cmd));
    }
 
    /**
@@ -541,33 +521,33 @@ public class ThreadPool {
    {
    }
 
-   private static class RunnableHandler implements InvocationHandler {
-      public RunnableHandler(Object target) {
+   private static class RunnableWrapper implements Runnable {
+      public RunnableWrapper(Runnable target) {
          this.target = target;
          this.tempOrg = OrganizationContextHolder.getCurrentOrgId();
       }
 
       @Override
-      public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-         if(method.getName().equals("run")) {
-            try {
-               if(tempOrg != null) {
-                  OrganizationContextHolder.setCurrentOrgId(tempOrg);
-               }
-
-               return method.invoke(target, args);
+      public void run() {
+         try {
+            if(tempOrg != null) {
+               OrganizationContextHolder.setCurrentOrgId(tempOrg);
             }
-            finally {
-               if(tempOrg != null) {
-                  OrganizationContextHolder.clear();
-               }
+
+            target.run();
+         }
+         finally {
+            if(tempOrg != null) {
+               OrganizationContextHolder.clear();
             }
          }
-
-         return method.invoke(target, args);
       }
 
-      private final Object target;
+      public Runnable unwrap() {
+         return target;
+      }
+
+      private final Runnable target;
       private final String tempOrg;
    }
 
@@ -620,6 +600,12 @@ public class ThreadPool {
                continue;
             }
 
+            Runnable unwrapCmd = cmd;
+
+            if(cmd instanceof RunnableWrapper) {
+               unwrapCmd = ((RunnableWrapper) cmd).unwrap();
+            }
+
             int pri = getPriority();
             int npri = pri;
             boolean replacedStack = false;
@@ -627,8 +613,8 @@ public class ThreadPool {
             StackTraceElement[] oldParentStackTrace = null;
 
             try {
-               if(cmd instanceof PoolRunnable) {
-                  npri = ((PoolRunnable) cmd).getPriority();
+               if(unwrapCmd instanceof PoolRunnable) {
+                  npri = ((PoolRunnable) unwrapCmd).getPriority();
 
                   if(npri != pri) {
                      setPriority(npri);
@@ -636,8 +622,8 @@ public class ThreadPool {
                }
 
                // is a context runnable?  use its principal
-               if(cmd instanceof ContextRunnable) {
-                  ContextRunnable contextRunnable = (ContextRunnable) cmd;
+               if(unwrapCmd instanceof ContextRunnable) {
+                  ContextRunnable contextRunnable = (ContextRunnable) unwrapCmd;
                   Principal user = contextRunnable.getPrincipal();
 
                   if(user != null) {
@@ -677,8 +663,9 @@ public class ThreadPool {
                // loop, then even it be cancelled it will not release the
                // workthread which will caused any other report pending
                // there until the cancelled report finished.
-               if(cmd instanceof PoolRunnable) {
-                  final PoolRunnable pcmd = (PoolRunnable) cmd;
+               if(unwrapCmd instanceof PoolRunnable) {
+                  final PoolRunnable pcmd = (PoolRunnable) unwrapCmd;
+                  final Runnable originalCmd = cmd;
                   Thread cthread = Thread.currentThread();
                   final GroupedThread parent = cthread instanceof GroupedThread ?
                      (GroupedThread) cthread : null;
@@ -690,7 +677,7 @@ public class ThreadPool {
                            MDC.setContextMap(context);
                         }
 
-                        pcmd.run();
+                        originalCmd.run();
                      }
                      finally {
                         MDC.clear();
@@ -718,7 +705,7 @@ public class ThreadPool {
                }
             }
             catch(Throwable ex) {
-               LOG.error("Failed to execute a thread in ThreadPool: " + cmd, ex);
+               LOG.error("Failed to execute a thread in ThreadPool: " + unwrapCmd, ex);
             }
             finally {
                busy.decrementAndGet();
