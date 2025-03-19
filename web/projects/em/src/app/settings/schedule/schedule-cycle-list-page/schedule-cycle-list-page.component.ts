@@ -21,6 +21,7 @@ import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { Router } from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
+import { Tool } from "../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { ContextHelp } from "../../../context-help";
 import { MonitoringDataService } from "../../../monitoring/monitoring-data.service";
@@ -70,7 +71,7 @@ export class ScheduleCycleListPageComponent {
 
    addCycle(): void {
       const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      this.http.get(ADD_CYCLE_URI + localTimeZone).subscribe(
+      this.http.get(ADD_CYCLE_URI + Tool.byteEncodeURLComponent(localTimeZone)).subscribe(
          (cycle: DataCycleInfo) => {
             this.dataService.sendMessage(UPDATE_CYCLES_URI);
             this.router.navigate(["/settings/schedule/cycles", cycle.name]);
