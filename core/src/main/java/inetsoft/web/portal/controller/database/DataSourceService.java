@@ -21,8 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XDataSource;
-import inetsoft.uql.XRepository;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.erm.*;
@@ -118,14 +117,21 @@ public class DataSourceService {
     * @throws Exception if could not check for duplicate models
     */
    public boolean isUniqueModelName(String database, String name) throws Exception {
-      XDataModel dataModel = repository.getDataModel(database);
+      DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
 
-      if(dataModel == null) {
-         throw new FileNotFoundException(database);
+      try {
+         XDataModel dataModel = repository.getDataModel(database);
+
+         if(dataModel == null) {
+            throw new FileNotFoundException(database);
+         }
+
+         return dataModel.getLogicalModel(name) != null || dataModel.getPartition(name) != null ||
+            dataModel.getVirtualPrivateModel(name) != null;
       }
-
-      return dataModel.getLogicalModel(name) != null || dataModel.getPartition(name) != null ||
-         dataModel.getVirtualPrivateModel(name) != null;
+      finally {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
+      }
    }
 
    /**

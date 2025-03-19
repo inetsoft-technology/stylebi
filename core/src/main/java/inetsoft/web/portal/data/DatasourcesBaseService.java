@@ -289,7 +289,14 @@ public abstract class DatasourcesBaseService {
     * @throws Exception if failed to check the data sources
     */
    public boolean checkDuplicate(String name) throws Exception {
-      return repository.getDataSource(name) != null;
+      DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
+
+      try {
+         return repository.getDataSource(name) != null;
+      }
+      finally {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
+      }
    }
 
    @Audited(
