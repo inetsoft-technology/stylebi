@@ -446,32 +446,39 @@ public class PhysicalModelManagerService {
                principal);
       }
 
-      if(dataModel.getPartition(newName) != null) {
-         throw new FileExistsException(newName);
+      DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
+
+      try {
+         if(dataModel.getPartition(newName) != null) {
+            throw new FileExistsException(newName);
+         }
+
+         String path = dataSource + "/" + oldName;
+         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                           AssetEntry.Type.PARTITION, path, null);
+
+         entry = dataSourceService.getModelAssetEntry(entry);
+         String user = entry.getCreatedUsername();
+         Date date = entry.getCreatedDate();
+         dataModel.renamePartition(oldName, newName, description);
+         repository.updateDataModel(dataModel);
+         String npath = dataSource + "/" + newName;
+         AssetEntry newEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                              AssetEntry.Type.PARTITION, npath, null);
+         newEntry = dataSourceService.getModelAssetEntry(newEntry);
+         newEntry.setCreatedUsername(user);
+         newEntry.setCreatedDate(date);
+         dataSourceService.updateDataSourceAssetEntry(newEntry);
+         RenameInfo rinfo = new RenameInfo(path, npath, RenameInfo.PARTITION | RenameInfo.SOURCE);
+         rinfo.setModelFolder(folder);
+         RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
+         DependencyStorageService service = DependencyStorageService.getInstance();
+         DependencyHandler.getInstance().renameDependencies(entry, newEntry);
+         service.rename(entry.toIdentifier(), newEntry.toIdentifier(), rinfo.getOrganizationId());
       }
-
-      String path = dataSource + "/" + oldName;
-      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                        AssetEntry.Type.PARTITION, path, null);
-
-      entry = dataSourceService.getModelAssetEntry(entry);
-      String user = entry.getCreatedUsername();
-      Date date = entry.getCreatedDate();
-      dataModel.renamePartition(oldName, newName, description);
-      repository.updateDataModel(dataModel);
-      String npath = dataSource + "/" + newName;
-      AssetEntry newEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-                             AssetEntry.Type.PARTITION, npath, null);
-      newEntry = dataSourceService.getModelAssetEntry(newEntry);
-      newEntry.setCreatedUsername(user);
-      newEntry.setCreatedDate(date);
-      dataSourceService.updateDataSourceAssetEntry(newEntry);
-      RenameInfo rinfo = new RenameInfo(path, npath, RenameInfo.PARTITION | RenameInfo.SOURCE);
-      rinfo.setModelFolder(folder);
-      RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
-      DependencyStorageService service = DependencyStorageService.getInstance();
-      DependencyHandler.getInstance().renameDependencies(entry, newEntry);
-      service.rename(entry.toIdentifier(), newEntry.toIdentifier(), rinfo.getOrganizationId());
+      finally {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
+      }
    }
 
    /**

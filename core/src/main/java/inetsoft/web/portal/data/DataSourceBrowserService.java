@@ -581,26 +581,40 @@ public class DataSourceBrowserService {
     * @return a result in the form of CheckDuplicateResponse.
     */
    public CheckDuplicateResponse checkFolderDuplicate(String name) throws Exception {
-      boolean folderExist = repository.getDataSourceFolder(name) != null;
-      boolean dbExist = repository.getDataSource(name) != null;
+      DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
 
-      return new CheckDuplicateResponse(folderExist || dbExist);
+      try {
+         boolean folderExist = repository.getDataSourceFolder(name) != null;
+         boolean dbExist = repository.getDataSource(name) != null;
+
+         return new CheckDuplicateResponse(folderExist || dbExist);
+      }
+      finally {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
+      }
    }
 
    public CheckDuplicateResponse checkItemsDuplicate(DataSourceInfo[] items, String path) {
-      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
 
-      for(DataSourceInfo item : items) {
-         String ipath = item.path();
-         String iname = ipath.substring(ipath.lastIndexOf('/') + 1);
-         ipath = (path == null || "/".equals(path)) ? iname : path + "/" + iname;
+      try {
+         final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
 
-         if(registry.getDataSource(ipath) != null || registry.getDataSourceFolder(ipath) != null) {
-            return new CheckDuplicateResponse(true);
+         for(DataSourceInfo item : items) {
+            String ipath = item.path();
+            String iname = ipath.substring(ipath.lastIndexOf('/') + 1);
+            ipath = (path == null || "/".equals(path)) ? iname : path + "/" + iname;
+
+            if(registry.getDataSource(ipath) != null || registry.getDataSourceFolder(ipath) != null) {
+               return new CheckDuplicateResponse(true);
+            }
          }
-      }
 
-      return new CheckDuplicateResponse(false);
+         return new CheckDuplicateResponse(false);
+      }
+      finally {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
+      }
    }
 
    public void moveDataSource(MoveCommand[] items, Principal principal) throws Exception {
