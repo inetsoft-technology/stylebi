@@ -200,7 +200,15 @@ public class DataSourceController {
          path = parentPath + "/" + request.newName();
       }
 
-      return dataSourceBrowserService.checkFolderDuplicate(path);
+      XPrincipal xPrincipal = (XPrincipal) principal;
+
+      try {
+         xPrincipal.setProperty("datasource.isCheckingDuplicate", "true");
+         return dataSourceBrowserService.checkFolderDuplicate(path);
+      }
+      finally {
+         xPrincipal.setProperty("datasource.isCheckingDuplicate", null);
+      }
    }
 
    @GetMapping("api/data/datasources/browser")
