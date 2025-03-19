@@ -135,7 +135,7 @@ public class ExportController {
       path = Tool.byteDecode(path);
       int format = formatParam.orElse(FileFormatInfo.EXPORT_TYPE_PDF);
       String type = outtypeParam.orElse(null);
-      boolean match = matchParam.orElse(false);
+      boolean match = matchParam.orElse(true);
       boolean exportAllTabbedTables = exportAllTabbedTablesParam.orElse(false);
       boolean expandSelections = expandSelectionsParam.orElse(false);
       boolean current = currentParam.orElse(true);
