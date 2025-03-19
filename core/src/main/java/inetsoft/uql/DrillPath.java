@@ -28,6 +28,7 @@ import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.regex.Pattern;
 
 /**
  * DrillPath defines a drill path to a report or a URL.
@@ -622,6 +623,11 @@ public class DrillPath implements XMLSerializable, Serializable, Cloneable {
 
    public String handleDrillLinkOrgMismatch(String link) {
       String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(oldPattern.matcher(link).matches()) {
+         return String.join("^", link, curOrgId);
+      }
+
       int orgIdx = link.lastIndexOf("^");
 
       if(orgIdx > 0) {
@@ -645,6 +651,6 @@ public class DrillPath implements XMLSerializable, Serializable, Cloneable {
    private boolean passParams = true;
    private boolean disablePrompting;
    private int linkType = DrillPath.WEB_LINK;
-
+   private static Pattern oldPattern = Pattern.compile("^[^^]+\\^[^^]+\\^[^^]+\\^[^^]+$");
    private static final Logger LOG = LoggerFactory.getLogger(DrillPath.class);
 }
