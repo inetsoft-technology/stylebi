@@ -53,11 +53,12 @@ public class DatabaseModelBrowserController {
     */
    @GetMapping(value = "/api/data/database/dataModel/browse")
    public DatabaseDataModelBrowserModel getDataModels(@RequestParam("database") String database,
+                                                      @RequestParam("timeZone") String timeZone,
                                                       @RequestParam(value = "folder", required = false) String folder,
                                                       Principal principal)
       throws Exception
    {
-      return databaseAssetBrowserService.getDataModelBrowseModel(database, folder, principal, false);
+      return databaseAssetBrowserService.getDataModelBrowseModel(database, folder, timeZone, principal, false);
    }
 
    /**
@@ -79,7 +80,7 @@ public class DatabaseModelBrowserController {
       throws Exception
    {
       return databaseAssetBrowserService.getSearchDataModelNames(
-         command.getDatabase(), command.getPath(), command.getQuery(), principal, true);
+         command.getDatabase(), command.getPath(), command.getQuery(), command.getTimeZone(), principal, true);
    }
 
    @PostMapping("api/data/search/dataModel")
@@ -88,7 +89,7 @@ public class DatabaseModelBrowserController {
       throws Exception
    {
       return databaseAssetBrowserService.getSearchDataModel(
-         command.getDatabase(), command.getPath(), command.getQuery(), principal);
+         command.getDatabase(), command.getPath(), command.getQuery(), command.getTimeZone(), principal);
    }
 
    /**

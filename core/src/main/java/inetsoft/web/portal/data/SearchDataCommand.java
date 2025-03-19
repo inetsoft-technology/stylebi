@@ -50,8 +50,17 @@ public class SearchDataCommand {
       this.database = database;
    }
 
+   public String getTimeZone() {
+      return timeZone;
+   }
+
+   public void setTimeZone(String timeZone) {
+      this.timeZone = timeZone;
+   }
+
    private String query;
    private String path;
    private int scope;
    private String database;
+   private String timeZone;
 }

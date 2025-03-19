@@ -292,7 +292,7 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
     */
    private refreshSearchBrowser(path: string, query: string) {
       this.httpClient.post(SEARCH_DATA_MODEL_URI,
-         new SearchCommand(query, path || "/", 0, this.databaseName))
+         new SearchCommand(query, path || "/", 0, this.databaseName, Intl.DateTimeFormat().resolvedOptions().timeZone))
          .subscribe((data: DatabaseDataModelBrowserModel) => {
                this.pageModel = data;
                this.models = this.listModel?.items ? <DatabaseAsset[]> this.listModel?.items : [];
@@ -398,7 +398,8 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
 
    private updateModels(folder?: string) {
       let params: HttpParams = new HttpParams()
-         .set("database", this.databaseName);
+         .set("database", this.databaseName)
+         .set("timeZone", Intl.DateTimeFormat().resolvedOptions().timeZone);
 
       if(!!folder) {
          this.folderName = folder;

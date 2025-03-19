@@ -56,7 +56,7 @@ export class DatabaseDataModelToolbarComponent {
          distinctUntilChanged(),
          switchMap((term) =>
             this.httpClient.post((this.isvpm ? SEARCH_VPM_URI : SEARCH_DATA_MODEL_URI) + "/names",
-            new SearchCommand(term, "/", 0, this.database))),
+            new SearchCommand(term, "/", 0, this.database, Intl.DateTimeFormat().resolvedOptions().timeZone))),
          catchError(() => of([])),
          map((data: AssetListBrowseModel) => {
             return !!data && !!data.names ? data.names.slice(0, 8) : [];

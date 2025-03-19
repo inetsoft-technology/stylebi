@@ -16,6 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 export class SearchCommand {
-   constructor(private query: string, private path: string, private scope: number, private database?: string) {
+   constructor(private query: string, private path: string, private scope: number, private database?: string, private timeZone?: string) {
    }
 }

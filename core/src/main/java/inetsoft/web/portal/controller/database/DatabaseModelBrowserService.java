@@ -65,7 +65,8 @@ public class DatabaseModelBrowserService {
    }
 
    public DatabaseDataModelBrowserModel getDataModelBrowseModel(String database, String folder,
-                                                                Principal principal, boolean allChild)
+                                                                String timeZone, Principal principal,
+                                                                boolean allChild)
       throws Exception
    {
       DatabaseDataModelBrowserModel model = new DatabaseDataModelBrowserModel();
@@ -97,8 +98,8 @@ public class DatabaseModelBrowserService {
          result.addAll(getDataModelFolders(database, false, principal));
       }
 
-      result.addAll(dataSourceService.getPhysicalModels(database, folder, principal, allChild));
-      result.addAll(dataSourceService.getLogicalModels(database, folder, principal, allChild));
+      result.addAll(dataSourceService.getPhysicalModels(database, folder, timeZone, principal, allChild));
+      result.addAll(dataSourceService.getLogicalModels(database, folder, timeZone, principal, allChild));
       listModel.setItems(result.toArray(new AssetItem[result.size()]));
       listModel.setDbPartitionCount(dataSourceService.getDatabasePartitionCount(database));
       model.setListModel(listModel);
@@ -107,10 +108,10 @@ public class DatabaseModelBrowserService {
    }
 
    public DatabaseDataModelBrowserModel getSearchDataModelNames(String database, String folder, String query,
-                                                                Principal principal, boolean allChild)
+                                                                String timeZone, Principal principal, boolean allChild)
       throws Exception
    {
-      DatabaseDataModelBrowserModel model = getDataModelBrowseModel(database, folder, principal, allChild);
+      DatabaseDataModelBrowserModel model = getDataModelBrowseModel(database, folder, timeZone, principal, allChild);
       AssetListBrowseModel listModel = model.getListModel();
       AssetItem[] items = listModel.getItems();
       String[] names = Arrays.stream(items)
@@ -140,10 +141,10 @@ public class DatabaseModelBrowserService {
    }
 
    public DatabaseDataModelBrowserModel getSearchDataModel(String database, String folder, String query,
-                                                           Principal principal)
+                                                           String timeZone, Principal principal)
       throws Exception
    {
-      DatabaseDataModelBrowserModel model = getDataModelBrowseModel(database, folder, principal, true);
+      DatabaseDataModelBrowserModel model = getDataModelBrowseModel(database, folder, timeZone, principal, true);
       AssetListBrowseModel listModel = model.getListModel();
       AssetItem[] items = listModel.getItems();
       items = Arrays.stream(items)

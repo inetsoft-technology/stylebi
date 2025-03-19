@@ -42,6 +42,7 @@ import org.springframework.stereotype.Component;
 import java.io.FileNotFoundException;
 import java.net.URLEncoder;
 import java.security.Principal;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -340,7 +341,7 @@ public class DataSourceService {
     *
     * @return a list of physical models.
     */
-   public List<PhysicalModel> getPhysicalModels(String database, String folder,
+   public List<PhysicalModel> getPhysicalModels(String database, String folder, String timeZone,
                                                 Principal principal, boolean allChild)
       throws Exception
    {
@@ -384,9 +385,9 @@ public class DataSourceService {
             }
 
             PhysicalModel physicalModel = buildPhysicalModel(entry, database, partition,
-               null, folderName, principal, provider);
+               null, folderName, timeZone, principal, provider);
             physicalModel.setExtendViews(
-               getExtendedPhysicalView(entry, database, partition, provider,  principal));
+               getExtendedPhysicalView(entry, database, timeZone, partition, provider,  principal));
             results.add(physicalModel);
          }
       }
@@ -431,6 +432,7 @@ public class DataSourceService {
 
    private List<PhysicalModel> getExtendedPhysicalView(AssetEntry parent,
                                                        String database,
+                                                       String timeZone,
                                                        XPartition basePartition,
                                                        SecurityProvider provider,
                                                        Principal principal)
@@ -456,7 +458,7 @@ public class DataSourceService {
             }
 
             result.add(buildPhysicalModel(entry, database, basePartition, parent.getName(),
-               basePartition.getFolder(), principal, provider));
+               basePartition.getFolder(), timeZone,principal, provider));
          }
       }
 
@@ -468,6 +470,7 @@ public class DataSourceService {
                                             XPartition partition,
                                             String parentView,
                                             String folderName,
+                                            String timeZone,
                                             Principal principal,
                                             SecurityProvider provider)
       throws Exception
@@ -487,16 +490,13 @@ public class DataSourceService {
       }
 
       Date date = entry.getCreatedDate();
-      LocalDateTime cdate = null;
+      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
 
-      if(date != null) {
-         cdate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+      if(!timeZone.isEmpty()) {
+         format.setTimeZone(TimeZone.getTimeZone(timeZone));
       }
 
-      String fmt = SreeEnv.getProperty("format.date.time");
-      DateTimeFormatter df = DateTimeFormatter.ofPattern(fmt);
-      String dateLabel = cdate == null ? "" : df.format(cdate);
-
+      String dateLabel = date == null ? "" : format.format(date);
       result.setName(entry.getName());
       result.setPath(entry.getPath());
       result.setUrlPath(URLEncoder.encode(entry.getPath(), "UTF-8"));
@@ -521,7 +521,7 @@ public class DataSourceService {
     * @return
     * @throws Exception
     */
-   public List<LogicalModel> getLogicalModels(String database, String folder,
+   public List<LogicalModel> getLogicalModels(String database, String folder, String timeZone,
                                               Principal principal, boolean allChild)
       throws Exception
    {
@@ -564,9 +564,9 @@ public class DataSourceService {
             }
 
             LogicalModel model = buildLogicalModel(entry, database, lm, lm.getPartition(),
-               null, folderName, null, provider, principal);
+               null, folderName, null, timeZone, provider, principal);
             model.setExtendModels(getExtendedModels(entry, lm, lm.getPartition(), database,
-               provider, principal));
+               timeZone, provider, principal));
             results.add(model);
          }
       }
@@ -577,7 +577,8 @@ public class DataSourceService {
    private List<LogicalModel> getExtendedModels(AssetEntry parent,
                                                 XLogicalModel baseModel,
                                                 String physicalView, String database,
-                                                SecurityProvider provider, Principal principal)
+                                                String timeZone, SecurityProvider provider,
+                                                Principal principal)
       throws Exception
    {
       List<LogicalModel> result = new ArrayList<>();
@@ -613,7 +614,7 @@ public class DataSourceService {
 
             entry.setProperty(XUtil.DATASOURCE_ADDITIONAL, connection);
             result.add(buildLogicalModel(entry, database, baseModel, physicalView,
-                  parent.getName(), baseModel.getFolder(), connection, provider, principal));
+                  parent.getName(), baseModel.getFolder(), connection, timeZone, provider, principal));
          }
       }
 
@@ -627,6 +628,7 @@ public class DataSourceService {
                                           String parentModel,
                                           String folderName,
                                           String connection,
+                                          String timeZone,
                                           SecurityProvider provider,
                                           Principal principal)
       throws Exception
@@ -646,16 +648,13 @@ public class DataSourceService {
       }
 
       Date date = entry.getCreatedDate();
-      LocalDateTime cdate = null;
+      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
 
-      if(date != null) {
-         cdate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+      if(!timeZone.isEmpty()) {
+         format.setTimeZone(TimeZone.getTimeZone(timeZone));
       }
 
-      String fmt = SreeEnv.getProperty("format.date.time");
-      DateTimeFormatter df = DateTimeFormatter.ofPattern(fmt);
-      String dateLabel = cdate == null ? "" : df.format(cdate);
-
+      String dateLabel = date == null ? "" : format.format(date);
       logicalModel.setName(entry.getName());
       logicalModel.setPath(entry.getPath());
       logicalModel.setUrlPath(URLEncoder.encode(entry.getPath(), "UTF-8"));
