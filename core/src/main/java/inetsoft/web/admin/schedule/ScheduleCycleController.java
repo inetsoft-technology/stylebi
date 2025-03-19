@@ -20,6 +20,7 @@ package inetsoft.web.admin.schedule;
 import inetsoft.web.admin.monitoring.MonitoringDataService;
 import inetsoft.web.admin.schedule.model.DataCycleListModel;
 import inetsoft.web.admin.schedule.model.ScheduleCycleDialogModel;
+import inetsoft.web.factory.DecodePathVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -63,7 +64,7 @@ public class ScheduleCycleController {
    }
 
    @GetMapping("/api/em/schedule/add-cycle/{timeZoneId}")
-   public DataCycleInfo addDataCycle(@PathVariable("timeZoneId") String timeZoneId, Principal principal) {
+   public DataCycleInfo addDataCycle(@DecodePathVariable("timeZoneId") String timeZoneId, Principal principal) {
       String newCycleName = this.scheduleCycleService.addDataCycle(principal, timeZoneId);
       return new DataCycleInfo(newCycleName);
    }
