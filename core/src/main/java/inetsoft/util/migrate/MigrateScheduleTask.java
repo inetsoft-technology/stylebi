@@ -65,25 +65,9 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
                                                                  ((Organization) getNewOrganization()).getId()));
       }
 
-      String user = task.getAttribute("owner");
-
-      if(user != null) {
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(user);
-
-         if(getNewOrganization() == null && getOldOrganization() == null) {
-            if(Tool.equals(getOldName(), identityID.getName())) {
-               identityID.setName(getNewName());
-               task.setAttribute("owner", identityID.convertToKey());
-            }
-         }
-         else {
-            if(!Tool.equals(((Organization) getOldOrganization()).getId(), ((Organization) getNewOrganization()).getId())) {
-               identityID.setOrgID(((Organization) getNewOrganization()).getId());
-               task.setAttribute("owner", identityID.convertToKey());
-            }
-         }
-      }
-
+      syncIdentityAttribute(task, "owner");
+      syncIdentityAttribute(task, "user");
+      syncIdentityAttribute(task, "idname");
       list = getChildNodes(task, "./Condition");
 
       if(list != null) {
@@ -236,6 +220,29 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
                updateMVDef(element);
             }
          }
+      }
+   }
+
+   private void syncIdentityAttribute(Element task, String attrName) {
+      String user = task.getAttribute(attrName);
+
+      if(user == null) {
+         return;
+      }
+
+      IdentityID identityID = IdentityID.getIdentityIDFromKey(user);
+      String oOrgID = getOldOrganization() == null ? null : getOldOrganization().getOrganizationID();
+      String nOrgID = getNewOrganization() == null ? null : getNewOrganization().getOrganizationID();
+
+      if(nOrgID == null && oOrgID == null) {
+         if(Tool.equals(getOldName(), identityID.getName())) {
+            identityID.setName(getNewName());
+            task.setAttribute(attrName, identityID.convertToKey());
+         }
+      }
+      else if(!Tool.equals(oOrgID, nOrgID)) {
+         identityID.setOrgID(nOrgID);
+         task.setAttribute(attrName, identityID.convertToKey());
       }
    }
 
