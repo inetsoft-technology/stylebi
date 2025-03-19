@@ -41,7 +41,6 @@ import java.beans.PropertyChangeListener;
 import java.io.Serializable;
 import java.lang.SecurityException;
 import java.lang.reflect.Method;
-import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -1528,7 +1527,7 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          //if object is null, retry with host-org when global default visible
-         if(result == null && SUtil.isDefaultVSGloballyVisible() && !isCheckingDuplicate() &&
+         if(result == null && SUtil.isDefaultVSGloballyVisible() && !ignoreGlobalShare() &&
                               !Tool.equals(orgId, Organization.getDefaultOrganizationID())) {
             orgId = Organization.getDefaultOrganizationID();
             AssetEntry hentry = (AssetEntry) entry.clone();
@@ -1556,10 +1555,9 @@ public class DataSourceRegistry implements MessageListener {
       return obj == null ? null : obj.getObject(cloneIt);
    }
 
-   private boolean isCheckingDuplicate() {
-      XPrincipal principal = (XPrincipal) (ThreadContext.getContextPrincipal());
-      String isCheckingDuplicate = principal.getProperty("datasource.isCheckingDuplicate");
-      return isCheckingDuplicate != null && Boolean.parseBoolean(isCheckingDuplicate);
+   private boolean ignoreGlobalShare() {
+      Boolean isCheckingDuplicate = DataSourceRegistry.IGNORE_GLOBAL_SHARE.get();
+      return isCheckingDuplicate != null && isCheckingDuplicate;
    }
 
    /**
@@ -1975,6 +1973,7 @@ public class DataSourceRegistry implements MessageListener {
 
    private static final IndexedStorage.Filter datasourceFilter =
       DataSourceRegistry::matchesDataSourceFilter;
+   public static ThreadLocal<Boolean> IGNORE_GLOBAL_SHARE = ThreadLocal.withInitial(() -> false);
 
    public static final class Reference // NOSONAR this is an inner class that is only referenced in the annotation
       extends SingletonManager.Reference<DataSourceRegistry>

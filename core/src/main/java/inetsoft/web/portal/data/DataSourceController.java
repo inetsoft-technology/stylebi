@@ -603,13 +603,7 @@ public class DataSourceController {
    @GetMapping("/api/portal/data/datasources/checkDuplicate/**")
    //@Secured(permissions = @RequiredPermission(ActionTypes.DATA_TAB))
    public boolean checkDatasourceDuplicate(@RemainingPath String name) throws Exception {
-      //handle globally exposed default org assets from getting hit badly
-      XPrincipal principal = (XPrincipal) (ThreadContext.getContextPrincipal());
-      principal.setProperty("datasource.isCheckingDuplicate", "true");
-      boolean isDuplicate = datasourcesService.checkDuplicate(name);
-      principal.setProperty("datasource.isCheckingDuplicate", null);
-
-      return isDuplicate;
+      return datasourcesService.checkDuplicate(name);
    }
 
    /**
