@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import jakarta.servlet.http.*;
 import org.apache.commons.io.IOUtils;
+import org.apache.hc.core5.net.InetAddressUtils;
 import org.apache.ignite.binary.BinaryTypeConfiguration;
 import org.apache.ignite.configuration.BinaryConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
@@ -3164,6 +3165,89 @@ public class SUtil {
          userID.getName().split(" ").length > 1 ? userID.name.split(" ")[1] : "";
 
       return new String[]{firstName, lastName};
+   }
+
+   public static String getLoginOrganization(HttpServletRequest request) {
+      String orgID = null;
+
+      if(SUtil.isMultiTenant()) {
+         String type = SreeEnv.getProperty("security.login.orgLocation", "domain");
+
+         if("path".equals(type)) {
+            URI uri = URI.create(LinkUriArgumentResolver.getLinkUri(request));
+            String requestedPath = request.getPathInfo();
+
+            if(requestedPath == null) {
+               requestedPath = uri.getRawPath();
+            }
+
+            if(requestedPath != null) {
+               if(requestedPath.startsWith("/")) {
+                  requestedPath = requestedPath.substring(1);
+               }
+
+               int index = requestedPath.indexOf('/');
+
+               if(index < 0) {
+                  orgID = requestedPath;
+               }
+               else {
+                  orgID = requestedPath.substring(0, index);
+               }
+            }
+         }
+         else {
+            // get the lowest level subdomain, of the form "http://orgID.somehost.com/"
+            String host = LinkUriArgumentResolver.getRequestHost(request);
+
+            if(host != null && !isIpHost(host)) {
+               int index = host.indexOf('.');
+
+               if(index >= 0) {
+                  orgID = host.substring(0, index);
+               }
+            }
+         }
+
+         if(orgID != null) {
+            boolean matched = false;
+
+            for(String org : SecurityEngine.getSecurity().getOrganizations()) {
+               if(orgID.equalsIgnoreCase(org)) {
+                  matched = true;
+                  orgID = org;
+               }
+            }
+
+            if(!matched) {
+               orgID = null;
+            }
+         }
+      }
+
+      return orgID;
+   }
+
+   private static boolean isIpHost(String host) {
+      if(host == null) {
+         return false;
+      }
+
+      int index = host.lastIndexOf(":");
+      String hostName = host;
+
+      if(index > 0) {
+         String port = host.substring(index + 1);
+
+         if(!org.apache.commons.lang.StringUtils.isNumeric(port)) {
+            return false;
+         }
+
+         hostName = host.substring(0, index - 1);
+      }
+
+
+      return InetAddressUtils.isIPv4Address(hostName);
    }
 
    private static final List<WeakReference<HttpSession>> userSessions = new ArrayList<>();
