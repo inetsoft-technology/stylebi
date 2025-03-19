@@ -19,4 +19,5 @@
 export interface DataSourceConnectionStatusRequest {
    paths: string[];
    updateStatus: boolean;
+   timeZone: string;
 }

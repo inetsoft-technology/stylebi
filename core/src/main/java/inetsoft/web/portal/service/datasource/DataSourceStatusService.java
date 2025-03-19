@@ -18,6 +18,7 @@
 
 package inetsoft.web.portal.service.datasource;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.util.*;
@@ -30,6 +31,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.FileNotFoundException;
 import java.security.Principal;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 @Service
@@ -89,7 +91,7 @@ public class DataSourceStatusService {
       }
 
       return Arrays.stream(statuses)
-         .map(status -> getStatusModel(status, principal))
+         .map(status -> getStatusModel(status, request.timeZone(), principal))
          .toList();
    }
 
@@ -135,14 +137,16 @@ public class DataSourceStatusService {
       dataSource.setStatus(status);
    }
 
-   public DataSourceStatus getStatusModel(XDataSource.Status status, Principal principal) {
+   public DataSourceStatus getStatusModel(XDataSource.Status status, String timeZone, Principal principal) {
       if(status == null) {
          return null;
       }
 
       Catalog catalog = Catalog.getCatalog(principal);
       String errorMessage = status.getErrorMessage();
-      String time = Tool.formatDateTime(status.getLastUpdateTime());
+      SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      format.setTimeZone(TimeZone.getTimeZone(timeZone));
+      String time = format.format(new Date(status.getLastUpdateTime()));
       String message;
 
       if(status.isConnected()) {
