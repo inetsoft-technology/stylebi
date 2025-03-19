@@ -19,7 +19,7 @@ StyleBI Open Source has robust and fine granular security on both data and visua
 
 ## Quickstart
 
-You will need Docker installed with a version 1.29.0 or later of Docker Compose. If you are using Docker Desktop, Docker Compose is already included.
+You will need Docker installed with a version 1.29.0 or later of Docker Compose. If you are using Docker Desktop, Docker Compose is already included. For issues starting Docker Desktop, please refer to the [Docker Troubleshooting Documentation](https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/topics/).
 
 Save [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file to the Docker host machine by clicking on the link then click "Download raw file" button at upper right corner of the file editing area
 
@@ -59,7 +59,7 @@ You must have the Java 21 SDK installed and the `JAVA_HOME` environment variable
 
 You must also have Docker installed.
 
-**_NOTE:_**  Before cloning this repository into a Windows machine, it may be necessary to set the `core.longpaths` property to true `true`. This can be done via the following command in an Administrator command prompt:
+**_NOTE:_**  Before cloning this repository into a Windows machine, it may be necessary to set the `core.longpaths` property to `true`. This can be done via the following command in an Administrator command prompt:
 
 ```console
 git config --system core.longpaths true
