@@ -5,24 +5,24 @@
 public class {{proxySimpleName}} {
 {{#methods}}
 
-   public static final class {{callableClassName}} implements org.apache.ignite.lang.IgniteCallable<{{returnType}}> {
+   public static final class {{callableClassName}} implements org.apache.ignite.lang.IgniteCallable<{{{returnType}}}> {
    {{#parameters}}
-      private final {{value.type}} {{value.name}};
+      private final {{{value.type}}} {{value.name}};
    {{/parameters}}
 
-      public {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.type}} {{value.name}}{{/parameters}}) {
+      public {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}) {
       {{#parameters}}
          this.{{value.name}} = {{value.name}};
       {{/parameters}}
       }
 
-      public {{returnType}} call() throws Exception {
+      public {{{returnType}}} call() throws Exception {
          {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
          return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
       }
    }
 
-   public {{returnType}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{value.type}} {{value.name}}{{/parameters}}) {
+   public {{{returnType}}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}) {
       org.apache.ignite.Ignite ignite = ((inetsoft.sree.internal.cluster.ignite.IgniteCluster) inetsoft.sree.internal.cluster.Cluster.getInstance()).getIgniteInstance();
       return ignite.compute().affinityCall("{{cacheName}}", {{keyParam}}, new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}}));
    }
