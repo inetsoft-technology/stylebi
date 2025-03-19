@@ -37,6 +37,7 @@ export class TabularViewComponent {
    @Output() buttonClick = new EventEmitter<TabularButton>();
    tabularGrid: TabularGrid;
    _rootView: TabularView;
+   link: string;
 
    @Input() set rootView(view: TabularView) {
       const grid = new TabularGrid(view);

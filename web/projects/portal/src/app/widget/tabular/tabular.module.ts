@@ -17,6 +17,8 @@
  */
 import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
+import { MatButtonModule } from "@angular/material/button";
+import { MatFormFieldModule } from "@angular/material/form-field";
 import { GooglePickerService } from "./google-picker/google-picker.service";
 import { TabularGooglePickerEditor } from "./google-picker/tabular-google-picker-editor.component";
 import {
@@ -50,6 +52,7 @@ import {
    DateTypeEditorModule
 } from "../date-type-editor/date-type-editor.module";
 import {TreeModule} from "../tree/tree.module";
+import {MatIconModule} from "@angular/material/icon";
 
 @NgModule({
    imports: [
@@ -60,6 +63,9 @@ import {TreeModule} from "../tree/tree.module";
       ExpandStringModule,
       DateTypeEditorModule,
       TreeModule,
+      MatIconModule,
+      MatButtonModule,
+      MatFormFieldModule,
    ],
    declarations: [
       TabularAutocompleteEditor,
