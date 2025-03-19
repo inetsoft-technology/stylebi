@@ -18,6 +18,6 @@
 import { AssetListBrowseModel } from "./asset-list-browse-model";
 
 export class DatabaseDataModelBrowserModel {
-   constructor(public dbEditable: boolean, public dbDeletable: boolean, public listModel: AssetListBrowseModel) {
+   constructor(public dbEditable: boolean, public dbDeletable: boolean, public listModel: AssetListBrowseModel, public dateFormat: string) {
    }
 }
