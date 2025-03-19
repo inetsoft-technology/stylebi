@@ -304,7 +304,8 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       const names = dsCopy.map(ds => ds.path);
       const request = <DataSourceConnectionStatusRequest>{
          paths: names,
-         updateStatus: updateStatus
+         updateStatus: updateStatus,
+         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
 
       const sub = this.httpClient.post<DataSourceStatus[]>(DATASOURCE_STATUSES_URI, request)
