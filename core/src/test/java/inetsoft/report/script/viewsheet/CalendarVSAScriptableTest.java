@@ -26,7 +26,11 @@ import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.openMocks;
 
@@ -90,8 +94,13 @@ public class CalendarVSAScriptableTest {
       assert calendarVSAScriptable.getFields() != null;
 
       // Set the selectedObjects property to an array containing a Date object and assert that it is not null
-      calendarVSAScriptable.setSelectedObjects(new Object[]{new Date()});  //@TODO
-      assert calendarVSAScriptable.getSelectedObjects() != null;
+      Object[] dateArrarys = new Object[2];
+      dateArrarys[0] = new Date(125, 3, 20);
+      dateArrarys[1] = "d2025-03-20";
+      calendarVSAScriptable.setSelectedObjects(dateArrarys);
+      Object[] resResult = calendarVSAScriptable.getSelectedObjects();
+      Object[] copiedArray = Arrays.copyOf(resResult, resResult.length);
+      assert Arrays.toString(copiedArray).equals("[w2025-2-5, d2025-3-20]");
 
       // Assert that the min property is null
       assert calendarVSAScriptable.getMin() == null;
