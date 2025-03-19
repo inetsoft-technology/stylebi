@@ -62,7 +62,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
          String recordedOrgID = cookies == null ? null :
             Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
                .map(Cookie::getValue).findFirst().orElse(null);
-         recordedOrgID = recordedOrgID == null ? getLoginOrganization(httpRequest) : recordedOrgID;
+         recordedOrgID = recordedOrgID == null ? SUtil.getLoginOrganization(httpRequest) : recordedOrgID;
          recordedOrgID = recordedOrgID == null ? getCookieRecordedOrgID((HttpServletRequest) request) : recordedOrgID;
 
          if((principal == null || principal.getName().equals(XPrincipal.ANONYMOUS)) &&
@@ -82,7 +82,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
 
       if(unauthorized) {
          if(shouldSendAuthenticationRedirect(httpRequest, (HttpServletResponse) response)) {
-            String orgID = getLoginOrganization(httpRequest);
+            String orgID = SUtil.getLoginOrganization(httpRequest);
             String requestedUrl = LinkUriArgumentResolver.transformUri(httpRequest);
             String sep = requestedUrl.contains("?") ? "&" : "?";
             String queryString = httpRequest.getQueryString() != null ?
@@ -122,7 +122,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
                .map(Cookie::getValue).findFirst().orElse(null);
 
          if(recordedOrgID == null) {
-            String orgID = getLoginOrganization(httpRequest);
+            String orgID = SUtil.getLoginOrganization(httpRequest);
 
             if(orgID != null) {
                ((HttpServletResponse) response).addCookie(getOrgCookie(orgID));
