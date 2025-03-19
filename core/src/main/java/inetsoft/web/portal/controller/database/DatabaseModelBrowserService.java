@@ -75,6 +75,7 @@ public class DatabaseModelBrowserService {
          dataSourceService.checkPermission(database, ResourceAction.DELETE, principal);
       model.setDbEditable(dbEditable);
       model.setDbDeletable(dbDeletable);
+      model.setDateFormat(Tool.getDateFormatPattern());
 
       AssetListBrowseModel listModel = new AssetListBrowseModel();
       boolean isRoot = dataSourceService.isRootDataModelFolder(folder);

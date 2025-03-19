@@ -19,6 +19,7 @@ import { Component, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { HttpClient, HttpParams } from "@angular/common/http";
+import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { NotificationsComponent } from "../../../../../widget/notifications/notifications.component";
 import { SortOptions } from "../../../../../../../../shared/util/sort/sort-options";
 import { Subscription } from "rxjs";
@@ -411,6 +412,12 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
       this.httpClient.get<DatabaseDataModelBrowserModel>(DATABASE_DATA_MODEL_URI, { params: params })
          .subscribe(
             data => {
+               if(data.listModel != null && data.listModel.items != null) {
+                  for(let item of data.listModel.items) {
+                     item.createdDateLabel = DateTypeFormatter.getLocalTime(item.createdDate, data.dateFormat);
+                  }
+               }
+
                this.pageModel = data;
                this.models = !!this.listModel?.items ? <DatabaseAsset[]> this.listModel.items : [];
                this.currentFolderPathString = this.folderName;
