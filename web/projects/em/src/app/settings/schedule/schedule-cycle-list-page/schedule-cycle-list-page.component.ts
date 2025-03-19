@@ -31,7 +31,7 @@ import { DataCycleInfo, DataCycleListModel } from "../model/data-cycle-list-mode
 
 const TOPIC = "schedule";
 const GET_DATA_CYCLE_NAMES_URI = "cycles/get-cycle-names";
-const ADD_CYCLE_URI = "../api/em/schedule/add-cycle";
+const ADD_CYCLE_URI = "../api/em/schedule/add-cycle/";
 const REMOVE_CYCLES_URI = "../api/em/schedule/cycles/remove-cycles";
 const UPDATE_CYCLES_URI = "schedule/cycles/update-cycles";
 
