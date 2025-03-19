@@ -21,18 +21,16 @@ import inetsoft.report.TabularSheet;
 import inetsoft.test.SreeHome;
 import inetsoft.test.XTableUtil;
 import org.junit.jupiter.api.Test;
-
-@SreeHome
 class FormulaTableLensTest {
    @Test
    void testFormula() {
       DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
-	    {"col1", "col2", "col3"},
-	    {"a", 1, 5.0},
-	    {"b", 3, 10.0},
-	    {"b", 1, 2.5},
-	    {"c", 1, 3.0}
-         });
+         {"col1", "col2", "col3"},
+         {"a", 1, 5.0},
+         {"b", 3, 10.0},
+         {"b", 1, 2.5},
+         {"c", 1, 3.0}
+      });
       String[] headers = { "f1" };
       String[] formulas = { "field['col2'] + field['col3']" };
 //      SreeEnv.setProperty("license.key", "D000-6B0-DER-0000C30010AF-F2F31FE87256");
