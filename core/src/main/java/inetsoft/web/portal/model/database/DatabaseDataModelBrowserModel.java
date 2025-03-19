@@ -45,16 +45,7 @@ public class DatabaseDataModelBrowserModel {
       this.listModel = listModel;
    }
 
-   public String getDateFormat() {
-      return dateFormat;
-   }
-
-   public void setDateFormat(String format) {
-      this.dateFormat = format;
-   }
-
    private boolean dbEditable;
    private boolean dbDeletable;
    private AssetListBrowseModel listModel;
-   private String dateFormat;
 }
