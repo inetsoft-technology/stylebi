@@ -26,9 +26,12 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.ThreadContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * SubMVTask, the map task to be executed at one data node. It will execute
@@ -138,9 +141,18 @@ public final class SubMVTask extends AbstractMapTask {
 
       SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
       String[] organizationIDs = securityProvider.getOrganizationIDs();
+      Optional<String> mvOrg = Arrays.stream(organizationIDs)
+         .filter(id -> path.startsWith(id + "-"))
+         .findFirst();
 
-      return Arrays.stream(organizationIDs).filter(id -> path.startsWith(id + "-"))
-         .findFirst().get();
+      if(mvOrg.isEmpty()) {
+         String errorMsg = "Can not find organization id for:\"" + path + "\"";
+         LOG.error(errorMsg);
+
+         throw new RuntimeException(errorMsg);
+      }
+
+      return mvOrg.get();
    }
 
    /**
@@ -167,4 +179,6 @@ public final class SubMVTask extends AbstractMapTask {
 
 
    private SubMVQuery query;
+
+   private static final Logger LOG = LoggerFactory.getLogger(SubMVTask.class);
 }
