@@ -34,10 +34,10 @@ import java.security.Principal;
 
 @Service
 @ClusterProxy
-public class VSBindingService {
+public class VSBindingControllerService {
    @Autowired
-   public VSBindingService(ViewsheetService viewsheetService,
-                              inetsoft.web.binding.service.VSBindingService vsBindingService)
+   public VSBindingControllerService(ViewsheetService viewsheetService,
+                                     inetsoft.web.binding.service.VSBindingService vsBindingService)
    {
       this.viewsheetService = viewsheetService;
       this.vsBindingService = vsBindingService;
