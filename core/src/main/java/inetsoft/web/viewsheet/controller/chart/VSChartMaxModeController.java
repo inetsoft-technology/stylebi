@@ -77,20 +77,23 @@ public class VSChartMaxModeController extends VSChartController<VSChartEvent> {
 
       Viewsheet viewsheet = chartState.getViewsheet();
       int zAdjust = maxSize == null ? -100000 : 100000;
+      boolean embeddedViewsheet = false;
 
       while(viewsheet.getViewsheet() != null) {
          // make sure embedded vs is on top when maximizing chart inside
          viewsheet.setZIndex(viewsheet.getZIndex() + zAdjust);
          viewsheet = viewsheet.getViewsheet();
          viewsheet.setMaxMode(maxSize != null);
+         embeddedViewsheet = true;
       }
 
       if(maxSize != null) {
          final Assembly[] assemblies = viewsheet.getAssemblies(true, true);
+         int parentZAdjust = embeddedViewsheet ? zAdjust : 0;
 
          if(assemblies != null) {
             final VSAssembly topAssembly = (VSAssembly) assemblies[assemblies.length - 1];
-            final int zIndex = topAssembly.getVSAssemblyInfo().getZIndex() + 1;
+            final int zIndex = topAssembly.getVSAssemblyInfo().getZIndex() + 1 + parentZAdjust;
             info.setMaxModeZIndex(zIndex);
          }
       }

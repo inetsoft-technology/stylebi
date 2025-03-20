@@ -60,12 +60,14 @@ public class MaxModeAssemblyService {
 
       int zAdjust = maxSize == null ? -100000 : 100000;
       vs.setMaxMode(maxSize != null);
+      boolean embeddedViewsheet = false;
 
       while(vs.getViewsheet() != null) {
          // make sure embedded vs is on top when maximizing chart inside
          vs.setZIndex(vs.getZIndex() + zAdjust);
          vs = vs.getViewsheet();
          vs.setMaxMode(maxSize != null);
+         embeddedViewsheet = true;
       }
 
       MaxModeSupportAssemblyInfo assemblyInfo = assembly.getMaxModeInfo();
@@ -73,10 +75,11 @@ public class MaxModeAssemblyService {
 
       if(maxSize != null) {
          final Assembly[] assemblies = vs.getAssemblies(true, true);
+         int parentZAdjust = embeddedViewsheet ? zAdjust : 0;
 
          if(assemblies != null) {
             final VSAssembly topAssembly = (VSAssembly) assemblies[assemblies.length - 1];
-            final int zIndex = topAssembly.getVSAssemblyInfo().getZIndex() + 1;
+            final int zIndex = topAssembly.getVSAssemblyInfo().getZIndex() + 1 + parentZAdjust;
             assemblyInfo.setMaxModeZIndex(zIndex);
          }
       }
