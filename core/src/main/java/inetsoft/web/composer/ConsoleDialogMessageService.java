@@ -60,7 +60,7 @@ public class ConsoleDialogMessageService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public boolean saveConsoleMessageLevels(@ClusterProxyKey String runtimeId, SaveConsoleMessageLevelsEvent event,
+   public Boolean saveConsoleMessageLevels(@ClusterProxyKey String runtimeId, SaveConsoleMessageLevelsEvent event,
                                                                               Principal principal)
    {
       RuntimeSheet sheet = viewsheetService.getSheet(Tool.byteDecode(runtimeId), principal);
