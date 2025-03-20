@@ -211,11 +211,13 @@ public class RepositoryRecycleBinController {
 
    @GetMapping("/api/em/content/repository/recycle/node")
    public RepositoryRecycleBinEntryModel getRepositoryRecycleBinEntryModel(
-      @RequestParam("path") String path)
+      @RequestParam("path") String path,
+      @RequestParam("timeZone") String timeZone)
    {
       RecycleBin recycleBin = RecycleBin.getRecycleBin();
       RecycleBin.Entry entry = recycleBin.getEntry(path);
       SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      format.setTimeZone(TimeZone.getTimeZone(timeZone));
 
       return RepositoryRecycleBinEntryModel.builder()
          .path(entry.getPath())
