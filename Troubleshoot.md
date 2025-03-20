@@ -2,12 +2,6 @@
 
 This file contains a list of tips to help with building a Docker image and deploying StyleBI.
 
-## First-Time Build of Docker Image 
-
-The first time a docker image is built it may require online access to download necessary dependencies. Remove the `-o` command line option in this case.
-
-```.\mvnw clean package -f docker -PdockerImage```
-
 ## Clone the StyleBI repository
 
 You can clone the StyleBI Repository  by downloading a zip of the repository, or by running the following command if Git (https://git-scm.com/) is installed.
