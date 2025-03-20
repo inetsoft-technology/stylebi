@@ -1216,6 +1216,6 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    private boolean server = false; // server flag
    private final Map<Object, List<RenameDependencyInfo>> renameInfoMap;
    private static final Logger LOG = LoggerFactory.getLogger(WorksheetEngine.class);
-   private static final String NEXT_ID_NAME = WorksheetEngine.class.getName() + ".nextId";
-   private static final String CACHE_NAME = WorksheetEngine.class.getName() + ".cache";
+   private static final String NEXT_ID_NAME = "inetsoft.report.composition.WorksheetEngine.nextId";
+   public static final String CACHE_NAME = "inetsoft.report.composition.WorksheetEngine.cache";
 }

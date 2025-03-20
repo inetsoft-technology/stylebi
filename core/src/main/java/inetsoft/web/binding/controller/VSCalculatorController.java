@@ -17,8 +17,6 @@
  */
 package inetsoft.web.binding.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.calc.PercentCalc;
 import inetsoft.report.composition.graph.calc.ValueOfCalc;
 import inetsoft.uql.ColumnSelection;
@@ -49,6 +47,11 @@ import java.util.stream.Stream;
  */
 @RestController
 public class VSCalculatorController {
+
+   public VSCalculatorController(VSCalculatorServiceProxy vsCalculatorServiceProxy) {
+      this.vsCalculatorService = vsCalculatorServiceProxy;
+   }
+
    @RequestMapping(value = "/api/composer/dims", method = RequestMethod.GET)
    @ResponseBody
    public Map<String, List<DimensionInfo>> getDimensionInfos(@RequestParam("vsId") String vsId,
@@ -167,10 +170,7 @@ public class VSCalculatorController {
    private Assembly getAssembly(String vsId, String assemblyName, Principal principal)
       throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet vs = rvs.getViewsheet();
-      return vs.getAssembly(assemblyName);
+      return vsCalculatorService.getAssembly(vsId, assemblyName, principal);
    }
 
    private List<XDimensionRef> getAllDimensions(CrosstabVSAssembly crosstab) {
@@ -299,14 +299,9 @@ public class VSCalculatorController {
    }
 
    @Autowired
-   public void setViewsheetService(ViewsheetService viewsheetService) {
-      this.viewsheetService = viewsheetService;
-   }
-
-   @Autowired
    private VSChartHandler chartHandler;
    @Autowired
    private CalculatorHandler calculatorHandler;
-   private ViewsheetService viewsheetService;
+   private VSCalculatorServiceProxy vsCalculatorService;
    private Catalog catalog = Catalog.getCatalog();
 }
