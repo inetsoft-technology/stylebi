@@ -69,6 +69,9 @@ public abstract class FileFormatPaneModel {
    @Nullable
    public abstract String[] allBookmarks();
 
+   @Nullable
+   public abstract String[] allBookmarkLabels();
+
    @Value.Default
    public boolean onlyDataComponents() {
       return false;
