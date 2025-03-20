@@ -155,8 +155,7 @@ export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
          .pipe(
             tap(params => {
                if(params?.error) {
-                  this.onWarning.emit(params.error);
-                  throw new Error(params.error); // Stop further processing
+                  throw { source: "oauth_params", message: params.error }; // Stop further processing
                }}),
             map(params => Object.assign(authParams, params)),
             flatMap(params => this.oauthService.authorize(params)),
@@ -170,8 +169,14 @@ export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
                this.initView();
             },
             (error) => {
+               let message = "_#(js:data.datasources.authorizationError)";
+
+               if(error.source === "oauth_params") {
+                  message = error.message;
+               }
+
                console.error("Authorization error: ", error);
-               this.onWarning.emit("_#(js:data.datasources.authorizationError)");
+               this.onWarning.emit(message);
             });
    }
 
