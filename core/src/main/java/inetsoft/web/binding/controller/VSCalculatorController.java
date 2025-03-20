@@ -17,19 +17,8 @@
  */
 package inetsoft.web.binding.controller;
 
-import inetsoft.report.composition.graph.calc.PercentCalc;
-import inetsoft.report.composition.graph.calc.ValueOfCalc;
-import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.asset.ColumnRef;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.util.XUtil;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.AbstractCalc;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
-import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.CalculatorHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.binding.model.DimensionInfo;
@@ -38,9 +27,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Controller that provides a REST endpoint for composer viewsheet actions.
@@ -85,7 +71,7 @@ public class VSCalculatorController {
                                          @RequestParam("aggreName") String aggreName, Principal principal)
       throws Exception
    {
-      return vsCalculatorServiceProxy.getResetOptions(vsId, assemblyName, aggreName, principal);
+      return vsCalculatorServiceProxy.getResetOptions(vsId, assemblyName, aggreName, chartHandler, calculatorHandler, principal);
    }
 
    @Autowired
