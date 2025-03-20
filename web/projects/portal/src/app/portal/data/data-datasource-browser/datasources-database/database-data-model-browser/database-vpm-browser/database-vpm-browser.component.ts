@@ -19,6 +19,7 @@ import { Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { HttpClient, HttpParams } from "@angular/common/http";
+import { DateTypeFormatter } from "../../../../../../../../../shared/util/date-type-formatter";
 import { FolderChangeService } from "../../../../services/folder-change.service";
 import { SortOptions } from "../../../../../../../../../shared/util/sort/sort-options";
 import { SortTypes } from "../../../../../../../../../shared/util/sort/sort-types";
@@ -225,6 +226,12 @@ export class DatabaseVPMBrowserComponent implements OnDestroy, OnInit {
          VPM_URI + Tool.encodeURIComponentExceptSlash(this.databaseName)).toPromise());
 
       promise = promise.then((data) => {
+         if(data != null && data.items != null) {
+            for(let item of data.items) {
+               item.createdDateLabel = DateTypeFormatter.getLocalTime(item.createdDate, data.dateFormat);
+            }
+         }
+
          this.model = data;
          this.models = Tool.sortObjects(data?.items, this.sortOptions);
 

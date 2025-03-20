@@ -274,6 +274,7 @@ public class DataSourceService {
    {
       AssetListBrowseModel model = new AssetListBrowseModel();
       XDataModel dataModel = repository.getDataModel(database);
+      model.setDateFormat(Tool.getDateFormatPattern());
       SecurityProvider provider = securityEngine.getSecurityProvider();
 
       if(dataModel == null) {

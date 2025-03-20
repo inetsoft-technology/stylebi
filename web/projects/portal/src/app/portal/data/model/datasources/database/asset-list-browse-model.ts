@@ -19,7 +19,7 @@ import { AssetItem } from "./asset-item";
 
 export class AssetListBrowseModel {
    constructor(public editable: boolean, public deletable: boolean, public items: AssetItem[],
-               public names: string[], public dbPartitionCount?: number)
+               public names: string[], public dateFormat: string, public dbPartitionCount?: number)
    {
    }
 }
