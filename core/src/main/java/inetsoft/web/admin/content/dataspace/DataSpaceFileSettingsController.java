@@ -57,11 +57,13 @@ public class DataSpaceFileSettingsController {
 
    @GetMapping("/api/em/content/data-space/file/model")
    public DataSpaceFileSettingsModel getModel(
-      @DecodeParam(value = "path", required = false) String path)
+      @DecodeParam(value = "path", required = false) String path,
+      @DecodeParam(value = "timeZone", required = false) String timeZone)
    {
       DataSpace space = DataSpace.getDataSpace();
       Date time = new Date(space.getLastModified(null, path));
       SimpleDateFormat sformat = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      sformat.setTimeZone(TimeZone.getTimeZone(timeZone));
       String lmt = sformat.format(time);
 
       //feature1377528401535 by justinRokisky - display fileSize in Dataspace
@@ -173,7 +175,7 @@ public class DataSpaceFileSettingsController {
       this.dataSpaceContentSettingsService.updateFolder(path);
       Audit.getInstance().auditAction(actionRecord, principal);
 
-      return getModel(path);
+      return getModel(path, request.timeZone());
    }
 
    @DeleteMapping("/api/em/content/data-space/file")
