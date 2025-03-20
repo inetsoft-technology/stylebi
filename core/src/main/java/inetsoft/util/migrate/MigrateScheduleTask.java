@@ -147,9 +147,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
                      identityID.setName(getNewName());
                   }
                }
-               else if(Tool.equals(getOldName(), identityID.getName()) &&
-                     Tool.equals(getOldOrganization().getOrganizationID(), identityID.getOrgID()))
-               {
+               else if(Tool.equals(getOldOrganization().getOrganizationID(), identityID.getOrgID())) {
                   identityID.setOrgID(((Organization)getNewOrganization()).getId());
                }
 
