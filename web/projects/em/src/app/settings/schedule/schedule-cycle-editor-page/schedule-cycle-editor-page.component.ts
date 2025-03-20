@@ -21,6 +21,7 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { HttpClient, HttpHeaders } from "@angular/common/http";
 import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
 import { ContextHelp } from "../../../context-help";
+import { PageHeaderService } from "../../../page-header/page-header.service";
 import { ScheduleCycleDialogModel } from "../model/schedule-cycle-dialog-model";
 import { TaskItem } from "../schedule-task-editor-page/schedule-task-editor-page.component";
 import {
@@ -75,7 +76,8 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
                private router: Router,
                private dialog: MatDialog,
                private snackBar: MatSnackBar,
-               private timeZoneService: TimeZoneService)
+               private timeZoneService: TimeZoneService,
+               private pageTitle: PageHeaderService)
    {
    }
 
@@ -88,6 +90,7 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
             this.model.label = value;
             this.taskChanged = true;
          });
+      this.pageTitle.title =  "_#(js:Edit Data Cycle)";
    }
 
    ngOnDestroy() {
