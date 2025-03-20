@@ -26,6 +26,7 @@ export interface FileFormatPaneModel {
    sendLink: boolean;
    selectedBookmarks: string[];
    allBookmarks: string[];
+   allBookmarkLabels: string[]
    expandEnabled: boolean;
    hasPrintLayout?: boolean;
    onlyDataComponents: boolean;
