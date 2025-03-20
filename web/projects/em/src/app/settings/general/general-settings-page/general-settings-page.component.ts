@@ -75,6 +75,7 @@ export class GeneralSettingsPageComponent implements OnInit, OnDestroy {
    readonly _navLinks = [
       new GeneralSettingsNavLink("data-space", "_#(js:Data Space)", "dataSpaceSettingsModel"),
       new GeneralSettingsNavLink("license", "_#(js:License)", "licenseKeySettingsModel"),
+      new GeneralSettingsNavLink("api-key", "_#(js:API Key)", "licenseKeySettingsModel"),
       new GeneralSettingsNavLink("localization", "_#(js:Localization)", "localizationSettingsModel"),
       new GeneralSettingsNavLink("mv", "_#(js:Materialized Views)", "mvSettingsModel"),
       new GeneralSettingsNavLink("cache", "_#(js:Caching)", "cacheSettingsModel"),
@@ -93,6 +94,7 @@ export class GeneralSettingsPageComponent implements OnInit, OnDestroy {
       let visibleLinks = this._navLinks
          .filter(link => (!link.modelId || !!this.model[link.modelId])
             && (link.id != "license" || this.isEnterprise)
+            && (link.id != "api-key" || !this.isEnterprise)
             && (link.id != "server" || this.isEnterprise));
 
       return visibleLinks.length <= 1 ? [] : visibleLinks;
