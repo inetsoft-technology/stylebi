@@ -368,7 +368,10 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
          pending.forEach(c -> {
             final ViewsheetCommand command = c.getCommand();
             final MessageHeaders headers = c.getHeaderAccessor().getMessageHeaders();
-            messagingTemplate.convertAndSendToUser(userName, COMMANDS_TOPIC, command, headers);
+
+            if(userName != null) {
+               messagingTemplate.convertAndSendToUser(userName, COMMANDS_TOPIC, command, headers);
+            }
 
             runtimeSessions.forEach((session) -> {
                // copy the headers from the command and rewrite the user and sessionId so we can
