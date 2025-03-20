@@ -17,10 +17,6 @@
  */
 package inetsoft.web.binding.dnd.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.VSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.SourceChangeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,11 +30,11 @@ import java.security.Principal;
 @RestController
 public class VSSourceChangeController {
    @Autowired
-   public VSSourceChangeController(ViewsheetService viewsheetService,
+   public VSSourceChangeController(VSSourceChangeServiceProxy vsSourceChangeServiceProxy,
                                    VSAssemblyInfoHandler handler)
    {
-      this.viewsheetService = viewsheetService;
       this.handler = handler;
+      this.vsSourceChangeServiceProxy = vsSourceChangeServiceProxy;
    }
 
    /**
@@ -53,24 +49,9 @@ public class VSSourceChangeController {
       @RequestParam("table") String table, Principal principal)
       throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(vsId, principal);
-      SourceChangeMessage sourceChangeMessage = new SourceChangeMessage();
-      sourceChangeMessage.setChanged(false);
-
-      if(rvs != null) {
-         VSAssembly assembly = getVSAssembly(rvs, aname);
-         sourceChangeMessage.setChanged(handler.sourceChanged(table, assembly));
-      }
-
-      return sourceChangeMessage;
+      return vsSourceChangeServiceProxy.checkSourceChanged(vsId, aname, table, handler, principal);
    }
 
-   protected VSAssembly getVSAssembly(RuntimeViewsheet rvs, String name) {
-      Viewsheet viewsheet = rvs.getViewsheet();
-      return (VSAssembly) viewsheet.getAssembly(name);
-   }
-
-   private ViewsheetService viewsheetService;
+   private VSSourceChangeServiceProxy vsSourceChangeServiceProxy;
    private final VSAssemblyInfoHandler handler;
 }
