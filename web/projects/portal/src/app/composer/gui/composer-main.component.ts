@@ -1236,7 +1236,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    // save viewsheet/ sync data/reload viewsheet. Else do nothing.
    onSaveViewsheet(sheet: Viewsheet) {
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Dependencies Changed)",
-         "_#(js:Update asset dependencies)" + "_*" + sheet.label, CONFIRM_MESSAGE.options)
+         Tool.formatCatalogString("_#(js:Update asset dependencies)", [sheet.label]),
+         CONFIRM_MESSAGE.options)
          .then((result) => {
             if(result === "yes") {
                this.saveViewsheet0(sheet, false, true);
@@ -1259,7 +1260,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    onSaveWorksheet(event: { worksheet: Worksheet, close: boolean, updateDep: boolean }) {
       if(event.updateDep) {
          ComponentTool.showConfirmDialog(this.modalService, "_#(js:Dependencies Changed)",
-            "_#(js:Update asset dependencies)" + "_*" + event.worksheet.label, CONFIRM_MESSAGE.options)
+            Tool.formatCatalogString("_#(js:Update asset dependencies)", [event.worksheet.label]),
+            CONFIRM_MESSAGE.options)
             .then((result) => {
                if(result === "yes") {
                   this.saveWorksheet0(event.worksheet, false, true);
