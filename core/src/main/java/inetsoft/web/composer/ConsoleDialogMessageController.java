@@ -34,63 +34,22 @@ import java.security.Principal;
 @RestController
 public class ConsoleDialogMessageController {
    @Autowired
-   public ConsoleDialogMessageController(ViewsheetService viewsheetService) {
-      this.viewsheetService = viewsheetService;
+   public ConsoleDialogMessageController(ConsoleDialogMessageServiceProxy consoleDialogMessageServiceProxy) {
+      this.consoleDialogMessageServiceProxy = consoleDialogMessageServiceProxy;
    }
 
    @GetMapping("/api/composer/console-dialog/get-message-levels/**")
    public String[] getConsoleMessageLevels(@RemainingPath String runtimeId, Principal principal)
    {
-      RuntimeSheet sheet = viewsheetService.getSheet(Tool.byteDecode(runtimeId), principal);
-
-      if(sheet instanceof RuntimeViewsheet) {
-         Viewsheet vs = ((RuntimeViewsheet) sheet).getViewsheet();
-
-         if(vs != null) {
-            ViewsheetInfo vsInfo = vs.getViewsheetInfo();
-
-            if(vsInfo != null) {
-               return vsInfo.getMessageLevels();
-            }
-         }
-      }
-
-      return null;
+      return consoleDialogMessageServiceProxy.getConsoleMessageLevels(runtimeId, principal);
    }
 
    @PostMapping("/api/composer/console-dialog/save-message-levels/**")
    public boolean saveConsoleMessageLevels(@RequestBody SaveConsoleMessageLevelsEvent event,
                                           @RemainingPath String runtimeId, Principal principal)
    {
-      RuntimeSheet sheet = viewsheetService.getSheet(Tool.byteDecode(runtimeId), principal);
-
-      if(sheet instanceof RuntimeViewsheet) {
-         Viewsheet vs = ((RuntimeViewsheet) sheet).getViewsheet();
-
-         if(vs != null) {
-            ViewsheetInfo vsInfo = vs.getViewsheetInfo();
-
-            if(vsInfo != null) {
-               vsInfo.setMessageLevels(event.getMessageLevels());
-               return true;
-            }
-         }
-      }
-      else if(sheet instanceof RuntimeWorksheet) {
-         Worksheet ws = ((RuntimeWorksheet) sheet).getWorksheet();
-
-         if(ws != null) {
-            WorksheetInfo wsInfo = ws.getWorksheetInfo();
-
-            if(wsInfo != null) {
-               wsInfo.setMessageLevels(event.getMessageLevels());
-               return true;
-            }
-         }
-      }
-
-      return false;
+      return consoleDialogMessageServiceProxy.saveConsoleMessageLevels(runtimeId, event, principal);
    }
 
-   private final ViewsheetService viewsheetService;
+   private final ConsoleDialogMessageServiceProxy consoleDialogMessageServiceProxy;
 }
