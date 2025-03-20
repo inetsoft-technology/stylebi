@@ -178,7 +178,7 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
                mv.incrementalString = mv.incremental ? "_#(js:Yes)" : "_#(js:No)";
                mv.validString = mv.valid ? "_#(js:True)" : "_#(js:False)";
 
-               if(mv.lastModifiedTimestamp != 0) {
+               if(!model.showDateAsAges && mv.lastModifiedTimestamp != 0) {
                   mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
                      model.dateFormat);
                }
