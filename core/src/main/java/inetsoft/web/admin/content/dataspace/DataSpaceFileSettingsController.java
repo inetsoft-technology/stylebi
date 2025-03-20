@@ -57,8 +57,8 @@ public class DataSpaceFileSettingsController {
 
    @GetMapping("/api/em/content/data-space/file/model")
    public DataSpaceFileSettingsModel getModel(
-      @DecodeParam(value = "path", required = false) String path,
-      @DecodeParam(value = "timeZone", required = false) String timeZone)
+      @DecodeParam(value = "path") String path,
+      @DecodeParam(value = "timeZone") String timeZone)
    {
       DataSpace space = DataSpace.getDataSpace();
       Date time = new Date(space.getLastModified(null, path));
