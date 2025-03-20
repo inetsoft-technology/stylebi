@@ -39,8 +39,8 @@ import java.util.*;
 @RestController
 public class AutoSaveController {
    @Autowired
-   public AutoSaveController(ViewsheetService viewsheetService) {
-      this.viewsheetService = viewsheetService;
+   public AutoSaveController(AutoSaveServiceProxy autoSaveService) {
+      this.autoSaveService = autoSaveService;
    }
 
    /**
@@ -105,26 +105,7 @@ public class AutoSaveController {
    private void restoreAutoSaveAsset(String id, String assetName, boolean override,
                                      Principal principal) throws Exception
    {
-      // Get auto save sheet from engine.
-      AssetEntry entry = AutoSaveUtils.createAssetEntry(id);
-      AssetRepository repository = AssetUtil.getAssetRepository(false);
-      AbstractSheet sheet = repository.getSheet(entry, principal, false, AssetContent.ALL);
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-
-      // Save auto save sheet to engine.
-      AssetEntry.Type type = id.startsWith("8^VIEWSHEET") ? AssetEntry.Type.VIEWSHEET :
-         AssetEntry.Type.WORKSHEET;
-      AssetEntry nentry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, type, assetName,
-         pId);
-
-      if(!override && viewsheetService.isDuplicatedEntry(repository, nentry)) {
-         return;
-      }
-
-      repository.setSheet(nentry, sheet, principal, false);
-      ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
-         assetName, AssetEventUtil.getObjectType(entry));
-      Audit.getInstance().auditAction(actionRecord, principal);
+      autoSaveService.restoreAutoSaveAssets(id, assetName, override, principal);
    }
 
    /**
@@ -238,5 +219,5 @@ public class AutoSaveController {
       return entry != null && entry.isWorksheetFolder() && !entry.isRepositoryFolder();
    }
 
-   private final ViewsheetService viewsheetService;
+   private final AutoSaveServiceProxy autoSaveService;
 }
