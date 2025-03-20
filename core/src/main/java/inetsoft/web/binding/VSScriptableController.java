@@ -19,6 +19,8 @@ package inetsoft.web.binding;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.analytic.web.adhoc.AdHocQueryHandler;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.uql.asset.TableAssembly;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.web.binding.handler.VSTreeHandler;
@@ -397,8 +399,10 @@ public class VSScriptableController {
     * Creates a new instance of <tt>VSScriptableController</tt>.
     */
    @Autowired
-   public VSScriptableController(VSScriptableServiceProxy vsScriptableServiceProxy, VSTreeHandler treeHandler) {
+   public VSScriptableController(VSScriptableServiceProxy vsScriptableServiceProxy,
+                                 VSScriptableService vsScriptableService, VSTreeHandler treeHandler) {
       this.vsScriptableServiceProxy = vsScriptableServiceProxy;
+      this.vsScriptableService = vsScriptableService;
       this.treeHandler = treeHandler;
    }
 
@@ -451,6 +455,12 @@ public class VSScriptableController {
       Principal principal) throws Exception
    {
       return vsScriptableServiceProxy.getScriptDefinition(vsId, assemblyName, tableName, isCondition, principal);
+   }
+
+   public ObjectNode getScriptDefinition(RuntimeWorksheet rws, TableAssembly table,
+                                         Principal principal) throws Exception
+   {
+      return vsScriptableService.getScriptDefinition(rws, table, principal);
    }
 
    @GetMapping("/api/vsscriptable/columnTree")
@@ -703,5 +713,6 @@ public class VSScriptableController {
    }
 
    private final VSScriptableServiceProxy vsScriptableServiceProxy;
+   private final VSScriptableService vsScriptableService;
    private final VSTreeHandler treeHandler;
 }
