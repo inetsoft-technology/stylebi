@@ -82,19 +82,21 @@ public class ExportDialogController {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(rvs.getEntry(), pId);
       List<String> allBookmarks = new ArrayList<>();
+      List<String> allBookmarkLabels = new ArrayList<>();
 
       for(VSBookmarkInfo vsBookmarkInfo : bookmarks) {
          if(vsBookmarkInfo.getName().equals(VSBookmark.HOME_BOOKMARK)) {
-            allBookmarks.add(Catalog.getCatalog().getString(vsBookmarkInfo.getName()));
-         }
-         else if(vsBookmarkInfo.getOwner() == null ||
-            vsBookmarkInfo.getOwner().equals(pId))
-         {
             allBookmarks.add(vsBookmarkInfo.getName());
+            allBookmarkLabels.add(Catalog.getCatalog().getString(vsBookmarkInfo.getName()));
+         }
+         else if(vsBookmarkInfo.getOwner() == null || vsBookmarkInfo.getOwner().equals(pId)) {
+            allBookmarks.add(vsBookmarkInfo.getName());
+            allBookmarkLabels.add(vsBookmarkInfo.getName());
          }
          else {
-            allBookmarks.add(vsBookmarkInfo.getName() + "(" +
-               VSUtil.getUserAlias(vsBookmarkInfo.getOwner()) + ")");
+            allBookmarks.add(vsBookmarkInfo.getName() + "(" + vsBookmarkInfo.getOwner().getName() + ")");
+            allBookmarkLabels.add(vsBookmarkInfo.getName() + "(" +
+                                VSUtil.getUserAlias(vsBookmarkInfo.getOwner()) + ")");
          }
       }
 
@@ -121,6 +123,7 @@ public class ExportDialogController {
 
       FileFormatPaneModel fileFormatPaneModel = FileFormatPaneModel.builder()
          .allBookmarks(allBookmarks.toArray(new String[0]))
+         .allBookmarkLabels(allBookmarkLabels.toArray(new String[0]))
          .formatType(getDefaultFormat())
          .matchLayout(matchLayout)
          .expandEnabled(expandComponentAllowed)

@@ -83,18 +83,21 @@ public class EmailDialogController {
       runtimeId = Tool.byteDecode(runtimeId);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       List<String> allBookmarks = new ArrayList<>();
+      List<String> allBookmarkLabels = new ArrayList<>();
 
       for(VSBookmarkInfo vsBookmarkInfo : rvs.getBookmarks()) {
          if(vsBookmarkInfo.getName().equals(VSBookmark.HOME_BOOKMARK)) {
-            allBookmarks.add(Catalog.getCatalog().getString(vsBookmarkInfo.getName()));
-         }
-         else if(vsBookmarkInfo.getOwner() == null ||
-                 vsBookmarkInfo.getOwner().equals(pId))
-         {
             allBookmarks.add(vsBookmarkInfo.getName());
+            allBookmarkLabels.add(Catalog.getCatalog().getString(vsBookmarkInfo.getName()));
+         }
+         else if(vsBookmarkInfo.getOwner() == null ||  vsBookmarkInfo.getOwner().equals(pId)) {
+            allBookmarks.add(vsBookmarkInfo.getName());
+            allBookmarkLabels.add(vsBookmarkInfo.getName());
          }
          else {
-            allBookmarks.add(vsBookmarkInfo.getName() + "(" +  VSUtil.getUserAlias(vsBookmarkInfo.getOwner()) + ")");
+            allBookmarks.add(vsBookmarkInfo.getName() + "(" +  vsBookmarkInfo.getOwner().getName() + ")");
+            allBookmarkLabels.add(vsBookmarkInfo.getName()
+                                     + "(" +  VSUtil.getUserAlias(vsBookmarkInfo.getOwner()) + ")");
          }
       }
 
@@ -119,6 +122,7 @@ public class EmailDialogController {
 
       FileFormatPaneModel fileFormatPaneModel = FileFormatPaneModel.builder()
          .allBookmarks(allBookmarks.toArray(new String[0]))
+         .allBookmarkLabels(allBookmarkLabels.toArray(new String[0]))
          .linkVisible(true)
          .matchLayout(matchLayout)
          .expandEnabled(expandComponentAllowed)

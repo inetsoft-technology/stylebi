@@ -127,7 +127,7 @@
              [attr.aria-selected]="model.selectedBookmarks.indexOf(bookmark) != -1"
              [class.selected]="model.selectedBookmarks.indexOf(bookmark) != -1"
              (click)="selectBookmark(bookmark, i, $event)" enterClick>
-          {{bookmark}}
+          {{ model.allBookmarkLabels[i] }}
         </div>
       </div>
       <ng-container largeFieldButtons>
