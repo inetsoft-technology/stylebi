@@ -21,7 +21,7 @@ StyleBI Open Source has robust and fine granular security on both data and visua
 
 You will need Docker installed with a version 1.29.0 or later of Docker Compose. If you are using Docker Desktop, Docker Compose is already included. For issues starting Docker Desktop, please refer to the [Docker Troubleshooting Documentation](https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/topics/).
 
-Save [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file to the Docker host machine by clicking on the link then click "Download raw file" button at upper right corner of the file editing area
+Save [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file to the Docker host machine by clicking on the link then click "Download raw file" button at upper right corner of the file editing area.
 
 For Docker Desktop, start it first then open a Command Prompt window. In the directory containing the .yaml file, run the following command:
 
@@ -59,7 +59,7 @@ You must have the Java 21 SDK installed and the `JAVA_HOME` environment variable
 
 You must also have Docker installed.
 
-**_NOTE:_**  Before cloning this repository into a Windows machine, it may be necessary to set the `core.longpaths` property to `true`. This can be done via the following command in an Administrator command prompt:
+> **NOTE**  Before cloning this repository into a Windows machine, it may be necessary to set the `core.longpaths` property to `true`. This can be done via the following command in an Administrator command prompt:
 
 ```console
 git config --system core.longpaths true
@@ -92,6 +92,8 @@ or on Windows:
 ```powershell
 .\mvnw.cmd clean package -o -f docker -PdockerImage
 ```
+
+> **NOTE** 1) Docker engine should be running for this command. 2) The first time a docker image is built it may require online access to download necessary dependencies. Remove the -o command option.
 
 This will build the Docker image and install it on your machine. You can now use this locally. You can also tag the image and push it to your own repository for use elsewhere, for example:
 
