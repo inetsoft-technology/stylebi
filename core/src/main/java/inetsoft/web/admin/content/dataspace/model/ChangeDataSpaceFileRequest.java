@@ -30,6 +30,7 @@ public interface ChangeDataSpaceFileRequest {
    String path();
    String name();
    String newName();
+   String timeZone();
    boolean newFile();
    @Nullable String fileData();
    @Nullable DataSpaceFileContentModel content();

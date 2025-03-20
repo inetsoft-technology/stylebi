@@ -90,7 +90,8 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
          else {
             this.contentEditMode = false;
             const params = new HttpParams()
-               .set("path", Tool.byteEncode(this.data.path));
+               .set("path", Tool.byteEncode(this.data.path))
+               .set("timeZone",  Intl.DateTimeFormat().resolvedOptions().timeZone);
             this.http.get("../api/em/content/data-space/file/model", {params})
                .subscribe((model: DataSpaceFileSettingsModel) => {
                   this.model = model;
@@ -139,7 +140,8 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
          newName: this.nameControl.value,
          newFile: this.newFile,
          fileData: file ? file.content : null,
-         content: this.content
+         content: this.content,
+         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
 
       this.http.post(url, data).subscribe(
