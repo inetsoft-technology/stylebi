@@ -20,6 +20,7 @@ package inetsoft.web.messaging;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -106,6 +107,15 @@ public class MessageAttributes {
    public Object removeAttribute(String name) {
       removeDestructionCallback(name);
       return attributes.remove(name);
+   }
+
+   /**
+    * Gets an unmodifiable view of all attributes.
+    *
+    * @return the attributes.
+    */
+   public Map<String, Object> getAttributes() {
+      return Collections.unmodifiableMap(attributes);
    }
 
    /**

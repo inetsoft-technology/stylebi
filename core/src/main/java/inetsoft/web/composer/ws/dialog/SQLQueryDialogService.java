@@ -21,6 +21,7 @@ package inetsoft.web.composer.ws.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
@@ -39,7 +40,7 @@ public class SQLQueryDialogService {
       this.queryManagerService = queryManagerService;
    }
 
-   @ClusterProxyMethod("runtimeSheets")
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public SQLQueryDialogModel getModel(@ClusterProxyKey String runtimeId, String tableName,
                                        String dataSource, Principal principal)
       throws Exception

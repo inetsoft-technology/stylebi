@@ -17,10 +17,6 @@
  */
 package inetsoft.web.binding;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.util.Tool;
 import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.VSTableTrapModel;
@@ -45,7 +41,7 @@ import java.security.Principal;
 public class VSBindingController {
    @Autowired
    public VSBindingController(VSBindingService vsBindingService,
-                              VSBindingServiceProxy vsBindingServiceProxy)
+                              VSBindingControllerServiceProxy vsBindingServiceProxy)
    {
       this.vsBindingService = vsBindingService;
       this.vsBindingServiceProxy = vsBindingServiceProxy;
@@ -148,6 +144,6 @@ public class VSBindingController {
    }
 
    private final VSBindingService vsBindingService;
-   private final VSBindingServiceProxy vsBindingServiceProxy;
+   private final VSBindingControllerServiceProxy vsBindingServiceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(VSBindingController.class);
 }
