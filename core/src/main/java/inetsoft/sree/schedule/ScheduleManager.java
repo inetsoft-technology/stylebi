@@ -18,6 +18,7 @@
 package inetsoft.sree.schedule;
 
 import inetsoft.sree.*;
+import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
@@ -1056,6 +1057,28 @@ public class ScheduleManager {
       // clear cache
       this.getOrgTaskMap(orgID).clearCache();
       this.taskMap.remove(orgID);
+      removeExtensionTasksOfOrg(orgID);
+   }
+
+   private synchronized void removeExtensionTasksOfOrg(String orgID) {
+      for(ScheduleExt ext : extensions) {
+         if(!(ext instanceof DataCycleManager)) {
+            continue;
+         }
+
+         DataCycleManager cycleManager = (DataCycleManager) ext;
+         cycleManager.clearOrgTasks(orgID);
+      }
+
+      Iterator<ExtTaskKey> it = extensionTasks.keySet().iterator();
+
+      while(it.hasNext()) {
+         ExtTaskKey key = it.next();
+
+         if(Tool.equals(key.orgId, orgID)) {
+            extensionTasks.remove(key);
+         }
+      }
    }
 
    private void updateScheduleAction(ScheduleAction action,

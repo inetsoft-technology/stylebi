@@ -250,6 +250,12 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       return tasks;
    }
 
+   public void clearOrgTasks(String orgId) {
+      if(pregeneratedTasksMap.containsKey(orgId)) {
+         pregeneratedTasksMap.remove(orgId);
+      }
+   }
+
    public List<ScheduleTask> getTasks(String orgId) {
       return pregeneratedTasksMap.get(orgId);
    }
