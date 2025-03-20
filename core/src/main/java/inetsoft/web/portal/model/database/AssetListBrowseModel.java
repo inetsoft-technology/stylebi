@@ -50,6 +50,14 @@ public class AssetListBrowseModel {
       this.names = names;
    }
 
+   public String getDateFormat() {
+      return dateFormat;
+   }
+
+   public void setDateFormat(String format) {
+      this.dateFormat = format;
+   }
+
    public int getDbPartitionCount() {
       return dbPartitionCount;
    }
@@ -63,4 +71,5 @@ public class AssetListBrowseModel {
    private AssetItem[] items;
    private String[] names;
    private int dbPartitionCount;
+   private String dateFormat;
 }
