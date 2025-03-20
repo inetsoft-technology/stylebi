@@ -35,10 +35,10 @@ public class {{proxySimpleName}} {
       {{callableClassName}} serviceProxyCallable = new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
 
       try {
-         return serviceProxyResult = ignite.compute().affinityCall("{{cacheName}}", {{keyParam}}, serviceProxyCallable);
+         return ignite.compute().affinityCall("{{cacheName}}", {{keyParam}}, serviceProxyCallable);
       }
       finally {
-         serviceProxyResult.serviceProxyContext.apply();
+         serviceProxyCallable.serviceProxyContext.apply();
       }
    }
 {{/methods}}
