@@ -20,7 +20,7 @@ import {HttpClient, HttpErrorResponse} from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import {MatDialog} from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
-import { Observable, Subject } from "rxjs";
+import { Observable, of, Subject } from "rxjs";
 import {catchError, map, tap} from "rxjs/operators";
 import {IdentityType} from "../../../../../../../shared/data/identity-type";
 import {Tool} from "../../../../../../../shared/util/tool";
@@ -265,11 +265,15 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       const SET_USER_URI = "../api/em/security/users/edit-user/" +
          Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.post(SET_USER_URI, model).pipe(
-         catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)),
+         catchError((error: HttpErrorResponse) => {
+            this.errorService.showSnackBar(error)
+            return of(null);
+         }),
          tap(() => {
             if(this.model.namedUsers && model.oldName != model.name) {
                this.snackBar.open("_#(js:em.security.userNameChangeWarning)", "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
             }
+
             let id: IdentityId = {name: model.name, orgID: model.organization};
             this.refreshTree(id, IdentityType.USER);
          })
