@@ -111,6 +111,7 @@ public class DeployService {
                .typeLabel(getTypeLabel(entry.getType(), catalog))
                .icon(DeployUtil.iconPathToCSSClass(entry.getIcon()))
                .lastModifiedTime(entry.getLastModifiedTime())
+               .dateFormat(Tool.getDateFormatPattern())
                .user(entry.getUser());
 
             if(!SecurityEngine.getSecurity().isSecurityEnabled() &&
@@ -164,6 +165,7 @@ public class DeployService {
                .requiredBy(dependentAssets.get(i).getRequiredBy())
                .deviceLabel(getDeviceLabel(dependentAssets.get(i)))
                .lastModifiedTime(dependentAssets.get(i).getLastModifiedTime())
+               .dateFormat(Tool.getDateFormatPattern())
                .user(dependentAssets.get(i).getUser())
                .index(i);
 
@@ -959,6 +961,7 @@ public class DeployService {
                                         .typeLabel(getTypeLabel(typeName, catalog))
                                         .description(description)
                                         .lastModifiedTime(lastModifiedTime)
+                                        .dateFormat(Tool.getDateFormatPattern())
                                         .build());
             }
             else {
@@ -970,6 +973,7 @@ public class DeployService {
                                         .typeName(typeName)
                                         .typeLabel(getTypeLabel(typeName, catalog))
                                         .lastModifiedTime(lastModifiedTime)
+                                        .dateFormat(Tool.getDateFormatPattern())
                                         .build());
             }
          }
@@ -1055,6 +1059,7 @@ public class DeployService {
          .assetDescription(getAssetDescription(asset))
          .deviceLabel(asset instanceof DeviceAsset ? asset.toString() : null)
          .lastModifiedTime(dependency.getLastModifiedTime())
+         .dateFormat(Tool.getDateFormatPattern())
          .build();
    }
 

@@ -70,6 +70,9 @@ public interface RequiredAssetModel {
    long lastModifiedTime();
 
    @Nullable
+   String dateFormat();
+
+   @Nullable
    String appliedTargetLabel();
 
    static Builder builder() {
