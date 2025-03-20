@@ -19,6 +19,7 @@ import { SelectionModel } from "@angular/cdk/collections";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { MatSort } from "@angular/material/sort";
 import { MatTableDataSource } from "@angular/material/table";
+import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { SelectedAssetModel } from "../selected-asset-model";
 
 @Component({
@@ -85,6 +86,10 @@ export class SelectedAssetListComponent implements OnInit {
       }
 
       return path;
+   }
+
+   getTimeLabel(time: number) {
+      return DateTypeFormatter.getLocalTime(time, null);
    }
 
    isSelectedRow(row: SelectedAssetModel) {

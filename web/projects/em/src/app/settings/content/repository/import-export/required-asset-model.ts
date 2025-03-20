@@ -26,7 +26,7 @@ export interface RequiredAssetModel {
    typeDescription?: string;
    deviceLabel?: string;
    index?: number;
-   lastModifiedTime?: string;
+   lastModifiedTime?: number;
    appliedTargetLabel?: string;
 }
 

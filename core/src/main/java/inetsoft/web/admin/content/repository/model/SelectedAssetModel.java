@@ -51,8 +51,7 @@ public interface SelectedAssetModel {
    @Nullable
    String description();
 
-   @Nullable
-   String lastModifiedTime();
+   long lastModifiedTime();
 
    @Nullable
    String appliedTargetLabel();

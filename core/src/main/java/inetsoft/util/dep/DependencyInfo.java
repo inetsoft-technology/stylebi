@@ -79,7 +79,7 @@ public class DependencyInfo {
     *
     * @return the last modified time.
     */
-   public String getLastModifiedTime() {
+   public long getLastModifiedTime() {
       return lastModifiedTime;
    }
 
@@ -88,7 +88,7 @@ public class DependencyInfo {
     *
     * @param lastModifiedTime last modified time.
     */
-   public void setLastModifiedTime(String lastModifiedTime) {
+   public void setLastModifiedTime(long lastModifiedTime) {
       this.lastModifiedTime = lastModifiedTime;
    }
 
@@ -117,7 +117,7 @@ public class DependencyInfo {
          else {
             requiredBy = "";
             description = "";
-            lastModifiedTime = "";
+            lastModifiedTime = 0;
          }
       }
       else if(dependency.getDependingXAsset().isVisible()) {
@@ -128,5 +128,5 @@ public class DependencyInfo {
 
    private String requiredBy;
    private String description;
-   private String lastModifiedTime;
+   private long lastModifiedTime;
 }
