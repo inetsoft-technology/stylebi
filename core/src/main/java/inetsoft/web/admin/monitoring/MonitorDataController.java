@@ -17,22 +17,31 @@
  */
 package inetsoft.web.admin.monitoring;
 
+import inetsoft.cluster.ClusterProxyKey;
+import inetsoft.cluster.ClusterProxyMethod;
+import inetsoft.report.composition.WorksheetEngine;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 
 @Controller
 public class MonitorDataController {
    @Autowired
-   public MonitorDataController(MonitoringDataService monitoringDataService) {
-      this.monitoringDataService = monitoringDataService;
+   public MonitorDataController(MonitorDataServiceProxy dataServiceProxy)
+   {
+      this.dataServiceProxy = dataServiceProxy;
    }
 
    @MessageMapping("/monitoring/refresh")
    public void refresh(StompHeaderAccessor stompHeaderAccessor) {
-      this.monitoringDataService.updateSession(stompHeaderAccessor);
+      final MessageHeaders messageHeaders = stompHeaderAccessor.getMessageHeaders();
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      this.dataServiceProxy.refresh(sessionId, stompHeaderAccessor);
    }
 
-   private final MonitoringDataService monitoringDataService;
+   private final MonitorDataServiceProxy dataServiceProxy;
 }
