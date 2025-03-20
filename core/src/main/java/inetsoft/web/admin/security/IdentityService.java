@@ -190,6 +190,8 @@ public class IdentityService {
                   logoutSession(identityId);
                }
 
+               Cluster.getInstance().sendMessage(new IdentityChangedMessage(type, identityId));
+
                syncIdentity(provider, identityId != null ? new DefaultIdentity(identityId, type) :
                   new DefaultIdentity(), null);
             }
