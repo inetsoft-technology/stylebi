@@ -463,7 +463,8 @@ public class ScheduleTaskAsset extends AbstractXAsset {
 
    @Override
    public boolean exists() {
-      return ScheduleManager.getScheduleManager().getScheduleTask(task) != null;
+      return ScheduleManager.getScheduleManager().getScheduleTask(
+         task.substring(task.lastIndexOf("/") + 1)) != null;
    }
 
    @Override
