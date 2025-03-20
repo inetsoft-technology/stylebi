@@ -59,8 +59,8 @@ export class RequiredAssetListComponent implements OnInit {
       }
    }
 
-   getTimeLabel(time: number) {
-     return DateTypeFormatter.getLocalTime(time, null);
+   getTimeLabel(time: number, fmt: string) {
+     return DateTypeFormatter.getLocalTime(time, fmt);
    }
 
    get displayColumns(): string[] {

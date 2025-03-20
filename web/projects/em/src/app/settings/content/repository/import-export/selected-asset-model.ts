@@ -28,6 +28,7 @@ export interface SelectedAssetModel {
    icon?: string;
    lastModifiedTime?: number;
    appliedTargetLabel?: string;
+   dateFormat?: string;
 }
 
 export interface SelectedAssetModelList {

@@ -88,8 +88,8 @@ export class SelectedAssetListComponent implements OnInit {
       return path;
    }
 
-   getTimeLabel(time: number) {
-      return DateTypeFormatter.getLocalTime(time, null);
+   getTimeLabel(date: number, fmt: string) {
+      return DateTypeFormatter.getLocalTime(date, fmt);
    }
 
    isSelectedRow(row: SelectedAssetModel) {
