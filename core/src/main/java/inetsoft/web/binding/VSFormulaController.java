@@ -40,6 +40,11 @@ import java.util.*;
 
 @RestController
 public class VSFormulaController {
+
+   public VSFormulaController(VSFormulaServiceProxy vsFormulaServiceProxy) {
+      this.vsFormulaServiceProxy = vsFormulaServiceProxy;
+   }
+
    @RequestMapping(value = "/api/composer/vsformula/fields", method=RequestMethod.GET)
    public Map<String, Object> getFields(@DecodeParam("vsId") String vsId,
                               @RequestParam("assemblyName") String assemblyName,
@@ -47,65 +52,7 @@ public class VSFormulaController {
       Principal principal)
       throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      box.lockRead();
-
-      try {
-         VSAssembly assembly = (VSAssembly) viewsheet.getAssembly(assemblyName);
-         tableName = tableName == null ? assembly.getTableName() : tableName;
-
-         ColumnSelection selection = columnHandler.getColumnSelection(
-            rvs, viewsheetService, assemblyName, tableName, null,
-            false, true, false, false, false, true);
-
-         List<DataRefModel> columnFields = new ArrayList<>();
-         List<DataRefModel> aggregateFields = new ArrayList<>();
-         List<DataRefModel> allcolumns = new ArrayList<>();
-         List<String> calcFieldsGroup = new ArrayList<>();
-
-         populateSelection(selection, columnFields, aggregateFields,
-                           allcolumns, calcFieldsGroup, tableName);
-
-         Map<String, Object> result = new HashMap<>();
-         result.put("columnFields", columnFields);
-         result.put("aggregateFields", aggregateFields);
-         result.put("allcolumns", allcolumns);
-         result.put("calcFieldsGroup", calcFieldsGroup);
-         result.put("sqlMergeable", selection.getProperty("sqlMergeable"));
-         boolean isWS = viewsheet.getBaseEntry() != null && viewsheet.getBaseEntry() .isWorksheet();
-         DataRefModel[] grayedOutFields = assemblyInfoHandler.getGrayedOutFields(rvs);
-
-         if(grayedOutFields == null) {
-            return result;
-         }
-
-         if(isWS) {
-            List<DataRefModel> grayedFields = new ArrayList<>();
-
-            for(int i = 0; i < grayedOutFields.length; i++) {
-               DataRefModel refModel = grayedOutFields[i];
-
-               if(Tool.equals(tableName, refModel.getEntity())) {
-                  refModel.setName(refModel.getAttribute());
-                  grayedFields.add(refModel);
-               }
-            }
-
-            result.put("grayedOutFields", grayedFields);
-         }
-         else {
-            result.put("grayedOutFields", grayedOutFields);
-         }
-
-         return result;
-      }
-      finally {
-         box.unlockRead();
-      }
+      return vsFormulaServiceProxy.getFields(vsId, assemblyName, tableName, principal);
    }
 
    /**
@@ -118,203 +65,8 @@ public class VSFormulaController {
       @RequestBody Map<String, AggregateRefModel> model,
       Principal principal) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-      Viewsheet vs = rvs.getViewsheet();
-      AggregateRef nref = null;
-      AggregateRef oref = null;
-      AggregateRefModel nmodel = (AggregateRefModel) model.get("nref");
-      AggregateRefModel omodel = (AggregateRefModel) model.get("oref");
-
-      if(nmodel != null) {
-         nref = (AggregateRef) nmodel.createDataRef();
-      }
-
-      if(omodel != null) {
-         oref = (AggregateRef) omodel.createDataRef();
-      }
-
-      if(oref == null) {
-         vs.addAggrField(tname, nref);
-         //addAggregateModelCommand(command, vs, tname);
-      }
-      else {
-         CalculateRef[] calcs = vs.getCalcFields(tname);
-
-         if(calcs == null) {
-            vs.removeAggrField(tname, oref);
-
-            // edit? nref is null means remove
-            if(nref != null) {
-               vs.addAggrField(tname, nref);
-            }
-
-            //addAggregateModelCommand(command, vs, tname);
-            return;
-         }
-
-         /**
-         AggregateRef[] allagg = new AggregateRef[] {oref};
-         List<String> usingCalcs = new ArrayList<String>();
-
-         for(int i = 0; i < calcs.length; i++) {
-            CalculateRef calc = calcs[i];
-
-            if(!calc.isBaseOnDetail()) {
-               List<String> matchNames = new ArrayList<String>();
-               ExpressionRef eref = (ExpressionRef) calc.getDataRef();
-               String expression = eref.getExpression();
-               List<AggregateRef> aggs =
-                  VSUtil.findAggregate(allagg, matchNames, expression);
-
-               if(aggs.size() > 0) {
-                  usingCalcs.add(calc.getName());
-               }
-            }
-         }
-
-         if(usingCalcs.size() > 0) {
-            if(!isConfirmed()) {
-               Catalog catalog = Catalog.getCatalog();
-               ConfirmException cevent = new ConfirmException(
-                  catalog.getString("aggregate.vsused.warning") + usingCalcs,
-                  ConfirmException.CONFIRM);
-               cevent.setEvent(this);
-               throw cevent;
-            }
-         }**/
-
-         vs.removeAggrField(tname, oref);
-
-         // edit? nref is null means remove
-         if(nref != null) {
-            vs.addAggrField(tname, nref);
-         }
-
-         //addAggregateModelCommand(command, vs, tname);
-      }
-
+      vsFormulaServiceProxy.modifyAggregateField(vsId, assemblyName, tname, model, principal);
    }
 
-   /**
-    * Populate the local column selection from out data.
-    */
-   private void populateSelection(ColumnSelection all, List<DataRefModel> columns,
-      List<DataRefModel> aggregates, List<DataRefModel> allcolumns,
-      List<String> calcFieldsGroup, String tname)
-   {
-      for(int i = 0; i < all.getAttributeCount(); i++) {
-         DataRef ref = all.getAttribute(i);
-
-         if(ref instanceof XAggregateRef || ref instanceof AggregateRef) {
-            // consider the isAggregate case
-            if(ref instanceof XAggregateRef) {
-               DataRef cref = ((XAggregateRef) ref).getDataRef();
-
-               // not support aggregate calc used on other
-               if(cref instanceof CalculateRef && !((CalculateRef) cref).isBaseOnDetail() ||
-                  VSUtil.isPreparedCalcField(ref))
-               {
-                  continue;
-               }
-            }
-
-            if(ref instanceof AggregateRef) {
-               String name = ((AggregateRef) ref).getDataRef().getAttribute();
-
-               if(isCalcAggregate(all, name)) {
-                  continue;
-               }
-            }
-
-            // aggregate ref not check contains it nor not
-            DataRefModel agg = refModelFactoryService.createDataRefModel(ref);
-
-            if(agg instanceof AggregateRefModel) {
-               AggregateRefModel nagg = (AggregateRefModel) agg;
-
-               if(nagg.getRef() != null) {
-                  String attr = nagg.getRef().getAttribute();
-
-                  for(int j = 0; j < columns.size(); j++) {
-                     if(Tool.equals(attr, columns.get(j).getAttribute())) {
-                        nagg.setRef(columns.get(j));
-                        break;
-                     }
-                  }
-               }
-
-               if(nagg.getName().startsWith(tname + "_O.")) {
-                  continue;
-               }
-
-               if(!containsAgg(aggregates, nagg)) {
-                  aggregates.add(nagg);
-               }
-            }
-            else {
-               aggregates.add(agg);
-            }
-         }
-         else {
-            if(ref instanceof CalculateRef) {
-               if(VSUtil.isPreparedCalcField(ref)) {
-                  continue;
-               }
-
-               if(((CalculateRef) ref).isBaseOnDetail()) {
-                  columns.add(refModelFactoryService.createDataRefModel(ref));
-               }
-
-               calcFieldsGroup.add(ref.getName());
-            }
-            else {
-               columns.add(refModelFactoryService.createDataRefModel(ref));
-            }
-
-            allcolumns.add(refModelFactoryService.createDataRefModel(ref));
-         }
-      }
-   }
-
-   private boolean containsAgg(List<DataRefModel> aggregates, DataRefModel agg) {
-      for(int i = 0; i < aggregates.size(); i++) {
-         DataRefModel ref = aggregates.get(i);
-
-         if(Tool.equals(ref.getView(), agg.getView())) {
-            return true;
-         }
-      }
-
-      return false;
-   }
-
-   private Boolean isCalcAggregate(ColumnSelection all, String name) {
-      for(int i = 0; i < all.getAttributeCount(); i++) {
-         DataRef ref = all.getAttribute(i);
-
-         if(VSUtil.isPreparedCalcField(ref) && name.equals(ref.getName())) {
-            return true;
-         }
-      }
-
-      return false;
-   }
-
-   @Autowired
-   public void setViewsheetService(ViewsheetService viewsheetService) {
-      this.viewsheetService = viewsheetService;
-   }
-
-   @Autowired
-   public void setAssemblyInfoHandler(VSAssemblyInfoHandler assemblyInfoHandler) {
-      this.assemblyInfoHandler = assemblyInfoHandler;
-   }
-
-   @Autowired
-   private VSColumnHandler columnHandler;
-   @Autowired
-   private DataRefModelFactoryService refModelFactoryService;
-   private ViewsheetService viewsheetService;
-   private VSAssemblyInfoHandler assemblyInfoHandler;
+   private VSFormulaServiceProxy vsFormulaServiceProxy;
 }
