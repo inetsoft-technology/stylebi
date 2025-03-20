@@ -279,7 +279,9 @@ export class ContentRepositoryService implements OnDestroy {
             }));
       }
       else if(this.isInRecyleBin(data.path)) {
-         const params: HttpParams = new HttpParams().set("path", data.path);
+         const params: HttpParams = new HttpParams()
+            .set("path", data.path)
+            .set("timeZone", Intl.DateTimeFormat().resolvedOptions().timeZone);
          return this.http.get<RepositoryRecycleBinEntryModel>(
             "../api/em/content/repository/recycle/node", { params })
             .pipe(map(model => {
