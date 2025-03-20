@@ -26,7 +26,7 @@
       <mat-form-field appearance="outline" class="key-editor">
         <input matInput [(ngModel)]="editValue" placeholder="_#(Enter API Key)" />
       </mat-form-field>
-      <button mat-stroked-button (click)="saveKey()">_#(Save)</button>
+      <button mat-stroked-button (click)="saveKey()" [disabled]="!editValue">_#(Save)</button>
       <button mat-button (click)="cancelEdit()">_#(Cancel)</button>
     </div>
 
