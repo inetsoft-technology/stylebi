@@ -63,17 +63,11 @@ public class ChangeChartAestheticController {
     */
    @Autowired
    public ChangeChartAestheticController(
-      VSBindingService bindingFactory,
-      RuntimeViewsheetRef runtimeViewsheetRef, CoreLifecycleService coreLifecycleService,
-      VSAssemblyInfoHandler assemblyInfoHandler, VSChartHandler chartHandler,
-      ViewsheetService viewsheetService)
+      RuntimeViewsheetRef runtimeViewsheetRef,
+      ChangeChartAestheticServiceProxy changeChartAestheticService)
    {
-      this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.coreLifecycleService = coreLifecycleService;
-      this.assemblyInfoHandler = assemblyInfoHandler;
-      this.chartHandler = chartHandler;
-      this.viewsheetService = viewsheetService;
+      this.changeChartAestheticService = changeChartAestheticService;
    }
 
    @MessageMapping("/vs/chart/changeChartAesthetic")
@@ -87,78 +81,9 @@ public class ChangeChartAestheticController {
          return;
       }
 
-      String name = event.getName();
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      Viewsheet vs = rvs.getViewsheet();
-      final ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
-
-      if(assembly == null) {
-         LOG.warn("Chart assembly is missing, could not apply aesthetic: " + name);
-         return;
-      }
-
-      synchronized(assembly) {
-         BindingModel obinding = bindingFactory.createModel(assembly);
-
-         if("color".equals(event.getFieldType())) {
-            vs = assembly.getViewsheet();
-            vs.clearSharedFrames();
-         }
-
-         VSChartHandler.clearColorFrame(assembly.getVSChartInfo(), false, null);
-         String table = assembly.getTableName();
-         ChartVSAssembly clone = assembly.clone();
-         ChartBindingModel cmodel = event.getModel();
-         Map<String, Color> oDimColors = getDimensionColor(assembly, vs);
-         clone = (ChartVSAssembly) bindingFactory.updateAssembly(cmodel, clone);
-         ChartVSAssemblyInfo ninfo = clone.getChartInfo();
-         ChartVSAssemblyInfo oinfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo().clone();
-         chartHandler.fixAggregateInfo(ninfo, vs, null);
-         fixAggregateRefSizeField(ninfo.getVSChartInfo());
-
-         int hint = assembly.setVSAssemblyInfo(ninfo);
-         box.updateAssembly(assembly.getAbsoluteName());
-
-         // fix bug1352448598261, chart type is not valid when in flex side,
-         // so GraphUtil.as.fixVisualFrame may cause invalid result, here
-         // fix it again
-         new ChangeChartDataProcessor(ninfo.getVSChartInfo(), false).process();
-
-         ChangeChartProcessor pro = new ChangeChartProcessor();
-         VSChartInfo ocinfo = oinfo.getVSChartInfo();
-         VSChartInfo ncinfo = ninfo.getVSChartInfo();
-         pro.copyDimensionColors(ocinfo, ncinfo, vs);
-         pro.fixMapFrame(ocinfo, ncinfo);
-         pro.fixAestheticNamedGroup(ncinfo);
-         GraphUtil.syncWorldCloudColor(ncinfo);
-         hint = hint | chartHandler.createCommands(oinfo, ninfo);
-         boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==
-            VSAssembly.INPUT_DATA_CHANGED;
-         VSSelection bselection = oinfo.getBrushSelection();
-
-         // clear brush for data changed
-         if(dchanged && table != null && bselection != null && !bselection.isEmpty()) {
-            hint = hint | assembly.setBrushSelection(null);
-            vs.setBrush(table, assembly);
-         }
-
-         try {
-            ChangedAssemblyList clist =
-               coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-            box.processChange(name, hint, clist);
-            coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
-            assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
-         }
-         finally {
-            vs.setBrush(table, null);
-         }
-
-         BindingModel binding = bindingFactory.createModel(assembly);
-         SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
-         dispatcher.sendCommand(bcommand);
-      }
+      changeChartAestheticService.changeChartAesthetic(id, event, principal, dispatcher, linkUri);
    }
+
    /**
     * Copy static color to word cloud text color when added text field.
     */
@@ -189,30 +114,8 @@ public class ChangeChartAestheticController {
       }
    }
 
-   /**
-    * Get chart color filed dimension global colors.
-    */
-   private Map<String, Color> getDimensionColor(ChartVSAssembly chart, Viewsheet vs) {
-      AestheticRef cfield = chart.getVSChartInfo().getColorField();
-
-      if(cfield != null && cfield.getVisualFrame() != null) {
-         VisualFrame colorFrame = cfield.getVisualFrame();
-         String field = colorFrame.getField();
-
-         if(field != null) {
-            return vs.getDimensionColors(field);
-         }
-      }
-
-      return new HashMap<>();
-   }
-
-   private final VSBindingService bindingFactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final CoreLifecycleService coreLifecycleService;
-   private final VSAssemblyInfoHandler assemblyInfoHandler;
-   private final VSChartHandler chartHandler;
-   private final ViewsheetService viewsheetService;
+   private final ChangeChartAestheticServiceProxy changeChartAestheticService;
    private static final Logger LOG =
       LoggerFactory.getLogger(ChangeChartAestheticController.class);
 }
