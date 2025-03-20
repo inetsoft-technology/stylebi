@@ -179,8 +179,10 @@ public class LoginController {
          return null;
       }
 
-      return Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
+      String orgId =  Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
          .map(Cookie::getValue).findFirst().orElse(null);
+
+      return orgId != null ? orgId : SUtil.getLoginOrganization(request);
    }
 
    private String getGoogleClientId() {
