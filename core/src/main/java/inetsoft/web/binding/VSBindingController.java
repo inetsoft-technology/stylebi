@@ -44,11 +44,11 @@ import java.security.Principal;
 @RestController
 public class VSBindingController {
    @Autowired
-   public VSBindingController(ViewsheetService viewsheetService,
-                              VSBindingService vsBindingService)
+   public VSBindingController(VSBindingService vsBindingService,
+                              VSBindingServiceProxy vsBindingServiceProxy)
    {
-      this.viewsheetService = viewsheetService;
       this.vsBindingService = vsBindingService;
+      this.vsBindingServiceProxy = vsBindingServiceProxy;
    }
 
    /**
@@ -84,11 +84,7 @@ public class VSBindingController {
       @RequestParam("temporarySheet") boolean temporarySheet, Principal principal)
       throws Exception
    {
-      String id = this.vsBindingService.createRuntimeSheet(vsId, viewer, temporarySheet,
-         principal, assemblyName);
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      return new BindingPaneData(id, vs.getViewsheetInfo().isMetadata());
+      return vsBindingServiceProxy.open(vsId, assemblyName, viewer, temporarySheet, principal);
    }
 
    /**
@@ -108,8 +104,7 @@ public class VSBindingController {
                         Principal principal)
       throws Exception
    {
-      return vsBindingService.finishEdit(viewsheetService, Tool.byteDecode(vsId),
-         assemblyName, editMode, originalMode, principal);
+      return vsBindingServiceProxy.commit(vsId, assemblyName, editMode, originalMode, principal);
    }
 
    /**
@@ -149,10 +144,10 @@ public class VSBindingController {
                                                 Principal principal)
       throws Exception
    {
-      return this.vsBindingService.checkVSSelectionTrap(event, runtimeId, principal);
+      return vsBindingServiceProxy.checkVSSelectionTrap(runtimeId, event, linkUri, principal);
    }
 
-   private final ViewsheetService viewsheetService;
    private final VSBindingService vsBindingService;
+   private final VSBindingServiceProxy vsBindingServiceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(VSBindingController.class);
 }
