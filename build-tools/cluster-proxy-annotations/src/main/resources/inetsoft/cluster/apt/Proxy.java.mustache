@@ -9,6 +9,7 @@ public class {{proxySimpleName}} {
    {{#parameters}}
       private final {{{value.type}}} {{value.name}};
    {{/parameters}}
+      private final inetsoft.web.ServiceProxyContext serviceProxyContext = new inetsoft.web.ServiceProxyContext();
 
       public {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}) {
       {{#parameters}}
@@ -17,14 +18,28 @@ public class {{proxySimpleName}} {
       }
 
       public {{{returnType}}} call() throws Exception {
-         {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
-         return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+         serviceProxyContext.preprocess();
+
+         try {
+            {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
+            return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+         }
+         finally {
+            serviceProxyContext.postprocess();
+         }
       }
    }
 
    public {{{returnType}}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}) {
       org.apache.ignite.Ignite ignite = ((inetsoft.sree.internal.cluster.ignite.IgniteCluster) inetsoft.sree.internal.cluster.Cluster.getInstance()).getIgniteInstance();
-      return ignite.compute().affinityCall("{{cacheName}}", {{keyParam}}, new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}}));
+      {{callableClassName}} serviceProxyCallable = new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+
+      try {
+         return serviceProxyResult = ignite.compute().affinityCall("{{cacheName}}", {{keyParam}}, serviceProxyCallable);
+      }
+      finally {
+         serviceProxyResult.serviceProxyContext.apply();
+      }
    }
 {{/methods}}
 }
