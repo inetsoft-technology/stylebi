@@ -799,7 +799,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       if(roleGrants.get(action) != null) {
          Set<PermissionIdentity> newRoles = new HashSet<>();
          for(PermissionIdentity permId : roleGrants.get(action)) {
-            if(!permId.organizationID.equals(orgId)) {
+            if(!Tool.equals(permId.organizationID, orgId)) {
                newRoles.add(permId);
             }
          }
