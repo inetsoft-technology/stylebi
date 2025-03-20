@@ -20,6 +20,7 @@ import { SelectionModel } from "@angular/cdk/collections";
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { MatSort } from "@angular/material/sort";
 import { MatTableDataSource } from "@angular/material/table";
+import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { RequiredAssetModel } from "../required-asset-model";
 
 @Component({
@@ -56,6 +57,10 @@ export class RequiredAssetListComponent implements OnInit {
       if(value && value.length) {
          this.selection.select(...value);
       }
+   }
+
+   getTimeLabel(time: number) {
+     return DateTypeFormatter.getLocalTime(time, null);
    }
 
    get displayColumns(): string[] {

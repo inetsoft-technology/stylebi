@@ -257,8 +257,7 @@ public class XAssetDependency {
       this.dependingXAsset = dependingXAsset;
       this.type = type;
       this.description = description;
-      this.lastModifiedTime = dependedXAsset == null ? "" :
-         Tool.formatDateTime(dependedXAsset.getLastModifiedTime());
+      this.lastModifiedTime = dependedXAsset == null ? 0 : dependedXAsset.getLastModifiedTime();
    }
 
    /**
@@ -289,7 +288,7 @@ public class XAssetDependency {
     * Get the last modified time.
     * @return the last modified time.
     */
-   public String getLastModifiedTime() {
+   public long getLastModifiedTime() {
       return lastModifiedTime;
    }
 
@@ -334,5 +333,5 @@ public class XAssetDependency {
    private XAsset dependingXAsset;
    private int type;
    private String description;
-   private String lastModifiedTime;
+   private long lastModifiedTime;
 }

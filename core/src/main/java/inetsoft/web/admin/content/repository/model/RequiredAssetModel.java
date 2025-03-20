@@ -67,8 +67,7 @@ public interface RequiredAssetModel {
       return -1;
    }
 
-   @Nullable
-   String lastModifiedTime();
+   long lastModifiedTime();
 
    @Nullable
    String appliedTargetLabel();

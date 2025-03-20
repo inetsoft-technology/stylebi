@@ -111,14 +111,14 @@ export class DateTypeFormatter {
    }
 
    public static getLocalTime(value: number, format: string): string {
-      if(value == 0) {
+      if(value == 0 || value == null) {
          return null;
       }
 
       if(format == null) {
          format = "YYYY-MM-DD HH:mm:ss";
       }
-
+console.log(value+"=======4444======="+format);
       return DateTypeFormatter.format(value,  format, true);
    }
 

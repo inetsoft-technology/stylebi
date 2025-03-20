@@ -32,7 +32,7 @@ export interface RepositoryTreeNode extends TreeDataNode<RepositoryTreeNode> {
    readonly icon: string;
    readonly properties?: any;
    visible: boolean;
-   lastModifiedTime?: string;
+   lastModifiedTime?: number;
 }
 
 export class RepositoryFlatNode extends FlatTreeNode<RepositoryTreeNode> {
