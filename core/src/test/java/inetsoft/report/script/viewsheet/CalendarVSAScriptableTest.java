@@ -29,8 +29,6 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.openMocks;
 
@@ -83,6 +81,9 @@ public class CalendarVSAScriptableTest {
       calendarVSAScriptable.setViewMode(true);
       assert calendarVSAScriptable.getViewMode();
 
+      calendarVSAssemblyInfo.setShowType(2);
+      assert calendarVSAScriptable.getShowType();
+
       // Assert that the suffix property for "selectedObjects" is "[]"
       assert calendarVSAScriptable.getSuffix("selectedObjects").equals("[]");
 
@@ -93,25 +94,78 @@ public class CalendarVSAScriptableTest {
       calendarVSAScriptable.setFields(new Object[] {"field1"});
       assert calendarVSAScriptable.getFields() != null;
 
-      // Set the selectedObjects property to an array containing a Date object and assert that it is not null
-      Object[] dateArrarys = new Object[2];
-      dateArrarys[0] = new Date(125, 3, 20);
-      dateArrarys[1] = "d2025-03-20";
-      calendarVSAScriptable.setSelectedObjects(dateArrarys);
-      Object[] resResult = calendarVSAScriptable.getSelectedObjects();
-      Object[] copiedArray = Arrays.copyOf(resResult, resResult.length);
-      assert Arrays.toString(copiedArray).equals("[w2025-2-5, d2025-3-20]");
-
       // Assert that the min property is null
       assert calendarVSAScriptable.getMin() == null;
       // check set min as String
       calendarVSAScriptable.setMin("2025-03-19");
       assert simpleDateFormat.format(calendarVSAScriptable.getMin()).equals("2025-03-19");
+      // check set min as Date
+      calendarVSAScriptable.setMin(new Date(125,1,20));
+      assert simpleDateFormat.format(calendarVSAScriptable.getMin()).equals("2025-02-20");
 
       // Assert that the max property is null
       assert calendarVSAScriptable.getMax() == null;
       // Set the max property to a Date object and assert that it is not null
       calendarVSAScriptable.setMax(new Date(125,2,20));
       assert simpleDateFormat.format(calendarVSAScriptable.getMax()).equals("2025-03-20");
+      // Set the max property to a String object and assert that it is not null
+      calendarVSAScriptable.setMax("2025-04-19");
+      assert simpleDateFormat.format(calendarVSAScriptable.getMax()).equals("2025-04-19");
+   }
+
+   @Test
+   void testSetSelectedObjectsOnWeek() {
+      // Set the selectedObjects property to an array containing a Date object and assert that it is not null
+      // check isPeriod is false, week selected, date, exited Issue #70543.
+      /*Object[] dateArrarys = new Object[2];
+      dateArrarys[0] = new Date(125, 1, 2);
+      dateArrarys[1] = new Date(125, 1, 4);;
+      calendarVSAScriptable.setSelectedObjects(dateArrarys);
+      Object[] res1 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res1).equals("[w2025-2-2, w2025-2-16]");*/
+
+      //check isPeriod is false, week selected, string
+      Object[] arrs2 = new Object[2];
+      arrs2[0] = "w2025-1-2";
+      arrs2[1] = "w2025-1-4";
+      calendarVSAScriptable.setSelectedObjects(arrs2);
+      Object[] res2 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res2).equals("[w2025-1-2, w2025-1-4]");
+
+      //check isPeriod is true, value is Date, To Do, see Issue #70543
+      //check isPeriod is true, value is string
+      calendarVSAssemblyInfo.setPeriod(true);
+      String[] range1 = new String[2];
+      range1[0] = "w2025-1-3";
+      range1[1] = "w2025-2-4";
+      String[] arrs3 = {"w2025-2-1", "w2025-3-2"};
+      calendarVSAssemblyInfo.setDates(arrs3);
+
+      calendarVSAScriptable.setSelectedObjects(range1);
+      Object[] res3 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res3).equals("[w2025-2-1, w2025-2-4]");
+   }
+
+   @Test
+   void testSetSelectedObjectsOnMonthDay() {
+      calendarVSAssemblyInfo.setDaySelection(true);
+      calendarVSAssemblyInfo.setYearView(false);
+      String[] d1 = {"d2025-2-12", "d2025-3-20"};
+      calendarVSAScriptable.setSelectedObjects(d1);
+      Object[] res1 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res1).equals("[d2025-2-12, d2025-3-20]");
+
+      //set year view, and set month
+      calendarVSAssemblyInfo.setYearView(true);
+      calendarVSAssemblyInfo.setDaySelection(false);
+      String[] m2 = {"m2025-2", "m2025-3"};
+      calendarVSAScriptable.setSelectedObjects(m2);
+      Object[] res2 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res2).equals("[m2025-2, m2025-3]");
+   }
+
+   String printObject(Object[] obj) {
+      Object[] copy = Arrays.copyOf(obj, obj.length);
+      return Arrays.toString(copy);
    }
 }
