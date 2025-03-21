@@ -17,7 +17,6 @@
  */
 package inetsoft.web.portal.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.*;
 import inetsoft.graph.coord.Coordinate;
 import inetsoft.graph.data.DataSet;
@@ -25,7 +24,6 @@ import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.graph.scale.Scale;
 import inetsoft.report.TableLens;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphGenerator;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.report.internal.binding.BaseField;
@@ -67,8 +65,8 @@ import java.util.zip.GZIPOutputStream;
 @RestController
 public class PortalProfileController {
    @Autowired
-   public PortalProfileController(ViewsheetService viewsheetService) {
-      this.viewsheetService = viewsheetService;
+   public PortalProfileController(PortalProfileServiceProxy portalProfileServiceProxy) {
+      this.portalProfileServiceProxy = portalProfileServiceProxy;
    }
 
    @GetMapping("/api/portal/profile/group-by")
@@ -77,7 +75,7 @@ public class PortalProfileController {
                                             @RequestParam("isViewsheet") boolean isViewsheet,
                                             Principal principal) throws Exception
    {
-      String recordsKey = getRecordsKey(name, isViewsheet, principal);
+      String recordsKey = portalProfileServiceProxy.getRecordsKey(name, isViewsheet, principal);
       Catalog catalog = Catalog.getCatalog(principal);
       ProfileInfo pinfo = Profile.getInstance().getProfileInfo();
 
@@ -109,7 +107,7 @@ public class PortalProfileController {
       throws Exception
    {
       Object[][] data =
-         prepareChartData(getRecordsKey(name, isViewsheet, principal), groupBy, principal);
+         prepareChartData(portalProfileServiceProxy.getRecordsKey(name, isViewsheet, principal), groupBy, principal);
       Catalog catalog = Catalog.getCatalog(principal);
       String xTitle = "cycle".equals(groupBy) ? catalog.getString(CHART_X_TITLE) :
          getContextLabel(LogContext.valueOf(groupBy), catalog);
@@ -153,7 +151,7 @@ public class PortalProfileController {
       Principal principal) throws Exception
    {
       Object[][] data = getTableData(showSummarize,
-         getRecordsKey(event.getObjectName(), isViewsheet, principal), timeZone, principal);
+          portalProfileServiceProxy.getRecordsKey(event.getObjectName(), isViewsheet, principal), timeZone, principal);
 
       if(data == null) {
          return null;
@@ -188,7 +186,7 @@ public class PortalProfileController {
                              HttpServletResponse response, Principal principal) throws Exception
    {
       Object[][] data =
-         getTableData(false, getRecordsKey(name, isViewsheet, principal), timeZone, principal);
+         getTableData(false, portalProfileServiceProxy.getRecordsKey(name, isViewsheet, principal), timeZone, principal);
 
       if(data == null) {
          data = new Object[][] {
@@ -472,26 +470,12 @@ public class PortalProfileController {
       return g;
    }
 
-   private String getRecordsKey(String name, Boolean isViewsheet, Principal principal) throws Exception {
-      String key = name;
-
-      if(isViewsheet) {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(name, principal);
-
-         if(rvs != null) {
-            key = rvs.getViewsheetSandbox().getID();
-         }
-      }
-
-      return key;
-   }
-
    private static final int CHART_WIDTH = 650;
    private static final int CHART_HEIGHT = 330;
    private static final String CHART_X_TITLE = "Record Cycle Name";
    private static final Logger LOG = LoggerFactory.getLogger(PortalProfileController.class);
 
-   private final ViewsheetService viewsheetService;
+   private final PortalProfileServiceProxy portalProfileServiceProxy;
 
    public static final class GroupByField {
       @SuppressWarnings("unused")
