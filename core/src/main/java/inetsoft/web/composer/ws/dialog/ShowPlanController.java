@@ -18,6 +18,7 @@
 package inetsoft.web.composer.ws.dialog;
 
 import inetsoft.report.composition.QueryTreeModel;
+import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetController;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,7 +37,7 @@ public class ShowPlanController extends WorksheetController {
       @RequestParam("table") String tname,
       Principal principal) throws Exception
    {
-      return showPlanServiceProxy.showPlan(runtimeId, tname, principal);
+      return showPlanServiceProxy.showPlan(Tool.byteDecode(runtimeId), tname, principal);
 
    }
 
