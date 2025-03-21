@@ -17,39 +17,24 @@
  */
 package inetsoft.web.viewsheet.controller.dialog;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.io.csv.CSVConfig;
-import inetsoft.report.io.viewsheet.excel.CSVUtil;
-import inetsoft.sree.SreeEnv;
+
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.*;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
-import inetsoft.util.log.LogLevel;
-import inetsoft.web.admin.schedule.ScheduleService;
-import inetsoft.web.admin.schedule.model.UsersModel;
-import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.factory.RemainingPath;
-import inetsoft.web.portal.model.CSVConfigModel;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.dialog.*;
 import inetsoft.web.viewsheet.service.LinkUri;
 import inetsoft.web.viewsheet.service.VSEmailService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
-
 import java.security.Principal;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Controller
 public class EmailDialogController {
