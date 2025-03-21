@@ -73,10 +73,10 @@ public final class AutoSaveUtils {
    // is fixed, will not changed by login user.
    public static String getAutoSavedFile(AssetEntry entry, Principal user) {
       String fileName = entry.getProperty("autoFileName");
-      fileName = SUtil.addAutoSaveOrganization(fileName);
       boolean isRecycle = "true".equals(entry.getProperty("isRecycle"));
 
       if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE && fileName != null) {
+         fileName = SUtil.addAutoSaveOrganization(fileName);
          return getAutoSavedByName(fileName, isRecycle);
       }
 
@@ -192,7 +192,8 @@ public final class AutoSaveUtils {
 
    private static String getUserName(Principal user) {
       SecurityEngine securityEngine = SecurityEngine.getSecurity();
-      return user != null && securityEngine.isSecurityEnabled() ? user.getName() : "_NULL_";
+      return user != null && securityEngine.isSecurityEnabled() ? user.getName() :
+         new IdentityID("_NULL_",Organization.getDefaultOrganizationID()).convertToKey();
    }
 
    public static List<String> getAutoSavedFiles(Principal principal, boolean recycle) {
@@ -276,9 +277,10 @@ public final class AutoSaveUtils {
       SecurityEngine securityEngine = SecurityEngine.getSecurity();
       String userName = user != null && securityEngine.isSecurityEnabled() ? user.getName() : null;
       String ipAddress = getIPAddress(user);
+      String nullUser = new IdentityID("_NULL_",Organization.getDefaultOrganizationID()).convertToKey();
 
       String name = entry.getScope() + "^" + entry.getType() + "^" +
-              (userName == null ? "_NULL_" : userName) + "^" +
+              (userName == null ? nullUser : userName) + "^" +
               Tool.normalizeFileName(entry.getPath()) + "^" +
               Tool.replaceAll(ipAddress, ":", "_") + "~";
 
