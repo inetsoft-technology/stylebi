@@ -18,12 +18,6 @@
 package inetsoft.web.composer.ws.dialog;
 
 import inetsoft.report.composition.QueryTreeModel;
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.execution.AssetQuery;
-import inetsoft.report.composition.execution.AssetQuerySandbox;
-import inetsoft.uql.asset.TableAssembly;
-import inetsoft.uql.asset.Worksheet;
-import inetsoft.util.Tool;
 import inetsoft.web.composer.ws.WorksheetController;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,30 +26,19 @@ import java.security.Principal;
 @RestController
 public class ShowPlanController extends WorksheetController {
 
+   public ShowPlanController(ShowPlanServiceProxy showPlanServiceProxy) {
+      this.showPlanServiceProxy = showPlanServiceProxy;
+   }
+
    @RequestMapping(value = "api/composer/ws/dialog/show-plan/{runtimeid}", method = RequestMethod.GET)
    public QueryTreeModel.QueryNode showPlan(
       @PathVariable("runtimeid") String runtimeId,
       @RequestParam("table") String tname,
       Principal principal) throws Exception
    {
-      RuntimeWorksheet rws = super.getWorksheetEngine()
-         .getWorksheet(Tool.byteDecode(runtimeId), principal);
-      tname = Tool.byteDecode(tname);
-      Worksheet ws = rws.getWorksheet();
-      TableAssembly table = (TableAssembly) ws.getAssembly(tname);
+      return showPlanServiceProxy.showPlan(runtimeId, tname, principal);
 
-      if(table != null) {
-         AssetQuerySandbox box = rws.getAssetQuerySandbox();
-         int mode = AssetQuerySandbox.RUNTIME_MODE; // always use runtime mode
-         table = (TableAssembly) table.clone();
-         AssetQuery query = AssetQuery.createAssetQuery(
-            table, mode, box, false, -1L, true, true);
-         query.setLevel(0);
-
-         return query.getQueryPlan();
-
-      }
-
-      return null;
    }
+
+   private ShowPlanServiceProxy showPlanServiceProxy;
 }
