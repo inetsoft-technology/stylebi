@@ -60,7 +60,7 @@ public class EmailDialogController {
                                                 Principal principal)
       throws Exception
    {
-      return emailDialogServiceProxy.getEmailDialogModel(runtimeId, principal);
+      return emailDialogServiceProxy.getEmailDialogModel(Tool.byteDecode(runtimeId), principal);
    }
 
    /**

@@ -184,7 +184,6 @@ public class EmailDialogService {
    public MessageDialogModel emailViewsheet(@ClusterProxyKey String runtimeId, EmailDialogModel value,
                                             Principal principal, String linkUri) throws Exception
    {
-      runtimeId = Tool.byteDecode(runtimeId);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       MessageDialogModel message;
 
