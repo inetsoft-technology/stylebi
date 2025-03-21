@@ -17,12 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.*;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.viewsheet.model.CheckFormTableDataModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,8 +34,8 @@ public class VSCheckFormDataController {
     * Creates a new instance of <tt>VSCheckFormDataController</tt>.
     */
    @Autowired
-   public VSCheckFormDataController(ViewsheetService viewsheetService) {
-      this.viewsheetService = viewsheetService;
+   public VSCheckFormDataController(VSCheckFormDataServiceProxy vsCheckFormDataServiceProxy) {
+      this.vsCheckFormDataServiceProxy = vsCheckFormDataServiceProxy;
    }
 
    @PostMapping("/api/formDataCheck")
@@ -52,18 +46,7 @@ public class VSCheckFormDataController {
                                 Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeId, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(model.name());
-      boolean changed = FormUtil.checkFormData(rvs, model.name());
-
-      if(assembly instanceof DataVSAssembly && checkCond && changed) {
-         changed = !VSUtil.sameCondition(
-            rvs, model.name(), model.selection());
-      }
-
-      return changed;
+      return vsCheckFormDataServiceProxy.checkFormData(runtimeId, checkCond, model, principal);
    }
 
    @PostMapping("/api/formTableModified")
@@ -73,24 +56,7 @@ public class VSCheckFormDataController {
                                   Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(model.name());
-
-      if(box == null) {
-         return false;
-      }
-
-      VSAssemblyInfo assemblyInfo = (VSAssemblyInfo) assembly.getInfo();
-
-      if(assemblyInfo instanceof TableVSAssemblyInfo &&
-         ((TableVSAssemblyInfo) assemblyInfo).isForm()) {
-         FormTableLens flens = box.getFormTableLens(model.name());
-         return FormUtil.formDataChanged(flens);
-      }
-
-      return false;
+      return vsCheckFormDataServiceProxy.formTableModified(runtimeId, model, principal);
    }
 
    /**
@@ -107,36 +73,8 @@ public class VSCheckFormDataController {
                               Principal principal)
       throws Exception
    {
-      try {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-         Viewsheet viewsheet = rvs.getViewsheet();
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         Assembly[] assemblies = viewsheet.getAssemblies();
-
-         int added = 0;
-         int changed = 0;
-         int deleted = 0;
-
-         // Go through each table,
-         for(int i = 0; i < assemblies.length; i++) {
-            String assemblyName = assemblies[i].getAbsoluteName();
-            FormTableLens lens = box.getFormTableLens(assemblyName);
-
-            // could be cancelled
-            if(lens != null) {
-               // and accumulate the writeback edits which are pending,
-               added += lens.rows(FormTableRow.ADDED).length;
-               changed += lens.rows(FormTableRow.CHANGED).length;
-               deleted += lens.rows(FormTableRow.DELETED).length;
-            }
-         }
-
-         return added != 0 || changed != 0 || deleted != 0;
-      }
-      catch(ExpiredSheetException ex) {
-         return false;
-      }
+      return vsCheckFormDataServiceProxy.checkTables(runtimeId, principal);
    }
 
-   private final ViewsheetService viewsheetService;
+   private final VSCheckFormDataServiceProxy vsCheckFormDataServiceProxy;
 }
