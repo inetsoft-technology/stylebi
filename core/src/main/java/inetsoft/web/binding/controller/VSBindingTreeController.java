@@ -17,12 +17,7 @@
  */
 package inetsoft.web.binding.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.web.binding.command.RefreshBindingTreeCommand;
 import inetsoft.web.binding.event.RefreshBindingTreeEvent;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.binding.service.VSBindingTreeService;
-import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,14 +38,10 @@ public class VSBindingTreeController {
     */
    @Autowired
    public VSBindingTreeController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                  VSBindingTreeService vsBindingTreeService,
-                                  VSAssemblyInfoHandler assemblyHandler,
-                                  ViewsheetService viewsheetService)
+                                  VSBindingTreeControllerServiceProxy vsBindingTreeService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.vsBindingTreeService = vsBindingTreeService;
-      this.assemblyHandler = assemblyHandler;
-      this.viewsheetService = viewsheetService;
    }
 
    @MessageMapping("/vs/bindingtree/gettreemodel")
@@ -58,20 +49,9 @@ public class VSBindingTreeController {
       Principal principal, CommandDispatcher dispatcher) throws Exception
    {
       String id = runtimeViewsheetRef.getRuntimeId();
-      TreeNodeModel tree = vsBindingTreeService.getBinding(id, event.getName(),
-                                                           event.isLayoutMode(), principal);
-
-      if(tree == null) {
-         return;
-      }
-
-      RefreshBindingTreeCommand command = new RefreshBindingTreeCommand(tree);
-      dispatcher.sendCommand(command);
-      assemblyHandler.getGrayedOutFields(viewsheetService.getViewsheet(id, principal), dispatcher);
+      vsBindingTreeService.getBinding(id, event, principal, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSAssemblyInfoHandler assemblyHandler;
-   private final ViewsheetService viewsheetService;
-   private final VSBindingTreeService vsBindingTreeService;
+   private final VSBindingTreeControllerServiceProxy vsBindingTreeService;
 }
