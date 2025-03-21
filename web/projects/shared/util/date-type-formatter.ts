@@ -118,7 +118,7 @@ export class DateTypeFormatter {
       if(format == null) {
          format = "YYYY-MM-DD HH:mm:ss";
       }
-console.log(value+"=======4444======="+format);
+
       return DateTypeFormatter.format(value,  format, true);
    }
 
