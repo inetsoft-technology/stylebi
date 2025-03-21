@@ -17,18 +17,10 @@
  */
 package inetsoft.web.vswizard.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectTextEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.event.SetPreviewPaneSizeEvent;
-import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
-import inetsoft.web.vswizard.model.recommender.VSRecommendationModel;
-import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
-import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
-import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -42,17 +34,11 @@ import java.security.Principal;
 @Controller
 public class VSWizardPreviewController {
    @Autowired
-   public VSWizardPreviewController(ViewsheetService viewsheetService,
-                                    VSWizardBindingHandler bindingHandler,
-                                    RuntimeViewsheetRef runtimeViewsheetRef,
-                                    CoreLifecycleService coreLifecycleService,
-                                    VSWizardTemporaryInfoService temporaryInfoService)
+   public VSWizardPreviewController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                    VSWizardPreviewServiceProxy vsWizardPreviewServiceProxy)
    {
-      this.bindingHandler = bindingHandler;
-      this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.coreLifecycleService = coreLifecycleService;
-      this.temporaryInfoService = temporaryInfoService;
+      this.vsWizardPreviewServiceProxy = vsWizardPreviewServiceProxy;
    }
 
    @MessageMapping("/vswizard/preview/changeDescription")
@@ -61,16 +47,7 @@ public class VSWizardPreviewController {
       throws Exception
    {
       String id = runtimeViewsheetRef.getRuntimeId();
-
-      if(id == null) {
-         return;
-      }
-
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
-      vsTemporaryInfo.setDescription(event.getText());
-      VSAssembly latestAssembly = WizardRecommenderUtil.getTempAssembly(rvs.getViewsheet());
-      bindingHandler.updateTitle(rvs, latestAssembly);
+      vsWizardPreviewServiceProxy.changeDescription(id, event, dispatcher, principal);
    }
 
    @MessageMapping("/vswizard/preview/setPaneSize")
@@ -80,26 +57,10 @@ public class VSWizardPreviewController {
            throws Exception
    {
       String id = runtimeViewsheetRef.getRuntimeId();
-
-      if(id == null) {
-         return;
-      }
-
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
-      vsTemporaryInfo.setPreviewPaneSize(event.getSize());
-      VSRecommendationModel rmodel = vsTemporaryInfo.getRecommendationModel();
-      VSAssembly latestAssembly = WizardRecommenderUtil.getTempAssembly(rvs.getViewsheet());
-
-      if(rmodel != null && latestAssembly != null) {
-         bindingHandler.fixTempAssemblySize(latestAssembly.getVSAssemblyInfo(), rvs);
-         coreLifecycleService.refreshVSAssembly(rvs, latestAssembly, dispatcher);
-      }
+      vsWizardPreviewServiceProxy.setPreviewPaneSize(id, event, dispatcher, linkUri, principal);
    }
 
-   private final ViewsheetService viewsheetService;
-   private final VSWizardBindingHandler bindingHandler;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final CoreLifecycleService coreLifecycleService;
-   private final VSWizardTemporaryInfoService temporaryInfoService;
+   private VSWizardPreviewServiceProxy vsWizardPreviewServiceProxy;
+
 }
