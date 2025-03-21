@@ -238,7 +238,7 @@ public class CalendarVSAScriptable extends SelectionVSAScriptable {
                value = fixValue(year, month, date.getDate(), false, Calendar.DATE, "d");
             }
             else {
-               value = fixValue(year, month, date.getDay(), true, Calendar.DATE, "w");
+               value = fixValue(year, month, getWeekOfMonth(date), true, Calendar.DATE, "w");
             }
 
             list.add(value);
@@ -281,6 +281,12 @@ public class CalendarVSAScriptable extends SelectionVSAScriptable {
       }
 
       return list.toArray(new String[0]);
+   }
+
+   private int getWeekOfMonth(Date date) {
+      Calendar calendar = CoreTool.calendar.get();
+      calendar.setTime(date);
+      return calendar.get(Calendar.WEEK_OF_MONTH);
    }
 
    /**
