@@ -17,12 +17,12 @@
  */
 package inetsoft.report.composition.execution;
 
-import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.mv.*;
 import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.ColumnMapFilter;
-import inetsoft.report.internal.*;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.lens.TextSizeLimitTableLens;
 import inetsoft.report.script.formula.AssetQueryScope;
@@ -33,6 +33,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.util.SQLTypes;
 import inetsoft.uql.schema.UserVariable;
@@ -41,9 +42,12 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.SelectionVSAssembly;
 import inetsoft.util.*;
 import inetsoft.util.script.*;
+import inetsoft.web.messaging.MessageAttributes;
+import inetsoft.web.messaging.MessageContextHolder;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -1821,6 +1825,29 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
 
    public void setWSEntry(AssetEntry wsEntry) {
       this.wsEntry = wsEntry;
+   }
+
+   private void addMessageAttributes(VariableTable vars) {
+      MessageAttributes attrs = MessageContextHolder.getMessageAttributes();
+
+      if(attrs != null) {
+         StompHeaderAccessor accessor = attrs.getHeaderAccessor();
+         Map<String, Object> session = accessor.getSessionAttributes();
+
+         if(session != null) {
+            String prop = (String) session.get("viewsheetLinkHost");
+
+            if(prop != null) {
+               vars.put("__LINK_HOST__", prop);
+            }
+
+            prop = (String) session.get("viewsheetLinkUri");
+
+            if(prop != null) {
+               vars.put("__LINK_URI__", prop);
+            }
+         }
+      }
    }
 
    private Worksheet ws; // box worksheet
