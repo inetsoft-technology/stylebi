@@ -74,7 +74,7 @@ public class VSWizardBindingController {
    @Autowired
    public VSWizardBindingController(VSTreeHandler treeHandler,
                                     ViewsheetService viewsheetService,
-                                    VSWizardDataService wizardDataService,
+                                    VSWizardDataServiceProxy wizardDataServiceProxy,
                                     VSWizardBindingHandler bindingHandler,
                                     VSAssemblyInfoHandler assemblyHandler,
                                     RuntimeViewsheetRef runtimeViewsheetRef,
@@ -85,7 +85,7 @@ public class VSWizardBindingController {
       this.bindingHandler = bindingHandler;
       this.assemblyHandler = assemblyHandler;
       this.viewsheetService = viewsheetService;
-      this.wizardDataService = wizardDataService;
+      this.wizardDataServiceProxy = wizardDataServiceProxy;
       this.recommenderService = recommenderService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.temporaryInfoService = temporaryInfoService;
@@ -172,10 +172,10 @@ public class VSWizardBindingController {
          }
 
          SourceInfo newSource = bindingHandler.getCurrentSource(event.selectedEntries(), event.tableName());
-         boolean trap = wizardDataService.treeCheckTrap(id, event.selectedEntries(), newSource, principal);
+         boolean trap = wizardDataServiceProxy.treeCheckTrap(id, event.selectedEntries(), newSource, principal);
 
          if(!StringUtils.isEmpty(event.tableName())) {
-            SourceChangeMessage sourceChange = wizardDataService.checkSourceChanged(
+            SourceChangeMessage sourceChange = wizardDataServiceProxy.checkSourceChanged(
                id, event.tableName(), principal);
 
             if(sourceChange.getChanged()) {
@@ -620,7 +620,7 @@ public class VSWizardBindingController {
    private final ViewsheetService viewsheetService;
    private final VSWizardBindingHandler bindingHandler;
    private final VSAssemblyInfoHandler assemblyHandler;
-   private final VSWizardDataService wizardDataService;
+   private final VSWizardDataServiceProxy wizardDataServiceProxy;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final VSRecommendationFactoryService recommenderService;
