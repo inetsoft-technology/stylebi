@@ -854,7 +854,7 @@ public class ContentRepositoryTreeService {
          .type(entry.getType())
          .icon(icon)
          .description(description)
-         .lastModifiedTime(Tool.formatDateTime(lastModifiedTime))
+         .lastModifiedTime(lastModifiedTime)
          .children(children)
          .build();
    }
@@ -1047,7 +1047,7 @@ public class ContentRepositoryTreeService {
          .type(type)
          .icon(icon)
          .description(description)
-         .lastModifiedTime(Tool.formatDateTime(lastModifiedTime))
+         .lastModifiedTime(lastModifiedTime)
          .children(children)
          .build();
    }
@@ -1211,7 +1211,7 @@ public class ContentRepositoryTreeService {
          .path(dashboardName)
          .type(RepositoryEntry.DASHBOARD)
          .description(dashboard.getDescription())
-         .lastModifiedTime(Tool.formatDateTime(dashboard.getLastModified()))
+         .lastModifiedTime(dashboard.getLastModified())
          .children(null)
          .build();
    }
@@ -1226,7 +1226,7 @@ public class ContentRepositoryTreeService {
          .owner(user)
          .type(RepositoryEntry.DASHBOARD)
          .description(dashboard.getDescription())
-         .lastModifiedTime(Tool.formatDateTime(dashboard.getLastModified()))
+         .lastModifiedTime(dashboard.getLastModified())
          .children(null)
          .build();
    }
@@ -1262,7 +1262,7 @@ public class ContentRepositoryTreeService {
             .type(RepositoryEntry.DASHBOARD)
             .owner(user)
             .children(null)
-            .lastModifiedTime(Tool.formatDateTime(getUserDashboardModified(registry, name)))
+            .lastModifiedTime(getUserDashboardModified(registry, name))
             .build())
          .collect(Collectors.toList());
    }
@@ -1411,7 +1411,7 @@ public class ContentRepositoryTreeService {
          .label(taskName)
          .path(path)
          .owner(ownerId)
-         .lastModifiedTime(Tool.formatDateTime(lastModified))
+         .lastModifiedTime(lastModified)
          .type(SCHEDULE_TASK)
          .children(null)
          .icon("datetime-field-icon")
@@ -1483,7 +1483,7 @@ public class ContentRepositoryTreeService {
             .fullPath(rootPath + "/" + name)
             .type(type)
             .description(description)
-            .lastModifiedTime(Tool.formatDateTime(lastModifiedTime))
+            .lastModifiedTime(lastModifiedTime)
             .build();
          nodes.add(node);
       }
@@ -1529,7 +1529,7 @@ public class ContentRepositoryTreeService {
                       .path(style.getName())
                       .fullPath(rootPath + "/" + label)
                       .type(RepositoryEntry.TABLE_STYLE)
-                      .lastModifiedTime(Tool.formatDateTime(style.getLastModified()))
+                      .lastModifiedTime(style.getLastModified())
                       .build());
       }
 
@@ -1585,7 +1585,7 @@ public class ContentRepositoryTreeService {
                               .path(dataSource.getFullName())
                               .icon(getDataSourceIconClass(dataSource.getType()))
                               .description(dataSource.getDescription())
-                              .lastModifiedTime(Tool.formatDateTime(dataSource.getLastModified()))
+                              .lastModifiedTime(dataSource.getLastModified())
                               .type(RepositoryEntry.DATA_SOURCE | FOLDER)
                               .children(getDataSourceChildren(dataSource, queries))
                               .build()
@@ -1676,7 +1676,7 @@ public class ContentRepositoryTreeService {
                .icon(getDataSourceIconClass(pair.getRight().getType()))
                .description(pair.getRight().getDescription())
                .children(getDataSourceChildren(pair.getRight(), queries))
-               .lastModifiedTime(Tool.formatDateTime(pair.getRight().getLastModified()))
+               .lastModifiedTime(pair.getRight().getLastModified())
                .build())
             .collect(Collectors.toList());
       }
@@ -1717,7 +1717,7 @@ public class ContentRepositoryTreeService {
                    .path(query.getName())
                    .type(RepositoryEntry.QUERY)
                    .description(query.getDescription())
-                   .lastModifiedTime(Tool.formatDateTime(query.getLastModified()))
+                   .lastModifiedTime(query.getLastModified())
                    .build()
                 )
                 .collect(Collectors.toList());
@@ -1743,7 +1743,7 @@ public class ContentRepositoryTreeService {
                        .label(query.getName())
                        .path(query.getName())
                        .type(RepositoryEntry.QUERY)
-                       .lastModifiedTime(Tool.formatDateTime(query.getLastModified()))
+                       .lastModifiedTime(query.getLastModified())
                        .description(query.getDescription())
                        .build()
                     )
@@ -1807,7 +1807,7 @@ public class ContentRepositoryTreeService {
                .type(RepositoryEntry.LOGIC_MODEL | FOLDER)
                .icon("logical-model-icon")
                .description(logicalModel.getDescription())
-               .lastModifiedTime(Tool.formatDateTime(logicalModel.getLastModified()))
+               .lastModifiedTime(logicalModel.getLastModified())
                .children(getExtendedModels(logicalModel, path))
                .build();
 
@@ -1847,7 +1847,7 @@ public class ContentRepositoryTreeService {
                .label(vpm)
                .path(dataSourceName + "^" + vpm)
                .description(dataModel.getVirtualPrivateModel(vpm).getDescription())
-               .lastModifiedTime(Tool.formatDateTime(dataModel.getVirtualPrivateModel(vpm).getLastModified()))
+               .lastModifiedTime(dataModel.getVirtualPrivateModel(vpm).getLastModified())
                .type(RepositoryEntry.VPM)
                .build())
             .forEachOrdered(nodes::add);
@@ -1870,7 +1870,7 @@ public class ContentRepositoryTreeService {
          .type(RepositoryEntry.PARTITION | FOLDER)
          .icon("partition-icon")
          .description(partition.getDescription())
-         .lastModifiedTime(Tool.formatDateTime(partition.getLastModified()))
+         .lastModifiedTime(partition.getLastModified())
          .children(getExtendedPartitions(partition, path))
          .build();
    }
@@ -1884,7 +1884,7 @@ public class ContentRepositoryTreeService {
             .path(parentPath + "^" + next)
             .type(RepositoryEntry.LOGIC_MODEL)
             .description(xDataModel.getLogicalModel(next).getDescription())
-            .lastModifiedTime(Tool.formatDateTime(xDataModel.getLogicalModel(next).getLastModified()))
+            .lastModifiedTime(xDataModel.getLogicalModel(next).getLastModified())
             .build())
          .collect(Collectors.toList());
    }
@@ -1899,7 +1899,7 @@ public class ContentRepositoryTreeService {
             .path(parentPath + "^" + name)
             .type(RepositoryEntry.PARTITION)
             .description(xPartition.getPartition(name).getDescription())
-            .lastModifiedTime(Tool.formatDateTime(xPartition.getPartition(name).getLastModified()))
+            .lastModifiedTime(xPartition.getPartition(name).getLastModified())
             .build())
          .collect(Collectors.toList());
    }

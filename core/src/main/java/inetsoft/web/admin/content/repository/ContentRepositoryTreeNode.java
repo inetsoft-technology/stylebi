@@ -70,7 +70,7 @@ public interface ContentRepositoryTreeNode {
    String description();
 
    @Nullable
-   String lastModifiedTime();
+   Long lastModifiedTime();
 
    @Nullable
    String organization();

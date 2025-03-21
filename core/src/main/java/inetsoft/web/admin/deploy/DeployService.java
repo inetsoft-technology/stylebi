@@ -110,7 +110,8 @@ public class DeployService {
                .typeName(entry.getType())
                .typeLabel(getTypeLabel(entry.getType(), catalog))
                .icon(DeployUtil.iconPathToCSSClass(entry.getIcon()))
-               .lastModifiedTime(Tool.formatDateTime(entry.getLastModifiedTime()))
+               .lastModifiedTime(entry.getLastModifiedTime())
+               .dateFormat(Tool.getDateFormatPattern())
                .user(entry.getUser());
 
             if(!SecurityEngine.getSecurity().isSecurityEnabled() &&
@@ -163,7 +164,8 @@ public class DeployService {
                .typeLabel(getTypeLabel(dependentAssets.get(i).getType(), catalog))
                .requiredBy(dependentAssets.get(i).getRequiredBy())
                .deviceLabel(getDeviceLabel(dependentAssets.get(i)))
-               .lastModifiedTime(Tool.formatDateTime(dependentAssets.get(i).getLastModifiedTime()))
+               .lastModifiedTime(dependentAssets.get(i).getLastModifiedTime())
+               .dateFormat(Tool.getDateFormatPattern())
                .user(dependentAssets.get(i).getUser())
                .index(i);
 
@@ -562,14 +564,10 @@ public class DeployService {
       asset.setRequiredBy(model.requiredBy());
       asset.setDetailDescription(model.detailDescription());
       asset.setAssetDescription(model.assetDescription());
-      String lastModifiedTime = model.lastModifiedTime();
+      long lastModifiedTime = model.lastModifiedTime();
 
-      if(!Tool.isEmptyString(lastModifiedTime)) {
-         try {
-            asset.setLastModifiedTime(Tool.parseDateTimeStr(lastModifiedTime));
-         }
-         catch(ParseException ignore) {
-         }
+      if(lastModifiedTime != 0) {
+         asset.setLastModifiedTime(lastModifiedTime);
       }
 
       return asset;
@@ -844,12 +842,8 @@ public class DeployService {
       IdentityID user = entityUser == null || "__NULL__".equals(entityUser.name) ? null : entityUser;
       XAsset asset = SUtil.getXAsset(type, entityName, user);
 
-      if(!Tool.isEmptyString(model.lastModifiedTime())) {
-         try {
-            asset.setLastModifiedTime(Tool.parseDateTimeStr(model.lastModifiedTime()));
-         }
-         catch(ParseException ignore) {
-         }
+      if(model.lastModifiedTime() != 0) {
+         asset.setLastModifiedTime(model.lastModifiedTime());
       }
 
       if(asset != null && asset.getType() == ViewsheetAsset.VIEWSHEET) {
@@ -947,7 +941,7 @@ public class DeployService {
          if(assetType != null && isEntityPermitted(entity, assetType, principal)) {
             XAsset xAsset = SUtil.getXAsset(assetType,
                RepletRegistryManager.splitMyReportPath(entity.path()), entity.user());
-            String lastModifiedTime = entity.lastModifiedTime();
+            long lastModifiedTime = entity.lastModifiedTime();
 
             if(entity.type() == RepositoryEntry.VIEWSHEET) {
                AbstractSheet currentSheet = ((ViewsheetAsset) xAsset).getCurrentSheet(engine);
@@ -956,8 +950,7 @@ public class DeployService {
                String typeName = repositoryEntryTypeToAssetType(entity.type());
 
                if(currentSheet != null) {
-                  lastModifiedTime =
-                     Tool.getDateTimeFormat().format(new Date(currentSheet.getLastModified()));
+                  lastModifiedTime = currentSheet.getLastModified();
                }
 
                permittedEntities.add(SelectedAssetModel.builder()
@@ -968,6 +961,7 @@ public class DeployService {
                                         .typeLabel(getTypeLabel(typeName, catalog))
                                         .description(description)
                                         .lastModifiedTime(lastModifiedTime)
+                                        .dateFormat(Tool.getDateFormatPattern())
                                         .build());
             }
             else {
@@ -979,6 +973,7 @@ public class DeployService {
                                         .typeName(typeName)
                                         .typeLabel(getTypeLabel(typeName, catalog))
                                         .lastModifiedTime(lastModifiedTime)
+                                        .dateFormat(Tool.getDateFormatPattern())
                                         .build());
             }
          }
@@ -1064,6 +1059,7 @@ public class DeployService {
          .assetDescription(getAssetDescription(asset))
          .deviceLabel(asset instanceof DeviceAsset ? asset.toString() : null)
          .lastModifiedTime(dependency.getLastModifiedTime())
+         .dateFormat(Tool.getDateFormatPattern())
          .build();
    }
 

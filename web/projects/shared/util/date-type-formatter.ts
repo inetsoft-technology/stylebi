@@ -111,7 +111,7 @@ export class DateTypeFormatter {
    }
 
    public static getLocalTime(value: number, format: string): string {
-      if(value == 0) {
+      if(value == 0 || value == null) {
          return null;
       }
 
