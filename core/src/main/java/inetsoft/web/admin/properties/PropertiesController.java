@@ -85,6 +85,10 @@ public class PropertiesController {
       if(Tool.equals(propertyName, "format.number.round") || Tool.equals(propertyName, "format.percent.round")) {
          TableFormat.invalidateTableFormatCache();
       }
+
+      if(Tool.equals(propertyName,"string.compare.caseSensitive")) {
+         Tool.invalidateCaseSensitive();
+      }
    }
 
    @GetMapping("/api/admin/properties")
