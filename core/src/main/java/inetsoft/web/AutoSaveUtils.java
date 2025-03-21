@@ -285,7 +285,7 @@ public final class AutoSaveUtils {
       return getAutoSavedByName(name, recycle);
    }
 
-   public static String getAutoSavedTime(String name, Principal principal) {
+   public static String getAutoSavedTime(String name, Principal principal, String clientTimeZone) {
       String file = getAutoSavedByName(name, true);
       BlobStorage<Metadata> blobStorage = getStorage(principal);
       long time = 0;
@@ -299,6 +299,7 @@ public final class AutoSaveUtils {
 
       Date date = new Date(time);
       SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
+      format.setTimeZone(TimeZone.getTimeZone(clientTimeZone));
       return format.format(date);
    }
 
