@@ -71,7 +71,6 @@ public class ChangeGeographicService {
 
    public ChangeGeographicService(
       VSBindingService bindingFactory,
-      RuntimeViewsheetRef runtimeViewsheetRef,
       CoreLifecycleService coreLifecycleService,
       VSBindingTreeController bindingTreeController,
       VSAssemblyInfoHandler assemblyInfoHandler,
@@ -82,7 +81,6 @@ public class ChangeGeographicService {
       VSChartBindingFactory vsChartBindingFactory)
    {
       this.bindingFactory = bindingFactory;
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.coreLifecycleService = coreLifecycleService;
       this.bindingTreeController = bindingTreeController;
       this.assemblyInfoHandler = assemblyInfoHandler;
@@ -297,7 +295,6 @@ public class ChangeGeographicService {
    }
 
    private final VSBindingService bindingFactory;
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSChartBindingFactory vsChartBindingFactory;
    private final CoreLifecycleService coreLifecycleService;
    private final VSBindingTreeController bindingTreeController;
