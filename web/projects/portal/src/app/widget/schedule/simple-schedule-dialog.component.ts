@@ -240,6 +240,7 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
       if(this.model.timeZoneOptions) {
          this.timeZoneId = this.model.timeZoneOptions[0].timeZoneId;
          this.form.get("timeZone").setValue(this.timeZoneId);
+         this.model.timeConditionModel.timeZone = this.timeZoneId;
          this.timeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)[1];
       }
 
