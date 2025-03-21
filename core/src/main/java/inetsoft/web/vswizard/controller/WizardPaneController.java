@@ -35,11 +35,9 @@ import java.security.Principal;
 @Controller
 public class WizardPaneController {
    @Autowired
-   public WizardPaneController(ViewsheetService viewsheetService,
-                               WizardViewsheetService wizardViewsheetService)
+   public WizardPaneController(WizardPaneServiceProxy wizardPaneServiceProxy)
    {
-      this.viewsheetService = viewsheetService;
-      this.wizardViewsheetService = wizardViewsheetService;
+      this.wizardPaneServiceProxy = wizardPaneServiceProxy;
    }
 
    @MessageMapping("/composer/vswizard/wizard-pane/refresh")
@@ -50,27 +48,8 @@ public class WizardPaneController {
    {
       String vsId = event.getRuntimeId();
 
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
-
-      try {
-         this.wizardViewsheetService.refreshWizardViewsheet(vsId, linkUri, principal,
-                                                            commandDispatcher);
-
-         if(!event.isFormGridPane()) {
-            return;
-         }
-
-         this.wizardViewsheetService.updateGridRowsAndNewBlock(vs.getAssemblies(),
-                                                               commandDispatcher);
-      }
-      finally {
-         box.unlockRead();
-      }
+      wizardPaneServiceProxy.refreshWizardViewsheet(vsId, principal, linkUri, event.isFormGridPane(), commandDispatcher);
    }
 
-   private final ViewsheetService viewsheetService;
-   private final WizardViewsheetService wizardViewsheetService;
+   private final WizardPaneServiceProxy wizardPaneServiceProxy;
 }
