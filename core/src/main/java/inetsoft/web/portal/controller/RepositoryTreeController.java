@@ -417,7 +417,7 @@ public class RepositoryTreeController {
             }
 
             if(nentry.isViewsheet() && assetEntry.getProperty("__bookmark_id__") != null) {
-               nentry.setProperty("__bookmark_id__", nentry.toIdentifier());
+               nentry.setProperty("__bookmark_id__", VSUtil.createBookmarkIdentifier(nentry));
             }
 
             if(nentry.isViewsheet() || nentry.isVSSnapshot()) {
