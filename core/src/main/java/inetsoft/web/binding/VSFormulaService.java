@@ -35,8 +35,6 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.security.Principal;
 import java.util.*;
@@ -157,37 +155,6 @@ public class VSFormulaService {
             return null;
          }
 
-         /**
-          AggregateRef[] allagg = new AggregateRef[] {oref};
-          List<String> usingCalcs = new ArrayList<String>();
-
-          for(int i = 0; i < calcs.length; i++) {
-          CalculateRef calc = calcs[i];
-
-          if(!calc.isBaseOnDetail()) {
-          List<String> matchNames = new ArrayList<String>();
-          ExpressionRef eref = (ExpressionRef) calc.getDataRef();
-          String expression = eref.getExpression();
-          List<AggregateRef> aggs =
-          VSUtil.findAggregate(allagg, matchNames, expression);
-
-          if(aggs.size() > 0) {
-          usingCalcs.add(calc.getName());
-          }
-          }
-          }
-
-          if(usingCalcs.size() > 0) {
-          if(!isConfirmed()) {
-          Catalog catalog = Catalog.getCatalog();
-          ConfirmException cevent = new ConfirmException(
-          catalog.getString("aggregate.vsused.warning") + usingCalcs,
-          ConfirmException.CONFIRM);
-          cevent.setEvent(this);
-          throw cevent;
-          }
-          }**/
-
          vs.removeAggrField(tname, oref);
 
          // edit? nref is null means remove
@@ -305,7 +272,6 @@ public class VSFormulaService {
 
       return false;
    }
-
 
    private ViewsheetService viewsheetService;
    private VSAssemblyInfoHandler assemblyInfoHandler;

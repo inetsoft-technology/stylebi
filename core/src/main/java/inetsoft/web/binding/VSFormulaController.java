@@ -17,22 +17,9 @@
  */
 package inetsoft.web.binding;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.asset.AggregateRef;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.Tool;
+
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.binding.drm.AggregateRefModel;
-import inetsoft.web.binding.drm.DataRefModel;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.binding.handler.VSColumnHandler;
-import inetsoft.web.binding.service.DataRefModelFactoryService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
