@@ -908,7 +908,7 @@ public final class MVManager {
       String orgId = null;
 
       if(principal instanceof SRPrincipal) {
-         orgId = ((SRPrincipal) principal).getOrgId();
+         orgId = ((SRPrincipal) principal).getCurrentOrgId();
          orgId = orgId == null ? Organization.getDefaultOrganizationID() : orgId;
       }
 
