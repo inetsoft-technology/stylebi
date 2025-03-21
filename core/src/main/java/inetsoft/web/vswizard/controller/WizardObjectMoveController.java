@@ -18,15 +18,12 @@
 package inetsoft.web.vswizard.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.composer.vs.objects.event.MoveVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.MultiMoveVsObjectEvent;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
-import inetsoft.web.vswizard.service.WizardVSObjectService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
