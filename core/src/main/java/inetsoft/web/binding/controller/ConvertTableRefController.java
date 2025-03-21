@@ -18,14 +18,7 @@
 package inetsoft.web.binding.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.TableDataVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.web.binding.event.ConvertTableRefEvent;
-import inetsoft.web.binding.event.RefreshBindingTreeEvent;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.binding.service.ConvertTableRefService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,20 +33,15 @@ public class ConvertTableRefController {
    /**
     * Creates a new instance of <tt>ConvertTableRefController</tt>.
     *
-    * @param bindingTreeController
-    * @param convertTableRefService
     */
    @Autowired
-   public ConvertTableRefController(VSBindingTreeController bindingTreeController,
-                                    ConvertTableRefService convertTableRefService,
-                                    VSAssemblyInfoHandler assemblyInfoHandler,
+   public ConvertTableRefController(
                                     RuntimeViewsheetRef runtimeViewsheetRef,
+                                    ConvertTableRefControllerServiceProxy convertTableRefservice,
                                     ViewsheetService viewsheetService)
    {
-      this.bindingTreeController = bindingTreeController;
-      this.convertTableRefService = convertTableRefService;
-      this.assemblyInfoHandler = assemblyInfoHandler;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.convertTableRefservice = convertTableRefservice;
       this.viewsheetService = viewsheetService;
    }
 
@@ -67,31 +55,10 @@ public class ConvertTableRefController {
          return;
       }
 
-      String name = event.name();
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      TableDataVSAssembly assembly = (TableDataVSAssembly) vs.getAssembly(name);
-      String tableName = VSUtil.getTableName(event.table());
-
-      // Handle source changed.
-      if(assemblyInfoHandler.handleSourceChanged(assembly, tableName,
-                                                 "/events/vs/table/convertRef", event, dispatcher,
-                                                 rvs.getViewsheetSandbox()))
-      {
-         return;
-      }
-
-      convertTableRefService.convertTableRef(event.refNames(), event.convertType(), event.source(),
-         event.sourceChange(), event.name(),rvs, principal, dispatcher);
-      RefreshBindingTreeEvent refreshBindingTreeEvent = new RefreshBindingTreeEvent();
-      refreshBindingTreeEvent.setName(event.name());
-      bindingTreeController.getBinding(refreshBindingTreeEvent, principal, dispatcher);
+      convertTableRefservice.convertTableRef(id, event, principal, dispatcher);
    }
 
-   private final VSBindingTreeController bindingTreeController;
-   private final ConvertTableRefService convertTableRefService;
-   private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final ConvertTableRefControllerServiceProxy convertTableRefservice;
    public final ViewsheetService viewsheetService;
 }
