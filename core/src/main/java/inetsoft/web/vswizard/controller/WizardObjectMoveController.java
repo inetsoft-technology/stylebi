@@ -35,13 +35,12 @@ import java.security.Principal;
 
 @Controller
 public class WizardObjectMoveController {
-   public WizardObjectMoveController(WizardVSObjectService wizardVSObjectService,
+   public WizardObjectMoveController(WizardObjectMoveServiceProxy wizardObjectMoveServiceProxy,
                                      RuntimeViewsheetRef runtimeViewsheetRef,
                                      ViewsheetService engine)
    {
-      this.wizardVSObjectService = wizardVSObjectService;
+      this.wizardObjectMoveServiceProxy = wizardObjectMoveServiceProxy;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.engine = engine;
    }
 
    @Undoable
@@ -50,22 +49,7 @@ public class WizardObjectMoveController {
                           Principal principal, CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = engine.getViewsheet(
-         runtimeViewsheetRef.getRuntimeId(), principal);
-
-      if(rvs == null) {
-         return;
-      }
-
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
-
-      try {
-         this.wizardVSObjectService.moveVSObject(rvs, event, linkUri, principal, commandDispatcher);
-      }
-      finally {
-         box.unlockWrite();
-      }
+      wizardObjectMoveServiceProxy.moveObject(runtimeViewsheetRef.getRuntimeId(), event, linkUri, principal, commandDispatcher);
    }
 
    @Undoable
@@ -75,24 +59,9 @@ public class WizardObjectMoveController {
                            @LinkUri String linkUri)
       throws Exception
    {
-      RuntimeViewsheet rvs = engine.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-
-      if(rvs == null) {
-         return;
-      }
-
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
-
-      try {
-         this.wizardVSObjectService.moveVSObjects(rvs, multiEvent, linkUri, principal, dispatcher);
-      }
-      finally {
-         box.unlockWrite();
-      }
+      wizardObjectMoveServiceProxy.moveObjects(runtimeViewsheetRef.getRuntimeId(), multiEvent, principal, dispatcher, linkUri);
    }
 
-   private final WizardVSObjectService wizardVSObjectService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService engine;
+   private final WizardObjectMoveServiceProxy wizardObjectMoveServiceProxy;
 }
