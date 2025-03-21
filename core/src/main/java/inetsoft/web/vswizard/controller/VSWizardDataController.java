@@ -18,9 +18,8 @@
 package inetsoft.web.vswizard.controller;
 
 import inetsoft.web.composer.model.vs.SourceChangeMessage;
-import inetsoft.web.vswizard.event.RefreshBindingFieldsEvent;
 import inetsoft.web.vswizard.event.UpdateVsWizardBindingEvent;
-import inetsoft.web.vswizard.service.VSWizardDataService;
+import inetsoft.web.vswizard.service.VSWizardDataServiceProxy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,8 +28,8 @@ import java.security.Principal;
 @RestController
 public class VSWizardDataController {
    @Autowired
-   public VSWizardDataController(VSWizardDataService wizardDataService) {
-      this.wizardDataService = wizardDataService;
+   public VSWizardDataController(VSWizardDataServiceProxy wizardDataService) {
+      this.wizardDataServiceProxy = wizardDataService;
    }
 
    @GetMapping("/api/vswizard/binding/sourcechange")
@@ -40,7 +39,7 @@ public class VSWizardDataController {
                                                  Principal principal)
       throws Exception
    {
-      return wizardDataService.checkSourceChanged(vsId, tableName, principal);
+      return wizardDataServiceProxy.checkSourceChanged(vsId, tableName, principal);
    }
 
    /**
@@ -53,8 +52,8 @@ public class VSWizardDataController {
       throws Exception
    {
 
-      return wizardDataService.aggregateCheckTrap(id, event.getBindingModel(), principal);
+      return wizardDataServiceProxy.aggregateCheckTrap(id, event.getBindingModel(), principal);
    }
 
-   private final VSWizardDataService wizardDataService;
+   private final VSWizardDataServiceProxy wizardDataServiceProxy;
 }

@@ -18,8 +18,8 @@
 package inetsoft.web.vswizard.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.VSModelTrapContext;
+import inetsoft.cluster.*;
+import inetsoft.report.composition.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AbstractModelTrapContext;
@@ -31,24 +31,25 @@ import inetsoft.web.composer.model.vs.SourceChangeMessage;
 import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 
 @Service
+@ClusterProxy
 public class VSWizardDataService {
-   @Autowired
+
    public VSWizardDataService(ViewsheetService viewsheetService,
-                              VSWizardBindingHandler bindingHandler,
-                              VSWizardTemporaryInfoService temporaryInfoService)
+                                   VSWizardBindingHandler bindingHandler,
+                                   VSWizardTemporaryInfoService temporaryInfoService)
    {
       this.viewsheetService = viewsheetService;
       this.bindingHandler = bindingHandler;
       this.temporaryInfoService = temporaryInfoService;
    }
 
-   public SourceChangeMessage checkSourceChanged(String runtimeId, String tableName,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public SourceChangeMessage checkSourceChanged(@ClusterProxyKey String runtimeId, String tableName,
                                                  Principal principal)
       throws Exception
    {
@@ -66,7 +67,8 @@ public class VSWizardDataService {
       return sourceChangeMessage;
    }
 
-   public boolean treeCheckTrap(String vsId, AssetEntry[] entries,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Boolean treeCheckTrap(@ClusterProxyKey String vsId, AssetEntry[] entries,
                                 SourceInfo source, Principal principal)
       throws Exception
    {
@@ -121,7 +123,8 @@ public class VSWizardDataService {
       return trap;
    }
 
-   public boolean aggregateCheckTrap(String id, ChartBindingModel tempChartModel ,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Boolean aggregateCheckTrap(@ClusterProxyKey String id, ChartBindingModel tempChartModel ,
                                      Principal principal)
       throws Exception
    {
@@ -152,7 +155,7 @@ public class VSWizardDataService {
       return trap;
    }
 
-   private boolean checkTrap0(RuntimeViewsheet rvs, ChartVSAssemblyInfo oinfo,
+   private Boolean checkTrap0(RuntimeViewsheet rvs, ChartVSAssemblyInfo oinfo,
                               ChartVSAssemblyInfo ninfo)
    {
       VSModelTrapContext mtc = new VSModelTrapContext(rvs, true);
