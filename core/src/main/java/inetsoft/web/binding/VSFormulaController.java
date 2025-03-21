@@ -18,6 +18,7 @@
 package inetsoft.web.binding;
 
 
+import inetsoft.util.Tool;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.binding.drm.AggregateRefModel;
 import org.springframework.web.bind.annotation.*;
@@ -39,7 +40,7 @@ public class VSFormulaController {
       Principal principal)
       throws Exception
    {
-      return vsFormulaServiceProxy.getFields(vsId, assemblyName, tableName, principal);
+      return vsFormulaServiceProxy.getFields(Tool.byteDecode(vsId), assemblyName, tableName, principal);
    }
 
    /**
@@ -52,7 +53,7 @@ public class VSFormulaController {
       @RequestBody Map<String, AggregateRefModel> model,
       Principal principal) throws Exception
    {
-      vsFormulaServiceProxy.modifyAggregateField(vsId, assemblyName, tname, model, principal);
+      vsFormulaServiceProxy.modifyAggregateField(Tool.byteDecode(vsId), assemblyName, tname, model, principal);
    }
 
    private VSFormulaServiceProxy vsFormulaServiceProxy;

@@ -56,7 +56,7 @@ public class VSFormulaService {
                                         Principal principal) throws Exception
    {
       ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
+      RuntimeViewsheet rvs = engine.getViewsheet(vsId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
@@ -121,7 +121,7 @@ public class VSFormulaService {
                                     Map<String, AggregateRefModel> model, Principal principal) throws Exception
    {
       ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
+      RuntimeViewsheet rvs = engine.getViewsheet(vsId, principal);
       Viewsheet vs = rvs.getViewsheet();
       AggregateRef nref = null;
       AggregateRef oref = null;
