@@ -52,9 +52,11 @@ public class RequestAttributeHandshakeInterceptor implements HandshakeIntercepto
          URI url = URI.create(uri);
          String host = url.getHost();
          int port = url.getPort();
+
          if(port >= 0) {
             host = host + ":" + port;
          }
+
          attributes.put("viewsheetLinkHost", host);
       }
       catch(Exception ignore) {
