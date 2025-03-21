@@ -17,18 +17,7 @@
  */
 package inetsoft.web.binding.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.erm.ExpressionRef;
-import inetsoft.uql.viewsheet.CalculateRef;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.Catalog;
 import inetsoft.web.binding.event.ModifyAggregateFieldEvent;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,8 +26,6 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
 
 @Controller
 public class ModifyAggregateFieldController {
@@ -47,14 +34,13 @@ public class ModifyAggregateFieldController {
     *
     * @param runtimeViewsheetRef reference to the runtime viewsheet associated with the
     *                            WebSocket session.
-    * @param viewsheetService
     */
    @Autowired
    public ModifyAggregateFieldController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      ViewsheetService viewsheetService) {
+      ModifyAggregateFieldServiceProxy modifyAggregateFieldService) {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.viewsheetService = viewsheetService;
+      this.modifyAggregateFieldService = modifyAggregateFieldService;
    }
 
    @MessageMapping("/vs/calculate/modifyAggregateField")
@@ -68,121 +54,9 @@ public class ModifyAggregateFieldController {
          return;
       }
 
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      String tname = event.getTableName();
-      AggregateRef nref = event.getNewRef() == null ?
-         null : (AggregateRef) event.getNewRef().createDataRef();
-      AggregateRef oref = event.getOldRef() == null ?
-         null : (AggregateRef) event.getOldRef().createDataRef();
-
-      if(vs == null || (nref == null && oref == null)) {
-         return;
-      }
-
-      fixAggregateDataType(vs, tname, nref);
-
-      try {
-         // create?
-         if(oref == null) {
-            vs.addAggrField(tname, nref);
-         }
-         else {
-            CalculateRef[] calcs = vs.getCalcFields(tname);
-
-            if(calcs == null) {
-               vs.removeAggrField(tname, oref);
-
-               // edit? nref is null means remove
-               if(nref != null) {
-                  vs.addAggrField(tname, nref);
-               }
-
-               return;
-            }
-
-            AggregateRef[] allagg = new AggregateRef[] {oref};
-            List<String> usingCalcs = new ArrayList<>();
-
-            for(int i = 0; i < calcs.length; i++) {
-               CalculateRef calc = calcs[i];
-
-               if(!calc.isBaseOnDetail()) {
-                  List<String> matchNames = new ArrayList<>();
-                  ExpressionRef eref = (ExpressionRef) calc.getDataRef();
-                  String expression = eref.getExpression();
-                  List<AggregateRef> aggs =
-                     VSUtil.findAggregate(allagg, matchNames, expression);
-
-                  if(aggs.size() > 0) {
-                     usingCalcs.add(calc.getName());
-                  }
-               }
-            }
-
-            if(usingCalcs.size() > 0) {
-               if(!event.isConfirmed()) {
-                  Catalog catalog = Catalog.getCatalog();
-                  ConfirmException cevent = new ConfirmException(
-                     catalog.getString("aggregate.vsused.warning") + usingCalcs,
-                     ConfirmException.CONFIRM);
-                  //cevent.setEvent(this);
-                  throw cevent;
-               }
-            }
-
-            vs.removeAggrField(tname, oref);
-
-            // edit? nref is null means remove
-            if(nref != null) {
-               vs.addAggrField(tname, nref);
-            }
-         }
-      }
-      catch(ConfirmException ex) {
-         throw ex;
-      }
-      catch(Exception e) {
-         MessageCommand command = new MessageCommand();
-         command.setMessage(e.getMessage());
-         dispatcher.sendCommand(command);
-         return;
-      }
-   }
-
-   /**
-    * fix data type for the viewsheet aggregate field.
-    */
-   private void fixAggregateDataType(Viewsheet vs, String tableName, AggregateRef aref) {
-      if(aref == null || aref.getDataRef() instanceof ColumnRef) {
-         return;
-      }
-
-      Worksheet ws = vs.getBaseWorksheet();
-      Assembly assembly = ws == null ? null : ws.getAssembly(tableName);
-
-      if(!(assembly instanceof TableAssembly)) {
-         return;
-      }
-
-      TableAssembly table = (TableAssembly) assembly;
-      ColumnSelection cols = table.getColumnSelection(true);
-      DataRef ref = cols.getAttribute(aref.getName());
-
-      if(ref == null) {
-         return;
-      }
-
-      ColumnRef column = new ColumnRef(aref.getDataRef());
-      column.setDataType(ref.getDataType());
-
-      if(ref instanceof ColumnRef) {
-         column.setSqlType(((ColumnRef) ref).getSqlType());
-      }
-
-      aref.setDataRef(column);
+      modifyAggregateFieldService.modifyAggregateField(id, event, principal, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
+   private final ModifyAggregateFieldServiceProxy modifyAggregateFieldService;
 }
