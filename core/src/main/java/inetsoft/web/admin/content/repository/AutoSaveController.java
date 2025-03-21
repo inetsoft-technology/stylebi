@@ -69,11 +69,12 @@ public class AutoSaveController {
     */
    @PostMapping("/api/em/content/repository/autosave/gettime")
    public String getAutoSaveTime(@RequestBody Map<String, String> entryPath, Principal user)
-           throws Exception
+       throws Exception
    {
       String id = entryPath.get("id");
+      String clientTimeZone = entryPath.get("timezoneid");
 
-      return AutoSaveUtils.getAutoSavedTime(id, user);
+      return AutoSaveUtils.getAutoSavedTime(id, user, clientTimeZone);
    }
 
    /**

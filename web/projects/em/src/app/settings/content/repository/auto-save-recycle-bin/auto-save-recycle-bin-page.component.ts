@@ -72,7 +72,9 @@ export class AutoSaveRecycleBinPageComponent {
    }
 
    getCreateTime() {
-      this.http.post(GET_AUTO_SAVE_TIME, {id: this.model.path})
+      const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      this.http.post(GET_AUTO_SAVE_TIME, {id: this.model.path, timezoneid: localTimeZoneId})
          .pipe(catchError((error: HttpErrorResponse) => {
             return throwError(error);
          }))
