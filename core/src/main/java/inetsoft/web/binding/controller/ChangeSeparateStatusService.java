@@ -1,0 +1,136 @@
+/*
+ * This file is part of StyleBI.
+ * Copyright (C) 2025  InetSoft Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package inetsoft.web.binding.controller;
+
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.cluster.*;
+import inetsoft.report.composition.*;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.graph.ChangeChartProcessor;
+import inetsoft.report.internal.graph.ChangeSeparateStatusProcessor;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.web.binding.command.SetVSBindingModelCommand;
+import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
+import inetsoft.web.binding.handler.VSChartHandler;
+import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.viewsheet.service.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+
+import java.security.Principal;
+
+@Service
+@ClusterProxy
+public class ChangeSeparateStatusService {
+   public ChangeSeparateStatusService(
+      VSBindingService bindingFactory,
+      CoreLifecycleService coreLifecycleService,
+      VSChartHandler chartHandler, ViewsheetService viewsheetService)
+   {
+      this.bindingFactory = bindingFactory;
+      this.coreLifecycleService = coreLifecycleService;
+      this.chartHandler = chartHandler;
+      this.viewsheetService = viewsheetService;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void changeSeparateStatus(@ClusterProxyKey String id, ChangeSeparateStatusEvent event,
+                                    Principal principal, CommandDispatcher dispatcher,
+                                    String linkUri) throws Exception
+   {
+      String name = event.getName();
+
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Viewsheet vs = rvs.getViewsheet();
+      box.lockRead();
+
+      try {
+         ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
+
+         if(chart == null) {
+            LOG.warn("Chart assembly is missing, failed to process change separate " +
+                        "status event: " + name);
+            return null;
+         }
+
+         vs = chart.getViewsheet();
+         String table = chart.getTableName();
+         ChartVSAssemblyInfo ninfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
+         ChartVSAssemblyInfo oinfo = (ChartVSAssemblyInfo) ninfo.clone();
+         ChartDescriptor cdesc = ninfo.getChartDescriptor();
+         VSChartInfo cinfo = ninfo.getVSChartInfo();
+         boolean separated = event.isSeparate() || GraphTypes.isTreemap(cinfo.getChartType()) ||
+            GraphTypes.isMekko(cinfo.getChartType()) ||
+            GraphTypes.isScatteredContour(cinfo.getChartType());
+         boolean multi = event.isMulti();
+
+         // the multi styles should be changed in the processor later
+         cinfo.setSeparatedGraph(oinfo.getVSChartInfo().isSeparatedGraph());
+         cinfo.setMultiStyles(oinfo.getVSChartInfo().isMultiStyles());
+         new ChangeSeparateStatusProcessor(cinfo, cdesc).process(separated, multi);
+         new ChangeChartProcessor().fixSizeFrame(cinfo);
+
+         box.updateAssembly(chart.getAbsoluteName());
+         int hint = chartHandler.createCommands(oinfo, ninfo);
+         boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==
+            VSAssembly.INPUT_DATA_CHANGED;
+         VSSelection bselection = oinfo.getBrushSelection();
+
+         // clear brush for data changed
+         if(dchanged && table != null && bselection != null && !bselection.isEmpty()) {
+            hint = hint | chart.setBrushSelection(null);
+            vs.setBrush(table, chart);
+         }
+
+         try {
+            ChangedAssemblyList clist =
+               coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+            box.processChange(name, hint, clist);
+            coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
+         }
+         finally {
+            vs.setBrush(table, null);
+         }
+
+         //refreshVSAssembly should to be executed after coreLifecycleService.execute()
+         //or refresh error image.
+         coreLifecycleService.refreshVSAssembly(rvs, chart, dispatcher);
+         BindingModel binding = bindingFactory.createModel(chart);
+         SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
+         dispatcher.sendCommand(bcommand);
+      }
+      finally {
+         box.unlockRead();
+      }
+
+      return null;
+   }
+
+   private final VSBindingService bindingFactory;
+   private final CoreLifecycleService coreLifecycleService;
+   private final VSChartHandler chartHandler;
+   private final ViewsheetService viewsheetService;
+   private static final Logger LOG =
+      LoggerFactory.getLogger(ChangeSeparateStatusService.class);
+}
