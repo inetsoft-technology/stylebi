@@ -22,6 +22,7 @@ import org.springframework.http.server.*;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
+import java.net.URI;
 import java.util.Map;
 
 public class RequestAttributeHandshakeInterceptor implements HandshakeInterceptor {
@@ -46,6 +47,19 @@ public class RequestAttributeHandshakeInterceptor implements HandshakeIntercepto
       }
 
       attributes.put("viewsheetLinkUri", uri);
+
+      try {
+         URI url = URI.create(uri);
+         String host = url.getHost();
+         int port = url.getPort();
+         if(port >= 0) {
+            host = host + ":" + port;
+         }
+         attributes.put("viewsheetLinkHost", host);
+      }
+      catch(Exception ignore) {
+      }
+
       return true;
    }
 
