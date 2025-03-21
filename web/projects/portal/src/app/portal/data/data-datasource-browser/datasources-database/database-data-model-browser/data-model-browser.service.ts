@@ -675,7 +675,7 @@ export class DataModelBrowserService {
 
             if(type == PortalDataType.VPM) {
                this.router.navigate([routePath, "vpm",
-                     Tool.byteEncode(database + "/" + result.name), routeParams],
+                     Tool.byteEncode(database) + "/" + Tool.byteEncode(result.name), routeParams],
                   { relativeTo: this.route });
             }
             else if(type == PortalDataType.PARTITION) {
