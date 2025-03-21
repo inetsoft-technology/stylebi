@@ -37,12 +37,11 @@ import java.security.Principal;
 public class WizardDeleteObjectController {
    @Autowired
    public WizardDeleteObjectController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                       ViewsheetService engine,
-                                       WizardVSObjectService wizardVsObjectService)
+                                       WizardDeleteObjectServiceProxy wizardDeleteObjectServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.engine = engine;
-      this.wizardVsObjectService = wizardVsObjectService;
+      this.wizardDeleteObjectServiceProxy = wizardDeleteObjectServiceProxy;
+
    }
 
    /**
@@ -59,24 +58,11 @@ public class WizardDeleteObjectController {
                             Principal principal, CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = engine.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-
-      if(rvs == null) {
-         return;
-      }
-
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
-
-      try {
-         this.wizardVsObjectService.deleteVSObject(rvs, event, linkUri, principal, commandDispatcher);
-      }
-      finally {
-         box.unlockWrite();
-      }
+      wizardDeleteObjectServiceProxy.removeObject(runtimeViewsheetRef.getRuntimeId(), event,
+                                                  linkUri, principal, commandDispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService engine;
-   private final WizardVSObjectService wizardVsObjectService;
+   private final WizardDeleteObjectServiceProxy wizardDeleteObjectServiceProxy;
+
 }
