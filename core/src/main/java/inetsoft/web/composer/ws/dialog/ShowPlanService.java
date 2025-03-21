@@ -40,7 +40,7 @@ public class ShowPlanService {
    public QueryTreeModel.QueryNode showPlan(@ClusterProxyKey String runtimeId, String tname,
                                                              Principal principal) throws Exception
    {
-      RuntimeWorksheet rws = worksheetService.getWorksheet(Tool.byteDecode(runtimeId), principal);
+      RuntimeWorksheet rws = worksheetService.getWorksheet(runtimeId, principal);
       tname = Tool.byteDecode(tname);
       Worksheet ws = rws.getWorksheet();
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
