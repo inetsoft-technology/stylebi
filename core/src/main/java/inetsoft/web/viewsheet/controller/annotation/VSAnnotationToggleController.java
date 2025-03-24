@@ -36,10 +36,10 @@ import java.security.Principal;
 @MessageMapping("/annotation")
 public class VSAnnotationToggleController {
    @Autowired
-   public VSAnnotationToggleController(VSObjectService service,
+   public VSAnnotationToggleController(VSAnnotationToggleServiceProxy vsAnnotationToggleServiceProxy,
                                        RuntimeViewsheetRef runtimeViewsheetRef)
    {
-      this.service = service;
+      this.vsAnnotationToggleServiceProxy = vsAnnotationToggleServiceProxy;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
 
@@ -56,25 +56,10 @@ public class VSAnnotationToggleController {
                                       @LinkUri String linkUri,
                                       CommandDispatcher dispatcher) throws Exception
    {
-      final boolean status = event.getStatus();
-      UserEnv.setProperty(principal, "annotation", GTool.toString(status));
-      RuntimeViewsheet rvs =
-         service.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      viewsheet.setAnnotationsVisible(status);
-      Object size = rvs.getProperty("viewsheet.appliedScale");
-
-      if(size instanceof Dimension && viewsheet.getViewsheetInfo().isScaleToScreen() &&
-         (rvs.isViewer() || rvs.isPreview()))
-      {
-         service.refreshViewsheet(rvs, ((Dimension) size).width, ((Dimension) size).height,
-            linkUri, dispatcher);
-      }
-      else {
-         service.refreshViewsheet(rvs, linkUri, dispatcher);
-      }
+      vsAnnotationToggleServiceProxy.toggleAnnotationStatus(runtimeViewsheetRef.getRuntimeId(),
+                                                            event, principal, linkUri, dispatcher);
    }
 
-   private final VSObjectService service;
+   private final VSAnnotationToggleServiceProxy vsAnnotationToggleServiceProxy;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
 }
