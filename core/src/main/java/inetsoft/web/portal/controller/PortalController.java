@@ -62,7 +62,7 @@ import java.util.stream.Collectors;
 public class PortalController {
    @Autowired
    public PortalController(SecurityEngine securityEngine,
-      AnalyticRepository analyticRepository)
+                           AnalyticRepository analyticRepository)
    {
       this.securityEngine = securityEngine;
       this.analyticRepository = analyticRepository;
@@ -72,38 +72,10 @@ public class PortalController {
    public PortalModel getUserPortal(Principal principal, @LinkUri String linkUri) throws Exception {
       PortalThemesManager manager = PortalThemesManager.getManager();
       DashboardManager dashboards = DashboardManager.getManager();
-
-      boolean composerEnabled = WebService
-         .isWebExtEnabled(analyticRepository, principal, "DataWorksheet");
-      boolean dashboardEnabled = WebService
-         .isWebExtEnabled(analyticRepository, principal, "Dashboard");
       boolean accessible = "true".equalsIgnoreCase(SreeEnv.getProperty("accessibility.enabled"));
       String logoutUrl = SreeEnv.getProperty("sso.logout.url");
       String homeLink = SreeEnv.getProperty("portal.home.link", "..");
-      boolean newDatasourceEnabled = false;
-      boolean newWorksheetEnabled = false;
-      boolean newViewsheetEnabled = false;
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
-
-      try {
-         newDatasourceEnabled = securityEngine.checkPermission(
-            principal, ResourceType.PORTAL_TAB, "Data", ResourceAction.ACCESS);
-
-         if(newDatasourceEnabled) {
-            newDatasourceEnabled = securityEngine.checkPermission(
-               principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.WRITE) ||
-               securityEngine.checkPermission(
-                  principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
-         }
-
-         newWorksheetEnabled = securityEngine.checkPermission(
-            principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
-         newViewsheetEnabled = securityEngine.checkPermission(
-            principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS);
-      }
-      catch(SecurityException ex) {
-         // ignore
-      }
 
       if(logoutUrl == null || logoutUrl.isEmpty()) {
          logoutUrl = linkUri + "logout";
@@ -137,6 +109,8 @@ public class PortalController {
          }
       }
 
+      PortalCreationPermisisons creationModel = refreshPortalCreationPermissions(principal);
+
       return PortalModel.builder()
          .currentUser(getCurrentUser(principal))
          .helpVisible(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON))
@@ -145,20 +119,59 @@ public class PortalController {
          .homeLink(homeLink)
          .homeVisible(manager.isButtonVisible(PortalThemesManager.HOME_BUTTON))
          .reportEnabled(true)
-         .composerEnabled(composerEnabled)
-         .dashboardEnabled(dashboardEnabled)
+         .composerEnabled(creationModel.composerEnabled())
+         .dashboardEnabled(creationModel.dashboardEnabled())
          .customLogo(manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()))
          .helpURL(Tool.getHelpBaseURL())
          .logoutUrl(logoutUrl)
          .accessible(accessible)
          .hasDashboards(dashboards.getDashboards(new User(pId), false).length > 0)
          .title(getPageTitle(principal))
-         .newDatasourceEnabled(newDatasourceEnabled)
-         .newWorksheetEnabled(newWorksheetEnabled)
-         .newViewsheetEnabled(newViewsheetEnabled)
+         .newDatasourceEnabled(creationModel.newDatasourceEnabled())
+         .newWorksheetEnabled(creationModel.newWorksheetEnabled())
+         .newViewsheetEnabled(creationModel.newViewsheetEnabled())
          .profile(porfile)
          .profiling(profiling)
          .elasticLicenseExhausted(elasticLicenseExhausted)
+         .build();
+   }
+
+   @GetMapping("/api/portal/refresh-creation-permissions")
+   public PortalCreationPermisisons refreshPortalCreationPermissions(Principal principal) {
+      boolean composerEnabled = WebService
+         .isWebExtEnabled(analyticRepository, principal, "DataWorksheet");
+      boolean dashboardEnabled = WebService
+         .isWebExtEnabled(analyticRepository, principal, "Dashboard");
+      boolean newDatasourceEnabled = false;
+      boolean newWorksheetEnabled = false;
+      boolean newViewsheetEnabled = false;
+
+      try {
+         newDatasourceEnabled = securityEngine.checkPermission(
+            principal, ResourceType.PORTAL_TAB, "Data", ResourceAction.ACCESS);
+
+         if(newDatasourceEnabled) {
+            newDatasourceEnabled = securityEngine.checkPermission(
+               principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.WRITE) ||
+               securityEngine.checkPermission(
+                  principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
+         }
+
+         newWorksheetEnabled = securityEngine.checkPermission(
+            principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
+         newViewsheetEnabled = securityEngine.checkPermission(
+            principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS);
+      }
+      catch(SecurityException ex) {
+         // ignore
+      }
+
+      return PortalCreationPermisisons.builder()
+         .composerEnabled(composerEnabled)
+         .dashboardEnabled(dashboardEnabled)
+         .newDatasourceEnabled(newDatasourceEnabled)
+         .newWorksheetEnabled(newWorksheetEnabled)
+         .newViewsheetEnabled(newViewsheetEnabled)
          .build();
    }
 
@@ -228,7 +241,7 @@ public class PortalController {
          }
          else if("Schedule".equals(name)) {
             boolean viewSchedule = analyticRepository.checkPermission(
-                  principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS);
+               principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS);
 
             if(!viewSchedule) {
                continue;
