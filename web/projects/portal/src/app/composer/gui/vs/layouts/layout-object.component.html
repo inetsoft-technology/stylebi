@@ -82,8 +82,8 @@
                    [model]="model.objectModel"></vs-calendar>
       <vs-calctable *ngIf="model.objectModel.objectType =='VSCalcTable'" [printLayout]="true"
                     [model]="model.objectModel" [vsInfo]="vsInfo"></vs-calctable>
-      <vs-chart *ngIf="model.objectModel.objectType =='VSChart'" [model]="model.objectModel"
-                [vsInfo]="vsInfo"></vs-chart>
+      <vs-chart *ngIf="model.objectModel.objectType =='VSChart'" [vsInfo]="vsInfo"
+                [model]="model.objectModel"></vs-chart>
       <vs-check-box *ngIf="model.objectModel.objectType =='VSCheckBox'"
                     [model]="model.objectModel" [vsInfo]="vsInfo"></vs-check-box>
       <vs-combo-box *ngIf="model.objectModel.objectType == 'VSComboBox'"
@@ -160,8 +160,8 @@
                  [model]="childModel" [vsInfo]="vsInfo"></vs-calendar>
     <vs-calctable *ngIf="childModel.objectType =='VSCalcTable'"
                   [model]="childModel" [vsInfo]="vsInfo" [printLayout]="true"></vs-calctable>
-    <vs-chart *ngIf="childModel.objectType =='VSChart'" [model]="childModel"
-              [vsInfo]="vsInfo"></vs-chart>
+    <vs-chart *ngIf="childModel.objectType =='VSChart'" [vsInfo]="vsInfo"
+              [model]="childModel"></vs-chart>
     <vs-check-box *ngIf="childModel.objectType =='VSCheckBox'"
                   [model]="childModel" [vsInfo]="vsInfo"></vs-check-box>
     <vs-combo-box *ngIf="childModel.objectType == 'VSComboBox'"

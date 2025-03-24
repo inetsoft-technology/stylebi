@@ -25,7 +25,7 @@
      [style.min-height.px]="model.objectFormat.height" (mouseenter)="onMouseEnter($event)">
   <vs-chart *ngIf="model.objectType == 'VSChart'" #object
             [variableValues]="variableValuesFunction"
-            [model]="model" [actions]="actions" [vsInfo]="vsInfo"
+            [vsInfo]="vsInfo" [model]="model" [actions]="actions"
             (maxModeChange)="onChartMaxModeChange($event)"
             (onOpenWizardPane)="onOpenWizardPane.emit($event)"
             (onOpenFormatPane)="onOpenFormatPane.emit('openFormatPane')">

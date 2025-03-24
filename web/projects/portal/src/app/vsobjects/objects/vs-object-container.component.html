@@ -74,9 +74,9 @@
       </vs-calendar>
 
       <vs-chart *ngIf="vsObject.objectType == 'VSChart'"
-                [model]="vsObject" [actions]="vsObjectActions[i]"
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="vsObjectActions[i]"
                 [appSize]="appSize"
-                [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
+                [embeddedVS]="embeddedVS"
                 [embeddedVSBounds]="embeddedVSBounds"
                 [selected]="isSelected(i)"
                 [variableValues]="variableValues"
