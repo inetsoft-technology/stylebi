@@ -940,6 +940,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             XUtil.copyDBCredentials((XPrincipal) getUser(), vars2);
             Object omaxrows = vars2.get(XQuery.HINT_MAX_ROWS);
             vars2.put(XQuery.HINT_PREVIEW, isLiveMode(mode) + "");
+            addMessageAttributes(vars2);
             base = cacheNormalizer.transformTableLens(query.getTableLens(vars2));
 
             if(table.isLiveData()) {
@@ -1827,7 +1828,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
       this.wsEntry = wsEntry;
    }
 
-   private void addMessageAttributes(VariableTable vars) {
+   static void addMessageAttributes(VariableTable vars) {
       MessageAttributes attrs = MessageContextHolder.getMessageAttributes();
 
       if(attrs != null) {
