@@ -125,7 +125,7 @@ public class TableAssemblyScriptable extends TableArray {
       }
       catch(Exception ex) {
          // ignore if box has been disposed
-         if(box.getWorksheet() != null) {
+         if(!box.isDisposed()) {
             LOG.warn("Failed to get table", ex);
          }
 
