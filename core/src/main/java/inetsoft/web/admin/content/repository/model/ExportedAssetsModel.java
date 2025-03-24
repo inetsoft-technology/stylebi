@@ -35,7 +35,10 @@ public interface ExportedAssetsModel {
    String name();
 
    @Nullable
-   String deploymentDate();
+   String dateFormat();
+
+   @Nullable
+   Long deploymentDate();
 
    @Value.Default
    default boolean overwriting() { return false; }
