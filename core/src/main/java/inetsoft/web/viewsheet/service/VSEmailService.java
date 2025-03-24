@@ -31,11 +31,11 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.viewsheet.controller.dialog.ExportDialogController;
@@ -99,7 +99,7 @@ public class VSEmailService {
       Viewsheet vs = rvs.getViewsheet();
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
-      if(formatType == FileFormatInfo.EXPORT_TYPE_SNAPSHOT && ExportDialogController.isCube(vs)) {
+      if(formatType == FileFormatInfo.EXPORT_TYPE_SNAPSHOT && isCube(vs)) {
          throw new MessageException(catalog.getString("cube.not.supported"), LogLevel.WARN);
       }
 
@@ -572,5 +572,41 @@ public class VSEmailService {
 
       url.append(entry.getPath());
       return Tool.encodeUriPath(url.toString());
+   }
+
+   /**
+    * Copy of isCube() from ExportVSEvent.java
+    * Check if base cube data source.
+    */
+   public static boolean isCube(Viewsheet viewsheet) {
+      Assembly[] assemblies = viewsheet.getAssemblies(true);
+
+      for(Assembly assembly : assemblies) {
+         VSAssemblyInfo info = ((VSAssembly) assembly).getVSAssemblyInfo();
+
+         if(info instanceof SelectionVSAssemblyInfo) {
+            for(String tableName : ((SelectionVSAssemblyInfo) info).getTableNames()) {
+               if(AssetUtil.getCubeType(null, tableName) != null) {
+                  return true;
+               }
+            }
+         }
+         else if(info instanceof DataVSAssemblyInfo) {
+            DataVSAssemblyInfo dinfo = (DataVSAssemblyInfo) info;
+            SourceInfo sinfo = dinfo.getSourceInfo();
+            String prefix = sinfo == null ? null : sinfo.getPrefix();
+            String source = sinfo == null ? null : sinfo.getSource();
+
+            if(source != null && source.length() > 0) {
+               String cubeType = AssetUtil.getCubeType(prefix, source);
+
+               if(cubeType != null) {
+                  return true;
+               }
+            }
+         }
+      }
+
+      return false;
    }
 }

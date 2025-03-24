@@ -48,20 +48,13 @@ public class ExportDialogController {
    /**
     * Creates a new instance of ExportDialogController
     * @param runtimeViewsheetRef    RuntimeViewsheetRef instance
-    * @param viewsheetService
     */
    @Autowired
-   public ExportDialogController(
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      AssetRepository assetRepository,
-      AnalyticRepository analyticRepository,
-      ViewsheetService viewsheetService)
+   public ExportDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                 ExportDialogServiceProxy exportDialogServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.assetRepository = assetRepository;
-      this.analyticRepository = analyticRepository;
-      this.viewsheetService = viewsheetService;
-      catalog =  Catalog.getCatalog();
+      this.exportDialogServiceProxy = exportDialogServiceProxy;
    }
 
    /**
@@ -79,98 +72,11 @@ public class ExportDialogController {
    {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       runtimeId = Tool.byteDecode(runtimeId);
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      VSBookmarkInfo[] bookmarks = VSUtil.getBookmarks(rvs.getEntry(), pId);
-      List<String> allBookmarks = new ArrayList<>();
-      List<String> allBookmarkLabels = new ArrayList<>();
 
-      for(VSBookmarkInfo vsBookmarkInfo : bookmarks) {
-         if(vsBookmarkInfo.getName().equals(VSBookmark.HOME_BOOKMARK)) {
-            allBookmarks.add(vsBookmarkInfo.getName());
-            allBookmarkLabels.add(Catalog.getCatalog().getString(vsBookmarkInfo.getName()));
-         }
-         else if(vsBookmarkInfo.getOwner() == null || vsBookmarkInfo.getOwner().equals(pId)) {
-            allBookmarks.add(vsBookmarkInfo.getName());
-            allBookmarkLabels.add(vsBookmarkInfo.getName());
-         }
-         else {
-            allBookmarks.add(vsBookmarkInfo.getName() + "(" + vsBookmarkInfo.getOwner().getName() + ")");
-            allBookmarkLabels.add(vsBookmarkInfo.getName() + "(" +
-                                VSUtil.getUserAlias(vsBookmarkInfo.getOwner()) + ")");
-         }
-      }
-
-      Viewsheet vs = rvs.getViewsheet();
-      boolean hasPrintLayout = false;
-      List<String> tableDataAssemblies = new ArrayList<>();
-
-      if(vs != null) {
-         hasPrintLayout = vs.getLayoutInfo().getPrintLayout() != null;
-
-         VSUtil.getTableDataAssemblies(vs, true)
-            .stream().forEach(assembly -> {
-               if(CSVUtil.needExport(assembly)) {
-                  tableDataAssemblies.add(assembly.getAbsoluteName());
-               }
-         });
-      }
-
-      boolean expandComponentEnabled = SreeEnv.getBooleanProperty("export.expandComponents");
-      boolean expandComponentAllowed = SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
-                                                                                    "ExportExpandComponents", ResourceAction.READ);
-      //by nickgovus 2023-10-26, matchLayout = !ExportComponents = false only if (ExportSecurityPermission and setExportComponent = true)
-      boolean matchLayout = !(expandComponentEnabled && expandComponentAllowed);
-
-      FileFormatPaneModel fileFormatPaneModel = FileFormatPaneModel.builder()
-         .allBookmarks(allBookmarks.toArray(new String[0]))
-         .allBookmarkLabels(allBookmarkLabels.toArray(new String[0]))
-         .formatType(getDefaultFormat())
-         .matchLayout(matchLayout)
-         .expandEnabled(expandComponentAllowed)
-         .hasPrintLayout(hasPrintLayout)
-         .csvConfig(CSVConfigModel.builder().from(new CSVConfig()).build())
-         .tableDataAssemblies(tableDataAssemblies.toArray(new String[0]))
-         .build();
-
-      return ExportDialogModel.builder()
-         .fileFormatPaneModel(fileFormatPaneModel)
-         .build();
+      return exportDialogServiceProxy.getExportDialogModel(runtimeId, principal);
    }
 
-   /**
-    * Get the default format type
-    */
-   private int getDefaultFormat() {
-      String[] types = VSUtil.getExportOptions();
 
-      if(Arrays.stream(types).anyMatch(type ->
-         FileFormatInfo.EXPORT_NAME_EXCEL.equals(type)))
-      {
-         return FileFormatInfo.EXPORT_TYPE_EXCEL;
-      }
-      else if(Arrays.stream(types).anyMatch(
-         type -> FileFormatInfo.EXPORT_NAME_POWERPOINT.equals(type)))
-      {
-         return FileFormatInfo.EXPORT_TYPE_POWERPOINT;
-      }
-      else if(Arrays.stream(types).anyMatch(
-         type -> FileFormatInfo.EXPORT_NAME_PDF.equals(type)))
-      {
-         return FileFormatInfo.EXPORT_TYPE_PDF;
-      }
-      else if(Arrays.stream(types).anyMatch(
-         type -> FileFormatInfo.EXPORT_NAME_SNAPSHOT.equals(type)))
-      {
-         return FileFormatInfo.EXPORT_TYPE_SNAPSHOT;
-      }
-      else if(Arrays.stream(types).anyMatch(
-         type -> FileFormatInfo.EXPORT_NAME_HTML.equals(type)))
-      {
-         return FileFormatInfo.EXPORT_TYPE_HTML;
-      }
-
-      return FileFormatInfo.EXPORT_TYPE_EXCEL;
-   }
 
    /**
     * Check if exporting a viewsheet is valid.
@@ -188,58 +94,10 @@ public class ExportDialogController {
       throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      viewsheetService.getViewsheet(runtimeId, principal);
-      MessageCommand messageCommand = new MessageCommand();
-      messageCommand.setType(MessageCommand.Type.OK);
 
-      if(!analyticRepository.checkPermission(principal, ResourceType.REPORT, folderPath, ResourceAction.WRITE)) {
-         messageCommand.setMessage(catalog.getString("common.writeAuthority",
-                                                     folderPath));
-         messageCommand.setType(MessageCommand.Type.WARNING);
-      }
-
-      return messageCommand;
-   }
-
-   /**
-    * Copy of isCube() from ExportVSEvent.java
-    * Check if base cube data source.
-    */
-   public static boolean isCube(Viewsheet viewsheet) {
-      Assembly[] assemblies = viewsheet.getAssemblies(true);
-
-      for(Assembly assembly : assemblies) {
-         VSAssemblyInfo info = ((VSAssembly) assembly).getVSAssemblyInfo();
-
-         if(info instanceof SelectionVSAssemblyInfo) {
-            for(String tableName : ((SelectionVSAssemblyInfo) info).getTableNames()) {
-               if(AssetUtil.getCubeType(null, tableName) != null) {
-                  return true;
-               }
-            }
-         }
-         else if(info instanceof DataVSAssemblyInfo) {
-            DataVSAssemblyInfo dinfo = (DataVSAssemblyInfo) info;
-            SourceInfo sinfo = dinfo.getSourceInfo();
-            String prefix = sinfo == null ? null : sinfo.getPrefix();
-            String source = sinfo == null ? null : sinfo.getSource();
-
-            if(source != null && source.length() > 0) {
-               String cubeType = AssetUtil.getCubeType(prefix, source);
-
-               if(cubeType != null) {
-                  return true;
-               }
-            }
-         }
-      }
-
-      return false;
+      return exportDialogServiceProxy.checkExportValid(runtimeId, folderPath, principal);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final AssetRepository assetRepository;
-   private final ViewsheetService viewsheetService;
-   private final AnalyticRepository analyticRepository;
-   private Catalog catalog;
+   private ExportDialogServiceProxy exportDialogServiceProxy;
 }
