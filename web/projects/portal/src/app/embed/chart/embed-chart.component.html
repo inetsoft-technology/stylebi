@@ -23,9 +23,8 @@
      (mouseenter)="onMouseEnter($event)"
      (resized)="onResize()">
   <vs-chart *ngIf="vsObject && runtimeId && !timeoutError"
-            [model]="vsObject" [actions]="vsObjectActions"
+            [vsInfo]="vsInfo" [model]="vsObject" [actions]="vsObjectActions"
             [appSize]="appSize"
-            [vsInfo]="vsInfo"
             [container]="viewerRoot"
             [variableValues]="variableValuesFunction"
             (contextmenu)="onOpenContextMenu($event)">
