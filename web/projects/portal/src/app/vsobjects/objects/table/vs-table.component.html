@@ -173,7 +173,7 @@
                  class="sort-button vs-header-cell-button-sort hover-bg-secondary" aria-hidden="true"
                  title="_#(viewer.viewsheet.table.sortColumn)"
                  (click)="sortColumn($event, _cell)">
-                <label class="sort-number">{{displaySortNumber(_cell)}}</label>
+                <label *ngIf="displaySortNumber(_cell) > 0" class="sort-number">{{displaySortNumber(_cell)}}</label>
               </i>
               <div class="chip" title="_#(Chip)"></div>
             </td>
