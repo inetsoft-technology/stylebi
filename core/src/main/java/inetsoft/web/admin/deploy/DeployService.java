@@ -842,8 +842,8 @@ public class DeployService {
       IdentityID user = entityUser == null || "__NULL__".equals(entityUser.name) ? null : entityUser;
       XAsset asset = SUtil.getXAsset(type, entityName, user);
 
-      if(model.lastModifiedTime() != 0) {
-         asset.setLastModifiedTime(model.lastModifiedTime());
+      if(model.lastModifiedTime() != null) {
+         asset.setLastModifiedTime(model.lastModifiedTime().longValue());
       }
 
       if(asset != null && asset.getType() == ViewsheetAsset.VIEWSHEET) {
@@ -941,7 +941,7 @@ public class DeployService {
          if(assetType != null && isEntityPermitted(entity, assetType, principal)) {
             XAsset xAsset = SUtil.getXAsset(assetType,
                RepletRegistryManager.splitMyReportPath(entity.path()), entity.user());
-            long lastModifiedTime = entity.lastModifiedTime();
+            Long lastModifiedTime = entity.lastModifiedTime();
 
             if(entity.type() == RepositoryEntry.VIEWSHEET) {
                AbstractSheet currentSheet = ((ViewsheetAsset) xAsset).getCurrentSheet(engine);
