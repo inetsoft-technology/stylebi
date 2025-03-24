@@ -128,12 +128,14 @@ export class MatCkeditorComponent
    }
 
    set content(value: string) {
-      this.value = value;
-      this.stateChanges.next();
-      this.valueChange.emit(value);
+      if(this.value !== value) {
+         this.value = value;
+         this.stateChanges.next();
+         this.valueChange.emit(value);
 
-      if(this._onChange) {
-         this._onChange(value);
+         if(this._onChange) {
+            this._onChange(value);
+         }
       }
    }
 
