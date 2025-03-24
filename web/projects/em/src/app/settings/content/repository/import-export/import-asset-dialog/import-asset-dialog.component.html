@@ -40,7 +40,7 @@
         </mat-form-field>
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Deployment Date)</mat-label>
-          <input matInput readonly placeholder="_#(Deployment Date)" [value]="model?.deploymentDate"/>
+          <input matInput readonly placeholder="_#(Deployment Date)" [value]="getDateLabel()"/>
         </mat-form-field>
         <ng-container *ngIf="targetFolderVisible">
           <mat-form-field appearance="outline" color="accent" (click)="openSelectLocation()">

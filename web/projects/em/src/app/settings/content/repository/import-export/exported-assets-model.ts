@@ -21,7 +21,8 @@ import { RequiredAssetModel } from "./required-asset-model";
 export interface ExportedAssetsModel {
    newerVersion: boolean;
    name?: string;
-   deploymentDate?: string;
+   dateFormat?: string;
+   deploymentDate?: number;
    overwriting: boolean;
    selectedEntities?: SelectedAssetModel[];
    dependentAssets?: RequiredAssetModel[];
