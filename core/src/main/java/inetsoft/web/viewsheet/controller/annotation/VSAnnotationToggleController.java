@@ -17,10 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.annotation;
 
-import inetsoft.graph.internal.GTool;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.sree.UserEnv;
-import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.event.annotation.ToggleAnnotationStatusEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
@@ -28,8 +24,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-
-import java.awt.*;
 import java.security.Principal;
 
 @Controller
