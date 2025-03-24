@@ -219,7 +219,8 @@ public abstract class VSChartController<T extends VSChartEvent> {
 
    // reload assemblies (view only without re-execution).
    protected void reloadVSAssemblies(RuntimeViewsheet rvs, String priorAssembly, String uri,
-                                     CommandDispatcher dispatcher, Principal principal)
+                                     CommandDispatcher dispatcher, Principal principal,
+                                     boolean refreshOthersData)
    {
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
@@ -229,7 +230,7 @@ public abstract class VSChartController<T extends VSChartEvent> {
          VSAssembly vsAssembly = rvs.getViewsheet().getAssembly(priorAssembly);
 
          if(vsAssembly != null) {
-            reloadVSAssembly(vsAssembly, rvs, uri, dispatcher);
+            reloadVSAssembly(vsAssembly, rvs, uri, dispatcher, true);
 
             if(vsAssembly instanceof ChartVSAssembly) {
                VSChartEvent event = new VSChartEvent();
@@ -247,7 +248,7 @@ public abstract class VSChartController<T extends VSChartEvent> {
 
          Arrays.stream(rvs.getViewsheet().getAssemblies())
             .filter(a -> a != null && !Tool.equals(a.getAbsoluteName(), priorAssembly))
-            .forEach(a -> reloadVSAssembly((VSAssembly) a, rvs, uri, dispatcher));
+            .forEach(a -> reloadVSAssembly((VSAssembly) a, rvs, uri, dispatcher, refreshOthersData));
       }
       finally {
          box.unlockRead();
@@ -255,11 +256,14 @@ public abstract class VSChartController<T extends VSChartEvent> {
    }
 
    private void reloadVSAssembly(VSAssembly assembly, RuntimeViewsheet rvs, String uri,
-                                 CommandDispatcher dispatcher)
+                                 CommandDispatcher dispatcher, boolean refreshData)
    {
       try {
          coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher);
-         coreLifecycleService.loadTableLens(rvs, assembly.getAbsoluteName(), uri, dispatcher);
+
+         if(refreshData) {
+            coreLifecycleService.loadTableLens(rvs, assembly.getAbsoluteName(), uri, dispatcher);
+         }
       }
       catch(Exception e) {
          LOG.warn("Failed to refresh assembly: " + assembly.getAbsoluteName(), e);

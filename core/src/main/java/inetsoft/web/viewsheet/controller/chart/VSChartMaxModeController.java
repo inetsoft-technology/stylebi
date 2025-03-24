@@ -108,11 +108,9 @@ public class VSChartMaxModeController extends VSChartController<VSChartEvent> {
       // visibility will be changed when toggling max-mode (48432).
       // @see VSObjectModel.visible and VSEventUtil.isVisible().
 
-      if(chartState.getViewsheet() != null && chartState.getViewsheet().isMaxMode()) {
-         super.complete(chartState, hint, linkUri, dispatcher, event, principal);
-      }
-      else {
-         reloadVSAssemblies(chartState.getRuntimeViewsheet(), event.getChartName(), linkUri, dispatcher, principal);
-      }
+      boolean changeToMax = chartState.getViewsheet() != null &&
+         chartState.getViewsheet().isMaxMode();
+      reloadVSAssemblies(chartState.getRuntimeViewsheet(), event.getChartName(), linkUri,
+         dispatcher, principal, !changeToMax);
    }
 }
