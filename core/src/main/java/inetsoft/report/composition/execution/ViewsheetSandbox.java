@@ -712,6 +712,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
+      AssetQuerySandbox.addMessageAttributes(getVariableTable());
       return scope;
    }
 
