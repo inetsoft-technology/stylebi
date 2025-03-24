@@ -111,12 +111,14 @@ export class ExportDialog implements OnInit {
 
       if(fileModel) {
          const bookmarks: string[] = Tool.clone(this.model.fileFormatPaneModel.allBookmarks);
+         const bookmarkLabels: string[] = Tool.clone(this.model.fileFormatPaneModel.allBookmarkLabels);
          const expandEnabled = this.model.fileFormatPaneModel.expandEnabled;
          const tableAssemblies = this.model.fileFormatPaneModel ?
             this.model.fileFormatPaneModel.tableDataAssemblies : null;
          fileModel.hasPrintLayout = this.model.fileFormatPaneModel.hasPrintLayout;
          this.model.fileFormatPaneModel = fileModel;
          this.model.fileFormatPaneModel.allBookmarks = bookmarks;
+         this.model.fileFormatPaneModel.allBookmarkLabels = bookmarkLabels;
          this.model.fileFormatPaneModel.selectedBookmarks = [];
          this.model.fileFormatPaneModel.expandEnabled = expandEnabled;
          this.model.fileFormatPaneModel.tableDataAssemblies = tableAssemblies;
