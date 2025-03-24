@@ -725,10 +725,8 @@ public class ScheduleService {
       UsersModel.Builder model = UsersModel.builder()
          .owners(allowedUsers)
          .groups(allowedGroups)
-//         .groupBaseNames(allowedGroupBaseNames)
          .emailUsers(emailUsers)
          .emailGroups(sortedEmailGroups);
-//         .emailGroupBaseNames(emailGroupBaseNames);
 
       if(allowedUsers.length > 0) {
          model.adminName(principal.getName());
