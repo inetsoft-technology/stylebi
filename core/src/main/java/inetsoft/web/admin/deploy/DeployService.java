@@ -226,7 +226,8 @@ public class DeployService {
 
       return ExportedAssetsModel.builder()
          .name(jarInfo.getName())
-         .deploymentDate(deploymentDate)
+         .dateFormat(Tool.getDateFormatPattern())
+         .deploymentDate(jarInfo.getDeploymentDate().getTime())
          .overwriting(jarInfo.isOverwriting())
          .selectedEntities(selectedEntityModels)
          .dependentAssets(requiredAssetModels)

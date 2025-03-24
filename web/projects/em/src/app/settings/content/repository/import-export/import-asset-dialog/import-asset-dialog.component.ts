@@ -22,6 +22,7 @@ import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dial
 import { Observable, throwError, timer } from "rxjs";
 import { catchError, filter, switchMap, take, timeout } from "rxjs/operators";
 import { FeatureFlagValue } from "../../../../../../../../shared/feature-flags/feature-flags.service";
+import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../../../common/util/message-dialog";
 import { convertToKey } from "../../../../security/users/identity-id";
@@ -323,6 +324,14 @@ export class ImportAssetDialogComponent implements OnDestroy {
          }
       });
       return throwError(error);
+   }
+
+   getDateLabel(): string {
+      if(this.model != null && this.model.deploymentDate != null) {
+         return DateTypeFormatter.getLocalTime(this.model.deploymentDate, this.model.dateFormat);
+      }
+
+      return "";
    }
 
    openSelectLocation() {
