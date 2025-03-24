@@ -31,6 +31,7 @@ import { LicenseInfoService } from "../common/services/license-info.service";
 import { OpenComposerService } from "../common/services/open-composer.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
+import { PortalCreationPermissions } from "./custom/portal-creation-permissions";
 import { PreferencesDialog } from "./dialog/preferences-dialog.component";
 import { PortalModel } from "./portal-model";
 import { PortalTab, PortalTabs } from "./portal-tab";
@@ -42,6 +43,7 @@ import { PortalTabsService } from "./services/portal-tabs.service";
 import { GettingStartedService } from "../widget/dialog/getting-started-dialog/service/getting-started.service";
 
 const PORTAL_MODEL_URI: string = "../api/portal/get-portal-model";
+const REFRESH_CREATION_PERMISSION_URI = "../api/portal/refresh-creation-permissions";
 const COMPOSER_WIZARD_STATUS_URI: string = "../api/composer/wizard/status";
 const PORTAL_PROFILING_URI: string = "../api/portal/set-profiling/";
 const PORTAL_CHECK_SHOW_GETTING_STARTED_URI: string = "../api/portal/getting-started";
@@ -184,6 +186,19 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
 
       this.destroy$.next();
       this.destroy$.unsubscribe();
+   }
+
+   refreshCreationPermissions() {
+      this.http.get<PortalCreationPermissions>(REFRESH_CREATION_PERMISSION_URI)
+         .subscribe((creationPermissions) => {
+            if(!!creationPermissions) {
+               this.model.composerEnabled = creationPermissions.composerEnabled;
+               this.model.dashboardEnabled = creationPermissions.dashboardEnabled;
+               this.model.newDatasourceEnabled = creationPermissions.newDatasourceEnabled;
+               this.model.newWorksheetEnabled = creationPermissions.newWorksheetEnabled;
+               this.model.newViewsheetEnabled = creationPermissions.newViewsheetEnabled;
+            }
+         });
    }
 
    updateAccessibility(): void {
