@@ -542,15 +542,18 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                   }
                }
                else {
-                  let parameterIndex = fexpress.indexOf("parameter.");
-
-                  if(parameterIndex < 0) {
-                     parameterIndex = fexpress.indexOf("parameter['");
-                  }
+                  const parameterIndex = fexpress.indexOf("parameter.");
 
                   if(parameterIndex === 0 && this.isSqlType()) {
-                        const variableName = fexpress.substring("parameter.".length);
-                        fexpress = `$(${variableName})`;
+                     const variableName = fexpress.substring("parameter.".length);
+                     fexpress = `$(${variableName})`;
+                  }
+                  else if(parameterIndex === 0 && !this.isSqlType()) {
+                     const variableName = fexpress.substring("parameter.".length);
+
+                     if(!/^[a-zA-Z0-9]+$/.test(variableName)) {
+                        fexpress = "parameter['" + variableName + "']";
+                     }
                   }
                   else if(parameterIndex !== 0 && fexpress.indexOf("MV.") !== 0 &&
                      !fexpress.startsWith("field["))
