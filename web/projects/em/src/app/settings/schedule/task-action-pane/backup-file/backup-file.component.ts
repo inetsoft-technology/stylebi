@@ -383,7 +383,7 @@ export class BackupFileComponent implements OnDestroy {
          if(!this.selectedEntities.some((entity) => entity.path == path)) {
             //additional datasource connection should not be exported
             if(type == RepositoryEntryType.DATA_SOURCE) {
-               return;
+               continue;
             }
 
             if(node.label !== "_#(js:Data Model)" &&
