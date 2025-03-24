@@ -131,11 +131,9 @@ public class ExpressionDialogController extends WorksheetController {
             (assembly) -> assembly instanceof VariableAssembly && assembly.isVisible())
          .forEach((variableAssembly) -> {
             String absoluteName = variableAssembly.getAbsoluteName();
-            String data = absoluteName != null && absoluteName.matches("[a-zA-Z0-9]+") ?
-               "parameter." + absoluteName : "parameter['" + absoluteName + "']";
             variableChildren.add(TreeNodeModel.builder()
                .label(absoluteName)
-               .data(data)
+               .data("parameter." + absoluteName)
                .icon("variable-icon")
                .leaf(true)
                .build());
