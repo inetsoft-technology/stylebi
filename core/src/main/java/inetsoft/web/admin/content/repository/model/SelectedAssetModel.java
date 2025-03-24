@@ -51,7 +51,8 @@ public interface SelectedAssetModel {
    @Nullable
    String description();
 
-   long lastModifiedTime();
+   @Nullable
+   Long lastModifiedTime();
 
    @Nullable
    String dateFormat();
