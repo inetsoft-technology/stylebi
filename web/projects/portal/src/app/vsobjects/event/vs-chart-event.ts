@@ -47,9 +47,6 @@ export class VSChartEvent implements ViewsheetEvent {
          else {
             this.maxSize = GuiTool.getChartMaxModeSize(container);
          }
-
-         //subtract the height of the status bar
-         this.maxSize.height -= 38;
       }
    }
 
