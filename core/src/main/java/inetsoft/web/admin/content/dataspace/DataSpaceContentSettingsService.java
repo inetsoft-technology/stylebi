@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
+import java.net.URLEncoder;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
@@ -349,6 +350,8 @@ public class DataSpaceContentSettingsService {
 
       response.setHeader("extension", Tool.cleanseCRLF(suffix));
       String header = Tool.encodeNL(name);
+      String fileName = StringUtils.normalizeSpace(header);
+      String encodedFileName = URLEncoder.encode(fileName, "UTF-8").replace("+", "%20");
 
       if(!SUtil.isHttpHeadersValid(header)) {
          throw new Exception("name is invalid: " + header);
@@ -356,7 +359,7 @@ public class DataSpaceContentSettingsService {
 
       if(HTMLUtil.isIE(request)) {
          response.setHeader("Content-disposition", "attachment; filename=" +
-            StringUtils.normalizeSpace(header));
+            encodedFileName);
 
          response.setHeader("Cache-Control", "");
 
@@ -367,7 +370,7 @@ public class DataSpaceContentSettingsService {
       else {
          response.setHeader("Content-disposition",
                             "attachment; filename*=utf-8'en-us'" +
-                               StringUtils.normalizeSpace(header));
+                               encodedFileName);
       }
 
       try(InputStream in = space.getInputStream(null, path)) {
