@@ -40,13 +40,11 @@ import java.security.Principal;
 @MessageMapping("/annotation")
 public class VSAnnotationUpdateController {
    @Autowired
-   public VSAnnotationUpdateController(VSObjectService service,
-                                       VSAnnotationService annotationService,
-                                       RuntimeViewsheetRef runtimeViewsheetRef)
+   public VSAnnotationUpdateController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                       VSAnnotationUpdateServiceProxy vsAnnotationUpdateServiceProxy)
    {
-      this.service = service;
-      this.annotationService = annotationService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsAnnotationUpdateServiceProxy = vsAnnotationUpdateServiceProxy;
    }
 
    @Undoable
@@ -57,47 +55,8 @@ public class VSAnnotationUpdateController {
                                 @LinkUri String linkUri,
                                 CommandDispatcher dispatcher) throws Exception
    {
-      // Get properties from event object
-      final String content = event.getContent();
-      final Rectangle newBounds = event.getNewBounds();
-      final RuntimeViewsheet rvs =
-         service.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      final Viewsheet viewsheet = rvs.getViewsheet();
-      final String name = event.getName();
-      final String parent = AnnotationVSUtil.getAnnotationParentName(viewsheet, name);
-      final AnnotationVSAssembly annotation =
-         (AnnotationVSAssembly) viewsheet.getAssembly(name);
-      final AnnotationVSAssemblyInfo ainfo =
-         (AnnotationVSAssemblyInfo) annotation.getVSAssemblyInfo();
-      final AnnotationRectangleVSAssembly annotationRectangle =
-         (AnnotationRectangleVSAssembly) viewsheet.getAssembly(ainfo.getRectangle());
-      final VSAssembly parentAssembly = viewsheet.getAssembly(parent);
-      AffineTransform tx;
-      int assemblyType = ainfo.getType();
-
-      if(assemblyType == AnnotationVSAssemblyInfo.ASSEMBLY) {
-         tx = annotationService.getInverseScaleTransform(viewsheet, parentAssembly);
-      }
-      else {
-         tx = new AffineTransform(); // identity
-      }
-
-      // Update annotation content
-      annotationService.updateAnnotationContent(annotationRectangle, content);
-
-      // translate and transform the annotation rectangle by the delta rect
-      // send VSRemoveObjectCommand if the size set is different from the event size
-      if(!annotationRectangle.getBounds().equals(newBounds) &&
-         annotationService.transformRectangle(annotationRectangle, newBounds, tx))
-      {
-         RemoveVSObjectCommand command = new RemoveVSObjectCommand();
-         command.setName(annotation.getAbsoluteName());
-         dispatcher.sendCommand(command);
-      }
-
-      // Refresh annotations and re-layout viewsheet
-      annotationService.refreshAnnotation(rvs, annotation, annotationRectangle,
-                                          parentAssembly, linkUri, dispatcher);
+      vsAnnotationUpdateServiceProxy.updateAnnotation(runtimeViewsheetRef.getRuntimeId(), event,
+                                                      principal, linkUri, dispatcher);
    }
 
    @Undoable
@@ -108,45 +67,10 @@ public class VSAnnotationUpdateController {
                                         @LinkUri String linkUri,
                                         CommandDispatcher dispatcher) throws Exception
    {
-      final Rectangle newBounds = event.getNewBounds();
-      final RuntimeViewsheet rvs =
-         service.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      final Viewsheet viewsheet = rvs.getViewsheet();
-      final String name = event.getName();
-      final AnnotationVSAssembly annotation =
-         (AnnotationVSAssembly) viewsheet.getAssembly(name);
-      final AnnotationVSAssemblyInfo ainfo =
-         (AnnotationVSAssemblyInfo) annotation.getVSAssemblyInfo();
-      final AnnotationRectangleVSAssembly annotationRectangle =
-         (AnnotationRectangleVSAssembly) viewsheet.getAssembly(ainfo.getRectangle());
-      final AnnotationLineVSAssembly annotationLine =
-         (AnnotationLineVSAssembly) viewsheet.getAssembly(ainfo.getLine());
-      final VSAssemblyInfo lineInfo = annotationLine.getVSAssemblyInfo();
-      String parent = AnnotationVSUtil.getAnnotationParentName(viewsheet, name);
-      VSAssembly parentAssembly = (VSAssembly) viewsheet.getAssembly(parent);
-
-      // translate the line
-      AffineTransform tx = annotationService.getInverseScaleTransform(viewsheet, parentAssembly);
-      Point2D src = new Point2D.Double(newBounds.getX(), newBounds.getY());
-      Point2D dst = new Point2D.Double();
-      tx.transform(src, dst);
-      Point newOffset = new Point((int) Math.round(dst.getX()), (int) Math.round(dst.getY()));
-      annotationLine.setPixelOffset(newOffset);
-      ainfo.setPixelOffset(newOffset);
-
-      // modify layout position if set
-      if(lineInfo.getLayoutPosition() != null) {
-         final Point newLayoutPosition = new Point(newBounds.x, newBounds.y);
-         lineInfo.setScaledPosition(newLayoutPosition);
-         ainfo.setScaledPosition(newLayoutPosition);
-      }
-
-      // refresh annotation
-      annotationService.refreshAnnotation(rvs, annotation, annotationRectangle,
-                                          parentAssembly, linkUri, dispatcher);
+      vsAnnotationUpdateServiceProxy.updateAnnotationEndpoint(runtimeViewsheetRef.getRuntimeId(), event,
+                                                              principal, linkUri, dispatcher);
    }
 
-   private final VSObjectService service;
-   private final VSAnnotationService annotationService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private VSAnnotationUpdateServiceProxy vsAnnotationUpdateServiceProxy;
 }
