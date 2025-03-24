@@ -403,6 +403,7 @@ public class IdentityService {
                String orgId = identityId.orgID;
                //rep.renameUser(oID, identityId);
                RepletRegistry.renameUser(oID, identityId);
+               DashboardRegistry.clear(identityId);
                DashboardRegistry.renameUser(oID, identityId);
                DashboardRegistry.clear(oID);
                updateUserAutoSaveFiles(oID, identityId);
