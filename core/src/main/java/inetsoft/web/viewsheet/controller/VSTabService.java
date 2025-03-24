@@ -27,8 +27,6 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.ChangeTabStateEvent;
 import inetsoft.web.viewsheet.service.*;
-import org.springframework.messaging.handler.annotation.DestinationVariable;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
