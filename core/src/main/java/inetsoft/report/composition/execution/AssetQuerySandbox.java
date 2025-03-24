@@ -866,6 +866,10 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
     */
    public TableLens getTableLens(String name, int mode, VariableTable vars) throws Exception {
       // may be disposed
+      if(isDisposed()) {
+         throw new RuntimeException("Asset query sandbox is disposed");
+      }
+
       if(ws == null) {
          return null;
       }
