@@ -87,6 +87,7 @@
        || model.newViewsheetEnabled || model.reportEnabled)"
           class="nav-item portal-nav-item bb-highlight-filler">
         <a class="nav-link nav-icon nav-icon-size" [fixedDropdown]="addDropdown"
+           (click)="refreshCreationPermissions()"
            dropdownPlacement="bottom"
            title="_#(Create)">
           <i class="creation-icon nav-icon-size portal-toolbar-icon"
