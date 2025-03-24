@@ -168,7 +168,8 @@ public class EmailDialogService {
          .userDialogEnabled(userDialogEnabled)
          .emailAddrDialogModel(emailAddrDialogModel)
          .users(usersModel == null ? new ArrayList<>() : usersModel.emailUsers())
-         .groups(usersModel == null ? new ArrayList<>() : Arrays.asList(usersModel.groupBaseNames()))
+         .groups(usersModel == null ? new ArrayList<>() :
+                    Arrays.stream(usersModel.groups()).map(IdentityID::getName).toList())
          .emailGroups(usersModel == null ? new ArrayList<>() : usersModel.emailGroups())
          .build();
       boolean historyEnabled = "true".equalsIgnoreCase(SreeEnv.getProperty("mail.history.enabled"));
