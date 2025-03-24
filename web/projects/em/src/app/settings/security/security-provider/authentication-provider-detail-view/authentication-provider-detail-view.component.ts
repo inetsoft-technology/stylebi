@@ -49,7 +49,7 @@ export class AuthenticationProviderDetailViewComponent implements OnInit, OnDest
       this._model = model;
       this._original = Tool.clone(model);
 
-      if(model && this.form && this.model.providerName) {
+      if(this.form && model?.providerName) {
          this.providerName = this.model.providerName;
          this.providerType = this.model.providerType;
       }
