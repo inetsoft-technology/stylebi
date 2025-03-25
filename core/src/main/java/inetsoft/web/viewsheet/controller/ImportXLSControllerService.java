@@ -46,13 +46,13 @@ public class ImportXLSControllerService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void processGetAssemblyImage(@ClusterProxyKey String runtimeId, String type,
-                                       MultipartFile file) throws Exception
+                                       byte[] fileBytes) throws Exception
    {
       FileSystemService fileSystemService = FileSystemService.getInstance();
       File temp = fileSystemService.getCacheFile(runtimeId + "_" + type);
       fileSystemService.remove(temp, 120000);
       FileOutputStream fileOutput = new FileOutputStream(temp);
-      fileOutput.write(file.getBytes());
+      fileOutput.write(fileBytes);
 
       return null;
    }

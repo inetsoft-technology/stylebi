@@ -69,7 +69,7 @@ public class ImportXLSController {
    {
       runtimeId = Tool.byteDecode(runtimeId).replace('/', '_');
 
-      importXLSControllerServiceProxy.processGetAssemblyImage(runtimeId, type, file);
+      importXLSControllerServiceProxy.processGetAssemblyImage(runtimeId, type, file.getBytes());
    }
 
    /**
