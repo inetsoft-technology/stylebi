@@ -17,12 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.table;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.table.MaxTableEvent;
@@ -31,8 +25,6 @@ import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
-
-import java.awt.*;
 import java.security.Principal;
 
 /**
@@ -41,13 +33,11 @@ import java.security.Principal;
 @Controller
 public class VSTableMaxModeController {
    @Autowired
-   public VSTableMaxModeController(ViewsheetService viewsheetService,
-                                RuntimeViewsheetRef runtimeViewsheetRef,
-                                CoreLifecycleService coreLifecycleService)
+   public VSTableMaxModeController(VSTableMaxModeServiceProxy vsTableMaxModeServiceProxy,
+                                RuntimeViewsheetRef runtimeViewsheetRef)
    {
-      this.viewsheetService = viewsheetService;
+      this.vsTableMaxModeServiceProxy = vsTableMaxModeServiceProxy;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.coreLifecycleService = coreLifecycleService;
    }
 
    @Undoable
@@ -57,55 +47,7 @@ public class VSTableMaxModeController {
                              CommandDispatcher dispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(getRuntimeId(), principal);
-      Viewsheet vs = rvs.getViewsheet();
-      String name = event.tableName();
-      TableDataVSAssembly tableAssembly = (TableDataVSAssembly) vs.getAssembly(name);
-      Dimension maxSize = event.maxSize();
-
-      if(tableAssembly == null) {
-         return;
-      }
-
-      int index = name.lastIndexOf(".");
-
-      if(index >= 0) {
-         vs = (Viewsheet) vs.getAssembly(name.substring(0, index));
-      }
-
-      int zAdjust = maxSize == null ? -100000 : 100000;
-      vs.setMaxMode(maxSize != null);
-      boolean embeddedViewsheet = false;
-
-      while(vs.getViewsheet() != null) {
-         // make sure embedded vs is on top when maximizing chart inside
-         vs.setZIndex(vs.getZIndex() + zAdjust);
-         vs = vs.getViewsheet();
-         vs.setMaxMode(maxSize != null);
-         embeddedViewsheet = true;
-      }
-
-      TableDataVSAssemblyInfo tableAssemblyInfo = tableAssembly.getTableDataVSAssemblyInfo();
-      tableAssemblyInfo.setMaxSize(event.maxSize());
-
-      if(maxSize != null) {
-         final Assembly[] assemblies = vs.getAssemblies(true, true);
-         int parentZAdjust = embeddedViewsheet ? zAdjust : 0;
-
-         if(assemblies != null) {
-            final VSAssembly topAssembly = (VSAssembly) assemblies[assemblies.length - 1];
-            final int zIndex = topAssembly.getVSAssemblyInfo().getZIndex() + 1 + parentZAdjust;
-            tableAssemblyInfo.setMaxModeZIndex(zIndex);
-         }
-      }
-
-      final ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs,
-                                                                        linkUri);
-
-      tableAssembly.setLastStartRow(0);
-      coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, event.width(), event.height(), false,
-                                            null, false, dispatcher, false, false, true, clist,
-                                            null, null, false, false, false, true);
+      vsTableMaxModeServiceProxy.toggleMaxMode(getRuntimeId(), event, principal, linkUri, dispatcher);
    }
 
    /**
@@ -115,8 +57,7 @@ public class VSTableMaxModeController {
       return runtimeViewsheetRef.getRuntimeId();
    }
 
-   private ViewsheetService viewsheetService;
    private RuntimeViewsheetRef runtimeViewsheetRef;
-   private CoreLifecycleService coreLifecycleService;
+   private VSTableMaxModeServiceProxy vsTableMaxModeServiceProxy;
 
 }
