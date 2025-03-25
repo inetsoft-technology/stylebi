@@ -17,8 +17,9 @@
  */
 package inetsoft.web.viewsheet.service;
 
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.cluster.*;
+import inetsoft.report.composition.*;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -26,23 +27,30 @@ import inetsoft.uql.viewsheet.internal.*;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
+import java.security.Principal;
 
 @Service
+@ClusterProxy
 public class MaxModeAssemblyService {
-   public MaxModeAssemblyService(CoreLifecycleService coreLifecycleService) {
+   public MaxModeAssemblyService(ViewsheetService viewsheetService,
+                                 CoreLifecycleService coreLifecycleService)
+   {
       this.coreLifecycleService = coreLifecycleService;
+      this.viewsheetService =   viewsheetService;
    }
 
-   public void toggleMaxMode(RuntimeViewsheet rvs, String assemblyName, Dimension maxSize,
-                             CommandDispatcher dispatcher, String linkUri)
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void toggleMaxMode(@ClusterProxyKey String vsId, String assemblyName, Dimension maxSize,
+                             CommandDispatcher dispatcher, String linkUri, Principal principal)
       throws Exception
    {
+      final RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly ass = vs.getAssembly(assemblyName);
       int oldShowTypeValue = -1;
 
       if(!(ass instanceof MaxModeSupportAssembly)) {
-         return;
+         return null;
       }
 
       if(ass.getVSAssemblyInfo() instanceof SelectionBaseVSAssemblyInfo) {
@@ -101,7 +109,9 @@ public class MaxModeAssemblyService {
          coreLifecycleService.refreshVSAssembly(rvs, assemblyName, dispatcher);
       }
 
+      return null;
    }
 
    private final CoreLifecycleService coreLifecycleService;
+   private ViewsheetService viewsheetService;
 }
