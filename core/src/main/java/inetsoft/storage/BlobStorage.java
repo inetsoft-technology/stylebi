@@ -17,6 +17,7 @@
  */
 package inetsoft.storage;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedLong;
 import inetsoft.uql.asset.AssetEntry;
@@ -686,8 +687,9 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
 
       @Override
       protected void validate(Map<String, Blob<T>> map) throws Exception {
-         if(this.getId().endsWith("__indexedStorage")) {
-            String orgID = this.getId().substring(0, this.getId().length() - 16);
+         String orgID = SUtil.getOrganizationId(this.getId());
+
+         if(orgID != null) {
             initIndexedStorage(map, orgID);
          }
 
