@@ -137,7 +137,7 @@ public class UndoRedoService {
       return null;
    }
 
-   private Void updateViewsheet(RuntimeViewsheet rvs, String linkUri, ChangedAssemblyList clist,
+   private void updateViewsheet(RuntimeViewsheet rvs, String linkUri, ChangedAssemblyList clist,
                                 CommandDispatcher dispatcher) throws Exception
    {
       this.coreLifecycleService.refreshViewsheet(
@@ -147,25 +147,19 @@ public class UndoRedoService {
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       dispatcher.sendCommand(treeCommand);
       infoHandler.getGrayedOutFields(rvs, dispatcher);
-
-      return null;
    }
 
-   private Void updateViewsheetWizard(RuntimeViewsheet rs, CommandDispatcher dispatcher) {
+   private void updateViewsheetWizard(RuntimeViewsheet rs, CommandDispatcher dispatcher) {
       Assembly[] assemblies = this.wizardViewsheetService.getAssemblies(rs, false);
       this.wizardViewsheetService.updateGridRowsAndNewBlock(assemblies, dispatcher);
-
-      return null;
    }
 
-   private Void updateUndoState(RuntimeSheet rs, CommandDispatcher dispatcher) {
+   private void updateUndoState(RuntimeSheet rs, CommandDispatcher dispatcher) {
       UpdateUndoStateCommand command = new UpdateUndoStateCommand();
       command.setPoints(rs.size());
       command.setCurrent(rs.getCurrent());
       command.setSavePoint(rs.getSavePoint());
       dispatcher.sendCommand(command);
-
-      return null;
    }
 
 
