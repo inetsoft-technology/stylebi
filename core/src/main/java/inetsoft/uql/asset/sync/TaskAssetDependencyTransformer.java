@@ -469,7 +469,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
 
       String assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s' and @user='%s']";
       assetExpression = String.format(assetExpression, type, Tool.byteEncode2(path),
-         user == null ? "" : user);
+         user == null ? "" : user.convertToKey());
 
       if(info.isTask()) {
          assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s']";
