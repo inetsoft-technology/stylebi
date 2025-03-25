@@ -27,6 +27,10 @@ import inetsoft.uql.viewsheet.internal.RadioButtonVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Date;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -37,6 +41,7 @@ public class RadioButtonVSAScriptableTest {
    private RadioButtonVSAssemblyInfo radioButtonVSAssemblyInfo;
    private RadioButtonVSAssembly radioButtonVSAssembly;
    private VSAScriptable vsaScriptable;
+   private SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
 
    @BeforeEach
    void setUp() {
@@ -47,8 +52,6 @@ public class RadioButtonVSAScriptableTest {
       radioButtonVSAssembly = new RadioButtonVSAssembly();
       radioButtonVSAssemblyInfo = (RadioButtonVSAssemblyInfo) radioButtonVSAssembly.getVSAssemblyInfo();
       radioButtonVSAssemblyInfo.setName("RadioButton1");
-      radioButtonVSAssemblyInfo.setListData(new ListData());
-      radioButtonVSAssemblyInfo.setRListData(new ListData());
       viewsheet.addAssembly(radioButtonVSAssembly);
 
       viewsheetSandbox = mock(ViewsheetSandbox.class);
@@ -68,8 +71,8 @@ public class RadioButtonVSAScriptableTest {
 
    @Test
    void testGetSetCellValue() {
-      radioButtonVSAScriptable.setCellValue("value1");
-      assertEquals("value1", radioButtonVSAScriptable.getCellValue());
+      radioButtonVSAScriptable.setCellValue(new Date(125, 1, 20));
+      assert simpleDateFormat.format(radioButtonVSAScriptable.getCellValue()).equals("2025-02-20");
    }
 
    @Test
@@ -99,18 +102,42 @@ public class RadioButtonVSAScriptableTest {
 
    @Test
    void testGetSetDataType() {
+      //get datatype when no listdata
+      assertNull(radioButtonVSAScriptable.getDataType());
+
+      radioButtonVSAssemblyInfo.setListData(new ListData());
       radioButtonVSAScriptable.setDataType("String");
       assertEquals("String", radioButtonVSAScriptable.getDataType());
    }
 
    @Test
    void testGetSetValues() {
+      //set values when no listdata
+      radioButtonVSAScriptable.setValues(new Object[] { "value1", "value2" });
+      assertNull(radioButtonVSAScriptable.getValues());
+
+      //set values with String type
+      radioButtonVSAssemblyInfo.setListData(new ListData());
+      radioButtonVSAssemblyInfo.setRListData(new ListData());
       radioButtonVSAScriptable.setValues(new Object[] { "value1", "value2" });
       assertArrayEquals(new Object[] { "value1", "value2" }, radioButtonVSAScriptable.getValues());
+
+      //set values with Date type
+      radioButtonVSAScriptable.setDataType("Date");
+      radioButtonVSAScriptable.setValues(new Object[] { new Date(125, 1, 20), new Date(125, 2, 20) });
+      Object [] values = radioButtonVSAScriptable.getValues();
+      assertEquals("[Thu Feb 20 00:00:00 CST 2025, Thu Mar 20 00:00:00 CST 2025]",
+                   Arrays.toString(Arrays.copyOf(values, values.length)));
    }
 
    @Test
    void testGetSetLabels() {
+      //set values when no listdata
+      radioButtonVSAScriptable.setLabels(new String[] { "label1", "label2" });
+      assertNull(radioButtonVSAScriptable.getLabels());
+
+      radioButtonVSAssemblyInfo.setListData(new ListData());
+      radioButtonVSAssemblyInfo.setRListData(new ListData());
       radioButtonVSAScriptable.setLabels(new String[] { "label1", "label2" });
       assertArrayEquals(new String[] { "label1", "label2" }, radioButtonVSAScriptable.getLabels());
    }
@@ -120,5 +147,10 @@ public class RadioButtonVSAScriptableTest {
       assertNull(radioButtonVSAScriptable.getDefaultValue(String.class));
       radioButtonVSAScriptable.setSelectedObject("value1");
       assertEquals("value1", radioButtonVSAScriptable.getDefaultValue(String.class));
+
+      //set default value with Date type
+      radioButtonVSAScriptable.setDataType("Date");
+      radioButtonVSAScriptable.setSelectedObject(new Date(125, 1, 20));
+      assert simpleDateFormat.format(radioButtonVSAScriptable.getDefaultValue(String.class)).equals("2025-02-20");
    }
 }
