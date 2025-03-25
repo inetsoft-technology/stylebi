@@ -21,9 +21,9 @@ StyleBI Open Source has robust and fine granular security on both data and visua
 
 You will need Docker installed with a version 1.29.0 or later of Docker Compose. If you are using Docker Desktop, Docker Compose is already included. For issues starting Docker Desktop, please refer to the [Docker Troubleshooting Documentation](https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/topics/).
 
-Save [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file to the Docker host machine by clicking on the link then click "Download raw file" button at upper right corner of the file editing area. To install the latest Experimental nightly build, refer to the [Experimental guide](community-examples/Experimental.md).
+Download the latest community-examples.zip file from the [StyleBI Release page](https://github.com/inetsoft-technology/stylebi/releases) and extract all file contents into a folder of your choosing. To install the latest Experimental nightly build, modify the .env file in the extracted directory using a standard text editor to utilize the URL for the `Experimental nightly build`.
 
-For Docker Desktop, start it first then open a Command Prompt window. In the directory containing the .yaml file, run the following command:
+For Docker Desktop, start it first then open a Command Prompt window. In the directory containing the extracted .yaml file, run the following command:
 
 ```shell
 docker compose up -d
