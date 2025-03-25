@@ -264,7 +264,8 @@ public class ScheduleDialogService {
                    : usersModel.emailUsers().stream().map(u -> u.name).toList())
          .groups(usersModel == null || usersModel.groups() == null ? new ArrayList<>()
                     : Arrays.asList(usersModel.groups()).stream().map(g -> g.name).toList())
-         .emailGroups(usersModel == null ? new ArrayList<>() : Arrays.asList(usersModel.emailGroupBaseNames()))
+         .emailGroups(usersModel == null || usersModel.emailGroups() == null ? new ArrayList<>()
+                         : usersModel.emailGroups().stream().map(g -> g.name).toList())
          .tableAssemblies(tableDataAssemblies.toArray(new String[0]))
          .build();
    }
