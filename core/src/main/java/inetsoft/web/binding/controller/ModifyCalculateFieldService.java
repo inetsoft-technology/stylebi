@@ -363,37 +363,11 @@ public class ModifyCalculateFieldService {
          WizardRecommenderUtil.setIgnoreRefreshTempAssembly(null);
       }
 
-      // not check confirm, if need confirm, will throws the exception,
-      // not reach here
-      /**
-       if(infoChanged || !create) {
-       VSRefreshEvent refresh = new VSRefreshEvent();
-       refresh.setID(getID());
-       refresh.setLinkURI(getLinkURI());
-
-       try {
-       AssetEvent.MAIN.set(this);
-       refresh.process(rvs, command);
-       }
-       catch(ConfirmException e) {
-       // mv on-demand
-       command.addCommand(new MessageCommand(e.getMessage(),
-       MessageCommand.PROGRESS));
-       }
-       }*/
-
       if(ass != null) {
          BindingModel binding = bindingFactory.createModel(ass);
          SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
          dispatcher.sendCommand(bcommand);
       }
-
-      /*@temp by davezhang while ass is null,also can add CalcField.
-      VSObjectModel model = ModelBuilder.builder(ass.getClass())
-         .assembly(ass).runtimeViewsheet(rvs).build();
-      RefreshVSObjectCommand command = new RefreshVSObjectCommand();
-      command.setInfo(model);
-      dispatcher.sendCommand(command);*/
 
       try {
          // check the expression valid or not
