@@ -19,57 +19,116 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
+import inetsoft.util.GroupedThread;
 import inetsoft.util.SingletonManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.*;
 
+@SingletonManager.Singleton
 public class DistributedTableCacheStore {
+   /**
+    * Get the distributed table cache store instance
+    */
+   public static DistributedTableCacheStore getInstance() {
+      return SingletonManager.getInstance(DistributedTableCacheStore.class);
+   }
+
    public DistributedTableCacheStore() {
+      clusterId = Cluster.getInstance().getId();
       storages = new ConcurrentHashMap<>();
+      executor.scheduleAtFixedRate(this::cleanUpCache, 1L, CLEANUP_FREQUENCY_TIME, TimeUnit.MINUTES);
    }
 
    /**
     * Checks if the table data file exists in the blob storage.
     */
-   boolean exists(String key) {
+   boolean exists(DataKey dataKey) {
       BlobStorage<Metadata> storage = getStorage();
-      return storage.exists(key);
+      return storage.exists(getKey(dataKey));
    }
 
-   public TableLens load(String key) throws Exception {
+   public TableLens get(DataKey dataKey, long touchTime) throws Exception {
+      String key = getKey(dataKey);
       BlobStorage<Metadata> storage = getStorage();
+
+      // don't return stale data from the store
+      if(touchTime > 0 && storage.getLastModified(key).toEpochMilli() < touchTime) {
+         return null;
+      }
+
       TableLens lens = (TableLens) new ObjectInputStream(storage.getInputStream(key)).readObject();
       LOG.debug("Loaded lens " + key + " from distributed table cache store");
       return lens;
    }
 
-   void save(String key, TableLens lens) {
-      new Thread(() -> {
-         BlobStorage<Metadata> storage = getStorage();
+   void put(DataKey dataKey, TableLens lens) {
+      String key = getKey(dataKey);
+      BlobStorage<Metadata> storage = getStorage();
 
-         try(BlobTransaction<Metadata> tx = storage.beginTransaction();
-             OutputStream out = tx.newStream(key, null);
-             ObjectOutputStream oos = new ObjectOutputStream(out))
-         {
-            oos.writeObject(lens);
-            oos.flush();
-            tx.commit();
+      if(!storage.exists(key)) {
+         new Thread(() -> {
+            try(BlobTransaction<Metadata> tx = storage.beginTransaction();
+                OutputStream out = tx.newStream(key, null);
+                ObjectOutputStream oos = new ObjectOutputStream(out))
+            {
+               oos.writeObject(lens);
+               oos.flush();
+               tx.commit();
+            }
+            catch(IOException ex) {
+               LOG.error("Failed to write to the blob storage: {}", key, ex);
+            }
+         }).start();
+      }
+   }
+
+   private void cleanUpCache() {
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      String[] orgIds = provider.getOrganizationIDs();
+      Instant validInstant = Instant.now().minus(CACHE_EXPIRATION_TIME, ChronoUnit.MINUTES);
+
+      for(String orgId : orgIds) {
+         BlobStorage<Metadata> storage = getStorage(getStorageId(orgId));
+         Set<String> keysToRemove = new HashSet<>();
+         storage.paths().forEach(key -> {
+            try {
+               if(!key.startsWith(clusterId) || storage.getLastModified(key).isBefore(validInstant)) {
+                  keysToRemove.add(key);
+               }
+            }
+            catch(FileNotFoundException e) {
+               // ignore
+            }
+         });
+
+         // TODO: add BlobStorage.removeAll() and DeleteAllBlobTask
+         for(String key : keysToRemove) {
+            try {
+               storage.delete(key);
+            }
+            catch(IOException e) {
+               throw new RuntimeException(e);
+            }
          }
-         catch(IOException ex) {
-            LOG.error("Failed to write to the blob storage: {}", key, ex);
-         }
-      }).start();
+      }
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = getStorageId(OrganizationManager.getInstance().getCurrentOrgID());
+      return getStorage(getStorageId(OrganizationManager.getInstance().getCurrentOrgID()));
+   }
 
+   private BlobStorage<Metadata> getStorage(String storeID) {
       if(storages.containsKey(storeID) && !storages.get(storeID).isClosed()) {
          return storages.get(storeID);
       }
@@ -84,7 +143,17 @@ public class DistributedTableCacheStore {
       return orgId.toLowerCase() + "__" + "tableCacheStore";
    }
 
+   private String getKey(DataKey dataKey) {
+      return clusterId + "__" + dataKey.getValue();
+   }
+
+   private final String clusterId;
    private final ConcurrentHashMap<String, BlobStorage<Metadata>> storages;
+   private final ScheduledExecutorService executor =
+      Executors.newSingleThreadScheduledExecutor(r -> new GroupedThread(r, "DistributedTableCacheStore"));
+
+   private static final long CACHE_EXPIRATION_TIME = 30L; // minutes
+   private static final long CLEANUP_FREQUENCY_TIME = 30L; // minutes
    private static final Logger LOG = LoggerFactory.getLogger(DistributedTableCacheStore.class);
 
    public static final class Metadata implements Serializable {

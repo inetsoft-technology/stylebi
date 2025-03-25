@@ -1764,7 +1764,7 @@ public class AssetEventUtil {
       return assembly;
    }
 
-   private static XSwappableTable createXSwappableTable(XTable lens) {
+   public static XSwappableTable createXSwappableTable(XTable lens) {
       XSwappableTable table = new XSwappableTable(lens.getColCount(), false);
       lens.moreRows(Integer.MAX_VALUE);
 
