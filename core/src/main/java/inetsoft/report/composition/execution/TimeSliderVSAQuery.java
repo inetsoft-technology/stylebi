@@ -21,6 +21,7 @@ import inetsoft.graph.internal.GTool;
 import inetsoft.mv.*;
 import inetsoft.report.MemberObjectTableLens;
 import inetsoft.report.TableLens;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.report.lens.*;
@@ -1244,6 +1245,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       }
 
       SelectionList slist2 = new SelectionList();
+      boolean runtimeMode = box.getMode() == RuntimeViewsheet.VIEWSHEET_RUNTIME_MODE;
 
       // if script set max, calculate the length by applying the max
       if(assembly.getRuntimeMax() instanceof Date) {
@@ -1273,7 +1275,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          length = Math.min(slist.getSelectionValueCount() - 1, olength);
          pos = 0;
 
-         if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(runtimeMode || !getViewsheet().getViewsheetInfo().isMetadata()) {
             tinfo.setLengthValue(Math.max(1, length));
          }
       }
@@ -1282,7 +1284,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          length = Math.min(length, maxlength);
          pos = slist.getSelectionValueCount() - 1 - length;
 
-         if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+         if(runtimeMode || !getViewsheet().getViewsheetInfo().isMetadata()) {
             tinfo.setLengthValue(Math.max(1, length));
          }
       }
@@ -1306,7 +1308,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          length = Math.min(length, slist.getSelectionValueCount() - 1 - pos);
       }
 
-      if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+      if(runtimeMode || !getViewsheet().getViewsheetInfo().isMetadata()) {
          tinfo.setLengthValue(length = Math.max(1, Math.min(length, maxlength)));
       }
 
@@ -1320,9 +1322,10 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
             slist2.addSelectionValue(value);
          }
       }
+
       assembly.setSelectionList(slist);
 
-      if(!getViewsheet().getViewsheetInfo().isMetadata()) {
+      if(runtimeMode || !getViewsheet().getViewsheetInfo().isMetadata()) {
          assembly.setStateSelectionList(slist2);
          slist2.complete();
       }
