@@ -17,13 +17,9 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.util.*;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,9 +30,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.*;
 import java.security.Principal;
-import java.util.*;
 
 /**
  * Handles importing an excel file.
@@ -51,12 +45,10 @@ public class ImportXLSController {
     */
    @Autowired
    public ImportXLSController(RuntimeViewsheetRef runtimeViewsheetRef,
-                              ViewsheetService viewsheetService,
-                              CoreLifecycleService coreLifecycleService)
+                              ImportXLSControllerServiceProxy importXLSControllerServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.viewsheetService = viewsheetService;
-      this.coreLifecycleService = coreLifecycleService;
+      this.importXLSControllerServiceProxy = importXLSControllerServiceProxy;
    }
 
    /**
@@ -76,11 +68,8 @@ public class ImportXLSController {
       throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId).replace('/', '_');
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      File temp = fileSystemService.getCacheFile(runtimeId + "_" + type);
-      fileSystemService.remove(temp, 120000);
-      FileOutputStream fileOutput = new FileOutputStream(temp);
-      fileOutput.write(file.getBytes());
+
+      importXLSControllerServiceProxy.processGetAssemblyImage(runtimeId, type, file);
    }
 
    /**
@@ -100,63 +89,11 @@ public class ImportXLSController {
                                 CommandDispatcher dispatcher)
       throws Exception
    {
-      String vid = runtimeViewsheetRef.getRuntimeId();
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vid, principal);
-      String fileName = vid.replace('/', '_') + "_" + type;
-      File excelFile = FileSystemService.getInstance().getCacheFile(fileName);
-
-      if(!excelFile.exists()) {
-         String msg = catalog.getString("Upload Timeout");
-         this.coreLifecycleService
-            .sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
-         return;
-      }
-
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      if(box == null) {
-         return;
-      }
-
-      Set<String> notInRange = new HashSet<>();
-      List<String> assemblies = new ArrayList<>();
-
-      try {
-         ImportXLSService.getInstance().updateViewsheet(
-            excelFile, type, rvs, linkUri, dispatcher, coreLifecycleService, catalog, assemblies,
-            notInRange);
-      }
-      catch(FileNotFoundException e) {
-         String msg = catalog.getString("vs.import.excel.unavailable");
-         coreLifecycleService.sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
-         return;
-      }
-
-      checkError("viewer.import.notFound", assemblies, dispatcher);
-      checkError("viewer.import.notInRange", notInRange, dispatcher);
+      importXLSControllerServiceProxy.processXLSUpload(runtimeViewsheetRef.getRuntimeId(), type,
+                                                       linkUri, principal, dispatcher);
    }
 
-   /**
-    * Popup a error if there are some error occurs.
-    */
-   private void checkError(String message, Collection<String> assemblies,
-                           CommandDispatcher dispatcher)
-   {
-      if(!assemblies.isEmpty()) {
-         String msg = "";
-         Set<String> set = new HashSet<>(assemblies);
 
-         for(Object name : set) {
-            msg = "".equals(msg) ? name + "" : msg + ", " + name;
-         }
-
-         msg = catalog.getString(message, msg);
-         this.coreLifecycleService.sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
-      }
-   }
-
-   private final Catalog catalog = Catalog.getCatalog();
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
-   private final CoreLifecycleService coreLifecycleService;
+   private ImportXLSControllerServiceProxy importXLSControllerServiceProxy;
 }
