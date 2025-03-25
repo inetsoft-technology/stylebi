@@ -201,7 +201,7 @@ public class VSRefreshService {
       return null;
    }
 
-   private Void refreshViewsheet(RuntimeViewsheet rvs, String bookmarkName, IdentityID bookmarkUser,
+   private void refreshViewsheet(RuntimeViewsheet rvs, String bookmarkName, IdentityID bookmarkUser,
                                  boolean initing, boolean checkShareFilter, boolean tableMetaData,
                                  boolean confirmed, boolean userRefresh, boolean resizing,
                                  int width, int height, VariableTable variables,
@@ -227,13 +227,13 @@ public class VSRefreshService {
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
       if(box == null) {
-         return null;
+         return;
       }
 
       if(!rvs.isNeedRefresh() && checkShareFilter &&
          !isShareFilterNeedRefresh(rvs) && !isEmbeddedVSNeedRefresh(rvs))
       {
-         return null;
+         return;
       }
 
       if(rvs.isNeedRefresh()) {
@@ -316,7 +316,6 @@ public class VSRefreshService {
       finally {
          box.setRefreshing(false);
       }
-      return null;
    }
 
 
@@ -324,7 +323,7 @@ public class VSRefreshService {
     * Check if need refresh.
     * @return <tt>true</tt> if Refresh/unRefresh.
     */
-   private Boolean isShareFilterNeedRefresh(RuntimeViewsheet rvs) {
+   private boolean isShareFilterNeedRefresh(RuntimeViewsheet rvs) {
       Assembly[] assemblies = rvs.getViewsheet().getAssemblies();
       RuntimeSheet[] rarr = viewsheetService.getRuntimeSheets(rvs.getUser());
 
@@ -367,7 +366,7 @@ public class VSRefreshService {
     * @param rvs runtime viewsheet
     * @return <tt>true</tt> if Refresh/unRefresh.
     */
-   private Boolean isEmbeddedVSNeedRefresh(RuntimeViewsheet rvs) throws Exception {
+   private boolean isEmbeddedVSNeedRefresh(RuntimeViewsheet rvs) throws Exception {
       Assembly[] assemblies = rvs.getViewsheet().getAssemblies();
 
       //check whether embedded viewsheet needs to update
@@ -398,7 +397,7 @@ public class VSRefreshService {
     * @param dispatcher
     * @throws Exception
     */
-   private Void refreshAssemblyAndDependencies(RuntimeViewsheet rvs, VSAssembly assembly,
+   private void refreshAssemblyAndDependencies(RuntimeViewsheet rvs, VSAssembly assembly,
                                                String linkUri, CommandDispatcher dispatcher)
       throws Exception
    {
@@ -457,8 +456,6 @@ public class VSRefreshService {
          BaseTableController.loadTableData(
             rvs, assembly.getAbsoluteName(), 0, 0, 100, linkUri, dispatcher);
       }
-
-      return null;
    }
 
    /**
@@ -466,14 +463,12 @@ public class VSRefreshService {
     * @param rvs
     * @param dispatcher
     */
-   private Void updateUndoState(RuntimeViewsheet rvs, CommandDispatcher dispatcher) {
+   private void updateUndoState(RuntimeViewsheet rvs, CommandDispatcher dispatcher) {
       UpdateUndoStateCommand pointCommand = new UpdateUndoStateCommand();
       pointCommand.setPoints(rvs.size());
       pointCommand.setCurrent(rvs.getCurrent());
       pointCommand.setSavePoint(rvs.getSavePoint());
       dispatcher.sendCommand(pointCommand);
-
-      return null;
    }
 
 
