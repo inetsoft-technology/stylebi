@@ -120,6 +120,10 @@ public class OpenIDConfig implements OpenIDSSOConfig {
       return SreeEnv.getProperty("openid.audience", getClientIdRealValue());
    }
 
+   public String getAudienceValue() {
+      return SreeEnv.getProperty("openid.audience");
+   }
+
    public void setAudience(String audience) {
       SreeEnv.setProperty("openid.audience", audience);
    }
