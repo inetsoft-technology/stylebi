@@ -119,7 +119,7 @@ public class SSOSettingsService {
             .clientSecret(openIDConfig.getClientSecret())
             .scopes(openIDConfig.getScopes())
             .issuer(openIDConfig.getIssuer())
-            .audience(openIDConfig.getAudience())
+            .audience(openIDConfig.getAudienceValue())
             .tokenEndpoint(openIDConfig.getTokenEndpoint())
             .authorizationEndpoint(openIDConfig.getAuthorizationEndpoint())
             .jwksUri(openIDConfig.getJwksUri())
