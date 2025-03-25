@@ -18,12 +18,14 @@
 package inetsoft.web.viewsheet.event.annotation;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(builder = AddAnnotationEvent.Builder.class)
 public interface AddAnnotationEvent extends Serializable {
    // HTML content
