@@ -31,17 +31,16 @@ import inetsoft.report.painter.PresenterPainter;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
-import inetsoft.util.CoreTool;
 import inetsoft.util.ObjectWrapper;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
-import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.OutputStream;
+import java.io.ByteArrayOutputStream;
 import java.security.Principal;
 
 @Service
@@ -56,8 +55,8 @@ public class PresenterService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void getPresenterImage(@ClusterProxyKey String runtimeId, String assembly, int row, int column, int width,
-                                 int height, HttpServletResponse response, Principal principal)
+   public byte[] getPresenterImage(@ClusterProxyKey String runtimeId, String assembly, int row, int column, int width,
+                                 int height, Principal principal)
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
@@ -154,18 +153,15 @@ public class PresenterService {
          }
       }
 
-      response.setContentType("image/png");
-      OutputStream out = response.getOutputStream();
-      CoreTool.writePNG(image, out);
-      out.flush();
-
-      return null;
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      ImageIO.write(image, "png", baos);  // "jpeg" is also fine
+      return baos.toByteArray();
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void getPresenterImage(@ClusterProxyKey String runtimeId, String assembly,
+   public byte[] getPresenterImage(@ClusterProxyKey String runtimeId, String assembly,
                                  int width, int height, boolean layout, int layoutRegion,
-                                 HttpServletResponse response,Principal principal) throws Exception
+                                 Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
@@ -230,12 +226,10 @@ public class PresenterService {
       }
 
       g.dispose();
-      response.setContentType("image/png");
-      OutputStream out = response.getOutputStream();
-      CoreTool.writePNG(image, out);
-      out.flush();
 
-      return null;
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+      ImageIO.write(image, "png", baos);  // "jpeg" is also fine
+      return baos.toByteArray();
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(PresenterController.class);

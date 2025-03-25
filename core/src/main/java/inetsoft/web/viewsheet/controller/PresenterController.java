@@ -17,12 +17,16 @@
  */
 package inetsoft.web.viewsheet.controller;
 
+import inetsoft.util.CoreTool;
 import inetsoft.web.factory.RemainingPath;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+
+import java.awt.*;
+import java.io.OutputStream;
 import java.security.Principal;
 
 /**
@@ -61,8 +65,14 @@ public class PresenterController {
                                  Principal principal)
       throws Exception
    {
-      presenterServiceProxy.getPresenterImage(runtimeId, assembly, row, column,
-                                              width, height, response, principal);
+      byte[] imageBytes = presenterServiceProxy.getPresenterImage(runtimeId, assembly, row, column,
+                                                            width, height, principal);
+      if(imageBytes != null) {
+         response.setContentType("image/png");
+         OutputStream out = response.getOutputStream();
+         out.write(imageBytes);
+         out.flush();
+      }
    }
 
    /**
@@ -85,8 +95,15 @@ public class PresenterController {
                                  Principal principal)
       throws Exception
    {
-      presenterServiceProxy.getPresenterImage(runtimeId, assembly, width, height,
-                                              layout, layoutRegion, response, principal);
+      byte[] imageBytes = presenterServiceProxy.getPresenterImage(runtimeId, assembly, width, height,
+                                              layout, layoutRegion, principal);
+
+      if(imageBytes != null) {
+         response.setContentType("image/png");
+         OutputStream out = response.getOutputStream();
+         out.write(imageBytes);
+         out.flush();
+      }
    }
 
    private PresenterServiceProxy presenterServiceProxy;
