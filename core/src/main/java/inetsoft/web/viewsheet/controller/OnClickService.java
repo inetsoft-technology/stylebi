@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
+import inetsoft.web.binding.event.ImmutableVSOnClickEvent;
 import inetsoft.web.binding.event.VSOnClickEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.InputValue;
@@ -95,8 +96,9 @@ public class OnClickService {
          MessageCommand cmd = new MessageCommand();
          cmd.setMessage(cmsg);
          cmd.setType(MessageCommand.Type.CONFIRM);
-         VSOnClickEvent event = new VSOnClickEvent();
-         event.setConfirmEvent(true);
+         VSOnClickEvent event = ImmutableVSOnClickEvent.builder()
+            .isConfirmEvent(true)
+            .build();
          cmd.addEvent("/events/onclick/" + name + "/" + x +
                          "/" + y + "/" + true, event);
          dispatcher.sendCommand(cmd);
@@ -136,7 +138,7 @@ public class OnClickService {
       return null;
    }
 
-   private Void onClick(String vsId, String name, String x, String y, String linkUri,
+   private void onClick(String vsId, String name, String x, String y, String linkUri,
                        boolean isConfirm, List<UserMessage> usrmsg, Principal principal,
                        CommandDispatcher dispatcher) throws Exception
    {
@@ -150,11 +152,9 @@ public class OnClickService {
       finally {
          WSExecution.setAssetQuerySandbox(null);
       }
-
-      return null;
    }
 
-   private Void process0(RuntimeViewsheet rvs, String name, String xstr, String ystr,
+   private void process0(RuntimeViewsheet rvs, String name, String xstr, String ystr,
                          String linkUri, boolean isConfirm, List<UserMessage> usrmsg,
                          Principal principal, CommandDispatcher dispatcher)
       throws Exception
@@ -163,24 +163,24 @@ public class OnClickService {
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
       if(vs == null || box == null) {
-         return null;
+         return;
       }
 
       VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
 
       if(assembly == null) {
          LOG.warn("Assembly is missing, failed to process on click event: " + name);
-         return null;
+         return;
       }
 
       if(!(assembly.getInfo() instanceof ClickableOutputVSAssemblyInfo ||
          assembly.getInfo() instanceof ClickableInputVSAssemblyInfo))
       {
-         return null;
+         return;
       }
 
       if(!assembly.getVSAssemblyInfo().isScriptEnabled()) {
-         return null;
+         return;
       }
 
       ViewsheetSandbox box0 = getVSBox(name, box);
@@ -311,8 +311,9 @@ public class OnClickService {
             MessageCommand cmd = new MessageCommand();
             cmd.setMessage(cmsg);
             cmd.setType(MessageCommand.Type.CONFIRM);
-            VSOnClickEvent event = new VSOnClickEvent();
-            event.setConfirmEvent(true);
+            VSOnClickEvent event = ImmutableVSOnClickEvent.builder()
+               .isConfirmEvent(true)
+               .build();
             cmd.addEvent("/events/onclick/" + name + "/" + xstr + "/" + ystr + "/" + true, event);
             dispatcher.sendCommand(cmd);
          }
@@ -321,11 +322,9 @@ public class OnClickService {
             dispatcher.sendCommand(MessageCommand.fromUserMessage(msg));
          }
       }
-
-      return null;
    }
 
-   private Boolean hasFormScript(String script, String name) {
+   private boolean hasFormScript(String script, String name) {
       if(!LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
          return false;
       }
@@ -353,7 +352,7 @@ public class OnClickService {
    /**
     * Process chart when chart data changed.
     */
-   private Void processChart(RuntimeViewsheet rvs, String name, String linkUri,
+   private void processChart(RuntimeViewsheet rvs, String name, String linkUri,
                              Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
@@ -361,14 +360,12 @@ public class OnClickService {
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
       if(vs == null || box == null) {
-         return null;
+         return;
       }
 
       VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
       box.clearGraph(name);
       coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
-
-      return null;
    }
 
    /**
