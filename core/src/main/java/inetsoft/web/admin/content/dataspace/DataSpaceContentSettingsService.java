@@ -351,6 +351,10 @@ public class DataSpaceContentSettingsService {
       response.setHeader("extension", Tool.cleanseCRLF(suffix));
       String header = Tool.encodeNL(name);
       String fileName = StringUtils.normalizeSpace(header);
+
+      //The Content-Disposition header does not support the direct use of /,
+      //so / will be converted to _. Therefore, we will temporarily use ／ (full-width slash) instead of /.
+      fileName = fileName.replace("/", "／");
       String encodedFileName = URLEncoder.encode(fileName, "UTF-8").replace("+", "%20");
 
       if(!SUtil.isHttpHeadersValid(header)) {
