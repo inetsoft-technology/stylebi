@@ -21,10 +21,11 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
 @Value.Immutable
 @JsonDeserialize(builder = AddAnnotationEvent.Builder.class)
-public interface AddAnnotationEvent {
+public interface AddAnnotationEvent extends Serializable {
    // HTML content
    String getContent();
 
