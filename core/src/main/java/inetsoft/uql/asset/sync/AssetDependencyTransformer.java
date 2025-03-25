@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.mv.MVDef;
+import inetsoft.mv.MVManager;
 import inetsoft.report.CellBinding;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.composition.execution.AssetDataCache;
@@ -333,6 +335,8 @@ public class AssetDependencyTransformer extends DependencyTransformer {
    private List<RenameInfo> renameSheet(Element doc, RenameInfo info, boolean isVS) {
       // rename depedency for vs
       if(isVS) {
+         renameMV(info);
+
          // rename wentry/calc source for query/lm/ws
          // rename sourceinfo/selectiontable/bindinginfo for query/lm
          if(info.isSource() || info.isDataSource() || info.isDataSourceFolder()) {
@@ -483,6 +487,25 @@ public class AssetDependencyTransformer extends DependencyTransformer {
             XMLTool.write(document, out);
             vsBookmark.setBookmarkData(bookMarkName, out.toByteArray());
          }
+      }
+   }
+
+   private void renameMV(RenameInfo info) {
+      if(!info.isSource() && !info.isFolder()) {
+         return;
+      }
+
+      MVManager manager = MVManager.getManager();
+      MVDef[] defs = manager.list(false);
+
+      for(MVDef def : defs) {
+         if((info.isSource() || info.isFolder()) && Tool.equals(def.getWsId(), info.oname)) {
+            def.setChanged(true);
+            def.setWsId(info.nname);
+            def.getMetaData().setWsId(info.nname);
+         }
+
+         manager.add(def);
       }
    }
 
