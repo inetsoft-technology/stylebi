@@ -173,6 +173,13 @@ public class DashboardRegistry implements SessionListener {
 
          if(nregistry != null) {
             map.put(nKey, nregistry);
+
+            try {
+               nregistry.save();
+            }
+            catch(Exception ex) {
+               LOG.error(ex.getMessage(), ex);
+            }
          }
       }
       finally {

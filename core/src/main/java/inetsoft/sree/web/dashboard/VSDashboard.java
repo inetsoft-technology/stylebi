@@ -170,6 +170,10 @@ public class VSDashboard implements Dashboard {
             viewsheetEntry.setIdentifier(
                AssetEntry.createAssetEntry(identifier).cloneAssetEntry(organization)
                   .toIdentifier(true));
+
+            if(viewsheetEntry.getOwner() != null && organization != null) {
+               viewsheetEntry.getOwner().setOrgID(organization.getId());
+            }
          }
 
          return cloned;
