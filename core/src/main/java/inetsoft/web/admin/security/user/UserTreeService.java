@@ -1614,6 +1614,7 @@ public class UserTreeService {
       }
 
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      MVManager mvManager = MVManager.getManager();
       KeyValueStorage<FavoriteList> favorites =
          SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
 
@@ -1625,7 +1626,8 @@ public class UserTreeService {
       }
 
       storage.migrateStorageData(oldID.getName(), newID.getName());
-      MVManager.getManager().migrateUserAssetsMV(oldID, newID);
+      mvManager.migrateUserAssetsMV(oldID, newID);
+      mvManager.updateMVUser(oldID, newID);
       DependencyStorageService.getInstance().migrateStorageData(oldID, newID);
    }
 
