@@ -28,17 +28,21 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Array;
 
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Date;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 public class CheckBoxVSAScriptableTest {
-   private ViewsheetSandbox viewsheetSandbox ;
+   private ViewsheetSandbox viewsheetSandbox;
    private CheckBoxVSAScriptable checkBoxVSAScriptable;
    private CheckBoxVSAssemblyInfo checkBoxVSAssemblyInfo;
    private CheckBoxVSAssembly checkBoxVSAssembly;
    private VSAScriptable vsaScriptable;
+   private SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
 
    @BeforeEach
    void setUp() {
@@ -74,9 +78,9 @@ public class CheckBoxVSAScriptableTest {
 
    @Test
    void tetGet() {
-      assertArrayEquals(new Object[0], (Object[])checkBoxVSAScriptable.get("value", checkBoxVSAScriptable));
-      checkBoxVSAScriptable.setCellValue("value1");
-      assertEquals("value1", checkBoxVSAScriptable.get("value", checkBoxVSAScriptable));
+      assertArrayEquals(new Object[0], (Object[]) checkBoxVSAScriptable.get("value", checkBoxVSAScriptable));
+      checkBoxVSAScriptable.setCellValue(new Date(125, 1, 20));
+      assert simpleDateFormat.format(checkBoxVSAScriptable.get("value", checkBoxVSAScriptable)).equals("2025-02-20");
       assertEquals("CheckBox", checkBoxVSAScriptable.get("title", checkBoxVSAScriptable));
    }
 
@@ -106,7 +110,13 @@ public class CheckBoxVSAScriptableTest {
 
    @Test
    void testSetSelectedObjects() {
-      checkBoxVSAScriptable.setSelectedObjects(new Object[] { "value1", "value2" });
-      assertArrayEquals(new Object[] { "value1", "value2" }, (Object[]) checkBoxVSAScriptable.getDefaultValue(String.class));
+      checkBoxVSAScriptable.setSelectedObjects(new Object[]{ "value1", "value2" });
+      assertArrayEquals(new Object[]{ "value1", "value2" }, (Object[]) checkBoxVSAScriptable.getDefaultValue(String.class));
+
+      //set Date type objects
+      checkBoxVSAScriptable.setDataType("Date");
+      Object[] objects = new Object[]{ new Date(125, 1, 20), new Date(125, 2, 20) };
+      checkBoxVSAScriptable.setSelectedObjects(objects);
+      assertArrayEquals(objects, (Object[]) checkBoxVSAScriptable.getDefaultValue(Date.class));
    }
 }

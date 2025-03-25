@@ -67,7 +67,11 @@ public class SliderVSAScriptableTest {
    void testAddProperties() {
       sliderVSAScriptable.addProperties();
 
-      String[] keys = {"tickVisible", "currentVisible", "labelVisible", "snap"};
+      assertEquals("0.0", sliderVSAScriptable.get("min", sliderVSAScriptable));
+      assertEquals("100.0", sliderVSAScriptable.get("max", sliderVSAScriptable));
+      assertEquals(Double.parseDouble("20.0"), sliderVSAScriptable.get("increment", sliderVSAScriptable));
+
+      String[] keys = {"minVisible", "maxVisible", "tickVisible", "currentVisible", "labelVisible", "snap"};
 
       for (String key : keys) {
          assert sliderVSAScriptable.get(key, null) instanceof Boolean;
@@ -76,8 +80,9 @@ public class SliderVSAScriptableTest {
 
    @Test
    void testGetSetMax(){
-      sliderVSAScriptable.setMax("100");
-      assertEquals("100.0", sliderVSAScriptable.getMax());
+      //max value > seleted value(default is 0)
+      sliderVSAScriptable.setMax("101");
+      assertEquals("101.0", sliderVSAScriptable.getMax());
 
       //make the max value is < selected value
       sliderVSAScriptable.setSelectedObject("75");
@@ -94,14 +99,15 @@ public class SliderVSAScriptableTest {
 
    @Test
    void testGetSetMin(){
-      sliderVSAScriptable.setMin("10");
-      assertEquals("10.0", sliderVSAScriptable.getMin());
-
       //make the min value is > selected value
       sliderVSAScriptable.setSelectedObject("15");
       sliderVSAScriptable.setMin("18");
       assertEquals("18.0", sliderVSAScriptable.getMin());
       assertEquals(Double.parseDouble("18.0"), sliderVSAScriptable.getSelectedObject());
+
+      //make the min value is < selected value
+      sliderVSAScriptable.setMin("10");
+      assertEquals("10.0", sliderVSAScriptable.getMin());
    }
 
    @Test
