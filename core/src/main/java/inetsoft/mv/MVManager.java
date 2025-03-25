@@ -1039,6 +1039,38 @@ public final class MVManager {
       }
    }
 
+   public void updateMVUser(IdentityID oldUser, IdentityID newUser) {
+      if(oldUser == null || newUser == null || Tool.equals(oldUser, newUser)) {
+         return;
+      }
+
+      MVManager manager = MVManager.getManager();
+      DefaultIdentity oldIdentity = new DefaultIdentity(oldUser, Identity.USER);
+      DefaultIdentity newIdentity = new DefaultIdentity(newUser, Identity.USER);
+
+      for(MVDef def : manager.list(false)) {
+         if(!def.containsUser(oldIdentity)) {
+            continue;
+         }
+
+         Identity[] users = def.getUsers();
+         boolean modified = false;
+
+         for(int i = 0; i < users.length; i++) {
+            if(Tool.equals(users[i], oldIdentity)) {
+               users[i] = newIdentity;
+               modified = true;
+            }
+         }
+
+         if(modified) {
+            def.setChanged(true);
+            def.setUsers(users);
+            manager.add(def);
+         }
+      }
+   }
+
    public void copyStorageData(Organization oorg, Organization norg) throws Exception {
       migrateStorageData(oorg, norg, true);
    }
