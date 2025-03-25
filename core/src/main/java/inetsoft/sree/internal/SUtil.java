@@ -3250,6 +3250,21 @@ public class SUtil {
       return InetAddressUtils.isIPv4Address(hostName);
    }
 
+   public static String getOrganizationId(String indexedStorageId) {
+      if(indexedStorageId == null || !indexedStorageId.endsWith("__indexedStorage")) {
+         return null;
+      }
+
+      String lowcase_orgID = indexedStorageId.substring(0, indexedStorageId.length() - 16);
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      String[] ids = provider.getOrganizationIDs();
+
+      return Arrays.stream(ids)
+         .filter(id -> Tool.equals(id, lowcase_orgID, false))
+         .findFirst()
+         .orElse(lowcase_orgID);
+   }
+
    private static final List<WeakReference<HttpSession>> userSessions = new ArrayList<>();
    private static BitSet dontNeedEncoding;
    private static ScheduleThread scheduleThread = null;
