@@ -2090,7 +2090,7 @@ public class SUtil {
          if(paths.length > 3) {
             String user = paths[2];
 
-            if(!user.contains(IdentityID.KEY_DELIMITER)) {
+            if(!user.contains(IdentityID.KEY_DELIMITER) && !user.equals("_NULL_")) {
                paths[2] =
                   user + IdentityID.KEY_DELIMITER + OrganizationManager.getInstance().getCurrentOrgID();
                path = String.join("^", paths);
