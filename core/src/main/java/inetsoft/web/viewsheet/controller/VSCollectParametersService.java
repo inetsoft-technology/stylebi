@@ -158,7 +158,7 @@ public class VSCollectParametersService {
     * @param assemblies The viewsheet assemblies
     * @throws Exception
     */
-   private Void syncInputAssemblies(VariableTable vtable, Assembly[] assemblies)
+   private void syncInputAssemblies(VariableTable vtable, Assembly[] assemblies)
       throws Exception
    {
       Enumeration variables = vtable.keys();
@@ -198,8 +198,6 @@ public class VSCollectParametersService {
             }
          }
       }
-
-      return null;
    }
 
    /**
@@ -208,7 +206,7 @@ public class VSCollectParametersService {
     * @param user the user name will used to set property.
     * @param vsName the name of the edited viewsheet.
     */
-   private Void fillVariableTable(List<VariableAssemblyModelInfo> variables,
+   private void fillVariableTable(List<VariableAssemblyModelInfo> variables,
                                   VariableTable vtable, Principal user,
                                   String vsName) throws Exception
    {
@@ -252,7 +250,7 @@ public class VSCollectParametersService {
          });
 
       if(dbs.size() == 0) {
-         return null;
+         return;
       }
 
       Object session = assetRepository.getSession();
@@ -279,16 +277,14 @@ public class VSCollectParametersService {
             rep.connect(session, ":" + db, vtable);
          }
       }
-
-      return null;
    }
 
-   private Void resetVariable(ViewsheetSandbox vbox, Viewsheet vs,
+   private void resetVariable(ViewsheetSandbox vbox, Viewsheet vs,
                               VariableTable vtable)
       throws Exception
    {
       if(vbox == null || vs == null) {
-         return null;
+         return;
       }
 
       Assembly[] assemblies = vs.getAssemblies();
@@ -307,8 +303,6 @@ public class VSCollectParametersService {
       if(box != null) {
          box.refreshVariableTable(vtable);
       }
-
-      return null;
    }
 
    private final CoreLifecycleService coreLifecycleService;
