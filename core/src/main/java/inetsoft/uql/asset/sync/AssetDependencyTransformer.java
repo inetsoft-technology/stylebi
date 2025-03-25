@@ -24,6 +24,7 @@ import inetsoft.report.XSessionManager;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.store.port.TransformerUtil;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.XQueryWrapper;
@@ -496,16 +497,16 @@ public class AssetDependencyTransformer extends DependencyTransformer {
       }
 
       MVManager manager = MVManager.getManager();
-      MVDef[] defs = manager.list(false);
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      List<MVDef> defs = manager.list(new String[]{ orgId });
 
       for(MVDef def : defs) {
          if((info.isSource() || info.isFolder()) && Tool.equals(def.getWsId(), info.oname)) {
             def.setChanged(true);
             def.setWsId(info.nname);
             def.getMetaData().setWsId(info.nname);
+            manager.add(def);
          }
-
-         manager.add(def);
       }
    }
 
