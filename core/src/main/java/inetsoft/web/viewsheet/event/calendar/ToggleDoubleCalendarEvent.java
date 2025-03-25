@@ -17,24 +17,16 @@
  */
 package inetsoft.web.viewsheet.event.calendar;
 
+import org.immutables.serial.Serial;
+import org.immutables.value.Value;
+
 /**
  * Class that encapsulates the parameters for toggling double calendar.
  *
  * @since 12.3
  */
-public class ToggleDoubleCalendarEvent extends CalendarSelectionEvent {
-   public boolean isDoubleCalendar() {
-      return doubleCalendar;
-   }
-
-   public void setDoubleCalendar(boolean doubleCalendar) {
-      this.doubleCalendar = doubleCalendar;
-   }
-
-   @Override
-   public String toString() {
-      return "{doubleCalendar:" + doubleCalendar + "}";
-   }
-
-   private boolean doubleCalendar;
+@Value.Immutable
+@Serial.Structural
+public abstract class ToggleDoubleCalendarEvent extends CalendarSelectionEvent {
+   public abstract boolean isDoubleCalendar();
 }

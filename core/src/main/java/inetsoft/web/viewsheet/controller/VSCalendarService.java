@@ -231,7 +231,7 @@ public class VSCalendarService {
     * @param commandDispatcher   the command dispatcher instance
     * @throws Exception if failed to apply calendar
     */
-   private Void applyCalendarInfo(CalendarVSAssembly calendarAssembly,
+   private void applyCalendarInfo(CalendarVSAssembly calendarAssembly,
                                   CalendarVSAssemblyInfo newInfo,
                                   RuntimeViewsheet rvs, CommandDispatcher commandDispatcher,
                                   String linkUri, String eventSource)
@@ -287,8 +287,6 @@ public class VSCalendarService {
          coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher, false,
                                                true, true, clist);
       }
-
-      return null;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)

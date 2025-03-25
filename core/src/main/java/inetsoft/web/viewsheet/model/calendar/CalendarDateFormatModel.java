@@ -17,80 +17,39 @@
  */
 package inetsoft.web.viewsheet.model.calendar;
 
-public class CalendarDateFormatModel  {
-   public CalendarDateFormatModel() {
-   }
+import org.immutables.serial.Serial;
+import org.immutables.value.Value;
 
+@Value.Immutable
+@Serial.Structural
+public interface CalendarDateFormatModel {
    /**
     * Get the runtime viewsheet id.
     */
-   public String getRuntimeId() {
-      return runtimeId;
-   }
-
-   public void setRuntimeId(String runtimeId) {
-      this.runtimeId = runtimeId;
-   }
+   String getRuntimeId();
 
    /**
     * Get the assembly name for the calendar.
     */
-   public String getAssemblyName() {
-      return assemblyName;
-   }
-
-   public void setAssemblyName(String name) {
-      this.assemblyName = name;
-   }
+   String getAssemblyName();
 
    /**
     * Get the selected dates string for the calendar.
     */
-   public String getDates() {
-      return dates;
-   }
-
-   public void setDates(String dates) {
-      this.dates = dates;
-   }
+   String getDates();
 
    /**
     * Return if this is a double calendar mode.
     */
-   public boolean isDoubleCalendar() {
-      return doubleCalendar;
-   }
-
-   public void setDoubleCalendar(boolean doubleCalendar) {
-      this.doubleCalendar = doubleCalendar;
-   }
+   boolean isDoubleCalendar();
 
    /**
     * Return if this calendar is period mode.
     */
-   public boolean isPeriod() {
-      return period;
-   }
-
-   public void setPeriod(boolean period) {
-      this.period = period;
-   }
+   boolean isPeriod();
 
    /**
     * Return if this calendar is month view.
     */
-   public boolean isMonthView() {
-      return monthView;
-   }
-
-   public void setMonthView(boolean monthView) {
-      this.monthView = monthView;
-   }
-
-   private String runtimeId;
-   private String assemblyName;
-   private String dates;
-   private boolean doubleCalendar;
-   private boolean period;
-   private boolean monthView;
+   boolean isMonthView();
 }
