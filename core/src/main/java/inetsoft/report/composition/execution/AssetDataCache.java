@@ -113,15 +113,6 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
       TableFilter2 filter = (TableFilter2) cache.get(key, ts);
 
-      if(filter == null) {
-         DistributedTableCache distributedCache = DistributedTableCache.getInstance();
-         filter = (TableFilter2) distributedCache.get(key);
-
-         if(filter != null) {
-            cache.put(key, filter);
-         }
-      }
-
       if(filter != null && (filter.isChanged() || isCancelled(filter))) {
          filter = null;
       }
@@ -453,6 +444,24 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          // condition.
          data = getCachedData(key, touchTime);
 
+         // check for distributed cache data
+         if(data == null) {
+            DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
+
+            if(store.exists(key)) {
+               try {
+                  data = store.get(key, touchTime);
+
+                  if(data != null) {
+                     cache.put(key, data);
+                  }
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to load table lens from distributed table cache store", e);
+               }
+            }
+         }
+
          if(data != null) {
             return data;
          }
@@ -520,6 +529,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
          if(executingKey != null) {
             synchronized(executingKey) {
+               DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
+               store.put(key, cache.get(key));
                cache.unmarkExecuting(executingKey);
                executingKey.notifyAll();
             }
@@ -1149,8 +1160,6 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    public synchronized CacheEntry<DataKey, TableLens> put(DataKey key, TableLens data, long timeout)
    {
       CacheEntry<DataKey, TableLens> entry = super.put(key, data, timeout);
-      DistributedTableCache distributedCache = DistributedTableCache.getInstance();
-      distributedCache.put(key, data);
       lockEntries.get().monitor(entry);
       return entry;
    }

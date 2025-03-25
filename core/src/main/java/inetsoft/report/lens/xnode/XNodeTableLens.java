@@ -19,9 +19,9 @@ package inetsoft.report.lens.xnode;
 
 import inetsoft.mv.DFWrapper;
 import inetsoft.report.*;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
-import inetsoft.report.internal.table.CachedTableLens;
-import inetsoft.report.internal.table.CancellableTableLens;
+import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.report.lens.DefaultTableDataDescriptor;
 import inetsoft.uql.*;
@@ -34,6 +34,7 @@ import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.*;
 import java.util.HashMap;
 import java.util.List;
 
@@ -725,8 +726,17 @@ public class XNodeTableLens extends AbstractTableLens
       this.maxRowHintMap = map;
    }
 
+   @Serial
+   private Object writeReplace() {
+      if(table.getClass() == XSwappableTable.class) {
+         return new XTableLens(table);
+      }
+
+      return new XTableLens(AssetEventUtil.createXSwappableTable(table));
+   }
+
    protected XTable table = null;
-   private XNodeTable delegate = null;
+   private transient XNodeTable delegate = null;
    private SparseMatrix matrix = null;
    private boolean hmodified = false;
    private HashMap maxRowHintMap;

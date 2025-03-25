@@ -28,8 +28,8 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.Tool;
 
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Hashtable;
+import java.io.*;
+import java.util.*;
 
 /**
  * This filter performs remapping of column numbers. The columns can be
@@ -731,6 +731,12 @@ public class ColumnMapFilter extends AbstractTableLens
       return type != null ? type : table != null ? table.getReportType() : null;
    }
 
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      setTable(table);
+   }
+
    /**
     * ColumnMapFilter data descriptor.
     */
@@ -957,8 +963,8 @@ public class ColumnMapFilter extends AbstractTableLens
 
    private TableLens table;
    private int[] map; // column mapping
-   private Object[] headers; // column header
-   private String[] identifiers;
-   private int[] duptimes; // header's duplicated times
-   private short headerRows = 1;
+   private transient Object[] headers; // column header
+   private transient String[] identifiers;
+   private transient int[] duptimes; // header's duplicated times
+   private transient short headerRows = 1;
 }

@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.text.Format;
@@ -751,6 +752,12 @@ public abstract class AbstractTableLens implements TableLens {
    @Override
    public boolean isDisableFireEvent() {
       return disabledFireEvent;
+   }
+
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      clisteners = new CopyOnWriteArrayList<>();
    }
 
    protected boolean isLeftAlign = false;
