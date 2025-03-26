@@ -20,11 +20,10 @@ package inetsoft.web.viewsheet.event;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import java.io.Serializable;
 
 @Value.Immutable
 @Serial.Structural
 @JsonDeserialize(as = ImmutableChangeTabStateEvent.class)
-public interface ChangeTabStateEvent extends Serializable {
+public interface ChangeTabStateEvent {
    String getTarget();
 }
