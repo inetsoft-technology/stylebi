@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.event;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.sree.security.IdentityID;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -27,6 +28,7 @@ import java.awt.Dimension;
 import java.util.Map;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableVSRefreshEvent.class)
 @JsonDeserialize(as = ImmutableVSRefreshEvent.class)
 public abstract class VSRefreshEvent implements ViewsheetEvent {

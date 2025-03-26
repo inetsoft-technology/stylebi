@@ -17,23 +17,27 @@
  */
 package inetsoft.web.viewsheet.event;
 
-public class RefreshVSAssemblyEvent {
+import inetsoft.web.admin.cache.CacheMetrics;
+import org.immutables.serial.Serial;
+import org.immutables.value.Value;
+
+@Value.Immutable
+@Serial.Structural
+public abstract class RefreshVSAssemblyEvent {
+   @Value.Default
    public String getVsRuntimeId() {
-      return vsRuntimeId;
+      return "";
    }
 
-   public void setVsRuntimeId(String vsRuntimeId) {
-      this.vsRuntimeId = vsRuntimeId;
-   }
-
+   @Value.Default
    public String getAssemblyName() {
-      return assemblyName;
+      return "";
    }
 
-   public void setAssemblyName(String assemblyName) {
-      this.assemblyName = assemblyName;
+   public static CacheMetrics.Builder builder() {
+      return new CacheMetrics.Builder();
    }
 
-   private String vsRuntimeId;
-   private String assemblyName;
+   public static final class Builder extends ImmutableRefreshVSAssemblyEvent.Builder {
+   }
 }
