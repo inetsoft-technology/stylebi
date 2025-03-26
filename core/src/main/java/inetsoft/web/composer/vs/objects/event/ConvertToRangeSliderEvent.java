@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for converting a selection list to a range slider
  *
  * @since 12.3
  */
-public class ConvertToRangeSliderEvent extends VSObjectEvent {
+public class ConvertToRangeSliderEvent extends VSObjectEvent implements Serializable {
    @Override
    public String toString() {
       return "ConvertToRangeSliderEvent{" +
