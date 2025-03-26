@@ -21,8 +21,6 @@ package inetsoft.web.viewsheet.event;
 import org.immutables.value.Value;
 import org.immutables.serial.Serial;
 
-import java.io.Serializable;
-
 /**
  * Class that encapsulates the parameters for moving a selection child.
  *
@@ -30,7 +28,7 @@ import java.io.Serializable;
  */
 @Value.Immutable
 @Serial.Structural
-public interface MoveSelectionChildEvent extends Serializable {
+public interface MoveSelectionChildEvent {
    int getFromIndex();
    int getToIndex();
    boolean isCurrentSelection();
