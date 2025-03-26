@@ -31,6 +31,7 @@ import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.model.SetRepositoryFolderTableModel;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.admin.security.ResourcePermissionModel;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -159,6 +160,7 @@ public class RepositoryFolderService {
 
       String description = model.description();
       String alias = model.alias();
+      alias = StringUtils.isEmpty(alias) ? null : alias;
       String newRuleType = model.newRuleType();
       String ruleDate = model.ruleDate();
       String fullPath = Util.getObjectFullPath(type, model.oldPath(), principal, owner);
