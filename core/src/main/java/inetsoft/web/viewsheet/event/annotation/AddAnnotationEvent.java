@@ -27,7 +27,7 @@ import java.io.Serializable;
 @Value.Immutable
 @Serial.Structural
 @JsonDeserialize(builder = AddAnnotationEvent.Builder.class)
-public interface AddAnnotationEvent extends Serializable {
+public interface AddAnnotationEvent {
    // HTML content
    String getContent();
 
