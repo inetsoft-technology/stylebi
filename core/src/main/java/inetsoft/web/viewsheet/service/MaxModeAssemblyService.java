@@ -45,12 +45,21 @@ public class MaxModeAssemblyService {
       throws Exception
    {
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      toggleMaxNode(rvs, assemblyName, maxSize, dispatcher, linkUri);
+
+      return null;
+   }
+
+   public void toggleMaxNode(RuntimeViewsheet rvs, String assemblyName, Dimension maxSize,
+                             CommandDispatcher dispatcher, String linkUri)
+      throws Exception
+   {
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly ass = vs.getAssembly(assemblyName);
       int oldShowTypeValue = -1;
 
       if(!(ass instanceof MaxModeSupportAssembly)) {
-         return null;
+         return;
       }
 
       if(ass.getVSAssemblyInfo() instanceof SelectionBaseVSAssemblyInfo) {
@@ -108,8 +117,6 @@ public class MaxModeAssemblyService {
          selectionBaseInfo.setShowType(oldShowTypeValue);
          coreLifecycleService.refreshVSAssembly(rvs, assemblyName, dispatcher);
       }
-
-      return null;
    }
 
    private final CoreLifecycleService coreLifecycleService;

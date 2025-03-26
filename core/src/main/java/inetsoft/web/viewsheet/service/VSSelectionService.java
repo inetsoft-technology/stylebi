@@ -559,7 +559,7 @@ public class VSSelectionService {
                rvs.getViewsheet().isMaxMode() &&
                ((MaxModeSupportAssembly) selectionAssembly).getMaxModeInfo().getMaxSize() != null)
             {
-               this.maxModeAssemblyService.toggleMaxMode(rvs, assembly.getAbsoluteName(),
+               this.maxModeAssemblyService.toggleMaxNode(rvs, assembly.getAbsoluteName(),
                   null, dispatcher, linkUri);
             }
 
