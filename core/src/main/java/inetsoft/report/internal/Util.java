@@ -2774,7 +2774,17 @@ public class Util implements inetsoft.report.StyleConstants {
             return path;
          }
 
-         return "Recycle Bin/Auto Saved Files/" +  strs[2] + "/Data Worksheet/" + strs[3];
+         String user = strs[2];
+
+         if("_NULL_".equals(user)) {
+            user = "anonymous";
+         }
+
+         if(user.contains(IdentityID.KEY_DELIMITER)) {
+            user = IdentityID.getIdentityIDFromKey(user).getName();
+         }
+
+         return "Recycle Bin/Auto Saved Files/" +  user + "/Data Worksheet/" + strs[3];
       case RepositoryEntry.DATA_SOURCE:
       case RepositoryEntry.DATA_SOURCE | RepositoryEntry.FOLDER:
          rootPath = catalog.getString("Data Source");
