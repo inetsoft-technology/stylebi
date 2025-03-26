@@ -222,6 +222,7 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
          final LogicalLibraryEntry<XTableStyle> entry = getNameToEntryMap(null).remove(oid);
          final XTableStyle style = entry.asset();
          style.setName(newName);
+         style.setLastModified(System.currentTimeMillis());
          style.setID(oid);
 
          getNameToEntryMap(null).put(oid, entry);
