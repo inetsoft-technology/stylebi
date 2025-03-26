@@ -17,17 +17,6 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.Tool;
-import inetsoft.web.binding.dnd.TableTransfer;
 import inetsoft.web.binding.event.VSDndEvent;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.web.viewsheet.LoadingMask;
@@ -39,11 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
-
-import java.awt.*;
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
  * Controller that processes VS Selection List events.
