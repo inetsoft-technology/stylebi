@@ -21,12 +21,10 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
-import java.io.Serializable;
-
 @Value.Immutable
 @Serial.Structural
 @JsonDeserialize(as = ImmutableOpenAnnotationFormatDialogEvent.class)
-public interface OpenAnnotationFormatDialogEvent extends Serializable {
+public interface OpenAnnotationFormatDialogEvent {
    // Name of the annotation to format
    String getName();
 }

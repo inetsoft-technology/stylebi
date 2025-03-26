@@ -20,11 +20,13 @@ package inetsoft.web.viewsheet.model.dialog;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.report.StyleConstants;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableAnnotationFormatDialogModel.class)
 @JsonDeserialize(as = ImmutableAnnotationFormatDialogModel.class)
 public interface AnnotationFormatDialogModel {
