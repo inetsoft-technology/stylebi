@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.analytic.composition.VSPortalHelper;
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.*;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DataSet;
@@ -82,6 +83,7 @@ import java.security.Principal;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -8633,6 +8635,60 @@ public final class VSUtil {
 
       return SUtil.isDefaultVSGloballyVisible() && !Tool.equals(orgID, currentOrgID)
          && Tool.equals(orgID, Organization.getDefaultOrganizationID());
+   }
+
+   /**
+    * Template switch current org to host-org for the share global assets.
+    *
+    * @param sheetRuntimeId runtime sheet id.
+    * @param principal current org.
+    */
+   public static <T> T globalShareVsRunInHostScope(String sheetRuntimeId, Principal principal,
+                                                   Callable<T> call) throws Exception
+   {
+      return OrganizationManager.runInOrgScope(
+         VSUtil.switchToHostOrgForGlobalShareAsset(sheetRuntimeId, principal) ?
+            Organization.getDefaultOrganizationID() : null,
+         call);
+   }
+
+   /**
+    * Template switch current org to host-org for the share global assets.
+    *
+    * @param sheetRuntimeId runtime sheet id.
+    * @param principal current org.
+    */
+   public static boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId,
+                                                         Principal principal)
+   {
+
+      if(sheetRuntimeId == null) {
+         return false;
+      }
+
+      ViewsheetService service = SingletonManager.getInstance(ViewsheetService.class);
+
+      try {
+         RuntimeViewsheet runtimeSheet = service.getViewsheet(sheetRuntimeId, principal);
+
+         if(runtimeSheet == null || runtimeSheet.getEntry() == null) {
+            return false;
+         }
+
+         AssetEntry entry = runtimeSheet.getEntry();
+
+         if(SUtil.isDefaultVSGloballyVisible(principal) &&
+            !Tool.equals(((XPrincipal) principal).getOrgId(), entry.getOrgID()) &&
+            Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
+         {
+            return true;
+         }
+      }
+      catch(Exception ignored) {
+         LOG.warn("Can't get runtime viewsheet by id: " + sheetRuntimeId);
+      }
+
+      return false;
    }
 
    private static InheritableThreadLocal<Boolean> IGNORE_CSS = new InheritableThreadLocal<>();

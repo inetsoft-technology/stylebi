@@ -63,7 +63,7 @@ public class ShareController {
     * @return the configuration
     */
    @GetMapping("/api/share/config")
-   public ShareConfig getConfig(@OrganizationID String orgId, Principal user) {
+   public ShareConfig getConfig(@OrganizationID String orgId, Principal user) throws Exception {
       return OrganizationManager.runInOrgScope(orgId, () -> {
          boolean emailEnabled = "true".equals(SreeEnv.getProperty("share.email.enabled")) &&
             checkPermission("email", user);
@@ -201,7 +201,7 @@ public class ShareController {
    @PostMapping("/api/share/google-chat")
    @SwitchOrg
    public void sendGoogleChatMessage(@OrganizationID("getOrgId()") @RequestBody ShareMessage message,
-                                     Principal user)
+                                     Principal user) throws Exception
    {
       ShareConfig config = getConfig(message.getOrgId(), user);
 
@@ -235,7 +235,7 @@ public class ShareController {
    @PostMapping("/api/share/slack")
    @SwitchOrg
    public void sendSlackMessage(@OrganizationID("getOrgId()") @RequestBody ShareMessage message,
-                                Principal user)
+                                Principal user) throws Exception
    {
       ShareConfig config = getConfig(message.getOrgId(), user);
 

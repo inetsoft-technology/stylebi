@@ -23,7 +23,7 @@ import inetsoft.util.ThreadContext;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.function.Supplier;
+import java.util.concurrent.Callable;
 
 /**
  * @version 10.1, 19/01/2009
@@ -216,33 +216,24 @@ public class OrganizationManager {
    public void reset() {
    }
 
-   public static <T> T runInOrgScope(String orgID, Supplier<T> supplier) {
-      String oldOrgID = OrganizationManager.getMigrateCurrentOrgId();
+   public static <T> T runInOrgScope(String orgID, Callable<T> supplier) throws Exception {
       T result;
 
       try {
-         OrganizationManager.setMigrateCurrentOrgId(orgID);
-         result = supplier.get();
+         OrganizationContextHolder.setCurrentOrgId(orgID);
+         result = supplier.call();
       }
       finally {
-         OrganizationManager.setMigrateCurrentOrgId(oldOrgID);
+         OrganizationContextHolder.clear();
       }
 
       return result;
    }
 
-   public static void setMigrateCurrentOrgId(String orgId) {
-      MIGRATE_CURRENT_ORG_ID.set(orgId);
-   }
-
-   public static String getMigrateCurrentOrgId() {
-      return MIGRATE_CURRENT_ORG_ID.get();
-   }
 
    public static String getGlobalDefOrgFolderName() {
       return Organization.getDefaultOrganizationName() + " Global Repository";
    }
 
    private static OrganizationManager instance;
-   protected static final ThreadLocal<String> MIGRATE_CURRENT_ORG_ID = new ThreadLocal<>();
 }
