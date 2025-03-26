@@ -675,8 +675,8 @@ public final class VSEventUtil {
                                      (double) parentCurrentSize.height / parentSize.height);
                Point annotationOffset = viewsheet.getPixelPosition(ainfo);
                Point scaledAnnotationOffset =
-                  new Point((int) Math.floor(annotationOffset.x * scaleRatio.x),
-                            (int) Math.floor(annotationOffset.y * scaleRatio.y));
+                  new Point((int) Math.round(annotationOffset.x * scaleRatio.x),
+                            (int) Math.round(annotationOffset.y * scaleRatio.y));
 
                // table row height will not be apply the scale.
                if(pinfo instanceof TableVSAssemblyInfo) {
@@ -705,8 +705,8 @@ public final class VSEventUtil {
                   Dimension recCurrentSize = rinfo.getLayoutSize() != null ?
                      rinfo.getLayoutSize() : viewsheet.getPixelSize(rinfo);
                   Point rectOffset = viewsheet.getPixelPosition(rinfo);
-                  Point nPoint = new Point((int) Math.floor(rectOffset.x * scaleRatio.x),
-                     (int) Math.floor(rectOffset.y * scaleRatio.y));
+                  Point nPoint = new Point((int) Math.round(rectOffset.x * scaleRatio.x),
+                     (int) Math.round(rectOffset.y * scaleRatio.y));
 
                   if(parentPosition.x + nPoint.x + recCurrentSize.width > width) {
                      nPoint.x = (int) width - recCurrentSize.width - parentPosition.x;
@@ -932,12 +932,12 @@ public final class VSEventUtil {
 
             Point scalePos = new Point();
             Dimension scaleSize = new Dimension();
-            scalePos.x = (int) Math.floor(pos.x * posScale.x);
-            scalePos.y = (int) Math.floor(pos.y * posScale.y);
+            scalePos.x = (int) Math.round(pos.x * posScale.x);
+            scalePos.y = (int) Math.round(pos.y * posScale.y);
             info.setScaledPosition(scalePos);
             scaleSize.width = selectionSize != null ? selectionSize.width
-               : (int) Math.floor(size.width * sizeScale.x);
-            scaleSize.height = (int) Math.floor(size.height * sizeScale.y);
+               : (int) Math.round(size.width * sizeScale.x);
+            scaleSize.height = (int) Math.round(size.height * sizeScale.y);
             info.setScaledSize(scaleSize);
 
             if(info instanceof DropDownVSAssemblyInfo) {
@@ -996,10 +996,10 @@ public final class VSEventUtil {
          size = info.getLayoutSize(false);
       }
 
-      Point scalePos = new Point((int) Math.floor(pos.x * posscale.x),
-                                 (int) Math.floor(pos.y * posscale.y));
-      Dimension scaleSize = new Dimension((int) Math.floor(size.width * sizescale.x),
-                                          (int) Math.floor(size.height * sizescale.y));
+      Point scalePos = new Point((int) Math.round(pos.x * posscale.x),
+                                 (int) Math.round(pos.y * posscale.y));
+      Dimension scaleSize = new Dimension((int) Math.round(size.width * sizescale.x),
+                                          (int) Math.round(size.height * sizescale.y));
 
       if(info instanceof LineVSAssemblyInfo) {
          if(scaleSize.height == 0) {
@@ -1011,11 +1011,11 @@ public final class VSEventUtil {
          // Need to scale start and end positions to match new scale size/pos.
          LineVSAssemblyInfo lineInfo = (LineVSAssemblyInfo) info;
          Point linePos = lineInfo.getStartPos();
-         lineInfo.setScaledStartPos(new Point((int) Math.floor(linePos.x * sizescale.x),
-                                              (int) Math.floor(linePos.y * sizescale.y)));
+         lineInfo.setScaledStartPos(new Point((int) Math.round(linePos.x * sizescale.x),
+                                              (int) Math.round(linePos.y * sizescale.y)));
          linePos = lineInfo.getEndPos();
-         lineInfo.setScaledEndPos(new Point((int) Math.floor(linePos.x * sizescale.x),
-                                            (int) Math.floor(linePos.y * sizescale.y)));
+         lineInfo.setScaledEndPos(new Point((int) Math.round(linePos.x * sizescale.x),
+                                            (int) Math.round(linePos.y * sizescale.y)));
       }
 
       scalePos = amendScalePosition(vsinfo, scalePos, size, scaleSize, scaleRatio, pos);
@@ -1064,7 +1064,7 @@ public final class VSEventUtil {
 
          // calc tableInfo column count is 0.
          int colCnt = lens != null ? lens.getColCount() : tableInfo.getColumnCount();
-         double tableWidth = Math.floor(pixelSize.width * scaleRatio.x);
+         double tableWidth = Math.round(pixelSize.width * scaleRatio.x);
          double totalWidth = 0;
 
          for(int i = 0; i < colCnt - hiddenColumns; i++) {
@@ -1075,7 +1075,7 @@ public final class VSEventUtil {
             }
 
             double ratio = pixelSize.width / colWidth;
-            double targetWidth = Math.floor(Math.max(colWidth, scaleSize.width / ratio));
+            double targetWidth = Math.round(Math.max(colWidth, scaleSize.width / ratio));
 
             // last column, fill the table.
             if(i == colCnt - hiddenColumns - 1 && totalWidth + targetWidth < tableWidth) {
@@ -1123,8 +1123,8 @@ public final class VSEventUtil {
       // tab still need to consider the repairH which caused by tab height is not scale.
       if(tab != null) {
          double repairH = getTabRepairH(tab, scaleRatio);
-         scalePos.y = (int) Math.floor(scalePos.y - repairH);
-         scaleSize.height =  (int) Math.floor(scaleSize.height + repairH);
+         scalePos.y = (int) Math.round(scalePos.y - repairH);
+         scaleSize.height =  (int) Math.round(scaleSize.height + repairH);
       }
 
       if(info instanceof SelectionBaseVSAssemblyInfo) {
@@ -1263,9 +1263,9 @@ public final class VSEventUtil {
             Point2D.Double sizeScale = info.getSizeScale(scaleRatio);
             Dimension scaleSize = new Dimension();
 
-            scaleSize.width = (int) Math.floor(size.width * sizeScale.x);
+            scaleSize.width = (int) Math.round(size.width * sizeScale.x);
             scaleSize.height =
-               (int) Math.floor(size.height * sizeScale.y + repairH);
+               (int) Math.round(size.height * sizeScale.y + repairH);
             scaleSize.height = Math.max(0, scaleSize.height);
 
             info.setScaledPosition(
@@ -1281,8 +1281,8 @@ public final class VSEventUtil {
 
                Rectangle viewBounds = sheet.getPreferredBounds(true, false);
                Dimension viewSize = new Dimension(
-                  (int) Math.floor(viewBounds.getMaxX()),
-                  (int) Math.floor(viewBounds.getMaxY()));
+                  (int) Math.round(viewBounds.getMaxX()),
+                  (int) Math.round(viewBounds.getMaxY()));
                Point2D.Double vsScaleRatio = calcScalingRatio(
                   sheet, viewSize, scaleSize.width, scaleSize.height, mobile
                );
