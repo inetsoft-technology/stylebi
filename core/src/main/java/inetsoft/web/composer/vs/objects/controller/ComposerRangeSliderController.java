@@ -17,13 +17,6 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.TableDataPath;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.composer.vs.objects.event.ConvertToRangeSliderEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -33,8 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-
-import java.awt.*;
 import java.security.Principal;
 
 /**
@@ -45,18 +36,15 @@ public class ComposerRangeSliderController {
    /**
     * Creates a new instance of <tt>ComposerRangeSliderController</tt>.
     *  @param runtimeViewsheetRef the runtime viewsheet reference
-    * @param coreLifecycleService the placeholder service
-    * @param viewsheetService
     */
    @Autowired
    public ComposerRangeSliderController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      CoreLifecycleService coreLifecycleService,
-      ViewsheetService viewsheetService)
+      ComposerRangeSliderServiceProxy composerRangeSliderServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.coreLifecycleService = coreLifecycleService;
-      this.viewsheetService = viewsheetService;
+      this.composerRangeSliderServiceProxy = composerRangeSliderServiceProxy;
+
    }
 
    /**
@@ -76,101 +64,10 @@ public class ComposerRangeSliderController {
                                   CommandDispatcher dispatcher,
                                   @LinkUri String linkUri) throws Exception
    {
-      final String runtimeId = runtimeViewsheetRef.getRuntimeId();
-      final RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      final Viewsheet viewsheet = rvs.getViewsheet();
-      final String name = event.getName();
-
-      if(viewsheet == null) {
-         return;
-      }
-
-      final VSAssembly assembly = viewsheet.getAssembly(name);
-
-      if(assembly == null) {
-         return;
-      }
-
-      // embedded object not support convert
-      if(((VSAssemblyInfo) assembly.getInfo()).isEmbedded()) {
-         return;
-      }
-
-      final VSAssembly container = assembly.getContainer();
-
-      if(!(assembly instanceof SelectionListVSAssembly) &&
-         !(assembly instanceof TimeSliderVSAssembly) &&
-         !(container instanceof CurrentSelectionVSAssembly))
-      {
-         return;
-      }
-
-      final CurrentSelectionVSAssembly containerAssembly = (CurrentSelectionVSAssembly) container;
-      final String[] assemblies = containerAssembly.getAssemblies();
-      final VSAssembly newAssembly = createSelectionListVSAssembly(viewsheet, assembly);
-      final VSAssemblyInfo info = newAssembly.getVSAssemblyInfo();
-      info.setPrimary(assembly.isPrimary());
-      info.setEnabledValue(assembly.getVSAssemblyInfo().isEnabled() + "");
-      info.setVisible(assembly.isVisible());
-      info.setEditable(assembly.isEditable());
-      VSEventUtil.copyFormat(assembly, newAssembly);
-      initCellFormat(newAssembly);
-      coreLifecycleService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
-      containerAssembly.setAssemblies(assemblies);
-      viewsheet.addAssembly(newAssembly);
-      coreLifecycleService.addDeleteVSObject(rvs, newAssembly, dispatcher);
-      coreLifecycleService.execute(rvs, name, linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
-      coreLifecycleService.refreshVSAssembly(rvs, containerAssembly.getName(), dispatcher, true);
+      composerRangeSliderServiceProxy.convertCSComponent(runtimeViewsheetRef.getRuntimeId(), event,
+                                                         principal, dispatcher, linkUri);
    }
 
-   /**
-    * Create selection list assembly.
-    */
-   private VSAssembly createSelectionListVSAssembly(Viewsheet vs, VSAssembly cobj) {
-      TimeSliderVSAssembly slider = (TimeSliderVSAssembly) cobj;
-      TimeSliderVSAssemblyInfo sliderInfo = slider.getTimeSliderInfo();
-      SelectionListVSAssembly list = new SelectionListVSAssembly(vs, cobj.getName());
-      SelectionListVSAssemblyInfo info = list.getSelectionListInfo();
-      list.setTableName(sliderInfo.getFirstTableName());
-      list.setDataRef(slider.getDataRefs()[0]);
-      list.setTitleValue(slider.getTitleValue());
-
-      info.setShowTypeValue(SelectionBaseVSAssemblyInfo.DROPDOWN_SHOW_TYPE);
-      info.setSourceType(sliderInfo.getSourceType());
-      info.setListHeight(list.getPixelSize().height / AssetUtil.defh - 1);
-      info.setPixelSize(new Dimension(slider.getPixelSize().width,
-                                      slider.getPixelSize().height > AssetUtil.defh
-                                      ? list.getPixelSize().height : AssetUtil.defh));
-
-      final Point pos = cobj.getPixelOffset();
-      list.setPixelOffset(pos);
-      list.initDefaultFormat();
-
-      // set up info
-      info.setAdditionalTableNames(sliderInfo.getAdditionalTableNames());
-
-      return list;
-   }
-
-   /**
-    * Init cell format, if the assembly is selection list, copy the object
-    * format for the cell format, otherwise do nothing.
-    */
-   private void initCellFormat(VSAssembly assembly) {
-      if(!(assembly instanceof SelectionListVSAssembly)) {
-         return;
-      }
-
-      SelectionListVSAssemblyInfo info =
-         (SelectionListVSAssemblyInfo) assembly.getInfo();
-      FormatInfo finfo = info.getFormatInfo();
-      VSCompositeFormat objfmt = finfo.getFormat(VSAssemblyInfo.OBJECTPATH);
-      TableDataPath detailPath = new TableDataPath(-1, TableDataPath.DETAIL);
-      VSCompositeFormat cellFmt = finfo.getFormat(detailPath);
-      VSEventUtil.copyFormat(cellFmt.getUserDefinedFormat(), objfmt, false);
-   }
-
-   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
+   private ComposerRangeSliderServiceProxy composerRangeSliderServiceProxy;
 }
