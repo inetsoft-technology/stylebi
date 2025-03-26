@@ -376,15 +376,14 @@ public class MVSupportService {
     */
    public void dispose(List<String> mvs) {
       MVManager manager = MVManager.getManager();
-      Principal principal = ThreadContext.getContextPrincipal();
-      IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       for(String mv : mvs) {
          ClusterUtil.deleteClusterMV(mv);
-         MVDef def = manager.get(mv, identityID.getOrgID());
+         MVDef def = manager.get(mv, orgID);
 
          if(def != null) {
-            manager.remove(def, false, identityID.orgID);
+            manager.remove(def, false, orgID);
          }
       }
 
