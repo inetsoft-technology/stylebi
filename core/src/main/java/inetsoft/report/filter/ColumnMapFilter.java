@@ -732,6 +732,11 @@ public class ColumnMapFilter extends AbstractTableLens
    }
 
    @Serial
+   private void writeObject(ObjectOutputStream out) throws IOException {
+      out.defaultWriteObject();
+   }
+
+   @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
       in.defaultReadObject();
       setTable(table);

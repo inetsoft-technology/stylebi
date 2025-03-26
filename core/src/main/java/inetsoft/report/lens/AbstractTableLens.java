@@ -762,7 +762,7 @@ public abstract class AbstractTableLens implements TableLens {
 
    protected boolean isLeftAlign = false;
    protected boolean disabledFireEvent = false;
-   protected TableDataDescriptor descriptor;
+   protected transient TableDataDescriptor descriptor;
    private XIdentifierContainer identifiers;
    protected Map<Integer, Class<?>> columnTypes = new HashMap<>();
    private transient List<Reference<TableChangeListener>> clisteners = new CopyOnWriteArrayList<>();

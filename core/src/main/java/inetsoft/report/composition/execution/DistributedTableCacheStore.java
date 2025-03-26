@@ -23,8 +23,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
-import inetsoft.util.GroupedThread;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +46,9 @@ public class DistributedTableCacheStore {
    public DistributedTableCacheStore() {
       clusterId = Cluster.getInstance().getId();
       storages = new ConcurrentHashMap<>();
-      executor.scheduleAtFixedRate(this::cleanUpCache, 1L, CLEANUP_FREQUENCY_TIME, TimeUnit.MINUTES);
+      executor.scheduleAtFixedRate(this::cleanUpCache, 1L, CLEANUP_FREQUENCY_TIME,
+                                   TimeUnit.MINUTES);
+      this.debouncer = new DefaultDebouncer<>(false);
    }
 
    /**
@@ -76,21 +77,19 @@ public class DistributedTableCacheStore {
       String key = getKey(dataKey);
       BlobStorage<Metadata> storage = getStorage();
 
-      if(!storage.exists(key)) {
-         new Thread(() -> {
-            try(BlobTransaction<Metadata> tx = storage.beginTransaction();
-                OutputStream out = tx.newStream(key, null);
-                ObjectOutputStream oos = new ObjectOutputStream(out))
-            {
-               oos.writeObject(lens);
-               oos.flush();
-               tx.commit();
-            }
-            catch(IOException ex) {
-               LOG.error("Failed to write to the blob storage: {}", key, ex);
-            }
-         }).start();
-      }
+      debouncer.debounce(key, 1L, TimeUnit.SECONDS, () -> {
+         try(BlobTransaction<Metadata> tx = storage.beginTransaction();
+             OutputStream out = tx.newStream(key, null);
+             ObjectOutputStream oos = new ObjectOutputStream(out))
+         {
+            oos.writeObject(lens);
+            oos.flush();
+            tx.commit();
+         }
+         catch(IOException ex) {
+            LOG.error("Failed to write to the blob storage: {}", key, ex);
+         }
+      });
    }
 
    private void cleanUpCache() {
@@ -151,6 +150,7 @@ public class DistributedTableCacheStore {
    private final ConcurrentHashMap<String, BlobStorage<Metadata>> storages;
    private final ScheduledExecutorService executor =
       Executors.newSingleThreadScheduledExecutor(r -> new GroupedThread(r, "DistributedTableCacheStore"));
+   private final Debouncer<String> debouncer;
 
    private static final long CACHE_EXPIRATION_TIME = 30L; // minutes
    private static final long CLEANUP_FREQUENCY_TIME = 30L; // minutes
