@@ -86,11 +86,11 @@ public class IdentityTreeService {
          return new ArrayList<>();
       }
 
-      Set<String> childGroups = Arrays.stream(provider.getGroups())
-         .map(name -> provider.getGroup(name))
+      Set<IdentityID> childGroups = Arrays.stream(provider.getGroups())
+         .map(provider::getGroup)
          .filter(Objects::nonNull)
          .filter(g -> g.getGroups().length > 0)
-         .map(Group::getName)
+         .map(Group::getIdentityID)
          .collect(Collectors.toSet());
 
       return Arrays.stream(provider.getGroups())
@@ -115,7 +115,7 @@ public class IdentityTreeService {
          .filter(member -> member.getType() == Identity.GROUP)
          .map(group -> group.getIdentityID())
          .sorted()
-         .map(g -> getGroupNode(provider, pGroup.name == "/" ? groupName :
+         .map(g -> getGroupNode(provider, Tool.equals(pGroup.name, "/") ? groupName :
                                    new IdentityID(pGroup.name + "/" + groupName.name, pGroup.orgID),
             g, searchMode, Tool.equals(g.name.toLowerCase(), searchStr.toLowerCase()) ?
                                    "" : searchStr, principal, hideOrgName))
