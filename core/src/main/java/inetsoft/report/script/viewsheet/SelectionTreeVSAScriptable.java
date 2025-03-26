@@ -17,6 +17,7 @@
  */
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.*;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -293,7 +294,7 @@ public class SelectionTreeVSAScriptable extends SelectionVSAScriptable
       //list's data has not been populated yet. we do not set selected objects
       //here. Instead, we save the values into the assembly object and process
       //them later.
-      if(vInfo.isMetadata() && getInfo().isUsingMetaData()) {
+      if(!box.isRuntime() && vInfo.isMetadata() && getInfo().isUsingMetaData()) {
          vsAssembly.setScriptSelectedValues(values);
          return;
       }
