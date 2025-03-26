@@ -17,39 +17,82 @@
  */
 package inetsoft.web.viewsheet.model.calendar;
 
-import org.immutables.serial.Serial;
-import org.immutables.value.Value;
+import java.io.Serializable;
 
-@Value.Immutable
-@Serial.Structural
-public interface CalendarDateFormatModel {
+public class CalendarDateFormatModel implements Serializable {
+   public CalendarDateFormatModel() {
+   }
+
    /**
     * Get the runtime viewsheet id.
     */
-   String getRuntimeId();
+   public String getRuntimeId() {
+      return runtimeId;
+   }
+
+   public void setRuntimeId(String runtimeId) {
+      this.runtimeId = runtimeId;
+   }
 
    /**
     * Get the assembly name for the calendar.
     */
-   String getAssemblyName();
+   public String getAssemblyName() {
+      return assemblyName;
+   }
+
+   public void setAssemblyName(String name) {
+      this.assemblyName = name;
+   }
 
    /**
     * Get the selected dates string for the calendar.
     */
-   String getDates();
+   public String getDates() {
+      return dates;
+   }
+
+   public void setDates(String dates) {
+      this.dates = dates;
+   }
 
    /**
     * Return if this is a double calendar mode.
     */
-   boolean isDoubleCalendar();
+   public boolean isDoubleCalendar() {
+      return doubleCalendar;
+   }
+
+   public void setDoubleCalendar(boolean doubleCalendar) {
+      this.doubleCalendar = doubleCalendar;
+   }
 
    /**
     * Return if this calendar is period mode.
     */
-   boolean isPeriod();
+   public boolean isPeriod() {
+      return period;
+   }
+
+   public void setPeriod(boolean period) {
+      this.period = period;
+   }
 
    /**
     * Return if this calendar is month view.
     */
-   boolean isMonthView();
+   public boolean isMonthView() {
+      return monthView;
+   }
+
+   public void setMonthView(boolean monthView) {
+      this.monthView = monthView;
+   }
+
+   private String runtimeId;
+   private String assemblyName;
+   private String dates;
+   private boolean doubleCalendar;
+   private boolean period;
+   private boolean monthView;
 }
