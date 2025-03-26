@@ -19,13 +19,13 @@ package inetsoft.report.lens.xnode;
 
 import inetsoft.mv.DFWrapper;
 import inetsoft.report.*;
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.report.lens.DefaultTableDataDescriptor;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
+import inetsoft.uql.avro.AvroXTable;
 import inetsoft.uql.jdbc.JDBCTableNode;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.util.XNodeTable;
@@ -728,11 +728,7 @@ public class XNodeTableLens extends AbstractTableLens
 
    @Serial
    private Object writeReplace() {
-      if(table.getClass() == XSwappableTable.class) {
-         return new XTableLens(table);
-      }
-
-      return new XTableLens(AssetEventUtil.createXSwappableTable(table));
+      return new XTableLens(new AvroXTable(table));
    }
 
    protected XTable table = null;
