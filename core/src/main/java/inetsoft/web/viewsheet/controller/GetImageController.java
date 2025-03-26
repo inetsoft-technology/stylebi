@@ -152,9 +152,13 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
-      imageService.processGetAssemblyImage(vid, aid, width, height, maxWidth, maxHeight, aname,
+      VSUtil.globalShareVsRunInHostScope(Tool.byteDecode(vid), principal,
+         () -> {
+            imageService.processGetAssemblyImage(vid, aid, width, height, maxWidth, maxHeight, aname,
                                            index, row, col, principal, request, response, svg,
                                            false);
+            return null;
+         });
    }
 
    /**
