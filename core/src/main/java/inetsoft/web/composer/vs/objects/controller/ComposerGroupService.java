@@ -34,8 +34,6 @@ import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.objects.event.GroupVSObjectsEvent;
 import inetsoft.web.viewsheet.service.*;
-import org.springframework.messaging.handler.annotation.DestinationVariable;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;

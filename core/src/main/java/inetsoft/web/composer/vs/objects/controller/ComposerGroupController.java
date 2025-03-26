@@ -17,20 +17,6 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
-import inetsoft.util.Catalog;
-import inetsoft.web.composer.vs.VSObjectTreeNode;
-import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
-import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.objects.event.GroupVSObjectsEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -39,11 +25,7 @@ import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
-
-import java.awt.*;
 import java.security.Principal;
-import java.util.List;
-import java.util.*;
 
 /**
  * Controller that processes group events.
