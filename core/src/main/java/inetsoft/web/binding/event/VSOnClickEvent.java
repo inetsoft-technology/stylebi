@@ -19,14 +19,11 @@ package inetsoft.web.binding.event;
 
 
 import inetsoft.web.composer.ws.event.AssetEvent;
-import org.immutables.serial.Serial;
-import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 
-@Value.Immutable
-@Serial.Structural
-public abstract class VSOnClickEvent implements AssetEvent {
+public class VSOnClickEvent implements AssetEvent, Serializable {
    @Nullable
    @Override
    public String name() {
@@ -38,7 +35,22 @@ public abstract class VSOnClickEvent implements AssetEvent {
       return isConfirmed();
    }
 
-   public abstract boolean isConfirmed();
+   public boolean isConfirmed() {
+      return confirmed;
+   }
 
-   public abstract boolean isConfirmEvent();
+   public void setConfirmed(boolean confirmed) {
+      this.confirmed = confirmed;
+   }
+
+   public boolean isConfirmEvent() {
+      return confirmEvent;
+   }
+
+   public void setConfirmEvent(boolean confirmEvent) {
+      this.confirmEvent = confirmEvent;
+   }
+
+   private boolean confirmEvent;
+   private boolean confirmed;
 }
