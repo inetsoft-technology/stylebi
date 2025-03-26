@@ -461,6 +461,7 @@ export class VSText extends AbstractVSObject<VSTextModel>
 
    ngAfterViewChecked() {
       this.modelChanged();
+      this.textChanged();
 
       // check height on visibility change since height is returned as 0 when div is not visible
       if(this.textHeight == 0 || this.model.containerType == "VSTab") {
