@@ -176,7 +176,8 @@ public class RuntimeSheetTransformController implements MessageListener {
 
       Arrays.stream(sheets)
          .filter(sheet -> Tool.equals(entry, sheet.getEntry()) && !Tool.equals(sheet.getID(), id))
-         .filter(sheet -> Tool.equals(sheet.getOpenedBookmark().getName(), bookmark))
+         .filter(sheet -> sheet.getOpenedBookmark() != null &&
+            Tool.equals(sheet.getOpenedBookmark().getName(), bookmark))
          .forEach(sheet -> {
             RenameEventModel model = RenameEventModel.builder()
                .id(sheet.getID())
