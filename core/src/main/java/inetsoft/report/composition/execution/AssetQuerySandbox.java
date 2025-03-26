@@ -936,15 +936,17 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
                vars.removeBaseTable(CachedVariableTable.class);
                vars.addBaseTable(this.vars);
             }
+            else if(this.vars != null) {
+               vars2 = this.vars.clone();
+            }
             else {
-               vars2 = this.vars;
-               vars2 = vars2 == null ? new VariableTable() : vars2.clone();
+               vars2 = new VariableTable();
+               addMessageAttributes(vars2);
             }
 
             XUtil.copyDBCredentials((XPrincipal) getUser(), vars2);
             Object omaxrows = vars2.get(XQuery.HINT_MAX_ROWS);
             vars2.put(XQuery.HINT_PREVIEW, isLiveMode(mode) + "");
-            addMessageAttributes(vars2);
             base = cacheNormalizer.transformTableLens(query.getTableLens(vars2));
 
             if(table.isLiveData()) {
@@ -1822,6 +1824,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
    private void setVariables(VariableTable vars) {
       this.ovars = this.vars;
       this.vars = vars != null ? vars : new VariableTable();
+      addMessageAttributes(this.vars);
    }
 
    public AssetEntry getWSEntry() {
