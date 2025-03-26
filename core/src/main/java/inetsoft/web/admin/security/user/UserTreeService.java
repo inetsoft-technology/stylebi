@@ -24,8 +24,13 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValueStorage;
+import inetsoft.uql.XFactory;
+import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.sync.DependencyStorageService;
 import inetsoft.uql.asset.sync.DependencyTool;
+import inetsoft.uql.erm.HiddenColumns;
+import inetsoft.uql.erm.XDataModel;
+import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
@@ -38,6 +43,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.stereotype.Service;
 
+import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
@@ -1504,6 +1510,7 @@ public class UserTreeService {
 
       themeService.updateTheme(model.oldName(), model.name(), CustomTheme::getRoles);
       identityService.setIdentity(oldRole, model, provider, principal);
+      renameVPMRole(model.oldName(), model.name());
    }
 
    private List<IdentityID> getDefaultRoles(AuthenticationProvider provider, String org) {
@@ -1606,6 +1613,40 @@ public class UserTreeService {
          }
       }
       return false;
+   }
+
+   private void renameVPMRole(String oldName, String newName) throws RemoteException {
+      XRepository repository = XFactory.getRepository();
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String[] dataSources = repository.getDataSourceFullNames(new IdentityID(orgID, orgID));
+
+      for(String dataSource : dataSources) {
+         XDataModel dataModel = repository.getDataModel(dataSource);
+         String[] vpms = dataModel.getVirtualPrivateModelNames();
+
+         for(String vpm : vpms) {
+            VirtualPrivateModel vm = dataModel.getVirtualPrivateModel(vpm);
+            HiddenColumns hiddenColumns = vm.getHiddenColumns();
+
+            if(hiddenColumns == null) {
+               continue;
+            }
+
+            Enumeration<?> roles = hiddenColumns.getRoles();
+
+            while(roles.hasMoreElements()) {
+               Object role = roles.nextElement();
+
+               if(Tool.equals(oldName, role)) {
+                  hiddenColumns.removeRole(oldName);
+                  hiddenColumns.addRole(newName);
+                  break;
+               }
+            }
+
+            dataModel.addVirtualPrivateModel(vm, true);
+         }
+      }
    }
 
    private void renameUserAsset(IdentityID newID, IdentityID oldID) throws Exception {

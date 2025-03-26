@@ -91,7 +91,7 @@ public class HiddenColumns extends VpmObject {
     * Remove a role from this virtual private model.
     * @param role the name of the role to remove.
     */
-   public void removeRole(IdentityID role) {
+   public void removeRole(String role) {
       roles.remove(role);
    }
 
