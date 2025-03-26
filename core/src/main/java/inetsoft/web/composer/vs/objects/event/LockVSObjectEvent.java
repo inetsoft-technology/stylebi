@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the event to change object lock state.
  *
  * @since 12.3
  */
-public class LockVSObjectEvent extends VSObjectEvent {
+public class LockVSObjectEvent extends VSObjectEvent implements Serializable {
    /**
     * Gets the lock state of object.
     *

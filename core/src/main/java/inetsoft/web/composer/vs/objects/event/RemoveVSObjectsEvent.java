@@ -19,12 +19,14 @@ package inetsoft.web.composer.vs.objects.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 /**
  * Event that signals a set of objects should be removed from a viewsheet.
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableRemoveVSObjectsEvent.class)
 @JsonDeserialize(as = ImmutableRemoveVSObjectsEvent.class)
 public abstract class RemoveVSObjectsEvent {
