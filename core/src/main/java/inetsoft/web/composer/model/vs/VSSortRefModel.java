@@ -20,8 +20,10 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.binding.drm.DataRefModel;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class VSSortRefModel {
+public class VSSortRefModel implements Serializable {
    public DataRefModel getDataRefModel() {
       return dataRefModel;
    }

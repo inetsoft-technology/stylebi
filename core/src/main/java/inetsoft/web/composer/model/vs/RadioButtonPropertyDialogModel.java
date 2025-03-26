@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link RadioButtonPropertyDialogModel} for the
  * radio button property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class RadioButtonPropertyDialogModel {
+public class RadioButtonPropertyDialogModel implements Serializable {
    public RadioButtonGeneralPaneModel getRadioButtonGeneralPaneModel() {
       if(radioButtonGeneralPaneModel == null) {
          radioButtonGeneralPaneModel = new RadioButtonGeneralPaneModel();

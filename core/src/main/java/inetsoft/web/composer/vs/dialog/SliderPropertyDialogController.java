@@ -17,14 +17,7 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.SliderVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.SliderVSAssemblyInfo;
-import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -34,8 +27,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
-import java.awt.*;
 import java.security.Principal;
 
 /**
@@ -47,24 +38,14 @@ import java.security.Principal;
 public class SliderPropertyDialogController {
    /**
     * Creates a new instance of <tt>SliderPropertyDialogController</tt>.
-    * @param vsObjectPropertyService VSObjectPropertyService instance
-    * @param vsInputService          VSInputService instance
     * @param runtimeViewsheetRef     RuntimeViewsheetRef instance
-    * @param viewsheetService
     */
    @Autowired
-   public SliderPropertyDialogController(
-      VSObjectPropertyService vsObjectPropertyService,
-      VSInputService vsInputService,
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      VSDialogService dialogService,
-      ViewsheetService viewsheetService)
+   public SliderPropertyDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                         VSInputServiceProxy vsInputServiceProxy)
    {
-      this.vsObjectPropertyService = vsObjectPropertyService;
-      this.vsInputService = vsInputService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.dialogService = dialogService;
-      this.viewsheetService = viewsheetService;
+      this.vsInputServiceProxy = vsInputServiceProxy;
    }
 
    /**
@@ -84,78 +65,7 @@ public class SliderPropertyDialogController {
                                                                  Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      SliderVSAssembly sliderAssembly;
-      SliderVSAssemblyInfo sliderAssemblyInfo;
-
-      try {
-         rvs = viewsheetService.getViewsheet(runtimeId, principal);
-         vs = rvs.getViewsheet();
-         sliderAssembly = (SliderVSAssembly) vs.getAssembly(objectId);
-         sliderAssemblyInfo = (SliderVSAssemblyInfo) sliderAssembly.getVSAssemblyInfo();
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      SliderPropertyDialogModel result = new SliderPropertyDialogModel();
-      SliderGeneralPaneModel sliderGeneralPaneModel = result.getSliderGeneralPaneModel();
-      NumericRangePaneModel numericRangePaneModel = sliderGeneralPaneModel.getNumericRangePaneModel();
-      GeneralPropPaneModel generalPropPaneModel = sliderGeneralPaneModel.getGeneralPropPaneModel();
-      SizePositionPaneModel sizePositionPaneModel =
-         sliderGeneralPaneModel.getSizePositionPaneModel();
-      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
-      DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
-      SliderAdvancedPaneModel sliderAdvancedPaneModel = result.getSliderAdvancedPaneModel();
-      SliderLabelPaneModel sliderLabelPaneModel = sliderAdvancedPaneModel.getSliderLabelPaneModel();
-      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
-
-      numericRangePaneModel.setMinimum(sliderAssemblyInfo.getMinValue());
-      numericRangePaneModel.setMaximum(sliderAssemblyInfo.getMaxValue());
-      numericRangePaneModel.setIncrement(sliderAssemblyInfo.getIncrementValue());
-
-      generalPropPaneModel.setShowEnabledGroup(true);
-      generalPropPaneModel.setEnabled(sliderAssemblyInfo.getEnabledValue());
-      generalPropPaneModel.setShowSubmitCheckbox(true);
-      generalPropPaneModel.setSubmitOnChange(Boolean.valueOf(sliderAssemblyInfo.getSubmitOnChangeValue()));
-
-      Point pos = dialogService.getAssemblyPosition(sliderAssemblyInfo, vs);
-      Dimension size = dialogService.getAssemblySize(sliderAssemblyInfo, vs);
-
-      sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setContainer(sliderAssembly.getContainer() != null);
-
-      basicGeneralPaneModel.setName(sliderAssemblyInfo.getAbsoluteName());
-      basicGeneralPaneModel.setPrimary(sliderAssemblyInfo.isPrimary());
-      basicGeneralPaneModel.setVisible(sliderAssemblyInfo.getVisibleValue());
-      basicGeneralPaneModel.setObjectNames(
-         this.vsObjectPropertyService.getObjectNames(vs, sliderAssemblyInfo.getAbsoluteName()));
-      basicGeneralPaneModel.setRefresh(sliderAssemblyInfo.isRefresh());
-
-      vsInputService.getTableName(sliderAssemblyInfo, dataInputPaneModel);
-      dataInputPaneModel.setColumnValue(sliderAssemblyInfo.getColumnValue());
-      dataInputPaneModel.setRowValue(sliderAssemblyInfo.getRowValue());
-      dataInputPaneModel.setTargetTree(
-         this.vsInputService.getInputTablesTree(rvs, false, principal));
-      dataInputPaneModel.setWriteBackDirectly(sliderAssemblyInfo.getWriteBackValue());
-
-      sliderLabelPaneModel.setShowLabel(true);
-      sliderLabelPaneModel.setTick(sliderAssemblyInfo.getTickVisibleValue());
-      sliderLabelPaneModel.setCurrentValue(sliderAssemblyInfo.getCurrentVisibleValue());
-      sliderLabelPaneModel.setLabel(sliderAssemblyInfo.getLabelVisibleValue());
-      sliderLabelPaneModel.setMinimum(sliderAssemblyInfo.getMinVisibleValue());
-      sliderLabelPaneModel.setMaximum(sliderAssemblyInfo.getMaxVisibleValue());
-
-      sliderAdvancedPaneModel.setSnap(sliderAssemblyInfo.isSnap());
-
-      vsAssemblyScriptPaneModel.scriptEnabled(sliderAssemblyInfo.isScriptEnabled());
-      vsAssemblyScriptPaneModel.expression(sliderAssemblyInfo.getScript() == null ?
-                                              "" : sliderAssemblyInfo.getScript());
-      result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
-
-      return result;
+      return vsInputServiceProxy.getSliderPropertyDialogModel(runtimeId, objectId, principal);
    }
 
    /**
@@ -174,83 +84,11 @@ public class SliderPropertyDialogController {
                                             CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet viewsheet;
-      SliderVSAssemblyInfo sliderAssemblyInfo;
-
-      try {
-         viewsheet = viewsheetService.getViewsheet(this.runtimeViewsheetRef.getRuntimeId(), principal);
-         SliderVSAssembly sliderAssembly = (SliderVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
-         sliderAssemblyInfo = (SliderVSAssemblyInfo) Tool.clone(sliderAssembly.getVSAssemblyInfo());
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      SliderGeneralPaneModel sliderGeneralPaneModel = value.getSliderGeneralPaneModel();
-      NumericRangePaneModel numericRangePaneModel = sliderGeneralPaneModel.getNumericRangePaneModel();
-      GeneralPropPaneModel generalPropPaneModel = sliderGeneralPaneModel.getGeneralPropPaneModel();
-      SizePositionPaneModel sizePositionPaneModel =
-         sliderGeneralPaneModel.getSizePositionPaneModel();
-      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
-      DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
-      SliderAdvancedPaneModel sliderAdvancedPaneModel = value.getSliderAdvancedPaneModel();
-      SliderLabelPaneModel sliderLabelPaneModel = sliderAdvancedPaneModel.getSliderLabelPaneModel();
-      VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
-
-      sliderAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
-      sliderAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
-      sliderAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
-
-      dialogService.setAssemblySize(sliderAssemblyInfo, sizePositionPaneModel);
-      dialogService.setAssemblyPosition(sliderAssemblyInfo, sizePositionPaneModel);
-
-      sliderAssemblyInfo.setMinValue(numericRangePaneModel.getMinimum());
-      sliderAssemblyInfo.setMaxValue(numericRangePaneModel.getMaximum());
-
-      if(sliderAssemblyInfo.getSelectedObject() instanceof Number &&
-         ((Number) sliderAssemblyInfo.getSelectedObject()).doubleValue() < sliderAssemblyInfo.getMin()){
-         sliderAssemblyInfo.setSelectedObject(sliderAssemblyInfo.getMin());
-      }
-
-      if(sliderAssemblyInfo.getSelectedObject() instanceof Number &&
-         ((Number) sliderAssemblyInfo.getSelectedObject()).doubleValue() > sliderAssemblyInfo.getMax()){
-         sliderAssemblyInfo.setSelectedObject(sliderAssemblyInfo.getMax());
-      }
-
-      sliderAssemblyInfo.setIncrementValue(numericRangePaneModel.getIncrement());
-
-      sliderAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
-      sliderAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
-
-      // TODO validate column/row variable/expression type
-      String table = dataInputPaneModel.getTable();
-      sliderAssemblyInfo.setTableName(table == null ? "" : table);
-      sliderAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
-      sliderAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
-      sliderAssemblyInfo.setVariable(table != null && table.startsWith("$(") && table.endsWith(")"));
-      sliderAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
-
-      sliderAssemblyInfo.setTickVisibleValue(sliderLabelPaneModel.isTick());
-      sliderAssemblyInfo.setCurrentVisibleValue(sliderLabelPaneModel.isCurrentValue());
-      sliderAssemblyInfo.setLabelVisibleValue(sliderLabelPaneModel.isLabel());
-      sliderAssemblyInfo.setMinVisibleValue(sliderLabelPaneModel.isMinimum());
-      sliderAssemblyInfo.setMaxVisibleValue(sliderLabelPaneModel.isMaximum());
-
-      sliderAssemblyInfo.setSnapValue(sliderAdvancedPaneModel.isSnap());
-
-      sliderAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
-      sliderAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
-
-      this.vsObjectPropertyService.editObjectProperty(
-         viewsheet, sliderAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+      vsInputServiceProxy.setSliderPropertyDialogModel(runtimeViewsheetRef.getRuntimeId(), objectId,
+                                                       value, linkUri, principal, commandDispatcher);
    }
 
-   private final VSObjectPropertyService vsObjectPropertyService;
-   private final VSInputService vsInputService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSDialogService dialogService;
-   private final ViewsheetService viewsheetService;
+   private VSInputServiceProxy vsInputServiceProxy;
 }
 

@@ -20,8 +20,10 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.composer.model.TreeNodeModel;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class DataInputPaneModel {
+public class DataInputPaneModel implements Serializable {
    public String getTable() {
       return table;
    }

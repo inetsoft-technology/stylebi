@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import java.io.Serializable;
+
 /**
  * This interface defines the API for assemblies with pop component.
  *
@@ -33,7 +35,7 @@ public interface PopVSAssemblyInfo {
     */
    public static final int POP_OPTION = 1;
 
-   public enum PopLocation {
+   public enum PopLocation implements Serializable {
       MOUSE("MOUSE"),
       CENTER("CENTER");
 
