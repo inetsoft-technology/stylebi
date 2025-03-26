@@ -19,11 +19,15 @@ package inetsoft.web.messaging;
 
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.*;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ExecutorChannelInterceptor;
 
 import java.security.Principal;
@@ -40,7 +44,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       MessageAttributes attributes = new MessageAttributes(message);
       MessageContextHolder.setMessageAttributes(attributes);
       Principal principal = attributes.getHeaderAccessor().getUser();
-
+      switchToHostOrgForGlobalShareAsset(attributes, principal);
       ThreadContext.setContextPrincipal(principal);
 
       if(Thread.currentThread() instanceof GroupedThread) {
@@ -63,6 +67,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       }
 
       MessageContextHolder.setMessageAttributes(null);
+      OrganizationContextHolder.clear();
 
       if(Thread.currentThread() instanceof GroupedThread) {
          GroupedThread groupedThread = (GroupedThread) Thread.currentThread();
@@ -97,6 +102,24 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
          catch(Exception e) {
             LOG.warn("Failed to get runtime viewsheet " + id, e);
          }
+      }
+   }
+
+   /**
+    * Template switch current org to host-org for the share global assets.
+    *
+    * @param attributes MessageAttributes.
+    * @param principal current org.
+    */
+   private void switchToHostOrgForGlobalShareAsset(MessageAttributes attributes,
+                                                   Principal principal)
+   {
+      final StompHeaderAccessor headerAccessor = attributes.getHeaderAccessor();
+      boolean shouldSwitch = VSUtil.switchToHostOrgForGlobalShareAsset(
+         headerAccessor.getFirstNativeHeader("sheetRuntimeId"), principal);
+
+      if(shouldSwitch) {
+         OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
       }
    }
 
