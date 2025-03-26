@@ -23,6 +23,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
+import inetsoft.uql.XTable;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,6 +83,8 @@ public class DistributedTableCacheStore {
              OutputStream out = tx.newStream(key, null);
              ObjectOutputStream oos = new ObjectOutputStream(out))
          {
+            // get all rows before writing
+            lens.moreRows(XTable.EOT);
             oos.writeObject(lens);
             oos.flush();
             tx.commit();
