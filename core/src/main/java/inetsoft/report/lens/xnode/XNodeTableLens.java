@@ -728,7 +728,7 @@ public class XNodeTableLens extends AbstractTableLens
 
    @Serial
    private Object writeReplace() {
-      return new XTableLens(new AvroXTable(table));
+      return new XTableLens(new AvroXTable(this));
    }
 
    protected XTable table = null;
