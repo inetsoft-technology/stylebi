@@ -942,7 +942,14 @@ public final class MVManager {
          try {
             for(String key : mvs.keySet(orgID)) {
                try {
-                  defs.add(mvs.get(key, orgID));
+                  MVDef mvDef = mvs.get(key, orgID);
+
+                  if(mvDef != null) {
+                     defs.add(mvs.get(key, orgID));
+                  }
+                  else {
+                     LOG.warn("Can not find the MV definition: " + key + " " + orgID);
+                  }
                }
                catch(Exception e) {
                   LOG.error("Failed to read MV definition: " + key + " " + orgID, e);
