@@ -142,7 +142,7 @@ public class TableViewPropertyDialogController {
 
       TableViewStylePaneController styleController = new TableViewStylePaneController();
       tableStylePaneModel.setTableStyle(tableAssemblyInfo.getTableStyleValue());
-      tableStylePaneModel.setStyleTree(styleController.getStyleTree(rvs, principal, false));
+      tableStylePaneModel.setStyleTree(dialogService.getStyleTree(rvs, principal, false));
 
       Point pos = dialogService.getAssemblyPosition(tableAssemblyInfo, vs);
       Dimension size = dialogService.getAssemblySize(tableAssemblyInfo, vs);

@@ -157,7 +157,7 @@ public class CalcTablePropertyDialogController {
 
       TableViewStylePaneController styleController = new TableViewStylePaneController();
       tableStylePaneModel.setTableStyle(calcTableAssemblyInfo.getTableStyleValue());
-      tableStylePaneModel.setStyleTree(styleController.getStyleTree(rvs, principal, true));
+      tableStylePaneModel.setStyleTree(dialogService.getStyleTree(rvs, principal, true));
 
       Point pos = dialogService.getAssemblyPosition(calcTableAssemblyInfo, vs);
       Dimension size = dialogService.getAssemblySize(calcTableAssemblyInfo, vs);

@@ -75,9 +75,11 @@ public class VSChartShowDataController extends VSChartController<VSChartShowData
    public VSChartShowDataController(
       RuntimeViewsheetRef runtimeViewsheetRef,
       @SuppressWarnings("deprecation") CoreLifecycleService coreLifecycleService,
-      ViewsheetService viewsheetService)
+      ViewsheetService viewsheetService,
+      VSDialogService dialogService)
    {
       super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.dialogService = dialogService;
    }
 
    @Override
@@ -514,7 +516,7 @@ public class VSChartShowDataController extends VSChartController<VSChartShowData
          try {
             RuntimeViewsheet rvs = getViewsheetEngine().getViewsheet(vsId, principal);
             styleModel.setTableStyle(style);
-            styleModel.setStyleTree(styleController.getStyleTree(rvs, principal, false));
+            styleModel.setStyleTree(dialogService.getStyleTree(rvs, principal, false));
          }
          catch(Exception e) {
             throw new RuntimeException(e);
@@ -635,6 +637,8 @@ public class VSChartShowDataController extends VSChartController<VSChartShowData
          }
       }
    }
+
+   private final VSDialogService dialogService;
 
    private static class DcFormatTableLens extends FormatTableLens2 {
       public DcFormatTableLens(TableLens base, DateComparisonFormat dcFormat) {
