@@ -21,6 +21,7 @@ import inetsoft.report.Hyperlink;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
@@ -340,6 +341,8 @@ public class XLogicalModelAsset extends AbstractXAsset implements
 
          base.addLogicalModel(model, !isImport);
       }
+
+      DependencyHandler.getInstance().updateModelDependencies(model, true);
    }
 
    /**
