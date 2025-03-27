@@ -213,6 +213,7 @@ public class LogicalModelService {
       actionName = ActionRecord.ACTION_NAME_CREATE,
       objectType = ActionRecord.OBJECT_TYPE_LOGICAL_MODEL
    )
+   @DatasourceIgnoreGlobalShare
    public LogicalModelDefinition createModel(@AuditObjectName(order = 0) String dataSource,
                                              @AuditObjectName(order = 0) String folder,
                                              String physicalModel,
@@ -266,6 +267,7 @@ public class LogicalModelService {
     *
     * @return the new logical model definition.
     */
+   @DatasourceIgnoreGlobalShare
    public LogicalModelDefinition createExtendedModel(String dataSource, String physicalModel,
                                                      LogicalModelDefinition model, String parent,
                                                      Principal principal) throws Exception
