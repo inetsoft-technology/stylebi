@@ -17,11 +17,14 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.mv.MVDef;
+import inetsoft.mv.MVManager;
 import inetsoft.report.CellBinding;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.store.port.TransformerUtil;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.XQueryWrapper;
@@ -333,6 +336,8 @@ public class AssetDependencyTransformer extends DependencyTransformer {
    private List<RenameInfo> renameSheet(Element doc, RenameInfo info, boolean isVS) {
       // rename depedency for vs
       if(isVS) {
+         renameMV(info);
+
          // rename wentry/calc source for query/lm/ws
          // rename sourceinfo/selectiontable/bindinginfo for query/lm
          if(info.isSource() || info.isDataSource() || info.isDataSourceFolder()) {
@@ -482,6 +487,25 @@ public class AssetDependencyTransformer extends DependencyTransformer {
          try(ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             XMLTool.write(document, out);
             vsBookmark.setBookmarkData(bookMarkName, out.toByteArray());
+         }
+      }
+   }
+
+   private void renameMV(RenameInfo info) {
+      if(!info.isSource() && !info.isFolder()) {
+         return;
+      }
+
+      MVManager manager = MVManager.getManager();
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      List<MVDef> defs = manager.list(new String[]{ orgId });
+
+      for(MVDef def : defs) {
+         if((info.isSource() || info.isFolder()) && Tool.equals(def.getWsId(), info.oname)) {
+            def.setChanged(true);
+            def.setWsId(info.nname);
+            def.getMetaData().setWsId(info.nname);
+            manager.add(def);
          }
       }
    }
