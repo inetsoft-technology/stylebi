@@ -18,8 +18,8 @@
 package inetsoft.web.viewsheet.service;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import inetsoft.sree.RepletRepository;
-import inetsoft.util.*;
+import inetsoft.util.CloseableTimer;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.ViewsheetCommand;
@@ -31,7 +31,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.simp.user.DestinationUserNameProvider;
 import org.springframework.messaging.support.GenericMessage;
-import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.Session;
 
@@ -40,7 +39,6 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -53,15 +51,13 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
     * Creates a new instance of <tt>CommandDispatcher</tt>.
     *  @param headerAccessor    the message header accessor for the current
     *                          WebSocketSession.
-    * @param messagingTemplate the messaging template used to send STOMP messages.
-    * @param sessionRepository
     */
    public CommandDispatcher(StompHeaderAccessor headerAccessor,
-                            SimpMessagingTemplate messagingTemplate,
+                            CommandDispatcherService dispatcherService,
                             FindByIndexNameSessionRepository<? extends Session> sessionRepository)
    {
       this.headerAccessor = headerAccessor;
-      this.messagingTemplate = messagingTemplate;
+      this.dispatcherService = dispatcherService;
       this.clientId = null;
       this.sessionRepository = sessionRepository;
       this.pending = new ArrayList<>();
@@ -73,7 +69,7 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
     */
    public CommandDispatcher(CommandDispatcher source, String clientId) {
       this.headerAccessor = source.headerAccessor;
-      this.messagingTemplate = source.messagingTemplate;
+      this.dispatcherService = source.dispatcherService;
       this.clientId = clientId;
       this.commands.addAll(source.commands);
       this.sessionRepository = source.sessionRepository;
@@ -260,7 +256,15 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
             return true;
          }
       });
-      CommandDispatcher dispatcher = new CommandDispatcher(headerAccessor, messagingTemplate, null)
+      CommandDispatcherService service = new CommandDispatcherService(messagingTemplate) {
+         @Override
+         public void convertAndSendToUser(String user, String destination, Object payload,
+                                          Map<String, Object> headers) throws MessagingException
+         {
+            // NO-OP
+         }
+      };
+      CommandDispatcher dispatcher = new CommandDispatcher(headerAccessor, service, null)
       {
          @Override
          public void sendCommand(String assemblyName, ViewsheetCommand command) {
@@ -335,7 +339,7 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
       List<String> headers = this.headerAccessor.getNativeHeader(name);
 
       if(headers != null && !headers.isEmpty()) {
-         value = headers.get(0);
+         value = headers.getFirst();
       }
 
       return value;
@@ -359,31 +363,14 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
          final Principal user = headerAccessor.getUser();
          // destination user name
          final String userName = getUserName();
-         final String runtimeId = headerAccessor.getFirstNativeHeader(RUNTIME_ID_ATTR);
-         final String destination = "/topic/refresh-host/" + runtimeId;
-         final List<String> runtimeSessions;
-
-         runtimeSessions = Collections.emptyList();
 
          pending.forEach(c -> {
             final ViewsheetCommand command = c.getCommand();
             final MessageHeaders headers = c.getHeaderAccessor().getMessageHeaders();
 
             if(userName != null) {
-               messagingTemplate.convertAndSendToUser(userName, COMMANDS_TOPIC, command, headers);
+               dispatcherService.convertAndSendToUser(userName, COMMANDS_TOPIC, command, headers);
             }
-
-            runtimeSessions.forEach((session) -> {
-               // copy the headers from the command and rewrite the user and sessionId so we can
-               // dispatch it to other users
-               final Message<ViewsheetCommand> message = MessageBuilder.withPayload(command)
-                  .copyHeaders(headers)
-                  .setHeader(StompHeaderAccessor.USER_HEADER, session)
-                  .removeHeader(StompHeaderAccessor.SESSION_ID_HEADER).build();
-
-               messagingTemplate.convertAndSendToUser(session, destination,
-                                                      command, message.getHeaders());
-            });
          });
       }
    }
@@ -409,14 +396,14 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
          return headerAccessor;
       }
 
-      private SimpMessageHeaderAccessor headerAccessor;
-      private ViewsheetCommand command;
-      private String assembly;
+      private final SimpMessageHeaderAccessor headerAccessor;
+      private final ViewsheetCommand command;
+      private final String assembly;
    }
 
    private final FindByIndexNameSessionRepository<? extends Session> sessionRepository;
    private final StompHeaderAccessor headerAccessor;
-   private final SimpMessagingTemplate messagingTemplate;
+   private final CommandDispatcherService dispatcherService;
    private final List<Command> commands = new ArrayList<>();
    private final List<PendingCommand> pending; // R-W access should be thread-safe.
    private final String clientId;
@@ -424,7 +411,7 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
    private Map<String, Object> detachedAttributes = null;
    private boolean detached = false;
    private TimerTask timerTask = null;
-   private CommandDebouncer debouncer = new CommandDebouncer();
+   private final CommandDebouncer debouncer = new CommandDebouncer();
 
    public static final String RUNTIME_ID_ATTR = "sheetRuntimeId";
    private static final String LAST_MODIFIED_ATTR = "sheetLastModified";

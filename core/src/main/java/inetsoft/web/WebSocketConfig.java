@@ -236,8 +236,8 @@ public class WebSocketConfig<S extends Session> extends
       return Runtime.getRuntime().availableProcessors() * 8;
    }
 
-   private ObjectMapper objectMapper;
-   private IgniteSessionRepository igniteSessionRepository;
-   private SessionConnectionService connectionService;
+   private final ObjectMapper objectMapper;
+   private final IgniteSessionRepository igniteSessionRepository;
+   private final SessionConnectionService connectionService;
    private static final Logger LOG = LoggerFactory.getLogger(WebSocketConfig.class);
 }

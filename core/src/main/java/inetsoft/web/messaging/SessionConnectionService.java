@@ -30,6 +30,7 @@ import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationListener;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.Session;
@@ -49,10 +50,13 @@ public class SessionConnectionService implements ApplicationListener<SessionExpi
    @Autowired
    public SessionConnectionService(IgniteSessionRepository sessionRepository,
                                    AuthenticationService authenticationService,
-                                   NodeProtectionService nodeProtectionService) {
+                                   NodeProtectionService nodeProtectionService,
+                                   ApplicationEventPublisher eventPublisher)
+   {
       this.sessionRepository = sessionRepository;
       this.authenticationService = authenticationService;
       this.nodeProtectionService = nodeProtectionService;
+      this.eventPublisher = eventPublisher;
    }
 
    @PostConstruct
@@ -70,6 +74,7 @@ public class SessionConnectionService implements ApplicationListener<SessionExpi
       nodeProtectionService.updateNodeProtection(true);
 
       String wsSessionId = session.getId();
+      eventPublisher.publishEvent(new WebsocketConnectionEvent(this, wsSessionId, true));
       String httpSessionId = (String) session.getAttributes().get("SPRING.SESSION.ID");
 
       synchronized(httpSessions) {
@@ -83,6 +88,7 @@ public class SessionConnectionService implements ApplicationListener<SessionExpi
       cleanReferences();
 
       String wsSessionId = session.getId();
+      eventPublisher.publishEvent(new WebsocketConnectionEvent(this, wsSessionId, false));
       String httpSessionId = (String) session.getAttributes().get("SPRING.SESSION.ID");
 
       synchronized(httpSessions) {
@@ -225,6 +231,7 @@ public class SessionConnectionService implements ApplicationListener<SessionExpi
    private final AuthenticationService authenticationService;
    private final NodeProtectionService nodeProtectionService;
    private final IgniteSessionRepository sessionRepository;
+   private final ApplicationEventPublisher eventPublisher;
    private final Map<String, WebSocketSessionRef> webSocketSessions = new HashMap<>();
    private final Map<String, Set<String>> httpSessions = new HashMap<>();
    private final AuthenticationChangeListener authenticationChangeListener = this::authenticationChanged;

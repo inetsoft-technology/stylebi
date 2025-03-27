@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,27 +15,26 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.composer.model.vs;
 
-import java.io.Serializable;
+package inetsoft.web.messaging;
 
-public class VSSortingPaneModel implements Serializable {
-   public VSSortRefModel[] getColumnSortList() {
-      return columnSortList;
+import org.springframework.context.ApplicationEvent;
+
+public class WebsocketConnectionEvent extends ApplicationEvent {
+   public WebsocketConnectionEvent(Object source, String sessionId, boolean connected) {
+      super(source);
+      this.sessionId = sessionId;
+      this.connected = connected;
    }
 
-   public void setColumnSortList(VSSortRefModel[] columnSortList) {
-      this.columnSortList = columnSortList;
+   public String getSessionId() {
+      return sessionId;
    }
 
-   public VSSortRefModel[] getColumnNoneList() {
-      return columnNoneList;
+   public boolean isConnected() {
+      return connected;
    }
 
-   public void setColumnNoneList(VSSortRefModel[] columnNoneList) {
-      this.columnNoneList = columnNoneList;
-   }
-
-   private VSSortRefModel[] columnSortList;
-   private VSSortRefModel[] columnNoneList;
+   private final String sessionId;
+   private final boolean connected;
 }

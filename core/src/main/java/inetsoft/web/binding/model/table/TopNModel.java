@@ -19,7 +19,9 @@ package inetsoft.web.binding.model.table;
 
 import inetsoft.uql.XCondition;
 
-public class TopNModel {
+import java.io.Serializable;
+
+public class TopNModel implements Serializable {
    /**
     * Create a default TopNModel.
     */

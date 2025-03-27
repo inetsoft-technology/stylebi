@@ -20,9 +20,11 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonSerialize(as = ImmutableVSAssemblyScriptPaneModel.class)
 @JsonDeserialize(as = ImmutableVSAssemblyScriptPaneModel.class)

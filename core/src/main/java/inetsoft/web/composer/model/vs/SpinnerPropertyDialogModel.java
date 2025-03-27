@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link SpinnerPropertyDialogModel} for the
  * textinput property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class SpinnerPropertyDialogModel {
+public class SpinnerPropertyDialogModel implements Serializable {
    public DataInputPaneModel getDataInputPaneModel() {
       if(dataInputPaneModel == null) {
          dataInputPaneModel = new DataInputPaneModel();

@@ -22,10 +22,11 @@ import inetsoft.uql.XConstants;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.web.binding.model.NamedGroupInfoModel;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class OrderModel {
+public class OrderModel implements Serializable {
    /**
     * Create a default OrderModel.
     */

@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.VSBindingService;
+import inetsoft.web.binding.service.VSBindingServiceProxy;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectBindingEvent;
@@ -60,15 +61,7 @@ class ComposerBindingControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = spy(new ComposerBindingController(runtimeViewsheetRef,
-              coreLifecycleService,
-                                                     groupingService,
-                                                     viewsheetEngine,
-                                                     vsObjectTreeService,
-                                                     trapService,
-                                                     assemblyHandler,
-                                                     vsBindingService,
-                                                     analyticAssistant));
+      controller = spy(new ComposerBindingController(runtimeViewsheetRef, new VSBindingServiceProxy()));
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);

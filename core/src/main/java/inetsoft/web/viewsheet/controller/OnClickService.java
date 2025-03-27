@@ -32,7 +32,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
-import inetsoft.web.binding.event.ImmutableVSOnClickEvent;
 import inetsoft.web.binding.event.VSOnClickEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.InputValue;
@@ -96,9 +95,8 @@ public class OnClickService {
          MessageCommand cmd = new MessageCommand();
          cmd.setMessage(cmsg);
          cmd.setType(MessageCommand.Type.CONFIRM);
-         VSOnClickEvent event = ImmutableVSOnClickEvent.builder()
-            .isConfirmEvent(true)
-            .build();
+         VSOnClickEvent event = new VSOnClickEvent();
+         event.setConfirmEvent(true);
          cmd.addEvent("/events/onclick/" + name + "/" + x +
                          "/" + y + "/" + true, event);
          dispatcher.sendCommand(cmd);
@@ -129,7 +127,7 @@ public class OnClickService {
             final Object[] selectedObjects = Arrays.stream(inputValues)
                .map(InputValue::value)
                .toArray();
-            this.inputService.multiApplySelection(assemblyNames, selectedObjects, principal, dispatcher, linkUri);
+            this.inputService.multiApplySelection(vsId, assemblyNames, selectedObjects, principal, dispatcher, linkUri);
          }
       }
 
@@ -311,9 +309,8 @@ public class OnClickService {
             MessageCommand cmd = new MessageCommand();
             cmd.setMessage(cmsg);
             cmd.setType(MessageCommand.Type.CONFIRM);
-            VSOnClickEvent event = ImmutableVSOnClickEvent.builder()
-               .isConfirmEvent(true)
-               .build();
+            VSOnClickEvent event = new VSOnClickEvent();
+            event.setConfirmEvent(true);
             cmd.addEvent("/events/onclick/" + name + "/" + xstr + "/" + ystr + "/" + true, event);
             dispatcher.sendCommand(cmd);
          }

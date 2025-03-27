@@ -19,7 +19,9 @@ package inetsoft.web.binding.model.table;
 
 import inetsoft.report.TableCellBinding;
 
-public class CellBindingInfo {
+import java.io.Serializable;
+
+public class CellBindingInfo implements Serializable {
    /**
     * Create a default CellBindingInfo.
     */

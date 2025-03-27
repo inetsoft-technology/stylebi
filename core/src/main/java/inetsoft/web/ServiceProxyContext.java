@@ -18,13 +18,20 @@
 
 package inetsoft.web;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.util.*;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.session.FindByIndexNameSessionRepository;
+import org.springframework.session.Session;
 
 import java.lang.reflect.Constructor;
 import java.security.Principal;
@@ -175,5 +182,22 @@ public class ServiceProxyContext {
       Tool.clearUserMessage();
       ThreadContext.setContextPrincipal(null);
       MessageContextHolder.setMessageAttributes(null);
+   }
+
+   public RuntimeViewsheetRef createRuntimeViewsheetRef() {
+      return new RuntimeViewsheetRef(ConfigurationContext.getContext()
+                                        .getSpringBean(ViewsheetService.class));
+   }
+
+   @SuppressWarnings("unchecked")
+   public CommandDispatcher createCommandDispatcher() {
+      ConfigurationContext config = ConfigurationContext.getContext();
+      StompHeaderAccessor headerAccessor =
+         MessageContextHolder.getMessageAttributes().getHeaderAccessor();
+      CommandDispatcherService dispatcherService =
+         config.getSpringBean(CommandDispatcherService.class);
+      FindByIndexNameSessionRepository<? extends Session> sessionRepository =
+         config.getSpringBean(FindByIndexNameSessionRepository.class);
+      return new CommandDispatcher(headerAccessor, dispatcherService, sessionRepository);
    }
 }

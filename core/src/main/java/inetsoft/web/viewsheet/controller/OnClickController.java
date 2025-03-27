@@ -32,9 +32,13 @@ import java.security.Principal;
 public class OnClickController {
    @Autowired
    public OnClickController(RuntimeViewsheetRef runtimeViewsheetRef,
+                            CoreLifecycleService coreLifecycleService,
+                            VSInputServiceProxy inputServiceProxy,
                             OnClickServiceProxy onClickServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.coreLifecycleService = coreLifecycleService;
+      this.inputServiceProxy = inputServiceProxy;
       this.onClickServiceProxy = onClickServiceProxy;
    }
 
@@ -63,10 +67,12 @@ public class OnClickController {
                        @LinkUri String linkUri, Principal principal,
                        CommandDispatcher dispatcher) throws Exception
    {
-      onClickServiceProxy.onClick(runtimeViewsheetRef.getRuntimeId(), name, x, y, submitEvent,
-                                  linkUri, principal, dispatcher);
+      inputServiceProxy.onClick(runtimeViewsheetRef.getRuntimeId(), name, x, y, submitEvent,
+                                linkUri, principal, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final CoreLifecycleService coreLifecycleService;
+   private final VSInputServiceProxy inputServiceProxy;
    private OnClickServiceProxy onClickServiceProxy;
-   }
+ }

@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.condition;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class JunctionOperatorModel {
+public class JunctionOperatorModel implements Serializable {
    public int getType() {
       return type;
    }

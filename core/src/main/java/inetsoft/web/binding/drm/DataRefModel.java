@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.model.graph.*;
+import org.immutables.serial.Serial;
 
 import java.io.Serializable;
 
@@ -55,7 +56,8 @@ import java.io.Serializable;
    @JsonSubTypes.Type(value = NamedRangeRefModel.class, name = "NamedRangeRefModel")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
-public interface DataRefModel extends Serializable {
+@Serial.Structural
+public interface DataRefModel {
    /**
     * Get the ref type.
     *

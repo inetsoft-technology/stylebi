@@ -17,7 +17,9 @@
  */
 package inetsoft.web.binding.event;
 
-public class GetVSObjectModelEvent {
+import java.io.Serializable;
+
+public class GetVSObjectModelEvent implements Serializable {
    /**
     * Get the assembly name.
     * @return assembly name.

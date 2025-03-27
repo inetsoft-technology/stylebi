@@ -97,7 +97,7 @@ class VSAnnotationAddControllerTest {
 
       // call method to test
       VSAnnotationAddController controller =
-         new VSAnnotationAddController(service, annotationService, runtimeViewsheetRef);
+         new VSAnnotationAddController(new VSAnnotationAddServiceProxy(), runtimeViewsheetRef);
       controller.addViewsheetAnnotation(event, "", principal, dispatcher);
 
       // check annotation and annotation rectangle were created
@@ -143,7 +143,7 @@ class VSAnnotationAddControllerTest {
 
       // call method to test
       VSAnnotationAddController controller =
-         new VSAnnotationAddController(service, annotationService, runtimeViewsheetRef);
+         new VSAnnotationAddController(new VSAnnotationAddServiceProxy(), runtimeViewsheetRef);
       controller.addAssemblyAnnotation(event, "", principal, dispatcher);
 
       // check annotation and annotation rectangle were created

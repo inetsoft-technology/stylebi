@@ -21,51 +21,70 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.InputScriptEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.cluster.*;
 import inetsoft.report.*;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
-import inetsoft.report.internal.table.TableHighlightAttr;
-import inetsoft.report.internal.table.TableHyperlinkAttr;
-import inetsoft.report.script.viewsheet.ScriptEvent;
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.report.internal.table.*;
+import inetsoft.report.script.viewsheet.*;
 import inetsoft.sree.security.ResourceAction;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.VariableTable;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.asset.internal.VariableProvider;
+import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
+import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.event.VSOnClickEvent;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.TreeNodeModel;
-import inetsoft.web.composer.model.vs.DataInputPaneModel;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.composer.model.vs.*;
+import inetsoft.web.composer.vs.dialog.DataInputController;
+import inetsoft.web.composer.vs.objects.controller.*;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.event.*;
+import inetsoft.web.vswizard.model.VSWizardConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.awt.*;
 import java.security.Principal;
+import java.text.Format;
 import java.util.*;
+import java.util.List;
 import java.util.regex.Pattern;
 
 @Service
+@ClusterProxy
 public class VSInputService {
-   @Autowired
-   public VSInputService(
-      VSObjectService vsObjectService, CoreLifecycleService coreLifecycleService,
-      ViewsheetService viewsheetService, RuntimeViewsheetRef runtimeViewsheetRef)
+
+   public VSInputService(VSObjectService vsObjectService,
+                         CoreLifecycleService coreLifecycleService,
+                         ViewsheetService viewsheetService,
+                         VSObjectPropertyService vsObjectPropertyService,
+                         VSDialogService dialogService,
+                         VSTrapService trapService,
+                         DataRefModelFactoryService dataRefModelFactoryService,
+                         VSAssemblyInfoHandler vsAssemblyInfoHandler)
    {
       this.vsObjectService = vsObjectService;
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsObjectPropertyService = vsObjectPropertyService;
+      this.dialogService = dialogService;
+      this.trapService = trapService;
+      this.dataRefModelFactoryService = dataRefModelFactoryService;
+      this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
    }
 
    /**
@@ -79,41 +98,2434 @@ public class VSInputService {
     *
     * @throws Exception if the selection could not be applied.
     */
-   public void singleApplySelection(String assemblyName, Object selectedObject,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void singleApplySelection(@ClusterProxyKey String vsId, String assemblyName, Object selectedObject,
                                     Principal principal, CommandDispatcher dispatcher,
                                     @LinkUri String linkUri) throws Exception
    {
-      final int hint = this.applySelection(assemblyName, selectedObject, principal, dispatcher);
-      refreshVS(principal, dispatcher, getOldCrosstabInfo(principal),
+      final int hint = this.applySelection(vsId, assemblyName, selectedObject, principal, dispatcher);
+      refreshVS(vsId, principal, dispatcher, getOldCrosstabInfo(vsId, principal),
                 new String[]{ assemblyName }, new Object[]{ selectedObject }, new int[]{ hint },
                 linkUri);
       // keep the 'event' object until onLoad is called. (62609)
-      detachScriptEvent(principal);
+      detachScriptEvent(vsId, principal);
+
+      return null;
    }
 
-   private void detachScriptEvent(Principal principal) throws Exception {
+   private void detachScriptEvent(String vsId, Principal principal) throws Exception {
       RuntimeViewsheet rvs =
-         vsObjectService.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
+         vsObjectService.getRuntimeViewsheet(vsId, principal);
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
       box.detachScriptEvent();
    }
 
-   public void multiApplySelection(String[] assemblyNames, Object[] selectedObjects, Principal principal,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void multiApplySelection(@ClusterProxyKey String vsId, String[] assemblyNames, Object[] selectedObjects, Principal principal,
                                    CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
       int[] hints = new int[assemblyNames.length];
-      Map<String, VSAssemblyInfo> oldCrosstabInfo = getOldCrosstabInfo(principal);
+      Map<String, VSAssemblyInfo> oldCrosstabInfo = getOldCrosstabInfo(vsId, principal);
 
       for(int i = 0; i < assemblyNames.length; i++) {
-         hints[i] = applySelection(assemblyNames[i], selectedObjects[i],
+         hints[i] = applySelection(vsId, assemblyNames[i], selectedObjects[i],
                                    principal, dispatcher);
       }
 
-      refreshVS(principal, dispatcher, oldCrosstabInfo, assemblyNames,
+      refreshVS(vsId, principal, dispatcher, oldCrosstabInfo, assemblyNames,
                 selectedObjects, hints, linkUri);
       // keep the 'event' object until onLoad is called. (62609)
-      detachScriptEvent(principal);
+      detachScriptEvent(vsId, principal);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void applySelection(@ClusterProxyKey String vsId, VSListInputSelectionEvent event,
+                              Principal principal, CommandDispatcher dispatcher,
+                              @LinkUri String linkUri)
+      throws Exception
+   {
+      final String assemblyName = event.assemblyName();
+      final RuntimeViewsheet rvs = vsObjectService.getRuntimeViewsheet(vsId, principal);
+      final Viewsheet viewsheet = rvs.getViewsheet();
+      final ComboBoxVSAssembly assembly = (ComboBoxVSAssembly) viewsheet.getAssembly(assemblyName);
+      final ComboBoxVSAssemblyInfo info = (ComboBoxVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      Object selectedValue = event.value();
+
+      try {
+         if(info.isCalendar() && selectedValue != null && !"".equals(selectedValue)) {
+            try {
+               selectedValue = new Date(Long.parseLong(selectedValue.toString()));
+            }
+            catch(Exception ex) {
+               String fmt = info.getFormat().getFormat();
+               String spec = info.getFormat().getFormatExtent();
+               Format format = TableFormat.getFormat(fmt, spec);
+
+               if(format != null) {
+                  selectedValue = format.parseObject(selectedValue.toString());
+               }
+               else {
+                  throw ex;
+               }
+            }
+         }
+      }
+      catch(Exception e) {
+         MessageCommand command = new MessageCommand();
+         command.setMessage(e.getMessage());
+         command.setType(MessageCommand.Type.ERROR);
+         dispatcher.sendCommand(command);
+         return null;
+      }
+
+      singleApplySelection(vsId, assemblyName, selectedValue, principal, dispatcher, linkUri);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public String setDetailHeight(@ClusterProxyKey String runtimeId, String objectId,
+                                 double height, Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs;
+      Viewsheet vs;
+      VSAssembly assembly;
+      ListInputVSAssemblyInfo assemblyInfo;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         vs = rvs.getViewsheet();
+         assembly = vs.getAssembly(objectId);
+         assemblyInfo = (ListInputVSAssemblyInfo) assembly.getVSAssemblyInfo();
+         assemblyInfo.setCellHeight((int) height);
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      return null;
+   }
+
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void onConfirm(@ClusterProxyKey String vsId, String name, String x, String y, boolean isConfirm,
+                         VSOnClickEvent confirmEvent, String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      ViewsheetScope scope = box.getScope();
+      List<UserMessage> usrmsg = new ArrayList<>();
+
+      //Bug #21607 on confirm event, first execute script to get the correct message
+      if(confirmEvent.confirmed()) {
+         try {
+            scope.execute("confirmEvent.confirmed = true", ViewsheetScope.VIEWSHEET_SCRIPTABLE);
+         }
+         catch(Exception ignore) {
+         }
+
+         onClick(vsId, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher);
+      }
+
+      //set confirmEvent.confirmed back to false
+      if(isConfirm) {
+         try {
+            scope.execute("confirmEvent.confirmed = false", ViewsheetScope.VIEWSHEET_SCRIPTABLE);
+         }
+         catch(Exception e) {
+         }
+      }
+
+      //pop up confirm dialog
+      String cmsg = Tool.getConfirmMessage();
+      Tool.clearConfirmMessage();
+
+      if(cmsg != null) {
+         MessageCommand cmd = new MessageCommand();
+         cmd.setMessage(cmsg);
+         cmd.setType(MessageCommand.Type.CONFIRM);
+         VSOnClickEvent event = new VSOnClickEvent();
+         event.setConfirmEvent(true);
+         cmd.addEvent("/events/onclick/" + name + "/" + x +
+                         "/" + y + "/" + true, event);
+         dispatcher.sendCommand(cmd);
+      }
+
+      if(!usrmsg.isEmpty()) {
+         final UserMessage userMessage = usrmsg.get(0);
+
+         if(userMessage != null) {
+            dispatcher.sendCommand(MessageCommand.fromUserMessage(userMessage));
+         }
+      }
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void onClick(@ClusterProxyKey String vsId, String name, String x, String y, VSSubmitEvent submitEvent,
+                       String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
+   {
+      if(submitEvent != null && submitEvent.values() != null) {
+         final InputValue[] inputValues = submitEvent.values();
+
+         if(inputValues != null) {
+            final String[] assemblyNames = Arrays.stream(inputValues)
+               .map(InputValue::assemblyName)
+               .toArray(String[]::new);
+            final Object[] selectedObjects = Arrays.stream(inputValues)
+               .map(InputValue::value)
+               .toArray();
+            multiApplySelection(vsId, assemblyNames,
+                                                       selectedObjects, principal, dispatcher, linkUri);
+         }
+      }
+
+      onClick(vsId, name, x, y, linkUri, false, null, principal, dispatcher);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public CheckboxPropertyDialogModel getCheckBoxPropertyModel(@ClusterProxyKey String runtimeId,
+                                                               String objectId, Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs;
+      Viewsheet vs;
+      CheckBoxVSAssembly checkBoxAssembly;
+      CheckBoxVSAssemblyInfo checkBoxAssemblyInfo;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         vs = rvs.getViewsheet();
+         checkBoxAssembly = (CheckBoxVSAssembly) vs.getAssembly(objectId);
+         checkBoxAssemblyInfo = (CheckBoxVSAssemblyInfo) checkBoxAssembly.getVSAssemblyInfo();
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      CheckboxPropertyDialogModel result = new CheckboxPropertyDialogModel();
+      CheckboxGeneralPaneModel checkBoxGeneralPaneModel =
+         result.getCheckboxGeneralPaneModel();
+      TitlePropPaneModel titlePropPaneModel =
+         checkBoxGeneralPaneModel.getTitlePropPaneModel();
+      GeneralPropPaneModel generalPropPaneModel =
+         checkBoxGeneralPaneModel.getGeneralPropPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel =
+         generalPropPaneModel.getBasicGeneralPaneModel();
+      ListValuesPaneModel listValuesPaneModel =
+         checkBoxGeneralPaneModel.getListValuesPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         checkBoxGeneralPaneModel.getSizePositionPaneModel();
+      ComboBoxEditorModel checkBoxEditorModel =
+         listValuesPaneModel.getComboBoxEditorModel();
+      SelectionListDialogModel selectionListDialogModel =
+         checkBoxEditorModel.getSelectionListDialogModel();
+      SelectionListEditorModel selectionListEditorModel =
+         selectionListDialogModel.getSelectionListEditorModel();
+      VariableListDialogModel variableListDialogModel =
+         checkBoxEditorModel.getVariableListDialogModel();
+      DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel =
+         VSAssemblyScriptPaneModel.builder();
+
+      titlePropPaneModel.setVisible(checkBoxAssemblyInfo.getTitleVisibleValue());
+      titlePropPaneModel.setTitle(checkBoxAssemblyInfo.getTitleValue());
+
+      generalPropPaneModel.setShowEnabledGroup(true);
+      generalPropPaneModel.setEnabled(checkBoxAssemblyInfo.getEnabledValue());
+      generalPropPaneModel.setShowSubmitCheckbox(true);
+      generalPropPaneModel.setSubmitOnChange(
+         Boolean.valueOf(checkBoxAssemblyInfo.getSubmitOnChangeValue()));
+
+      basicGeneralPaneModel.setName(checkBoxAssemblyInfo.getAbsoluteName());
+      basicGeneralPaneModel.setPrimary(checkBoxAssemblyInfo.isPrimary());
+      basicGeneralPaneModel.setVisible(checkBoxAssemblyInfo.getVisibleValue());
+      basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
+         vs, checkBoxAssemblyInfo.getAbsoluteName()));
+      basicGeneralPaneModel.setRefresh(checkBoxAssemblyInfo.isRefresh());
+
+      listValuesPaneModel.setSortType(checkBoxAssemblyInfo.getSortTypeValue());
+      listValuesPaneModel.setEmbeddedDataDown(
+         checkBoxAssemblyInfo.isEmbeddedDataDownValue());
+      listValuesPaneModel.setSelectFirstItem(checkBoxAssemblyInfo.getSelectFirstItemValue());
+
+      Point pos = dialogService.getAssemblyPosition(checkBoxAssemblyInfo, vs);
+      Dimension size = dialogService.getAssemblySize(checkBoxAssemblyInfo, vs);
+
+      sizePositionPaneModel.setPositions(pos, size);
+      sizePositionPaneModel.setTitleHeight(checkBoxAssemblyInfo.getTitleHeightValue());
+      sizePositionPaneModel.setContainer(checkBoxAssembly.getContainer() != null);
+
+      int cellHeight = checkBoxAssemblyInfo.getCellHeight();
+      sizePositionPaneModel.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
+
+      ListData listData = checkBoxAssemblyInfo.getListData() == null ?
+         new ListData() : checkBoxAssemblyInfo.getListData();
+      checkBoxEditorModel.setDataType(checkBoxAssemblyInfo.getEmbeddedDataType());
+
+      switch(checkBoxAssemblyInfo.getSourceType()) {
+      case ListInputVSAssembly.EMBEDDED_SOURCE:
+         checkBoxEditorModel.setEmbedded(true);
+         break;
+      case ListInputVSAssembly.BOUND_SOURCE:
+         checkBoxEditorModel.setQuery(true);
+         break;
+      case ListInputVSAssembly.MERGE_SOURCE:
+         checkBoxEditorModel.setEmbedded(true);
+         checkBoxEditorModel.setQuery(true);
+         break;
+      }
+
+      // keep consistent of the data type
+      if(!listData.getDataType().equals(checkBoxAssemblyInfo.getEmbeddedDataType())) {
+         listData.setDataType(checkBoxAssemblyInfo.getEmbeddedDataType());
+      }
+
+      List<String> values = new ArrayList<>();
+      String dtype = listData.getDataType();
+
+      for(Object val : listData.getValues()) {
+         String valueString = val == null ? null : Tool.getDataString(val, dtype);
+         values.add(valueString);
+      }
+
+      variableListDialogModel.setDataType(dtype);
+      variableListDialogModel.setLabels(listData.getLabels());
+      variableListDialogModel.setValues(values.toArray(new String[0]));
+
+      ListBindingInfo listBindingInfo = checkBoxAssemblyInfo.getListBindingInfo();
+      List<String[]> tablesList = this.getInputTablesArray(rvs, principal);
+      selectionListEditorModel.setTables(tablesList.get(0));
+      selectionListEditorModel.setLocalizedTables(tablesList.get(1));
+      selectionListEditorModel.setLTablesDescription(tablesList.get(2));
+      selectionListEditorModel.setForm(checkBoxAssemblyInfo.isForm());
+
+      if(listBindingInfo != null) {
+         selectionListEditorModel.setTable(listBindingInfo.getTableName());
+         selectionListEditorModel.setColumn(
+            listBindingInfo.getLabelColumn() == null ?
+               "" : listBindingInfo.getLabelColumn().getName());
+         selectionListEditorModel.setValue(
+            listBindingInfo.getValueColumn() == null ?
+               "" : listBindingInfo.getValueColumn().getName());
+         selectionListEditorModel.setDataType(
+            listBindingInfo.getDataType());
+      }
+
+      getTableName(checkBoxAssemblyInfo, dataInputPaneModel);
+      dataInputPaneModel.setTargetTree(getInputTablesTree(rvs, true, principal));
+
+      vsAssemblyScriptPaneModel.scriptEnabled(checkBoxAssemblyInfo.isScriptEnabled());
+      vsAssemblyScriptPaneModel.expression(checkBoxAssemblyInfo.getScript() == null ?
+                                              "" : checkBoxAssemblyInfo.getScript());
+      result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+
+      return result;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setCheckboxPropertyModel(@ClusterProxyKey String vsId, String objectId,
+                                        CheckboxPropertyDialogModel value,String linkUri,
+                                        Principal principal, CommandDispatcher commandDispatcher)
+      throws Exception
+   {
+      RuntimeViewsheet viewsheet;
+      CheckBoxVSAssemblyInfo checkBoxAssemblyInfo;
+
+      try {
+         ViewsheetService engine = viewsheetService;
+         viewsheet = engine.getViewsheet(vsId, principal);
+         CheckBoxVSAssembly checkBoxAssembly = (CheckBoxVSAssembly)
+            viewsheet.getViewsheet().getAssembly(objectId);
+         checkBoxAssemblyInfo = (CheckBoxVSAssemblyInfo)
+            Tool.clone(checkBoxAssembly.getVSAssemblyInfo());
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      CheckboxGeneralPaneModel checkBoxGeneralPaneModel = value.getCheckboxGeneralPaneModel();
+      TitlePropPaneModel titlePropPaneModel = checkBoxGeneralPaneModel.getTitlePropPaneModel();
+      GeneralPropPaneModel generalPropPaneModel =
+         checkBoxGeneralPaneModel.getGeneralPropPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         checkBoxGeneralPaneModel.getSizePositionPaneModel();
+      DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
+
+      checkBoxAssemblyInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
+      checkBoxAssemblyInfo.setTitleValue(titlePropPaneModel.getTitle());
+
+      checkBoxAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
+      checkBoxAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
+
+      checkBoxAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
+      checkBoxAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
+      checkBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      dialogService.setAssemblySize(checkBoxAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblyPosition(checkBoxAssemblyInfo, sizePositionPaneModel);
+
+      checkBoxAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      checkBoxAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
+
+      setListValues(checkBoxAssemblyInfo, value, viewsheet, principal);
+
+      // TODO validate column/row variable/expression type
+      String table = dataInputPaneModel.getTable();
+      checkBoxAssemblyInfo.setTableName(
+         table == null || "".equals(table.trim()) ? null : table);
+      checkBoxAssemblyInfo.setVariable(table != null && dataInputPaneModel.isVariable());
+
+      checkBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
+      checkBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
+
+      this.vsObjectPropertyService.editObjectProperty(
+         viewsheet, checkBoxAssemblyInfo, objectId, basicGeneralPaneModel.getName(),
+         linkUri, principal, commandDispatcher);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public VSTableTrapModel checkTrap(@ClusterProxyKey String runtimeId, CheckboxPropertyDialogModel model,
+                                     String objectId, Principal principal) throws Exception
+   {
+      RuntimeViewsheet viewsheet = viewsheetService.getViewsheet(runtimeId, principal);
+      CheckBoxVSAssembly checkBoxVSAssembly =
+         (CheckBoxVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+
+      if(checkBoxVSAssembly == null) {
+         return VSTableTrapModel.builder()
+            .showTrap(false)
+            .build();
+      }
+
+      VSAssemblyInfo oldAssemblyInfo =
+         (VSAssemblyInfo) Tool.clone(checkBoxVSAssembly.getVSAssemblyInfo());
+      CheckBoxVSAssemblyInfo newAssemblyInfo =
+         (CheckBoxVSAssemblyInfo) Tool.clone(checkBoxVSAssembly.getVSAssemblyInfo());
+
+      setListValues(newAssemblyInfo, model, viewsheet, principal);
+
+      return trapService.checkTrap(viewsheet, oldAssemblyInfo, newAssemblyInfo);
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public VSSortingDialogModel getVSSortingDialogModel(@ClusterProxyKey String runtimeId, String objectId,
+                                                       Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+      CalcTableVSAssembly assembly = (CalcTableVSAssembly) viewsheet.getAssembly(objectId);
+      CalcTableVSAssemblyInfo assemblyInfo = (CalcTableVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      SourceInfo sourceInfo = assemblyInfo.getSourceInfo();
+      SortInfo sortInfo = assemblyInfo.getSortInfo();
+      ColumnSelection columnSelection = null;
+      SortRef[] sortRefs = sortInfo == null ? new SortRef[0] : sortInfo.getSorts();
+      List<VSSortRefModel> columnSortList = new ArrayList<>();
+      List<VSSortRefModel> columnNoneList = new ArrayList<>();
+      DataRef[] allColumns = new DataRef[0];
+
+      if(sourceInfo != null && sourceInfo.getSource() != null) {
+         columnSelection =getTableColumns(rvs, sourceInfo.getSource(), null, null, null,
+                                           false, false, true, false, false, true, principal);
+         allColumns = (DataRef[]) Collections.list(columnSelection.getAttributes()).toArray(new DataRef[0]);
+      }
+
+      for(SortRef sortRef : sortRefs) {
+         if(columnSelection == null || !containsColumn(sortRef.getDataRef(), allColumns)) {
+            continue;
+         }
+
+         VSSortRefModel sortRefModel = new VSSortRefModel();
+         sortRefModel.setDataRefModel(dataRefModelFactoryService.createDataRefModel(sortRef.getDataRef()));
+         sortRefModel.setOrder(sortRef.getOrder());
+         columnSortList.add(sortRefModel);
+      }
+
+      if(columnSelection != null) {
+         for(int i = 0; i < columnSelection.getAttributeCount(); i++) {
+            DataRef ref = columnSelection.getAttribute(i);
+
+            if(containsColumn(ref, sortRefs)) {
+               continue;
+            }
+
+            VSSortRefModel sortRefModel = new VSSortRefModel();
+            sortRefModel.setDataRefModel(dataRefModelFactoryService.createDataRefModel(ref));
+            sortRefModel.setOrder(StyleConstants.SORT_NONE);
+            columnNoneList.add(sortRefModel);
+         }
+      }
+
+      VSSortingDialogModel vsSortingDialogModel = new VSSortingDialogModel();
+      VSSortingPaneModel vsSortingPaneModel = vsSortingDialogModel.getVsSortingPaneModel();
+      vsSortingPaneModel.setColumnSortList(columnSortList.toArray(new VSSortRefModel[0]));
+      vsSortingPaneModel.setColumnNoneList(columnNoneList.toArray(new VSSortRefModel[0]));
+
+      return vsSortingDialogModel;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setVSSortingDialogModel(@ClusterProxyKey String vsId, String objectId,
+                                       VSSortingDialogModel model,Principal principal,
+                                       CommandDispatcher dispatcher) throws Exception
+   {
+      RuntimeViewsheet rvs =
+         vsObjectService.getRuntimeViewsheet(vsId, principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+      CalcTableVSAssembly assembly = (CalcTableVSAssembly) viewsheet.getAssembly(objectId);
+      CalcTableVSAssemblyInfo assemblyInfo = (CalcTableVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      SortInfo sortInfo = new SortInfo();
+
+      for(VSSortRefModel vsSortRefModel : model.getVsSortingPaneModel().getColumnSortList()) {
+         SortRef sortRef = new SortRef();
+         DataRefModel dataRefModel = vsSortRefModel.getDataRefModel();
+         sortRef.setDataRef(dataRefModel.createDataRef());
+         sortRef.setOrder(vsSortRefModel.getOrder());
+         sortInfo.addSort(sortRef);
+      }
+
+      assemblyInfo.setSortInfo(sortInfo);
+      this.vsAssemblyInfoHandler.apply(rvs, assemblyInfo, viewsheetService, false, false, true, false, dispatcher);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public TextInputPropertyDialogModel getTextInputPropertyDialogModel(@ClusterProxyKey String runtimeId,
+                                                                       String objectId, Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs;
+      Viewsheet vs;
+      TextInputVSAssembly textInputAssembly;
+      TextInputVSAssemblyInfo textInputAssemblyInfo;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         vs = rvs.getViewsheet();
+         textInputAssembly = (TextInputVSAssembly) vs.getAssembly(objectId);
+         textInputAssemblyInfo = (TextInputVSAssemblyInfo) textInputAssembly.getVSAssemblyInfo();
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      TextInputPropertyDialogModel result = new TextInputPropertyDialogModel();
+      TextInputGeneralPaneModel textInputGeneralPaneModel = result.getTextInputGeneralPaneModel();
+      GeneralPropPaneModel generalPropPaneModel = textInputGeneralPaneModel.getGeneralPropPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         textInputGeneralPaneModel.getSizePositionPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
+      DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      TextInputColumnOptionPaneModel textInputColumnOptionPaneModel = result.getTextInputColumnOptionPaneModel();
+      ClickableScriptPaneModel.Builder clickableScriptPaneModel = ClickableScriptPaneModel.builder();
+
+      generalPropPaneModel.setShowEnabledGroup(true);
+      generalPropPaneModel.setEnabled(textInputAssemblyInfo.getEnabledValue());
+      generalPropPaneModel.setShowSubmitCheckbox(true);
+      generalPropPaneModel.setSubmitOnChange(Boolean.valueOf(textInputAssemblyInfo.getSubmitOnChangeValue()));
+
+      Point pos = dialogService.getAssemblyPosition(textInputAssemblyInfo, vs);
+      Dimension size = dialogService.getAssemblySize(textInputAssemblyInfo, vs);
+
+      sizePositionPaneModel.setPositions(pos, size);
+      sizePositionPaneModel.setContainer(textInputAssembly.getContainer() != null);
+
+      basicGeneralPaneModel.setName(textInputAssemblyInfo.getAbsoluteName());
+      basicGeneralPaneModel.setPrimary(textInputAssemblyInfo.isPrimary());
+      basicGeneralPaneModel.setVisible(textInputAssemblyInfo.getVisibleValue());
+      basicGeneralPaneModel.setObjectNames(
+         this.vsObjectPropertyService.getObjectNames(vs, textInputAssemblyInfo.getAbsoluteName()));
+      basicGeneralPaneModel.setRefresh(textInputAssemblyInfo.isRefresh());
+
+      textInputGeneralPaneModel.setToolTip(textInputAssemblyInfo.getToolTipValue());
+      textInputGeneralPaneModel.setDefaultText(textInputAssemblyInfo.getDefaultTextValue());
+      textInputGeneralPaneModel.setInsetStyle(textInputAssemblyInfo.isInsetStyle());
+      textInputGeneralPaneModel.setMultiLine(textInputAssemblyInfo.isMultiline());
+
+      getTableName(textInputAssemblyInfo, dataInputPaneModel);
+      dataInputPaneModel.setColumnValue(textInputAssemblyInfo.getColumnValue());
+      dataInputPaneModel.setRowValue(textInputAssemblyInfo.getRowValue());
+      dataInputPaneModel.setTargetTree(getInputTablesTree(rvs, false, principal));
+      dataInputPaneModel.setWriteBackDirectly(textInputAssemblyInfo.getWriteBackValue());
+
+      ColumnOption columnOption = textInputAssemblyInfo.getColumnOption();
+      String optionType = columnOption.getType();
+      textInputColumnOptionPaneModel.setType(optionType);
+
+      if(optionType.equals(ColumnOption.TEXT)) {
+         TextEditorModel textEditorModel = textInputColumnOptionPaneModel.getTextEditorModel();
+         textEditorModel.setPattern(((TextColumnOption) columnOption).getPattern());
+         textEditorModel.setErrorMessage(columnOption.getMessage());
+      }
+      else if(optionType.equals(ColumnOption.DATE)) {
+         DateEditorModel dateEditorModel = textInputColumnOptionPaneModel.getDateEditorModel();
+         dateEditorModel.setMinimum(((DateColumnOption) columnOption).getMin());
+         dateEditorModel.setMaximum(((DateColumnOption) columnOption).getMax());
+         dateEditorModel.setErrorMessage(columnOption.getMessage());
+      }
+      else if(optionType.equals(ColumnOption.INTEGER)) {
+         IntegerEditorModel integerEditorModel = textInputColumnOptionPaneModel.getIntegerEditorModel();
+         IntegerColumnOption integerColumnOption = (IntegerColumnOption) columnOption;
+         Integer min = integerColumnOption.getMin() == Integer.MIN_VALUE ?
+            null : integerColumnOption.getMin();
+         Integer max = integerColumnOption.getMax() == Integer.MAX_VALUE ?
+            null : integerColumnOption.getMax();
+         integerEditorModel.setMinimum(min);
+         integerEditorModel.setMaximum(max);
+         integerEditorModel.setErrorMessage(columnOption.getMessage());
+      }
+      else if(optionType.equals(ColumnOption.FLOAT)) {
+         FloatEditorModel floatEditorModel = textInputColumnOptionPaneModel.getFloatEditorModel();
+         FloatColumnOption floatColumnOption = (FloatColumnOption) columnOption;
+         Float min = floatColumnOption.getMin() == null ?
+            null : Float.parseFloat(floatColumnOption.getMin());
+         Float max = floatColumnOption.getMax() == null ?
+            null : Float.parseFloat(floatColumnOption.getMax());
+         floatEditorModel.setMinimum(min);
+         floatEditorModel.setMaximum(max);
+         floatEditorModel.setErrorMessage(columnOption.getMessage());
+      }
+      else if(optionType.equals(ColumnOption.PASSWORD)) {
+         TextEditorModel passwordEditorModel =
+            textInputColumnOptionPaneModel.getPasswordEditorModel();
+         passwordEditorModel.setPattern(
+            ((PasswordColumnOption) columnOption).getPattern());
+         passwordEditorModel.setErrorMessage(columnOption.getMessage());
+      }
+
+      clickableScriptPaneModel.scriptEnabled(textInputAssemblyInfo.isScriptEnabled());
+      String script = textInputAssemblyInfo.getScript() == null ? "" : textInputAssemblyInfo.getScript();
+      String onClick = textInputAssemblyInfo.getOnClick() == null ? "" :textInputAssemblyInfo.getOnClick();
+      clickableScriptPaneModel.scriptExpression(script);
+      clickableScriptPaneModel.onClickExpression(onClick);
+      result.setClickableScriptPaneModel(clickableScriptPaneModel.build());
+
+      return result;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setTextInputPropertyDialogModel(@ClusterProxyKey String vsId, String objectId,
+                                               TextInputPropertyDialogModel value, String linkUri,
+                                               Principal principal, CommandDispatcher commandDispatcher) throws Exception
+   {
+      RuntimeViewsheet viewsheet;
+      TextInputVSAssemblyInfo textInputAssemblyInfo;
+
+      try {
+         viewsheet = viewsheetService.getViewsheet(vsId, principal);
+         TextInputVSAssembly textInputAssembly = (TextInputVSAssembly)
+            viewsheet.getViewsheet().getAssembly(objectId);
+         textInputAssemblyInfo = (TextInputVSAssemblyInfo)
+            Tool.clone(textInputAssembly.getVSAssemblyInfo());
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      TextInputGeneralPaneModel textInputGeneralPaneModel = value.getTextInputGeneralPaneModel();
+      GeneralPropPaneModel generalPropPaneModel =
+         textInputGeneralPaneModel.getGeneralPropPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         textInputGeneralPaneModel.getSizePositionPaneModel();
+      DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      TextInputColumnOptionPaneModel textInputColumnOptionPaneModel =
+         value.getTextInputColumnOptionPaneModel();
+      ClickableScriptPaneModel clickableScriptPaneModel = value.getClickableScriptPaneModel();
+
+      textInputAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
+      textInputAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
+
+      textInputAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
+      textInputAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
+      textInputAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      dialogService.setAssemblySize(textInputAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblyPosition(textInputAssemblyInfo, sizePositionPaneModel);
+
+      textInputAssemblyInfo.setToolTipValue(textInputGeneralPaneModel.getToolTip());
+      textInputAssemblyInfo.setDefaultTextValue(textInputGeneralPaneModel.getDefaultText());
+      textInputAssemblyInfo.setInsetStyle(textInputGeneralPaneModel.isInsetStyle());
+      textInputAssemblyInfo.setMultiline(textInputGeneralPaneModel.isMultiLine());
+
+      String table = dataInputPaneModel.getTable();
+      textInputAssemblyInfo.setTableName(table == null ? "" : table);
+      textInputAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
+      textInputAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
+      textInputAssemblyInfo.setVariable(table != null && table.startsWith("$(") &&
+                                           table.endsWith(")"));
+      textInputAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
+
+      String optionType = textInputColumnOptionPaneModel.getType();
+
+      if(optionType.equals(ColumnOption.TEXT)) {
+         TextEditorModel textEditorModel = textInputColumnOptionPaneModel.getTextEditorModel();
+         TextColumnOption textColumnOption = new TextColumnOption(textEditorModel.getPattern(),
+                                                                  textEditorModel.getErrorMessage(),
+                                                                  true);
+         textInputAssemblyInfo.setColumnOption(textColumnOption);
+      }
+      else if(optionType.equals(ColumnOption.DATE)) {
+         DateEditorModel dateEditorModel = textInputColumnOptionPaneModel.getDateEditorModel();
+         DateColumnOption dateColumnOption = new DateColumnOption(dateEditorModel.getMaximum(),
+                                                                  dateEditorModel.getMinimum(),
+                                                                  dateEditorModel.getErrorMessage(),
+                                                                  true);
+         textInputAssemblyInfo.setColumnOption(dateColumnOption);
+      }
+      else if(optionType.equals(ColumnOption.INTEGER)) {
+         IntegerEditorModel integerEditorModel =
+            textInputColumnOptionPaneModel.getIntegerEditorModel();
+         IntegerColumnOption integerColumnOption = new IntegerColumnOption(
+            integerEditorModel.getMaximum(),
+            integerEditorModel.getMinimum(),
+            integerEditorModel.getErrorMessage(),
+            true);
+         textInputAssemblyInfo.setColumnOption(integerColumnOption);
+      }
+      else if(optionType.equals(ColumnOption.FLOAT)) {
+         FloatEditorModel floatEditorModel = textInputColumnOptionPaneModel.getFloatEditorModel();
+         String max = floatEditorModel.getMaximum() == null ?
+            null : floatEditorModel.getMaximum() + "";
+         String min = floatEditorModel.getMinimum() == null ?
+            null : floatEditorModel.getMinimum() + "";
+         FloatColumnOption floatColumnOption =
+            new FloatColumnOption(max, min, floatEditorModel.getErrorMessage(), true);
+         textInputAssemblyInfo.setColumnOption(floatColumnOption);
+      }
+      else if(optionType.equals(ColumnOption.PASSWORD)) {
+         TextEditorModel passwordEditorModel =
+            textInputColumnOptionPaneModel.getPasswordEditorModel();
+         PasswordColumnOption passwordColumnOption = new PasswordColumnOption(
+            passwordEditorModel.getPattern(),
+            passwordEditorModel.getErrorMessage(), true);
+         textInputAssemblyInfo.setColumnOption(passwordColumnOption);
+      }
+
+      textInputAssemblyInfo.setScriptEnabled(clickableScriptPaneModel.scriptEnabled());
+      textInputAssemblyInfo.setScript(clickableScriptPaneModel.scriptExpression());
+      textInputAssemblyInfo.setOnClick(clickableScriptPaneModel.onClickExpression());
+
+      this.vsObjectPropertyService.editObjectProperty(
+         viewsheet, textInputAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
+         principal, commandDispatcher);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public SliderPropertyDialogModel getSliderPropertyDialogModel(@ClusterProxyKey String runtimeId,
+                                                                 String objectId, Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs;
+      Viewsheet vs;
+      SliderVSAssembly sliderAssembly;
+      SliderVSAssemblyInfo sliderAssemblyInfo;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         vs = rvs.getViewsheet();
+         sliderAssembly = (SliderVSAssembly) vs.getAssembly(objectId);
+         sliderAssemblyInfo = (SliderVSAssemblyInfo) sliderAssembly.getVSAssemblyInfo();
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      SliderPropertyDialogModel result = new SliderPropertyDialogModel();
+      SliderGeneralPaneModel sliderGeneralPaneModel = result.getSliderGeneralPaneModel();
+      NumericRangePaneModel numericRangePaneModel = sliderGeneralPaneModel.getNumericRangePaneModel();
+      GeneralPropPaneModel generalPropPaneModel = sliderGeneralPaneModel.getGeneralPropPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         sliderGeneralPaneModel.getSizePositionPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
+      DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      SliderAdvancedPaneModel sliderAdvancedPaneModel = result.getSliderAdvancedPaneModel();
+      SliderLabelPaneModel sliderLabelPaneModel = sliderAdvancedPaneModel.getSliderLabelPaneModel();
+      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
+
+      numericRangePaneModel.setMinimum(sliderAssemblyInfo.getMinValue());
+      numericRangePaneModel.setMaximum(sliderAssemblyInfo.getMaxValue());
+      numericRangePaneModel.setIncrement(sliderAssemblyInfo.getIncrementValue());
+
+      generalPropPaneModel.setShowEnabledGroup(true);
+      generalPropPaneModel.setEnabled(sliderAssemblyInfo.getEnabledValue());
+      generalPropPaneModel.setShowSubmitCheckbox(true);
+      generalPropPaneModel.setSubmitOnChange(Boolean.valueOf(sliderAssemblyInfo.getSubmitOnChangeValue()));
+
+      Point pos = dialogService.getAssemblyPosition(sliderAssemblyInfo, vs);
+      Dimension size = dialogService.getAssemblySize(sliderAssemblyInfo, vs);
+
+      sizePositionPaneModel.setPositions(pos, size);
+      sizePositionPaneModel.setContainer(sliderAssembly.getContainer() != null);
+
+      basicGeneralPaneModel.setName(sliderAssemblyInfo.getAbsoluteName());
+      basicGeneralPaneModel.setPrimary(sliderAssemblyInfo.isPrimary());
+      basicGeneralPaneModel.setVisible(sliderAssemblyInfo.getVisibleValue());
+      basicGeneralPaneModel.setObjectNames(
+         this.vsObjectPropertyService.getObjectNames(vs, sliderAssemblyInfo.getAbsoluteName()));
+      basicGeneralPaneModel.setRefresh(sliderAssemblyInfo.isRefresh());
+
+      getTableName(sliderAssemblyInfo, dataInputPaneModel);
+      dataInputPaneModel.setColumnValue(sliderAssemblyInfo.getColumnValue());
+      dataInputPaneModel.setRowValue(sliderAssemblyInfo.getRowValue());
+      dataInputPaneModel.setTargetTree(getInputTablesTree(rvs, false, principal));
+      dataInputPaneModel.setWriteBackDirectly(sliderAssemblyInfo.getWriteBackValue());
+
+      sliderLabelPaneModel.setShowLabel(true);
+      sliderLabelPaneModel.setTick(sliderAssemblyInfo.getTickVisibleValue());
+      sliderLabelPaneModel.setCurrentValue(sliderAssemblyInfo.getCurrentVisibleValue());
+      sliderLabelPaneModel.setLabel(sliderAssemblyInfo.getLabelVisibleValue());
+      sliderLabelPaneModel.setMinimum(sliderAssemblyInfo.getMinVisibleValue());
+      sliderLabelPaneModel.setMaximum(sliderAssemblyInfo.getMaxVisibleValue());
+
+      sliderAdvancedPaneModel.setSnap(sliderAssemblyInfo.isSnap());
+
+      vsAssemblyScriptPaneModel.scriptEnabled(sliderAssemblyInfo.isScriptEnabled());
+      vsAssemblyScriptPaneModel.expression(sliderAssemblyInfo.getScript() == null ?
+                                              "" : sliderAssemblyInfo.getScript());
+      result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+
+      return result;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setSliderPropertyDialogModel(@ClusterProxyKey String vsId, String objectId,
+                                            SliderPropertyDialogModel value,String linkUri, Principal principal,
+                                            CommandDispatcher commandDispatcher) throws Exception
+   {
+      RuntimeViewsheet viewsheet;
+      SliderVSAssemblyInfo sliderAssemblyInfo;
+
+      try {
+         viewsheet = viewsheetService.getViewsheet(vsId, principal);
+         SliderVSAssembly sliderAssembly = (SliderVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+         sliderAssemblyInfo = (SliderVSAssemblyInfo) Tool.clone(sliderAssembly.getVSAssemblyInfo());
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      SliderGeneralPaneModel sliderGeneralPaneModel = value.getSliderGeneralPaneModel();
+      NumericRangePaneModel numericRangePaneModel = sliderGeneralPaneModel.getNumericRangePaneModel();
+      GeneralPropPaneModel generalPropPaneModel = sliderGeneralPaneModel.getGeneralPropPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         sliderGeneralPaneModel.getSizePositionPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
+      DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      SliderAdvancedPaneModel sliderAdvancedPaneModel = value.getSliderAdvancedPaneModel();
+      SliderLabelPaneModel sliderLabelPaneModel = sliderAdvancedPaneModel.getSliderLabelPaneModel();
+      VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
+
+      sliderAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
+      sliderAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
+      sliderAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      dialogService.setAssemblySize(sliderAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblyPosition(sliderAssemblyInfo, sizePositionPaneModel);
+
+      sliderAssemblyInfo.setMinValue(numericRangePaneModel.getMinimum());
+      sliderAssemblyInfo.setMaxValue(numericRangePaneModel.getMaximum());
+
+      if(sliderAssemblyInfo.getSelectedObject() instanceof Number &&
+         ((Number) sliderAssemblyInfo.getSelectedObject()).doubleValue() < sliderAssemblyInfo.getMin()){
+         sliderAssemblyInfo.setSelectedObject(sliderAssemblyInfo.getMin());
+      }
+
+      if(sliderAssemblyInfo.getSelectedObject() instanceof Number &&
+         ((Number) sliderAssemblyInfo.getSelectedObject()).doubleValue() > sliderAssemblyInfo.getMax()){
+         sliderAssemblyInfo.setSelectedObject(sliderAssemblyInfo.getMax());
+      }
+
+      sliderAssemblyInfo.setIncrementValue(numericRangePaneModel.getIncrement());
+
+      sliderAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
+      sliderAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
+
+      String table = dataInputPaneModel.getTable();
+      sliderAssemblyInfo.setTableName(table == null ? "" : table);
+      sliderAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
+      sliderAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
+      sliderAssemblyInfo.setVariable(table != null && table.startsWith("$(") && table.endsWith(")"));
+      sliderAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
+
+      sliderAssemblyInfo.setTickVisibleValue(sliderLabelPaneModel.isTick());
+      sliderAssemblyInfo.setCurrentVisibleValue(sliderLabelPaneModel.isCurrentValue());
+      sliderAssemblyInfo.setLabelVisibleValue(sliderLabelPaneModel.isLabel());
+      sliderAssemblyInfo.setMinVisibleValue(sliderLabelPaneModel.isMinimum());
+      sliderAssemblyInfo.setMaxVisibleValue(sliderLabelPaneModel.isMaximum());
+
+      sliderAssemblyInfo.setSnapValue(sliderAdvancedPaneModel.isSnap());
+
+      sliderAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
+      sliderAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
+
+      this.vsObjectPropertyService.editObjectProperty(
+         viewsheet, sliderAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
+         principal, commandDispatcher);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public RadioButtonPropertyDialogModel getRadioButtonPropertyModel(@ClusterProxyKey String runtimeId,
+                                                                     String objectId, Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs;
+      Viewsheet vs;
+      RadioButtonVSAssemblyInfo radioButtonAssemblyInfo;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         vs = rvs.getViewsheet();
+         RadioButtonVSAssembly radioButtonAssembly = (RadioButtonVSAssembly) vs.getAssembly(objectId);
+         radioButtonAssemblyInfo = (RadioButtonVSAssemblyInfo) radioButtonAssembly.getVSAssemblyInfo();
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      RadioButtonPropertyDialogModel result = new RadioButtonPropertyDialogModel();
+      RadioButtonGeneralPaneModel radioButtonGeneralPaneModel =
+         result.getRadioButtonGeneralPaneModel();
+      TitlePropPaneModel titlePropPaneModel =
+         radioButtonGeneralPaneModel.getTitlePropPaneModel();
+      GeneralPropPaneModel generalPropPaneModel =
+         radioButtonGeneralPaneModel.getGeneralPropPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel =
+         generalPropPaneModel.getBasicGeneralPaneModel();
+      ListValuesPaneModel listValuesPaneModel =
+         radioButtonGeneralPaneModel.getListValuesPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         radioButtonGeneralPaneModel.getSizePositionPaneModel();
+      ComboBoxEditorModel radioButtonEditorModel =
+         listValuesPaneModel.getComboBoxEditorModel();
+      SelectionListDialogModel selectionListDialogModel =
+         radioButtonEditorModel.getSelectionListDialogModel();
+      SelectionListEditorModel selectionListEditorModel =
+         selectionListDialogModel.getSelectionListEditorModel();
+      VariableListDialogModel variableListDialogModel =
+         radioButtonEditorModel.getVariableListDialogModel();
+      DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel =
+         VSAssemblyScriptPaneModel.builder();
+
+      titlePropPaneModel.setVisible(radioButtonAssemblyInfo.getTitleVisibleValue());
+      titlePropPaneModel.setTitle(radioButtonAssemblyInfo.getTitleValue());
+
+      generalPropPaneModel.setShowEnabledGroup(true);
+      generalPropPaneModel.setEnabled(radioButtonAssemblyInfo.getEnabledValue());
+      generalPropPaneModel.setShowSubmitCheckbox(true);
+      generalPropPaneModel.setSubmitOnChange(
+         Boolean.valueOf(radioButtonAssemblyInfo.getSubmitOnChangeValue()));
+
+      basicGeneralPaneModel.setName(radioButtonAssemblyInfo.getAbsoluteName());
+      basicGeneralPaneModel.setPrimary(radioButtonAssemblyInfo.isPrimary());
+      basicGeneralPaneModel.setVisible(radioButtonAssemblyInfo.getVisibleValue());
+      basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
+         vs, radioButtonAssemblyInfo.getAbsoluteName()));
+      basicGeneralPaneModel.setRefresh(radioButtonAssemblyInfo.isRefresh());
+
+      listValuesPaneModel.setSortType(radioButtonAssemblyInfo.getSortTypeValue());
+      listValuesPaneModel.setEmbeddedDataDown(
+         radioButtonAssemblyInfo.isEmbeddedDataDownValue());
+
+      Point pos = dialogService.getAssemblyPosition(radioButtonAssemblyInfo, vs);
+      Dimension size = dialogService.getAssemblySize(radioButtonAssemblyInfo, vs);
+
+      sizePositionPaneModel.setPositions(pos, size);
+      sizePositionPaneModel.setTitleHeight(radioButtonAssemblyInfo.getTitleHeightValue());
+      int cellHeight = radioButtonAssemblyInfo.getCellHeight();
+      sizePositionPaneModel.setCellHeight(cellHeight <= 0 ? AssetUtil.defh : cellHeight);
+
+      ListData listData = radioButtonAssemblyInfo.getListData() == null ?
+         new ListData() : radioButtonAssemblyInfo.getListData();
+      radioButtonEditorModel.setDataType(radioButtonAssemblyInfo.getEmbeddedDataType());
+
+      switch(radioButtonAssemblyInfo.getSourceType()) {
+      case ListInputVSAssembly.EMBEDDED_SOURCE:
+         radioButtonEditorModel.setEmbedded(true);
+         break;
+      case ListInputVSAssembly.BOUND_SOURCE:
+         radioButtonEditorModel.setQuery(true);
+         break;
+      case ListInputVSAssembly.MERGE_SOURCE:
+         radioButtonEditorModel.setEmbedded(true);
+         radioButtonEditorModel.setQuery(true);
+         break;
+      }
+
+      // keep consistent of the data type
+      if(!Objects.equals(listData.getDataType(), radioButtonAssemblyInfo.getEmbeddedDataType())) {
+         listData.setDataType(radioButtonAssemblyInfo.getEmbeddedDataType());
+      }
+
+      List<String> values = new ArrayList<>();
+      String dtype = listData.getDataType();
+
+      for(Object val : listData.getValues()) {
+         values.add(val == null ? null : Tool.getDataString(val));
+      }
+
+      variableListDialogModel.setDataType(dtype);
+      variableListDialogModel.setLabels(listData.getLabels());
+      variableListDialogModel.setValues(values.toArray(new String[0]));
+
+      ListBindingInfo listBindingInfo = radioButtonAssemblyInfo.getListBindingInfo();
+      List<String[]> tablesList = getInputTablesArray(rvs, principal);
+      selectionListEditorModel.setTables(tablesList.get(0));
+      selectionListEditorModel.setLocalizedTables(tablesList.get(1));
+      selectionListEditorModel.setLTablesDescription(tablesList.get(2));
+      selectionListEditorModel.setForm(radioButtonAssemblyInfo.isForm());
+
+      if(listBindingInfo != null) {
+         selectionListEditorModel.setTable(listBindingInfo.getTableName());
+         selectionListEditorModel.setColumn(
+            listBindingInfo.getLabelColumn() == null ?
+               "" : listBindingInfo.getLabelColumn().getName());
+         selectionListEditorModel.setValue(
+            listBindingInfo.getValueColumn() == null ?
+               "" : listBindingInfo.getValueColumn().getName());
+         selectionListEditorModel.setDataType(listBindingInfo.getDataType());
+      }
+
+      getTableName(radioButtonAssemblyInfo, dataInputPaneModel);
+      dataInputPaneModel.setColumnValue(radioButtonAssemblyInfo.getColumnValue());
+      dataInputPaneModel.setWriteBackDirectly(radioButtonAssemblyInfo.getWriteBackValue());
+      dataInputPaneModel.setRowValue(radioButtonAssemblyInfo.getRowValue());
+      dataInputPaneModel.setTargetTree(getInputTablesTree(rvs, false, principal));
+      dataInputPaneModel.setVariable(radioButtonAssemblyInfo.isVariable());
+
+      //set variable name
+      if(dataInputPaneModel.isVariable()) {
+         dataInputPaneModel.setTable(radioButtonAssemblyInfo.getTableName());
+      }
+
+      vsAssemblyScriptPaneModel.scriptEnabled(radioButtonAssemblyInfo.isScriptEnabled());
+      vsAssemblyScriptPaneModel.expression(radioButtonAssemblyInfo.getScript() == null ?
+                                              "" : radioButtonAssemblyInfo.getScript());
+      result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+
+      return result;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setRadioButtonPropertyModel(@ClusterProxyKey String vsId, String objectId,
+                                           RadioButtonPropertyDialogModel value, String linkUri,
+                                           Principal principal, CommandDispatcher commandDispatcher) throws Exception
+   {
+      RuntimeViewsheet viewsheet;
+      RadioButtonVSAssemblyInfo radioButtonAssemblyInfo;
+
+      try {
+         ViewsheetService engine = viewsheetService;
+         viewsheet = engine.getViewsheet(vsId, principal);
+         RadioButtonVSAssembly radioButtonAssembly = (RadioButtonVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+         radioButtonAssemblyInfo = (RadioButtonVSAssemblyInfo) Tool.clone(radioButtonAssembly.getVSAssemblyInfo());
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      RadioButtonGeneralPaneModel radioButtonGeneralPaneModel = value.getRadioButtonGeneralPaneModel();
+      TitlePropPaneModel titlePropPaneModel = radioButtonGeneralPaneModel.getTitlePropPaneModel();
+      GeneralPropPaneModel generalPropPaneModel = radioButtonGeneralPaneModel.getGeneralPropPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
+      ListValuesPaneModel listValuesPaneModel = radioButtonGeneralPaneModel.getListValuesPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         radioButtonGeneralPaneModel.getSizePositionPaneModel();
+      ComboBoxEditorModel radioButtonEditorModel = listValuesPaneModel.getComboBoxEditorModel();
+      SelectionListDialogModel selectionListDialogModel = radioButtonEditorModel.getSelectionListDialogModel();
+      SelectionListEditorModel selectionListEditorModel = selectionListDialogModel.getSelectionListEditorModel();
+      VariableListDialogModel variableListDialogModel = radioButtonEditorModel.getVariableListDialogModel();
+      DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
+
+      radioButtonAssemblyInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
+      radioButtonAssemblyInfo.setTitleValue(titlePropPaneModel.getTitle());
+
+      radioButtonAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
+      radioButtonAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
+
+      radioButtonAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
+      radioButtonAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
+      radioButtonAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      dialogService.setAssemblySize(radioButtonAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblyPosition(radioButtonAssemblyInfo, sizePositionPaneModel);
+
+      radioButtonAssemblyInfo.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      radioButtonAssemblyInfo.setCellHeight(sizePositionPaneModel.getCellHeight());
+
+      setListValues(radioButtonAssemblyInfo, value, viewsheet, principal);
+
+      String table = dataInputPaneModel.getTable();
+      radioButtonAssemblyInfo.setTableName(table == null ? "" : table);
+      radioButtonAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
+      radioButtonAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
+      radioButtonAssemblyInfo.setVariable(dataInputPaneModel.isVariable());
+      radioButtonAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
+
+      radioButtonAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
+      radioButtonAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
+
+      if(radioButtonAssemblyInfo.getSelectedObject() == null &&
+         radioButtonAssemblyInfo.getListData() != null &&
+         radioButtonAssemblyInfo.getListData().getValues() != null &&
+         radioButtonAssemblyInfo.getListData().getValues().length > 0)
+      {
+         radioButtonAssemblyInfo.setSelectedObject(
+            radioButtonAssemblyInfo.getListData().getValues()[0]);
+      }
+
+      this.vsObjectPropertyService.editObjectProperty(
+         viewsheet, radioButtonAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
+         principal, commandDispatcher);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public VSTableTrapModel checkTrap(@ClusterProxyKey String runtimeId, RadioButtonPropertyDialogModel model,
+                                     String objectId, Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      RadioButtonVSAssembly radioButtonVSAssembly =
+         (RadioButtonVSAssembly) rvs.getViewsheet().getAssembly(objectId);
+
+      if(radioButtonVSAssembly == null) {
+         return VSTableTrapModel.builder()
+            .showTrap(false)
+            .build();
+      }
+
+      VSAssemblyInfo oldAssemblyInfo =
+         (VSAssemblyInfo) Tool.clone(radioButtonVSAssembly.getVSAssemblyInfo());
+      RadioButtonVSAssemblyInfo newAssemblyInfo =
+         (RadioButtonVSAssemblyInfo) Tool.clone(radioButtonVSAssembly.getVSAssemblyInfo());
+
+      setListValues(newAssemblyInfo, model, rvs, principal);
+
+      return trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Map<String, String[]> getTableColumns(@ClusterProxyKey String runtimeId, String table,
+                                                Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      ColumnSelection selection = getTableColumns(rvs,Tool.byteDecode(table), true, principal);
+      String[] columnList = new String[selection.getAttributeCount()];
+      String[] descriptionList = new String[selection.getAttributeCount()];
+
+      for(int i = 0; i < selection.getAttributeCount(); i++) {
+         ColumnRef columnref = (ColumnRef) selection.getAttribute(i);
+         columnList[i] = columnref.getName();
+         descriptionList[i] = columnref.getDescription();
+      }
+
+      Map<String, String[]> result = new HashMap<>();
+      result.put("columnlist", columnList);
+      result.put("descriptionlist", descriptionList);
+
+      return result;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public String[] getColumnRows(@ClusterProxyKey String runtimeId, String table,
+                                 String column, Principal principal) throws Exception
+   {
+      table = Tool.byteDecode(table);
+      column = Tool.byteDecode(column);
+      ViewsheetService engine = viewsheetService;
+      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+
+      if(column.startsWith("$")) {
+         String variableAssembly = column.substring(2, column.length() - 1);
+
+         InputVSAssembly assembly = (InputVSAssembly) viewsheet.getAssembly(variableAssembly);
+         InputVSAssemblyInfo assemblyInfo = (InputVSAssemblyInfo) assembly.getVSAssemblyInfo();
+         String selectedColumn = null;
+
+         if(assemblyInfo instanceof CheckBoxVSAssemblyInfo) {
+            Object[] objects =  assemblyInfo.getSelectedObjects();
+
+            if(objects.length > 0) {
+               selectedColumn = assemblyInfo.getSelectedObjects()[0].toString();
+            }
+         }
+         else {
+            selectedColumn = Objects.toString(assemblyInfo.getSelectedObject(), null);
+         }
+
+         return getColumnRows(rvs, table, selectedColumn, principal);
+      }
+
+      return getColumnRows(rvs, table, column, principal);
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public DataInputController.PopupEmbeddedTable getPopupTable(@ClusterProxyKey String runtimeId,
+                                                               String table, Principal principal) throws Exception
+   {
+      DataInputController.PopupEmbeddedTable result = new DataInputController.PopupEmbeddedTable();
+      ViewsheetService engine = viewsheetService;
+      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         return result;
+      }
+
+      Worksheet ws = vs.getBaseWorksheet();
+
+      if(ws != null && VSEventUtil.checkBaseWSPermission(
+         vs, principal, engine.getAssetRepository(), ResourceAction.READ))
+      {
+         TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(table);
+
+         if(tableAssembly instanceof SnapshotEmbeddedTableAssembly) {
+            result = new DataInputController.PopupEmbeddedTable(
+               ((SnapshotEmbeddedTableAssembly)tableAssembly).getEmbeddedData(), table);
+         }
+         else if(tableAssembly instanceof EmbeddedTableAssembly) {
+            result = new DataInputController.PopupEmbeddedTable(
+               VSEventUtil.getVSEmbeddedData((EmbeddedTableAssembly) tableAssembly), table);
+         }
+      }
+
+      return result;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ColumnOptionDialogModel getColumnOptionDialogModel(@ClusterProxyKey String runtimeId, String objectId,
+                                                             Integer col,Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+      TableVSAssembly assembly = (TableVSAssembly) viewsheet.getAssembly(objectId);
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) assembly.getVSAssemblyInfo();
+
+      ColumnSelection columnSelection = info.getVisibleColumns();
+      ColumnRef columnRef = (ColumnRef) columnSelection.getAttribute(col);
+      ColumnOptionDialogModel model = new ColumnOptionDialogModel();
+      boolean isForm = false;
+
+      if(columnRef instanceof FormRef) {
+         FormRef form = (FormRef) columnRef;
+         ColumnOption columnOption = form.getOption();
+         model.setInputControl(columnOption.getType());
+         model.setEnableColumnEditing(columnOption.isForm());
+
+         EditorModel editor = null;
+
+         if(columnOption instanceof TextColumnOption) {
+            TextColumnOption textColumnOption = (TextColumnOption) columnOption;
+            TextEditorModel textEditorModel = new TextEditorModel();
+            textEditorModel.setPattern(textColumnOption.getPattern());
+            textEditorModel.setErrorMessage(textColumnOption.getMessage());
+            editor = textEditorModel;
+         }
+         else if(columnOption instanceof DateColumnOption) {
+            DateColumnOption dateColumnOption = (DateColumnOption) columnOption;
+            DateEditorModel dateEditorModel = new DateEditorModel();
+            dateEditorModel.setMinimum(dateColumnOption.getMin());
+            dateEditorModel.setMaximum(dateColumnOption.getMax());
+            dateEditorModel.setErrorMessage(dateColumnOption.getMessage());
+            editor = dateEditorModel;
+         }
+         else if(columnOption instanceof ComboBoxColumnOption) {
+            ComboBoxColumnOption comboBoxColumnOption = (ComboBoxColumnOption) columnOption;
+            ListBindingInfo listBindingInfo = comboBoxColumnOption.getListBindingInfo();
+            ListData listData = comboBoxColumnOption.getListData() == null ?
+               new ListData() : comboBoxColumnOption.getListData();
+
+            boolean embedded = false;
+            boolean query = false;
+
+            switch(comboBoxColumnOption.getSourceType()) {
+            case ListInputVSAssembly.EMBEDDED_SOURCE:
+               embedded = true;
+               break;
+            case ListInputVSAssembly.BOUND_SOURCE:
+               query = true;
+               break;
+            case ListInputVSAssembly.MERGE_SOURCE:
+               embedded = true;
+               query = true;
+               break;
+            }
+
+            SelectionListDialogModel selectionListDialogModel = new SelectionListDialogModel();
+            SelectionListEditorModel selectionListEditorModel = new SelectionListEditorModel();
+
+            List<String[]> tablesList = getInputTablesArray(rvs, principal);
+            selectionListEditorModel.setTables(tablesList.get(0));
+            selectionListEditorModel.setLocalizedTables(tablesList.get(1));
+            selectionListEditorModel.setForm(comboBoxColumnOption.isForm());
+
+            if(listBindingInfo != null) {
+               selectionListEditorModel.setTable(listBindingInfo.getTableName());
+               selectionListEditorModel.setColumn(listBindingInfo.getLabelColumn() == null ?
+                                                     "" : listBindingInfo.getLabelColumn().getName());
+               selectionListEditorModel.setValue(listBindingInfo.getValueColumn() == null ?
+                                                    "" : listBindingInfo.getValueColumn().getName());
+            }
+
+            selectionListDialogModel.setSelectionListEditorModel(selectionListEditorModel);
+            VariableListDialogModel variableListDialogModel = new VariableListDialogModel();
+            variableListDialogModel.setLabels(listData.getLabels());
+
+            String dtype = listData.getDataType();
+            List<String> values = new ArrayList<>();
+
+            for(Object val : listData.getValues()) {
+               String valueString = val == null ? null : Tool.getDataString(val, dtype);
+               values.add(valueString);
+            }
+
+            variableListDialogModel.setValues(values.toArray(new String[0]));
+            variableListDialogModel.setDataType(listData.getDataType());
+
+            ComboBoxEditorModel comboBoxEditorModel = new ComboBoxEditorModel();
+            comboBoxEditorModel.setEmbedded(embedded);
+            comboBoxEditorModel.setQuery(query);
+            comboBoxEditorModel.setCalendar(false);
+            comboBoxEditorModel.setDataType(comboBoxColumnOption.getDataType());
+            comboBoxEditorModel.setSelectionListDialogModel(selectionListDialogModel);
+            comboBoxEditorModel.setValid(true);
+            comboBoxEditorModel.setVariableListDialogModel(variableListDialogModel);
+
+            editor = comboBoxEditorModel;
+         }
+         else if(columnOption instanceof FloatColumnOption) {
+            FloatColumnOption floatColumnOption = (FloatColumnOption) columnOption;
+            FloatEditorModel floatEditorModel = new FloatEditorModel();
+            Float min = floatColumnOption.getMin() == null ?
+               null : Float.parseFloat(floatColumnOption.getMin());
+            Float max = floatColumnOption.getMax() == null ?
+               null : Float.parseFloat(floatColumnOption.getMax());
+            floatEditorModel.setMinimum(min);
+            floatEditorModel.setMaximum(max);
+            floatEditorModel.setErrorMessage(floatColumnOption.getMessage());
+            editor = floatEditorModel;
+         }
+         else if(columnOption instanceof IntegerColumnOption) {
+            IntegerColumnOption integerColumnOption = (IntegerColumnOption) columnOption;
+            IntegerEditorModel integerEditorModel = new IntegerEditorModel();
+            Integer min = integerColumnOption.getMin() == Integer.MIN_VALUE ?
+               null : integerColumnOption.getMin();
+            Integer max = integerColumnOption.getMax() == Integer.MAX_VALUE ?
+               null : integerColumnOption.getMax();
+            integerEditorModel.setMinimum(min);
+            integerEditorModel.setMaximum(max);
+            integerEditorModel.setErrorMessage(integerColumnOption.getMessage());
+            editor = integerEditorModel;
+         }
+
+         model.setEditor(editor);
+         isForm = columnOption.isForm();
+      }
+
+      SelectionListDialogModel selectionListDialogModel = new SelectionListDialogModel();
+      SelectionListEditorModel selectionListEditorModel = new SelectionListEditorModel();
+
+      List<String[]> tablesList = getInputTablesArray(rvs, principal);
+      selectionListEditorModel.setTables(tablesList.get(0));
+      selectionListEditorModel.setLocalizedTables(tablesList.get(1));
+
+      selectionListEditorModel.setTable(null);
+      selectionListEditorModel.setColumn(null);
+      selectionListEditorModel.setForm(isForm);
+      selectionListEditorModel.setValue(null);
+
+      selectionListDialogModel.setSelectionListEditorModel(selectionListEditorModel);
+
+      VariableListDialogModel variableListDialogModel = new VariableListDialogModel();
+      variableListDialogModel.setLabels(new String[0]);
+      variableListDialogModel.setValues(new String[0]);
+      variableListDialogModel.setDataType(columnRef.getDataType());
+
+      ComboBoxEditorModel comboBoxBlankEditorModel = new ComboBoxEditorModel();
+      comboBoxBlankEditorModel.setEmbedded(false);
+      comboBoxBlankEditorModel.setQuery(false);
+      comboBoxBlankEditorModel.setCalendar(false);
+      comboBoxBlankEditorModel.setDataType(columnRef.getDataType());
+      comboBoxBlankEditorModel.setSelectionListDialogModel(selectionListDialogModel);
+      comboBoxBlankEditorModel.setValid(true);
+      comboBoxBlankEditorModel.setVariableListDialogModel(variableListDialogModel);
+
+      model.setComboBoxBlankEditor(comboBoxBlankEditorModel);
+
+      return model;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setColumnOptionDialogModel(@ClusterProxyKey String vsId, String objectId, int col,
+                                          ColumnOptionDialogModel model, Principal principal,
+                                          CommandDispatcher dispatcher, String linkUri) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+      TableVSAssembly assembly = (TableVSAssembly) viewsheet.getAssembly(objectId);
+      TableVSAssemblyInfo info = (TableVSAssemblyInfo) assembly.getVSAssemblyInfo();
+
+      ColumnSelection cols = info.getColumnSelection();
+      col = ComposerVSTableController.getBindingColIndex(cols, col);
+      ColumnRef columnRef = (ColumnRef) cols.getAttribute(col);
+
+      FormRef formRef;
+
+      if(columnRef instanceof FormRef) {
+         formRef = (FormRef) columnRef;
+      }
+      else {
+         formRef = FormRef.toFormRef(columnRef);
+      }
+
+      if(model.isEnableColumnEditing()) {
+         String type = model.getInputControl();
+
+         if(ColumnOption.TEXT.equals(type)) {
+            TextEditorModel columnOptionModel = (TextEditorModel) model.getEditor();
+            TextColumnOption textColumnOption = new TextColumnOption(
+               columnOptionModel.getPattern(), columnOptionModel.getErrorMessage(), true);
+            formRef.setOption(textColumnOption);
+         }
+         else if(ColumnOption.BOOLEAN.equals(type)) {
+            BooleanColumnOption booleanColumnOption = new BooleanColumnOption(true);
+            formRef.setOption(booleanColumnOption);
+         }
+         else if(ColumnOption.INTEGER.equals(type)) {
+            IntegerEditorModel columnOptionModel = (IntegerEditorModel) model.getEditor();
+            IntegerColumnOption integerColumnOption = new IntegerColumnOption(
+               columnOptionModel.getMaximum(), columnOptionModel.getMinimum(),
+               columnOptionModel.getErrorMessage(), true);
+            formRef.setOption(integerColumnOption);
+         }
+         else if(ColumnOption.FLOAT.equals(type)) {
+            FloatEditorModel columnOptionModel = (FloatEditorModel) model.getEditor();
+            String max = columnOptionModel.getMaximum() == null ?
+               null : columnOptionModel.getMaximum() + "";
+            String min = columnOptionModel.getMinimum() == null ?
+               null : columnOptionModel.getMinimum() + "";
+            FloatColumnOption floatColumnOption = new FloatColumnOption(
+               max, min, columnOptionModel.getErrorMessage(), true);
+            formRef.setOption(floatColumnOption);
+         }
+         else if(ColumnOption.DATE.equals(type)) {
+            DateEditorModel columnOptionModel = (DateEditorModel) model.getEditor();
+            DateColumnOption dateColumnOption = new DateColumnOption(
+               columnOptionModel.getMaximum(), columnOptionModel.getMinimum(),
+               columnOptionModel.getErrorMessage(), true);
+            formRef.setOption(dateColumnOption);
+         }
+         else if(ColumnOption.COMBOBOX.equals(type)) {
+            ComboBoxEditorModel editorModel = (ComboBoxEditorModel) model.getEditor();
+
+            int sourceType = 0;
+
+            if(editorModel.isEmbedded() && editorModel.isQuery()) {
+               sourceType = ListInputVSAssembly.MERGE_SOURCE;
+            }
+            else if(editorModel.isEmbedded()) {
+               sourceType = ListInputVSAssembly.EMBEDDED_SOURCE;
+            }
+            else if(editorModel.isQuery()) {
+               sourceType = ListInputVSAssembly.BOUND_SOURCE;
+            }
+
+            ComboBoxColumnOption comboBoxColumnOption = new ComboBoxColumnOption(
+               sourceType, editorModel.getDataType(), null, true);
+
+            SelectionListEditorModel selectionListEditorModel =
+               editorModel.getSelectionListDialogModel().getSelectionListEditorModel();
+
+            if(editorModel.isEmbedded()) {
+               VariableListDialogModel variableListDialogModel =
+                  editorModel.getVariableListDialogModel();
+
+               String dtype = variableListDialogModel.getDataType();
+               List<Object> values = new ArrayList<>();
+
+               for(String val : variableListDialogModel.getValues()) {
+                  values.add(val == null ? null : Tool.getData(dtype, val, true));
+               }
+
+               ListData listData = new ListData();
+               listData.setDataType(variableListDialogModel.getDataType());
+               listData.setDataType(dtype);
+               listData.setLabels(variableListDialogModel.getLabels());
+               listData.setValues(values.toArray());
+               comboBoxColumnOption.setListData(listData);
+            }
+
+            if(editorModel.isQuery()) {
+               ListBindingInfo listBindingInfo = new ListBindingInfo();
+               listBindingInfo.setTableName(selectionListEditorModel.getTable());
+               listBindingInfo = updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
+                                                   selectionListEditorModel.getValue(), rvs, principal);
+               comboBoxColumnOption.setListBindingInfo(listBindingInfo);
+            }
+
+            formRef.setOption(comboBoxColumnOption);
+         }
+      }
+      else {
+         TextColumnOption text = new TextColumnOption();
+         formRef.setOption(text);
+      }
+
+      cols.setAttribute(col, formRef);
+
+      int hint = VSAssembly.OUTPUT_DATA_CHANGED;
+      this.coreLifecycleService
+         .execute(rvs, assembly.getAbsoluteName(), linkUri, hint, dispatcher);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ComboboxPropertyDialogModel getComboboxPropertyDialogModel(@ClusterProxyKey String runtimeId,
+                                                                     String objectId, Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs;
+      Viewsheet vs;
+      ComboBoxVSAssembly comboBoxAssembly;
+      ComboBoxVSAssemblyInfo comboBoxAssemblyInfo;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         vs = rvs.getViewsheet();
+         comboBoxAssembly = (ComboBoxVSAssembly) vs.getAssembly(objectId);
+         comboBoxAssemblyInfo = (ComboBoxVSAssemblyInfo) comboBoxAssembly.getVSAssemblyInfo();
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      ComboboxPropertyDialogModel result = new ComboboxPropertyDialogModel();
+      ComboboxGeneralPaneModel comboboxGeneralPaneModel =
+         result.getComboboxGeneralPaneModel();
+      GeneralPropPaneModel generalPropPaneModel =
+         comboboxGeneralPaneModel.getGeneralPropPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel =
+         generalPropPaneModel.getBasicGeneralPaneModel();
+      ListValuesPaneModel listValuesPaneModel =
+         comboboxGeneralPaneModel.getListValuesPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         comboboxGeneralPaneModel.getSizePositionPaneModel();
+      ComboBoxEditorModel comboBoxEditorModel =
+         listValuesPaneModel.getComboBoxEditorModel();
+      SelectionListDialogModel selectionListDialogModel =
+         comboBoxEditorModel.getSelectionListDialogModel();
+      SelectionListEditorModel selectionListEditorModel =
+         selectionListDialogModel.getSelectionListEditorModel();
+      VariableListDialogModel variableListDialogModel =
+         comboBoxEditorModel.getVariableListDialogModel();
+      DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel =
+         VSAssemblyScriptPaneModel.builder();
+
+      generalPropPaneModel.setShowEnabledGroup(true);
+      generalPropPaneModel.setEnabled(comboBoxAssemblyInfo.getEnabledValue());
+      generalPropPaneModel.setShowSubmitCheckbox(true);
+      generalPropPaneModel.setSubmitOnChange(
+         Boolean.valueOf(comboBoxAssemblyInfo.getSubmitOnChangeValue()));
+
+      basicGeneralPaneModel.setName(comboBoxAssemblyInfo.getAbsoluteName());
+      basicGeneralPaneModel.setPrimary(comboBoxAssemblyInfo.isPrimary());
+      basicGeneralPaneModel.setVisible(comboBoxAssemblyInfo.getVisibleValue());
+      basicGeneralPaneModel.setShowEditableCheckbox(true);
+      basicGeneralPaneModel.setEditable(comboBoxAssemblyInfo.isTextEditable());
+      basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
+         vs, comboBoxAssemblyInfo.getAbsoluteName()));
+      basicGeneralPaneModel.setRefresh("true".equals(comboBoxAssemblyInfo.getRefreshValue()));
+
+      listValuesPaneModel.setSortType(comboBoxAssemblyInfo.getSortTypeValue());
+      listValuesPaneModel.setEmbeddedDataDown(
+         comboBoxAssemblyInfo.isEmbeddedDataDownValue());
+
+      Point pos = dialogService.getAssemblyPosition(comboBoxAssemblyInfo, vs);
+      Dimension size = dialogService.getAssemblySize(comboBoxAssemblyInfo, vs);
+
+      sizePositionPaneModel.setPositions(pos, size);
+      sizePositionPaneModel.setContainer(comboBoxAssembly.getContainer() != null);
+
+      String minDate = comboBoxAssemblyInfo.getMinDateValue();
+      String maxDate = comboBoxAssemblyInfo.getMaxDateValue();
+      minDate = minDate == null ? "" : minDate;
+      maxDate = maxDate == null ? "" : maxDate;
+
+      ListData listData = comboBoxAssemblyInfo.getListData() == null ?
+         new ListData() : comboBoxAssemblyInfo.getListData();
+      comboBoxEditorModel.setDataType(comboBoxAssemblyInfo.getEmbeddedDataType());
+      comboBoxEditorModel.setCalendar(comboBoxAssemblyInfo.isCalendar());
+      comboBoxEditorModel.setServerTZ(comboBoxAssemblyInfo.isServerTimeZone());
+      comboBoxEditorModel.setMinDate(minDate);
+      comboBoxEditorModel.setMaxDate(maxDate);
+      comboBoxEditorModel.setDefaultValue(comboBoxAssemblyInfo.getDefaultValue());
+
+      switch(comboBoxAssemblyInfo.getSourceType()) {
+      case ListInputVSAssembly.EMBEDDED_SOURCE:
+         comboBoxEditorModel.setEmbedded(true);
+         break;
+      case ListInputVSAssembly.BOUND_SOURCE:
+         comboBoxEditorModel.setQuery(true);
+         break;
+      case ListInputVSAssembly.MERGE_SOURCE:
+         comboBoxEditorModel.setEmbedded(true);
+         comboBoxEditorModel.setQuery(true);
+         break;
+      }
+
+      List<String> values = new ArrayList<>();
+      String dtype = comboBoxAssemblyInfo.getEmbeddedDataType();
+
+      for(Object val : listData.getValues()) {
+         String valueString = val == null ? null : Tool.getDataString(val, dtype);
+         values.add(valueString);
+      }
+
+      variableListDialogModel.setDataType(dtype);
+      variableListDialogModel.setLabels(listData.getLabels());
+      variableListDialogModel.setValues(values.toArray(new String[0]));
+
+      ListBindingInfo listBindingInfo = comboBoxAssemblyInfo.getListBindingInfo();
+      List<String[]> tablesList = getInputTablesArray(rvs, principal);
+      selectionListEditorModel.setTables(tablesList.get(0));
+      selectionListEditorModel.setLocalizedTables(tablesList.get(1));
+      selectionListEditorModel.setLTablesDescription(tablesList.get(2));
+      selectionListEditorModel.setForm(comboBoxAssemblyInfo.isForm());
+
+      if(listBindingInfo != null) {
+         selectionListEditorModel.setTable(listBindingInfo.getTableName());
+         selectionListEditorModel.setColumn(
+            listBindingInfo.getLabelColumn() == null ?
+               "" : listBindingInfo.getLabelColumn().getName());
+         selectionListEditorModel.setValue(
+            listBindingInfo.getValueColumn() == null ?
+               "" : listBindingInfo.getValueColumn().getName());
+         selectionListEditorModel.setDataType(listBindingInfo.getDataType());
+      }
+
+      getTableName(comboBoxAssemblyInfo, dataInputPaneModel);
+      dataInputPaneModel.setColumnValue(comboBoxAssemblyInfo.getColumnValue());
+      dataInputPaneModel.setRowValue(comboBoxAssemblyInfo.getRowValue());
+      dataInputPaneModel.setTargetTree(getInputTablesTree(rvs, false, principal));
+      dataInputPaneModel.setWriteBackDirectly(comboBoxAssemblyInfo.getWriteBackValue());
+      vsAssemblyScriptPaneModel.scriptEnabled(comboBoxAssemblyInfo.isScriptEnabled());
+      vsAssemblyScriptPaneModel.expression(comboBoxAssemblyInfo.getScript() == null ?
+                                              "" : comboBoxAssemblyInfo.getScript());
+      result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+
+      return result;
+   }
+
+
+   private void setListValues(RadioButtonVSAssemblyInfo assemblyInfo, RadioButtonPropertyDialogModel model,
+                              RuntimeViewsheet rvs, Principal principal) throws Exception
+   {
+      RadioButtonGeneralPaneModel radioButtonGeneralPaneModel = model.getRadioButtonGeneralPaneModel();
+      ListValuesPaneModel listValuesPaneModel = radioButtonGeneralPaneModel.getListValuesPaneModel();
+      ComboBoxEditorModel radioButtonEditorModel = listValuesPaneModel.getComboBoxEditorModel();
+      VariableListDialogModel variableListDialogModel = radioButtonEditorModel.getVariableListDialogModel();
+      SelectionListDialogModel selectionListDialogModel = radioButtonEditorModel.getSelectionListDialogModel();
+      SelectionListEditorModel selectionListEditorModel = selectionListDialogModel.getSelectionListEditorModel();
+
+      assemblyInfo.setSortTypeValue(listValuesPaneModel.getSortType());
+      assemblyInfo.setEmbeddedDataDownValue(listValuesPaneModel.isEmbeddedDataDown());
+
+      ListData listData = new ListData();
+      assemblyInfo.setDataType(radioButtonEditorModel.getDataType());
+
+      if(radioButtonEditorModel.isEmbedded()) {
+         if(radioButtonEditorModel.isQuery()) {
+            assemblyInfo.setSourceType(ListInputVSAssembly.MERGE_SOURCE);
+         }
+         else {
+            assemblyInfo.setSourceType(ListInputVSAssembly.EMBEDDED_SOURCE);
+         }
+      }
+      else if(radioButtonEditorModel.isQuery()) {
+         assemblyInfo.setSourceType(ListInputVSAssembly.BOUND_SOURCE);
+      }
+      else {
+         assemblyInfo.setSourceType(ListInputVSAssembly.NONE_SOURCE);
+      }
+
+      String dtype = variableListDialogModel.getDataType();
+      List<Object> values = new ArrayList<>();
+
+      for(String val : variableListDialogModel.getValues()) {
+         values.add(val == null ? null : Tool.getData(dtype, val, true));
+      }
+
+      listData.setDataType(dtype);
+      listData.setLabels(variableListDialogModel.getLabels());
+      listData.setValues(values.toArray());
+      assemblyInfo.setListData(listData);
+
+      assemblyInfo.setForm(selectionListEditorModel.isForm());
+      ListBindingInfo listBindingInfo = new ListBindingInfo();
+      listBindingInfo.setTableName(selectionListEditorModel.getTable());
+      listBindingInfo = updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
+                                          selectionListEditorModel.getValue(), rvs, principal);
+      assemblyInfo.setListBindingInfo(listBindingInfo);
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setComboboxPropertyDialogModel(@ClusterProxyKey String vsId, String objectId,
+                                              ComboboxPropertyDialogModel value, String linkUri,
+                                              Principal principal, CommandDispatcher commandDispatcher) throws Exception
+   {
+      RuntimeViewsheet viewsheet;
+      ComboBoxVSAssemblyInfo comboBoxAssemblyInfo;
+
+      try {
+         ViewsheetService engine = viewsheetService;
+         viewsheet = engine.getViewsheet(vsId, principal);
+         ComboBoxVSAssembly comboBoxAssembly =
+            (ComboBoxVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+         comboBoxAssemblyInfo =
+            (ComboBoxVSAssemblyInfo) Tool.clone(comboBoxAssembly.getVSAssemblyInfo());
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      ComboboxGeneralPaneModel comboboxGeneralPaneModel = value.getComboboxGeneralPaneModel();
+      GeneralPropPaneModel generalPropPaneModel = comboboxGeneralPaneModel.getGeneralPropPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         comboboxGeneralPaneModel.getSizePositionPaneModel();
+      DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
+
+      comboBoxAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
+      comboBoxAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
+
+      comboBoxAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
+      comboBoxAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
+      comboBoxAssemblyInfo.setTextEditable(basicGeneralPaneModel.isEditable());
+
+      ListValuesPaneModel listValuesPaneModel =
+         comboboxGeneralPaneModel.getListValuesPaneModel();
+      ComboBoxEditorModel comboBoxEditorModel = listValuesPaneModel.getComboBoxEditorModel();
+      int width = getWidth(comboBoxEditorModel.getDataType(), sizePositionPaneModel.getWidth(),
+                           comboBoxAssemblyInfo.getDataType());
+      sizePositionPaneModel.setWidth(width);
+      dialogService.setAssemblySize(comboBoxAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblyPosition(comboBoxAssemblyInfo, sizePositionPaneModel);
+
+      setListValues(comboBoxAssemblyInfo, value, viewsheet, principal);
+
+      // TODO validate column/row variable/expression type
+      String table = dataInputPaneModel.getTable();
+      comboBoxAssemblyInfo.setTableName(table == null ? "" : table);
+      comboBoxAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
+      comboBoxAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
+      comboBoxAssemblyInfo.setVariable(
+         table != null && table.startsWith("$(") && table.endsWith(")"));
+      comboBoxAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
+      comboBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      comboBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
+      comboBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
+
+      this.vsObjectPropertyService.editObjectProperty(
+         viewsheet, comboBoxAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
+         principal, commandDispatcher);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public VSTableTrapModel checkTrap(@ClusterProxyKey String runtimeId, ComboboxPropertyDialogModel model,
+                                     String objectId, Principal principal) throws Exception
+   {
+      RuntimeViewsheet viewsheet = viewsheetService.getViewsheet(runtimeId, principal);
+      ComboBoxVSAssembly comboBoxVSAssembly =
+         (ComboBoxVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+
+      if(comboBoxVSAssembly == null) {
+         return VSTableTrapModel.builder()
+            .showTrap(false)
+            .build();
+      }
+
+      VSAssemblyInfo oldAssemblyInfo =
+         (VSAssemblyInfo) Tool.clone(comboBoxVSAssembly.getVSAssemblyInfo());
+      ComboBoxVSAssemblyInfo newAssemblyInfo =
+         (ComboBoxVSAssemblyInfo) Tool.clone(comboBoxVSAssembly.getVSAssemblyInfo());
+
+      setListValues(newAssemblyInfo, model, viewsheet, principal);
+
+      return trapService.checkTrap(viewsheet, oldAssemblyInfo, newAssemblyInfo);
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ComboBoxDefaultValueListModel[] getComboBoxList(@ClusterProxyKey String runtimeId, String objectId,
+                                                          int sortType, boolean embeddedDataDown,
+                                                          ComboBoxEditorModel model, Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId,principal);
+      ViewsheetSandbox viewsheetSandbox = rvs.getViewsheetSandbox();
+      ComboBoxVSAssembly comboBoxVSAssembly = (ComboBoxVSAssembly) viewsheetSandbox.getViewsheet().getAssembly(objectId);
+      ComboBoxVSAssembly cassembly = (ComboBoxVSAssembly) comboBoxVSAssembly.clone();
+      cassembly.getInfo().setName(VSWizardConstants.TEMP_ASSEMBLY_PREFIX + cassembly.getName());
+
+      try {
+         SelectionListEditorModel selectionListEditorModel = model.getSelectionListDialogModel().getSelectionListEditorModel();
+
+         if(model.isQuery()) {
+            ListBindingInfo listBindingInfo = new ListBindingInfo();
+            listBindingInfo.setTableName(selectionListEditorModel.getTable());
+            listBindingInfo = updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
+                                                selectionListEditorModel.getValue(), rvs, principal);
+            cassembly.setListBindingInfo(listBindingInfo);
+         }
+         else {
+            cassembly.setListBindingInfo(null);
+         }
+
+         if(model.isEmbedded()) {
+            if(model.isQuery()) {
+               cassembly.setSourceType(ListInputVSAssembly.MERGE_SOURCE);
+            }
+            else {
+               cassembly.setSourceType(ListInputVSAssembly.EMBEDDED_SOURCE);
+            }
+         }
+         else if(model.isQuery()) {
+            cassembly.setSourceType(ListInputVSAssembly.BOUND_SOURCE);
+         }
+         else {
+            cassembly.setSourceType(ListInputVSAssembly.NONE_SOURCE);
+         }
+
+         viewsheetSandbox.getViewsheet().addAssembly(cassembly);
+         InputVSAQuery inputVSAQuery = new InputVSAQuery(viewsheetSandbox, cassembly.getName());
+         VariableListDialogModel variableListDialogModel = model.getVariableListDialogModel();
+         ListData data = new ListData();
+         String dtype = variableListDialogModel.getDataType();
+         cassembly.setDataType(dtype);
+         List<Object> values = new ArrayList<>();
+
+         for(String val : variableListDialogModel.getValues()) {
+            values.add(val == null ? null : Tool.getData(dtype, val, true));
+         }
+
+         data.setDataType(dtype);
+         data.setLabels(variableListDialogModel.getLabels());
+         data.setValues(values.toArray());
+         cassembly.setListData(data);
+
+         if(inputVSAQuery.getData() instanceof ListData) {
+            data = (ListData) inputVSAQuery.getData();
+            ComboBoxDefaultValueListModel[] comboDefaultValueListModel =
+               new ComboBoxDefaultValueListModel[data.getValues().length];
+            cassembly.setSortType(sortType);
+            cassembly.setEmbeddedDataDown(embeddedDataDown);
+            cassembly.setValues(data.getValues());
+            inputVSAQuery.refreshView(data);
+            String[] stringLabel = data.getLabels();
+            String[] formatValue = new String[data.getValues().length];
+
+            for(int i = 0; i < formatValue.length; i++) {
+               formatValue[i] = String.valueOf(data.getValues()[i]);
+            }
+
+            data.setBinding(true);
+            data.setLabels(formatValue);
+            cassembly.setSortType(XConstants.SORT_NONE);
+            cassembly.setSourceType(ListInputVSAssembly.NONE_SOURCE);
+            inputVSAQuery.refreshView(data);
+
+            for(int i = 0; i < comboDefaultValueListModel.length; i++) {
+               stringLabel[i] = Tool.isEmptyString(stringLabel[i]) ? "" : stringLabel[i];
+               ComboBoxDefaultValueListModel comboBoxDefaultValueListModel =
+                  new ComboBoxDefaultValueListModel(stringLabel[i], data.getLabels()[i], Tool.toString(cassembly.getValues()[i]));
+               comboDefaultValueListModel[i] = comboBoxDefaultValueListModel;
+            }
+
+            return comboDefaultValueListModel;
+         }
+      }
+      finally {
+         viewsheetSandbox.getViewsheet().removeAssembly(cassembly);
+      }
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public SpinnerPropertyDialogModel getSpinnerPropertyDialogModel(@ClusterProxyKey String runtimeId,
+                                                                   String objectId, Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs;
+      Viewsheet vs;
+      SpinnerVSAssembly spinnerAssembly;
+      SpinnerVSAssemblyInfo spinnerAssemblyInfo;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         vs = rvs.getViewsheet();
+         spinnerAssembly = (SpinnerVSAssembly) vs.getAssembly(objectId);
+         spinnerAssemblyInfo = (SpinnerVSAssemblyInfo) spinnerAssembly.getVSAssemblyInfo();
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      SpinnerPropertyDialogModel result = new SpinnerPropertyDialogModel();
+      SpinnerGeneralPaneModel spinnerGeneralPaneModel = result.getSpinnerGeneralPaneModel();
+      NumericRangePaneModel numericRangePaneModel = spinnerGeneralPaneModel.getNumericRangePaneModel();
+      GeneralPropPaneModel generalPropPaneModel = spinnerGeneralPaneModel.getGeneralPropPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         spinnerGeneralPaneModel.getSizePositionPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
+      DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
+
+      numericRangePaneModel.setMinimum(spinnerAssemblyInfo.getMinValue());
+      numericRangePaneModel.setMaximum(spinnerAssemblyInfo.getMaxValue());
+      numericRangePaneModel.setIncrement(spinnerAssemblyInfo.getIncrementValue());
+
+      generalPropPaneModel.setShowEnabledGroup(true);
+      generalPropPaneModel.setEnabled(spinnerAssemblyInfo.getEnabledValue());
+      generalPropPaneModel.setShowSubmitCheckbox(true);
+      generalPropPaneModel.setSubmitOnChange(Boolean.valueOf(spinnerAssemblyInfo.getSubmitOnChangeValue()));
+
+      Point pos = dialogService.getAssemblyPosition(spinnerAssemblyInfo, vs);
+      Dimension size = dialogService.getAssemblySize(spinnerAssemblyInfo, vs);
+
+      sizePositionPaneModel.setPositions(pos, size);
+      sizePositionPaneModel.setContainer(spinnerAssembly.getContainer() != null);
+
+      basicGeneralPaneModel.setName(spinnerAssemblyInfo.getAbsoluteName());
+      basicGeneralPaneModel.setPrimary(spinnerAssemblyInfo.isPrimary());
+      basicGeneralPaneModel.setVisible(spinnerAssemblyInfo.getVisibleValue());
+      basicGeneralPaneModel.setObjectNames(
+         this.vsObjectPropertyService.getObjectNames(vs, spinnerAssemblyInfo.getAbsoluteName()));
+      basicGeneralPaneModel.setRefresh(spinnerAssemblyInfo.isRefresh());
+
+      getTableName(spinnerAssemblyInfo, dataInputPaneModel);
+      dataInputPaneModel.setColumnValue(spinnerAssemblyInfo.getColumnValue());
+      dataInputPaneModel.setRowValue(spinnerAssemblyInfo.getRowValue());
+      dataInputPaneModel.setTargetTree(getInputTablesTree(rvs, false, principal));
+      dataInputPaneModel.setWriteBackDirectly(spinnerAssemblyInfo.getWriteBackValue());
+
+      vsAssemblyScriptPaneModel.scriptEnabled(spinnerAssemblyInfo.isScriptEnabled());
+      vsAssemblyScriptPaneModel.expression(spinnerAssemblyInfo.getScript() == null ?
+                                              "" : spinnerAssemblyInfo.getScript());
+      result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+
+      return result;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setSpinnerPropertyDialogModel(@ClusterProxyKey String vsId, String objectId,
+                                             SpinnerPropertyDialogModel value, String linkUri,
+                                             Principal principal, CommandDispatcher commandDispatcher) throws Exception
+   {
+      RuntimeViewsheet viewsheet;
+      SpinnerVSAssemblyInfo spinnerAssemblyInfo;
+
+      try {
+         viewsheet = viewsheetService.getViewsheet(vsId, principal);
+         SpinnerVSAssembly spinnerAssembly = (SpinnerVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
+         spinnerAssemblyInfo = (SpinnerVSAssemblyInfo) Tool.clone(spinnerAssembly.getVSAssemblyInfo());
+      }
+      catch(Exception e) {
+         throw e;
+      }
+
+      SpinnerGeneralPaneModel spinnerGeneralPaneModel = value.getSpinnerGeneralPaneModel();
+      NumericRangePaneModel numericRangePaneModel = spinnerGeneralPaneModel.getNumericRangePaneModel();
+      GeneralPropPaneModel generalPropPaneModel = spinnerGeneralPaneModel.getGeneralPropPaneModel();
+      SizePositionPaneModel sizePositionPaneModel =
+         spinnerGeneralPaneModel.getSizePositionPaneModel();
+      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
+      DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
+
+      spinnerAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
+      spinnerAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
+      spinnerAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
+
+      dialogService.setAssemblySize(spinnerAssemblyInfo, sizePositionPaneModel);
+      dialogService.setAssemblyPosition(spinnerAssemblyInfo, sizePositionPaneModel);
+
+      spinnerAssemblyInfo.setMinValue(numericRangePaneModel.getMinimum());
+      spinnerAssemblyInfo.setMaxValue(numericRangePaneModel.getMaximum());
+
+      if(spinnerAssemblyInfo.getSelectedObject() instanceof Number &&
+         ((Number) spinnerAssemblyInfo.getSelectedObject()).doubleValue() < spinnerAssemblyInfo.getMin()){
+         spinnerAssemblyInfo.setSelectedObject(spinnerAssemblyInfo.getMin());
+      }
+
+      if(spinnerAssemblyInfo.getSelectedObject() instanceof Number &&
+         ((Number) spinnerAssemblyInfo.getSelectedObject()).doubleValue() > spinnerAssemblyInfo.getMax()){
+         spinnerAssemblyInfo.setSelectedObject(spinnerAssemblyInfo.getMax());
+      }
+
+      spinnerAssemblyInfo.setIncrementValue(numericRangePaneModel.getIncrement());
+
+      spinnerAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
+      spinnerAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
+
+      String table = dataInputPaneModel.getTable();
+      spinnerAssemblyInfo.setTableName(table == null ? "" : table);
+      spinnerAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
+      spinnerAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
+      spinnerAssemblyInfo.setVariable(table != null && table.startsWith("$(") && table.endsWith(")"));
+      spinnerAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
+
+      if(dataInputPaneModel.getDefaultValue() != null) {
+         double dvalue = 0;
+
+         try {
+            Double.valueOf(dataInputPaneModel.getDefaultValue());
+         }
+         catch(Exception e) {
+            //ignore it.
+         }
+
+         spinnerAssemblyInfo.setValue(dvalue);
+      }
+
+      spinnerAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
+      spinnerAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
+
+      this.vsObjectPropertyService.editObjectProperty(
+         viewsheet, spinnerAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
+         principal, commandDispatcher);
+
+      return null;
+   }
+
+
+   private void setListValues(ComboBoxVSAssemblyInfo assemblyInfo,
+                              ComboboxPropertyDialogModel model,
+                              RuntimeViewsheet viewsheet,
+                              Principal principal)
+      throws Exception
+   {
+      ComboboxGeneralPaneModel comboboxGeneralPaneModel = model.getComboboxGeneralPaneModel();
+      ListValuesPaneModel listValuesPaneModel = comboboxGeneralPaneModel.getListValuesPaneModel();
+      ComboBoxEditorModel comboBoxEditorModel = listValuesPaneModel.getComboBoxEditorModel();
+      SelectionListDialogModel selectionListDialogModel =
+         comboBoxEditorModel.getSelectionListDialogModel();
+      SelectionListEditorModel selectionListEditorModel =
+         selectionListDialogModel.getSelectionListEditorModel();
+      VariableListDialogModel variableListDialogModel =
+         comboBoxEditorModel.getVariableListDialogModel();
+
+      assemblyInfo.setSortTypeValue(listValuesPaneModel.getSortType());
+      assemblyInfo.setEmbeddedDataDownValue(listValuesPaneModel.isEmbeddedDataDown());
+
+      ListData listData = new ListData();
+
+      assemblyInfo.setDataType(comboBoxEditorModel.getDataType());
+      assemblyInfo.setCalendar(comboBoxEditorModel.isCalendar());
+      assemblyInfo.setServerTimeZone(comboBoxEditorModel.isServerTZ());
+      String dataType = comboBoxEditorModel.getDataType();
+      boolean isDate = Tool.equals(XSchema.DATE, dataType) ||
+         Tool.equals(XSchema.TIME_INSTANT, dataType);
+      String minDate = isDate ? comboBoxEditorModel.getMinDate() : null;
+      String maxDate = isDate ? comboBoxEditorModel.getMaxDate() : null;
+      assemblyInfo.setMinDateValue(minDate);
+      assemblyInfo.setMaxDateValue(maxDate);
+      assemblyInfo.setDefaultValue(comboBoxEditorModel.getDefaultValue());
+
+      if(comboBoxEditorModel.isEmbedded()) {
+         if(comboBoxEditorModel.isQuery()) {
+            assemblyInfo.setSourceType(ListInputVSAssembly.MERGE_SOURCE);
+         }
+         else {
+            assemblyInfo.setSourceType(ListInputVSAssembly.EMBEDDED_SOURCE);
+         }
+      }
+      else if(comboBoxEditorModel.isQuery()) {
+         assemblyInfo.setSourceType(ListInputVSAssembly.BOUND_SOURCE);
+      }
+      else {
+         assemblyInfo.setSourceType(ListInputVSAssembly.NONE_SOURCE);
+      }
+
+      String dtype = variableListDialogModel.getDataType();
+      List<Object> values = new ArrayList<>();
+
+      for(String val : variableListDialogModel.getValues()) {
+         values.add(val == null ? null : Tool.getData(dtype, val, true));
+      }
+
+      listData.setDataType(dtype);
+      listData.setLabels(variableListDialogModel.getLabels());
+      listData.setValues(values.toArray());
+      assemblyInfo.setListData(listData);
+      assemblyInfo.setForm(selectionListEditorModel.isForm());
+
+      if(comboBoxEditorModel.isQuery()) {
+         ListBindingInfo listBindingInfo = new ListBindingInfo();
+         listBindingInfo.setTableName(selectionListEditorModel.getTable());
+         listBindingInfo = updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
+                                             selectionListEditorModel.getValue(), viewsheet, principal);
+         assemblyInfo.setListBindingInfo(listBindingInfo);
+      }
+      else {
+         assemblyInfo.setListBindingInfo(null);
+      }
+   }
+
+   private int getWidth(String dataType, int width, String odataType) {
+      if(width == getDefaultWidth(odataType)) {
+         return getDefaultWidth(dataType);
+      }
+
+      return width;
+   }
+
+   private static int getDefaultWidth(String dataType) {
+      int defaultWidth = AssetUtil.defw;
+
+      if(XSchema.isDateType(dataType)) {
+         defaultWidth = XSchema.TIME_INSTANT.equals(dataType) ?
+            ComboBoxVSAssemblyInfo.TIME_INSTANT_DEFAULT_WIDTH :
+            ComboBoxVSAssemblyInfo.TIME_DEFAULT_WIDTH;
+      }
+
+      return defaultWidth;
+   }
+
+
+
+
+   private boolean containsColumn(DataRef ref, DataRef[] refArray) {
+      for(DataRef ref0 : refArray) {
+         if(ref0 instanceof SortRef) {
+            ref0 = ((SortRef) ref0).getDataRef();
+         }
+
+         if(Tool.equals(ref, ref0)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private void setListValues(CheckBoxVSAssemblyInfo assemblyInfo,
+                              CheckboxPropertyDialogModel model,
+                              RuntimeViewsheet viewsheet,
+                              Principal principal)
+      throws Exception
+   {
+      CheckboxGeneralPaneModel checkBoxGeneralPaneModel = model.getCheckboxGeneralPaneModel();
+      ListValuesPaneModel listValuesPaneModel = checkBoxGeneralPaneModel.getListValuesPaneModel();
+      ComboBoxEditorModel checkBoxEditorModel = listValuesPaneModel.getComboBoxEditorModel();
+      SelectionListDialogModel selectionListDialogModel =
+         checkBoxEditorModel.getSelectionListDialogModel();
+      SelectionListEditorModel selectionListEditorModel =
+         selectionListDialogModel.getSelectionListEditorModel();
+      VariableListDialogModel variableListDialogModel =
+         checkBoxEditorModel.getVariableListDialogModel();
+
+      assemblyInfo.setSortTypeValue(listValuesPaneModel.getSortType());
+      assemblyInfo.setEmbeddedDataDownValue(listValuesPaneModel.isEmbeddedDataDown());
+      assemblyInfo.setSelectFirstItemValue(listValuesPaneModel.isSelectFirstItem());
+
+      ListData listData = new ListData();
+      assemblyInfo.setDataType(checkBoxEditorModel.getDataType());
+
+      if(checkBoxEditorModel.isEmbedded()) {
+         if(checkBoxEditorModel.isQuery()) {
+            assemblyInfo.setSourceType(ListInputVSAssembly.MERGE_SOURCE);
+         }
+         else {
+            assemblyInfo.setSourceType(ListInputVSAssembly.EMBEDDED_SOURCE);
+         }
+      }
+      else if(checkBoxEditorModel.isQuery()) {
+         assemblyInfo.setSourceType(ListInputVSAssembly.BOUND_SOURCE);
+      }
+      else {
+         assemblyInfo.setSourceType(ListInputVSAssembly.NONE_SOURCE);
+      }
+
+      String dtype = variableListDialogModel.getDataType();
+      List<Object> values = new ArrayList<>();
+
+      for(String val : variableListDialogModel.getValues()) {
+         values.add(val == null ? null : Tool.getData(dtype, val, true));
+      }
+
+      listData.setDataType(dtype);
+      listData.setLabels(variableListDialogModel.getLabels());
+      listData.setValues(values.toArray());
+      assemblyInfo.setListData(listData);
+
+      assemblyInfo.setForm(selectionListEditorModel.isForm());
+      ListBindingInfo listBindingInfo = new ListBindingInfo();
+      listBindingInfo.setTableName(selectionListEditorModel.getTable());
+      listBindingInfo = this.updateBindingInfo(listBindingInfo, selectionListEditorModel.getColumn(),
+                                               selectionListEditorModel.getValue(), viewsheet, principal);
+      assemblyInfo.setListBindingInfo(listBindingInfo);
+   }
+
+   public void onClick(String vsId, String name, String x, String y, String linkUri,
+                       boolean isConfirm, List<UserMessage> usrmsg, Principal principal,
+                       CommandDispatcher dispatcher) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+
+      WSExecution.setAssetQuerySandbox(rvs.getViewsheetSandbox().getAssetQuerySandbox());
+
+      try {
+         process0(rvs, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher);
+      }
+      finally {
+         WSExecution.setAssetQuerySandbox(null);
+      }
+   }
+
+   private void process0(RuntimeViewsheet rvs, String name, String xstr, String ystr,
+                         String linkUri, boolean isConfirm, List<UserMessage> usrmsg,
+                         Principal principal, CommandDispatcher dispatcher)
+      throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+
+      if(vs == null || box == null) {
+         return;
+      }
+
+      VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
+
+      if(assembly == null) {
+         LOG.warn("Assembly is missing, failed to process on click event: " + name);
+         return;
+      }
+
+      if(!(assembly.getInfo() instanceof ClickableOutputVSAssemblyInfo ||
+         assembly.getInfo() instanceof  ClickableInputVSAssemblyInfo))
+      {
+         return;
+      }
+
+      if(!assembly.getVSAssemblyInfo().isScriptEnabled()) {
+         return;
+      }
+
+      ViewsheetSandbox box0 = getVSBox(name, box);
+      ViewsheetScope scope = box0.getScope();
+      String script = null;
+
+      if(assembly.getInfo() instanceof ClickableOutputVSAssemblyInfo) {
+         script = ((ClickableOutputVSAssemblyInfo) assembly.getInfo()).getOnClick();
+      }
+      else {
+         script = ((ClickableInputVSAssemblyInfo) assembly.getInfo()).getOnClick();
+      }
+
+      if(xstr != null && ystr != null) {
+         scope.put("mouseX", scope, xstr);
+         scope.put("mouseY", scope, ystr);
+      }
+
+      // after onClick event, the viewsheet will be refreshed, which reset
+      // the runtime values. If the changes in onClick is applied to RValue,
+      // they will be lost immediately.
+      VSPropertyDescriptor.setUseDValue(true);
+
+      try {
+         scope.execute(script, assembly.getName());
+      }
+      finally {
+         VSPropertyDescriptor.setUseDValue(false);
+      }
+
+      UserMessage msg = Tool.getUserMessage();
+
+      if(usrmsg != null) {
+         usrmsg.add(msg);
+      }
+
+      Set<AssemblyRef> set = new HashSet<>();
+      ChangedAssemblyList clist = this.coreLifecycleService.createList(true, dispatcher,
+                                                                       rvs, linkUri);
+
+      VSUtil.getReferencedAssets(script, set,
+                                 name.contains(".") ? box0.getViewsheet() : vs, assembly);
+
+      for(AssemblyRef ref : set) {
+         switch(ref.getType()) {
+         case AssemblyRef.OUTPUT_DATA:
+            clist.getDataList().add(ref.getEntry());
+            break;
+         case AssemblyRef.INPUT_DATA:
+            clist.getDataList().add(ref.getEntry());
+            break;
+         case AssemblyRef.VIEW:
+            clist.getViewList().add(ref.getEntry());
+            break;
+         }
+      }
+
+      ArrayList<VSAssembly> inputAssemblies = new ArrayList<>();
+
+      try {
+         // fix bug1269914683174, need to refresh chart when the chart data changed
+         // by onclick script
+         for(AssemblyEntry obj : clist.getDataList()) {
+            String name0 = obj.getAbsoluteName();
+            VSAssembly assembly0 = (VSAssembly) vs.getAssembly(name0);
+
+            if(assembly0 instanceof TableVSAssembly) {
+               box.resetDataMap(name0);
+
+               // @by yanie: fix #691, refresh FormTableLens after commit
+               TableVSAssembly ta = (TableVSAssembly) assembly0;
+               TableVSAssemblyInfo tinfo = (TableVSAssemblyInfo) ta.getInfo();
+
+               if(tinfo.isForm()) {
+                  FormTableLens flens = box.getFormTableLens(name0);
+
+                  if(hasFormScript(script, name0) && flens.isChanged()) {
+                     box.addScriptChangedForm(name0);
+                  }
+
+                  box.syncFormData(name0);
+               }
+            }
+            else if(assembly0 instanceof CrosstabVSAssembly) {
+               box.resetDataMap(name0);
+            }
+            else if(assembly0 instanceof ChartVSAssembly) {
+               processChart(rvs, name0, linkUri, principal, dispatcher);
+            }
+            else if(assembly0 instanceof InputVSAssembly) {
+               inputAssemblies.add(assembly0);
+            }
+         }
+
+         for(VSAssembly inputAssembly : inputAssemblies) {
+            box.processChange(inputAssembly.getAbsoluteName(),
+                              VSAssembly.OUTPUT_DATA_CHANGED, clist);
+         }
+
+         //If property "refresh viewsheet after submit" of the submit button is checked,
+         //we should update whole viewsheet after clicking the button.
+         if(assembly instanceof SubmitVSAssembly &&
+            ((SubmitVSAssemblyInfo) assembly.getInfo()).isRefresh())
+         {
+            this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+                                                       false, true, true, clist, true);
+         }
+         else {
+            box.processChange(name, VSAssembly.INPUT_DATA_CHANGED, clist);
+            coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
+         }
+      }
+      finally {
+         box.clearScriptChangedFormSet();
+      }
+
+      if(!isConfirm) {
+         String cmsg = Tool.getConfirmMessage();
+         Tool.clearConfirmMessage();
+
+         if(cmsg != null) {
+            try {
+               scope.execute("confirmEvent.confirmed = false", ViewsheetScope.VIEWSHEET_SCRIPTABLE);
+            }
+            catch(Exception ignore) {
+            }
+
+            MessageCommand cmd = new MessageCommand();
+            cmd.setMessage(cmsg);
+            cmd.setType(MessageCommand.Type.CONFIRM);
+            VSOnClickEvent event = new VSOnClickEvent();
+            event.setConfirmEvent(true);
+            cmd.addEvent("/events/onclick/" + name + "/" + xstr + "/" + ystr + "/" + true, event);
+            dispatcher.sendCommand(cmd);
+         }
+
+         if(msg != null) {
+            dispatcher.sendCommand(MessageCommand.fromUserMessage(msg));
+         }
+      }
+   }
+
+   private boolean hasFormScript(String script, String name) {
+      if(!LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM)) {
+         return false;
+      }
+
+      List<String> formFunc = new ArrayList<>();
+      formFunc.add("setObject");
+      formFunc.add("appendRow");
+      formFunc.add("insertRow");
+      formFunc.add("deleteRow");
+
+      for(int i = 0; i < formFunc.size(); i++) {
+         StringBuffer buffer = new StringBuffer();
+         buffer.append(name);
+         buffer.append(".");
+         buffer.append(formFunc.get(i));
+
+         if(script.indexOf(buffer.toString()) != -1) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Process chart when chart data changed.
+    */
+   private void processChart(RuntimeViewsheet rvs, String name, String linkUri,
+                             Principal principal, CommandDispatcher dispatcher)
+      throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+
+      if(vs == null || box == null) {
+         return;
+      }
+
+      VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
+      box.clearGraph(name);
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
+   }
+
+   /**
+    * If viewsheet is embeded, get matching sandbox.
+    */
+   private ViewsheetSandbox getVSBox(String name, ViewsheetSandbox box0) {
+      if(name.indexOf(".") == -1) {
+         return box0;
+      }
+
+      int index = name.indexOf(".");
+      String vsName = name.substring(0, index);
+      box0 = box0.getSandbox(vsName);
+
+      return getVSBox(name.substring(index + 1, name.length()), box0);
    }
 
    /**
@@ -126,7 +2538,7 @@ public class VSInputService {
     *
     * @throws Exception if the selection could not be applied.
     */
-   private int applySelection(String assemblyName, Object selectedObject,
+   private int applySelection(String vsId, String assemblyName, Object selectedObject,
                               Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
@@ -135,7 +2547,7 @@ public class VSInputService {
       }
 
       RuntimeViewsheet rvs =
-         vsObjectService.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
+         vsObjectService.getRuntimeViewsheet(vsId, principal);
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
       int hint;
 
@@ -268,13 +2680,13 @@ public class VSInputService {
       return hint;
    }
 
-   private void refreshVS(Principal principal, CommandDispatcher dispatcher,
+   private void refreshVS(String vsId, Principal principal, CommandDispatcher dispatcher,
                          Map<String, VSAssemblyInfo> oldCrosstabInfo,
                          String[] assemblyNames, Object[] selectedObjects, int[] hints,
                          @LinkUri String linkUri) throws Exception
    {
       RuntimeViewsheet rvs =
-         vsObjectService.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
+         vsObjectService.getRuntimeViewsheet(vsId, principal);
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
       box.lockWrite();
 
@@ -582,12 +2994,12 @@ public class VSInputService {
       return false;
    }
 
-   private Map<String, VSAssemblyInfo> getOldCrosstabInfo(Principal principal) throws Exception {
+   private Map<String, VSAssemblyInfo> getOldCrosstabInfo(String vsId, Principal principal) throws Exception {
       // @by ankitmathur, Fix Bug #4211, Need to maintain the old instances of
       // all VSCrosstabInfo's which can be used to sync the new/updated
       // TableDataPaths after the assembly is updated.
       RuntimeViewsheet rvs =
-         vsObjectService.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
+         vsObjectService.getRuntimeViewsheet(vsId, principal);
       Viewsheet vs = rvs.getViewsheet();
       Map<String, VSAssemblyInfo> oldCrosstabInfo = new HashMap<>();
 
@@ -1344,9 +3756,14 @@ public class VSInputService {
       }
    }
 
+
+   private final DataRefModelFactoryService dataRefModelFactoryService;
+   private VSAssemblyInfoHandler vsAssemblyInfoHandler;
+   private final VSObjectPropertyService vsObjectPropertyService;
+   private final VSDialogService dialogService;
+   private final VSTrapService trapService;
    private final VSObjectService vsObjectService;
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
    private static final Logger LOG = LoggerFactory.getLogger(VSInputService.class);
 }

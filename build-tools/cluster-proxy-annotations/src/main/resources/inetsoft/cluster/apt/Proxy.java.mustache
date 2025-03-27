@@ -7,13 +7,13 @@ public class {{proxySimpleName}} {
 
    public static final class {{callableClassName}} implements org.apache.ignite.lang.IgniteCallable<{{{returnType}}}> {
    {{#parameters}}
-      private final {{{value.type}}} {{value.name}};
+      private final {{{value.internalType}}} {{value.name}};
    {{/parameters}}
       private final inetsoft.web.ServiceProxyContext serviceProxyContext = new inetsoft.web.ServiceProxyContext();
 
       public {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}) {
       {{#parameters}}
-         this.{{value.name}} = {{value.name}};
+         this.{{value.name}} = {{value.initializer}};
       {{/parameters}}
       }
 
@@ -22,7 +22,7 @@ public class {{proxySimpleName}} {
 
          try {
             {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
-            return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+            return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.getter}}{{/parameters}});
          }
          finally {
             serviceProxyContext.postprocess();
