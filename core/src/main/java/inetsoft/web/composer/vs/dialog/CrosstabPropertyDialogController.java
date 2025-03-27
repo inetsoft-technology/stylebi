@@ -149,7 +149,7 @@ public class CrosstabPropertyDialogController {
 
       TableViewStylePaneController styleController = new TableViewStylePaneController();
       tableStylePaneModel.setTableStyle(crosstabAssemblyInfo.getTableStyleValue());
-      tableStylePaneModel.setStyleTree(styleController.getStyleTree(rvs, principal, false));
+      tableStylePaneModel.setStyleTree(dialogService.getStyleTree(rvs, principal, false));
 
       Point pos = dialogService.getAssemblyPosition(crosstabAssemblyInfo, vs);
       Dimension size = dialogService.getAssemblySize(crosstabAssemblyInfo, vs);

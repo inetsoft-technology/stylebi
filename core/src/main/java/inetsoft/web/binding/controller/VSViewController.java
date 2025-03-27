@@ -17,16 +17,9 @@
  */
 package inetsoft.web.binding.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.event.GetVSObjectModelEvent;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -44,18 +37,14 @@ public class VSViewController {
     *
     * @param runtimeViewsheetRef reference to the runtime viewsheet associated with the
     *                            WebSocket session.
-    * @param viewsheetService
     */
    @Autowired
    public VSViewController(
            RuntimeViewsheetRef runtimeViewsheetRef,
-           CoreLifecycleService holder, VSObjectModelFactoryService objectModelService,
-           ViewsheetService viewsheetService)
+           VSViewServiceProxy vsViewService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.holder = holder;
-      this.objectModelService = objectModelService;
-      this.viewsheetService = viewsheetService;
+      this.vsViewService = vsViewService;
    }
 
    /**
@@ -72,22 +61,9 @@ public class VSViewController {
          return;
       }
 
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VSAssembly assembly = (VSAssembly)viewsheet.getAssembly(event.getName());
-      holder.refreshVSObject(assembly, rvs, null, box, dispatcher);
-
-      if(assembly instanceof TableDataVSAssembly) {
-         int hint = VSAssembly.BINDING_CHANGED;
-         holder.execute(rvs, event.getName(), null, hint, dispatcher);
-         BaseTableController.loadTableData(
-            rvs, event.getName(), 0, 0, 100, null, dispatcher);
-      }
+      vsViewService.getModel(id, event, principal, dispatcher);
    }
 
-   private final CoreLifecycleService holder;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSObjectModelFactoryService objectModelService;
-   private final ViewsheetService viewsheetService;
+   private final VSViewServiceProxy vsViewService;
 }

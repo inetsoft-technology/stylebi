@@ -17,14 +17,26 @@
  */
 package inetsoft.web.viewsheet.service;
 
+import inetsoft.report.LibManager;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.StyleTreeModel;
+import inetsoft.report.style.XTableStyle;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Catalog;
+import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.SizePositionPaneModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
+import java.security.Principal;
+import java.util.*;
+import java.util.List;
 
 @Service
 public class VSDialogService {
@@ -132,4 +144,171 @@ public class VSDialogService {
          setAssemblySize(childInfo, width, childSize.height);
       }
    }
+
+   /**
+    * Get Tree model for images, mimic of GetTableStyleEvent
+    *
+    * @param rvs The runtime viewsheet
+    *
+    * @param freehand
+    * @return the image tree model
+    */
+   public TreeNodeModel getStyleTree(RuntimeViewsheet rvs, Principal principal, boolean freehand) {
+      Viewsheet viewsheet = rvs.getViewsheet();
+      Catalog catalog = Catalog.getCatalog();
+      SecurityEngine securityEngine = SecurityEngine.getSecurity();
+      LibManager mgr = LibManager.getManager();
+
+      if(viewsheet == null) {
+         return TreeNodeModel.builder().build();
+      }
+
+      TreeNodeModel root = TreeNodeModel.builder()
+         .label(catalog.getString("Styles"))
+         .type("folder")
+         .leaf(false)
+         .children(getChildNodes(null, mgr, securityEngine, principal, freehand))
+         .build();
+
+      return TreeNodeModel.builder().
+         children(Collections.singletonList(root))
+         .build();
+   }
+
+   public TreeNodeModel getStyleTree(Principal principal) throws Exception {
+      Catalog catalog = Catalog.getCatalog();
+      SecurityEngine securityEngine = SecurityEngine.getSecurity();
+      LibManager mgr = LibManager.getManager();
+
+      TreeNodeModel root = TreeNodeModel.builder()
+         .label(catalog.getString("Styles"))
+         .type("folder")
+         .leaf(false)
+         .children(getChildNodes(null, mgr, securityEngine, principal, false))
+         .build();
+
+      return TreeNodeModel.builder()
+         .children(Collections.singletonList(root))
+         .build();
+   }
+
+
+   private java.util.List<TreeNodeModel> getChildNodes(String parentData, LibManager mgr,
+                                                       SecurityEngine securityEngine,
+                                                       Principal principal, boolean freehand)
+   {
+      java.util.List<TreeNodeModel> children = new ArrayList<>();
+      java.util.List<String> folders = Arrays.asList(mgr.getTableStyleFolders(parentData, true));
+      folders.sort(comparator);
+
+      for(String folder : folders) {
+         try {
+            if(!securityEngine.checkPermission(
+               principal, ResourceType.TABLE_STYLE, folder, ResourceAction.READ))
+            {
+               continue;
+            }
+         }
+         catch(Exception exc) {
+            LOG.warn("Failed to check table style folder permission", exc);
+         }
+
+         java.util.List<TreeNodeModel> folderChildren =
+            getChildNodes(folder, mgr, securityEngine, principal, false);
+
+         if(!folderChildren.isEmpty()) {
+            children.add(TreeNodeModel.builder()
+                            .label(getDisplayName(folder))
+                            .data(folder)
+                            .type("folder")
+                            .leaf(false)
+                            .children(folderChildren)
+                            .build());
+         }
+      }
+
+      List<XTableStyle> tstyles = Arrays.asList(mgr.getTableStyles(parentData, true));
+      tstyles.sort(comparator);
+
+      for(XTableStyle style : tstyles) {
+         try {
+            if(!securityEngine.checkPermission(
+               principal, ResourceType.TABLE_STYLE, style.getName(), ResourceAction.READ))
+            {
+               continue;
+            }
+         }
+         catch(Exception exc) {
+            LOG.warn("Failed to check table style folder permission", exc);
+         }
+
+         children.add(TreeNodeModel.builder()
+                         .label(getDisplayName(style.getName()))
+                         .data(style.getID())
+                         .icon("fa fa-table")
+                         .type("style")
+                         .leaf(true)
+                         .build());
+      }
+
+      if(freehand) {
+         children.add(TreeNodeModel.builder()
+                         .label("Crosstab Style")
+                         .data("inetsoft.report.style.CrosstabStyle")
+                         .icon("fa fa-table")
+                         .type("style")
+                         .leaf(true)
+                         .build());
+      }
+
+      return children;
+   }
+
+
+   private Comparator comparator = (o1, o2) -> {
+      String path1;
+      String path2;
+
+      if(o1 instanceof XTableStyle && o2 instanceof XTableStyle) {
+         XTableStyle style1 = (XTableStyle) o1;
+         XTableStyle style2 = (XTableStyle) o2;
+         path1 = style1.getName();
+         path2 = style2.getName();
+         int idx1 = path1.indexOf(StyleTreeModel.SEPARATOR);
+         int idx2 = path2.indexOf(StyleTreeModel.SEPARATOR);
+
+         // always put top level styles at the bottom
+         if(idx1 >= 0 && idx2 < 0) {
+            return -1;
+         }
+         else if(idx1 < 0 && idx2 >= 0) {
+            return 1;
+         }
+      }
+      else {
+         path1 = o1 + "";
+         path2 = o2 + "";
+      }
+
+      return path1.compareTo(path2);
+   };
+
+   private String getDisplayName(String path) {
+      int index = path.lastIndexOf(LibManager.SEPARATOR);
+      String name;
+      Catalog catalog = Catalog.getCatalog();
+
+      if(index < 0) {
+         name = path;
+      }
+      else {
+         name = path.substring(index + 1);
+      }
+
+      return catalog.getString(name);
+   }
+
+
+   private static final Logger LOG =
+      LoggerFactory.getLogger(VSDialogService.class);
 }

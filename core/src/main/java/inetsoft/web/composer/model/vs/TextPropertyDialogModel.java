@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link TextPropertyDialogModel} for the
  * text property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TextPropertyDialogModel {
+public class TextPropertyDialogModel implements Serializable {
    public String getId() {
       return id;
    }
