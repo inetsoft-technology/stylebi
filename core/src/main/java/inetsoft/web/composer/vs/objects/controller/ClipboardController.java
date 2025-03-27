@@ -65,7 +65,7 @@ public class ClipboardController {
                           @LinkUri String linkUri) throws Exception
    {
       clipboardControllerServiceProxy.copyOrCut(runtimeViewsheetRef.getRuntimeId(), event,
-                                                headerAccessor, principal, dispatcher, linkUri);
+                                                principal, dispatcher, linkUri);
    }
 
    @Undoable
@@ -76,7 +76,7 @@ public class ClipboardController {
                           @LinkUri String linkUri) throws Exception
    {
       clipboardControllerServiceProxy.copyOrCut(runtimeViewsheetRef.getRuntimeId(), event,
-                                                headerAccessor, principal, dispatcher, linkUri);
+                                                principal, dispatcher, linkUri);
    }
 
    /**
@@ -98,7 +98,7 @@ public class ClipboardController {
       throws Exception
    {
       clipboardControllerServiceProxy.pasteObject(runtimeViewsheetRef.getRuntimeId(), x, y,
-                                                  principal, dispatcher, headerAccessor, linkUri);
+                                                  principal, dispatcher, linkUri);
    }
 
    /**
@@ -116,7 +116,7 @@ public class ClipboardController {
       throws Exception
    {
       clipboardControllerServiceProxy.copyHighlight(runtimeViewsheetRef.getRuntimeId(), event,
-                                                    principal, dispatcher, headerAccessor);
+                                                    principal, dispatcher);
    }
 
    /**
@@ -138,7 +138,7 @@ public class ClipboardController {
       throws Exception
    {
       clipboardControllerServiceProxy.pasteHighlight(runtimeViewsheetRef.getRuntimeId(), event,
-                                                     principal, headerAccessor, dispatcher, linkUri);
+                                                     principal, dispatcher, linkUri);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;

@@ -44,6 +44,7 @@ import inetsoft.web.viewsheet.command.UpdateHighlightPasteCommand;
 import inetsoft.web.viewsheet.service.*;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import inetsoft.web.messaging.MessageContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -71,9 +72,9 @@ public class ClipboardControllerService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void copyOrCut(@ClusterProxyKey String runtimeId, CopyVSObjectsEvent event,
-                         SimpMessageHeaderAccessor headerAccessor, Principal principal,
-                         CommandDispatcher dispatcher, String linkUri) throws Exception
+                         Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
    {
+      final SimpMessageHeaderAccessor headerAccessor = MessageContextHolder.getMessageAttributes().getHeaderAccessor();
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       final Viewsheet viewsheet = rvs.getViewsheet();
       final Set<Assembly> oldAssemblies = new HashSet<>();
@@ -129,10 +130,10 @@ public class ClipboardControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void pasteObject(@ClusterProxyKey String runtimeId, int x, int y,
-                           Principal principal, CommandDispatcher dispatcher,
-                           SimpMessageHeaderAccessor headerAccessor, String linkUri) throws Exception
+   public Void pasteObject(@ClusterProxyKey String runtimeId, int x, int y, Principal principal,
+                           CommandDispatcher dispatcher, String linkUri) throws Exception
    {
+      final SimpMessageHeaderAccessor headerAccessor = MessageContextHolder.getMessageAttributes().getHeaderAccessor();
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       final Viewsheet viewsheet = rvs.getViewsheet();
       final ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
@@ -381,8 +382,9 @@ public class ClipboardControllerService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void copyHighlight(@ClusterProxyKey String runtimeId, CopyHighlightEvent event, Principal principal,
-                             CommandDispatcher dispatcher, SimpMessageHeaderAccessor headerAccessor) throws Exception
+                             CommandDispatcher dispatcher) throws Exception
    {
+      final SimpMessageHeaderAccessor headerAccessor = MessageContextHolder.getMessageAttributes().getHeaderAccessor();
       Viewsheet viewsheet = viewsheetService.getViewsheet(runtimeId, principal).getViewsheet();
       VSAssembly assembly = (VSAssembly) viewsheet.getAssembly(event.getName());
       TableDataVSAssemblyInfo assemblyInfo = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
@@ -427,9 +429,9 @@ public class ClipboardControllerService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void pasteHighlight(@ClusterProxyKey String runtimeId, PasteHighlightEvent event,
-                              Principal principal, SimpMessageHeaderAccessor headerAccessor,
-                              CommandDispatcher dispatcher, @LinkUri String linkUri) throws Exception
+                              Principal principal, CommandDispatcher dispatcher, @LinkUri String linkUri) throws Exception
    {
+      final SimpMessageHeaderAccessor headerAccessor = MessageContextHolder.getMessageAttributes().getHeaderAccessor();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       VSAssembly assembly = rvs.getViewsheet().getAssembly(event.getName());
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
