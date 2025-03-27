@@ -26,8 +26,7 @@ import inetsoft.util.MigrateUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
 import org.apache.commons.lang.StringUtils;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
+import org.w3c.dom.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -191,19 +190,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             }
          }
          else if("Batch".equals(type)) {
-            String taskName = Tool.getAttribute(item, "taskId");
-            String newTaskName;
-
-            if(getOldOrganization() == null || getNewOrganization() == null) {
-               newTaskName = MigrateUtil.getNewUserTaskName(Tool.byteDecode(taskName),
-                  getOldName(), getNewName());
-            }
-            else {
-               newTaskName = MigrateUtil.getNewOrgTaskName(Tool.byteDecode(taskName),
-                  getOldOrganization().getOrganizationID(), getNewOrganization().getOrganizationID());
-            }
-
-            item.setAttribute("taskId", newTaskName);
+            processBatchAction(item);
          }
          else if("MV".equals(type)) {
             NodeList childNodes = getChildNodes(item, "./MVDef ");
@@ -217,6 +204,40 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
                element = (Element) childNodes.item(j);
                updateMVDef(element);
             }
+         }
+      }
+   }
+
+   private void processBatchAction(Element action) {
+      if(action == null) {
+         return;
+      }
+
+      String taskName = Tool.getAttribute(action, "taskId");
+      String newTaskName;
+
+      if(getOldOrganization() == null || getNewOrganization() == null) {
+         newTaskName = MigrateUtil.getNewUserTaskName(Tool.byteDecode(taskName),
+                                                      getOldName(), getNewName());
+      }
+      else {
+         newTaskName = MigrateUtil.getNewOrgTaskName(Tool.byteDecode(taskName),
+                                                     getOldOrganization().getOrganizationID(), getNewOrganization().getOrganizationID());
+      }
+
+      action.setAttribute("taskId", newTaskName);
+
+      if(getOldOrganization() == null || getNewOrganization() == null) {
+         return;
+      }
+
+      NodeList queryOrg = getChildNodes(action, "./queryEntry/assetEntry/organizationID");
+
+      if(queryOrg != null && queryOrg.getLength() > 0 && queryOrg.item(0) != null) {
+         String oldOrg = Tool.getValue(queryOrg.item(0));
+
+         if(Tool.equals(oldOrg, this.getOldOrganization().getOrganizationID())) {
+            this.replaceElementCDATANode(queryOrg.item(0), getNewOrganization().getOrganizationID());
          }
       }
    }
