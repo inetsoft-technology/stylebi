@@ -45,11 +45,6 @@ public abstract class UsersModel {
    }
 
    @Value.Default
-   public String[] groupBaseNames() {
-      return new String[0];
-   }
-
-   @Value.Default
    public List<IdentityID> emailUsers() {
       return new ArrayList<>(0);
    }
@@ -57,11 +52,6 @@ public abstract class UsersModel {
    @Value.Default
    public List<IdentityID> emailGroups() {
       return new ArrayList<>(0);
-   }
-
-   @Value.Default
-   public String[] emailGroupBaseNames() {
-      return new String[0];
    }
 
    public static Builder builder() {

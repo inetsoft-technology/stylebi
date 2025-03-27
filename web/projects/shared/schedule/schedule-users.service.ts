@@ -30,9 +30,7 @@ export const PORTAL = new InjectionToken<boolean>("PORTAL");
 export class ScheduleUsersService implements OnDestroy {
    owners = new BehaviorSubject<IdentityIdWithLabel[]>([]);
    groups = new BehaviorSubject<IdentityId[]>([]);
-   groupBaseNames = new BehaviorSubject<string[]>([]);
    emailGroups = new BehaviorSubject<IdentityId[]>([]);
-   emailGroupBaseNames = new BehaviorSubject<string[]>([]);
    emailUsers = new BehaviorSubject<IdentityId[]>([]);
    adminName = new BehaviorSubject<string>(null);
    private reload = false;
@@ -69,9 +67,7 @@ export class ScheduleUsersService implements OnDestroy {
             (usersModel) => {
                this.owners.next(usersModel.owners);
                this.groups.next(usersModel.groups);
-               this.groupBaseNames.next(usersModel.groupBaseNames);
                this.emailGroups.next(usersModel.emailGroups);
-               this.emailGroupBaseNames.next(usersModel.emailGroupBaseNames);
                this.emailUsers.next(usersModel.emailUsers);
                this.adminName.next((usersModel.adminName));
             },
@@ -99,16 +95,8 @@ export class ScheduleUsersService implements OnDestroy {
       return this.groups;
    }
 
-   getGroupBaseNames(): Observable<string[]> {
-      return this.groupBaseNames;
-   }
-
    getEmailGroups(): Observable<IdentityId[]> {
       return this.emailGroups;
-   }
-
-   getEmailGroupBaseNames(): Observable<string[]> {
-      return this.emailGroupBaseNames;
    }
 
    getEmailUsers(): Observable<IdentityId[]> {
@@ -130,7 +118,6 @@ export class ScheduleUsersService implements OnDestroy {
       this.owners.complete();
       this.groups.complete();
       this.emailGroups.complete();
-      this.emailGroupBaseNames.complete();
       this.emailUsers.complete();
       this.adminName.complete();
    }

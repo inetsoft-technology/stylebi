@@ -75,7 +75,6 @@ export class TaskOptionsPane implements OnInit {
    _model: TaskOptionsPaneModel;
    owners: IdentityIdWithLabel[];
    groups: IdentityId[];
-   groupBaseNames: string[];
    adminName: string;
    startDate: NgbDateStruct;
    endDate: NgbDateStruct;
@@ -95,7 +94,6 @@ export class TaskOptionsPane implements OnInit {
    {
       usersService.getOwners().subscribe(value => this.owners = value);
       usersService.getGroups().subscribe(value => this.groups = value);
-      usersService.getGroupBaseNames().subscribe(value => this.groupBaseNames = value);
       usersService.getAdminName().subscribe(value => this.adminName = value);
    }
 
@@ -167,13 +165,7 @@ export class TaskOptionsPane implements OnInit {
          _executeAsName = idName;
       }
 
-      if(_executeAsName.length > 0 && !!this.groupBaseNames && this.groupBaseNames.length > 0) {
-         let idx = this.groups.findIndex(g => g.name == _executeAsName);
-         this.executeAsName = idx == -1 ? _executeAsName : this.groupBaseNames[idx];
-      }
-      else {
-         this.executeAsName = _executeAsName;
-      }
+      this.executeAsName = _executeAsName;
    }
 
    public getExecuteAsType(): string {
