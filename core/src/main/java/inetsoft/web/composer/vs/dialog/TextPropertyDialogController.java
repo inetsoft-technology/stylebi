@@ -17,18 +17,7 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.asset.AggregateFormula;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.Tool;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
-import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.*;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -37,8 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
-import java.awt.*;
 import java.security.Principal;
 
 /**
