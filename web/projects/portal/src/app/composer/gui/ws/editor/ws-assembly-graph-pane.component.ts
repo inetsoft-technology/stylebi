@@ -667,7 +667,7 @@ export class WSAssemblyGraphPaneComponent
 
       if(primary) {
          // TODO common.PrimaryWarning
-         let message = "_#(js:common.PrimaryWarning)" + "_*" + primary.name;
+         let message = Tool.formatCatalogString("_#(js:common.PrimaryWarning)", [primary.name])
 
          promise = ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message,
             {"delete": "_#(js:Delete)", "cancel": "_#(js:Cancel)"})
