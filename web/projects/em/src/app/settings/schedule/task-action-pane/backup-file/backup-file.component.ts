@@ -251,10 +251,7 @@ export class BackupFileComponent implements OnDestroy {
    }
 
    getExportableLabel(node: RepositoryTreeNode): string {
-      if(node.type === RepositoryEntryType.TABLE_STYLE || !node.path) {
-         return node.label;
-      }
-      else if(node.type === RepositoryEntryType.SCHEDULE_TASK || !node.path) {
+      if(node.type === RepositoryEntryType.SCHEDULE_TASK || !node.path) {
          return removeOrganization(node.path, node.owner.orgID);
       }
       else {
@@ -322,7 +319,7 @@ export class BackupFileComponent implements OnDestroy {
          )
          .subscribe((result) => {
             const deniedAssets: SelectedAssetModel[] = assets
-               .filter((asset) => result && !result.selectedAssets
+               .filter((asset) => result && !result.allowedAssets
                   .some((allowedAsset) => allowedAsset.path === asset.path &&
                      allowedAsset.type === asset.type));
 

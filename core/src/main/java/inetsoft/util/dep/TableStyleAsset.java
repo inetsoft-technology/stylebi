@@ -119,7 +119,9 @@ public class TableStyleAsset extends AbstractXAsset {
     */
    @Override
    public void parseIdentifier(String path, IdentityID userIdentity) {
-      style = path;
+      LibManager manager = LibManager.getManager();
+      XTableStyle tableStyle = manager.getTableStyle(path);
+      style = tableStyle.getID();
    }
 
    public String getLabel() {
