@@ -17,40 +17,16 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.*;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.VSTableLens;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.erm.*;
-import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.util.XSourceInfo;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.VSChartAggregateRef;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
-import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-
-import java.awt.*;
 import java.security.Principal;
-import java.util.List;
-import java.util.*;
 
 /**
  * Controller that processes adhoc filter events for tables and charts.

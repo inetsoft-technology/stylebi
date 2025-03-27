@@ -40,7 +40,6 @@ import inetsoft.util.Tool;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.*;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
