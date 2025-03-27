@@ -180,6 +180,7 @@ public class PhysicalModelManagerService {
       actionName = ActionRecord.ACTION_NAME_CREATE,
       objectType = ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW
    )
+   @DatasourceIgnoreGlobalShare
    public void createAndSaveModel(@AuditObjectName(order = 0) String dataSource,
                                   @AuditObjectName(order = 1) String folder,
                                   @AuditObjectName(order = 2) String parent,
@@ -427,6 +428,7 @@ public class PhysicalModelManagerService {
       actionName = ActionRecord.ACTION_NAME_RENAME,
       objectType = ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW
    )
+   @DatasourceIgnoreGlobalShare
    public void renameModel(@AuditActionError(value = "'Target Entry: ' + #this", order = 1) @AuditObjectName(order = 1) String dataSource,
                            @AuditActionError(order = 2) @AuditObjectName(order = 2) String folder,
                            @AuditObjectName(order = 3) String oldName,
@@ -446,39 +448,32 @@ public class PhysicalModelManagerService {
                principal);
       }
 
-      DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
-
-      try {
-         if(dataModel.getPartition(newName) != null) {
-            throw new FileExistsException(newName);
-         }
-
-         String path = dataSource + "/" + oldName;
-         AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                           AssetEntry.Type.PARTITION, path, null);
-
-         entry = dataSourceService.getModelAssetEntry(entry);
-         String user = entry.getCreatedUsername();
-         Date date = entry.getCreatedDate();
-         dataModel.renamePartition(oldName, newName, description);
-         repository.updateDataModel(dataModel);
-         String npath = dataSource + "/" + newName;
-         AssetEntry newEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                              AssetEntry.Type.PARTITION, npath, null);
-         newEntry = dataSourceService.getModelAssetEntry(newEntry);
-         newEntry.setCreatedUsername(user);
-         newEntry.setCreatedDate(date);
-         dataSourceService.updateDataSourceAssetEntry(newEntry);
-         RenameInfo rinfo = new RenameInfo(path, npath, RenameInfo.PARTITION | RenameInfo.SOURCE);
-         rinfo.setModelFolder(folder);
-         RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
-         DependencyStorageService service = DependencyStorageService.getInstance();
-         DependencyHandler.getInstance().renameDependencies(entry, newEntry);
-         service.rename(entry.toIdentifier(), newEntry.toIdentifier(), rinfo.getOrganizationId());
+      if(dataModel.getPartition(newName) != null) {
+         throw new FileExistsException(newName);
       }
-      finally {
-         DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
-      }
+
+      String path = dataSource + "/" + oldName;
+      AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                        AssetEntry.Type.PARTITION, path, null);
+
+      entry = dataSourceService.getModelAssetEntry(entry);
+      String user = entry.getCreatedUsername();
+      Date date = entry.getCreatedDate();
+      dataModel.renamePartition(oldName, newName, description);
+      repository.updateDataModel(dataModel);
+      String npath = dataSource + "/" + newName;
+      AssetEntry newEntry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+                                           AssetEntry.Type.PARTITION, npath, null);
+      newEntry = dataSourceService.getModelAssetEntry(newEntry);
+      newEntry.setCreatedUsername(user);
+      newEntry.setCreatedDate(date);
+      dataSourceService.updateDataSourceAssetEntry(newEntry);
+      RenameInfo rinfo = new RenameInfo(path, npath, RenameInfo.PARTITION | RenameInfo.SOURCE);
+      rinfo.setModelFolder(folder);
+      RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
+      DependencyStorageService service = DependencyStorageService.getInstance();
+      DependencyHandler.getInstance().renameDependencies(entry, newEntry);
+      service.rename(entry.toIdentifier(), newEntry.toIdentifier(), rinfo.getOrganizationId());
    }
 
    /**

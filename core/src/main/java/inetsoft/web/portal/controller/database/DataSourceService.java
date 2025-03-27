@@ -33,6 +33,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.portal.controller.SearchComparator;
 import inetsoft.web.portal.model.database.*;
+import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -116,22 +117,16 @@ public class DataSourceService {
     * @return true if model name is a duplicate
     * @throws Exception if could not check for duplicate models
     */
+   @DatasourceIgnoreGlobalShare
    public boolean isUniqueModelName(String database, String name) throws Exception {
-      DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
+      XDataModel dataModel = repository.getDataModel(database);
 
-      try {
-         XDataModel dataModel = repository.getDataModel(database);
-
-         if(dataModel == null) {
-            throw new FileNotFoundException(database);
-         }
-
-         return dataModel.getLogicalModel(name) != null || dataModel.getPartition(name) != null ||
-            dataModel.getVirtualPrivateModel(name) != null;
+      if(dataModel == null) {
+         throw new FileNotFoundException(database);
       }
-      finally {
-         DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
-      }
+
+      return dataModel.getLogicalModel(name) != null || dataModel.getPartition(name) != null ||
+         dataModel.getVirtualPrivateModel(name) != null;
    }
 
    /**
