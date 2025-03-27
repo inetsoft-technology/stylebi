@@ -47,10 +47,11 @@ class ComposerGroupControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new ComposerGroupController(runtimeViewsheetRef, coreLifecycleService,
-                                               viewsheetService, vsObjectTreeService,
-                                               vsObjectPropertyService, vsCompositionService,
-                                               vsLayoutService);
+      controller = new ComposerGroupController(runtimeViewsheetRef, new ComposerGroupServiceProxy());
+      service = new ComposerGroupService(coreLifecycleService,
+                                          viewsheetService, vsObjectTreeService,
+                                          vsObjectPropertyService, vsCompositionService,
+                                          vsLayoutService);
       assemblies[0] = tab;
       assemblies[1] = image;
       assemblies[2] = calendar;
@@ -74,12 +75,12 @@ class ComposerGroupControllerTest {
       groupAssemblies[1] = "image";
       groupAssemblies[2] = "calendar";
 
-      assertEquals(controller.checkDependency(viewsheet), true);
+      assertEquals(service.checkDependency(viewsheet), true);
 
       tabAssemblies[0] = "calendar";
       tabAssemblies[1] = "image";
 
-      assertEquals(controller.checkDependency(viewsheet), false);
+      assertEquals(service.checkDependency(viewsheet), false);
    }
 
    // Bug #10760 Update the component tree after a grouping action
@@ -124,4 +125,5 @@ class ComposerGroupControllerTest {
    Assembly[] assemblies = new Assembly[4];
 
    private ComposerGroupController controller;
+   private ComposerGroupService service;
 }
