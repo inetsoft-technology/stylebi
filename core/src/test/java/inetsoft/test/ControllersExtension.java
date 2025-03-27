@@ -31,8 +31,7 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.service.LicenseService;
-import inetsoft.web.viewsheet.controller.OpenViewsheetController;
-import inetsoft.web.viewsheet.controller.ViewsheetController;
+import inetsoft.web.viewsheet.controller.*;
 import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataController;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.model.annotation.VSAnnotationModel;
@@ -151,8 +150,7 @@ public class ControllersExtension extends MockMessageExtension {
       vsLifecycleService = new VSLifecycleService(
          viewsheetService, assetRepository, coreLifecycleService, bookmarkService,
          dataRefModelFactoryService, vsCompositionService, parameterService);
-      viewsheetController = new ViewsheetController(
-         runtimeViewsheetRef, runtimeViewsheetManager, vsLifecycleService);
+      viewsheetController = new ViewsheetController(runtimeViewsheetRef, new ViewsheetControllerServiceProxy());
       licenseService = new LicenseService();
       openViewsheetController = new OpenViewsheetController(
          runtimeViewsheetRef, runtimeViewsheetManager, objectTreeService, viewsheetService,
@@ -161,7 +159,7 @@ public class ControllersExtension extends MockMessageExtension {
          new BaseTableLoadDataController(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
       selectionService = new VSSelectionService(coreLifecycleService, viewsheetService,
                                                 maxModeAssemblyService, sharedFilterService);
-      maxModeAssemblyService = new MaxModeAssemblyService(coreLifecycleService);
+      maxModeAssemblyService = new MaxModeAssemblyService(viewsheetService, coreLifecycleService);
    }
 
    @Override

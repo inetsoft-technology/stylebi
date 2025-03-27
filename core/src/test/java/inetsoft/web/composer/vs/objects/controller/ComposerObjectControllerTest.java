@@ -43,14 +43,7 @@ import static org.mockito.Mockito.*;
 class ComposerObjectControllerTest {
    @BeforeEach
    void setup() throws Exception {
-      controller = new ComposerObjectController(runtimeViewsheetRef,
-                                                vsObjectTreeService,
-                                                coreLifecycleService,
-                                                engine,
-                                                assemblyHandler,
-                                                objectModelService,
-                                                vsObjectService,
-                                                vsCompositionService);
+      controller = new ComposerObjectController(runtimeViewsheetRef, new ComposerObjectServiceProxy());
    }
 
    @Test
