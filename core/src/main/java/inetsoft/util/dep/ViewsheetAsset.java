@@ -362,7 +362,7 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
       }
 
       identifier = identifier.substring(idx + 1);
-      entry = AssetEntry.createAssetEntry(identifier);
+      entry = AssetEntry.createAssetEntryForCurrentOrg(identifier);
    }
 
    /**

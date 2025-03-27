@@ -18,6 +18,7 @@
 package inetsoft.uql.asset.sync;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.dep.*;
 import inetsoft.util.gui.ObjectInfo;
 import inetsoft.report.Hyperlink;
@@ -125,7 +126,7 @@ public final class UpdateDependencyHandler {
       String id = null;
 
       if((Hyperlink.VIEWSHEET_LINK + "").equals(linkType)) {
-         id = link;
+         id = AssetEntry.createAssetEntryForCurrentOrg(link).toIdentifier();
       }
 
       updateDependency(id, entry, dependencies);

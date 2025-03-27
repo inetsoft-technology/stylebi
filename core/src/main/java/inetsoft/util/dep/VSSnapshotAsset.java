@@ -101,7 +101,7 @@ public class VSSnapshotAsset extends AbstractSheetAsset {
       }
 
       identifier = identifier.substring(idx + 1);
-      entry = AssetEntry.createAssetEntry(identifier);
+      entry = AssetEntry.createAssetEntryForCurrentOrg(identifier);
    }
 
    /**
