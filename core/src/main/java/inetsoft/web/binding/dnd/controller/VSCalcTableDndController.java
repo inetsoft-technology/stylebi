@@ -26,6 +26,7 @@ import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.binding.controller.VSTableLayoutController;
+import inetsoft.web.binding.controller.VSTableLayoutService;
 import inetsoft.web.binding.dnd.CalcDropTarget;
 import inetsoft.web.binding.dnd.CalcTableTransfer;
 import inetsoft.web.binding.event.VSDndEvent;
@@ -65,7 +66,7 @@ public class VSCalcTableDndController extends VSAssemblyDndController {
    public VSCalcTableDndController(RuntimeViewsheetRef runtimeViewsheetRef,
                                    VSBindingService bfactory,
                                    VSAssemblyInfoHandler assemblyInfoHandler,
-                                   VSTableLayoutController tableLayoutController,
+                                   VSTableLayoutService tableLayoutService,
                                    VSCalcTableBindingHandler calcTableHandler,
                                    VSObjectModelFactoryService objectModelService,
                                    ViewsheetService viewsheetService,
@@ -74,7 +75,7 @@ public class VSCalcTableDndController extends VSAssemblyDndController {
       super(runtimeViewsheetRef, bfactory, assemblyInfoHandler, objectModelService,
             viewsheetService, coreLifecycleService);
       this.calcTableHandler = calcTableHandler;
-      this.tableLayoutController = tableLayoutController;
+      this.tableLayoutService = tableLayoutService;
    }
 
    /**
@@ -198,11 +199,11 @@ public class VSCalcTableDndController extends VSAssemblyDndController {
 
       CalcTableVSAssembly calc = (CalcTableVSAssembly) assembly;
       dispatcher.sendCommand(name,
-         tableLayoutController.createCellBindingCommand(rvs, calc, rect.y, rect.x));
-      dispatcher.sendCommand(name, tableLayoutController.createTableLayoutCommand(rvs, calc));
+         tableLayoutService.createCellBindingCommand(rvs, calc, rect.y, rect.x));
+      dispatcher.sendCommand(name, tableLayoutService.createTableLayoutCommand(rvs, calc));
    }
 
    private VSCalcTableBindingHandler calcTableHandler;
-   private VSTableLayoutController tableLayoutController;
+   private VSTableLayoutService tableLayoutService;
    private static final Logger LOG = LoggerFactory.getLogger(VSCalcTableDndController.class);
 }
