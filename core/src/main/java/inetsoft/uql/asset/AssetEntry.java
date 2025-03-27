@@ -365,6 +365,10 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
          key.equals("_description_") || key.equals("__bookmark_id__");
    }
 
+   public static AssetEntry createAssetEntry(String identifier, String orgID) {
+      return createAssetEntry(identifier, orgID, false);
+   }
+
    /**
     * Create an asset entry from a string identifier. Supports the
     * AssetEntry.toIdentifier() syntax (e.g. "1^2^__NULL__^WSName", as well as
@@ -375,7 +379,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
     * @param identifier the specified string identifier.
     * @return the created asset entry.
     */
-   public static AssetEntry createAssetEntry(String identifier, String orgID) {
+   public static AssetEntry createAssetEntry(String identifier, String orgID, boolean forceUpdateOrgID) {
       if(identifier == null) {
          return null;
       }
@@ -464,7 +468,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       String path = index == -1 ?
          identifier.substring(lindex + 1) : identifier.substring(lindex + 1, identifier.lastIndexOf('^'));
 
-      orgID = index == -1 || scope == AssetRepository.TEMPORARY_SCOPE ?
+      orgID = forceUpdateOrgID || index == -1 || scope == AssetRepository.TEMPORARY_SCOPE ?
          orgID : identifier.substring(index + 1);
 
       return new AssetEntry(scope, type, path, user, orgID);
@@ -472,6 +476,10 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
 
    public static AssetEntry createAssetEntry(String identifier) {
       return AssetEntry.createAssetEntry(identifier, null);
+   }
+
+   public static AssetEntry createAssetEntryForCurrentOrg(String identifier) {
+      return AssetEntry.createAssetEntry(identifier, OrganizationManager.getInstance().getCurrentOrgID(), true);
    }
 
    public String getScriptRunQueryidentifier() {
