@@ -20,10 +20,10 @@ package inetsoft.web.composer.vs.objects.controller;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectValueEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
@@ -35,14 +35,11 @@ import java.security.Principal;
  */
 @Controller
 public class VSSpinnerController {
-   /**
-    * Creates a new instance of <tt>VSSpinnerController</tt>.
-    *
-    * @param vsInputService   reference to the VSInputService
-    */
-   @Autowired
-   public VSSpinnerController(VSInputService vsInputService) {
-      this.vsInputService = vsInputService;
+
+   public VSSpinnerController(VSInputServiceProxy vsInputServiceProxy,
+                              RuntimeViewsheetRef runtimeViewsheetRef) {
+      this.vsInputServiceProxy = vsInputServiceProxy;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
 
    /**
@@ -61,11 +58,12 @@ public class VSSpinnerController {
                            CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      this.vsInputService.singleApplySelection(event.getName(), event.getValue(),
+      this.vsInputServiceProxy.singleApplySelection(runtimeViewsheetRef.getRuntimeId(), event.getName(), event.getValue(),
                                          principal, dispatcher, linkUri);
    }
 
-   private final VSInputService vsInputService;
+   private VSInputServiceProxy vsInputServiceProxy;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(VSSpinnerController.class);

@@ -17,14 +17,7 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.SpinnerVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.SpinnerVSAssemblyInfo;
-import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -34,8 +27,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
-import java.awt.*;
 import java.security.Principal;
 
 /**
@@ -45,26 +36,13 @@ import java.security.Principal;
  */
 @Controller
 public class SpinnerPropertyDialogController {
-   /**
-    * Creates a new instance of <tt>SpinnerPropertyDialogController</tt>.
-    * @param vsObjectPropertyService VSObjectPropertyService instance
-    * @param vsInputService          VSInputService instance
-    * @param runtimeViewsheetRef     RuntimeViewsheetRef instance
-    * @param viewsheetService
-    */
+
    @Autowired
-   public SpinnerPropertyDialogController(
-      VSObjectPropertyService vsObjectPropertyService,
-      VSInputService vsInputService,
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      VSDialogService dialogService,
-      ViewsheetService viewsheetService)
+   public SpinnerPropertyDialogController(VSInputServiceProxy vsInputServiceProxy,
+                                          RuntimeViewsheetRef runtimeViewsheetRef)
    {
-      this.vsObjectPropertyService = vsObjectPropertyService;
-      this.vsInputService = vsInputService;
+      this.vsInputServiceProxy = vsInputServiceProxy;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.dialogService = dialogService;
-      this.viewsheetService = viewsheetService;
    }
 
    /**
@@ -84,67 +62,7 @@ public class SpinnerPropertyDialogController {
                                                                    Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      SpinnerVSAssembly spinnerAssembly;
-      SpinnerVSAssemblyInfo spinnerAssemblyInfo;
-
-      try {
-         rvs = viewsheetService.getViewsheet(runtimeId, principal);
-         vs = rvs.getViewsheet();
-         spinnerAssembly = (SpinnerVSAssembly) vs.getAssembly(objectId);
-         spinnerAssemblyInfo = (SpinnerVSAssemblyInfo) spinnerAssembly.getVSAssemblyInfo();
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      SpinnerPropertyDialogModel result = new SpinnerPropertyDialogModel();
-      SpinnerGeneralPaneModel spinnerGeneralPaneModel = result.getSpinnerGeneralPaneModel();
-      NumericRangePaneModel numericRangePaneModel = spinnerGeneralPaneModel.getNumericRangePaneModel();
-      GeneralPropPaneModel generalPropPaneModel = spinnerGeneralPaneModel.getGeneralPropPaneModel();
-      SizePositionPaneModel sizePositionPaneModel =
-         spinnerGeneralPaneModel.getSizePositionPaneModel();
-      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
-      DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
-      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
-
-      numericRangePaneModel.setMinimum(spinnerAssemblyInfo.getMinValue());
-      numericRangePaneModel.setMaximum(spinnerAssemblyInfo.getMaxValue());
-      numericRangePaneModel.setIncrement(spinnerAssemblyInfo.getIncrementValue());
-
-      generalPropPaneModel.setShowEnabledGroup(true);
-      generalPropPaneModel.setEnabled(spinnerAssemblyInfo.getEnabledValue());
-      generalPropPaneModel.setShowSubmitCheckbox(true);
-      generalPropPaneModel.setSubmitOnChange(Boolean.valueOf(spinnerAssemblyInfo.getSubmitOnChangeValue()));
-
-      Point pos = dialogService.getAssemblyPosition(spinnerAssemblyInfo, vs);
-      Dimension size = dialogService.getAssemblySize(spinnerAssemblyInfo, vs);
-
-      sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setContainer(spinnerAssembly.getContainer() != null);
-
-      basicGeneralPaneModel.setName(spinnerAssemblyInfo.getAbsoluteName());
-      basicGeneralPaneModel.setPrimary(spinnerAssemblyInfo.isPrimary());
-      basicGeneralPaneModel.setVisible(spinnerAssemblyInfo.getVisibleValue());
-      basicGeneralPaneModel.setObjectNames(
-         this.vsObjectPropertyService.getObjectNames(vs, spinnerAssemblyInfo.getAbsoluteName()));
-      basicGeneralPaneModel.setRefresh(spinnerAssemblyInfo.isRefresh());
-
-      vsInputService.getTableName(spinnerAssemblyInfo, dataInputPaneModel);
-      dataInputPaneModel.setColumnValue(spinnerAssemblyInfo.getColumnValue());
-      dataInputPaneModel.setRowValue(spinnerAssemblyInfo.getRowValue());
-      dataInputPaneModel.setTargetTree(
-         this.vsInputService.getInputTablesTree(rvs, false, principal));
-      dataInputPaneModel.setWriteBackDirectly(spinnerAssemblyInfo.getWriteBackValue());
-
-      vsAssemblyScriptPaneModel.scriptEnabled(spinnerAssemblyInfo.isScriptEnabled());
-      vsAssemblyScriptPaneModel.expression(spinnerAssemblyInfo.getScript() == null ?
-                                              "" : spinnerAssemblyInfo.getScript());
-      result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
-
-      return result;
+      return vsInputServiceProxy.getSpinnerPropertyDialogModel(runtimeId, objectId, principal);
    }
 
    /**
@@ -163,86 +81,10 @@ public class SpinnerPropertyDialogController {
                                              CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet viewsheet;
-      SpinnerVSAssemblyInfo spinnerAssemblyInfo;
-
-      try {
-         viewsheet = viewsheetService.getViewsheet(
-            this.runtimeViewsheetRef.getRuntimeId(), principal);
-         SpinnerVSAssembly spinnerAssembly = (SpinnerVSAssembly) viewsheet.getViewsheet().getAssembly(objectId);
-         spinnerAssemblyInfo = (SpinnerVSAssemblyInfo) Tool.clone(spinnerAssembly.getVSAssemblyInfo());
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      SpinnerGeneralPaneModel spinnerGeneralPaneModel = value.getSpinnerGeneralPaneModel();
-      NumericRangePaneModel numericRangePaneModel = spinnerGeneralPaneModel.getNumericRangePaneModel();
-      GeneralPropPaneModel generalPropPaneModel = spinnerGeneralPaneModel.getGeneralPropPaneModel();
-      SizePositionPaneModel sizePositionPaneModel =
-         spinnerGeneralPaneModel.getSizePositionPaneModel();
-      BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
-      DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
-      VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
-
-      spinnerAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
-      spinnerAssemblyInfo.setSubmitOnChangeValue(generalPropPaneModel.isSubmitOnChange() + "");
-      spinnerAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
-
-      dialogService.setAssemblySize(spinnerAssemblyInfo, sizePositionPaneModel);
-      dialogService.setAssemblyPosition(spinnerAssemblyInfo, sizePositionPaneModel);
-
-      spinnerAssemblyInfo.setMinValue(numericRangePaneModel.getMinimum());
-      spinnerAssemblyInfo.setMaxValue(numericRangePaneModel.getMaximum());
-
-      if(spinnerAssemblyInfo.getSelectedObject() instanceof Number &&
-         ((Number) spinnerAssemblyInfo.getSelectedObject()).doubleValue() < spinnerAssemblyInfo.getMin()){
-         spinnerAssemblyInfo.setSelectedObject(spinnerAssemblyInfo.getMin());
-      }
-
-      if(spinnerAssemblyInfo.getSelectedObject() instanceof Number &&
-         ((Number) spinnerAssemblyInfo.getSelectedObject()).doubleValue() > spinnerAssemblyInfo.getMax()){
-         spinnerAssemblyInfo.setSelectedObject(spinnerAssemblyInfo.getMax());
-      }
-
-      spinnerAssemblyInfo.setIncrementValue(numericRangePaneModel.getIncrement());
-
-      spinnerAssemblyInfo.setPrimary(basicGeneralPaneModel.isPrimary());
-      spinnerAssemblyInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
-
-      // TODO validate column/row variable/expression type
-      String table = dataInputPaneModel.getTable();
-      spinnerAssemblyInfo.setTableName(table == null ? "" : table);
-      spinnerAssemblyInfo.setColumnValue(dataInputPaneModel.getColumnValue());
-      spinnerAssemblyInfo.setRowValue(dataInputPaneModel.getRowValue());
-      spinnerAssemblyInfo.setVariable(table != null && table.startsWith("$(") && table.endsWith(")"));
-      spinnerAssemblyInfo.setWriteBackValue(dataInputPaneModel.isWriteBackDirectly());
-
-      if(dataInputPaneModel.getDefaultValue() != null) {
-         double dvalue = 0;
-
-         try {
-            Double.valueOf(dataInputPaneModel.getDefaultValue());
-         }
-         catch(Exception e) {
-            //ignore it.
-         }
-
-         spinnerAssemblyInfo.setValue(dvalue);
-      }
-
-      spinnerAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
-      spinnerAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
-
-      this.vsObjectPropertyService.editObjectProperty(
-         viewsheet, spinnerAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
+     vsInputServiceProxy.setSpinnerPropertyDialogModel(runtimeViewsheetRef.getRuntimeId(), objectId,
+                                                       value, linkUri, principal, commandDispatcher);
    }
 
-   private final VSObjectPropertyService vsObjectPropertyService;
-   private final VSInputService vsInputService;
+   private final VSInputServiceProxy vsInputServiceProxy;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSDialogService dialogService;
-   private final ViewsheetService viewsheetService;
 }

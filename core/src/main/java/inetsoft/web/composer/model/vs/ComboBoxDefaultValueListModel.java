@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class ComboBoxDefaultValueListModel {
+import java.io.Serializable;
+
+public class ComboBoxDefaultValueListModel implements Serializable {
 
    public String getLabel() {
       return label;

@@ -21,6 +21,7 @@ import com.fasterxml.jackson.annotation.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.model.graph.*;
+import org.immutables.serial.Serial;
 
 /**
  * DataRefModel holding a reference to a SQL expression or an attribute.
@@ -53,6 +54,7 @@ import inetsoft.web.binding.model.graph.*;
    @JsonSubTypes.Type(value = NamedRangeRefModel.class, name = "NamedRangeRefModel")
 })
 @JsonIgnoreProperties(ignoreUnknown = true)
+@Serial.Structural
 public interface DataRefModel {
    /**
     * Get the ref type.

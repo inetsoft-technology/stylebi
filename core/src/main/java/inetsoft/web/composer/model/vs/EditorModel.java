@@ -20,6 +20,8 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.*;
 import inetsoft.uql.viewsheet.ColumnOption;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(
    include = JsonTypeInfo.As.EXISTING_PROPERTY,
@@ -33,7 +35,7 @@ import inetsoft.uql.viewsheet.ColumnOption;
    @JsonSubTypes.Type(value = FloatEditorModel.class, name = ColumnOption.FLOAT),
    @JsonSubTypes.Type(value = ComboBoxEditorModel.class, name = ColumnOption.COMBOBOX)
 })
-public class EditorModel {
+public class EditorModel implements Serializable {
    public String getType() {
       return type;
    }

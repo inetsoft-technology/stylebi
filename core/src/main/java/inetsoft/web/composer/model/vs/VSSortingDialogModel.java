@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class VSSortingDialogModel {
+import java.io.Serializable;
+
+public class VSSortingDialogModel implements Serializable {
    public VSSortingPaneModel getVsSortingPaneModel() {
       if(vsSortingPaneModel == null) {
          this.vsSortingPaneModel = new VSSortingPaneModel();
