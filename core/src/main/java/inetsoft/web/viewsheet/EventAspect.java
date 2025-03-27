@@ -27,6 +27,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.internal.WSExecution;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
@@ -349,6 +350,19 @@ public class EventAspect {
       }
 
       return result;
+   }
+
+   @Around("@annotation(DatasourceIgnoreGlobalShare) && within(inetsoft.web..*)")
+   public Object handleIgnoreGlobalShare(ProceedingJoinPoint pjp) throws Throwable {
+      Boolean oldValue = DataSourceRegistry.IGNORE_GLOBAL_SHARE.get();
+
+      try {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(Boolean.TRUE);
+         return pjp.proceed();
+      }
+      finally {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(oldValue);
+      }
    }
 
    private String buildOrderedPath(Map<Integer, String> errorMsg) {
