@@ -1736,7 +1736,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          event.stopPropagation();
       }
 
-      const message = "_#(js:viewer.viewsheet.bookmark.deleteSelected)" + "_*" + bookmark.name;
+      const message = Tool.formatCatalogString("_#(js:viewer.viewsheet.bookmark.deleteSelected)", [bookmark.name])
 
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message,
          {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
