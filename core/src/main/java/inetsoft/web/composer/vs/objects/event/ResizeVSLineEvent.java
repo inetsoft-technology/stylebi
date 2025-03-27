@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for resizing a VSLine object.
  *
  * @since 12.3
  */
-public class ResizeVSLineEvent extends VSObjectEvent {
+public class ResizeVSLineEvent extends VSObjectEvent implements Serializable {
    /**
     * Gets the x position of the starting anchor.
     *

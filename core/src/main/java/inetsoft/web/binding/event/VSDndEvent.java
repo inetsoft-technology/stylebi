@@ -26,11 +26,13 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.web.binding.dnd.DataTransfer;
 import inetsoft.web.binding.dnd.DropTarget;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableVSDndEvent.class)
 @JsonDeserialize(as = ImmutableVSDndEvent.class)
 public interface VSDndEvent extends ViewsheetEvent {

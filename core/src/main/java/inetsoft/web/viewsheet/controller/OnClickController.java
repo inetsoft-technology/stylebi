@@ -23,12 +23,9 @@ import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.VSSubmitEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
-
 import java.security.Principal;
 
 @Controller
@@ -36,11 +33,13 @@ public class OnClickController {
    @Autowired
    public OnClickController(RuntimeViewsheetRef runtimeViewsheetRef,
                             CoreLifecycleService coreLifecycleService,
-                            VSInputServiceProxy inputServiceProxy)
+                            VSInputServiceProxy inputServiceProxy,
+                            OnClickServiceProxy onClickServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.coreLifecycleService = coreLifecycleService;
       this.inputServiceProxy = inputServiceProxy;
+      this.onClickServiceProxy = onClickServiceProxy;
    }
 
    @Undoable
@@ -54,8 +53,8 @@ public class OnClickController {
                        @LinkUri String linkUri, Principal principal,
                          CommandDispatcher dispatcher) throws Exception
    {
-      inputServiceProxy.onConfirm(runtimeViewsheetRef.getRuntimeId(), name, x, y, isConfirm,
-                                  confirmEvent, linkUri, principal, dispatcher);
+      onClickServiceProxy.onConfirm(runtimeViewsheetRef.getRuntimeId(), name, x, y, isConfirm,
+                                    confirmEvent, linkUri, principal, dispatcher);
    }
 
    @Undoable
@@ -75,6 +74,7 @@ public class OnClickController {
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final CoreLifecycleService coreLifecycleService;
    private final VSInputServiceProxy inputServiceProxy;
+   private OnClickServiceProxy onClickServiceProxy;
 
    private static final Logger LOG = LoggerFactory.getLogger(OnClickController.class);
-}
+   }

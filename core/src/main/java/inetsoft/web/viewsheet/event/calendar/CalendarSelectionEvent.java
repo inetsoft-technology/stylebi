@@ -17,47 +17,23 @@
  */
 package inetsoft.web.viewsheet.event.calendar;
 
+import org.immutables.serial.Serial;
+import org.immutables.value.Value;
+
 /**
  * Class that encapsulates the parameters for applying a selection.
  *
  * @since 12.3
  */
-public class CalendarSelectionEvent {
-   public String getCurrentDate1() {
-      return currentDate1;
-   }
+@Value.Immutable
+@Serial.Structural
+public abstract class CalendarSelectionEvent {
+   public abstract String getCurrentDate1();
 
-   public void setCurrentDate1(String currentDate1) {
-      this.currentDate1 = currentDate1;
-   }
+   public abstract String getCurrentDate2();
 
-   public String getCurrentDate2() {
-      return currentDate2;
-   }
+   public abstract String[] getDates();
 
-   public void setCurrentDate2(String currentDate2) {
-      this.currentDate2 = currentDate2;
-   }
-
-   public String[] getDates() {
-      return dates;
-   }
-
-   public void setDates(String[] dates) {
-      this.dates = dates;
-   }
-
-   public String getEventSource() {
-      return eventSource;
-   }
-
-   public void setEventSource(String eventSource) {
-      this.eventSource = eventSource;
-   }
-
-   public String currentDate1;
-   public String currentDate2;
-   public String[] dates;
-   public String eventSource;
+   public abstract String getEventSource();
 }
 

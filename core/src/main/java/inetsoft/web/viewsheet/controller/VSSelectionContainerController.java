@@ -17,25 +17,17 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.AddFilterDialogModel;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.HideSelectionListEvent;
 import inetsoft.web.viewsheet.event.MoveSelectionChildEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
 import java.security.Principal;
 
 /**
@@ -50,24 +42,13 @@ public class VSSelectionContainerController {
     * Creates a new instance of <tt>VSSelectionContainerController</tt>.
     *
     * @param runtimeViewsheetRef the runtime viewsheet reference.
-    * @param viewsheetService
     */
    @Autowired
    public VSSelectionContainerController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                         CoreLifecycleService coreLifecycleService,
-                                         VSSelectionContainerService vsSelectionContainerService,
-                                         VSObjectModelFactoryService objectModelService,
-                                         ViewsheetService viewsheetService,
-                                         VSOutputService vsOutputService,
-                                         VSAssemblyInfoHandler assemblyInfoHandler)
+                                         VSSelectionContainerServiceProxy vsSelectionContainerServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.coreLifecycleService = coreLifecycleService;
-      this.vsSelectionContainerService = vsSelectionContainerService;
-      this.objectModelService = objectModelService;
-      this.viewsheetService = viewsheetService;
-      this.vsOutputService = vsOutputService;
-      this.assemblyInfoHandler = assemblyInfoHandler;
+      this.vsSelectionContainerServiceProxy = vsSelectionContainerServiceProxy;
    }
 
    /**
@@ -89,10 +70,8 @@ public class VSSelectionContainerController {
                               Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      vsSelectionContainerService.applySelection(rvs, assemblyName, event.getHide(),
-                                                 dispatcher, linkUri);
+      vsSelectionContainerServiceProxy.applySelection(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                                 event, linkUri, principal, dispatcher);
    }
 
    /**
@@ -111,17 +90,8 @@ public class VSSelectionContainerController {
                               Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      CurrentSelectionVSAssembly containerAssembly = (CurrentSelectionVSAssembly)
-         viewsheet.getAssembly(assemblyName);
-
-      //move the currentSelection/childObject and refresh container
-      containerAssembly.update(event.getFromIndex(), event.getToIndex(),
-                               event.isCurrentSelection());
-
-      coreLifecycleService.refreshVSAssembly(rvs, containerAssembly, dispatcher);
+      vsSelectionContainerServiceProxy.applySelection(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                                 event, principal, dispatcher);
    }
 
    /**
@@ -136,25 +106,9 @@ public class VSSelectionContainerController {
    public AddFilterDialogModel getTargetTree(@RequestParam("vsId") String vsId, Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
-
-      if(rvs == null) {
-         return null;
-      }
-
-      AddFilterDialogModel model = new AddFilterDialogModel();
-      TreeNodeModel target = this.vsOutputService.getSelectionTablesTree(rvs, principal);
-      model.setTargetTree(target);
-      model.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
-
-      return model;
+      return vsSelectionContainerServiceProxy.getTargetTree(vsId, principal);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final CoreLifecycleService coreLifecycleService;
-   private final VSSelectionContainerService vsSelectionContainerService;
-   private final VSObjectModelFactoryService objectModelService;
-   private final ViewsheetService viewsheetService;
-   private final VSOutputService vsOutputService;
-   private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final VSSelectionContainerServiceProxy vsSelectionContainerServiceProxy;
 }

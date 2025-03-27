@@ -17,32 +17,16 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.TableDataPath;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.calendar.*;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.calendar.CalendarDateFormatModel;
 import inetsoft.web.viewsheet.service.*;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
-import java.awt.*;
 import java.security.Principal;
 
 /**
@@ -56,20 +40,12 @@ public class VSCalendarController {
    /**
     * Creates a new instance of <tt>VSCalendarController</tt>.
     * @param runtimeViewsheetRef the runtime viewsheet reference.
-    * @param coreLifecycleService  the placeholder service.
-    * @param viewsheetService
     */
    @Autowired
-   public VSCalendarController(
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      CoreLifecycleService coreLifecycleService,
-      VSObjectPropertyService vsObjectPropertyService,
-      ViewsheetService viewsheetService)
+   public VSCalendarController(RuntimeViewsheetRef runtimeViewsheetRef, VSCalendarServiceProxy vsCalendarServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.coreLifecycleService = coreLifecycleService;
-      this.vsObjectPropertyService = vsObjectPropertyService;
-      this.viewsheetService = viewsheetService;
+      this.vsCalendarServiceProxy = vsCalendarServiceProxy;
    }
 
    /**
@@ -91,18 +67,8 @@ public class VSCalendarController {
                                      CommandDispatcher dispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      CalendarVSAssembly calendarAssembly = (CalendarVSAssembly) viewsheet.getAssembly(assemblyName);
-      CalendarVSAssemblyInfo calendarInfo = (CalendarVSAssemblyInfo) Tool.clone(calendarAssembly.getVSAssemblyInfo());
-      calendarInfo.setPeriod(event.isPeriod());
-      calendarInfo.setDates(event.getDates(), true);
-      calendarInfo.setCurrentDate1(event.getCurrentDate1());
-      calendarInfo.setCurrentDate2(event.getCurrentDate2());
-
-      this.vsObjectPropertyService.editObjectProperty(
-         rvs, calendarInfo, assemblyName, assemblyName, linkUri, principal, dispatcher);
+      vsCalendarServiceProxy.toggleRangeComparison(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                                   event, linkUri, principal, dispatcher);
    }
 
    /**
@@ -124,21 +90,8 @@ public class VSCalendarController {
                               Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      CalendarVSAssembly calendarAssembly = (CalendarVSAssembly)
-         viewsheet.getAssembly(assemblyName);
-      CalendarVSAssemblyInfo calendarInfo = (CalendarVSAssemblyInfo)
-         Tool.clone(calendarAssembly.getVSAssemblyInfo());
-      calendarInfo.setYearViewValue(event.isYearView());
-      // dates are reset when toggling year view
-      calendarInfo.setDates(new String[0]);
-      calendarInfo.setCurrentDate1(event.getCurrentDate1());
-      calendarInfo.setCurrentDate2(event.getCurrentDate2());
-
-      this.vsObjectPropertyService.editObjectProperty(
-         rvs, calendarInfo, assemblyName, assemblyName, linkUri, principal, dispatcher);
+      vsCalendarServiceProxy.toggleYearView(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                            event, linkUri, principal, dispatcher);
    }
 
    /**
@@ -158,13 +111,8 @@ public class VSCalendarController {
                              @LinkUri String linkUri)
       throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      CalendarVSAssembly calendarAssembly = (CalendarVSAssembly) viewsheet.getAssembly(assemblyName);
-      CalendarVSAssemblyInfo calendarInfo = (CalendarVSAssemblyInfo) (Tool.clone(calendarAssembly.getVSAssemblyInfo()));
-      calendarInfo.setDates(new String[0]);
-      applyCalendarInfo(calendarAssembly, calendarInfo, rvs, dispatcher, linkUri, null);
+      vsCalendarServiceProxy.clearCalendar(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                           principal, dispatcher, linkUri);
    }
 
    /**
@@ -186,81 +134,8 @@ public class VSCalendarController {
                                     CommandDispatcher dispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      CalendarVSAssembly calendarAssembly = (CalendarVSAssembly) viewsheet.getAssembly(assemblyName);
-      CalendarVSAssemblyInfo calendarInfo = (CalendarVSAssemblyInfo) Tool.clone(calendarAssembly.getVSAssemblyInfo());
-      // dates are reset when toggling double calendar
-      calendarInfo.setDates(new String[0]);
-      calendarInfo.setCurrentDate1(event.getCurrentDate1());
-      calendarInfo.setCurrentDate2(event.getCurrentDate2());
-      Dimension size =
-         calendarInfo.getLayoutSize() != null && !viewsheet.getViewsheetInfo().isScaleToScreen() ?
-         calendarInfo.getLayoutSize() : rvs.getViewsheet().getPixelSize(calendarInfo);
-
-      if(event.isDoubleCalendar()) {
-         calendarInfo.setViewModeValue(CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
-         rvs.setProperty("calendar.submitOnChangeValue",
-            String.valueOf(calendarInfo.getSubmitOnChangeValue()));
-         calendarInfo.setSubmitOnChangeValue(false);
-
-         if(!calendarAssembly.isWizardTemporary()) {
-            size.width *= 2;
-         }
-      }
-      else {
-         calendarInfo.setViewModeValue(CalendarVSAssemblyInfo.SINGLE_CALENDAR_MODE);
-         calendarInfo.setPeriod(false);
-
-         if(rvs.getProperty("calendar.submitOnChangeValue") != null) {
-            calendarInfo.setSubmitOnChangeValue(
-               Boolean.parseBoolean(String.valueOf(rvs.getProperty("calendar.submitOnChangeValue"))));
-            rvs.setProperty("calendar.submitOnChangeValue", null);
-         }
-
-         if(!calendarAssembly.isWizardTemporary()) {
-            size.width = size.width / 2;
-         }
-      }
-
-      calendarInfo.setPixelSize(size);
-
-      if(calendarInfo.getLayoutSize() != null) {
-         calendarInfo.setLayoutSize(size);
-      }
-
-      this.vsObjectPropertyService.editObjectProperty(
-         rvs, calendarInfo, assemblyName, assemblyName, linkUri, principal, dispatcher);
-      CalendarVSAssemblyInfo ncalendarInfo = (CalendarVSAssemblyInfo) calendarAssembly.getVSAssemblyInfo();
-
-      // view mode maybe changed by script.
-      if(!calendarAssembly.isWizardTemporary() && ncalendarInfo.getViewMode() != calendarInfo.getViewModeValue()) {
-         if(calendarInfo.getViewModeValue() == CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE) {
-            size.width = size.width / 2;
-         }
-         else {
-            size.width *= 2;
-         }
-
-         calendarInfo.setPixelSize(size);
-
-         if(calendarInfo.getLayoutSize() != null) {
-            calendarInfo.setLayoutSize(size);
-         }
-      }
-
-      if(viewsheet.getViewsheetInfo().isScaleToScreen() && (rvs.isPreview() || rvs.isViewer())) {
-         Object scaleSize = rvs.getProperty("viewsheet.appliedScale");
-
-         if(scaleSize instanceof Dimension && ((Dimension) scaleSize).width > 0 &&
-            ((Dimension) scaleSize).height > 0)
-         {
-            ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-            this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, ((Dimension) scaleSize).width,
-                                                       ((Dimension) scaleSize).height, false, null, dispatcher, false, false, true, clist);
-         }
-      }
+      vsCalendarServiceProxy.toggleDoubleCalendar(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                                  event, linkUri, principal, dispatcher);
    }
 
    /**
@@ -282,92 +157,8 @@ public class VSCalendarController {
                              @LinkUri String linkUri)
       throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      CalendarVSAssembly calendarAssembly = (CalendarVSAssembly) viewsheet.getAssembly(assemblyName);
-
-      if(calendarAssembly == null) {
-         return;
-      }
-
-      CalendarVSAssemblyInfo calendarInfo = (CalendarVSAssemblyInfo) (Tool.clone(calendarAssembly.getVSAssemblyInfo()));
-      calendarInfo.setDates(event.getDates());
-      calendarInfo.setCurrentDate1(event.getCurrentDate1());
-
-      if(event.getCurrentDate2() != null) {
-         calendarInfo.setCurrentDate2(event.getCurrentDate2());
-      }
-
-      applyCalendarInfo(calendarAssembly, calendarInfo, rvs, dispatcher, linkUri,
-                        event.getEventSource());
-   }
-
-   /**
-    * Method called when applying selection for calendar
-    * Taken from ApplyVSAssemblyInfoEvent.java
-    * @param calendarAssembly    the calendar vs assembly
-    * @param newInfo             the new calendar info
-    * @param rvs                 the runtime viewsheet
-    * @param commandDispatcher   the command dispatcher instance
-    * @throws Exception if failed to apply calendar
-    */
-   private void applyCalendarInfo(CalendarVSAssembly calendarAssembly,
-                                  CalendarVSAssemblyInfo newInfo,
-                                  RuntimeViewsheet rvs, CommandDispatcher commandDispatcher,
-                                  String linkUri, String eventSource)
-      throws Exception
-   {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      Viewsheet vs = rvs.getViewsheet();
-      int hint = calendarAssembly.setVSAssemblyInfo(newInfo);
-
-      String embedded =
-         VSUtil.getEmbeddedTableWithSameSource(vs, calendarAssembly);
-
-      if(embedded != null) {
-         String msg = Catalog.getCatalog().getString(
-            "viewer.viewsheet.selection.notSupportEmbeddedTable",
-            embedded);
-         MessageCommand messageCommand = new MessageCommand();
-         messageCommand.setMessage(msg);
-         messageCommand.setType(MessageCommand.Type.WARNING);
-         commandDispatcher.sendCommand(messageCommand);
-      }
-
-      ChangedAssemblyList clist = this.coreLifecycleService.createList(true, commandDispatcher,
-                                                                       rvs, linkUri);
-      box.processChange(calendarAssembly.getAbsoluteName(), hint, clist);
-      // Iterate over all assemblies and add to view list if they have
-      // hyperlinks that "send selection parameters"
-      this.coreLifecycleService.executeInfluencedHyperlinkAssemblies(vs, commandDispatcher,
-                                                                     rvs, linkUri, null);
-
-      boolean refresh = true;
-
-      if(!StringUtils.isEmpty(eventSource)) {
-         Assembly eventSourceAssembly = null;
-         eventSourceAssembly = rvs.getViewsheet().getAssembly(eventSource);
-
-         if(eventSourceAssembly instanceof SubmitVSAssembly) {
-            SubmitVSAssembly submitAssembly = (SubmitVSAssembly) eventSourceAssembly;
-
-            refresh = ((SubmitVSAssemblyInfo) submitAssembly.getVSAssemblyInfo()).isRefresh();
-         }
-      }
-
-      // @davidd bug1366884826731, If there is only one calendar bound
-      // to a block, then processChange doesn't call execute. Therefore
-      // call it here. In cases where a selection list is also bound,
-      // then the following isn't needed. This could be improved.
-      this.coreLifecycleService.execute(rvs, calendarAssembly.getAbsoluteName(),
-                                        linkUri, clist, commandDispatcher, true);
-
-      if(refresh) {
-         this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher);
-         coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher, false,
-                                               true, true, clist);
-      }
+      vsCalendarServiceProxy.applyCalendar(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                           event, principal, dispatcher, linkUri);
    }
 
    @PostMapping("/api/calendar/formatdates")
@@ -385,15 +176,7 @@ public class VSCalendarController {
          return model.getDates();
       }
 
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(model.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      CalendarVSAssembly assembly = (CalendarVSAssembly) viewsheet.getAssembly(name);
-      CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo();
-      String dateFormat = CalendarUtil.getCalendarSelectedDateFormat(info);
-
-      return CalendarUtil.formatSelectedDates(model.getDates(), dateFormat, model.isDoubleCalendar(),
-         model.isPeriod(), model.isMonthView());
+      return vsCalendarServiceProxy.formatString(model.getRuntimeId(), model, principal);
    }
 
 
@@ -413,24 +196,10 @@ public class VSCalendarController {
          return model.getDates();
       }
 
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(model.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      CalendarVSAssembly assembly = (CalendarVSAssembly) viewsheet.getAssembly(name);
-
-      if(assembly == null) {
-         return model.getDates();
-      }
-
-      CalendarVSAssemblyInfo info = (CalendarVSAssemblyInfo) assembly.getVSAssemblyInfo();
-      FormatInfo fmtInfo = info.getFormatInfo();
-      TableDataPath dataPath = new TableDataPath(-1, TableDataPath.CALENDAR_TITLE);
-      VSCompositeFormat compositeFormat = fmtInfo.getFormat(dataPath, false);
-
-      return CalendarUtil.formatTitle(model.getDates(), assembly.isYearView(), compositeFormat);
+      return vsCalendarServiceProxy.formatCalendarTitleView(model.getRuntimeId(), model, principal);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final CoreLifecycleService coreLifecycleService;
-   private final VSObjectPropertyService vsObjectPropertyService;
-   private final ViewsheetService viewsheetService;
+   private VSCalendarServiceProxy vsCalendarServiceProxy;
+
 }
