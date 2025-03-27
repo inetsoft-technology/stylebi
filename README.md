@@ -3,8 +3,8 @@
 StyleBI is a cloud-native, small-footprint business intelligence web application, powered by data transformation pipeline and visualization microservices. These microservices can be deployed as standalone Docker containers or seamlessly integrated into a microservice architecture, providing embedded visualization, analytics, and reporting capabilities.
 
 <div style="display: flex;">
-<img src="https://test.inetsoft.com/images/website/products/pipeline/vizTranform5.png" alt="Image 1" xwidth="300" style="width:48%;margin-right: 10px;">
-<img src="https://test.inetsoft.com/images/website/products/visualization/vizWizard5.png" alt="Image 2" xwidth="300" style="width: 48%">
+<img src="https://www.inetsoft.com/images/website/products/pipeline/vizTranform5.png" alt="Image 1" xwidth="300" style="width:48%;margin-right: 10px;">
+<img src="https://www.inetsoft.com/images/website/products/visualization/vizWizard5.png" alt="Image 2" xwidth="300" style="width: 48%">
 </div>
 
 _Screenshots of [StyleBI Cloud](https://www.inetsoft.com/company/bi_dashboard_pricing)_.
