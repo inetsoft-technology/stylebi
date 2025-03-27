@@ -26,10 +26,7 @@ import inetsoft.uql.viewsheet.internal.CheckBoxVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Array;
-
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -118,5 +115,6 @@ public class CheckBoxVSAScriptableTest {
       Object[] objects = new Object[]{ new Date(125, 1, 20), new Date(125, 2, 20) };
       checkBoxVSAScriptable.setSelectedObjects(objects);
       assertArrayEquals(objects, (Object[]) checkBoxVSAScriptable.getDefaultValue(Date.class));
+      assertArrayEquals(objects, checkBoxVSAssemblyInfo.getSelectedObjects());
    }
 }
