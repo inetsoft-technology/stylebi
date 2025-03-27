@@ -559,8 +559,8 @@ public class VSSelectionService {
                rvs.getViewsheet().isMaxMode() &&
                ((MaxModeSupportAssembly) selectionAssembly).getMaxModeInfo().getMaxSize() != null)
             {
-               this.maxModeAssemblyService.toggleMaxNode(rvs, assembly.getAbsoluteName(),
-                  null, dispatcher, linkUri);
+               this.maxModeAssemblyService.toggleMaxMode(rvs, assembly.getAbsoluteName(),
+                                                         null, dispatcher, linkUri);
             }
 
             coreLifecycleService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);

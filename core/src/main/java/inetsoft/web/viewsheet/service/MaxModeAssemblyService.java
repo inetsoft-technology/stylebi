@@ -45,12 +45,12 @@ public class MaxModeAssemblyService {
       throws Exception
    {
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
-      toggleMaxNode(rvs, assemblyName, maxSize, dispatcher, linkUri);
+      toggleMaxMode(rvs, assemblyName, maxSize, dispatcher, linkUri);
 
       return null;
    }
 
-   public void toggleMaxNode(RuntimeViewsheet rvs, String assemblyName, Dimension maxSize,
+   public void toggleMaxMode(RuntimeViewsheet rvs, String assemblyName, Dimension maxSize,
                              CommandDispatcher dispatcher, String linkUri)
       throws Exception
    {
