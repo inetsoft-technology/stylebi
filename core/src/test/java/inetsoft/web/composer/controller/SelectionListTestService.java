@@ -32,7 +32,6 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.ViewsheetCommand;
 import inetsoft.web.viewsheet.service.*;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.stereotype.Service;
@@ -612,10 +611,10 @@ public class SelectionListTestService {
     */
    class MockCommandDispatcher extends CommandDispatcher {
       public MockCommandDispatcher(StompHeaderAccessor headerAccessor,
-                                   SimpMessagingTemplate messagingTemplate,
+                                   CommandDispatcherService dispatcherService,
                                    FindByIndexNameSessionRepository sessionRepository)
       {
-         super(headerAccessor, messagingTemplate, sessionRepository);
+         super(headerAccessor, dispatcherService, sessionRepository);
       }
 
       @Override

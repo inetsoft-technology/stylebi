@@ -19,8 +19,6 @@ package inetsoft.web.composer.controller;
 
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
-import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
