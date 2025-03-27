@@ -17,18 +17,25 @@
  */
 package inetsoft.web.viewsheet.service;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.model.vs.AddFilterDialogModel;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
+import inetsoft.web.viewsheet.event.HideSelectionListEvent;
+import inetsoft.web.viewsheet.event.MoveSelectionChildEvent;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.awt.*;
 import java.awt.geom.Point2D;
+import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,16 +43,75 @@ import java.util.List;
  * Created by Sijie Liu on 9/13/2017.
  */
 @Service
+@ClusterProxy
 public class VSSelectionContainerService {
-   @Autowired
+
    public VSSelectionContainerService(VSObjectService service,
                                       CoreLifecycleService coreLifecycleService,
-                                      VSObjectModelFactoryService objectModelService)
+                                      VSObjectModelFactoryService objectModelService,
+                                      ViewsheetService viewsheetService,
+                                      VSOutputService vsOutputService,
+                                      VSAssemblyInfoHandler vsAssemblyInfoHandler)
    {
       this.service = service;
       this.coreLifecycleService = coreLifecycleService;
       this.objectModelService = objectModelService;
+      this.viewsheetService = viewsheetService;
+      this.vsOutputService = vsOutputService;
+      this.assemblyInfoHandler = vsAssemblyInfoHandler;
    }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void applySelection(@ClusterProxyKey String vsId, String assemblyName,
+                              MoveSelectionChildEvent event, Principal principal,
+                              CommandDispatcher dispatcher) throws Exception
+   {
+      RuntimeViewsheet rvs =
+         viewsheetService.getViewsheet(vsId, principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+      CurrentSelectionVSAssembly containerAssembly = (CurrentSelectionVSAssembly)
+         viewsheet.getAssembly(assemblyName);
+
+      //move the currentSelection/childObject and refresh container
+      containerAssembly.update(event.getFromIndex(), event.getToIndex(),
+                               event.isCurrentSelection());
+
+      coreLifecycleService.refreshVSAssembly(rvs, containerAssembly, dispatcher);
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void applySelection(@ClusterProxyKey String vsId, String assemblyName,
+                              HideSelectionListEvent event, String linkUri,
+                              Principal principal, CommandDispatcher dispatcher)
+      throws Exception
+   {
+      RuntimeViewsheet rvs =
+         viewsheetService.getViewsheet(vsId, principal);
+      applySelection(rvs, assemblyName, event.getHide(),
+                                                 dispatcher, linkUri);
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public AddFilterDialogModel getTargetTree(@ClusterProxyKey String vsId, Principal principal)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+
+      if(rvs == null) {
+         return null;
+      }
+
+      AddFilterDialogModel model = new AddFilterDialogModel();
+      TreeNodeModel target = this.vsOutputService.getSelectionTablesTree(rvs, principal);
+      model.setTargetTree(target);
+      model.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
+
+      return model;
+   }
+
 
    /**
     * Applies a new status for a selection container. (Handles dropdown visibility)
@@ -204,7 +270,13 @@ public class VSSelectionContainerService {
       }
    }
 
+
+
    private final VSObjectService service;
    private final CoreLifecycleService coreLifecycleService;
    private final VSObjectModelFactoryService objectModelService;
+   private ViewsheetService viewsheetService;
+   private final VSOutputService vsOutputService;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
+
 }
