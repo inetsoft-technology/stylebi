@@ -111,7 +111,6 @@ public class ViewsheetPropertyDialogController {
       RuntimeViewsheet rvs = this.viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
       ViewsheetInfo info = viewsheet.getViewsheetInfo();
-
       ViewsheetPropertyDialogModel.Builder vsModel = ViewsheetPropertyDialogModel.builder();
 
       VSOptionsPaneModel vsOptionsPaneModel = new VSOptionsPaneModel();
@@ -120,7 +119,8 @@ public class ViewsheetPropertyDialogController {
       vsOptionsPaneModel.setSelectionAssociation(info.isAssociationEnabled());
       vsOptionsPaneModel.setMaxRowsWarning(info.isMaxRowsWarning());
       vsOptionsPaneModel.setCreateMv(info.isMVOnDemand());
-      vsOptionsPaneModel.setOnDemandMvEnabled("true".equals(SreeEnv.getProperty("mv.ondemand")));
+      vsOptionsPaneModel.setOnDemandMvEnabled(!SUtil.isSharedDefaultOrgDashboard(rvs.getEntry()) &&
+                                                 "true".equals(SreeEnv.getProperty("mv.ondemand")));
       vsOptionsPaneModel.setDesc(info.getDescription());
       vsOptionsPaneModel.setServerSideUpdate(info.isUpdateEnabled());
       vsOptionsPaneModel.setTouchInterval(info.getTouchInterval());
