@@ -935,9 +935,10 @@ public final class VSEventUtil {
             scalePos.x = (int) Math.floor(pos.x * posScale.x);
             scalePos.y = (int) Math.floor(pos.y * posScale.y);
             info.setScaledPosition(scalePos);
+            Dimension scaledSize = getScaledSize(pos, size, scalePos, posScale, sizeScale);
             scaleSize.width = selectionSize != null ? selectionSize.width
-               : (int) Math.floor(size.width * sizeScale.x);
-            scaleSize.height = (int) Math.floor(size.height * sizeScale.y);
+               : scaledSize.width;
+            scaleSize.height = scaledSize.height;
             info.setScaledSize(scaleSize);
 
             if(info instanceof DropDownVSAssemblyInfo) {
@@ -998,8 +999,7 @@ public final class VSEventUtil {
 
       Point scalePos = new Point((int) Math.floor(pos.x * posscale.x),
                                  (int) Math.floor(pos.y * posscale.y));
-      Dimension scaleSize = new Dimension((int) Math.floor(size.width * sizescale.x),
-                                          (int) Math.floor(size.height * sizescale.y));
+      Dimension scaleSize = getScaledSize(pos, size, scalePos, posscale, sizescale);
 
       if(info instanceof LineVSAssemblyInfo) {
          if(scaleSize.height == 0) {
@@ -1137,6 +1137,29 @@ public final class VSEventUtil {
 
       info.setScaledPosition(scalePos);
       info.setScaledSize(scaleSize);
+   }
+
+   private static Dimension getScaledSize(Point originStartPoint, Dimension originSize,
+                                          Point scalePos, Point2D.Double posscale,
+                                          Point2D.Double sizescale)
+   {
+      Point endScalePos = new Point();
+
+      if(Double.compare(posscale.x, sizescale.x) == 0) {
+         endScalePos.x = (int) Math.floor((originStartPoint.x + originSize.width) * posscale.x);
+      }
+      else {
+         endScalePos.x = scalePos.x + (int) Math.floor(originSize.width * sizescale.x);
+      }
+
+      if(Double.compare(posscale.y, sizescale.y) == 0) {
+         endScalePos.y = (int) Math.floor((originStartPoint.y + originSize.height) * posscale.y);
+      }
+      else {
+         endScalePos.y = scalePos.y + (int) Math.floor(originSize.height * sizescale.y);
+      }
+
+      return new Dimension(endScalePos.x - scalePos.x, endScalePos.y - scalePos.y);
    }
 
    private static void fixPopchildrenPoint(VSAssembly vsassembly, Point opoint,
