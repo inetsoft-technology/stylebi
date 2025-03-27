@@ -73,9 +73,11 @@ public class VSChartShowDetailsController extends VSChartController<VSChartShowD
    @Autowired
    public VSChartShowDetailsController(RuntimeViewsheetRef runtimeViewsheetRef,
                                        CoreLifecycleService coreLifecycleService,
-                                       ViewsheetService viewsheetService)
+                                       ViewsheetService viewsheetService,
+                                       VSDialogService dialogService)
    {
       super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.dialogService = dialogService;
    }
 
    @LoadingMask
@@ -532,7 +534,7 @@ public class VSChartShowDetailsController extends VSChartController<VSChartShowD
 
          try {
             styleModel.setTableStyle(style);
-            styleModel.setStyleTree(styleController.getStyleTree(rvs, principal, false));
+            styleModel.setStyleTree(dialogService.getStyleTree(rvs, principal, false));
          }
          catch(Exception e) {
             throw new RuntimeException(e);
@@ -555,4 +557,6 @@ public class VSChartShowDetailsController extends VSChartController<VSChartShowD
 
       return table;
    }
+
+   private final VSDialogService dialogService;
 }

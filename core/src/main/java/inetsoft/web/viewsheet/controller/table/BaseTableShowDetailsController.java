@@ -68,9 +68,11 @@ public class BaseTableShowDetailsController extends BaseTableController<ShowDeta
    @Autowired
    public BaseTableShowDetailsController(RuntimeViewsheetRef runtimeViewsheetRef,
                                          CoreLifecycleService coreLifecycleService,
-                                         ViewsheetService viewsheetService)
+                                         ViewsheetService viewsheetService,
+                                         VSDialogService dialogService)
    {
       super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.dialogService = dialogService;
    }
 
    /**
@@ -416,7 +418,7 @@ public class BaseTableShowDetailsController extends BaseTableController<ShowDeta
          TableViewStylePaneController styleController = new TableViewStylePaneController();
          TableStylePaneModel styleModel = new TableStylePaneModel();
          styleModel.setTableStyle(style);
-         styleModel.setStyleTree(styleController.getStyleTree(rvs, principal, false));
+         styleModel.setStyleTree(dialogService.getStyleTree(rvs, principal, false));
 
          LoadPreviewTableCommand command =
             LoadPreviewTableCommand.builder()
@@ -1147,4 +1149,6 @@ public class BaseTableShowDetailsController extends BaseTableController<ShowDeta
          }
       }
    }
+
+   private final VSDialogService dialogService;
 }
