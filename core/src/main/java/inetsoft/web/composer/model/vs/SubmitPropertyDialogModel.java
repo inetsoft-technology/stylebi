@@ -19,12 +19,14 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link SubmitPropertyDialogModel} for the
  * submit property dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class SubmitPropertyDialogModel {
+public class SubmitPropertyDialogModel implements Serializable {
    public SubmitGeneralPaneModel getSubmitGeneralPaneModel() {
       if(submitGeneralPaneModel == null) {
          submitGeneralPaneModel = new SubmitGeneralPaneModel();
