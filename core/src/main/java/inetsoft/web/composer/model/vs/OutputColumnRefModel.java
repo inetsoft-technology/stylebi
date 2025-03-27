@@ -19,11 +19,12 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class OutputColumnRefModel {
+public class OutputColumnRefModel implements Serializable {
    public String getCaption() {
       return caption;
    }

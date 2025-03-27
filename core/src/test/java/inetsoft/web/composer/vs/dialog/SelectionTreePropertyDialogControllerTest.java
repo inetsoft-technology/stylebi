@@ -50,17 +50,8 @@ import static org.mockito.Mockito.when;
 class SelectionTreePropertyDialogControllerTest {
    @BeforeEach
    void setup(){
-      controller = new SelectionTreePropertyDialogController(
-         vsObjectPropertyService,
-         vsOutputService,
-         runtimeViewsheetRef,
-         engine,
-         trapService,
-         dialogService,
-         vsSelectionService,
-         selectionDialogService,
-         assemblyInfoHandler,
-         dataRefService);
+      controller = new SelectionTreePropertyDialogController(runtimeViewsheetRef,
+                                                             new SelectionTreePropertyDialogServiceProxy());
    }
 
    @Test
