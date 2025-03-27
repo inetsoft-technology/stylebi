@@ -67,6 +67,7 @@ public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
       return LogicalLibraryEntry.<ScriptEntry>builder()
          .from(oldEntry)
          .asset(newScript)
+         .modified(System.currentTimeMillis())
          .build();
    }
 
