@@ -42,7 +42,7 @@ public class HeartBeatController {
    }
 
    @Autowired
-   @Qualifier("worksheetService")
+   @Qualifier("heartBeatService")
    public void setHeartBeatService(HeartBeatServiceProxy heartBeatService) {
       this.heartBeatService = heartBeatService;
    }
