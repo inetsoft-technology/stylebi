@@ -87,7 +87,28 @@ public class ClusterAnnotationProcessor extends AbstractProcessor {
       for(VariableElement paramElement : MoreElements.asExecutable(methodElement).getParameters()) {
          String paramName = paramElement.getSimpleName().toString();
          String paramType = paramElement.asType().toString();
-         params.add(new ProxyParameter(paramName, paramType));
+         String paramInternalType;
+         String paramInitializer;
+         String paramGetter;
+
+         if("inetsoft.web.viewsheet.model.RuntimeViewsheetRef".equals(paramType)) {
+            paramInternalType = "java.lang.Object";
+            paramInitializer = "null";
+            paramGetter = "serviceProxyContext.createRuntimeViewsheetRef()";
+         }
+         else if("inetsoft.web.viewsheet.service.CommandDispatcher".equals(paramType)) {
+            paramInternalType = "java.lang.Object";
+            paramInitializer = "null";
+            paramGetter = "serviceProxyContext.createCommandDispatcher()";
+         }
+         else {
+            paramInternalType = paramType;
+            paramInitializer = paramName;
+            paramGetter = paramName;
+         }
+
+         params.add(new ProxyParameter(
+            paramName, paramType, paramInternalType, paramInitializer, paramGetter));
 
          if(MoreElements.isAnnotationPresent(paramElement, ClusterProxyKey.class)) {
             keyParam = paramName;

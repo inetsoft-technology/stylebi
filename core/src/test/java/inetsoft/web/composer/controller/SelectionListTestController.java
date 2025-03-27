@@ -32,7 +32,6 @@ import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.ViewsheetCommand;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.stereotype.Controller;
@@ -60,9 +59,7 @@ public class SelectionListTestController {
     * Applies a new selection for a selection list.
     *
     * @param assemblyName the absolute name of the selection list assembly.
-    * @param event        the selection event.
     * @param principal    a principal identifying the current user.
-    * @param dispatcher   the command dispatcher.
     *
     * @throws Exception if the selection could not be applied.
     */
@@ -631,10 +628,10 @@ public class SelectionListTestController {
     */
    class MockCommandDispatcher extends CommandDispatcher {
       public MockCommandDispatcher(StompHeaderAccessor headerAccessor,
-                                   SimpMessagingTemplate messagingTemplate,
+                                   CommandDispatcherService dispatcherService,
                                    FindByIndexNameSessionRepository sessionRepository)
       {
-         super(headerAccessor, messagingTemplate, sessionRepository);
+         super(headerAccessor, dispatcherService, sessionRepository);
       }
 
       @Override

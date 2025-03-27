@@ -21,9 +21,14 @@ package inetsoft.cluster.apt;
 import java.util.Objects;
 
 public final class ProxyParameter {
-   public ProxyParameter(String name, String type) {
+   public ProxyParameter(String name, String type, String internalType, String initializer,
+                         String getter)
+   {
       this.name = name;
       this.type = type;
+      this.internalType = internalType;
+      this.initializer = initializer;
+      this.getter = getter;
    }
 
    public String getName() {
@@ -34,6 +39,18 @@ public final class ProxyParameter {
       return type;
    }
 
+   public String getInternalType() {
+      return internalType;
+   }
+
+   public String getInitializer() {
+      return initializer;
+   }
+
+   public String getGetter() {
+      return getter;
+   }
+
    @Override
    public boolean equals(Object o) {
       if(o == null || getClass() != o.getClass()) {
@@ -41,12 +58,14 @@ public final class ProxyParameter {
       }
 
       ProxyParameter that = (ProxyParameter) o;
-      return Objects.equals(name, that.name) && Objects.equals(type, that.type);
+      return Objects.equals(name, that.name) && Objects.equals(type, that.type) &&
+         Objects.equals(internalType, that.internalType) &&
+         Objects.equals(initializer, that.initializer) && Objects.equals(getter, that.getter);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(name, type);
+      return Objects.hash(name, type, internalType, initializer, getter);
    }
 
    @Override
@@ -54,9 +73,15 @@ public final class ProxyParameter {
       return "ProxyParameter{" +
          "name='" + name + '\'' +
          ", type='" + type + '\'' +
+         ", internalType='" + internalType + '\'' +
+         ", initializer='" + initializer + '\'' +
+         ", getter='" + getter + '\'' +
          '}';
    }
 
    private final String name;
    private final String type;
+   private final String internalType;
+   private final String initializer;
+   private final String getter;
 }
