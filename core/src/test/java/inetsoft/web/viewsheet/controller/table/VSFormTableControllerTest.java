@@ -47,8 +47,8 @@ class VSFormTableControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new VSFormTableController(viewsheetService, runtimeViewsheetRef,
-              coreLifecycleService);
+      VSFormTableServiceProxy serviceProxy = new VSFormTableServiceProxy();
+      controller = new VSFormTableController(serviceProxy, runtimeViewsheetRef);
    }
 
    // Empty input is valid, set form object to data

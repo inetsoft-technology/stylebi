@@ -76,9 +76,11 @@ class VSAnnotationToggleControllerTest {
    void toggleAnnotationStatus() throws Exception {
       ToggleAnnotationStatusEvent event = () -> true;
 
+      VSAnnotationToggleServiceProxy serviceProxy = new VSAnnotationToggleServiceProxy();
+
       // call method to test
       VSAnnotationToggleController controller =
-         new VSAnnotationToggleController(service, runtimeViewsheetRef);
+         new VSAnnotationToggleController(serviceProxy, runtimeViewsheetRef);
       controller.toggleAnnotationStatus(event, principal, null, dispatcher);
 
       // check userenv value was set to the same as the event status
