@@ -286,6 +286,7 @@ public class PortalController {
    public GlobalParameterModel getGlobalParameters(@PathVariable("type") String type,
                                                    @RemainingPath String path, Principal principal)
    {
+      path = Tool.byteDecode(path);
       String providerClassName = SreeEnv.getProperty("global.parameter.provider", (String) null);
       ParameterPageModel model = null;
 
