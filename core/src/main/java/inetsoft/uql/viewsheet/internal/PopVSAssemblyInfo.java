@@ -35,7 +35,7 @@ public interface PopVSAssemblyInfo {
     */
    public static final int POP_OPTION = 1;
 
-   public enum PopLocation implements Serializable {
+   public enum PopLocation {
       MOUSE("MOUSE"),
       CENTER("CENTER");
 
