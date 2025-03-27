@@ -48,13 +48,8 @@ public class TextPropertyDialogControllerTest {
 
    @BeforeEach
    public void setup() throws Exception {
-      controller = new TextPropertyDialogController(vsObjectPropertyService,
-                                                    vsOutputService,
-                                                    runtimeViewsheetRef,
-                                                    engine,
-                                                    dialogService,
-                                                    trapService,
-                                                    infoHandler);
+      controller = new TextPropertyDialogController(runtimeViewsheetRef,
+                                                    new TextPropertyDialogServiceProxy());
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
