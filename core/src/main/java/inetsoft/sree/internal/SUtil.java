@@ -2848,6 +2848,17 @@ public class SUtil {
           Boolean.parseBoolean(SreeEnv.getProperty(orgScopedProperty, "false")));
    }
 
+   public static boolean isSharedDefaultOrgDashboard(AssetEntry entry) {
+      if(entry == null) {
+         return false;
+      }
+
+      String orgID = entry.getOrgID();
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return !Tool.equals(orgID, currOrgID) && SUtil.isDefaultVSGloballyVisible() &&
+         Organization.getDefaultOrganizationID().equals(orgID);
+   }
+
    public static String getOrgIDFromMVPath(String path) {
       String[] paths = path.split("\\_");
       String org = paths[paths.length-1];
