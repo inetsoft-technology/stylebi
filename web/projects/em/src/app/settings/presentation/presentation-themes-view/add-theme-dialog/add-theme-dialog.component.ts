@@ -38,7 +38,11 @@ export class AddThemeDialogComponent implements OnInit {
       this.ids = data.ids;
       const initialJar = data.jar ? [data.jar] : [];
       this.form = fb.group({
-         name: [data.name, [Validators.required, FormValidators.duplicateName(() => data.names)]],
+         name: [data.name, [
+            Validators.required,
+            FormValidators.duplicateName(() => data.names),
+            FormValidators.isValidDataSpaceFileName
+         ]],
          jar: [initialJar]
       });
    }
