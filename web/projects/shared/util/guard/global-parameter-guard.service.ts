@@ -33,6 +33,7 @@ import { ShowHyperlinkService } from "../../../portal/src/app/vsobjects/show-hyp
 import { ParameterDialogComponent } from "../../../portal/src/app/widget/parameter/parameter-dialog/parameter-dialog.component";
 import { ParameterPageModel } from "../../../portal/src/app/widget/parameter/parameter-page-model";
 import { RepletParameterModel } from "../../../portal/src/app/widget/parameter/replet-parameter-model";
+import { Tool } from "../tool";
 
 interface GlobalParameterModel {
    required: boolean;
@@ -95,6 +96,7 @@ export class GlobalParameterGuard implements CanActivate {
    }
 
    private getGlobalParameters(path: string, type: string): Observable<GlobalParameterModel> {
+      path = Tool.byteEncode(path);
       const url = `../api/portal/global-parameters/${type}/${path}`;
       return this.http.get<GlobalParameterModel>(url);
    }
