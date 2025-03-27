@@ -17,43 +17,18 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.filter.HighlightGroup;
-import inetsoft.report.internal.table.TableHighlightAttr;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.TableDataVSAssemblyInfo;
-import inetsoft.util.Catalog;
-import inetsoft.util.MessageException;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.composer.ClipboardService;
-import inetsoft.web.composer.vs.VSObjectTreeNode;
-import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.event.CopyHighlightEvent;
 import inetsoft.web.composer.vs.objects.event.PasteHighlightEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.UpdateHighlightPasteCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
-import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.stereotype.Controller;
-
-import java.awt.*;
 import java.security.Principal;
-import java.util.List;
-import java.util.Queue;
-import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Controller that provides a REST endpoint for viewsheet clipboard events.
