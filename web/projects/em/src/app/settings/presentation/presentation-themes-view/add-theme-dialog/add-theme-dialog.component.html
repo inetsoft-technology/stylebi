@@ -23,6 +23,7 @@
     <input matInput formControlName="name" placeholder="_#(Name)"/>
     <mat-error *ngIf="form.controls.name?.errors?.required">_#(em.laf.theme.nameRequired)</mat-error>
     <mat-error *ngIf="form.controls.name?.errors?.duplicateName">_#(em.laf.theme.duplicateName)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors?.containsSpecialCharsForName">_#(common.sree.internal.invalidCharInName)</mat-error>
   </mat-form-field>
   <mat-form-field appearance="outline" color="accent">
     <mat-label>_#(Theme JAR File)</mat-label>
