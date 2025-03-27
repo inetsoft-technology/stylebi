@@ -138,7 +138,10 @@ export class AuditExportHistoryComponent implements OnInit, OnDestroy {
       const selectedFolders: string[] = additional.selectedFolders;
 
       if(!!selectedFolders && selectedFolders.length > 0) {
-         selectedFolders.forEach(f => params = params.append("folders", f));
+         selectedFolders.forEach(f => {
+            const encodedFolder = encodeURIComponent(f);
+            params = params.append("folders", encodedFolder);
+         });
       }
 
       return this.http.get<ExportHistoryList>("../api/em/monitoring/audit/exportHistory", {params})
