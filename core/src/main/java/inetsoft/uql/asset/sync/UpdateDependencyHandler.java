@@ -126,6 +126,7 @@ public final class UpdateDependencyHandler {
 
       if((Hyperlink.VIEWSHEET_LINK + "").equals(linkType)) {
          id = link;
+         link = AssetEntry.createAssetEntry(link).toIdentifier();
       }
 
       updateDependency(id, entry, dependencies);
