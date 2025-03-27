@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.objects.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for object events.
  *
  * @since 12.3
  */
-public class VSObjectEvent {
+public class VSObjectEvent implements Serializable {
    /**
     * Sets the object name.
     *
