@@ -202,8 +202,7 @@ public final class MVManager {
 
       if((mvMissing || needsRebuild) && vs != null) {
          entry.setProperty("mv_column_missing", "false");
-
-         boolean ondemand = (vs.getViewsheetInfo().isMVOnDemand() &&
+         boolean ondemand = !SUtil.isSharedDefaultOrgDashboard(entry) && (vs.getViewsheetInfo().isMVOnDemand() &&
             "true".equals(SreeEnv.getProperty("mv.ondemand")) ||
             runtime && mvMissing && MVRule.isAuto() ||
             stale) && !failed;
