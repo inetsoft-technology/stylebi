@@ -75,6 +75,4 @@ public class OnClickController {
    private final CoreLifecycleService coreLifecycleService;
    private final VSInputServiceProxy inputServiceProxy;
    private OnClickServiceProxy onClickServiceProxy;
-
-   private static final Logger LOG = LoggerFactory.getLogger(OnClickController.class);
-   }
+ }

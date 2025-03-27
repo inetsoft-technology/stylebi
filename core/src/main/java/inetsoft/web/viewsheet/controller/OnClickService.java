@@ -127,7 +127,7 @@ public class OnClickService {
             final Object[] selectedObjects = Arrays.stream(inputValues)
                .map(InputValue::value)
                .toArray();
-            this.inputService.multiApplySelection(assemblyNames, selectedObjects, principal, dispatcher, linkUri);
+            this.inputService.multiApplySelection(vsId, assemblyNames, selectedObjects, principal, dispatcher, linkUri);
          }
       }
 
