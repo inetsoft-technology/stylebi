@@ -26,8 +26,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.ClipboardService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.objects.controller.ClipboardController;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
+import inetsoft.web.composer.vs.objects.controller.*;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -52,9 +51,7 @@ class ClipboardControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new ClipboardController(runtimeViewsheetRef, coreLifecycleService,
-                                           vsObjectTreeService, viewsheetService, assemblyHandler,
-                                           vsObjectPropertyService);
+      controller = new ClipboardController(runtimeViewsheetRef, new ClipboardControllerServiceProxy());
    }
 
    // Bug #16764 make sure the top left is calculated correctly.
