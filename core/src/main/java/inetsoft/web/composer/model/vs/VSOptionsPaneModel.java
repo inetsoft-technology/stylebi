@@ -18,7 +18,9 @@
 package inetsoft.web.composer.model.vs;
 
 
-public class VSOptionsPaneModel {
+import java.io.Serializable;
+
+public class VSOptionsPaneModel implements Serializable {
    public ViewsheetParametersDialogModel getViewsheetParametersDialogModel() {
       if(viewsheetParametersDialogModel == null) {
          viewsheetParametersDialogModel = new ViewsheetParametersDialogModel();
