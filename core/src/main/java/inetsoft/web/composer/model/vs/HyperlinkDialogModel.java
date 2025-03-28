@@ -20,11 +20,12 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.web.binding.drm.DataRefModel;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class HyperlinkDialogModel {
+public class HyperlinkDialogModel implements Serializable {
    public int getLinkType() {
       return linkType;
    }
