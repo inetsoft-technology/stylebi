@@ -19,7 +19,9 @@ package inetsoft.web.composer.model.vs;
 
 import inetsoft.web.adhoc.model.FontInfo;
 
-public class HighlightModel {
+import java.io.Serializable;
+
+public class HighlightModel implements Serializable {
     public String getName() {
         return name;
     }

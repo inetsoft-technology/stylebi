@@ -20,9 +20,10 @@ package inetsoft.web.composer.model.vs;
 import inetsoft.web.binding.drm.DataRefModel;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.List;
 
-public class HighlightDialogModel {
+public class HighlightDialogModel implements Serializable {
    public int getRow() {
       return row;
    }
