@@ -514,6 +514,11 @@ public class TestCluster implements Cluster {
    }
 
    @Override
+   public <K> boolean isLocalCacheKey(String cache, K key) {
+      return getMap(cache).containsKey(key);
+   }
+
+   @Override
    public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
       // no-op
    }

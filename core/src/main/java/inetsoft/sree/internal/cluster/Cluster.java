@@ -243,6 +243,17 @@ public interface Cluster extends AutoCloseable {
    <K, V> Collection<K> getLocalCacheKeys(Cache<K, V> cache, Collection<K> keys);
 
    /**
+    * Determines if the current node is the owner of the primary partition containing the specified
+    * cache key.
+    *
+    * @param cache the name of the cache.
+    * @param key   the key.
+    *
+    * @return {@code true} if the owner or {@code false} if not.
+    */
+   <K> boolean isLocalCacheKey(String cache, K key);
+
+   /**
     * Adds a listener that is notified when a cache is rebalanced.
     *
     * @param cacheName the name of the cache.

@@ -21,14 +21,11 @@ package inetsoft.cluster.apt;
 import java.util.Objects;
 
 public final class ProxyParameter {
-   public ProxyParameter(String name, String type, String internalType, String initializer,
-                         String getter)
-   {
+   public ProxyParameter(String name, String type, String getter, boolean transferred) {
       this.name = name;
       this.type = type;
-      this.internalType = internalType;
-      this.initializer = initializer;
       this.getter = getter;
+      this.transferred = transferred;
    }
 
    public String getName() {
@@ -39,16 +36,12 @@ public final class ProxyParameter {
       return type;
    }
 
-   public String getInternalType() {
-      return internalType;
-   }
-
-   public String getInitializer() {
-      return initializer;
-   }
-
    public String getGetter() {
       return getter;
+   }
+
+   public boolean isTransferred() {
+      return transferred;
    }
 
    @Override
@@ -58,14 +51,13 @@ public final class ProxyParameter {
       }
 
       ProxyParameter that = (ProxyParameter) o;
-      return Objects.equals(name, that.name) && Objects.equals(type, that.type) &&
-         Objects.equals(internalType, that.internalType) &&
-         Objects.equals(initializer, that.initializer) && Objects.equals(getter, that.getter);
+      return transferred == that.transferred && Objects.equals(name, that.name) &&
+         Objects.equals(type, that.type) && Objects.equals(getter, that.getter);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(name, type, internalType, initializer, getter);
+      return Objects.hash(name, type, getter, transferred);
    }
 
    @Override
@@ -73,15 +65,13 @@ public final class ProxyParameter {
       return "ProxyParameter{" +
          "name='" + name + '\'' +
          ", type='" + type + '\'' +
-         ", internalType='" + internalType + '\'' +
-         ", initializer='" + initializer + '\'' +
          ", getter='" + getter + '\'' +
+         ", transferred=" + transferred +
          '}';
    }
 
    private final String name;
    private final String type;
-   private final String internalType;
-   private final String initializer;
    private final String getter;
+   private final boolean transferred;
 }
