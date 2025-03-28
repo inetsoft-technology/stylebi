@@ -20,6 +20,8 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link PresenterDescriptorModel}
  */
@@ -42,7 +44,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
    @JsonSubTypes.Type(value = ImageDescriptorModel.class, name = "ImagePropertyEditor"),
    @JsonSubTypes.Type(value = StringDescriptorModel.class, name = "AsTextPropertyEditor")
 })
-public abstract class PresenterDescriptorModel {
+public abstract class PresenterDescriptorModel implements Serializable {
    public abstract String name();
    public abstract String displayName();
    public abstract String editor();
