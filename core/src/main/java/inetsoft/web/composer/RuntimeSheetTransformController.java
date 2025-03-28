@@ -46,11 +46,13 @@ public class RuntimeSheetTransformController implements MessageListener {
    @Autowired
    public RuntimeSheetTransformController(AnalyticRepository repository,
                                           ViewsheetService viewsheetService,
-                                          SimpMessagingTemplate messagingTemplate)
+                                          SimpMessagingTemplate messagingTemplate,
+                                          RuntimeSheetTransformServiceProxy runtimeSheetTransformService)
    {
       this.repository = repository;
       this.viewsheetService = viewsheetService;
       this.messagingTemplate = messagingTemplate;
+      this.runtimeSheetTransformService = runtimeSheetTransformService;
       clusterInstance = Cluster.getInstance();
    }
 
@@ -227,7 +229,8 @@ public class RuntimeSheetTransformController implements MessageListener {
             .forEach(sheet -> {
                ArrayList<RenameInfo> renameInfos = new ArrayList<>();
                renameInfos.add(renameInfo);
-               viewsheetService.updateRenameInfos(sheet.getID(), sheet.getEntry(), renameInfos);
+               runtimeSheetTransformService.updateRenameInfos(sheet.getID(),
+                                                              sheet.getEntry(), renameInfos);
                sendMessage(sheet.getID(), sheet.getEntry(), false);
             });
       }
@@ -271,4 +274,5 @@ public class RuntimeSheetTransformController implements MessageListener {
    private AnalyticRepository repository;
    private ViewsheetService viewsheetService;
    private SimpMessagingTemplate messagingTemplate;
+   private RuntimeSheetTransformServiceProxy runtimeSheetTransformService;
 }
