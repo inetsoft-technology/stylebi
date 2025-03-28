@@ -20,6 +20,7 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo.PopLocation;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -29,6 +30,7 @@ import javax.annotation.Nullable;
  * image property dialog
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableImageAdvancedPaneModel.class)
 @JsonDeserialize(as = ImmutableImageAdvancedPaneModel.class)
 public abstract class ImageAdvancedPaneModel {
