@@ -67,5 +67,22 @@ public class SpinnerVSAScriptableTest {
       spinnerVSAScriptable.addProperties();
 
       assertEquals(Double.parseDouble("0.0"), spinnerVSAScriptable.get("min", spinnerVSAScriptable));
+      assertEquals(Double.parseDouble("100.0"), spinnerVSAScriptable.get("max", spinnerVSAScriptable));
+      assertEquals(Double.parseDouble("1.0"), spinnerVSAScriptable.get("increment", spinnerVSAScriptable));
+   }
+
+   @Test
+   void testNotSupport() {
+      spinnerVSAScriptable.setDataType("number");
+      assertNull(spinnerVSAScriptable.getDataType());
+
+      spinnerVSAScriptable.setValues(new Object[] { "value1", "value2" });
+      assertNull(spinnerVSAScriptable.getValues());
+
+      spinnerVSAScriptable.setLabels(new String[] { "label1", "label2" });
+      assertNull(spinnerVSAScriptable.getLabels());
+
+      spinnerVSAScriptable.setSelectedObject("obj1");
+      assertEquals(0, spinnerVSAScriptable.getSelectedObject());
    }
 }

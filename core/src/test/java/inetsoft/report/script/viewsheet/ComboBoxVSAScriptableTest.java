@@ -19,12 +19,13 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.viewsheet.ComboBoxVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ComboBoxVSAssemblyInfo;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -77,7 +78,33 @@ public class ComboBoxVSAScriptableTest {
    @Test
    void testAddProperties() {
       comboBoxVSAScriptable.addProperties();
-
       assertEquals(false, comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
+   }
+
+   @Test
+   void testGetSetValues() {
+      //check when no listdata
+      comboBoxVSAScriptable.setValues(new Object[]{ "value1", "value2" });
+      assertNull(comboBoxVSAScriptable.getValues());
+
+      //check set string values
+      comboBoxVSAssemblyInfo.setListData(new ListData());
+      comboBoxVSAssemblyInfo.setRListData(new ListData());
+      comboBoxVSAScriptable.setValues(new Object[]{ "value1", "value2" });
+      assertArrayEquals(new Object[]{ "value1", "value2" }, comboBoxVSAScriptable.getValues());
+
+      //check selected object values
+      assertNull(comboBoxVSAScriptable.getSelectedObject());
+      comboBoxVSAScriptable.setSelectedObject("value2");
+      assertEquals("value2", comboBoxVSAScriptable.getSelectedObject());
+
+      //calendar combobox
+      comboBoxVSAScriptable.setDataType("Date");
+      comboBoxVSAssemblyInfo.setCalendar(true);
+      Object[] values = new Object[]{ new Date(125, 1, 20), new Date(125, 2, 20) };
+      comboBoxVSAScriptable.setValues(values);
+      assertArrayEquals(values, comboBoxVSAScriptable.getValues());
+      comboBoxVSAScriptable.setSelectedObject(new Date(125, 1, 20));
+      assertEquals(new Date(125, 1, 20), comboBoxVSAScriptable.getSelectedObject());
    }
 }
