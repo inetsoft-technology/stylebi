@@ -888,6 +888,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public <K> boolean isLocalCacheKey(String cache, K key) {
+      Affinity<K> affinity = ignite.affinity(cache);
+      ClusterNode localNode = ignite.cluster().localNode();
+      return affinity.isPrimary(localNode, key);
+   }
+
+   @Override
    public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
       UUID id = ignite.events()
          .remoteListen(new RebalanceListenerAdapter(listener),

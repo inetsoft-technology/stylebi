@@ -7,13 +7,13 @@ public class {{proxySimpleName}} {
 
    public static final class {{callableClassName}} implements org.apache.ignite.lang.IgniteCallable<{{{returnType}}}> {
    {{#parameters}}
-      private final {{{value.internalType}}} {{value.name}};
+      {{#value.transferred}}private final {{{value.type}}} {{value.name}};{{/value.transferred}}
    {{/parameters}}
       private final inetsoft.web.ServiceProxyContext serviceProxyContext = new inetsoft.web.ServiceProxyContext();
 
       public {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}) {
       {{#parameters}}
-         this.{{value.name}} = {{value.initializer}};
+         {{#value.transferred}}this.{{value.name}} = {{value.name}};{{/value.transferred}}
       {{/parameters}}
       }
 
@@ -30,8 +30,15 @@ public class {{proxySimpleName}} {
       }
    }
 
-   public {{{returnType}}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}) {
-      org.apache.ignite.Ignite ignite = ((inetsoft.sree.internal.cluster.ignite.IgniteCluster) inetsoft.sree.internal.cluster.Cluster.getInstance()).getIgniteInstance();
+   public {{{returnType}}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
+      inetsoft.sree.internal.cluster.ignite.IgniteCluster cluster = (inetsoft.sree.internal.cluster.ignite.IgniteCluster) inetsoft.sree.internal.cluster.Cluster.getInstance();
+
+      if(cluster.isLocalCacheKey("{{cacheName}}", {{keyParam}})) {
+         {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
+         return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+      }
+
+      org.apache.ignite.Ignite ignite = cluster.getIgniteInstance();
       {{callableClassName}} serviceProxyCallable = new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
 
       try {
