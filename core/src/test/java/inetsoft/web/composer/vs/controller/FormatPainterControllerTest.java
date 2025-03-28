@@ -53,10 +53,7 @@ class FormatPainterControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = spy(new FormatPainterController(runtimeViewsheetRef, coreLifecycleService,
-                                                   chartRegionHandler, viewsheetEngine,
-                                                   objectModelService, bindingService,
-                                                   vsLayoutService));
+      controller = spy(new FormatPainterController(runtimeViewsheetRef, formatPainterService));
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class)))
@@ -98,11 +95,11 @@ class FormatPainterControllerTest {
    @Test
    @Disabled
    void legendAlignIsEnabled() throws Exception {
-      LegendDescriptor legendDescriptor = new LegendDescriptor();
-
-      doReturn(legendDescriptor).when(controller)
-         .getLegendDescriptor(nullable(ChartDescriptor.class), nullable(ChartInfo.class),
-                              nullable(ChartArea.class), anyInt());
+//      LegendDescriptor legendDescriptor = new LegendDescriptor();
+//
+//      doReturn(legendDescriptor).when(controller)
+//         .getLegendDescriptor(nullable(ChartDescriptor.class), nullable(ChartInfo.class),
+//                              nullable(ChartArea.class), anyInt());
 
       GetVSObjectFormatEvent event = new GetVSObjectFormatEvent();
       event.setName("Chart1");
@@ -165,6 +162,7 @@ class FormatPainterControllerTest {
    @Mock CommandDispatcher dispatcher;
    @Mock VSBindingService bindingService;
    @Mock VSLayoutService vsLayoutService;
+   @Mock FormatPainterServiceProxy formatPainterService;
    @Mock VGraphPair graphPair;
    private ChartVSAssembly chart;
 
