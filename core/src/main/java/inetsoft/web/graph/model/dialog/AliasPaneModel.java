@@ -17,7 +17,9 @@
  */
 package inetsoft.web.graph.model.dialog;
 
-public class AliasPaneModel {
+import java.io.Serializable;
+
+public class AliasPaneModel implements Serializable {
    public ModelAlias[] getAliasList() {
       return aliasList;
    }

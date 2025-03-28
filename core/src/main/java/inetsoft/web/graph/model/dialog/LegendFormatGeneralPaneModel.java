@@ -17,7 +17,9 @@
  */
 package inetsoft.web.graph.model.dialog;
 
-public class LegendFormatGeneralPaneModel {
+import java.io.Serializable;
+
+public class LegendFormatGeneralPaneModel implements Serializable {
    public String getTitle() {
       return title;
    }

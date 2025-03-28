@@ -17,38 +17,18 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.composition.graph.VGraphPair;
-import inetsoft.report.composition.region.ChartArea;
-import inetsoft.report.composition.region.TitleArea;
-import inetsoft.uql.XCube;
-import inetsoft.uql.asset.SourceInfo;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.viewsheet.ChartVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
-import inetsoft.web.binding.service.VSBindingService;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.factory.RemainingPath;
-import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.graph.model.dialog.*;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
 import java.security.Principal;
 
 /**
@@ -60,21 +40,14 @@ import java.security.Principal;
 public class RegionPropertyDialogController {
    /**
     * Creates a new instance of <tt>ChartPropertyController</tt>.
-    *  @param vsObjectPropertyService VSObjectPropertyService instance
     * @param runtimeViewsheetRef     RuntimeViewsheetRef instance
-    * @param viewsheetService
     */
    @Autowired
-   public RegionPropertyDialogController(
-      VSObjectPropertyService vsObjectPropertyService,
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      ViewsheetService viewsheetService,
-      VSBindingService vsBindingService)
+   public RegionPropertyDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                         RegionPropertyDialogService regionPropertyDialogService)
    {
-      this.vsObjectPropertyService = vsObjectPropertyService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.viewsheetService = viewsheetService;
-      this.vsBindingService = vsBindingService;
+      this.regionPropertyDialogService = regionPropertyDialogService;
    }
 
    /**
@@ -101,31 +74,8 @@ public class RegionPropertyDialogController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      ChartVSAssembly chartAssembly;
-      ChartVSAssemblyInfo chartAssemblyInfo;
-
-      try {
-         ViewsheetService engine = viewsheetService;
-         rvs = engine.getViewsheet(runtimeId, principal);
-         vs = rvs.getViewsheet();
-         chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
-         chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      int axisIdx = Integer.parseInt(index);
-      VSChartInfo cinfo = chartAssemblyInfo.getVSChartInfo();
-      ChartDescriptor descriptor = chartAssemblyInfo.getChartDescriptor();
-      PlotDescriptor plotDesc = descriptor.getPlotDescriptor();
-
-      return regionHandler.createAxisPropertyDialogModel(
-         cinfo, getChartArea(rvs, chartAssembly, linkUri, rvs.getViewsheet().isMaxMode()), axisType,
-         axisIdx, field, plotDesc.isFacetGrid(), vs.isMaxMode());
+      return regionPropertyDialogService.getAxisPropertyDialogModel(runtimeId, objectId, axisType,
+                                                             index, field, linkUri, principal);
    }
 
    /**
@@ -146,33 +96,9 @@ public class RegionPropertyDialogController {
       @LinkUri String linkUri,
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      ChartVSAssembly chartAssembly;
-      ChartVSAssemblyInfo chartAssemblyInfo;
-
-      try {
-         ViewsheetService engine = viewsheetService;
-         rvs = engine.getViewsheet(this.runtimeViewsheetRef.getRuntimeId(), principal);
-         vs = rvs.getViewsheet();
-         chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
-         chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      VSChartInfo cinfo = chartAssemblyInfo.getVSChartInfo();
-      ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
-      regionHandler.updateAxisPropertyDialogModel(value, cinfo, chartArea, axisType, index, field,
-                                                  vs.isMaxMode());
-      chartAssemblyInfo.resetRuntimeValues();
-      cinfo.clearRuntime();
-      rvs.getViewsheetSandbox().updateAssembly(chartAssembly.getAbsoluteName());
-      rvs.getViewsheetSandbox().clearGraph(chartAssembly.getAbsoluteName());
-      this.vsObjectPropertyService.editObjectProperty(
-         rvs, chartAssemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher);
+      regionPropertyDialogService.setAxisPropertyDialogModel(runtimeViewsheetRef.getRuntimeId(),
+                                                             objectId, axisType, index, field, value,
+                                                             linkUri, principal, commandDispatcher);
    }
 
    /**
@@ -197,29 +123,8 @@ public class RegionPropertyDialogController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      ChartVSAssembly chartAssembly;
-      ChartVSAssemblyInfo chartAssemblyInfo;
-
-      try {
-         ViewsheetService engine = viewsheetService;
-         rvs = engine.getViewsheet(runtimeId, principal);
-         vs = rvs.getViewsheet();
-         chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
-         chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      int legendIdx = Integer.parseInt(index);
-      VSChartInfo cinfo = chartAssemblyInfo.getVSChartInfo();
-      ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
-      ChartDescriptor descriptor = chartAssemblyInfo.getChartDescriptor();
-      return regionHandler.createLegendFormatDialogModel(cinfo, chartArea,
-         descriptor, legendIdx);
+      return regionPropertyDialogService.getLegendFormatDialogModel(runtimeId, objectId, index,
+                                                                    linkUri, principal);
    }
 
    /**
@@ -238,31 +143,9 @@ public class RegionPropertyDialogController {
       @LinkUri String linkUri,
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      ChartVSAssembly chartAssembly;
-      ChartVSAssemblyInfo chartAssemblyInfo;
-
-      try {
-         ViewsheetService engine = viewsheetService;
-         rvs = engine.getViewsheet(this.runtimeViewsheetRef.getRuntimeId(), principal);
-         vs = rvs.getViewsheet();
-         chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
-         chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
-         chartAssemblyInfo.setRTChartDescriptor(null);
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      VSChartInfo cinfo = chartAssemblyInfo.getVSChartInfo();
-      ChartDescriptor descriptor = chartAssemblyInfo.getChartDescriptor();
-      ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
-      regionHandler.updateLegendFormatDialogModel(value, cinfo, chartArea, descriptor, index);
-
-      this.vsObjectPropertyService.editObjectProperty(
-         rvs, chartAssemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher);
+      regionPropertyDialogService.setLegendFormatDialogModel(runtimeViewsheetRef.getRuntimeId(),
+                                                             objectId, index, value, linkUri,
+                                                             principal, commandDispatcher);
    }
 
    /**
@@ -286,30 +169,8 @@ public class RegionPropertyDialogController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      ChartVSAssembly chartAssembly;
-      ChartVSAssemblyInfo chartAssemblyInfo;
-
-      try {
-         ViewsheetService engine = viewsheetService;
-         rvs = engine.getViewsheet(runtimeId, principal);
-         vs = rvs.getViewsheet();
-         chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
-         chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      ChartDescriptor descriptor = chartAssemblyInfo.getChartDescriptor();
-      TitleDescriptor titleDesc = regionHandler.getTitleDescriptor(descriptor, axisType);
-      ChartArea chartArea = getChartArea(rvs, chartAssembly, linkUri);
-      TitleArea titleArea = regionHandler.getTitleArea(chartArea, axisType);
-      String oldTitle = (String) titleArea.getChartAreaInfo().getProperty("titlename");
-
-      return new TitleFormatDialogModel(titleDesc, oldTitle);
+      return regionPropertyDialogService.getTitleFormatDialogModel(runtimeId, objectId, axisType,
+                                                                   linkUri, principal);
    }
 
    /**
@@ -328,103 +189,12 @@ public class RegionPropertyDialogController {
       @LinkUri String linkUri,
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeViewsheet rvs;
-      Viewsheet vs;
-      ChartVSAssembly chartAssembly;
-      ChartVSAssemblyInfo chartAssemblyInfo;
-
-      try {
-         rvs = viewsheetService.getViewsheet(this.runtimeViewsheetRef.getRuntimeId(), principal);
-         vs = rvs.getViewsheet();
-         chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
-         chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
-         chartAssemblyInfo.setRTChartDescriptor(null);
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         throw e;
-      }
-
-      ChartDescriptor descriptor = chartAssemblyInfo.getChartDescriptor();
-      TitleDescriptor titleDesc = regionHandler.getTitleDescriptor(descriptor, axisType);
-      value.updateTitleProperties(titleDesc);
-
-      this.vsObjectPropertyService.editObjectProperty(
-         rvs, chartAssemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher);
+      regionPropertyDialogService.setTitleFormatDialogModel(runtimeViewsheetRef.getRuntimeId(),
+                                                            objectId, axisType, value, linkUri,
+                                                            principal, commandDispatcher);
    }
 
-   /**
-    * Get chart area.
-    */
-   public ChartArea getChartArea(RuntimeViewsheet rvs, ChartVSAssembly chartAssembly,
-                                 String linkUri)
-      throws Exception
-   {
-      return getChartArea(rvs, chartAssembly, linkUri, false);
-   }
-
-   /**
-    * Get chart area.
-    */
-   public ChartArea getChartArea(RuntimeViewsheet rvs, ChartVSAssembly chartAssembly,
-                                 String linkUri, boolean maxMode)
-      throws Exception
-   {
-      // Get ChartArea, using mechanism lifted from GetChartAreaEvent
-      ChartArea chartArea;
-
-      try {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         VSChartInfo cinfo = chartAssembly.getVSChartInfo();
-         ChartVSAssemblyInfo chartInfo = chartAssembly.getChartInfo();
-         final String absoluteName = chartAssembly.getAbsoluteName();
-         cinfo.setLocalMap(
-            VSUtil.getLocalMap(rvs.getViewsheet(), absoluteName));
-
-         VGraphPair pair;
-
-         if(maxMode && chartInfo != null && chartInfo.getMaxSize() != null) {
-            pair = box.getVGraphPair(absoluteName, true, chartInfo.getMaxSize());
-         }
-         else {
-            pair = box.getVGraphPair(absoluteName);
-         }
-
-         if(pair != null && !pair.isCompleted()) {
-            box.clearGraph(absoluteName);
-            pair = box.getVGraphPair(absoluteName);
-         }
-
-         XCube cube = chartAssembly.getXCube();
-         boolean drill = !rvs.isTipView(absoluteName) &&
-            ((ChartVSAssemblyInfo) chartAssembly.getInfo()).isDrillEnabled();
-
-         if(cube == null) {
-            SourceInfo src = chartAssembly.getSourceInfo();
-
-            if(src != null) {
-               cube = AssetUtil.getCube(src.getPrefix(), src.getSource());
-            }
-         }
-
-         chartArea = pair == null || !pair.isCompleted() || pair.getRealSizeVGraph() == null
-            ? null : new ChartArea(pair, linkUri, cinfo, cube, drill);
-
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to process request", ex);
-         return null;
-      }
-
-      return chartArea;
-   }
-
-   private final VSObjectPropertyService vsObjectPropertyService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
-   private final VSBindingService vsBindingService;
-   @Autowired
-   private ChartRegionHandler regionHandler;
-   private static final Logger LOG =
-      LoggerFactory.getLogger(RegionPropertyDialogController.class);
+   private final RegionPropertyDialogService regionPropertyDialogService;
+
 }
