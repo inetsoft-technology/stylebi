@@ -44,10 +44,10 @@ public class RegionPropertyDialogController {
     */
    @Autowired
    public RegionPropertyDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                         RegionPropertyDialogService regionPropertyDialogService)
+                                         RegionPropertyDialogServiceProxy regionPropertyDialogServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.regionPropertyDialogService = regionPropertyDialogService;
+      this.regionPropertyDialogServiceProxy = regionPropertyDialogServiceProxy;
    }
 
    /**
@@ -74,7 +74,7 @@ public class RegionPropertyDialogController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      return regionPropertyDialogService.getAxisPropertyDialogModel(runtimeId, objectId, axisType,
+      return regionPropertyDialogServiceProxy.getAxisPropertyDialogModel(runtimeId, objectId, axisType,
                                                              index, field, linkUri, principal);
    }
 
@@ -96,7 +96,7 @@ public class RegionPropertyDialogController {
       @LinkUri String linkUri,
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      regionPropertyDialogService.setAxisPropertyDialogModel(runtimeViewsheetRef.getRuntimeId(),
+      regionPropertyDialogServiceProxy.setAxisPropertyDialogModel(runtimeViewsheetRef.getRuntimeId(),
                                                              objectId, axisType, index, field, value,
                                                              linkUri, principal, commandDispatcher);
    }
@@ -123,7 +123,7 @@ public class RegionPropertyDialogController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      return regionPropertyDialogService.getLegendFormatDialogModel(runtimeId, objectId, index,
+      return regionPropertyDialogServiceProxy.getLegendFormatDialogModel(runtimeId, objectId, index,
                                                                     linkUri, principal);
    }
 
@@ -143,7 +143,7 @@ public class RegionPropertyDialogController {
       @LinkUri String linkUri,
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      regionPropertyDialogService.setLegendFormatDialogModel(runtimeViewsheetRef.getRuntimeId(),
+      regionPropertyDialogServiceProxy.setLegendFormatDialogModel(runtimeViewsheetRef.getRuntimeId(),
                                                              objectId, index, value, linkUri,
                                                              principal, commandDispatcher);
    }
@@ -169,7 +169,7 @@ public class RegionPropertyDialogController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      return regionPropertyDialogService.getTitleFormatDialogModel(runtimeId, objectId, axisType,
+      return regionPropertyDialogServiceProxy.getTitleFormatDialogModel(runtimeId, objectId, axisType,
                                                                    linkUri, principal);
    }
 
@@ -189,12 +189,12 @@ public class RegionPropertyDialogController {
       @LinkUri String linkUri,
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      regionPropertyDialogService.setTitleFormatDialogModel(runtimeViewsheetRef.getRuntimeId(),
+      regionPropertyDialogServiceProxy.setTitleFormatDialogModel(runtimeViewsheetRef.getRuntimeId(),
                                                             objectId, axisType, value, linkUri,
                                                             principal, commandDispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final RegionPropertyDialogService regionPropertyDialogService;
+   private final RegionPropertyDialogServiceProxy regionPropertyDialogServiceProxy;
 
 }
