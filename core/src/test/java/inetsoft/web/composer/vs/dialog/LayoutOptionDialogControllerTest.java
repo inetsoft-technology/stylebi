@@ -47,8 +47,8 @@ class LayoutOptionDialogControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new LayoutOptionDialogController(runtimeViewsheetRef, groupingService,
-                                                    vsObjectTreeService, engine, vsTableService, coreLifecycleService);
+      controller = new LayoutOptionDialogController(runtimeViewsheetRef,
+                                                    new LayoutOptionDialogServiceProxy());
    }
 
    @Test
