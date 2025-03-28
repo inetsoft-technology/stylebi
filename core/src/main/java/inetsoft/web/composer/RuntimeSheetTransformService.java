@@ -25,7 +25,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.sync.RenameInfo;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @ClusterProxy
@@ -36,7 +36,7 @@ public class RuntimeSheetTransformService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void updateRenameInfos(@ClusterProxyKey String id,
-                                 AssetEntry entry, ArrayList<RenameInfo> renameInfos) {
+                                 AssetEntry entry, List<RenameInfo> renameInfos) {
       viewsheetService.updateRenameInfos(id, entry, renameInfos);
       return null;
    }
