@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class SelectionContainerGeneralPaneModel {
+import java.io.Serializable;
+
+public class SelectionContainerGeneralPaneModel implements Serializable {
    public boolean isShowCurrentSelection() {
       return showCurrentSelection;
    }
