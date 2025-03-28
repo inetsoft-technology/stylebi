@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class GroupContainerGeneralPaneModel {
+import java.io.Serializable;
+
+public class GroupContainerGeneralPaneModel implements Serializable {
 
    public GeneralPropPaneModel getGeneralPropPane() {
       return generalPropPane;
