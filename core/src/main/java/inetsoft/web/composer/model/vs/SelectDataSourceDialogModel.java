@@ -19,7 +19,9 @@ package inetsoft.web.composer.model.vs;
 
 import inetsoft.uql.asset.AssetEntry;
 
-public class SelectDataSourceDialogModel {
+import java.io.Serializable;
+
+public class SelectDataSourceDialogModel implements Serializable {
    public String getTitle() {
       return title;
    }
