@@ -55,12 +55,14 @@ public class PresenterPropertyDialogService {
    public PresenterPropertyDialogService(ViewsheetService viewsheetService,
                                          CoreLifecycleService coreLifecycleService,
                                          VSObjectModelFactoryService objectModelService,
-                                         VSLayoutService vsLayoutService)
+                                         VSLayoutService vsLayoutService,
+                                         ImagePreviewPaneService imagePreviewPaneService)
    {
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
       this.objectModelService = objectModelService;
       this.vsLayoutService = vsLayoutService;
+      this.imagePreviewPaneService =imagePreviewPaneService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -389,7 +391,6 @@ public class PresenterPropertyDialogService {
             .build();
       }
       else if(cls == Image.class) {
-         ImagePreviewPaneController imageController = new ImagePreviewPaneController();
          String path = null;
 
          if(value instanceof MetaImage) {
@@ -404,7 +405,7 @@ public class PresenterPropertyDialogService {
             .animateGifImage(false)
             .allowNullImage(true)
             .selectedImage(path)
-            .imageTree(imageController.getImageTree(rvs))
+            .imageTree(imagePreviewPaneService.getImageTree(rvs))
             .build();
 
          model = ImageDescriptorModel.builder()
@@ -451,4 +452,5 @@ public class PresenterPropertyDialogService {
    private final CoreLifecycleService coreLifecycleService;
    private final VSObjectModelFactoryService objectModelService;
    private final VSLayoutService vsLayoutService;
+   private final ImagePreviewPaneService imagePreviewPaneService;
 }

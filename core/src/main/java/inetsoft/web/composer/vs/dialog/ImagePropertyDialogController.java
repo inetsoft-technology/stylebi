@@ -63,7 +63,8 @@ public class ImagePropertyDialogController {
                                         ViewsheetService viewsheetService,
                                         VSDialogService dialogService,
                                         VSTrapService trapService,
-                                        VSAssemblyInfoHandler assemblyInfoHandler)
+                                        VSAssemblyInfoHandler assemblyInfoHandler,
+                                        ImagePreviewPaneService imagePreviewPaneService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -72,6 +73,7 @@ public class ImagePropertyDialogController {
       this.dialogService = dialogService;
       this.trapService = trapService;
       this.assemblyInfoHandler = assemblyInfoHandler;
+      this.imagePreviewPaneService = imagePreviewPaneService;
    }
 
    /**
@@ -110,8 +112,6 @@ public class ImagePropertyDialogController {
 
       OutputGeneralPaneModel outputGeneralPaneModel = new OutputGeneralPaneModel();
 
-      ImagePreviewPaneController imageController = new ImagePreviewPaneController();
-
       TipPaneModel tipPaneModel = new TipPaneModel();
       tipPaneModel.setTipOption(imageAssemblyInfo.isTooltipVisible());
 
@@ -131,7 +131,7 @@ public class ImagePropertyDialogController {
             .alpha(imageAlpha)
             .animateGifImage(imageAssemblyInfo.isAnimateGIF())
             .selectedImage(imageValue)
-            .imageTree(imageController.getImageTree(rvs))
+            .imageTree(imagePreviewPaneService.getImageTree(rvs))
             .build();
 
       StaticImagePaneModel staticImagePaneModel = StaticImagePaneModel.builder()
@@ -495,4 +495,5 @@ public class ImagePropertyDialogController {
    private final VSDialogService dialogService;
    private final VSTrapService trapService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final ImagePreviewPaneService imagePreviewPaneService;
 }

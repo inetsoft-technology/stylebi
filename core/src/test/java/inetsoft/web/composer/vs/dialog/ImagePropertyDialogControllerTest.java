@@ -80,7 +80,8 @@ class ImagePropertyDialogControllerTest {
                                                      viewsheetEngine,
                                                      dialogService,
                                                      trapService,
-                                                     infoHandler);
+                                                     infoHandler,
+                                                     imagePreviewPaneService);
    }
 
    @Test
@@ -131,6 +132,7 @@ class ImagePropertyDialogControllerTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSDialogService dialogService;
    @Mock VSAssemblyInfoHandler infoHandler;
+   @Mock ImagePreviewPaneService imagePreviewPaneService;
    @Mock SimpMessagingTemplate messagingTemplate;
    @Mock VSWizardTemporaryInfoService temporaryInfoService;
    @Mock ViewsheetService viewsheetService;

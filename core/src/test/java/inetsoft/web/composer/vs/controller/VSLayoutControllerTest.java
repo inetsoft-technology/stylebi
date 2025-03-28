@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.composer.vs.dialog.ImagePreviewPaneService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -50,7 +51,8 @@ class VSLayoutControllerTest {
    void setup() throws Exception {
       controller = new VSLayoutController(runtimeViewsheetRef, coreLifecycleService,
                                           viewsheetService, objectModelService,
-                                          vsLayoutService, vsObjectTreeService);
+                                          vsLayoutService, vsObjectTreeService,
+                                          imagePreviewPaneService);
    }
 
    // Bug #16600 Make sure that when not setting a script, the default value doesnt error out.
@@ -93,6 +95,7 @@ class VSLayoutControllerTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSLayoutService vsLayoutService;
    @Mock VSObjectTreeService vsObjectTreeService;
+   @Mock ImagePreviewPaneService imagePreviewPaneService;
 
    private VSLayoutController controller;
 }

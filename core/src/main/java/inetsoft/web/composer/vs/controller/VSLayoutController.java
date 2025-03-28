@@ -33,6 +33,7 @@ import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.*;
 import inetsoft.web.composer.vs.dialog.ImagePreviewPaneController;
+import inetsoft.web.composer.vs.dialog.ImagePreviewPaneService;
 import inetsoft.web.composer.vs.event.*;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.DataTipInLayoutCheckResult;
@@ -67,7 +68,8 @@ public class VSLayoutController {
                              ViewsheetService viewsheetService,
                              VSObjectModelFactoryService objectModelService,
                              VSLayoutService vsLayoutService,
-                             VSObjectTreeService vsObjectTreeService)
+                             VSObjectTreeService vsObjectTreeService,
+                             ImagePreviewPaneService imagePreviewPaneService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.coreLifecycleService = coreLifecycleService;
@@ -75,6 +77,7 @@ public class VSLayoutController {
       this.objectModelService = objectModelService;
       this.vsLayoutService = vsLayoutService;
       this.vsObjectTreeService = vsObjectTreeService;
+      this.imagePreviewPaneService = imagePreviewPaneService;
    }
 
    /**
@@ -657,7 +660,6 @@ public class VSLayoutController {
             .map(l -> (ImageVSAssemblyInfo) ((VSEditableAssemblyLayout) l).getInfo())
             .orElse(null);
 
-      ImagePreviewPaneController imageController = new ImagePreviewPaneController();
       String imageValue = imageAssemblyInfo.getImageValue();
       int imageAlpha;
 
@@ -672,7 +674,7 @@ public class VSLayoutController {
          .alpha(imageAlpha)
          .animateGifImage(imageAssemblyInfo.isAnimateGIF())
          .selectedImage(imageValue)
-         .imageTree(imageController.getImageTree(rvs))
+         .imageTree(imagePreviewPaneService.getImageTree(rvs))
          .build();
 
       StaticImagePaneModel staticImagePaneModel = StaticImagePaneModel.builder()
@@ -886,4 +888,5 @@ public class VSLayoutController {
    private final VSObjectModelFactoryService objectModelService;
    private final VSLayoutService vsLayoutService;
    private final VSObjectTreeService vsObjectTreeService;
+   private final ImagePreviewPaneService imagePreviewPaneService;
 }
