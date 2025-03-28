@@ -23,6 +23,8 @@ import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.model.graph.*;
 import org.immutables.serial.Serial;
 
+import java.io.Serializable;
+
 /**
  * DataRefModel holding a reference to a SQL expression or an attribute.
  *
