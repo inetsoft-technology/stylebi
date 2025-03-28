@@ -109,19 +109,9 @@ public class UploadController {
    }
 
    private UploadedFile uploadFile(MultipartFile upload) {
-      File file = FileSystemService.getInstance().getCacheTempFile("upload", ".dat");
-      file.deleteOnExit();
-
-      try(FileOutputStream out = new FileOutputStream(file)) {
-         out.write(upload.getBytes());
-      }
-      catch(IOException e) {
-         throw new RuntimeException("Failed to copy upload to local file system", e);
-      }
-
       return UploadedFile.builder()
          .fileName(Objects.requireNonNull(upload.getOriginalFilename()))
-         .file(file)
+         .multipartFile(upload)
          .build();
    }
 
