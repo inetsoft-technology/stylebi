@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class SelectionContainerPropertyDialogModel {
+import java.io.Serializable;
+
+public class SelectionContainerPropertyDialogModel implements Serializable {
    public SelectionContainerGeneralPaneModel getSelectionContainerGeneralPaneModel() {
       if(selectionContainerGeneralPaneModel == null) {
          selectionContainerGeneralPaneModel = new SelectionContainerGeneralPaneModel();
