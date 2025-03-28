@@ -46,8 +46,9 @@ import java.security.Principal;
 public class VSTestController {
 
    @Autowired
-   public VSTestController(ViewsheetService viewsheetService) {
+   public VSTestController(ViewsheetService viewsheetService, VSTestServiceProxy vsTestService) {
       this.viewsheetService = viewsheetService;
+      this.vsTestService = vsTestService;
    }
 
    @RequestMapping(
@@ -64,13 +65,8 @@ public class VSTestController {
 
       ViewsheetService engine = viewsheetService;
       String id  = engine.openViewsheet(entry, principal, viewer);
-      RuntimeViewsheet nrvs = engine.getViewsheet(id, principal);
-      VariableTable variables = nrvs.getViewsheetSandbox().getVariableTable();
-      nrvs.getViewsheetSandbox().getAssetQuerySandbox().refreshVariableTable(variables);
-      nrvs.getViewsheetSandbox().reset(null, nrvs.getViewsheet().getAssemblies(),
-         new ChangedAssemblyList(), true, true, null);
 
-      return id;
+      return vsTestService.openViewsheet(id, principal);
    }
 
    @RequestMapping(
@@ -85,19 +81,7 @@ public class VSTestController {
          Principal principal
       ) throws Exception
    {
-      try {
-         ViewsheetService engine = viewsheetService;
-         RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-         Viewsheet vs = rvs.getViewsheet();
-         ChartVSAssembly chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
-         ChartArea chartArea = getChartArea0(rvs, chartAssembly, linkUri);
-
-         return chartArea;
-      } catch(Exception e) {
-         e.printStackTrace();
-      }
-
-      return null;
+      return vsTestService.getChartArea(vsId, objectId, linkUri, principal);
    }
 
    @RequestMapping(
@@ -111,94 +95,10 @@ public class VSTestController {
          Principal principal
       ) throws Exception
    {
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
-
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      if(box == null) {
-         return 0;
-      }
-
-      try {
-         String oname = name;
-         boolean detail = oname.startsWith(Assembly.DETAIL);
-
-         if(detail) {
-            oname = oname.substring(Assembly.DETAIL.length());
-         }
-
-         try {
-            VSAssembly assembly = (VSAssembly) rvs.getViewsheet().getAssembly(oname);
-
-            if(!VSEventUtil.isVisibleTabVS(assembly, rvs.isRuntime())) {
-               return 0;
-            }
-         }
-         catch(Exception ex) {
-            //ignore, not expecting any exception here.
-         }
-
-         VSTableLens lens = box.getVSTableLens(oname, detail);
-
-         if(lens == null || Util.isTimeoutTable(lens)) {
-            return 0;
-         }
-
-         int ccount = lens.getColCount();
-
-         return ccount;
-      }catch(Exception e) {
-         e.printStackTrace();
-         throw new Exception(e);
-      }
+      return vsTestService.loadTableLensCount(vsId, name, principal);
    }
 
-   private ChartArea getChartArea0(RuntimeViewsheet rvs, ChartVSAssembly chartAssembly,
-                                 String linkUri)
-      throws Exception
-   {
-      // Get ChartArea, using mechanism lifted from GetChartAreaEvent
-      ChartArea chartArea;
-
-      try {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         box.setUser(SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false));
-
-         VSChartInfo cinfo = chartAssembly.getVSChartInfo();
-         final String absoluteName = chartAssembly.getAbsoluteName();
-         cinfo.setLocalMap(
-            VSUtil.getLocalMap(rvs.getViewsheet(), absoluteName));
-
-         VGraphPair pair = box.getVGraphPair(absoluteName, true, null);
-
-         if(pair != null && !pair.isCompleted()) {
-            box.clearGraph(absoluteName);
-            pair = box.getVGraphPair(absoluteName, true, null);
-         }
-
-         XCube cube = chartAssembly.getXCube();
-         boolean drill = !rvs.isTipView(absoluteName) &&
-            ((ChartVSAssemblyInfo) chartAssembly.getInfo()).isDrillEnabled();
-
-         if(cube == null) {
-            SourceInfo src = chartAssembly.getSourceInfo();
-
-            if(src != null) {
-               cube = AssetUtil.getCube(src.getPrefix(), src.getSource());
-            }
-         }
-
-         chartArea = pair == null || !pair.isCompleted()
-            ? null : new ChartArea(pair, linkUri, cinfo, cube, drill);
-
-      } catch(Exception ex) {
-         ex.printStackTrace();
-         return null;
-      }
-
-      return chartArea;
-   }
 
    private final ViewsheetService viewsheetService;
+   private final VSTestServiceProxy vsTestService;
 }
