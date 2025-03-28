@@ -17,7 +17,9 @@
  */
 package inetsoft.web.graph.model.dialog;
 
-public class AxisLinePaneModel {
+import java.io.Serializable;
+
+public class AxisLinePaneModel implements Serializable {
    public boolean isIgnoreNull() {
       return ignoreNull;
    }

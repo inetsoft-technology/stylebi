@@ -17,7 +17,9 @@
  */
 package inetsoft.web.graph.model.dialog;
 
-public class AxisLabelPaneModel {
+import java.io.Serializable;
+
+public class AxisLabelPaneModel implements Serializable {
    public boolean isShowAxisLabel() {
       return showAxisLabel;
    }
