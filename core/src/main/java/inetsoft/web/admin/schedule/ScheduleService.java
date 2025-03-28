@@ -377,6 +377,7 @@ public class ScheduleService {
             oldPath = null;
          }
 
+         renameTaskBackupPaths(currTask, oldPath, oldId, newId);
          scheduleManager.setScheduleTask(newId, currTask, folderEntry, principal);
          taskFolderService.removeTaskFromFolder(oldId, oldPath);
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
@@ -392,6 +393,30 @@ public class ScheduleService {
       }
 
       return true;
+   }
+
+   private void renameTaskBackupPaths(ScheduleTask task, String path, String oid, String nid) {
+      int cnt = task.getActionCount();
+      String currentOldTask = "/".equals(path) ? oid : path + "/" + oid;
+      String currentNewPath = "/".equals(path) ? nid : path + "/" + nid;
+
+      for(int i = 0; i < cnt; i++) {
+         ScheduleAction action = task.getAction(i);
+
+         if(action instanceof IndividualAssetBackupAction) {
+            IndividualAssetBackupAction bAction = (IndividualAssetBackupAction) action;
+
+            for(XAsset asset : bAction.getAssets()) {
+               if(asset instanceof ScheduleTaskAsset) {
+                  ScheduleTaskAsset taskAsset = (ScheduleTaskAsset) asset;
+
+                  if(Tool.equals(currentOldTask, taskAsset.getTask())) {
+                     taskAsset.setTask(currentNewPath);
+                  }
+               }
+            }
+         }
+      }
    }
 
    public void configureAssetFileBackupTask(ScheduleTask assetFileBackupTask) {
