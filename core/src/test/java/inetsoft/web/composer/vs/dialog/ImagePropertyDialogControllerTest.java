@@ -75,12 +75,8 @@ class ImagePropertyDialogControllerTest {
                                                                 temporaryInfoService,
                                                                 vsCompositionService,
                                                                 sharedFilterService));
-      controller = new ImagePropertyDialogController(vsObjectPropertyService,
-                                                     vsOutputService, runtimeViewsheetRef,
-                                                     viewsheetEngine,
-                                                     dialogService,
-                                                     trapService,
-                                                     infoHandler);
+      controller = new ImagePropertyDialogController(runtimeViewsheetRef,
+                                                     new ImagePropertyDialogServiceProxy());
    }
 
    @Test

@@ -19,6 +19,7 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 /**
@@ -26,6 +27,7 @@ import org.immutables.value.Value;
  * image property dialog
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableImageGeneralPaneModel.class)
 @JsonDeserialize(as = ImmutableImageGeneralPaneModel.class)
 public abstract class ImageGeneralPaneModel {
