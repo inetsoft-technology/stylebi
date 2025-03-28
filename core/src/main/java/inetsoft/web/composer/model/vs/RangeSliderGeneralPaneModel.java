@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class RangeSliderGeneralPaneModel {
+import java.io.Serializable;
+
+public class RangeSliderGeneralPaneModel implements Serializable {
    public GeneralPropPaneModel getGeneralPropPaneModel() {
       if(generalPropPaneModel == null) {
          generalPropPaneModel = new GeneralPropPaneModel();

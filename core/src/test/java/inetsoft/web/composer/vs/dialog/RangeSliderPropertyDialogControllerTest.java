@@ -49,15 +49,8 @@ import static org.mockito.Mockito.when;
 class RangeSliderPropertyDialogControllerTest {
    @BeforeEach
    void setup() throws Exception {
-      controller = new RangeSliderPropertyDialogController(
-         vsObjectPropertyService,
-         vsOutputService,
-         runtimeViewsheetRef,
-         engine,
-         dialogService,
-         trapService,
-         selectionDialogService,
-         assemblyInfoHandler);
+      controller = new RangeSliderPropertyDialogController(runtimeViewsheetRef,
+                                                           new RangeSliderPropertyDialogServiceProxy());
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
