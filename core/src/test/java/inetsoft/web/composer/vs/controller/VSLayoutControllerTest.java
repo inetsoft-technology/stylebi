@@ -48,9 +48,7 @@ class VSLayoutControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new VSLayoutController(runtimeViewsheetRef, coreLifecycleService,
-                                          viewsheetService, objectModelService,
-                                          vsLayoutService, vsObjectTreeService);
+      controller = new VSLayoutController(runtimeViewsheetRef, vsLayoutControllerService);
    }
 
    // Bug #16600 Make sure that when not setting a script, the default value doesnt error out.
@@ -83,6 +81,7 @@ class VSLayoutControllerTest {
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
+   @Mock VSLayoutControllerServiceProxy vsLayoutControllerService;
    @Mock
    CoreLifecycleService coreLifecycleService;
    @Mock ViewsheetService viewsheetService;

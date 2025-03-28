@@ -17,12 +17,14 @@
  */
 package inetsoft.web.composer.vs.event;
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for adding an object to the layout.
  *
  * @since 12.3
  */
-public class AddVSLayoutObjectEvent {
+public class AddVSLayoutObjectEvent implements Serializable {
    /**
     * Gets the type of object to create.
     *
