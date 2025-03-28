@@ -48,14 +48,8 @@ class ComposerViewsheetApiControllerTest {
    @BeforeEach
    void setup() throws Exception {
       controller = new ComposerViewsheetController(runtimeViewsheetRef,
-                                                   runtimeViewsheetManager,
-                                                   coreLifecycleService,
                                                    viewsheetService,
-                                                   vsObjectTreeService,
-                                                   refreshController,
-                                                   vsLayoutService,
-                                                   objectModelService,
-                                                   vsCompositionService);
+                                                   composerViewsheetService);
    }
 
    // Bug #10686 Make sure permissions are set for preview viewsheets
@@ -98,6 +92,7 @@ class ComposerViewsheetApiControllerTest {
    @Mock
    CoreLifecycleService coreLifecycleService;
    @Mock ViewsheetService viewsheetService;
+   @Mock ComposerViewsheetServiceProxy composerViewsheetService;
    @Mock RuntimeViewsheet rvs;
    @Mock ViewsheetSandbox box;
    @Mock Viewsheet viewsheet;
