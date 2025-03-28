@@ -73,7 +73,7 @@ public class LocalizationSettingsService {
       ArrayList<LocalizationModel> localesList = new ArrayList<>();
       String locales = SreeEnv.getProperty("locale.available");
 
-      if(locales != null && locales.length() > 0) {
+      if(locales != null && !locales.isEmpty()) {
          String[] arr = locales.split(":");
          Arrays.sort(arr);
          Properties prop = SUtil.loadLocaleProperties();
@@ -116,7 +116,7 @@ public class LocalizationSettingsService {
          String val = locale.label();
          prop.setProperty(key, val);
 
-         if(appendedLocales.length() > 0) {
+         if(!appendedLocales.isEmpty()) {
             appendedLocales.append(":");
          }
 
@@ -139,8 +139,8 @@ public class LocalizationSettingsService {
 
    void generateBundle(Principal principal, OutputStream output) {
       ResourceAction action = ResourceAction.valueOf("READ");
-      this.bundleMap.clear();
-      processReportEntries("/", principal, action, RepositoryEntry.ALL);
+      Map<String, String> bundleMap = new HashMap<>();
+      processReportEntries("/", principal, action, RepositoryEntry.ALL, bundleMap);
 
       PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
       bundleMap.remove("");
@@ -164,7 +164,9 @@ public class LocalizationSettingsService {
    }
 
    private void processReportEntries(String path, Principal principal,
-                                    ResourceAction action, int selector) {
+                                    ResourceAction action, int selector,
+                                     Map<String, String> bundleMap)
+   {
       try {
          RepositoryEntry[] entries;
          AnalyticEngine engine = (AnalyticEngine) analyticRepository;
@@ -179,14 +181,14 @@ public class LocalizationSettingsService {
                   continue;
                }
 
-               processReportEntries(entry.getPath(), principal, action, selector);
+               processReportEntries(entry.getPath(), principal, action, selector, bundleMap);
             }
             else {
                AssetEntry assetEntry = entry.getAssetEntry();
 
                if(assetEntry != null) {
                   IndexedStorage storage = engine2.getReportStorage(assetEntry);
-                  processViewsheet(assetEntry, storage);
+                  processViewsheet(assetEntry, storage, bundleMap);
                }
             }
          }
@@ -196,26 +198,28 @@ public class LocalizationSettingsService {
       }
    }
 
-   private void processViewsheet(AssetEntry assetEntry, IndexedStorage storage) {
+   private void processViewsheet(AssetEntry assetEntry, IndexedStorage storage,
+                                 Map<String, String> bundleMap)
+   {
       String identifier = assetEntry.toIdentifier();
       Document doc = storage.getDocument(identifier);
       Element element = doc.getDocumentElement();
-      addTextIdForVs(element);
+      addTextIdForVs(element, bundleMap);
    }
 
-   private void addTextIdForVs(Element element) {
+   private void addTextIdForVs(Element element, Map<String, String> bundleMap) {
       for(String vsTextValueName : vsTextValueNames) {
-         addTextByTargetName(element, vsTextValueName);
+         addTextByTargetName(element, vsTextValueName, bundleMap);
       }
 
       for(String vsTextIdElementName : vsTextIdElementNames) {
-         getTextIdByElement(element, vsTextIdElementName, false);
+         getTextIdByElement(element, vsTextIdElementName, false, bundleMap);
       }
 
-      processAssemblies(element);
+      processAssemblies(element, bundleMap);
    }
 
-   private void addTextByTargetName(Element root, String elementName) {
+   private void addTextByTargetName(Element root, String elementName, Map<String, String> bundleMap) {
       NodeList tdnodes = root.getElementsByTagName(elementName);
 
       if(tdnodes.getLength() > 0) {
@@ -233,7 +237,7 @@ public class LocalizationSettingsService {
       }
    }
 
-   private void processAssemblies(Element root) {
+   private void processAssemblies(Element root, Map<String, String> bundleMap) {
       NodeList tnodes = root.getElementsByTagName("assemblyInfo");
 
       if(tnodes.getLength() < 0) {
@@ -277,7 +281,9 @@ public class LocalizationSettingsService {
 
    }
 
-   private void getTextIdByElement(Element root, String elementName, boolean isReport){
+   private void getTextIdByElement(Element root, String elementName, boolean isReport,
+                                   Map<String, String> bundleMap)
+   {
       NodeList tnodes = root.getElementsByTagName(elementName);
 
       if(tnodes.getLength() < 0) {
@@ -375,7 +381,6 @@ public class LocalizationSettingsService {
    private final AnalyticRepository analyticRepository;
    private final String[] vsTextIdElementNames = {"dataRef", "cellBinding"};
    private final String[] vsTextValueNames = {"textId", "title"};
-   private final Map<String, String> bundleMap = new HashMap<>();
    private final LocalizationService localizationService;
    private static final Logger LOG = LoggerFactory.getLogger(LocalizationSettingsService.class);
 }
