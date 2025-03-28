@@ -20,6 +20,7 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.composer.model.TreeNodeModel;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -29,6 +30,7 @@ import javax.annotation.Nullable;
  * image property dialog
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableImagePreviewPaneModel.class)
 @JsonDeserialize(as = ImmutableImagePreviewPaneModel.class)
 public abstract class ImagePreviewPaneModel {
