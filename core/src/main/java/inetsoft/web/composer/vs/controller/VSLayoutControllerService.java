@@ -33,19 +33,15 @@ import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.*;
-import inetsoft.web.composer.vs.dialog.ImagePreviewPaneController;
+import inetsoft.web.composer.vs.dialog.ImagePreviewPaneService;
 import inetsoft.web.composer.vs.event.*;
-import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.DataTipInLayoutCheckResult;
 import inetsoft.web.viewsheet.command.UpdateLayoutCommand;
 import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableController;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
-import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.PathVariable;
 
 import java.awt.*;
 import java.security.Principal;
@@ -57,12 +53,14 @@ import java.util.List;
 public class VSLayoutControllerService {
    public VSLayoutControllerService(CoreLifecycleService coreLifecycleService,
                              ViewsheetService viewsheetService,
+                             ImagePreviewPaneService imagePreviewPaneService,
                              VSObjectModelFactoryService objectModelService,
                              VSLayoutService vsLayoutService,
                              VSObjectTreeService vsObjectTreeService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
+      this.imagePreviewPaneService = imagePreviewPaneService;
       this.objectModelService = objectModelService;
       this.vsLayoutService = vsLayoutService;
       this.vsObjectTreeService = vsObjectTreeService;
@@ -521,7 +519,6 @@ public class VSLayoutControllerService {
             .map(l -> (ImageVSAssemblyInfo) ((VSEditableAssemblyLayout) l).getInfo())
             .orElse(null);
 
-      ImagePreviewPaneController imageController = new ImagePreviewPaneController();
       String imageValue = imageAssemblyInfo.getImageValue();
       int imageAlpha;
 
@@ -536,7 +533,7 @@ public class VSLayoutControllerService {
          .alpha(imageAlpha)
          .animateGifImage(imageAssemblyInfo.isAnimateGIF())
          .selectedImage(imageValue)
-         .imageTree(imageController.getImageTree(rvs))
+         .imageTree(imagePreviewPaneService.getImageTree(rvs))
          .build();
 
       StaticImagePaneModel staticImagePaneModel = StaticImagePaneModel.builder()
@@ -785,6 +782,7 @@ public class VSLayoutControllerService {
    public static final int VIEWSHEETLAYOUT = 4;
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
+   private final ImagePreviewPaneService imagePreviewPaneService;
    private final VSObjectModelFactoryService objectModelService;
    private final VSLayoutService vsLayoutService;
    private final VSObjectTreeService vsObjectTreeService;

@@ -45,6 +45,7 @@ public class ImagePropertyDialogService {
    public ImagePropertyDialogService(VSObjectPropertyService vsObjectPropertyService,
                                      VSOutputService vsOutputService,
                                      ViewsheetService viewsheetService,
+                                     ImagePreviewPaneService imagePreviewPaneService,
                                      VSDialogService dialogService,
                                      VSTrapService trapService,
                                      VSAssemblyInfoHandler assemblyInfoHandler)
@@ -52,6 +53,7 @@ public class ImagePropertyDialogService {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
       this.viewsheetService = viewsheetService;
+      this.imageService = imagePreviewPaneService;
       this.dialogService = dialogService;
       this.trapService = trapService;
       this.assemblyInfoHandler = assemblyInfoHandler;
@@ -78,8 +80,6 @@ public class ImagePropertyDialogService {
 
       OutputGeneralPaneModel outputGeneralPaneModel = new OutputGeneralPaneModel();
 
-      ImagePreviewPaneController imageController = new ImagePreviewPaneController();
-
       TipPaneModel tipPaneModel = new TipPaneModel();
       tipPaneModel.setTipOption(imageAssemblyInfo.isTooltipVisible());
 
@@ -99,7 +99,7 @@ public class ImagePropertyDialogService {
          .alpha(imageAlpha)
          .animateGifImage(imageAssemblyInfo.isAnimateGIF())
          .selectedImage(imageValue)
-         .imageTree(imageController.getImageTree(rvs))
+         .imageTree(imageService.getImageTree(rvs))
          .build();
 
       StaticImagePaneModel staticImagePaneModel = StaticImagePaneModel.builder()
@@ -434,6 +434,7 @@ public class ImagePropertyDialogService {
    private final VSObjectPropertyService vsObjectPropertyService;
    private final VSOutputService vsOutputService;
    private final ViewsheetService viewsheetService;
+   private final ImagePreviewPaneService imageService;
    private final VSDialogService dialogService;
    private final VSTrapService trapService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;

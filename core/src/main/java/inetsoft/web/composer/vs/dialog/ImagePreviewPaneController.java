@@ -17,42 +17,33 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
-import inetsoft.analytic.composition.VSPortalHelper;
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.HTMLUtil;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.factory.RemainingPath;
-import inetsoft.web.viewsheet.InGroupedThread;
-import inetsoft.web.viewsheet.service.VSObjectService;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.nio.file.InvalidPathException;
 import java.security.Principal;
-import java.util.List;
-import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Controller for the image preview pane, handles loading/uploading images
  */
 @Controller
 public class ImagePreviewPaneController {
+
+   public ImagePreviewPaneController(ImagePreviewPaneServiceProxy imagePreviewPaneServiceProxy) {
+      this.imagePreviewPaneServiceProxy = imagePreviewPaneServiceProxy;
+   }
+
    /**
     * Get preview image, code from AssetWebHandler.processGetImage and DHTML.processResource
     * @param name       image name
@@ -110,10 +101,8 @@ public class ImagePreviewPaneController {
             copyResource(in, response.getOutputStream());
          }
          else if(type.equals(ImageVSAssemblyInfo.UPLOADED_IMAGE)) {
-            ViewsheetService engine = viewsheetService;
-            RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
-            Viewsheet vs = rvs.getViewsheet();
-            byte[] buf = VSUtil.getVSImageBytes(null, name, vs, -1, -1, null, new VSPortalHelper());
+
+            byte[] buf = imagePreviewPaneServiceProxy.getImagePreviewImageByteBuffer(runtimeId, name, principal);
 
             if(buf == null || buf.length == 0) {
                Image image = Tool.getImage(this, "/inetsoft/report/images/emptyimage.gif");
@@ -162,32 +151,7 @@ public class ImagePreviewPaneController {
       throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      boolean uploaded = false;
-
-      try {
-         if(!vsObjectService.isImage(mpf.getBytes())) {
-             throw new MessageException(Catalog.getCatalog().getString("composer.uploadImageFailed"));
-         }
-
-         vs.addUploadedImage(mpf.getOriginalFilename(), mpf.getBytes());
-         uploaded = true;
-      }
-      catch(MessageException messageException) {
-         throw messageException;
-      }
-      catch(Exception ex) {
-         LoggerFactory.getLogger(ImagePreviewPaneController.class).debug("Failed to get uploaded file data", ex);
-      }
-
-      if(uploaded) {
-         return getImageTree(rvs);
-      }
-      else {
-         return null;
-      }
+      return imagePreviewPaneServiceProxy.uploadImage(runtimeId, mpf.getOriginalFilename(), mpf.getBytes(), principal);
    }
 
    @RequestMapping(
@@ -202,205 +166,7 @@ public class ImagePreviewPaneController {
    {
       name = Tool.byteDecode(name);
       runtimeId = Tool.byteDecode(runtimeId);
-      ViewsheetService engine = viewsheetService;
-      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         return false;
-      }
-
-      vs.removeUploadedImage(name);
-      return true;
-   }
-
-   /**
-    * Get Tree model for images, mimic of GetImageTreeModelEvent
-    * @param rvs  The runtime viewsheet
-    * @return the image tree model
-    */
-   public TreeNodeModel getImageTree(RuntimeViewsheet rvs) {
-      Viewsheet viewsheet = rvs.getViewsheet();
-      Catalog catalog = Catalog.getCatalog();
-
-      if(viewsheet == null) {
-         return TreeNodeModel.builder().build();
-      }
-
-      List<TreeNodeModel> children = new ArrayList<>();
-      children.add(TreeNodeModel.builder()
-         .label(catalog.getString("Current Image"))
-         .data("_CURRENT_IMAGE_")
-         .type("current")
-         .icon("image-icon")
-         .leaf(true)
-         .build());
-
-      final String imageDir = SreeEnv.getProperty("html.image.directory");
-
-      if(!Tool.isEmptyString(imageDir)) {
-         try {
-            FileSystemService fileSystemService = FileSystemService.getInstance();
-            File imageFile = fileSystemService.getFile(imageDir);
-            String imgPath = fileSystemService.getPath(imageDir).toString();
-
-            if(!imageFile.isAbsolute()) {
-               final String homeDir = SreeEnv.getProperty("sree.home");
-               imgPath = fileSystemService.getPath(homeDir, imageDir).toString();
-            }
-
-            getImagesFromDir(children, imgPath, "");
-         }
-         catch(InvalidPathException ipe) {
-            LOG.error(
-               "Failed to get Image tree from image directory, the image path is invalid.", ipe);
-         }
-      }
-
-      List<TreeNodeModel> skinNodes = new ArrayList<>();
-      skinNodes.add(TreeNodeModel.builder()
-         .label(catalog.getString("Title"))
-         .data(Tool.escape(ImageVSAssemblyInfo.SKIN_TITLE.split("&")[0]))
-         .leaf(true)
-         .type(ImageVSAssemblyInfo.SKIN_IMAGE)
-         .build());
-      skinNodes.add(TreeNodeModel.builder()
-         .label(catalog.getString("Theme_background"))
-         .data(Tool.escape(ImageVSAssemblyInfo.SKIN_BACKGROUND.split("&")[0]))
-         .leaf(true)
-         .type(ImageVSAssemblyInfo.SKIN_IMAGE)
-         .build());
-      skinNodes.add(TreeNodeModel.builder()
-         .label(catalog.getString("Background1"))
-         .data(Tool.escape(ImageVSAssemblyInfo.SKIN_NEUTER1.split("&")[0]))
-         .leaf(true)
-         .type(ImageVSAssemblyInfo.SKIN_IMAGE)
-         .build());
-      skinNodes.add(TreeNodeModel.builder()
-         .label(catalog.getString("Background2"))
-         .data(Tool.escape(ImageVSAssemblyInfo.SKIN_NEUTER2.split("&")[0]))
-         .leaf(true)
-         .type(ImageVSAssemblyInfo.SKIN_IMAGE)
-         .build());
-      skinNodes.add(TreeNodeModel.builder()
-         .label(catalog.getString("Background3"))
-         .data(Tool.escape(ImageVSAssemblyInfo.SKIN_NEUTER3.split("&")[0]))
-         .leaf(true)
-         .type(ImageVSAssemblyInfo.SKIN_IMAGE)
-         .build());
-
-      children.add(TreeNodeModel.builder()
-         .label(catalog.getString("Skin"))
-         .data("Skin")
-         .leaf(false)
-         .children(skinNodes)
-         .build());
-
-      List<TreeNodeModel> uploaded = Arrays.stream(viewsheet.getUploadedImageNames())
-         .map(u -> TreeNodeModel.builder()
-            .label(u)
-            .data(u)
-            .leaf(true)
-            .type(ImageVSAssemblyInfo.UPLOADED_IMAGE)
-            .build())
-         .collect(Collectors.toList());
-
-      if(!uploaded.isEmpty()) {
-         children.add(TreeNodeModel.builder()
-            .label(catalog.getString("Uploaded"))
-            .data("Uploaded")
-            .leaf(false)
-            .children(uploaded)
-            .build());
-      }
-
-      return TreeNodeModel.builder().children(children).build();
-   }
-
-   private void getImagesFromDir(List<TreeNodeModel> nodes, String root, String prefix) {
-      final List<TreeNodeModel> children = new ArrayList<>();
-      final DataSpace dataspace = DataSpace.getDataSpace();
-      final FileSystemService fileSystemService = FileSystemService.getInstance();
-      final String currentPath = dataspace.getPath(fileSystemService.getPath(
-         root, prefix).toString(), "");
-      final String[] fileNames = dataspace.list(currentPath);
-      assert fileNames != null;
-
-      Arrays.sort(fileNames, (file1, file2) -> {
-         final String path1 = dataspace.getPath(currentPath, file1);
-         final String path2 = dataspace.getPath(currentPath, file2);
-
-         if(dataspace.isDirectory(path1)) {
-            return dataspace.isDirectory(path2) ? path1.compareTo(path2) : -1;
-         }
-         else {
-            return dataspace.isDirectory(path2) ? 1 : 0;
-         }
-      });
-
-      for(String fileName : fileNames) {
-         final String fullPath = dataspace.getPath(currentPath, fileName);
-         final String relativePath = fileSystemService.getPath(prefix, fileName).toString();
-
-         if(dataspace.isDirectory(fullPath) && checkImageExisted(dataspace, fullPath)) {
-            getImagesFromDir(children, root, relativePath);
-            continue;
-         }
-
-         final String lowerCaseName = fileName.toLowerCase();
-
-         if(lowerCaseName.endsWith(".gif") || lowerCaseName.endsWith(".jpg") ||
-            lowerCaseName.endsWith(".png") || lowerCaseName.endsWith(".svg") ||
-            lowerCaseName.endsWith(".tif"))
-         {
-            children.add(TreeNodeModel.builder()
-                         .label(fileName)
-                         .data(relativePath)
-                         .icon("image-icon")
-                         .leaf(true)
-                         .type(ImageVSAssemblyInfo.SERVER_IMAGE)
-                         .build());
-         }
-      }
-
-      final String folderName = fileSystemService.getPath(currentPath).getFileName().toString();
-      nodes.add(TreeNodeModel.builder()
-                .label(folderName)
-                .data(folderName)
-                .leaf(false)
-                .children(children)
-                .build());
-   }
-
-   /**
-    * Check if there is an image in the directory, if not existed, the folder
-    * should not be displayed in the tree.
-    */
-   private boolean checkImageExisted(DataSpace dataSpace, String dirPath) {
-      final String[] fileNames = dataSpace.list(dirPath);
-
-      if(fileNames == null) {
-         return false;
-      }
-
-      for(final String fileName : fileNames) {
-         final String lowerCase = fileName.toLowerCase();
-
-         if(lowerCase.endsWith(".gif") || lowerCase.endsWith(".jpg") ||
-            lowerCase.endsWith(".png") || lowerCase.endsWith(".svg")) {
-            return true;
-         }
-      }
-
-      for(final String fileName : fileNames) {
-         final String filePath = dataSpace.getPath(dirPath, fileName);
-
-         if(dataSpace.isDirectory(filePath) && checkImageExisted(dataSpace, filePath)) {
-            return true;
-         }
-      }
-
-      return false;
+      return imagePreviewPaneServiceProxy.deleteImage(runtimeId, name, principal);
    }
 
    /**
@@ -423,19 +189,5 @@ public class ImagePreviewPaneController {
       }
    }
 
-   @Autowired
-   public void setViewsheetService(ViewsheetService viewsheetService) {
-      this.viewsheetService = viewsheetService;
-   }
-
-   @Autowired
-   public void setVsObjectServiceService(VSObjectService vsObjectService) {
-      this.vsObjectService = vsObjectService;
-   }
-
-   private ViewsheetService viewsheetService;
-   private VSObjectService vsObjectService;
-
-   private static final Logger LOG =
-      LoggerFactory.getLogger(ImagePreviewPaneController.class);
+   private ImagePreviewPaneServiceProxy imagePreviewPaneServiceProxy;
 }
