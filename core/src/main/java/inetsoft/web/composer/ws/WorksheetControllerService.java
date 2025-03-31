@@ -31,7 +31,6 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEvent;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEventValidator;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -40,6 +39,10 @@ import java.util.Arrays;
 
 @Service
 public class WorksheetControllerService {
+   public WorksheetControllerService(ViewsheetService viewsheetService) {
+      this.wsEngine = viewsheetService;
+   }
+
    protected RuntimeWorksheet getRuntimeWorksheet(String runtimeId, Principal principal)
       throws Exception
    {
@@ -49,11 +52,6 @@ public class WorksheetControllerService {
 
    protected WorksheetService getWorksheetEngine() {
       return wsEngine;
-   }
-
-   @Autowired
-   protected void setWsEngine(ViewsheetService viewsheetService) {
-      this.wsEngine = viewsheetService;
    }
 
    /**
