@@ -124,9 +124,11 @@ export class ImagePreviewPane implements OnInit, AfterViewInit {
 
    public get imageSrc(): string {
       if(this.selectedImageNode && this.selectedImageNode.data && this.selectedImageNode.type) {
-         return "../api/image/composer/vs/image-preview-pane/image/" + Tool.byteEncode(this.selectedImageNode.data)
+         const image: string = this.selectedImageNode.data;
+         const encodedImage: string = Tool.byteEncode(image, false);
+         return "../api/image/composer/vs/image-preview-pane/image/" + encodedImage
             + "/" + this.selectedImageNode.type + "/" + Tool.byteEncode(this.runtimeId)
-            + "?" + this.currentTime;
+            + "?encoded=" + (image !== encodedImage) + "&" + this.currentTime;
       }
       else {
          return "assets/emptyimage.gif";

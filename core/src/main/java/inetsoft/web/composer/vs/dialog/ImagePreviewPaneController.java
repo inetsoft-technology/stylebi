@@ -64,10 +64,14 @@ public class ImagePreviewPaneController {
    public void getImagePreview(@PathVariable("name") String name,
                                @PathVariable("type") String type,
                                @RemainingPath String runtimeId,
+                               @RequestParam(value = "encoded", defaultValue = "true", required = false) boolean encoded,
                                Principal principal, HttpServletResponse response)
       throws Exception
    {
-      name = Tool.byteDecode(name);
+      if(encoded) {
+         name = Tool.byteDecode(name);
+      }
+
       runtimeId = Tool.byteDecode(runtimeId);
 
       if(name.toLowerCase().endsWith(".gif")) {
