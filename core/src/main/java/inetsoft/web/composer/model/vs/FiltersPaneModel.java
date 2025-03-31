@@ -17,9 +17,10 @@
  */
 package inetsoft.web.composer.model.vs;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class FiltersPaneModel {
+public class FiltersPaneModel implements Serializable {
    public List<FilterModel> getFilters() {
       return filters;
    }

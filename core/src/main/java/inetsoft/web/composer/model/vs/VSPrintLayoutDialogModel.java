@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class VSPrintLayoutDialogModel {
+import java.io.Serializable;
+
+public class VSPrintLayoutDialogModel implements Serializable {
    public String getPaperSize() {
       return paperSize;
    }

@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class LocalizationComponent {
+import java.io.Serializable;
+
+public class LocalizationComponent implements Serializable {
    public String getName() {
       return name;
    }

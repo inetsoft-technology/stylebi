@@ -17,10 +17,11 @@
  */
 package inetsoft.web.composer.model.vs;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ScreensPaneModel {
+public class ScreensPaneModel implements Serializable {
    public List<VSDeviceLayoutDialogModel> getDeviceLayouts() {
       if(deviceLayouts == null) {
          deviceLayouts = new ArrayList<>();

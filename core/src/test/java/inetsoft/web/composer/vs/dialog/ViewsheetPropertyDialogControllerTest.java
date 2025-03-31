@@ -53,8 +53,7 @@ public class ViewsheetPropertyDialogControllerTest {
    @BeforeEach
    public void setup() throws Exception {
       controller = new ViewsheetPropertyDialogController(
-         runtimeViewsheetRef, coreLifecycleService, viewsheetService,
-         layoutService, viewsheetSettingsService, vsAssemblyInfoHandler);
+         runtimeViewsheetRef, new ViewsheetPropertyDialogServiceProxy());
    }
 
    // Bug #16756 Update layout info if it has same id as incoming layout
