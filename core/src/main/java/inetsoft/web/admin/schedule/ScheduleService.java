@@ -25,11 +25,13 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XDataSource;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -38,6 +40,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.*;
 import inetsoft.util.log.LogLevel;
+import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.content.repository.model.SelectedAssetModel;
 import inetsoft.web.admin.deploy.DeployService;
@@ -991,14 +994,34 @@ public class ScheduleService {
          List<SelectedAssetModel> assetModels = backupAction.getAssets()
             .stream()
             .filter(XAsset::exists)
-            .map((xAsset) -> SelectedAssetModel.builder()
-               .label(getAssetLabel(xAsset))
-               .path(xAsset.getPath())
-               .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
-               .typeName(xAsset.getType())
-               .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
-               .user(xAsset.getUser())
-               .build())
+            .map((xAsset) -> {
+
+               if(xAsset instanceof XDataSourceAsset) {
+                  String ds = ((XDataSourceAsset) xAsset).getDatasource();
+                  XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(ds);
+
+                  if(dataSource != null) {
+                     return SelectedAssetModel.builder()
+                        .label(getAssetLabel(xAsset))
+                        .path(xAsset.getPath())
+                        .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
+                        .typeName(xAsset.getType())
+                        .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
+                        .user(xAsset.getUser())
+                        .icon(ContentRepositoryTreeService.getDataSourceIconClass(dataSource.getType()))
+                        .build();
+                  }
+               }
+
+                return SelectedAssetModel.builder()
+                  .label(getAssetLabel(xAsset))
+                  .path(xAsset.getPath())
+                  .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
+                  .typeName(xAsset.getType())
+                  .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
+                  .user(xAsset.getUser())
+                  .build();
+            })
             .collect(Collectors.toList());
 
          model = BackupActionModel.builder()
