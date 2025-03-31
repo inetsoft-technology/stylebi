@@ -18,7 +18,9 @@
 
 package inetsoft.web.vswizard.event;
 
-public class CloseVsWizardEvent {
+import java.io.Serializable;
+
+public class CloseVsWizardEvent implements Serializable {
    public void setEditMode(String editMode) {
        this.editMode = editMode;
    }
