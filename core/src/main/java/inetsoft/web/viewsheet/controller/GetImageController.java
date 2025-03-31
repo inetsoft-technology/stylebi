@@ -35,6 +35,7 @@ import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.viewsheet.HandleAssetExceptions;
 import inetsoft.web.viewsheet.InGroupedThread;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -108,6 +109,7 @@ public class GetImageController {
     */
    @GetMapping(value = "/getAssemblyImage/{vid}/{aid}/{width}/{height}")
    @InGroupedThread
+   @HandleAssetExceptions
    public void processGetAssemblyImage(
       @PathVariable("vid") String vid,
       @PathVariable("aid") String aid,
@@ -135,6 +137,7 @@ public class GetImageController {
     */
    @GetMapping(value = "/getAssemblyImage/{vid}/{aid}/{width}/{height}/{maxWidth}/{maxHeight}/{aname}/{index}/{row}/{col}/{genTime}/{svg}")
    @InGroupedThread
+   @HandleAssetExceptions
    public void processGetAssemblyImage(
       @PathVariable("vid") String vid,
       @PathVariable("aid") String aid,
