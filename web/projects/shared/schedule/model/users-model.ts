@@ -22,8 +22,6 @@ export interface UsersModel {
    adminName: string;
    owners: IdentityIdWithLabel[];
    groups: IdentityId[];
-   groupBaseNames: string[];
    emailUsers: IdentityId[];
    emailGroups: IdentityId[];
-   emailGroupBaseNames: string[];
 }
