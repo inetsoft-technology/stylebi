@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class CrosstabPropertyDialogModel {
+public class CrosstabPropertyDialogModel implements Serializable {
    public TableViewGeneralPaneModel getTableViewGeneralPaneModel() {
       if(tableViewGeneralPaneModel == null) {
          tableViewGeneralPaneModel = new TableViewGeneralPaneModel();
