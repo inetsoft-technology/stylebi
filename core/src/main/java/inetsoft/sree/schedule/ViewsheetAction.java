@@ -17,7 +17,6 @@
  */
 package inetsoft.sree.schedule;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import inetsoft.analytic.composition.VSPortalHelper;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.VGraph;
@@ -41,11 +40,11 @@ import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.Mailer;
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -500,12 +499,12 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       }
    }
 
-   private List<String> checkAlerts(Principal principal) throws Throwable {
+   private List<String> checkAlerts(VSBookmarkInfo[] bookmarks, Principal principal) throws Throwable {
       RuntimeViewsheet rvs = null;
 
       try {
-         if(alerts != null && alerts.length > 0 && bookmarkNames != null &&
-            bookmarkNames.length > 0)
+         if(alerts != null && alerts.length > 0 && bookmarks != null &&
+            bookmarks.length > 0)
          {
             rvs = getRuntimeViewsheet(principal);
             ViewsheetSandbox box;
@@ -514,10 +513,10 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             List<String> alertTriggeredBookmarks = new ArrayList<>();
             ViewsheetSandbox obox = rvs.getViewsheetSandbox();
 
-            for(int i = 0; i < bookmarkNames.length; i++) {
+            for(int i = 0; i < bookmarks.length; i++) {
                int vmode = Viewsheet.SHEET_RUNTIME_MODE;
                box = new ViewsheetSandbox(
-                  rvs.getOriginalBookmark(bookmarkNames[i]), vmode, principal, false,
+                  rvs.getOriginalBookmark(bookmarks[i].getName()), vmode, principal, false,
                   rvs.getEntry());
 
                box.getAssetQuerySandbox().refreshVariableTable(obox.getVariableTable());
@@ -673,12 +672,12 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
                exporter.setLogExecution(true);
                exporter.setLogExport(false);
-               exporter.export(box, bookmarkNames[i], new VSPortalHelper());
+               exporter.export(box, bookmarks[i].getName(), new VSPortalHelper());
                exporter.write();
                box.dispose();
 
                if(alertTriggered.get()) {
-                  alertTriggeredBookmarks.add(bookmarkNames[i]);
+                  alertTriggeredBookmarks.add(bookmarks[i].getName());
                }
             }
 
@@ -730,7 +729,23 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             repletRequest.executeParameter();
          }
 
-         List<String> alertTriggeredBookmarks = checkAlerts(principal);
+         VSBookmarkInfo[] bookmarks =
+            VSUtil.getBookmarks(buildAssetEntry(principal), ((XPrincipal) principal).getIdentityID());
+
+         bookmarks = Arrays.stream(bookmarks).filter(b -> {
+            for(int i = 0; i < bookmarkNames.length; i++) {
+               if(Tool.equals(bookmarkNames[i], b.getName()) &&
+                  Tool.equals(bookmarkUsers[i], b.getOwner()) &&
+                  Tool.equals(bookmarkTypes[i], b.getType()))
+               {
+                  return true;
+               }
+            }
+
+            return false;
+         }).toArray(VSBookmarkInfo[]::new);
+
+         List<String> alertTriggeredBookmarks = checkAlerts(bookmarks, principal);
 
          // alertTriggeredBookmarks will be null when there are no alerts set
          // if it's empty then that means there are no bookmarks that pass the highlight conditions
@@ -876,7 +891,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                exporter.setLogExport(true);
                exporter.setSandbox(box);
 
-               exportBookmarks(exporter, rvs, box.getVariableTable(), alertTriggeredBookmarks);
+               exportBookmarks(exporter, rvs, box.getVariableTable(), bookmarks, alertTriggeredBookmarks);
 
                exporter.write();
                out.flush();
@@ -896,7 +911,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                      ((CSVVSExporter) csv).setExcelFile(file);
                   }
 
-                  exportBookmarks(csv, rvs, box.getVariableTable(), alertTriggeredBookmarks);
+                  exportBookmarks(csv, rvs, box.getVariableTable(), bookmarks, alertTriggeredBookmarks);
 
                   csv.write();
                   file = fileSystemService.getFile(Tool.convertUserFileName(zipFileName));
@@ -1121,7 +1136,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                exporter.setLogExecution(true);
                exporter.setLogExport(true);
 
-               exportBookmarks(exporter, rvs, abox.getVariableTable(), alertTriggeredBookmarks);
+               exportBookmarks(exporter, rvs, abox.getVariableTable(), bookmarks, alertTriggeredBookmarks);
 
                exporter.write();
                out.flush();
@@ -1143,7 +1158,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                      ((CSVVSExporter) csv).setExcelFile(file);
                   }
 
-                  exportBookmarks(csv, rvs, box.getVariableTable(), alertTriggeredBookmarks);
+                  exportBookmarks(csv, rvs, box.getVariableTable(), bookmarks, alertTriggeredBookmarks);
 
                   csv.write();
                   file = fileSystemService.getFile(Tool.convertUserFileName(zipFile.getName()));
@@ -1245,21 +1260,22 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
    }
 
    private void exportBookmarks(VSExporter exporter, RuntimeViewsheet rvs,
-                                VariableTable variableTable, List<String> alertTriggeredBookmarks)
+                                VariableTable variableTable, VSBookmarkInfo[] bookmarks,
+                                List<String> alertTriggeredBookmarks)
       throws Exception
    {
       int vmode = Viewsheet.SHEET_RUNTIME_MODE;
 
-      for(int i = 0; i < bookmarkNames.length; i ++) {
-         String bookmarkName = bookmarkNames[i];
+      for(int i = 0; i < bookmarks.length; i ++) {
+         String bookmarkName = bookmarks[i].getName();
 
          // ignore bookmarks that didn't pass the highlight condition
          if(alertTriggeredBookmarks != null && !alertTriggeredBookmarks.contains(bookmarkName)) {
             continue;
          }
 
-         if(!Tool.equals(bookmarkUsers[i].getName(), XUtil.getUserName(principal))) {
-            bookmarkName += "(" + bookmarkUsers[i].getName() + ")";
+         if(!Tool.equals(bookmarks[i].getOwner(), XUtil.getUserName(principal))) {
+            bookmarkName += "(" + bookmarks[i].getOwner().getName() + ")";
          }
 
          setScheduleParameters(variableTable);
