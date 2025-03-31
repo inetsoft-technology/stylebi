@@ -27,6 +27,7 @@ import {
 } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { ScreenSizeDialogModel } from "../../data/vs/screen-size-dialog-model";
 import { ViewsheetDeviceLayoutDialogModel } from "../../data/vs/viewsheet-device-layout-dialog-model";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -102,6 +103,7 @@ export class ViewsheetDeviceLayoutDialog implements OnInit {
       this.formDevice = new UntypedFormGroup({
          name: new UntypedFormControl(this.model.name, [
             Validators.required,
+            FormValidators.validLayoutName,
          ])
       });
    }
