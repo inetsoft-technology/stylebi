@@ -17,10 +17,13 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Tool;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.schedule.ScheduleTaskActionService;
+import inetsoft.web.admin.schedule.ScheduleTaskActionServiceProxy;
 import inetsoft.web.admin.schedule.model.ScheduleActionModel;
 import inetsoft.web.admin.schedule.model.ScheduleAlertModel;
 import inetsoft.web.portal.model.database.StringWrapper;
@@ -43,9 +46,13 @@ public class ScheduleTaskActionController {
     * Creates a new instance of <tt>ScheduleController</tt>.
     */
    @Autowired
-   public ScheduleTaskActionController(ScheduleTaskActionService scheduleTaskActionService)
+   public ScheduleTaskActionController(ScheduleTaskActionService scheduleTaskActionService,
+                                       ScheduleTaskActionServiceProxy scheduleTaskActionServiceProxy,
+                                       ViewsheetService viewsheetService)
    {
       this.scheduleTaskActionService = scheduleTaskActionService;
+      this.scheduleTaskActionServiceProxy = scheduleTaskActionServiceProxy;
+      this.viewsheetService = viewsheetService;
    }
 
    /**
@@ -164,7 +171,12 @@ public class ScheduleTaskActionController {
    public Boolean hasPrintLayout(@DecodeParam("id") String id, Principal principal)
       throws Exception
    {
-      return scheduleTaskActionService.hasPrintLayout(id, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(id);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      boolean hasPrintLayout = scheduleTaskActionServiceProxy.hasPrintLayout(runtimeId, principal);
+      viewsheetService.closeViewsheet(id, principal);
+
+      return hasPrintLayout;
    }
 
    /**
@@ -185,7 +197,11 @@ public class ScheduleTaskActionController {
    public List<ScheduleAlertModel> getViewsheetHighlights(@DecodeParam("id") String identifier,
                                                           Principal principal) throws Exception
    {
-      return scheduleTaskActionService.getViewsheetHighlights(identifier, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      List<ScheduleAlertModel> highlights = scheduleTaskActionServiceProxy.getViewsheetHighlights(runtimeId, principal);
+      viewsheetService.closeViewsheet(identifier, principal);
+      return highlights;
    }
 
    /**
@@ -207,7 +223,11 @@ public class ScheduleTaskActionController {
                                               Principal principal)
       throws Exception
    {
-      return scheduleTaskActionService.getViewsheetParameters(identifier, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      List<String> params = scheduleTaskActionServiceProxy.getViewsheetParameters(runtimeId, principal);
+      viewsheetService.closeViewsheet(identifier, null);
+      return params;
    }
 
    /**
@@ -225,8 +245,14 @@ public class ScheduleTaskActionController {
       @DecodeParam("id") String identifier,
       Principal principal) throws Exception
    {
-      return scheduleTaskActionService.getViewsheetTableDataAssemblies(identifier, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      List<String> assemblies = scheduleTaskActionServiceProxy.getViewsheetTableDataAssemblies(runtimeId, principal);
+      viewsheetService.closeViewsheet(identifier, null);
+      return assemblies;
    }
 
    private final ScheduleTaskActionService scheduleTaskActionService;
+   private final ScheduleTaskActionServiceProxy scheduleTaskActionServiceProxy;
+   private final ViewsheetService viewsheetService;
 }
