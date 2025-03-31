@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
@@ -49,7 +50,9 @@ public class EMScheduleBatchActionController {
                                           ScheduleManager scheduleManager,
                                           ScheduleTaskActionService actionService,
                                           ContentRepositoryTreeService contentRepositoryTreeService,
-                                          SecurityEngine securityEngine)
+                                          SecurityEngine securityEngine,
+                                          ViewsheetService viewsheetService,
+                                          ScheduleTaskActionServiceProxy actionServiceProxy)
    {
       this.assetRepository = assetRepository;
       this.scheduleService = scheduleService;
@@ -57,6 +60,8 @@ public class EMScheduleBatchActionController {
       this.actionService = actionService;
       this.contentRepositoryTreeService = contentRepositoryTreeService;
       this.securityEngine = securityEngine;
+      this.viewsheetService = viewsheetService;
+      this.actionServiceProxy = actionServiceProxy;
    }
 
    @GetMapping("/api/em/schedule/batch-action/scheduled-tasks")
@@ -131,8 +136,12 @@ public class EMScheduleBatchActionController {
          ScheduleAction action = task.getAction(i);
 
          if(action instanceof ViewsheetAction) {
+            String identifier = ((ViewsheetAction) action).getViewsheet();
+            AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+            String runtimeId = viewsheetService.openViewsheet(entry, null, false);
             List<String> vsParameters =
-               actionService.getViewsheetParameters(((ViewsheetAction) action).getViewsheet(), principal);
+               actionServiceProxy.getViewsheetParameters(runtimeId, principal);
+            viewsheetService.closeViewsheet(identifier, null);
             parameterNames.addAll(vsParameters);
             parameterNames.addAll(findVariablesInScheduleAction((ViewsheetAction) action));
          }
@@ -320,5 +329,7 @@ public class EMScheduleBatchActionController {
    private final ScheduleTaskActionService actionService;
    private final ContentRepositoryTreeService contentRepositoryTreeService;
    private final SecurityEngine securityEngine;
+   private final ViewsheetService viewsheetService;
+   private final ScheduleTaskActionServiceProxy actionServiceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(EMScheduleBatchActionController.class);
 }

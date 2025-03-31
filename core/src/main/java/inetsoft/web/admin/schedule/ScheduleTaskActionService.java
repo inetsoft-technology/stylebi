@@ -17,18 +17,16 @@
  */
 package inetsoft.web.admin.schedule;
 
-import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.ReportElement;
-import inetsoft.report.ReportSheet;
+import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
-import inetsoft.report.internal.*;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.sree.*;
@@ -60,6 +58,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@ClusterProxy
 public class ScheduleTaskActionService {
    @Autowired
    public ScheduleTaskActionService(AnalyticRepository analyticRepository,
@@ -179,29 +178,26 @@ public class ScheduleTaskActionService {
          .collect(Collectors.toList());
    }
 
-   public boolean hasPrintLayout(String identifier, Principal principal) throws Exception {
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Boolean hasPrintLayout(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
       boolean result = false;
       ViewsheetService engine = viewsheetService;
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String id = engine.openViewsheet(entry, principal, false);
-      RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
+
+      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
 
       if(rvs != null && rvs.getViewsheet() != null && rvs.getViewsheet().getLayoutInfo() != null) {
          result = rvs.getViewsheet().getLayoutInfo().getPrintLayout() != null;
       }
 
-      engine.closeViewsheet(id, principal);
-
       return result;
    }
 
-   public List<ScheduleAlertModel> getViewsheetHighlights(String identifier, Principal principal)
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public List<ScheduleAlertModel> getViewsheetHighlights(@ClusterProxyKey String runtimeId, Principal principal)
       throws Exception
    {
       ViewsheetService engine = viewsheetService;
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String id = engine.openViewsheet(entry, principal, false);
-      RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
+      RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
       Map<String, ScheduleAlertModel> alerts = new HashMap<>();
 
       for(Assembly assembly : rvs.getViewsheet().getAssemblies(true)) {
@@ -294,8 +290,6 @@ public class ScheduleTaskActionService {
          }
       }
 
-      engine.closeViewsheet(id, principal);
-
       return alerts.values().stream()
          .sorted(Comparator.comparing(ScheduleAlertModel::element)
                     .thenComparing(ScheduleAlertModel::highlight))
@@ -347,18 +341,17 @@ public class ScheduleTaskActionService {
       }
    }
 
-   public List<String> getViewsheetParameters(String identifier, Principal principal)
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public List<String> getViewsheetParameters(@ClusterProxyKey String runtimeId, Principal principal)
       throws Exception
    {
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       List<UserVariable> vars = new ArrayList<>();
       addSchedulerOnlyParameters(vars, rvs);
       VSEventUtil.refreshParameters(viewsheetService, rvs.getViewsheetSandbox(),
                                     rvs.getViewsheet(), false, null, vars);
       addSchedulerOnlyParameters(vars, rvs);
-      viewsheetService.closeViewsheet(identifier, null);
       List<String> parameters = new ArrayList<>();
 
       for(UserVariable var : vars) {
@@ -400,11 +393,10 @@ public class ScheduleTaskActionService {
       }
    }
 
-   public List<String> getViewsheetTableDataAssemblies(String identifier, Principal principal)
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public List<String> getViewsheetTableDataAssemblies(@ClusterProxyKey String runtimeId, Principal principal)
       throws Exception
    {
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       List<String> tableDataAssemblies = new ArrayList<>();
 
@@ -416,8 +408,6 @@ public class ScheduleTaskActionService {
                }
          });
       }
-
-      viewsheetService.closeViewsheet(identifier, null);
 
       return tableDataAssemblies;
    }

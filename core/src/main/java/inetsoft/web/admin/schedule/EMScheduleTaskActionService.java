@@ -18,8 +18,10 @@
 
 package inetsoft.web.admin.schedule;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.uql.asset.AssetEntry;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -28,8 +30,12 @@ import java.util.List;
 @Service
 @ClusterProxy
 public class EMScheduleTaskActionService {
-   public EMScheduleTaskActionService(ScheduleTaskActionService actionService) {
+   public EMScheduleTaskActionService(ScheduleTaskActionService actionService,
+                                      ScheduleTaskActionServiceProxy actionServiceProxy,
+                                      ViewsheetService viewsheetService) {
       this.actionService = actionService;
+      this.actionServiceProxy = actionServiceProxy;
+      this.viewsheetService = viewsheetService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -37,8 +43,15 @@ public class EMScheduleTaskActionService {
       @ClusterProxyKey String identifier,
       Principal principal) throws Exception
    {
-      return actionService.getViewsheetTableDataAssemblies(identifier, principal);
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      String runtimeId = viewsheetService.openViewsheet(entry, null, false);
+      List<String> assemblies = actionServiceProxy.getViewsheetTableDataAssemblies(runtimeId, principal);
+      viewsheetService.closeViewsheet(identifier, null);
+
+      return assemblies;
    }
 
    private final ScheduleTaskActionService actionService;
+   private final ScheduleTaskActionServiceProxy actionServiceProxy;
+   private final ViewsheetService viewsheetService;
 }
