@@ -20,7 +20,9 @@ package inetsoft.web.composer.model.vs;
 
 import inetsoft.web.binding.drm.DataRefModel;
 
-public class HierarchyPropertyPaneModel {
+import java.io.Serializable;
+
+public class HierarchyPropertyPaneModel implements Serializable {
    public HierarchyEditorModel getHierarchyEditorModel() {
       if(hierarchyEditorModel == null) {
          hierarchyEditorModel = new HierarchyEditorModel();

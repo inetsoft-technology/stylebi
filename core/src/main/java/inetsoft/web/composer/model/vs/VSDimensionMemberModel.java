@@ -20,8 +20,10 @@ package inetsoft.web.composer.model.vs;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.asset.DateRangeRef;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class VSDimensionMemberModel {
+public class VSDimensionMemberModel implements Serializable {
 
    public int getOption() {
       return option;
