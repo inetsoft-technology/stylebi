@@ -107,6 +107,9 @@ public class TemplateLocalizationController {
                try(OutputStream output = response.getOutputStream()) {
                   Files.copy(cachedPath, output);
                }
+               catch(IOException e) {
+                  LOG.warn("Error writing response for {}", path);
+               }
 
                LOG.debug(
                   "Received script request for {} with invalid If-None-Match header " +
