@@ -18,11 +18,12 @@
 package inetsoft.graph.geo.service;
 
 import javax.json.JsonValue;
+import java.io.Serializable;
 
 /**
  * Mapbox style information.
  */
-public class MapboxStyle {
+public class MapboxStyle implements Serializable {
    public MapboxStyle() {
    }
 

@@ -22,8 +22,10 @@ import inetsoft.report.internal.Util;
 import inetsoft.util.Catalog;
 import inetsoft.web.binding.model.graph.aesthetic.CategoricalColorModel;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TargetInfo {
+public class TargetInfo implements Serializable {
    /**
     * Line target.
     */

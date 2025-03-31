@@ -28,11 +28,12 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.Catalog;
 import inetsoft.web.graph.model.dialog.ChartPlotOptionsPaneModel;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ChartAdvancedPaneModel {
+public class ChartAdvancedPaneModel implements Serializable {
    public ChartAdvancedPaneModel() {
    }
 
