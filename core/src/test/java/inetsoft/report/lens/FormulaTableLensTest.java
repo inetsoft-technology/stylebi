@@ -52,7 +52,7 @@ class FormulaTableLensTest {
    }
 
    @Test
-   void testSerialize() throws Exception {
+   public void testSerialize() throws Exception {
       String[] headers = { "f1" };
       String[] formulas = { "field['col2'] + field['col3']" };
       FormulaTableLens originalTable = new FormulaTableLens(XTableUtil.getDefaultTableLens(),

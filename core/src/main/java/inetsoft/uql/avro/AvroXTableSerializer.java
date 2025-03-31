@@ -75,7 +75,7 @@ public class AvroXTableSerializer {
             GenericRecord tableRecord = new GenericData.Record(schema);
 
             for(int c = 0; c < table.getColCount(); c++) {
-               tableRecord.put("_" + c, Tool.getPersistentDataString(table.getObject(r, c)));
+               tableRecord.put("_" + c, serializeTableData(table.getObject(r, c), r == 0));
             }
 
             dataFileWriter.append(tableRecord);
@@ -162,8 +162,8 @@ public class AvroXTableSerializer {
          for(int i = 0; i < fields.size(); i++) {
             Schema.Field colField = fields.get(i);
             Object val = tableRecord.get(colField.name());
-            values[i] = Tool.getPersistentData(headerRow ? XSchema.STRING : colTypes[i],
-                                               val == null ? null : val.toString());
+            values[i] = deserializeTableData(val == null ? null : val.toString(), colTypes[i],
+                                             headerRow);
          }
 
          headerRow = false;
@@ -190,5 +190,24 @@ public class AvroXTableSerializer {
       }
 
       return tableFields.endRecord();
+   }
+
+   private static String serializeTableData(Object data, boolean headerRow) {
+      if(headerRow) {
+         return Tool.getDataType(data) + ":" + Tool.getPersistentDataString(data);
+      }
+      else {
+         return Tool.getPersistentDataString(data);
+      }
+   }
+
+   private static Object deserializeTableData(String data, String type, boolean headerRow) {
+      if(headerRow && data != null) {
+         int idx = data.indexOf(":");
+         type = (idx >= 0) ? data.substring(0, idx) : XSchema.STRING;
+         data = (idx >= 0) ? data.substring(idx + 1) : data;
+      }
+
+      return Tool.getPersistentData(type, data);
    }
 }
