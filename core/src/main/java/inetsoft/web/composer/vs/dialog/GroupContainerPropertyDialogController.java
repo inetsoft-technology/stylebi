@@ -17,15 +17,7 @@
  */
 package inetsoft.web.composer.vs.dialog;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.GroupContainerVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
-import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -35,8 +27,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
-import java.awt.*;
 import java.security.Principal;
 
 /**
@@ -48,21 +38,14 @@ import java.security.Principal;
 public class GroupContainerPropertyDialogController {
    /**
     * Creates a new instance of <tt>GroupContainerPropertyDialogController</tt>.
-    * @param vsObjectPropertyService VSObjectPropertyService instance
     * @param runtimeViewsheetRef     RuntimeViewsheetRef instance
     */
    @Autowired
-   public GroupContainerPropertyDialogController(VSObjectPropertyService vsObjectPropertyService,
-                                                 RuntimeViewsheetRef runtimeViewsheetRef,
-                                                 ViewsheetService viewsheetService,
-                                                 CoreLifecycleService coreLifecycleService,
-                                                 VSDialogService dialogService)
+   public GroupContainerPropertyDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                                 GroupContainerPropertyDialogServiceProxy dialogServiceProxy)
    {
-      this.vsObjectPropertyService = vsObjectPropertyService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.viewsheetService = viewsheetService;
-      this.coreLifecycleService = coreLifecycleService;
-      this.dialogService = dialogService;
+      this.dialogServiceProxy = dialogServiceProxy;
    }
 
    @RequestMapping(
@@ -76,91 +59,7 @@ public class GroupContainerPropertyDialogController {
       Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      Viewsheet vs = rvs.getViewsheet();
-      GroupContainerVSAssembly imageAssembly =
-         (GroupContainerVSAssembly) vs.getAssembly(objectId);
-      GroupContainerVSAssemblyInfo info =
-         (GroupContainerVSAssemblyInfo) imageAssembly.getVSAssemblyInfo();
-
-      GroupContainerPropertyDialogModel groupContainerPropertyDialog =
-         new GroupContainerPropertyDialogModel();
-
-      GroupContainerGeneralPaneModel generalPaneModel = new GroupContainerGeneralPaneModel();
-      groupContainerPropertyDialog.setGroupContainerGeneralPane(generalPaneModel);
-      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPane =
-         VSAssemblyScriptPaneModel.builder();
-
-      GeneralPropPaneModel generalPropPaneModel = new GeneralPropPaneModel();
-      generalPaneModel.setGeneralPropPane(generalPropPaneModel);
-
-      SizePositionPaneModel sizePositionPaneModel = new SizePositionPaneModel();
-      generalPaneModel.setSizePositionPaneModel(sizePositionPaneModel);
-
-      Point pos = info.getLayoutPosition() != null ?
-         info.getLayoutPosition() :
-         vs.getPixelPosition(info);
-      Dimension size = info.getLayoutSize();
-
-      if(size == null || size.width == 0 || size.height == 0) {
-         size = vs.getPixelSize(info);
-      }
-
-      sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setContainer(imageAssembly.getContainer() != null);
-
-      BasicGeneralPaneModel basicGeneralPaneModel = new BasicGeneralPaneModel();
-      generalPropPaneModel.setBasicGeneralPaneModel(basicGeneralPaneModel);
-
-      generalPropPaneModel.setShowEnabledGroup(false);
-
-      basicGeneralPaneModel.setName(info.getAbsoluteName());
-      basicGeneralPaneModel.setVisible(info.getVisibleValue());
-      basicGeneralPaneModel.setPrimary(info.isPrimary());
-      basicGeneralPaneModel.setShowShadowCheckbox(false);
-      basicGeneralPaneModel.setObjectNames(
-         this.vsObjectPropertyService.getObjectNames(vs, info.getAbsoluteName()));
-
-      String imageValue = info.getBackgroundImage();
-      int imageAlpha;
-
-      try {
-         imageAlpha = Integer.parseInt(info.getImageAlphaValue());
-      }
-      catch(Exception e) {
-         imageAlpha = 100;
-      }
-
-      ImagePreviewPaneController imageController = new ImagePreviewPaneController();
-
-      ImagePreviewPaneModel imagePreviewPane = ImagePreviewPaneModel.builder()
-         .alpha(imageAlpha)
-         .animateGifImage(info.isAnimateGIF())
-         .allowNullImage(true)
-         .selectedImage(imageValue)
-         .imageTree(imageController.getImageTree(rvs))
-         .build();
-
-      StaticImagePaneModel staticImagePane = StaticImagePaneModel.builder()
-         .imagePreviewPaneModel(imagePreviewPane)
-         .build();
-      generalPaneModel.setStaticImagePane(staticImagePane);
-
-      ImageScalePaneModel imageScalePaneModel = ImageScalePaneModel.builder()
-         .scaleImageChecked(info.isScaleImageValue())
-         .maintainAspectRatio(info.isMaintainAspectRatioValue())
-         .tile(info.isTileValue())
-         .insets(info.getScale9Value())
-         .size(info.getPixelSize())
-         .build();
-
-      groupContainerPropertyDialog.setImageScalePane(imageScalePaneModel);
-
-      vsAssemblyScriptPane.scriptEnabled(info.isScriptEnabled());
-      vsAssemblyScriptPane.expression(info.getScript() == null ? "" : info.getScript());
-      groupContainerPropertyDialog.setVsAssemblyScriptPane(vsAssemblyScriptPane.build());
-
-      return groupContainerPropertyDialog;
+      return dialogServiceProxy.getGroupContainerPropertyDialogModel(runtimeId, objectId, principal);
    }
 
    /**
@@ -178,74 +77,10 @@ public class GroupContainerPropertyDialogController {
       @LinkUri String linkUri, Principal principal, CommandDispatcher commandDispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-         runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet vs = rvs.getViewsheet();
-      GroupContainerVSAssembly imageAssembly =
-         (GroupContainerVSAssembly) vs.getAssembly(objectId);
-      GroupContainerVSAssemblyInfo info =
-         (GroupContainerVSAssemblyInfo) imageAssembly.getVSAssemblyInfo();
-      GroupContainerGeneralPaneModel groupContainerGeneralPane =
-         value.getGroupContainerGeneralPane();
-      GeneralPropPaneModel generalPropPane = groupContainerGeneralPane.getGeneralPropPane();
-      BasicGeneralPaneModel basicGeneralPane = generalPropPane.getBasicGeneralPaneModel();
-      ImageScalePaneModel scaleImagePane = value.getImageScalePane();
-      StaticImagePaneModel staticImagePane = groupContainerGeneralPane.getStaticImagePane();
-      SizePositionPaneModel sizePositionPaneModel =
-         groupContainerGeneralPane.getSizePositionPaneModel();
-      ImagePreviewPaneModel imagePreviewPane = staticImagePane.imagePreviewPaneModel();
-      VSAssemblyScriptPaneModel vsAssemblyScriptPane = value.getVsAssemblyScriptPane();
-
-      info.setVisibleValue(basicGeneralPane.getVisible());
-      info.setPrimary(basicGeneralPane.isPrimary());
-
-      info.setImageAlphaValue(imagePreviewPane.alpha() + "");
-      info.setAnimateGIF(imagePreviewPane.animateGifImage());
-
-      if(imagePreviewPane.selectedImage() != null) {
-         info.setBackgroundImage(imagePreviewPane.selectedImage());
-
-         if(imagePreviewPane.selectedImage().startsWith(ImageVSAssemblyInfo.SKIN_IMAGE)) {
-            info.setMaintainAspectRatioValue(false);
-            info.setScale9Value(new Insets(1, 1, 1, 1));
-         }
-      }
-      else {
-         info.setBackgroundImage(null);
-      }
-
-      info.setScaleImageValue(scaleImagePane.scaleImageChecked());
-      info.setTileValue(scaleImagePane.tile());
-
-      if(scaleImagePane.scaleImageChecked()) {
-         info.setMaintainAspectRatioValue(scaleImagePane.maintainAspectRatio());
-
-         if(!scaleImagePane.maintainAspectRatio()) {
-            Insets insets = new Insets(scaleImagePane.top(), scaleImagePane.left(),
-                                       scaleImagePane.bottom(), scaleImagePane.right());
-            info.setScale9Value(insets);
-         }
-      }
-
-      if(sizePositionPaneModel.getLeft() >= 0 && sizePositionPaneModel.getTop() >= 0) {
-         dialogService.setContainerPosition(info, sizePositionPaneModel,
-                                            imageAssembly.getAssemblies(), vs);
-
-         ChangedAssemblyList clist = this.coreLifecycleService.createList(false, commandDispatcher, rvs, linkUri);
-         this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher,
-                                                 imageAssembly.getAbsoluteName(), clist);
-      }
-
-      info.setScriptEnabled(vsAssemblyScriptPane.scriptEnabled());
-      info.setScript(vsAssemblyScriptPane.expression());
-
-      this.vsObjectPropertyService.editObjectProperty(
-         rvs, info, objectId, basicGeneralPane.getName(), linkUri, principal, commandDispatcher);
+      dialogServiceProxy.setGroupContainerPropertyDialogModel(runtimeViewsheetRef.getRuntimeId(), objectId,
+                                                               value, linkUri, principal, commandDispatcher);
    }
 
-   private final VSObjectPropertyService vsObjectPropertyService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
-   private final CoreLifecycleService coreLifecycleService;
-   private final VSDialogService dialogService;
+   private final GroupContainerPropertyDialogServiceProxy dialogServiceProxy;
 }
