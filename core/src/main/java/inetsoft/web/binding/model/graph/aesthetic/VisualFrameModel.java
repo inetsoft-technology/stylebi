@@ -21,11 +21,13 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import inetsoft.graph.aesthetic.VisualFrame;
 import inetsoft.uql.viewsheet.graph.aesthetic.VisualFrameWrapper;
 
+import java.io.Serializable;
+
 @JsonTypeInfo(
    use = JsonTypeInfo.Id.CLASS,
    include = JsonTypeInfo.As.PROPERTY,
    property = "clazz")
-public abstract class VisualFrameModel {
+public abstract class VisualFrameModel implements Serializable {
    /**
     * Constructor.
     */

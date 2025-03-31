@@ -19,10 +19,11 @@ package inetsoft.web.composer.model.vs;
 
 import inetsoft.uql.viewsheet.internal.*;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CustomPeriodPaneModel {
+public class CustomPeriodPaneModel implements Serializable {
    public CustomPeriodPaneModel() {
       super();
    }

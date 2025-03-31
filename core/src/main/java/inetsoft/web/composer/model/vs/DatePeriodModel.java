@@ -19,7 +19,9 @@ package inetsoft.web.composer.model.vs;
 
 import inetsoft.uql.viewsheet.internal.DatePeriod;
 
-public class DatePeriodModel {
+import java.io.Serializable;
+
+public class DatePeriodModel implements Serializable {
    public DatePeriodModel() {
       super();
    }
