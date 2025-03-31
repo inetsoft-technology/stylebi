@@ -16,70 +16,55 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.serialize.lens;
+package inetsoft.test;
 
-import inetsoft.report.TabularSheet;
-import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.report.lens.FormulaTableLens;
-import inetsoft.test.SreeHome;
-import inetsoft.test.XTableUtil;
 import inetsoft.uql.XTable;
-import org.junit.jupiter.api.Test;
 
 import java.io.*;
 
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-@SreeHome()
-public class FormulaTableLensTest {
-   @Test
-   void testSerialize() throws Exception {
-      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][]{
-         { "col1", "col2", "col3" },
-         { "a", 1, 5.0 },
-         { "b", 3, 10.0 },
-         { "b", 1, 2.5 },
-         { "c", 1, 3.0 }
-      });
-      String[] headers = { "f1" };
-      String[] formulas = { "field['col2'] + field['col3']" };
-      TabularSheet report = new TabularSheet();
-      FormulaTableLens originalTable = new FormulaTableLens(tbl1, headers, formulas, report);
-      originalTable.moreRows(XTable.EOT); // need XSwappableTable.complete() to be called, otherwise it will hang
-      Object[][] expected = {
-         { "col1", "col2", "col3", "f1" },
-         { "a", 1, 5.0, 6.0 },
-         { "b", 3, 10.0, 13.0 },
-         { "b", 1, 2.5, 3.5 },
-         { "c", 1, 3.0, 4.0 },
-         };
+public class TestSerializeUtils {
+   public static XTable serializeAndDeserialize(XTable originalTable) throws Exception {
+      originalTable.moreRows(XTable.EOT);
+      byte[] serializedData = serializeTable(originalTable);
+      XTable deserializedTable = deserializeTable(serializedData);
 
+      // Ensure the deserialized object has the expected data
+      XTableUtil.assertEquals(originalTable, deserializedTable);
+
+      return deserializedTable;
+   }
+
+   public static byte[] serializeTable(XTable table) throws Exception {
       // Serialize to a byte array
       byte[] serializedData;
+
       try(ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
           ObjectOutputStream out = new ObjectOutputStream(byteOut))
       {
-         out.writeObject(originalTable);
+         out.writeObject(table);
          serializedData = byteOut.toByteArray();
       }
 
       assertNotNull(serializedData);
       assertTrue(serializedData.length > 0);
+      return serializedData;
+   }
 
+   public static XTable deserializeTable(byte[] serializedData) throws Exception {
       // Deserialize from byte array
-      FormulaTableLens deserializedTable;
+      XTable deserializedTable;
 
       try(ByteArrayInputStream byteIn = new ByteArrayInputStream(serializedData);
           ObjectInputStream in = new ObjectInputStream(byteIn))
       {
 
-         deserializedTable = (FormulaTableLens) in.readObject();
+         deserializedTable = (XTable) in.readObject();
       }
 
       assertNotNull(deserializedTable);
-
-      // Ensure the deserialized object has the expected data
-      XTableUtil.assertEquals(deserializedTable, expected);
+      return deserializedTable;
    }
 }
