@@ -241,10 +241,13 @@ public final class MVManager {
                            entry, new Date(mvTS));
                }
 
+               String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
                (new GroupedThread() {
                   @Override
                   protected void doRun() {
                      try {
+                        OrganizationContextHolder.setCurrentOrgId(orgID);
                         // don't ues stale cache data if updating stale mv. in this case
                         // the stale mv is used and the update in background should get the
                         // most up-to-date data
@@ -298,6 +301,7 @@ public final class MVManager {
                         }
 
                         pending.remove(key);
+                        OrganizationContextHolder.clear();
                      }
                   }
                }).start();
