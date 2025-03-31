@@ -604,6 +604,13 @@ public final class MVManager {
       Identity id = user == null ? null : new DefaultIdentity(IdentityID.getIdentityIDFromKey(user.getName()), Identity.USER);
       Identity systemAdmin = new DefaultIdentity(IdentityID.getIdentityIDFromKey(XPrincipal.SYSTEM), Identity.USER);
 
+      if(marr.length > 0 && SUtil.isDefaultVSGloballyVisible(user) &&
+         !Tool.equals(user.getOrgId(), entry.getOrgID()) &&
+         Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
+      {
+         return marr[0];
+      }
+
       for(MVDef def : marr) {
          if(def.containsUser(id)) {
             return def;
