@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 @SreeHome
 public class XSwappableTableTest {
    @Test
-   void testSerialize() throws Exception {
+   public void testSerialize() throws Exception {
       XSwappableTable originalTable = new XSwappableTable(3, true);
       originalTable.addRow(new Object[]{ "col1", "col2", "col3" });
       originalTable.addRow(new Object[]{ 1, "str1", 1.2 });

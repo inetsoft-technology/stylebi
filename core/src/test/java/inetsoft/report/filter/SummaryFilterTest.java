@@ -19,12 +19,11 @@ package inetsoft.report.filter;
 
 import inetsoft.report.StyleConstants;
 import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.test.SreeHome;
-import inetsoft.test.XTableUtil;
-import inetsoft.uql.Condition;
-import inetsoft.uql.XConstants;
+import inetsoft.test.*;
+import inetsoft.uql.*;
 import inetsoft.uql.schema.XSchema;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -282,6 +281,81 @@ public class SummaryFilterTest {
          {"b", "3"},
          {"c", "1"},
       });
+   }
+
+   @Test
+   public void testSerialize() throws Exception {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", 1, 5},
+         {"a", 1, 2},
+         {"b", 3, 10},
+         {"b", 1, 2.5},
+         {"c", 1, 3}
+      });
+      final SummaryFilter originalTable =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, new SumFormula(), null);
+      originalTable.moreRows(Integer.MAX_VALUE);
+
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
+
+      Assertions.assertEquals(SummaryFilter.class, deserializedTable.getClass());
+   }
+
+   @Test
+   public void testSerializeTimeSeries() throws Exception {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2", "col3"},
+         {"a", date("2021-01-03"), 1},
+         {"a", date("2021-01-03"), 2},
+         {"b", date("2021-01-10"), 2.5},
+         {"b", date("2021-01-24"), 10},
+         {"c", date("2021-01-24"), 1},
+         });
+
+      final SumFormula formula = new SumFormula();
+      final Formula[] formulas = {formula};
+      final SummaryFilter originalTable =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[] {2}, formulas, null);
+      originalTable.setTimeSeries(true);
+      originalTable.setTimeSeriesLevel(XConstants.WEEK_DATE_GROUP);
+      originalTable.moreRows(Integer.MAX_VALUE);
+
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
+
+      Assertions.assertEquals(SummaryFilter.class, deserializedTable.getClass());
+   }
+
+   @Test
+   public void testSerializeSortOrderGroupCondition() throws Exception {
+      DefaultTableLens tbl1 = new DefaultTableLens(new Object[][] {
+         {"col1", "col2"},
+         {"a", 1},
+         {"a", 2},
+         {"b", 2},
+         {"b", 3},
+         {"c", 1},
+         });
+
+      final SummaryFilter originalTable =
+         new SummaryFilter(tbl1, new int[] {0, 1}, new int[0], (Formula) null, null);
+
+      final Condition condition = new Condition();
+      condition.setOperation(Condition.EQUAL_TO);
+      condition.addValue(2);
+      condition.setType(XSchema.INTEGER);
+      final ConditionGroup conditionGroup = new ConditionGroup();
+      conditionGroup.addCondition(1, condition, 0);
+
+      final SortOrder sortOrder = new SortOrder(XConstants.SORT_SPECIFIC);
+      sortOrder.addGroupCondition("Group", conditionGroup);
+      sortOrder.setOthers(SortOrder.LEAVE_OTHERS);
+      originalTable.setGroupOrder(1, sortOrder);
+      originalTable.moreRows(Integer.MAX_VALUE);
+
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
+
+      Assertions.assertEquals(SummaryFilter.class, deserializedTable.getClass());
    }
 
    private Date date(String date) {

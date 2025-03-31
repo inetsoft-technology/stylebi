@@ -17,8 +17,7 @@
  */
 package inetsoft.report.lens;
 
-import inetsoft.report.TableDataDescriptor;
-import inetsoft.report.TableLens;
+import inetsoft.report.*;
 import inetsoft.report.filter.BinaryTableFilter;
 import inetsoft.report.filter.DefaultTableChangeListener;
 import inetsoft.report.internal.table.CancellableTableLens;
@@ -29,6 +28,8 @@ import inetsoft.util.*;
 import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.*;
 
 /**
  * A JoinTableLens provides the results of a join between two other TableLens
@@ -508,14 +509,21 @@ public class JoinTableLens extends AbstractTableLens
       }
    }
 
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      leftTable = delegate.getLeftTable();
+      rightTable = delegate.getRightTable();
+   }
+
    private JoinTable delegate;
-   private TableLens leftTable;
-   private TableLens rightTable;
+   private transient TableLens leftTable;
+   private transient TableLens rightTable;
    private final int[] leftCols;
    private final int[] rightCols;
    private final int joinType;
    private final boolean includeRightJoinCols;
-   private transient SparseMatrix matrix = null; // hold data
+   private SparseMatrix matrix = null; // hold data
 
    private static final Logger LOG = LoggerFactory.getLogger(JoinTableLens.class);
 }

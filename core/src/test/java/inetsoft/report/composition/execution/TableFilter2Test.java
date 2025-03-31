@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 @SreeHome
 public class TableFilter2Test {
    @Test
-   void testSerialize() throws Exception {
+   public void testSerialize() throws Exception {
       TableFilter2 originalTable = new TableFilter2(XTableUtil.getDefaultTableLens());
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
 

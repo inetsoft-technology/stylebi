@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Test;
 @SreeHome
 public class SortFilterTest {
    @Test
-   void testSerialize() throws Exception {
+   public void testSerialize() throws Exception {
       int[] sortCols = new int[1];
       SortFilter originalTable = new SortFilter(XTableUtil.getDefaultTableLens(),
                                                 sortCols, true);

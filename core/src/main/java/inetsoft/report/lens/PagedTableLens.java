@@ -194,5 +194,5 @@ public abstract class PagedTableLens extends AbstractTableLens
 
    protected XSwappableTable delegate = new XSwappableTable(); // delegate table
    private Class[] types;
-   private transient SparseMatrix matrix = null; // hold data
+   private SparseMatrix matrix = null; // hold data
 }

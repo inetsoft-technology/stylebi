@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 @SreeHome
 public class ColumnMapFilterTest {
    @Test
-   void testSerialize() throws Exception {
+   public void testSerialize() throws Exception {
       TableLens defTable = XTableUtil.getDefaultTableLens();
 
       int[] map = new int[defTable.getColCount()];
