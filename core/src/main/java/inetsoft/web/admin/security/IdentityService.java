@@ -879,6 +879,7 @@ public class IdentityService {
       removeBlobStorage("__mvBlock", orgID, BlockFileStorage.Metadata.class);
       removeBlobStorage("__pdata", orgID, EmbeddedTableStorage.Metadata.class);
       removeBlobStorage("__library", orgID, LibManager.Metadata.class);
+      removeBlobStorage("__autoSave", orgID, LibManager.Metadata.class);
    }
 
    public void copyStorages(Organization oOrg, Organization nOrg) {
@@ -892,6 +893,7 @@ public class IdentityService {
          //updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          updateBlobStorageName("__pdata", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+         updateBlobStorageName("__autoSave", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          MVManager.getManager().copyStorageData(oOrg, nOrg);
 
          addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
