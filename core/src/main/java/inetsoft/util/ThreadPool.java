@@ -521,35 +521,35 @@ public class ThreadPool {
    {
    }
 
-   private static class RunnableWrapper implements Runnable {
-      public RunnableWrapper(Runnable target) {
-         this.target = target;
-         this.tempOrg = OrganizationContextHolder.getCurrentOrgId();
-      }
-
-      @Override
-      public void run() {
-         try {
-            if(tempOrg != null) {
-               OrganizationContextHolder.setCurrentOrgId(tempOrg);
-            }
-
-            target.run();
-         }
-         finally {
-            if(tempOrg != null) {
-               OrganizationContextHolder.clear();
-            }
-         }
-      }
-
-      public Runnable unwrap() {
-         return target;
-      }
-
-      private final Runnable target;
-      private final String tempOrg;
-   }
+//   private static class RunnableWrapper implements Runnable {
+//      public RunnableWrapper(Runnable target) {
+//         this.target = target;
+//         this.tempOrg = OrganizationContextHolder.getCurrentOrgId();
+//      }
+//
+//      @Override
+//      public void run() {
+//         try {
+//            if(tempOrg != null) {
+//               OrganizationContextHolder.setCurrentOrgId(tempOrg);
+//            }
+//
+//            target.run();
+//         }
+//         finally {
+//            if(tempOrg != null) {
+//               OrganizationContextHolder.clear();
+//            }
+//         }
+//      }
+//
+//      public Runnable unwrap() {
+//         return target;
+//      }
+//
+//      private final Runnable target;
+//      private final String tempOrg;
+//   }
 
    /**
     * Thread for running the runnables.

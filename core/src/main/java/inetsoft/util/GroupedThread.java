@@ -127,7 +127,7 @@ public class GroupedThread extends Thread {
     * @param user     the principal that is associated with the thread.
     */
    public GroupedThread(Runnable runnable, String name, Principal user) {
-      super(runnable, name);
+      super(new RunnableWrapper(runnable), name);
 
       // @by jasons, Per the documentation, super.getStackTrace() will return
       // an empty list. The intended behavior is to record the stack trace when
