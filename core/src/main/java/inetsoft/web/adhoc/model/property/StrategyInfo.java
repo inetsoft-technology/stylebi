@@ -19,7 +19,9 @@ package inetsoft.web.adhoc.model.property;
 
 import inetsoft.util.Catalog;
 
-public class StrategyInfo{
+import java.io.Serializable;
+
+public class StrategyInfo implements Serializable {
 
   public StrategyInfo() {}
 

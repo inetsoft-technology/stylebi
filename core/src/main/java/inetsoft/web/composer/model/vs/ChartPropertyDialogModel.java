@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import java.io.Serializable;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ChartPropertyDialogModel {
+public class ChartPropertyDialogModel implements Serializable {
    public ChartGeneralPaneModel getChartGeneralPaneModel() {
       if(chartGeneralPaneModel == null) {
          chartGeneralPaneModel = new ChartGeneralPaneModel();
