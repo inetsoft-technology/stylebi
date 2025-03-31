@@ -19,6 +19,7 @@ package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -28,6 +29,7 @@ import javax.annotation.Nullable;
  * text property dialog
  */
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableDynamicImagePaneModel.class)
 @JsonDeserialize(as = ImmutableDynamicImagePaneModel.class)
 public abstract class DynamicImagePaneModel {
