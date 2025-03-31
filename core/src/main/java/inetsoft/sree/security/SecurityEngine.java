@@ -773,8 +773,10 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       if(!allowed) {
          if(type == ResourceType.CHART_TYPE) {
             Permission perm = getPermission(type, resource);
+            String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+            boolean useParent = (perm == null) || (!perm.hasOrgEditedGrantAll(orgID));
 
-            if(perm == null) {
+            if(useParent) {
                Resource parent = type.getParent(resource);
 
                if(parent != null) {
