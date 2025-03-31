@@ -17,6 +17,8 @@
  */
 package inetsoft.test;
 
+import inetsoft.report.TableLens;
+import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.XTable;
 import org.junit.jupiter.api.Assertions;
 
@@ -41,19 +43,35 @@ public class XTableUtil {
    }
 
    public static void assertEquals(XTable expected, XTable actual) {
-      int colCount = expected.getColCount();
-      Assertions.assertEquals(colCount, actual.getColCount(),"Incorrect column count");
+      Assertions.assertDoesNotThrow(() -> {
+         expected.moreRows(XTable.EOT);
+         actual.moreRows(XTable.EOT);
+         int colCount = expected.getColCount();
+         Assertions.assertEquals(colCount, actual.getColCount(), "Incorrect column count");
 
-      for(int r = 0; expected.moreRows(r) && actual.moreRows(r); r++) {
-         for(int c = 0; c < colCount; c++) {
+         for(int r = 0; r < expected.getRowCount(); r++) {
             Assertions.assertEquals(
-               expected.getObject(r, c), actual.getObject(r, c),
-               "Incorrect value at [row=" + r + ",col=" + c + "]");
-         }
-      }
+               expected.moreRows(r), actual.moreRows(r), "Incorrect moreRows(" + r + ") result");
 
-      Assertions.assertEquals(
-         expected.getRowCount(), actual.getRowCount(), "Incorrect row count");
+            for(int c = 0; c < colCount; c++) {
+               Assertions.assertEquals(
+                  expected.getObject(r, c), actual.getObject(r, c),
+                  "Incorrect value at [row=" + r + ",col=" + c + "]");
+            }
+         }
+
+         Assertions.assertEquals(
+            expected.getRowCount(), actual.getRowCount(), "Incorrect row count");
+      });
    }
 
+   public static TableLens getDefaultTableLens() {
+      return new DefaultTableLens(new Object[][]{
+         { "col1", "col2", "col3" },
+         { "a", 1, 5.0 },
+         { "b", 3, 10.0 },
+         { "b", 1, 2.5 },
+         { "c", 1, 3.0 }
+      });
+   }
 }

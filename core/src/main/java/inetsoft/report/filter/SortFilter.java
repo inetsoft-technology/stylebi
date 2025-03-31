@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.*;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.function.Function;
@@ -1295,6 +1296,13 @@ public class SortFilter extends AbstractTableLens
    public String getReportType() {
       String type = super.getReportType();
       return type != null ? type : table == null ? null : table.getReportType();
+   }
+
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      setTable(table);
+      comparers = new Comparer[table.getColCount()];
    }
 
    private static final int MAX_CACHE = 10000000;
