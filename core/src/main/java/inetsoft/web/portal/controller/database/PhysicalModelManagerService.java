@@ -204,17 +204,24 @@ public class PhysicalModelManagerService {
             "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
       }
 
-      if(!isExtended) {
-         if(dataModel.getPartition(model.getName()) != null) {
-            throw new FileExistsException(path);
+      DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
+
+      try {
+         if(!isExtended) {
+            if(dataModel.getPartition(model.getName()) != null) {
+               throw new FileExistsException(path);
+            }
+         }
+         else {
+            XPartition parentModel = dataModel.getPartition(parent);
+
+            if(parentModel != null && parentModel.getPartition(model.getName()) != null) {
+               throw new FileExistsException(path);
+            }
          }
       }
-      else {
-         XPartition parentModel = dataModel.getPartition(parent);
-
-         if(parentModel != null && parentModel.getPartition(model.getName()) != null) {
-            throw new FileExistsException(path);
-         }
+      finally {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
       }
 
       getRuntimePartition(model.getId()).ifPresent(
