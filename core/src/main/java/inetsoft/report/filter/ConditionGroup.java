@@ -761,7 +761,7 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
    protected Vector<DataRef[]> fieldmap = new Vector<>();
    protected transient int[][] colmap = null; // [] column indices for conditions
    private transient Object lastTbl = null;
-   private transient BitSet usedCols = new BitSet();
+   private BitSet usedCols = new BitSet();
    private transient ColumnIndexMap columnIndexMap = null;
    private static final Logger LOG = LoggerFactory.getLogger(ConditionGroup.class);
 }
