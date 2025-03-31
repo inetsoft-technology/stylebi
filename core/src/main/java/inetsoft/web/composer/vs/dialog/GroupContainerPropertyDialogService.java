@@ -39,11 +39,13 @@ public class GroupContainerPropertyDialogService {
 
    public GroupContainerPropertyDialogService(VSObjectPropertyService vsObjectPropertyService,
                                               ViewsheetService viewsheetService,
+                                              ImagePreviewPaneService imagePreviewPaneService,
                                               CoreLifecycleService coreLifecycleService,
                                               VSDialogService dialogService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.viewsheetService = viewsheetService;
+      this.imagePreviewPaneService = imagePreviewPaneService;
       this.coreLifecycleService = coreLifecycleService;
       this.dialogService = dialogService;
    }
@@ -107,14 +109,12 @@ public class GroupContainerPropertyDialogService {
          imageAlpha = 100;
       }
 
-      ImagePreviewPaneController imageController = new ImagePreviewPaneController();
-
       ImagePreviewPaneModel imagePreviewPane = ImagePreviewPaneModel.builder()
          .alpha(imageAlpha)
          .animateGifImage(info.isAnimateGIF())
          .allowNullImage(true)
          .selectedImage(imageValue)
-         .imageTree(imageController.getImageTree(rvs))
+         .imageTree(imagePreviewPaneService.getImageTree(rvs))
          .build();
 
       StaticImagePaneModel staticImagePane = StaticImagePaneModel.builder()
@@ -213,6 +213,7 @@ public class GroupContainerPropertyDialogService {
 
    private final VSObjectPropertyService vsObjectPropertyService;
    private final ViewsheetService viewsheetService;
+   private final ImagePreviewPaneService imagePreviewPaneService;
    private final CoreLifecycleService coreLifecycleService;
    private final VSDialogService dialogService;
 }
