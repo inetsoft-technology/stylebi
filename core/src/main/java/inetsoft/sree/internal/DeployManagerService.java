@@ -1941,7 +1941,7 @@ public class DeployManagerService {
             String[] paths = path.split("\\^");
 
             if(paths.length > 3) {
-               return paths[2] + "/" + paths[3];
+               return ("_NULL_".equals(paths[2]) ? "anonymous" : paths[2]) + "/" + paths[3];
             }
          }
       }
