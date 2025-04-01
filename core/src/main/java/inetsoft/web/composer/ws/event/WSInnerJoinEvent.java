@@ -19,7 +19,9 @@ package inetsoft.web.composer.ws.event;
 
 import inetsoft.web.composer.model.ws.TableAssemblyOperatorModel;
 
-public class WSInnerJoinEvent {
+import java.io.Serializable;
+
+public class WSInnerJoinEvent implements Serializable {
    public TableAssemblyOperatorModel[] getOperators() {
       return operators;
    }
