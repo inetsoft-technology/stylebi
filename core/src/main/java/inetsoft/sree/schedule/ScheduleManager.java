@@ -1557,7 +1557,7 @@ public class ScheduleManager {
 
       Set<ScheduleTask> changedTasks = new HashSet<>();
 
-      for(ScheduleTask task : getScheduleTasks()) {
+      for(ScheduleTask task : getScheduleTasks(nentry.getOrgID())) {
          for(int i = 0; i < task.getActionCount(); i++) {
             ScheduleAction action = task.getAction(i);
 
