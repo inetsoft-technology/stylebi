@@ -16,31 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.report.lens;
+package inetsoft.uql.util;
 
-import inetsoft.report.StyleConstants;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-import java.awt.*;
-
 @SreeHome
-public class AttributeTableLensTest {
+public class DefaultTableTest {
    @Test
    public void testSerialize() throws Exception {
-      AttributeTableLens originalTable = new AttributeTableLens(XTableUtil.getDefaultTableLens());
-      originalTable.setAlignment(0, 0, StyleConstants.H_CENTER);
-      originalTable.setColBorderColor(1, Color.BLUE);
-      originalTable.setColForeground(2, Color.RED);
-      originalTable.setColFont(2, new Font("Arial", Font.PLAIN, 12));
-      originalTable.setRowHeight(1, 100);
-      originalTable.setRowBackground(1, Color.CYAN);
-      originalTable.setInsets(1, 1, new Insets(10, 10, 10, 10));
-      originalTable.setRowLineWrap(1, true);
-
+      DefaultTable originalTable = new DefaultTable(XTableUtil.getDefaultData());
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
-      Assertions.assertEquals(AttributeTableLens.class, deserializedTable.getClass());
+      Assertions.assertEquals(DefaultTable.class, deserializedTable.getClass());
    }
 }
