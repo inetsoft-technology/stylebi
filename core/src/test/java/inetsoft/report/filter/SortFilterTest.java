@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 public class SortFilterTest {
    @Test
    public void testSerialize() throws Exception {
-      int[] sortCols = new int[1];
+      int[] sortCols = new int[] { 1 };
       SortFilter originalTable = new SortFilter(XTableUtil.getDefaultTableLens(),
                                                 sortCols, true);
 

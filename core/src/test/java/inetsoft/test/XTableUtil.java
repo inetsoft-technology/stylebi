@@ -66,23 +66,21 @@ public class XTableUtil {
       });
    }
 
-   public static TableLens getDefaultTableLens() {
-      return new DefaultTableLens(new Object[][]{
+   public static Object[][] getDefaultData() {
+      return new Object[][]{
          { "col1", "col2", "col3" },
          { "a", 1, 5.0 },
          { "b", 3, 10.0 },
          { "b", 1, 2.5 },
          { "c", 1, 3.0 }
-      });
+      };
+   }
+
+   public static TableLens getDefaultTableLens() {
+      return new DefaultTableLens(getDefaultData());
    }
 
    public static DefaultDataSet getDefaultDataSet() {
-      return new DefaultDataSet(new Object[][]{
-         { "col1", "col2", "col3" },
-         { "a", 1, 5.0 },
-         { "b", 3, 10.0 },
-         { "b", 1, 2.5 },
-         { "c", 1, 3.0 }
-      });
+      return new DefaultDataSet(getDefaultData());
    }
 }
