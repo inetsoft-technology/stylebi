@@ -21,9 +21,11 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.web.binding.model.AggregateInfoModel;
 import org.immutables.value.Value;
 
+import java.io.Serializable;
+
 @Value.Immutable
 @JsonDeserialize(as = ImmutableCheckModelTrapEvent.class)
-public interface CheckModelTrapEvent {
+public interface CheckModelTrapEvent extends Serializable {
    String tableName();
 
    AggregateInfoModel newAggregateInfo();
