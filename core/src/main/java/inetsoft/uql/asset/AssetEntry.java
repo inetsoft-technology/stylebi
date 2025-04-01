@@ -451,6 +451,11 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
          }
       }
 
+      if(identifier.startsWith("ws:")) {
+         index = index - 3;
+         identifier = identifier.substring(3);
+      }
+
       int scope = Integer.parseInt(identifier.substring(0, index));
       int lindex = index;
       index = identifier.indexOf('^', lindex + 1);
