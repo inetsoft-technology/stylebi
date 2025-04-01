@@ -50,7 +50,7 @@ import java.security.Principal;
  * This class handles get vsobjectmodel from the server.
  */
 @Controller
-public class VSTableDndController extends VSAssemblyDndController {
+public class VSTableDndController {
    /**
     * Creates a new instance of <tt>VSViewController</tt>.
     *
@@ -59,16 +59,10 @@ public class VSTableDndController extends VSAssemblyDndController {
     */
    @Autowired
    public VSTableDndController(RuntimeViewsheetRef runtimeViewsheetRef,
-                               VSBindingService bfactory,
-                               VSAssemblyInfoHandler assemblyInfoHandler,
-                               VSTableBindingHandler tableHandler,
-                               VSObjectModelFactoryService objectModelService,
-                               ViewsheetService viewsheetService,
-                               CoreLifecycleService coreLifecycleService)
+                               VSTableDndServiceProxy vsTableDndServiceProxy)
    {
-      super(runtimeViewsheetRef, bfactory, assemblyInfoHandler, objectModelService,
-            viewsheetService, coreLifecycleService);
-      this.tableHandler = tableHandler;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsTableDndServiceProxy = vsTableDndServiceProxy;
    }
 
    /**
@@ -81,103 +75,8 @@ public class VSTableDndController extends VSAssemblyDndController {
    public void dnd(@Payload VSDndEvent event, Principal principal,
       @LinkUri String linkUri, CommandDispatcher dispatcher) throws Exception
    {
-      RuntimeViewsheet rvs = getRuntimeVS(principal);
-
-      if(rvs == null || event.getTransfer() == null) {
-         return;
-      }
-
-      // The data for what's being dropped onto the table, including the assembly that initiated
-      // the drag event
-      TableTransfer tableData = (TableTransfer) event.getTransfer();
-      VSAssembly dragAssembly = getVSAssembly(rvs, tableData.getAssembly());
-
-      // The data for the table being dropped onto, in order to add or change the binding of a
-      // column, including the table assembly that accepted the drop event
-      BindingDropTarget dropTarget = (BindingDropTarget) event.getDropTarget();
-
-      TableVSAssembly tableAssembly = (TableVSAssembly) getVSAssembly(rvs, dropTarget.getAssembly());
-      TableVSAssembly newTableAssembly = (TableVSAssembly) tableAssembly.clone();
-
-      if(this.checkEmbeddedTableSource(rvs.getViewsheet(), dragAssembly.getTableName(),
-         dragAssembly, tableAssembly, dispatcher))
-      {
-         return;
-      }
-
-      // Handle source changed.
-      if(sourceChanged(tableAssembly, dragAssembly.getTableName())) {
-         changeSource(newTableAssembly, dragAssembly.getTableName(), event.getSourceType());
-      }
-
-      tableHandler.addRemoveColumns(newTableAssembly, dragAssembly, tableData.getDragIndex(),
-                                    dropTarget.getDropIndex(), dropTarget.getReplace(),
-                                    tableData.getDragType(), tableData.getTransferType());
-      applyAssemblyInfo(rvs, tableAssembly, newTableAssembly, dispatcher,
-         event, null, linkUri);
-   }
-
-   private boolean checkEmbeddedTableSource(Viewsheet vs, String tableName,
-                                            VSAssembly drageAssembly,
-                                            TableVSAssembly tableAssembly,
-                                            CommandDispatcher dispatcher)
-   {
-      boolean invalid = false;
-
-      if(drageAssembly != null && drageAssembly instanceof TableVSAssembly) {
-         if(tableAssembly instanceof EmbeddedTableVSAssembly &&
-            !(drageAssembly instanceof EmbeddedTableVSAssembly))
-         {
-            invalid = true;
-         }
-      }
-      if(VSUtil.isVSAssemblyBinding(tableName)) {
-         String vsAssembly = VSUtil.getVSAssemblyBinding(tableName);
-
-         if(StringUtils.isEmpty(vsAssembly)) {
-            return false;
-         }
-
-         Assembly assembly = vs.getAssembly(vsAssembly);
-
-         if(!(assembly instanceof EmbeddedTableVSAssembly) &&
-            tableAssembly instanceof EmbeddedTableVSAssembly)
-         {
-            invalid = true;
-         }
-         else {
-            invalid = false;
-         }
-      }
-      else {
-         Worksheet ws = vs.getBaseWorksheet();
-         Assembly assembly = ws.getAssembly(tableName);
-
-         if(assembly == null || tableAssembly == null) {
-            return false;
-         }
-
-         if(assembly instanceof TableAssembly) {
-            TableAssembly tAssembly = assembly instanceof MirrorTableAssembly ?
-               ((MirrorTableAssembly) assembly).getTableAssembly() : (TableAssembly) assembly;
-
-            boolean isEmbedded = tAssembly instanceof EmbeddedTableAssembly &&
-               (!(tAssembly instanceof SnapshotEmbeddedTableAssembly));
-
-            if(tableAssembly instanceof EmbeddedTableVSAssembly && !isEmbedded) {
-               invalid = true;
-            }
-         }
-      }
-
-      if(invalid) {
-         MessageCommand command = new MessageCommand();
-         command.setMessage(Catalog.getCatalog().getString("common.viewsheet.embeddedTable.binding"));
-         command.setType(MessageCommand.Type.ERROR);
-         dispatcher.sendCommand(command);
-      }
-
-      return invalid;
+      vsTableDndServiceProxy.dnd(runtimeViewsheetRef.getRuntimeId(), event,
+                                 principal, linkUri, dispatcher);
    }
 
    /**
@@ -189,51 +88,8 @@ public class VSTableDndController extends VSAssemblyDndController {
    public void dndFromTree(@Payload VSDndEvent event, Principal principal,
                            @LinkUri String linkUri, CommandDispatcher dispatcher) throws Exception
    {
-      RuntimeViewsheet rvs = getRuntimeVS(principal);
-
-      if(rvs == null) {
-         return;
-      }
-
-      ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
-      vbox.lockRead();
-
-      try {
-         TableVSAssembly assembly = (TableVSAssembly) getVSAssembly(rvs, event.name());
-         TableVSAssembly nassembly = (TableVSAssembly) assembly.clone();
-
-         // Handle source changed.
-         if(sourceChanged(assembly, event.getTable())) {
-            changeSource(nassembly, event.getTable(), event.getSourceType());
-         }
-
-         BindingDropTarget dropTarget = (BindingDropTarget) event.getDropTarget();
-
-         if(this.checkEmbeddedTableSource(rvs.getViewsheet(), event.getTable(),
-            null, assembly, dispatcher))
-         {
-            return;
-         }
-
-         final int offsetColIndex = getOffsetColIndex(nassembly, dropTarget.getTransferType(),
-                                                      dropTarget.getDropIndex());
-         tableHandler.addColumns(nassembly, event.getEntries(), offsetColIndex,
-                                 dropTarget.getReplace());
-
-         if(nassembly.getColumnSelection().getAttributeCount() > Util.getOrganizationMaxColumn()) {
-            MessageCommand command = new MessageCommand();
-            command.setMessage(Util.getColumnLimitMessage());
-            command.setType(MessageCommand.Type.ERROR);
-            dispatcher.sendCommand(command);
-            return;
-         }
-
-         applyAssemblyInfo(rvs, assembly, nassembly, dispatcher, event,
-                           "/events/vstable/dnd/addColumns", linkUri);
-      }
-      finally {
-         vbox.unlockRead();
-      }
+      vsTableDndServiceProxy.dndFromTree(runtimeViewsheetRef.getRuntimeId(), event, principal,
+                                         linkUri, dispatcher);
    }
 
    /**
@@ -245,39 +101,11 @@ public class VSTableDndController extends VSAssemblyDndController {
    public void dndTotree(@Payload VSDndEvent event, Principal principal,
                          @LinkUri String linkUri, CommandDispatcher dispatcher) throws Exception
    {
-      RuntimeViewsheet rvs = getRuntimeVS(principal);
-
-      if(rvs == null) {
-         return;
-      }
-
-      TableVSAssembly assembly = (TableVSAssembly) getVSAssembly(rvs, event.name());
-      TableVSAssembly clone = (TableVSAssembly) assembly.clone();
-      final TableTransfer transfer = (TableTransfer) event.getTransfer();
-      int dragIndex = transfer.getDragIndex();
-      final int offsetColIndex = getOffsetColIndex(assembly, transfer.getTransferType(), dragIndex);
-      tableHandler.removeColumns(clone, offsetColIndex);
-      applyAssemblyInfo(rvs, assembly, (VSAssemblyInfo) clone.getInfo(),
-                        dispatcher, event, linkUri, null);
+      vsTableDndServiceProxy.dndTotree(runtimeViewsheetRef.getRuntimeId(), event, principal,
+                                       linkUri, dispatcher);
    }
 
-   private int getOffsetColIndex(TableVSAssembly assembly, TransferType transferType, int index) {
-      final int offsetColIndex;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSTableDndServiceProxy vsTableDndServiceProxy;
 
-      switch(transferType) {
-         case TABLE:
-            offsetColIndex = ComposerVSTableController.getOffsetColumnIndex(
-               assembly.getColumnSelection(), index);
-            break;
-         case FIELD:
-            offsetColIndex = index;
-            break;
-         default:
-            throw new IllegalStateException("Unexpected value: " + transferType);
-      }
-
-      return offsetColIndex;
-   }
-
-   private VSTableBindingHandler tableHandler;
 }
