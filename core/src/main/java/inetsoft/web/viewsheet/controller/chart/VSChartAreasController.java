@@ -86,9 +86,18 @@ public class VSChartAreasController {
                                              CommandDispatcher dispatcher, Principal principal)
       throws Exception
    {
+      refreshChartAreasModel(runtimeViewsheetRef.getRuntimeId(),
+                             event, viewsheetService, dispatcher, principal);
+   }
+
+   public static void refreshChartAreasModel(String runtimeId, VSChartEvent event,
+                                             ViewsheetService viewsheetService,
+                                             CommandDispatcher dispatcher, Principal principal)
+      throws Exception
+   {
       VSChartController.VSChartStateInfo state =
          VSChartController.VSChartStateInfo.createChartState(
-            event, viewsheetService, principal, runtimeViewsheetRef.getRuntimeId(), true);
+            event, viewsheetService, principal, runtimeId, true);
 
       if(state == null) {
          return;
