@@ -17,6 +17,7 @@
  */
 package inetsoft.test;
 
+import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.report.TableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.XTable;
@@ -67,6 +68,16 @@ public class XTableUtil {
 
    public static TableLens getDefaultTableLens() {
       return new DefaultTableLens(new Object[][]{
+         { "col1", "col2", "col3" },
+         { "a", 1, 5.0 },
+         { "b", 3, 10.0 },
+         { "b", 1, 2.5 },
+         { "c", 1, 3.0 }
+      });
+   }
+
+   public static DefaultDataSet getDefaultDataSet() {
+      return new DefaultDataSet(new Object[][]{
          { "col1", "col2", "col3" },
          { "a", 1, 5.0 },
          { "b", 3, 10.0 },

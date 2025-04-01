@@ -27,7 +27,12 @@ import static org.junit.Assert.assertTrue;
 
 public class TestSerializeUtils {
    public static XTable serializeAndDeserialize(XTable originalTable) throws Exception {
+      // get all rows before serializing
       originalTable.moreRows(XTable.EOT);
+
+      // create a descriptor
+      originalTable.getDescriptor();
+
       byte[] serializedData = serializeTable(originalTable);
       XTable deserializedTable = deserializeTable(serializedData);
 
