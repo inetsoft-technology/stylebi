@@ -905,8 +905,16 @@ public class IdentityService {
    }
 
    private void addNewOrgTaskToScheduleServer(String orgId) throws RemoteException {
-      Vector<ScheduleTask> scheduleTasks =
-         ScheduleManager.getScheduleManager().getScheduleTasks(orgId);
+      Vector<ScheduleTask> scheduleTasks = new Vector<>();
+
+      try {
+         scheduleTasks = OrganizationManager.runInOrgScope(orgId,
+            () -> ScheduleManager.getScheduleManager().getScheduleTasks(orgId));
+      }
+      catch(Exception e) {
+         LOG.warn("Could not get tasks from: "+ orgId);
+      }
+
       ScheduleServer scheduleServer = ScheduleServer.getInstance();
 
       if(scheduleTasks == null || scheduleServer == null) {
