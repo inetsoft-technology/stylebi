@@ -185,6 +185,10 @@ public class UserEnv {
       }
 
       if(loc == null) {
+         loc = ThreadContext.getLocale();
+      }
+
+      if(loc == null) {
          loc = Locale.getDefault();
       }
 
