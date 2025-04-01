@@ -66,7 +66,7 @@ public class RenameTransformHandler implements AutoCloseable {
       }
    }
 
-   public void addPartitionTransform(XPartition partition, RenameInfo rinfo) {
+   public void addExtendPartitionsTransform(XPartition partition, RenameInfo rinfo) {
       if(partition.getPartitionNames().length > 0) {
          String[] children = partition.getPartitionNames();
 
