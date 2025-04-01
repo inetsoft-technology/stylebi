@@ -262,24 +262,25 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
          String oname = rinfo.getOldName();
          String nname = rinfo.getNewName();
-         AssetEntry oentry = AssetEntry.createAssetEntry(rinfo.isWorksheet() ?
-                                                            "ws:" + oname : oname);
-         AssetEntry nentry = AssetEntry.createAssetEntry(rinfo.isWorksheet() ?
-                                                            "ws:" + nname : nname);
 
-         if((Hyperlink.VIEWSHEET_LINK + "").equals(Tool.getAttribute(elem, "linkType"))) {
-            replaceAttribute(elem, "link", oname, nname, true);
-         }
+         if(!rinfo.isTable()) {
+            AssetEntry oentry = AssetEntry.createAssetEntry(oname);
+            AssetEntry nentry = AssetEntry.createAssetEntry(nname);
 
-         NodeList assets = getChildNodes(elem, "./subquery/worksheetEntry/assetEntry");
+            if((Hyperlink.VIEWSHEET_LINK + "").equals(Tool.getAttribute(elem, "linkType"))) {
+               replaceAttribute(elem, "link", oname, nname, true);
+            }
 
-         for(int j = 0; j < assets.getLength(); j++) {
-            Element assetElem = (Element) assets.item(j);
-            Element path = Tool.getChildNodeByTagName(assetElem, "path");
-            String pathVal = Tool.getValue(path);
+            NodeList assets = getChildNodes(elem, "./subquery/worksheetEntry/assetEntry");
 
-            if(!rinfo .isColumn() && Tool.equals(pathVal, oentry.getPath())) {
-               XMLTool.replaceValue(path, nentry.getPath());
+            for(int j = 0; j < assets.getLength(); j++) {
+               Element assetElem = (Element) assets.item(j);
+               Element path = Tool.getChildNodeByTagName(assetElem, "path");
+               String pathVal = Tool.getValue(path);
+
+               if(!rinfo.isColumn() && Tool.equals(pathVal, oentry.getPath())) {
+                  XMLTool.replaceValue(path, nentry.getPath());
+               }
             }
          }
 
