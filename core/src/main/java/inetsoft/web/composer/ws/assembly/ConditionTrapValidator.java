@@ -21,9 +21,11 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.binding.drm.DataRefModel;
 import org.immutables.value.Value;
 
+import java.io.Serializable;
+
 @Value.Immutable
 @JsonSerialize(as = ImmutableConditionTrapValidator.class)
-public abstract class ConditionTrapValidator {
+public abstract class ConditionTrapValidator implements Serializable {
    public abstract boolean showTrap();
 
    public abstract DataRefModel[] trapFields();
