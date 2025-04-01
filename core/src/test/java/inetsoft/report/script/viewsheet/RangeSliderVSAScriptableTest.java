@@ -78,6 +78,13 @@ public class RangeSliderVSAScriptableTest {
    }
 
    @Test
+   void testPut() {
+      assertEquals(true, rangeSliderVSAScriptable.get("minVisible", rangeSliderVSAScriptable));
+      rangeSliderVSAScriptable.put("minVisible", rangeSliderVSAScriptable, false);
+      assertEquals(false, rangeSliderVSAScriptable.get("minVisible", rangeSliderVSAScriptable));
+   }
+
+   @Test
    void testSetGetRangeMinMax() {
       rangeSliderVSAssemblyInfo.setSelectionList(new SelectionList());
 
@@ -101,14 +108,17 @@ public class RangeSliderVSAScriptableTest {
       assertEquals(15, rangeSliderVSAScriptable.getRangeSize());
       rangeSliderVSAScriptable.setRangeSizeValue(28);
       assertEquals(28, rangeSliderVSAScriptable.getRangeSize());
-   }
 
-   @Test
-   void testSetGetMaxRangeSize() {
       rangeSliderVSAScriptable.setMaxRangeSize(42);
       assertEquals(42, rangeSliderVSAScriptable.getMaxRangeSize());
       rangeSliderVSAScriptable.setMaxRangeSizeValue(58);
       assertEquals(58, rangeSliderVSAScriptable.getMaxRangeSize());
+
+      //composite mode
+      rangeSliderVSAssemblyInfo.setComposite(true);
+      rangeSliderVSAssemblyInfo.setTimeInfo(new CompositeTimeInfo());
+      assertEquals(0, rangeSliderVSAScriptable.getRangeSize());
+      assertEquals(0, rangeSliderVSAScriptable.getMaxRangeSize());
    }
 
    @Test
