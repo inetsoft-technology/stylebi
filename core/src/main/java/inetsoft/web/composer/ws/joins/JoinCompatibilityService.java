@@ -44,7 +44,6 @@ public class JoinCompatibilityService extends WorksheetControllerService {
    public List<String> getCompatibleInsertionTables(@ClusterProxyKey String runtimeId,
                                                     String joinTableName, Principal principal) throws Exception
    {
-      runtimeId = Tool.byteDecode(runtimeId);
       final RuntimeWorksheet rws = getWorksheetEngine().getWorksheet(runtimeId, principal);
       final Worksheet ws = rws.getWorksheet();
       final AbstractJoinTableAssembly joinTable =
