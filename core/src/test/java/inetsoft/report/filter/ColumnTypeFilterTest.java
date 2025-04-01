@@ -18,28 +18,23 @@
 
 package inetsoft.report.filter;
 
-import inetsoft.report.internal.Util;
+import inetsoft.report.TableLens;
 import inetsoft.test.*;
-import inetsoft.uql.Condition;
 import inetsoft.uql.XTable;
 import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 @SreeHome
-public class ConditionFilterTest {
+public class ColumnTypeFilterTest {
    @Test
    public void testSerialize() throws Exception {
-      final Condition condition = new Condition();
-      condition.setOperation(Condition.GREATER_THAN);
-      condition.addValue(2);
-      condition.setType(XSchema.INTEGER);
-      final ConditionGroup conditionGroup = new ConditionGroup();
-      conditionGroup.addCondition(1, condition, 0);
-
-      ConditionFilter originalTable = new ConditionFilter(XTableUtil.getDefaultTableLens(),
-                                                          conditionGroup);
+      TableLens defTable = XTableUtil.getDefaultTableLens();
+      String[] types = new String[defTable.getColCount()];
+      types[0] = XSchema.CHARACTER;
+      types[2] = XSchema.INTEGER;
+      ColumnTypeFilter originalTable = new ColumnTypeFilter(defTable, types);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
-      Assertions.assertEquals(ConditionFilter.class, deserializedTable.getClass());
+      Assertions.assertEquals(ColumnTypeFilter.class, deserializedTable.getClass());
    }
 }

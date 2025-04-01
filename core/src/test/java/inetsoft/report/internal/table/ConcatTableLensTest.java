@@ -16,30 +16,21 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.report.filter;
+package inetsoft.report.internal.table;
 
-import inetsoft.report.internal.Util;
 import inetsoft.test.*;
-import inetsoft.uql.Condition;
 import inetsoft.uql.XTable;
-import inetsoft.uql.schema.XSchema;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 @SreeHome
-public class ConditionFilterTest {
+public class ConcatTableLensTest {
    @Test
    public void testSerialize() throws Exception {
-      final Condition condition = new Condition();
-      condition.setOperation(Condition.GREATER_THAN);
-      condition.addValue(2);
-      condition.setType(XSchema.INTEGER);
-      final ConditionGroup conditionGroup = new ConditionGroup();
-      conditionGroup.addCondition(1, condition, 0);
-
-      ConditionFilter originalTable = new ConditionFilter(XTableUtil.getDefaultTableLens(),
-                                                          conditionGroup);
+      ConcatTableLens originalTable = new ConcatTableLens(XTableUtil.getDefaultTableLens(),
+                                                          XTableUtil.getDefaultTableLens(),
+                                                          XTableUtil.getDefaultTableLens());
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
-      Assertions.assertEquals(ConditionFilter.class, deserializedTable.getClass());
+      Assertions.assertEquals(ConcatTableLens.class, deserializedTable.getClass());
    }
 }

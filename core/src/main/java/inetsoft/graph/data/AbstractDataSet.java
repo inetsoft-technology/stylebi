@@ -1666,7 +1666,7 @@ public abstract class AbstractDataSet implements DataSet {
    private transient Object2IntOpenHashMap<String> idxmap = new Object2IntOpenHashMap<>();
    private boolean disposed = false;
    private transient Boolean projected;
-   private transient long dataHash = Long.MIN_VALUE;
+   private long dataHash = Long.MIN_VALUE;
 
    private static final Logger LOG = LoggerFactory.getLogger(AbstractDataSet.class);
 }
