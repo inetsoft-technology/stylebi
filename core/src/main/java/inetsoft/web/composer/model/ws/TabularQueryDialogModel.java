@@ -20,10 +20,11 @@ package inetsoft.web.composer.model.ws;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.uql.tabular.TabularView;
 
+import java.io.Serializable;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TabularQueryDialogModel {
+public class TabularQueryDialogModel implements Serializable {
    public String getDataSource() {
       return dataSource;
    }
