@@ -21,7 +21,6 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
-import java.io.Serializable;
 import java.util.Optional;
 
 @Value.Immutable
