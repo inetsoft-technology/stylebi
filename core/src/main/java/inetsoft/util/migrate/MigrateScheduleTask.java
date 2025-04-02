@@ -154,40 +154,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             }
          }
          else if("Backup".equals(type)) {
-            NodeList childNodes = getChildNodes(item, "//XAsset");
-
-            if(childNodes != null) {
-               for(int j = 0; j < childNodes.getLength(); j++) {
-                  Element assetEle = (Element) childNodes.item(j);
-
-                  if(assetEle == null) {
-                     continue;
-                  }
-
-                  String assetType = assetEle.getAttribute("type");
-
-                  if(Tool.equals(assetType, ScheduleTaskAsset.SCHEDULETASK) ||
-                     Tool.equals(assetType, ViewsheetAsset.VIEWSHEET) ||
-                     Tool.equals(assetType, WorksheetAsset.WORKSHEET) ||
-                     Tool.equals(assetType, DashboardAsset.DASHBOARD))
-                  {
-                     String userAttribute = assetEle.getAttribute("user");
-
-                     if(!Tool.isEmptyString(userAttribute)) {
-                        IdentityID assetUser = IdentityID.getIdentityIDFromKey(assetEle.getAttribute("user"));
-
-                        if(getNewOrganization() == null) {
-                           assetUser.setName(getNewName());
-                        }
-                        else {
-                           assetUser.setOrgID(((Organization)getNewOrganization()).getId());
-                        }
-
-                        assetEle.setAttribute("user", assetUser.convertToKey());
-                     }
-                  }
-               }
-            }
+            processBackupAction(item);
          }
          else if("Batch".equals(type)) {
             processBatchAction(item);
@@ -206,6 +173,61 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             }
          }
       }
+   }
+
+   private void processBackupAction(Element element) {
+      NodeList childNodes = getChildNodes(element, "//XAsset");
+
+      for(int j = 0; j < childNodes.getLength(); j++) {
+         Element assetEle = (Element) childNodes.item(j);
+
+         if(assetEle == null) {
+            continue;
+         }
+
+         String assetType = assetEle.getAttribute("type");
+
+         if(Tool.equals(assetType, ScheduleTaskAsset.SCHEDULETASK) ||
+            Tool.equals(assetType, ViewsheetAsset.VIEWSHEET) ||
+            Tool.equals(assetType, WorksheetAsset.WORKSHEET) ||
+            Tool.equals(assetType, DashboardAsset.DASHBOARD))
+         {
+            syncIdentityAttribute(assetEle, "user");
+         }
+
+         if(Tool.equals(assetType, ScheduleTaskAsset.SCHEDULETASK)) {
+            String path = assetEle.getAttribute("path");
+            String npath = processTaskId(path);
+
+            if(!Tool.equals(path, npath)) {
+               assetEle.setAttribute("path", npath);
+            }
+         }
+      }
+   }
+
+   private String processTaskId(String taskId) {
+      if(Tool.isEmptyString(taskId)) {
+         return taskId;
+      }
+
+      String nOrgID = getNewOrganization() == null ? null : getNewOrganization().getOrganizationID();
+      String[] names = taskId.split(":");
+
+      if(names.length > 1 && names[0].indexOf(IdentityID.KEY_DELIMITER) > 0) {
+         String[] userNames = names[0].split(IdentityID.KEY_DELIMITER);
+
+         if(nOrgID == null) {
+            userNames[0] = getNewName();
+         }
+         else {
+            userNames[1] = nOrgID;
+         }
+
+         return Tool.buildString(userNames[0], IdentityID.KEY_DELIMITER, userNames[1], ":", names[1]);
+      }
+
+      return taskId;
    }
 
    private void processBatchAction(Element action) {
