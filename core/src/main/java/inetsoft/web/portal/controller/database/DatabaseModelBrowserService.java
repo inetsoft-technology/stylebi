@@ -358,9 +358,9 @@ public class DatabaseModelBrowserService {
       String oldFolder = logicalModel.getFolder();
       boolean isRoot = folder == null || "/".equals(folder) || "".equals(folder);
       String oldPath = database + XUtil.DATAMODEL_FOLDER_SPLITER + (oldFolder == null ? name :
-         oldFolder + "^" + name);
+         oldFolder + XUtil.DATAMODEL_PATH_SPLITER + name);
       String newPath = database + XUtil.DATAMODEL_FOLDER_SPLITER + (isRoot ? name :
-         folder + "^" + name);
+         folder + XUtil.DATAMODEL_PATH_SPLITER + name);
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
          ActionRecord.ACTION_NAME_MOVE, oldPath, ActionRecord.OBJECT_TYPE_LOGICAL_MODEL,
          null, ActionRecord.ACTION_STATUS_SUCCESS,
@@ -425,8 +425,9 @@ public class DatabaseModelBrowserService {
       boolean isRoot = folder == null || "/".equals(folder) || "".equals(folder);
       String database = dataModel.getDataSource();
       String oldPath = database + XUtil.DATAMODEL_FOLDER_SPLITER + (partition.getFolder() == null ? name :
-         partition.getFolder() + "^" + name);
-      String newPath = database + XUtil.DATAMODEL_FOLDER_SPLITER + (isRoot ? name : folder + "^" + name);
+         partition.getFolder() + XUtil.DATAMODEL_PATH_SPLITER + name);
+      String newPath = database + XUtil.DATAMODEL_FOLDER_SPLITER +
+         (isRoot ? name : folder + XUtil.DATAMODEL_PATH_SPLITER + name);
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
           ActionRecord.ACTION_NAME_MOVE, oldPath,ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW,
          null, ActionRecord.ACTION_STATUS_SUCCESS,
