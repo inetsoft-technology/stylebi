@@ -17,16 +17,9 @@
  */
 package inetsoft.web.composer.ws.dialog;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.execution.AssetQuerySandbox;
-import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.ws.VPMPrincipalDialogModel;
 import inetsoft.web.composer.ws.WorksheetController;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
-import inetsoft.web.composer.ws.command.SetVPMPrincipalCommand;
 import inetsoft.web.viewsheet.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,8 +33,9 @@ import java.security.Principal;
 @Controller
 public class VPMPrincipalDialogController extends WorksheetController {
    @Autowired
-   public VPMPrincipalDialogController(SecurityEngine engine) {
-      this.engine = engine;
+   public VPMPrincipalDialogController(VPMPrincipalDialogServiceProxy dialogServiceProxy)
+   {
+      this.dialogServiceProxy = dialogServiceProxy;
    }
 
    @GetMapping("api/composer/ws/dialog/vpm-principal-dialog/{runtimeId}")
@@ -50,38 +44,7 @@ public class VPMPrincipalDialogController extends WorksheetController {
       @PathVariable("runtimeId") String runtimeId, Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      final RuntimeWorksheet rws = getWorksheetEngine().getWorksheet(runtimeId, principal);
-      final boolean vpmSelectable = isVpmSelectable();
-      final VPMPrincipalDialogModel.Builder builder = VPMPrincipalDialogModel.builder()
-         .vpmSelectable(vpmSelectable);
-      final XPrincipal vpmUser = rws.getAssetQuerySandbox().getVPMUser();
-
-      if(vpmSelectable) {
-         String sessionType = "user";
-         String sessionId = null;
-
-         if(vpmUser != null) {
-            final IdentityID id = vpmUser.getIdentityID();
-
-            if("".equals(id.name)) {
-               final IdentityID[] roles = vpmUser.getRoles();
-               sessionType = "role";
-               sessionId = roles.length > 0 ? vpmUser.getRoles()[0].convertToKey() : null;
-            }
-            else {
-               sessionType = "user";
-               sessionId = id.convertToKey();
-            }
-         }
-
-         builder.sessionType(sessionType)
-            .sessionId(sessionId)
-            .users(engine.getUsers())
-            .roles(engine.getRoles());
-      }
-
-      builder.vpmEnabled(vpmUser != null);
-      return builder.build();
+      return dialogServiceProxy.getVPMPrincipalModel(runtimeId, principal);
    }
 
    @LoadingMask
@@ -96,43 +59,13 @@ public class VPMPrincipalDialogController extends WorksheetController {
          return;
       }
 
-      final RuntimeWorksheet rws = getRuntimeWorksheet(principal);
-      final AssetQuerySandbox box = rws.getAssetQuerySandbox();
-      SRPrincipal vpmPrincipal = null;
-
-      if(model.vpmEnabled()) {
-         IdentityID user = null;
-         IdentityID[] roles = null;
-         String[] groups = null;
-         String orgID = null;
-
-         if("user".equals(model.sessionType())) {
-            user = IdentityID.getIdentityIDFromKey(model.sessionId());
-            roles = XUtil.getUserRoles(new XPrincipal(user), true);
-            groups = XUtil.getUserGroups(new XPrincipal(user), true);
-            Principal user1 = new XPrincipal(user);
-            orgID = OrganizationManager.getInstance().getUserOrgId(user1);
-         }
-         else if("role".equals(model.sessionType())) {
-            roles = new IdentityID[] { IdentityID.getIdentityIDFromKey(model.sessionId()) };
-            groups = new String[0];
-         }
-
-         vpmPrincipal = new SRPrincipal(user, roles, groups, orgID, 0L);
-      }
-
-      box.setVPMUser(vpmPrincipal);
-
-      commandDispatcher.sendCommand(SetVPMPrincipalCommand.builder()
-                                       .hasVPMPrincipal(vpmPrincipal != null)
-                                       .build());
-      WorksheetEventUtil.refreshWorksheet(
-         rws, getWorksheetEngine(), false, true, commandDispatcher, principal);
+      dialogServiceProxy.setVPMPrincipalModel(super.getRuntimeId(), model,
+                                              commandDispatcher, principal);
    }
 
    private boolean isVpmSelectable() {
       return false;
    }
 
-   private final SecurityEngine engine;
+   private final VPMPrincipalDialogServiceProxy dialogServiceProxy;
 }
