@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.ws;
 
-public class VariableTableListDialogModel {
+import java.io.Serializable;
+
+public class VariableTableListDialogModel implements Serializable {
    public String getTableName() {
       return tableName;
    }

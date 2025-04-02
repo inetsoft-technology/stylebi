@@ -22,6 +22,7 @@ import inetsoft.web.composer.model.condition.ExpressionValueModel;
 import inetsoft.web.composer.model.vs.VariableListDialogModel;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -29,7 +30,7 @@ import java.util.List;
  * variable assembly dialog
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class VariableAssemblyDialogModel {
+public class VariableAssemblyDialogModel implements Serializable {
    public String getNewName() {
       return newName;
    }
