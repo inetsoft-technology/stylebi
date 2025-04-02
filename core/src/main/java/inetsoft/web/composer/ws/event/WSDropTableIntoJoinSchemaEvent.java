@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.ws.event;
 
-public class WSDropTableIntoJoinSchemaEvent {
+import java.io.Serializable;
+
+public class WSDropTableIntoJoinSchemaEvent implements Serializable {
 
    public String getJoinTable() {
       return joinTable;
