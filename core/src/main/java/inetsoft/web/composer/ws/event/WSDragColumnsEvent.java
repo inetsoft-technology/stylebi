@@ -20,9 +20,11 @@ package inetsoft.web.composer.ws.event;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.immutables.value.Value;
 
+import java.io.Serializable;
+
 @Value.Immutable
 @JsonDeserialize(builder = WSDragColumnsEvent.Builder.class)
-public abstract class WSDragColumnsEvent {
+public abstract class WSDragColumnsEvent implements Serializable {
    public abstract String tableName();
 
    public abstract double top();
