@@ -18,13 +18,13 @@
 package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
-import java.io.Serializable;
-
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(builder = WSDeleteDataEvent.Builder.class)
-public abstract class WSDeleteDataEvent implements Serializable {
+public abstract class WSDeleteDataEvent {
    public abstract String tableName();
 
    public abstract int index();
