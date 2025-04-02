@@ -18,14 +18,15 @@
 package inetsoft.report.lens.xnode;
 
 import inetsoft.mv.DFWrapper;
-import inetsoft.report.*;
+import inetsoft.report.TableDataDescriptor;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.Util;
-import inetsoft.report.internal.table.*;
+import inetsoft.report.internal.table.CachedTableLens;
+import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.report.lens.DefaultTableDataDescriptor;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
-import inetsoft.uql.avro.AvroXTable;
 import inetsoft.uql.jdbc.JDBCTableNode;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.util.XNodeTable;
@@ -727,12 +728,16 @@ public class XNodeTableLens extends AbstractTableLens
    }
 
    @Serial
-   private Object writeReplace() {
-      return new XTableLens(new AvroXTable(this));
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+
+      if(delegate != null) {
+         table = delegate.getTable();
+      }
    }
 
-   protected XTable table = null;
-   private transient XNodeTable delegate = null;
+   private transient XTable table = null;
+   private XNodeTable delegate = null;
    private SparseMatrix matrix = null;
    private boolean hmodified = false;
    private HashMap maxRowHintMap;

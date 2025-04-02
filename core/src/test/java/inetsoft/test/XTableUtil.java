@@ -21,7 +21,12 @@ import inetsoft.graph.data.DefaultDataSet;
 import inetsoft.report.TableLens;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.XTable;
+import inetsoft.uql.XTableNode;
+import inetsoft.uql.text.TextOutput;
+import inetsoft.uql.util.filereader.DelimitedFileReader;
 import org.junit.jupiter.api.Assertions;
+
+import java.io.ByteArrayInputStream;
 
 /**
  * Utility for printing, comparing tables.
@@ -82,5 +87,19 @@ public class XTableUtil {
 
    public static DefaultDataSet getDefaultDataSet() {
       return new DefaultDataSet(getDefaultData());
+   }
+
+   public static XTableNode getDefaultXTableNode() throws Exception {
+      String content =
+         "col1,col2,col3\n" +
+            "a,1,5.0\n" +
+            "b,3,10.0\n" +
+            "b,1,2.5\n" +
+            "c,1,3.0\n";
+      TextOutput toutput = new TextOutput();
+      DelimitedFileReader reader = new DelimitedFileReader();
+      return reader.read(new ByteArrayInputStream(content.getBytes()), "UTF8",
+                                     null, toutput, -1, 3, true,
+                                     ",", false);
    }
 }
