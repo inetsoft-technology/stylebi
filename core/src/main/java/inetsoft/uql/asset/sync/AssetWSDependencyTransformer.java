@@ -255,6 +255,10 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
    @Override
    protected void renameAutoDrill(Element doc, RenameInfo rinfo) {
+      if(rinfo.isTable()) {
+         return;
+      }
+
       NodeList list = getChildNodes(doc, ".//XDrillInfo/drillPath");
 
       for(int i = 0; i < list.getLength(); i++) {
@@ -262,10 +266,8 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
          String oname = rinfo.getOldName();
          String nname = rinfo.getNewName();
-         AssetEntry oentry = AssetEntry.createAssetEntry(rinfo.isWorksheet() ?
-                                                            "ws:" + oname : oname);
-         AssetEntry nentry = AssetEntry.createAssetEntry(rinfo.isWorksheet() ?
-                                                            "ws:" + nname : nname);
+         AssetEntry oentry = AssetEntry.createAssetEntry(oname);
+         AssetEntry nentry = AssetEntry.createAssetEntry(nname);
 
          if((Hyperlink.VIEWSHEET_LINK + "").equals(Tool.getAttribute(elem, "linkType"))) {
             replaceAttribute(elem, "link", oname, nname, true);
