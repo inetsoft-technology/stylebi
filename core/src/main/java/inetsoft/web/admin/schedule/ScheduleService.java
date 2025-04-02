@@ -403,17 +403,21 @@ public class ScheduleService {
       for(int i = 0; i < cnt; i++) {
          ScheduleAction action = task.getAction(i);
 
-         if(action instanceof IndividualAssetBackupAction) {
-            IndividualAssetBackupAction bAction = (IndividualAssetBackupAction) action;
+         if(!(action instanceof IndividualAssetBackupAction)) {
+            continue;
+         }
+            
+         IndividualAssetBackupAction bAction = (IndividualAssetBackupAction) action;
 
-            for(XAsset asset : bAction.getAssets()) {
-               if(asset instanceof ScheduleTaskAsset) {
-                  ScheduleTaskAsset taskAsset = (ScheduleTaskAsset) asset;
+         for(XAsset asset : bAction.getAssets()) {
+            if(!(asset instanceof ScheduleTaskAsset)) {
+               continue;
+            }
+               
+            ScheduleTaskAsset taskAsset = (ScheduleTaskAsset) asset;
 
-                  if(Tool.equals(currentOldTask, taskAsset.getTask())) {
-                     taskAsset.setTask(currentNewPath);
-                  }
-               }
+            if(Tool.equals(currentOldTask, taskAsset.getTask())) {
+               taskAsset.setTask(currentNewPath);
             }
          }
       }
