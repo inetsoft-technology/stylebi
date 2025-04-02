@@ -19,13 +19,13 @@ package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.uql.asset.AssetEntry;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
-import java.io.Serializable;
-
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(builder = WSInsertColumnsEvent.Builder.class)
-public abstract class WSInsertColumnsEvent implements Serializable {
+public abstract class WSInsertColumnsEvent {
    public abstract String name();
 
    public abstract int index();
