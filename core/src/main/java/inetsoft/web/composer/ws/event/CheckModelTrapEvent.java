@@ -19,9 +19,11 @@ package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.web.binding.model.AggregateInfoModel;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(as = ImmutableCheckModelTrapEvent.class)
 public interface CheckModelTrapEvent {
    String tableName();
