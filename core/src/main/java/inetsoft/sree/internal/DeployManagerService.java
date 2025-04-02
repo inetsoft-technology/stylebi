@@ -420,11 +420,6 @@ public class DeployManagerService {
       File file = FileSystemService.getInstance().getFile(filePath, "JarFileInfo.xml");
 
       if(!file.exists()) {
-         File dir = FileSystemService.getInstance().getFile(filePath);
-         LOG.error("Deploy dir: " + dir + " files: " + Arrays.toString(dir.list()));
-         LOG.error("Last deployment: delete: " + new java.util.Date(delete1) +
-            " load file: " + new java.util.Date(load1) +
-            " expand file: " + new java.util.Date(set1) + " : " + files1);
          throw new IOException("JarFileInfo.xml missing");
       }
 
@@ -436,12 +431,6 @@ public class DeployManagerService {
          return info;
       }
    }
-
-   // temp debugging for import error
-   private static long delete1 = 0;
-   private static long set1 = 0;
-   private static long load1 = 0;
-   private static String files1 = "";
 
    /**
     * Set the jar file to be imported.
@@ -467,10 +456,7 @@ public class DeployManagerService {
          "partialDeploymentJarUnzip" + (uniqueCacheFolder ? System.currentTimeMillis() : "");
       FileSystemService fileSystemService1 = FileSystemService.getInstance();
 
-      delete1 = System.currentTimeMillis();
       Tool.deleteFile(fileSystemService1.getFile(cacheFolder));
-      load1 = System.currentTimeMillis();
-      files1 = "";
 
       while((jentry = (JarEntry) jarIn.getNextEntry()) != null) {
          String ename = jentry.getName();
@@ -479,12 +465,6 @@ public class DeployManagerService {
          String outFileName = cacheFolder + File.separator + fname;
          names.put(fname, ename);
          File outFile = fileSystemService1.getFile(outFileName);
-
-         files1 = files1.isEmpty() ? ename : files1 + "," + ename;
-
-         if("JarFileInfo.xml".equals(ename)) {
-            set1 = System.currentTimeMillis();
-         }
 
          if(jentry.isDirectory()) {
             if(!outFile.mkdirs()) {

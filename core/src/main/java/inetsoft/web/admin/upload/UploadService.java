@@ -160,36 +160,19 @@ public class UploadService {
       info.blob = id + "/" + file.fileName();
 
       if(file.multipartFile() != null) {
-         FileSystemService fsService = SingletonManager.getInstance(FileSystemService.class);
-         File localFile = fsService.getCacheTempFile("upload-" + id, ".dat");
-
-         try {
-            info.filePath = fsService.getCacheFolder().toPath().toAbsolutePath()
-               .relativize(localFile.toPath().toAbsolutePath()).toString();
-
-            try(InputStream in = file.multipartFile().getInputStream();
-                BlobTransaction<Metadata> tx = blobStorage.beginTransaction();
-                OutputStream out = tx.newStream(info.blob, new Metadata()))
-            {
-               IOUtils.copy(in, out);
-               tx.commit();
-            }
-         }
-         catch(Exception e) {
-            throw new RuntimeException("Failed to upload file", e);
-         }
+         upload(id, info, Objects.requireNonNull(file.multipartFile())::getInputStream);
+      }
+      else if(file.fileData() != null) {
+         upload(id, info, () -> new ByteArrayInputStream(
+            Base64.getDecoder().decode(Objects.requireNonNull(file.fileData()).content())));
       }
       else if(file.file() != null) {
-         info.filePath = file.file().getAbsolutePath();
+         info.filePath = Objects.requireNonNull(file.file()).getAbsolutePath();
 
-         try(InputStream in = Files.newInputStream(file.file().toPath());
-             BlobTransaction<Metadata> tx = blobStorage.beginTransaction();
-             OutputStream out = tx.newStream(info.blob, new Metadata()))
-         {
-            IOUtils.copy(in, out);
-            tx.commit();
+         try {
+            store(info, () -> Files.newInputStream(Objects.requireNonNull(file.file()).toPath()));
          }
-         catch(Exception e) {
+         catch(IOException e) {
             throw new RuntimeException("Failed to upload file", e);
          }
       }
@@ -198,6 +181,30 @@ public class UploadService {
       }
 
       return info;
+   }
+
+   private void upload(String id, UploadFileInfo info, InputStreamSupplier input) {
+      FileSystemService fsService = SingletonManager.getInstance(FileSystemService.class);
+      File localFile = fsService.getCacheTempFile("upload-" + id, ".dat");
+
+      try {
+         info.filePath = fsService.getCacheFolder().toPath().toAbsolutePath()
+            .relativize(localFile.toPath().toAbsolutePath()).toString();
+         store(info, input);
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to upload file", e);
+      }
+   }
+
+   private void store(UploadFileInfo info, InputStreamSupplier input) throws IOException {
+      try(InputStream in = input.get();
+          BlobTransaction<Metadata> tx = blobStorage.beginTransaction();
+          OutputStream out = tx.newStream(info.blob, new Metadata()))
+      {
+         IOUtils.copy(in, out);
+         tx.commit();
+      }
    }
 
    private UploadedFile download(UploadFileInfo info) {
@@ -250,6 +257,11 @@ public class UploadService {
    @FunctionalInterface
    private interface LocalFileProcessor {
       void process(Path localFile) throws IOException;
+   }
+
+   @FunctionalInterface
+   private interface InputStreamSupplier {
+      InputStream get() throws IOException;
    }
 
    private static final class UploadFileInfo implements Serializable {
