@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { Tool } from "../../../../../shared/util/tool";
 import { StyleConstants } from "./style-constants";
 import { LineStyle } from "../data/line-style";
 import { NetTool } from "./net-tool";
@@ -97,7 +98,7 @@ import { NetTool } from "./net-tool";
          return "assets/shapes/" + shape;
       }
 
-      return "../api/composer/imageShape/" + shape + "?" + NetTool.xsrfToken();
+      return "../api/composer/imageShape/" + Tool.byteEncode(shape) + "?" + NetTool.xsrfToken();
    }
 
    /**
