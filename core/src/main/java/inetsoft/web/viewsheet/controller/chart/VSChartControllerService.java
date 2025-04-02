@@ -50,10 +50,12 @@ import java.util.function.ToIntFunction;
 public abstract class VSChartControllerService<T extends VSChartEvent>  {
    protected VSChartControllerService(
       CoreLifecycleService coreLifecycleService,
-      ViewsheetService viewsheetService)
+      ViewsheetService viewsheetService,
+      VSChartAreasServiceProxy vsChartAreasService)
    {
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
+      this.vsChartAreasService = vsChartAreasService;
    }
 
    /**
@@ -228,8 +230,7 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
                event.setChartName(priorAssembly);
 
                try {
-                  VSChartAreasController.refreshChartAreasModel(rvs.getID(), event,
-                                                                viewsheetService,
+                  vsChartAreasService.refreshChartAreasModel(rvs.getID(), event,
                                                                 dispatcher, principal);
                }
                catch(Exception e) {
@@ -264,6 +265,7 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
 
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
+   private final VSChartAreasServiceProxy vsChartAreasService;
    private static final Logger LOG = LoggerFactory.getLogger(VSChartControllerService.class);
 
 
