@@ -19,8 +19,10 @@
 package inetsoft.report.script.formula;
 
 import inetsoft.report.lens.*;
+import inetsoft.test.*;
 import inetsoft.uql.XTable;
 import inetsoft.uql.util.DefaultTable;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -31,6 +33,7 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SreeHome
 public class FormulaFunctionsTest {
    /**
     * test fixData with array
@@ -335,4 +338,26 @@ public class FormulaFunctionsTest {
       {"a", 3, new Date(2025 - 1900, 11, 31)},
       {"b", 2, new Date(2026 - 1900, 9, 20)}
    });
+
+   @Test
+   public void testSerializeUnion() throws Exception {
+      String options = "fields=col1:col1";
+      Object originalTable = FormulaFunctions.union(XTableUtil.getDefaultTableLens(),
+                                                    XTableUtil.getDefaultTableLens(),
+                                                    options);
+      Assertions.assertInstanceOf(XTable.class, originalTable);
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize((XTable) originalTable);
+      Assertions.assertInstanceOf(XTable.class, deserializedTable);
+   }
+
+   @Test
+   public void testSerializeIntersect() throws Exception {
+      String options = "fields=col1:col1";
+      Object originalTable = FormulaFunctions.intersect(XTableUtil.getDefaultTableLens(),
+                                                        XTableUtil.getDefaultTableLens(),
+                                                        options);
+      Assertions.assertInstanceOf(XTable.class, originalTable);
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize((XTable) originalTable);
+      Assertions.assertInstanceOf(XTable.class, deserializedTable);
+   }
 }

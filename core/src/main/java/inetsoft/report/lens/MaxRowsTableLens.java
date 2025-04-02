@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.*;
 
 /**
  * Max rows table lens returns limited table rows.
@@ -745,12 +746,18 @@ public class MaxRowsTableLens extends AbstractTableLens implements TableFilter,
       return type;
    }
 
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      rlock = new Object();
+   }
+
    private TableLens table;       // base table
    private int max;               // max row count
    private int rcount;            // row count
    private boolean cancelled;     // cancelled flag
 
-   private final transient Object rlock = new Object(); // table row lock
+   private transient Object rlock = new Object(); // table row lock
 
    private static final int DEFAULT_MAX_ROWS = 500000;
    private static final Logger LOG = LoggerFactory.getLogger(MaxRowsTableLens.class);

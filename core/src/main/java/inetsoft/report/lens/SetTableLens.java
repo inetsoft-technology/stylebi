@@ -34,10 +34,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
-import java.io.Serializable;
+import java.io.*;
 import java.text.Format;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -1206,6 +1206,12 @@ public abstract class SetTableLens
 
    protected int getSetRowCount() {
       return rows.size();
+   }
+
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      lastIdx = -1;
    }
 
    /**
