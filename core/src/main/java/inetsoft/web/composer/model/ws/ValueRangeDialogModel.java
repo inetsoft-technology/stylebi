@@ -19,7 +19,9 @@ package inetsoft.web.composer.model.ws;
 
 import inetsoft.web.binding.model.ExpressionRefModel;
 
-public class ValueRangeDialogModel {
+import java.io.Serializable;
+
+public class ValueRangeDialogModel implements Serializable {
    public String getOldName() {
       return oldName;
    }
