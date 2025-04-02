@@ -17,17 +17,7 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.WSModelTrapContext;
-import inetsoft.uql.ConditionList;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.erm.AbstractModelTrapContext;
-import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
-import inetsoft.web.binding.drm.DataRefModel;
-import inetsoft.web.binding.service.DataRefModelFactoryService;
-import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.composer.ws.assembly.ConditionTrapModel;
 import inetsoft.web.composer.ws.assembly.ConditionTrapValidator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +25,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.Arrays;
 
 /**
  * Controller for condition traps
@@ -43,11 +32,8 @@ import java.util.Arrays;
 @Controller
 public class ConditionTrapController extends WorksheetController {
    @Autowired
-   public ConditionTrapController(
-      DataRefModelFactoryService dataRefModelFactoryService,
-      ViewsheetService viewsheetService) {
-      this.dataRefModelFactoryService = dataRefModelFactoryService;
-      this.viewsheetService = viewsheetService;
+   public ConditionTrapController(ConditionTrapServiceProxy conditionTrapService) {
+      this.conditionTrapService = conditionTrapService;
    }
 
    /**
@@ -67,42 +53,8 @@ public class ConditionTrapController extends WorksheetController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
-      Worksheet ws = rws.getWorksheet();
-      TableAssembly table = (TableAssembly) ws.getAssembly(model.tableName());
-
-      if(table != null) {
-         SourceInfo sourceInfo = table instanceof BoundTableAssembly ?
-            ((BoundTableAssembly) table).getSourceInfo() : null;
-         ConditionList oldConditionList = ConditionUtil.fromModelToConditionList(
-            model.oldConditionList(), sourceInfo, viewsheetService, principal, rws);
-         ConditionList newConditionList = ConditionUtil.fromModelToConditionList(
-            model.newConditionList(), sourceInfo, viewsheetService, principal, rws);
-
-         TableAssembly otable = (TableAssembly) table.clone();
-         otable.setPreConditionList(oldConditionList);
-         WSModelTrapContext mtc =
-            new WSModelTrapContext(otable, ThreadContext.getContextPrincipal());
-
-         if(mtc.isCheckTrap()) {
-            TableAssembly ntable = (TableAssembly) table.clone();
-            ntable.setPreConditionList(newConditionList);
-            AbstractModelTrapContext.TrapInfo info = mtc.checkTrap(otable, ntable);
-            boolean trap = info.showWarning();
-            DataRefModel[] trapFields = Arrays.stream(mtc.getGrayedFields())
-               .map(this.dataRefModelFactoryService::createDataRefModel)
-               .toArray(DataRefModel[]::new);
-
-            return ConditionTrapValidator.builder()
-               .trapFields(trapFields)
-               .showTrap(trap)
-               .build();
-         }
-      }
-
-      return null;
+      return conditionTrapService.checkConditionTrap(runtimeId, model, principal);
    }
 
-   private final DataRefModelFactoryService dataRefModelFactoryService;
-   private final ViewsheetService viewsheetService;
+   private final ConditionTrapServiceProxy conditionTrapService;
 }
