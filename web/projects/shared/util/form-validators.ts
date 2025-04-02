@@ -139,6 +139,13 @@ export class FormValidators {
       return null;
    }
 
+   public static validLayoutName(control: UntypedFormControl): ValidationErrors {
+      const str = control.value.trim();
+      let invalidName: boolean = str && /[\/\\%^~<>*|?",]/g.test(str);
+
+      return invalidName ? {containsSpecialCharsForName: true} : null;
+   }
+
    public static invalidAssetItemName(control: UntypedFormControl): ValidationErrors {
       const str = control.value;
       let validName: boolean = str && /^[^\\\/"<'%^]+$/.test(str);
