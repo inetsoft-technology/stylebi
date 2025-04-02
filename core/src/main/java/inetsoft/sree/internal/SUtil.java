@@ -1351,6 +1351,55 @@ public class SUtil {
    }
 
    /**
+    * Gets the user editable authentication module for the specified security
+    * provider.
+    *
+    * @param security the security provider.
+    * @param user the user identityID.
+    *
+    * @return the editable authentication module or <code>null</code> if the
+    *         provider's authentication module is not editable.
+    */
+   public static EditableAuthenticationProvider
+      getEditableAuthenticationProvider(SecurityProvider security, IdentityID user)
+   {
+      if(security instanceof AbstractSecurityProvider) {
+         AuthenticationProvider auth = security.getAuthenticationProvider();
+
+         if(auth instanceof EditableAuthenticationProvider && auth.getUser(user) != null) {
+            return (EditableAuthenticationProvider) auth;
+         }
+
+         if(!(auth instanceof AuthenticationChain)) {
+            return null;
+         }
+
+         for(Object provider : ((AuthenticationChain) auth).getProviders()) {
+            if(provider instanceof EditableAuthenticationProvider eprovider &&
+               eprovider.getUser(user) != null)
+            {
+               return eprovider;
+            }
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Check whether the use is in the EditableAuthenticationProvider.
+    *
+    * @param security the security provider.
+    * @param user the user identityID.
+    *
+    * @return the editable authentication module or <code>null</code> if the
+    *         provider's authentication module is not editable.
+    */
+   public static boolean isEditableUser(SecurityProvider security, IdentityID user) {
+      return getEditableAuthenticationProvider(security, user) != null;
+   }
+
+   /**
     * Init the schedule listener to listen to the schedule server.
     */
    public static synchronized void initScheduleListener() {
