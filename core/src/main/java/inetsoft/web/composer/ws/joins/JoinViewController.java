@@ -17,42 +17,35 @@
  */
 package inetsoft.web.composer.ws.joins;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.WorksheetService;
 import inetsoft.web.composer.ws.WorksheetController;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.viewsheet.HandleAssetExceptions;
 import inetsoft.web.viewsheet.LoadingMask;
-import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
-
 import java.security.Principal;
 
 @Controller
 public class JoinViewController extends WorksheetController {
+
+   public JoinViewController(JoinViewServiceProxy joinViewServiceProxy)
+   {
+      this.joinViewServiceProxy = joinViewServiceProxy;
+   }
+
    @LoadingMask
    @MessageMapping("/composer/ws/join/open-join/")
    @HandleAssetExceptions
    public void openJoin(Principal principal) throws Exception {
-      final RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      rws.cloneWS();
+      joinViewServiceProxy.openJoin(super.getRuntimeId(), principal);
    }
 
    @LoadingMask
    @MessageMapping("/composer/ws/join/cancel-ws-join/")
    @HandleAssetExceptions
    public void cancelJoin(Principal principal, CommandDispatcher dispatcher) throws Exception {
-      final RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      WorksheetService engine = super.getWorksheetEngine();
-      rws.cancelJoin();
-      WorksheetEventUtil.refreshWorksheet(rws, engine, false, false, dispatcher, principal);
-
-      UpdateUndoStateCommand command = new UpdateUndoStateCommand();
-      command.setPoints(rws.size());
-      command.setCurrent(rws.getCurrent());
-      command.setSavePoint(rws.getSavePoint());
-      dispatcher.sendCommand(command);
+      joinViewServiceProxy.cancelJoin(super.getRuntimeId(), principal, dispatcher);
    }
+
+   private final JoinViewServiceProxy joinViewServiceProxy;
 }
