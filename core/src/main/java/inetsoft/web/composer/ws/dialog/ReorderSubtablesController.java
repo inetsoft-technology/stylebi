@@ -25,7 +25,7 @@ import inetsoft.web.composer.ws.WorksheetController;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.ReorderSubtablesEvent;
 import inetsoft.web.composer.ws.event.WSMergeAddJoinTableEvent;
-import inetsoft.web.composer.ws.joins.InnerJoinController;
+import inetsoft.web.composer.ws.joins.InnerJoinService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -154,7 +154,7 @@ public class ReorderSubtablesController extends WorksheetController {
 
          if(leftTableIndex >= 0 && rightTableIndex >= 0 && leftTableIndex > rightTableIndex) {
             for(TableAssemblyOperator.Operator op : top.getOperators()) {
-               InnerJoinController.flipOp(op);
+               InnerJoinService.flipOp(op);
             }
 
             ctable.setOperator(tables[1], tables[0], top);
