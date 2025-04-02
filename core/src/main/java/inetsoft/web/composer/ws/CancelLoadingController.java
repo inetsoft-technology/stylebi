@@ -30,6 +30,10 @@ import java.security.Principal;
 
 @Controller
 public class CancelLoadingController extends WorksheetController {
+   public CancelLoadingController(CancelLoadingServiceProxy cancelLoadingService) {
+      this.cancelLoadingService = cancelLoadingService;
+   }
+
    /**
     * From 12.2 LoadingMetaDataEvent.
     */
@@ -37,33 +41,9 @@ public class CancelLoadingController extends WorksheetController {
    public void cancelLoading(
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = getRuntimeWorksheet(principal);
-      AssetQuerySandbox box = rws.getAssetQuerySandbox();
-      Worksheet ws = rws.getWorksheet();
-
-      if(box == null || ws == null) {
-         return;
-      }
-
-      Assembly[] assemblies = ws.getAssemblies();
-
-      for(Assembly assembly : assemblies) {
-         if(assembly instanceof TableAssembly) {
-            TableAssembly table = (TableAssembly) assembly;
-            table.setEditMode(false);
-            table.setLiveData(false);
-            table.setRuntime(false);
-            table.setRuntimeSelected(false);
-         }
-      }
-
-      if(box.getQueryManager() != null) {
-         box.getQueryManager().cancel();
-      }
-
-      XFactory.getRepository().refreshMetaData();
-      box.reset();
-      WorksheetEventUtil.refreshWorksheet(
-         rws, getWorksheetEngine(), false, false, commandDispatcher, principal);
+      String runtimeId = getRuntimeId();
+      cancelLoadingService.cancelLoading(runtimeId, principal, commandDispatcher);
    }
+
+   private final CancelLoadingServiceProxy cancelLoadingService;
 }
