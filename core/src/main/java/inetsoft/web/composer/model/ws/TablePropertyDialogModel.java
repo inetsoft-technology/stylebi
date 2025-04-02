@@ -19,8 +19,10 @@ package inetsoft.web.composer.model.ws;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import java.io.Serializable;
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class TablePropertyDialogModel {
+public class TablePropertyDialogModel implements Serializable {
 
    public static int convertRows(Integer row) {
       if(row == null) {
