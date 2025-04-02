@@ -21,9 +21,11 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.uql.asset.AssetEntry;
 import org.immutables.value.Value;
 
+import java.io.Serializable;
+
 @Value.Immutable
 @JsonDeserialize(builder = WSInsertColumnsEvent.Builder.class)
-public abstract class WSInsertColumnsEvent {
+public abstract class WSInsertColumnsEvent implements Serializable {
    public abstract String name();
 
    public abstract int index();

@@ -20,11 +20,12 @@ package inetsoft.web.composer.ws.event;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
 
+import java.io.Serializable;
 import java.util.Optional;
 
 @Value.Immutable
 @JsonSerialize(as = ImmutableWSInsertColumnsEventValidator.class)
-public abstract class WSInsertColumnsEventValidator {
+public abstract class WSInsertColumnsEventValidator implements Serializable {
    public abstract Optional<String> trap();
 
    public static Builder builder() {

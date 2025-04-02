@@ -17,18 +17,11 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.report.internal.Util;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.asset.*;
 import inetsoft.util.Tool;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEvent;
 import inetsoft.web.composer.ws.event.WSInsertColumnsEventValidator;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -39,6 +32,10 @@ import java.security.Principal;
 
 @Controller
 public class InsertColumnsController extends WorksheetController {
+   public InsertColumnsController(InsertColumnsServiceProxy insertColumnsService) {
+      this.insertColumnsService = insertColumnsService;
+   }
+
    @RequestMapping(
       value = "/api/composer/worksheet/insert-columns/{runtimeId}",
       method = RequestMethod.POST)
@@ -49,11 +46,7 @@ public class InsertColumnsController extends WorksheetController {
       Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-
-      RuntimeWorksheet rws =
-         super.getWorksheetEngine().getWorksheet(runtimeId, principal);
-
-      return validateInsertColumns0(rws, event, principal, null);
+      return insertColumnsService.validateInsertColumns(runtimeId, event, principal);
    }
 
    @Undoable
@@ -63,34 +56,8 @@ public class InsertColumnsController extends WorksheetController {
       @Payload WSInsertColumnsEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-//      boolean confirmed = true;
-      String name = event.name();
-      TableAssembly assembly = (TableAssembly) ws.getAssembly(name);
-
-      if(assembly == null || !(assembly instanceof BoundTableAssembly)) {
-         return;
-      }
-
-      ColumnSelection columns = assembly.getColumnSelection();
-
-      if(columns.getAttributeCount() > Util.getOrganizationMaxColumn() ||
-         columns.getAttributeCount() + event.entries().length > Util.getOrganizationMaxColumn())
-      {
-         MessageCommand command = new MessageCommand();
-         command.setMessage(Util.getColumnLimitMessage());
-         command.setType(MessageCommand.Type.ERROR);
-         commandDispatcher.sendCommand(command);
-
-         return;
-      }
-
-      insertColumns0(name, event.index(), event.entries(), columns, rws, assembly);
-      WorksheetEventUtil.refreshColumnSelection(rws, name, true);
-      WorksheetEventUtil.loadTableData(rws, name, true, true);
-      WorksheetEventUtil.refreshAssembly(rws, name, true, commandDispatcher, principal);
-      WorksheetEventUtil.layout(rws, commandDispatcher);
-      AssetEventUtil.refreshTableLastModified(ws, name, true);
+      insertColumnsService.insertColumns(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private final InsertColumnsServiceProxy insertColumnsService;
 }
