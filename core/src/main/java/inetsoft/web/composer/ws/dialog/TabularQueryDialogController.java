@@ -17,47 +17,32 @@
  */
 package inetsoft.web.composer.ws.dialog;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.*;
-import inetsoft.uql.*;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.asset.internal.TabularTableAssemblyInfo;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.*;
-import inetsoft.util.log.LogContext;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.ws.*;
 import inetsoft.web.composer.ws.WorksheetController;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.viewsheet.*;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
 import java.io.File;
 import java.io.FileFilter;
 import java.nio.file.Files;
 import java.security.Principal;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Controller
 public class TabularQueryDialogController extends WorksheetController {
    @Autowired
-   public TabularQueryDialogController(SecurityEngine securityEngine, XRepository repository) {
-      this.securityEngine = securityEngine;
-      this.repository = repository;
+   public TabularQueryDialogController(TabularQueryDialogServiceProxy dialogServiceProxy) {
+      this.dialogServiceProxy = dialogServiceProxy;
    }
 
    @GetMapping("/api/composer/ws/tabular-query-dialog-model")
@@ -67,56 +52,7 @@ public class TabularQueryDialogController extends WorksheetController {
       @RequestParam(name = "dataSource", required = false) String dataSource,
       Principal principal) throws Exception
    {
-      Worksheet ws = getWorksheetEngine().getWorksheet(runtimeId, principal).getWorksheet();
-      TabularView tabularView = null;
-      final String queryType;
-
-      if(tableName != null) {
-         TabularTableAssembly assembly = (TabularTableAssembly) ws.getAssembly(tableName);
-         TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
-         TabularQuery query = info.getQuery();
-         LayoutCreator layoutCreator = new LayoutCreator();
-         tabularView = layoutCreator.createLayout(query);
-         queryType = query.getType();
-
-         if(query.getDataSource() != null) {
-            dataSource = query.getDataSource().getFullName();
-         }
-
-         List<String> records = getThreadRecords(runtimeId, tableName, principal);
-         TabularUtil.refreshView(tabularView, query, records, principal);
-      }
-      else {
-         queryType = "";
-      }
-
-      XDataSource currentDS = repository.getDataSource(dataSource);
-      String[] dataSourceNames = repository.getDataSourceFullNames();
-
-      List<String> datasources = Arrays.stream(dataSourceNames)
-         .sorted()
-         .filter(dsname -> {
-            try {
-               XDataSource ds = repository.getDataSource(dsname);
-               boolean sameClass = (currentDS != null && currentDS.getClass().equals(ds.getClass()));
-               boolean sameType = (currentDS == null && queryType.equals(ds.getType()));
-               return securityEngine.checkPermission(
-                  principal, ResourceType.DATA_SOURCE, dsname, ResourceAction.READ) &&
-                  (sameClass || sameType);
-            }
-            catch(Exception e) {
-               LOG.debug("Datasource not available for dialog {}", dsname, e);
-               return false;
-            }
-         })
-         .collect(Collectors.toList());
-
-      TabularQueryDialogModel model = new TabularQueryDialogModel();
-      model.setDataSource(dataSource);
-      model.setDataSources(datasources);
-      model.setTableName(tableName);
-      model.setTabularView(tabularView);
-      return model;
+      return dialogServiceProxy.getModel(runtimeId, tableName, dataSource, principal);
    }
 
    /**
@@ -141,7 +77,7 @@ public class TabularQueryDialogController extends WorksheetController {
             tabularView = layoutCreator.createLayout(query);
          }
 
-         List<String> records = getThreadRecords(runtimeId, tableName, principal);
+         List<String> records = dialogServiceProxy.getThreadRecords(runtimeId, tableName, principal);
          TabularUtil.refreshView(tabularView, query, records, principal);
       }
 
@@ -231,81 +167,7 @@ public class TabularQueryDialogController extends WorksheetController {
       Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      String dataSource = model.getDataSource();
-      TabularView tabularView = model.getTabularView();
-      String name = model.getTableName();
-
-      RuntimeWorksheet rws = getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      TabularTableAssembly assembly = name == null ? null :
-         (TabularTableAssembly) ws.getAssembly(name);
-
-      if(assembly == null) {
-         name = model.getTableName() == null ?
-            AssetUtil.getNextName(ws, AbstractSheet.TABLE_ASSET) : model.getTableName();
-         assembly = new TabularTableAssembly(ws, name);
-         AssetEventUtil.adjustAssemblyPosition(assembly, ws);
-         TabularQuery query = TabularUtil.createQuery(dataSource);
-         List<String> records = getThreadRecords(rws.getID(), name, principal);
-         TabularUtil.refreshView(tabularView, query, records, principal);
-         Exception ex = null;
-
-         try {
-            setUpTable(assembly, query, dataSource, rws);
-         }
-         catch(Exception ex0) {
-            ex = ex0;
-         }
-
-         ws.addAssembly(assembly);
-         WorksheetEventUtil.createAssembly(rws, assembly, commandDispatcher, principal);
-
-         if(ex == null) {
-            WorksheetEventUtil.loadTableData(rws, name, true, true);
-         }
-
-         WorksheetEventUtil.refreshAssembly(rws, name, true, commandDispatcher, principal);
-         WorksheetEventUtil.layout(rws, commandDispatcher);
-      }
-      else {
-         TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
-         TabularQuery query = info.getQuery();
-         XDataSource ds = null;
-
-         try {
-            if(dataSource != null) {
-               ds = XFactory.getRepository().getDataSource(dataSource);
-            }
-         }
-         catch(Exception e) {
-            LOG.warn("Unable to update query datasource: " + query.getName(), e);
-         }
-
-         if(query.getDataSource() == null || ds != null &&
-            (!query.getDataSource().getFullName().equals(ds.getFullName()) ||
-               ds.getLastModified() > query.getDataSource().getLastModified()))
-         {
-            query.setDataSource(ds);
-         }
-
-         List<String> records = getThreadRecords(rws.getID(), model.getTableName(), principal);
-         TabularUtil.refreshView(tabularView, query, records, principal);
-         setUpTable(assembly, query, dataSource, rws);
-         WorksheetEventUtil.loadTableData(rws, name, true, true);
-         WorksheetEventUtil.refreshAssembly(rws, name, true, commandDispatcher, principal);
-      }
-
-      WorksheetEventUtil.refreshColumnSelection(rws, name, true);
-      AssetEventUtil.refreshTableLastModified(ws, name, true);
-      WorksheetEventUtil.refreshVariables(rws, super.getWorksheetEngine(), name, commandDispatcher);
-
-      final UserMessage msg = CoreTool.getUserMessage();
-
-      if(msg != null) {
-         final MessageCommand messageCommand = MessageCommand.fromUserMessage(msg);
-         messageCommand.setAssemblyName(assembly.getName());
-         commandDispatcher.sendCommand(messageCommand);
-      }
+      dialogServiceProxy.setModel(super.getRuntimeId(), model, principal, commandDispatcher);
    }
 
    /**
@@ -444,18 +306,6 @@ public class TabularQueryDialogController extends WorksheetController {
       return rootNodeBuilder.build();
    }
 
-   private void setUpTable(TabularTableAssembly assembly,
-      TabularQuery query, String dataSource, RuntimeWorksheet rws) throws Exception
-   {
-      TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
-      info.setQuery(query);
-      SourceInfo sinfo = new SourceInfo(SourceInfo.DATASOURCE, dataSource, dataSource);
-      info.setSourceInfo(sinfo);
-      assembly.loadColumnSelection
-         (rws.getAssetQuerySandbox().getVariableTable(), true,
-          rws.getAssetQuerySandbox().getQueryManager());
-   }
-
    /**
     * Gets the view that has the given property name
     *
@@ -479,36 +329,5 @@ public class TabularQueryDialogController extends WorksheetController {
       return null;
    }
 
-   private ArrayList<String> getThreadRecords(String runtimeId, String tableName,
-                                              Principal principal) throws Exception
-   {
-      ArrayList<String> records = new ArrayList<>();
-
-      if(Thread.currentThread() instanceof GroupedThread) {
-         GroupedThread parentThread = (GroupedThread) Thread.currentThread();
-
-         for(Object record : parentThread.getRecords()) {
-            if(record instanceof String) {
-               records.add((String) record);
-            }
-         }
-      }
-      else if(runtimeId != null){
-         RuntimeWorksheet rws = getWorksheetEngine().getWorksheet(runtimeId, principal);
-
-         records.add(LogContext.WORKSHEET.getRecord(rws.getEntry().getPath()));
-
-         if(tableName != null) {
-            records.add(LogContext.ASSEMBLY.getRecord(tableName));
-         }
-
-         records.add(LogContext.DASHBOARD.getRecord(rws.getEntry().getPath()));
-      }
-
-      return records;
-   }
-
-   private final SecurityEngine securityEngine;
-   private final XRepository repository;
-   private static final Logger LOG = LoggerFactory.getLogger(TabularQueryDialogController.class);
+   private TabularQueryDialogServiceProxy dialogServiceProxy;
 }
