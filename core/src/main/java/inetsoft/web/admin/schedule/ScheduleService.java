@@ -406,7 +406,7 @@ public class ScheduleService {
          if(!(action instanceof IndividualAssetBackupAction)) {
             continue;
          }
-            
+         
          IndividualAssetBackupAction bAction = (IndividualAssetBackupAction) action;
 
          for(XAsset asset : bAction.getAssets()) {
