@@ -114,27 +114,6 @@ public class TabularQueryDialogService extends WorksheetControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public TabularView refreshTabularView(@ClusterProxyKey String runtimeId, TabularView tabularView,
-                                         String dataSource, String tableName, Principal principal,
-                                         String sessionId) throws Exception
-   {
-      TabularUtil.setSessionId(sessionId);
-      TabularQuery query = TabularUtil.createQuery(dataSource);
-
-      if(query != null) {
-         if(tabularView == null) {
-            LayoutCreator layoutCreator = new LayoutCreator();
-            tabularView = layoutCreator.createLayout(query);
-         }
-
-         List<String> records = getThreadRecords(runtimeId, tableName, principal);
-         TabularUtil.refreshView(tabularView, query, records, principal);
-      }
-
-      return tabularView;
-   }
-
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void setModel(@ClusterProxyKey String runtimeId, TabularQueryDialogModel model,
                         Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
@@ -217,19 +196,8 @@ public class TabularQueryDialogService extends WorksheetControllerService {
       return null;
    }
 
-   private void setUpTable(TabularTableAssembly assembly,
-                           TabularQuery query, String dataSource, RuntimeWorksheet rws) throws Exception
-   {
-      TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
-      info.setQuery(query);
-      SourceInfo sinfo = new SourceInfo(SourceInfo.DATASOURCE, dataSource, dataSource);
-      info.setSourceInfo(sinfo);
-      assembly.loadColumnSelection
-         (rws.getAssetQuerySandbox().getVariableTable(), true,
-          rws.getAssetQuerySandbox().getQueryManager());
-   }
-
-   private ArrayList<String> getThreadRecords(String runtimeId, String tableName,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public List<String> getThreadRecords(@ClusterProxyKey String runtimeId, String tableName,
                                               Principal principal) throws Exception
    {
       ArrayList<String> records = new ArrayList<>();
@@ -256,6 +224,18 @@ public class TabularQueryDialogService extends WorksheetControllerService {
       }
 
       return records;
+   }
+
+   private void setUpTable(TabularTableAssembly assembly,
+                           TabularQuery query, String dataSource, RuntimeWorksheet rws) throws Exception
+   {
+      TabularTableAssemblyInfo info = (TabularTableAssemblyInfo) assembly.getTableInfo();
+      info.setQuery(query);
+      SourceInfo sinfo = new SourceInfo(SourceInfo.DATASOURCE, dataSource, dataSource);
+      info.setSourceInfo(sinfo);
+      assembly.loadColumnSelection
+         (rws.getAssetQuerySandbox().getVariableTable(), true,
+          rws.getAssetQuerySandbox().getQueryManager());
    }
 
    private final SecurityEngine securityEngine;

@@ -68,8 +68,20 @@ public class TabularQueryDialogController extends WorksheetController {
                    @RequestParam(name = "tableName", required = false) String tableName,
                    Principal principal, HttpServletRequest request) throws Exception
    {
-      return dialogServiceProxy.refreshTabularView(runtimeId, tabularView, dataSource,
-                                                        tableName, principal, request.getSession().getId());
+      TabularUtil.setSessionId(request.getSession().getId());
+      TabularQuery query = TabularUtil.createQuery(dataSource);
+
+      if(query != null) {
+         if(tabularView == null) {
+            LayoutCreator layoutCreator = new LayoutCreator();
+            tabularView = layoutCreator.createLayout(query);
+         }
+
+         List<String> records = dialogServiceProxy.getThreadRecords(runtimeId, tableName, principal);
+         TabularUtil.refreshView(tabularView, query, records, principal);
+      }
+
+      return tabularView;
    }
 
    @PostMapping("/api/composer/ws/tabular-query-dialog/oauth-params")
