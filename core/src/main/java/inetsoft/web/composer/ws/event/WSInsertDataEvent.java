@@ -18,13 +18,13 @@
 package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
-import java.io.Serializable;
-
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(builder = WSInsertDataEvent.Builder.class)
-public abstract class WSInsertDataEvent implements Serializable {
+public abstract class WSInsertDataEvent {
    public abstract String tableName();
 
    public abstract String type();
