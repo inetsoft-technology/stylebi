@@ -21,7 +21,9 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.ConditionExpression;
 
-public class GroupingAssemblyDialogModel {
+import java.io.Serializable;
+
+public class GroupingAssemblyDialogModel implements Serializable {
    public String getNewName() {
       return newName;
    }
