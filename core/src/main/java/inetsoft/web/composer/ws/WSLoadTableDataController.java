@@ -21,7 +21,6 @@ import inetsoft.web.composer.ws.event.WSLoadTableDataEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
-
 import java.security.Principal;
 
 @Controller
@@ -31,6 +30,7 @@ public class WSLoadTableDataController extends WorksheetController {
    {
       this.wsLoadTableDataServiceProxy = wsLoadTableDataServiceProxy;
    }
+
    /**
     * Load WS table data
     */
@@ -40,9 +40,8 @@ public class WSLoadTableDataController extends WorksheetController {
       @Payload WSLoadTableDataEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      wsLoadTableDataServiceProxy.loadWSTableData(getRuntimeId(), assemblyName, event,
-                                                  principal, commandDispatcher);
+     wsLoadTableDataServiceProxy.loadWSTableData(getRuntimeId(), assemblyName, event, principal, commandDispatcher);
    }
 
-   private WSLoadTableDataServiceProxy wsLoadTableDataServiceProxy;
+   private final WSLoadTableDataServiceProxy wsLoadTableDataServiceProxy;
 }
