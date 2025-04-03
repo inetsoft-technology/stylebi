@@ -17,11 +17,6 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.uql.asset.WSAssembly;
-import inetsoft.uql.asset.Worksheet;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSRenameAssemblyEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -34,6 +29,12 @@ import java.security.Principal;
 
 @Controller
 public class WSRenameAssemblyController extends WorksheetController {
+
+   public WSRenameAssemblyController(WSRenameAssemblyServiceProxy serviceProxy)
+   {
+      this.serviceProxy = serviceProxy;
+   }
+
    @Undoable
    @LoadingMask(true)
    @MessageMapping("composer/worksheet/rename-assembly")
@@ -41,14 +42,8 @@ public class WSRenameAssemblyController extends WorksheetController {
       @Payload WSRenameAssemblyEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      WSAssembly assembly = (WSAssembly) ws.getAssembly(event.oldName());
-
-      if(assembly != null) {
-         WorksheetEventUtil.refreshAssembly(
-            rws, event.newName(), event.oldName(), true, commandDispatcher, principal);
-         AssetEventUtil.refreshTableLastModified(ws, event.newName(), true);
-      }
+      serviceProxy.renameAssembly(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private final WSRenameAssemblyServiceProxy serviceProxy;
 }
