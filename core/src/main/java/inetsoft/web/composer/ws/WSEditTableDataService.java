@@ -234,7 +234,7 @@ public class WSEditTableDataService extends WorksheetControllerService {
    }
 
    private static final Logger LOG =
-      LoggerFactory.getLogger(WSEditTableDataController.class);
+      LoggerFactory.getLogger(WSEditTableDataService.class);
    private final Map<WSEditTableDataKeyTuple, WSEditTableDataQueue<WSEditTableDataEvent>> queueMap = new HashMap<>();
 
 }
