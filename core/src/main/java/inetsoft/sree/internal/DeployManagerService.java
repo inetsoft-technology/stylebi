@@ -420,11 +420,6 @@ public class DeployManagerService {
       File file = FileSystemService.getInstance().getFile(filePath, "JarFileInfo.xml");
 
       if(!file.exists()) {
-         File dir = FileSystemService.getInstance().getFile(filePath);
-         LOG.error("Deploy dir: " + dir + " files: " + Arrays.toString(dir.list()));
-         LOG.error("Last deployment: delete: " + new java.util.Date(delete1) +
-            " load file: " + new java.util.Date(load1) +
-            " expand file: " + new java.util.Date(set1) + " : " + files1);
          throw new IOException("JarFileInfo.xml missing");
       }
 
@@ -436,12 +431,6 @@ public class DeployManagerService {
          return info;
       }
    }
-
-   // temp debugging for import error
-   private static long delete1 = 0;
-   private static long set1 = 0;
-   private static long load1 = 0;
-   private static String files1 = "";
 
    /**
     * Set the jar file to be imported.
@@ -467,10 +456,7 @@ public class DeployManagerService {
          "partialDeploymentJarUnzip" + (uniqueCacheFolder ? System.currentTimeMillis() : "");
       FileSystemService fileSystemService1 = FileSystemService.getInstance();
 
-      delete1 = System.currentTimeMillis();
       Tool.deleteFile(fileSystemService1.getFile(cacheFolder));
-      load1 = System.currentTimeMillis();
-      files1 = "";
 
       while((jentry = (JarEntry) jarIn.getNextEntry()) != null) {
          String ename = jentry.getName();
@@ -480,12 +466,6 @@ public class DeployManagerService {
          names.put(fname, ename);
          File outFile = fileSystemService1.getFile(outFileName);
 
-         files1 = files1.isEmpty() ? ename : files1 + "," + ename;
-
-         if("JarFileInfo.xml".equals(ename)) {
-            set1 = System.currentTimeMillis();
-         }
-
          if(jentry.isDirectory()) {
             if(!outFile.mkdirs()) {
                LOG.warn("Failed to create temporary directory: " + outFile);
@@ -494,14 +474,13 @@ public class DeployManagerService {
          else {
             if(!outFile.getParentFile().exists()) {
                if(!outFile.getParentFile().mkdirs()) {
-                  LOG.warn(
-                     "Failed to create temporary directory: " + outFile.getParentFile());
+                  LOG.warn("Failed to create temporary directory: {}", outFile.getParentFile());
                }
             }
 
             if(!outFile.exists()) {
                if(!outFile.createNewFile()) {
-                  LOG.warn("Failed to create temporary file: " + outFile);
+                  LOG.warn("Failed to create temporary file: {}", outFile);
                }
 
                // wait 100 minutes for user to import files
@@ -603,7 +582,7 @@ public class DeployManagerService {
             failedList, targetFolderInfo, ignoreUserAssets);
          Set<String> ignoredQueries = info.getIgnoredQueries();
 
-         if(ignoredQueries.size() > 0) {
+         if(!ignoredQueries.isEmpty()) {
             Catalog catalog = Catalog.getCatalog();
             String queries = String.join(", ", ignoredQueries);
             String msg = ignoredQueries.size() > 1 ? "em.import.ignoredQueries" : "em.import.ignoredQuery";
@@ -710,10 +689,9 @@ public class DeployManagerService {
 
             List<File> unImportedFile = new ArrayList<>();
 
-            for(int i = 0; i < files.length; i++) {
-               actionRecord = SUtil.getActionRecord(principal,
-                  ActionRecord.ACTION_NAME_IMPORT, null, null);
-               File file = files[i];
+            for(File file : files) {
+               actionRecord = SUtil.getActionRecord(
+                  principal, ActionRecord.ACTION_NAME_IMPORT, null, null);
 
                if(file == null) {
                   continue;
@@ -753,8 +731,8 @@ public class DeployManagerService {
 
                if(asset == null) {
                   importAsset(file, null, ignoreSub, failedList, embeddedTables, ignoreAssets,
-                     vss, overwriting, actionRecord, info, desktop, config, space,
-                     principal);
+                              vss, overwriting, actionRecord, info, desktop, config, space,
+                              principal);
                   continue;
                }
 
@@ -791,7 +769,7 @@ public class DeployManagerService {
 
                // change folder and auto rename
                XAsset nAsset = getChangeRootFolderAsset(asset, toFolder, importedNewObjs,
-                  commonPrefixFolder, true, dependencies, changeAssetMap, false);
+                                                        commonPrefixFolder, true, dependencies, changeAssetMap, false);
 
                if(!Tool.equals(asset, nAsset)) {
                   UpdateDependencyHandler.replaceDataSourceInfo(file, asset, nAsset);
@@ -815,11 +793,11 @@ public class DeployManagerService {
                }
             }
 
-            for(int i = 0; i < unImportedFile.size(); i++) {
-               importAsset(unImportedFile.get(i), null, ignoreSub, failedList,
-                  embeddedTables, ignoreAssets,
-                  vss, overwriting, actionRecord, info, desktop, config, space,
-                  principal);
+            for(File file : unImportedFile) {
+               importAsset(file, null, ignoreSub, failedList,
+                           embeddedTables, ignoreAssets,
+                           vss, overwriting, actionRecord, info, desktop, config, space,
+                           principal);
             }
          }
          finally {
@@ -862,10 +840,10 @@ public class DeployManagerService {
          Map<Integer, List<RenameInfo>> typeInfos =
             createRenameInfos(supportEntry, dependencies, changeAssetMap);
 
-         if(typeInfos.size() > 0) {
-            typeInfos.entrySet().forEach(entry -> {
+         if(!typeInfos.isEmpty()) {
+            typeInfos.forEach((key, value) -> {
                RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
-               renameDependencyInfo.setRenameInfo(supportEntry, entry.getValue());
+               renameDependencyInfo.setRenameInfo(supportEntry, value);
 
                if(renameDependencyInfo.getAssetObjects() != null &&
                   renameDependencyInfo.getAssetObjects().length > 0)
@@ -914,9 +892,7 @@ public class DeployManagerService {
          boolean isTaskAsset = supportEntry instanceof AssetEntry && ((AssetEntry) supportEntry).isScheduleTask();
          boolean taskDependencyExtend = false;
 
-         if(changedNewEntry == null && isTaskAsset && dependency instanceof AssetEntry) {
-            AssetEntry dAssetEntry = (AssetEntry) dependency;
-
+         if(changedNewEntry == null && isTaskAsset && dependency instanceof AssetEntry dAssetEntry) {
             if(dAssetEntry.isPartition()) {
                changedNewEntry = changeAssetMap.get(new AssetEntry(dAssetEntry.getScope(),
                   AssetEntry.Type.EXTENDED_PARTITION, dAssetEntry.getPath(), dAssetEntry.getUser()));
@@ -952,8 +928,7 @@ public class DeployManagerService {
          List<Integer> types = new ArrayList<>();
          boolean isCubeDs = false;
 
-         if(dependency instanceof AssetEntry) {
-            AssetEntry assetEntry = (AssetEntry) dependency;
+         if(dependency instanceof AssetEntry assetEntry) {
             isCubeDs = "true".equals(assetEntry.getProperty("isCube")) && !assetEntry.isWorksheet();
 
             if(assetEntry.isWorksheet()) {
@@ -980,7 +955,7 @@ public class DeployManagerService {
                }
             }
             else if(assetEntry.isDataSource()) {
-               String newPath = ((AssetEntry) changedNewEntry).getPath();
+               String newPath = ((AssetEntry) Objects.requireNonNull(changedNewEntry)).getPath();
                boolean isQuery = supportEntry instanceof AssetEntry &&
                   ((AssetEntry) supportEntry).isQuery();
                int type = RenameInfo.DATA_SOURCE | RenameInfo.DATA_SOURCE_FOLDER;
@@ -1031,15 +1006,14 @@ public class DeployManagerService {
             }
          }
 
-         if(types.size() == 0) {
+         if(types.isEmpty()) {
             continue;
          }
 
          for(Integer type : types) {
-            if(changedNewEntry instanceof AssetEntry) {
+            if(changedNewEntry instanceof AssetEntry changedNewEntryAsset) {
                RenameInfo renameInfo = null;
                AssetEntry dependencyAsset = (AssetEntry) dependency;
-               AssetEntry changedNewEntryAsset = (AssetEntry) changedNewEntry;
 
                if(physicalTableOrQuery != null) {
                   if((type & RenameInfo.DATA_SOURCE_FOLDER) == RenameInfo.DATA_SOURCE_FOLDER)
@@ -1122,10 +1096,10 @@ public class DeployManagerService {
       List<AssetObject> sortedObjects = new ArrayList<>();
       List<AssetObject> causeCycleObjects = new ArrayList<>();
 
-      while(graph.getAllNodes() != null && graph.getAllNodes().size() > 0) {
+      while(graph.getAllNodes() != null && !graph.getAllNodes().isEmpty()) {
          List<TopologicalSortGraph<AssetObject>.GraphNode> graphNodes = graph.getLeafNodes();
 
-         if(graphNodes.size() == 0 && graph.getAllNodes().size() > 0) {
+         if(graphNodes.isEmpty() && !graph.getAllNodes().isEmpty()) {
             // all nodes is a cycle, remove a node to damage the cycle.
             TopologicalSortGraph<AssetObject>.GraphNode node = graph.getNode(graphNode -> {
                AssetObject data = graphNode.getData();
@@ -1211,10 +1185,9 @@ public class DeployManagerService {
       Catalog catalog = Catalog.getCatalog();
 
       // templates or sub-reports or report files
-      if(filename != null && filename.startsWith("__")) {
+      if(filename.startsWith("__")) {
          String folder = null;
          String fname = null;
-         boolean isSubReport = false;
 
          if(filename.startsWith("__SUBREPORT_")) {
             String checkName = filename.substring(12, filename.length() - 4);
@@ -1248,7 +1221,6 @@ public class DeployManagerService {
                folder = "templates" + File.separator + "subreports";
             }
 
-            isSubReport = true;
          }
          else if(filename.startsWith("__TEMPLATE_MYREPORTS_'")) {
             fname = filename.substring("__TEMPLATE_MYREPORTS_'".length());
@@ -1295,7 +1267,7 @@ public class DeployManagerService {
             }
          }
 
-         if(folder == null || fname == null) {
+         if(folder == null) {
             String msg = catalog.getString("Could not import report assets, the user template {} " +
                "path is incorrect: ", filename);
             failedList.add(msg);
@@ -1386,7 +1358,7 @@ public class DeployManagerService {
          }
 
          XAsset asset = importAsAsset != null ? importAsAsset : XAssetUtil.createXAsset(identifier);
-         String path = asset.getPath();
+         String path = Objects.requireNonNull(asset).getPath();
 
          if(isIgnoreAsset(asset, ignoreAssets)) {
             return false;
@@ -1396,7 +1368,7 @@ public class DeployManagerService {
             path = asset.getPath();
          }
 
-         if(asset == null || !type.equals(asset.getType())) {
+         if(!type.equals(asset.getType())) {
             String msg = catalog.getString("em.import.file.failed.invalidFile", path);
             failedList.add(msg);
             LOG.warn(msg);
@@ -1452,8 +1424,13 @@ public class DeployManagerService {
                   if(!SecurityEngine.getSecurity().checkPermission(
                      principal, resource.getType(), resource.getPath(), action))
                   {
-                     String assetName = asset.getType().equals(DeviceAsset.DEVICE) ?
-                        ((DeviceAsset) asset).getDeviceInfo().getName() : path;
+                     String assetName = null;
+
+                     if(asset instanceof DeviceAsset) {
+                        assetName = asset.getType().equals(DeviceAsset.DEVICE) ?
+                           ((DeviceAsset) asset).getDeviceInfo().getName() : path;
+                     }
+
                      String msg =  catalog.getString("em.import.file.failed.noPermission",
                         asset.getType() + " " + assetName);
                      failedList.add(msg);
@@ -1526,8 +1503,7 @@ public class DeployManagerService {
                }
             }
 
-            if(asset instanceof VirtualPrivateModelAsset) {
-               VirtualPrivateModelAsset vpm = (VirtualPrivateModelAsset) asset;
+            if(asset instanceof VirtualPrivateModelAsset vpm) {
                String ds = vpm.getDataSource();
 
                try(InputStream input2 = new FileInputStream(file)) {
@@ -1650,7 +1626,7 @@ public class DeployManagerService {
       return true;
    }
 
-   private static String getIdleSrtFileNameInSpace(String folder, String fname) throws Exception {
+   private static String getIdleSrtFileNameInSpace(String folder, String fname) {
       String targetPath = SreeEnv.getProperty("sree.home") + File.separator + folder;
 
       if(fname.endsWith(".srt")) {
@@ -1686,8 +1662,8 @@ public class DeployManagerService {
 
                while(importedNewObjs.contains(nIdentifier)) {
                   String path = asset.getPath();
-                  String autoRename = originalNewIdentifier.replace("^" + path,
-                     "^" + path + "_" + renameIndex);
+                  String autoRename = Objects.requireNonNull(originalNewIdentifier)
+                     .replace("^" + path, "^" + path + "_" + renameIndex);
 
                   if(Tool.equals(autoRename, nIdentifier)) {
                      return asset;
@@ -1829,10 +1805,9 @@ public class DeployManagerService {
       int idx = path.lastIndexOf('/');
       String assetName = idx >= 0 ? path.substring(idx + 1) : path;
 
-      if(xAsset instanceof XDataSourceAsset) {
+      if(xAsset instanceof XDataSourceAsset dasset) {
          DataSourceRegistry registry = DataSourceRegistry.getRegistry();
          String[] existNames = registry.getDataSourceNames();
-         XDataSourceAsset dasset = (XDataSourceAsset) xAsset;
          String existDsFullName = dasset.getDataSourceName(dasset.getDatasource());
 
          // not same folder, auto rename avoid relocate the exist one.
@@ -1932,8 +1907,7 @@ public class DeployManagerService {
          return ((DeviceAsset) asset).getDeviceInfo() != null ? ((DeviceAsset) asset).getDeviceInfo().getName() : null;
       }
 
-      if(asset instanceof VSAutoSaveAsset) {
-         VSAutoSaveAsset autoSaveAsset = (VSAutoSaveAsset) asset;
+      if(asset instanceof VSAutoSaveAsset autoSaveAsset) {
 
          String path = autoSaveAsset.getPath();
 

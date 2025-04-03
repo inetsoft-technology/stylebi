@@ -19,6 +19,7 @@ import { SelectedAssetModel } from "./selected-asset-model";
 import { RequiredAssetModel } from "./required-asset-model";
 
 export interface ExportedAssetsModel {
+   importId?: string;
    newerVersion: boolean;
    name?: string;
    dateFormat?: string;

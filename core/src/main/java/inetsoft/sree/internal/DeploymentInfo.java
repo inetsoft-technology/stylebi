@@ -49,7 +49,7 @@ public class DeploymentInfo {
       onames = processDcNames(onames);
 
       if(!jarInfo.isJarFileTransformed()) {
-         processDedendencies();
+         processDependencies();
       }
 
       processNames(onames);
@@ -104,9 +104,7 @@ public class DeploymentInfo {
       List<SelectedAsset> nlist = new ArrayList<>();
       List<?> types = XAssetUtil.getXAssetTypes(true);
 
-      for(int i = 0; i < list.size(); i++) {
-         SelectedAsset asset = list.get(i);
-
+      for(SelectedAsset asset : list) {
          if(XQueryAsset.XQUERY.equals(asset.getType()) &&
             convertedNameMap.containsKey(getQueryFileName(asset.getType(), asset.getPath())))
          {
@@ -116,18 +114,14 @@ public class DeploymentInfo {
             String queryFolder = getQueryFolderMap().get(path);
 
             if(!StringUtils.isEmpty(queryFolder)) {
-               StringBuilder builder = new StringBuilder();
-               builder.append(queryFolder);
-               builder.append("/");
-               builder.append(path);
-               path = builder.toString();
+               path = queryFolder + "/" + path;
             }
 
             nasset.setPath(path);
             nasset.setIcon(DeployUtil.getWorksheetIconPath(Worksheet.TABLE_ASSET));
             nlist.add(nasset);
          }
-         else  if(types.contains(asset.getType())) {
+         else if(types.contains(asset.getType())) {
             nlist.add(asset);
          }
       }
@@ -140,9 +134,7 @@ public class DeploymentInfo {
       List<RequiredAsset> nlist = new ArrayList<>();
       List<?> types = XAssetUtil.getXAssetTypes(true);
 
-      for(int i = 0; i < list.size(); i++) {
-         RequiredAsset asset = list.get(i);
-
+      for(RequiredAsset asset : list) {
          if(XQueryAsset.XQUERY.equals(asset.getType()) &&
             convertedNameMap.containsKey(getQueryFileName(asset.getType(), asset.getPath())))
          {
@@ -152,11 +144,7 @@ public class DeploymentInfo {
             String queryFolder = getQueryFolderMap().get(path);
 
             if(!StringUtils.isEmpty(queryFolder)) {
-               StringBuilder builder = new StringBuilder();
-               builder.append(queryFolder);
-               builder.append("/");
-               builder.append(path);
-               path = builder.toString();
+               path = queryFolder + "/" + path;
             }
 
             nasset.setPath(path);
@@ -174,21 +162,15 @@ public class DeploymentInfo {
 
    private String getQueryFileName(String type, String path) {
       if(XQueryAsset.XQUERY.equals(type)) {
-         StringBuilder builder = new StringBuilder();
-         builder.append(XQueryAsset.XQUERY);
-         builder.append("_");
-         builder.append(XQueryAsset.class.getName());
-         builder.append("^");
-         builder.append(path);
-         return builder.toString();
+         return XQueryAsset.XQUERY + "_" + XQueryAsset.class.getName() + "^" + path;
       }
 
       return null;
    }
 
-   private void processDedendencies() {
-      Map dependeciesMap = jarInfo.getDependeciesMap();
-      Map queryFolderMap = jarInfo.getQueryFolderMap();
+   private void processDependencies() {
+      Map<String, List<String>> dependeciesMap = jarInfo.getDependeciesMap();
+      Map<String, String> queryFolderMap = jarInfo.getQueryFolderMap();
 
       for(int i = 0; files != null && i < files.length; i++) {
          QueryDependenciesFinder.collectDependencies(
@@ -203,7 +185,7 @@ public class DeploymentInfo {
          String fileName = entry.getKey();
          String value = entry.getValue().replace("^_^", "/");
 
-         if(value.indexOf("inetsoft.common.dep.") != -1) {
+         if(value.contains("inetsoft.common.dep.")) {
             value = value.replace("inetsoft.common.dep.", "inetsoft.util.dep.");
          }
 
@@ -229,7 +211,7 @@ public class DeploymentInfo {
          // XQUERY_inetsoft.common.dep.XQueryAsset^All Sales
          // to
          // WORKSHEET_inetsoft.common.dep.WorksheetAsset^1^2^__NULL__^Sample Queries^_^All Sales // Sample Queries is query folder.
-         if(value != null && value.startsWith(XQueryAsset.XQUERY)) {
+         if(value.startsWith(XQueryAsset.XQUERY)) {
             value = Tool.replace(value, XQueryAsset.XQUERY, WorksheetAsset.WORKSHEET);
             String[] vals = Tool.split(value, '^');
             String qname = vals[1];
@@ -240,7 +222,7 @@ public class DeploymentInfo {
                nnames.put(fileName, entry.getValue());
                String identifier = entry.getValue();
                identifier = identifier.substring("XQUERY_".length());
-               String path = XAssetUtil.createXAsset(identifier).getPath();
+               String path = Objects.requireNonNull(XAssetUtil.createXAsset(identifier)).getPath();
                ignoredQueries.add(path);
                continue;
             }
@@ -264,7 +246,6 @@ public class DeploymentInfo {
             String wsName = builder.toString();
             wsName = autoRename(wsName, wsList, 0);
             convertedNameMap.put(entry.getValue(), wsName);
-            queryFiles.add(file);
             nnames.put(fileName, wsName);
          }
          else {
@@ -285,8 +266,7 @@ public class DeploymentInfo {
             continue;
          }
 
-         for(int i = 0; i < list.size(); i++) {
-            String fileName = list.get(i);
+         for(String fileName : list) {
             transformDependency(qname, fileName);
          }
       }
@@ -320,9 +300,7 @@ public class DeploymentInfo {
             continue;
          }
 
-         for(int i = 0; i < list.size(); i++) {
-            String fileName = list.get(i);
-
+         for(String fileName : list) {
             if(fileName.startsWith(XQueryAsset.XQUERY)) {
                map.computeIfAbsent(fileName, k -> new HashSet<>()).add(qname);
             }
@@ -341,7 +319,7 @@ public class DeploymentInfo {
          HashMap<String, String> drillMap = new HashMap<>();
          Set<String> querySet = entry.getValue();
 
-         querySet.stream().forEach(qname -> {
+         querySet.forEach(qname -> {
             String folder = getQueryFolderMap().get(qname);
             String path = Tool.createPathString(folder, qname);
             AssetEntry wentry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
@@ -406,7 +384,7 @@ public class DeploymentInfo {
    private List<String> getAllWorksheetNames(Map<String, String> names) {
       List<String> wsList = new ArrayList<>();
 
-      names.values().stream().forEach(v -> {
+      names.values().forEach(v -> {
          if(v.startsWith(WorksheetAsset.WORKSHEET)) {
             wsList.add(v);
          }
@@ -421,7 +399,7 @@ public class DeploymentInfo {
       }
 
       String nname = name + "_" + counter;
-      return autoRename(nname, list, counter++);
+      return autoRename(nname, list, counter + 1);
    }
 
    private File[] loadFiles() {
@@ -431,7 +409,6 @@ public class DeploymentInfo {
    }
 
    /**
-    * @param files
     * @param name   the file name(not the name in names map).
     */
    private File getFile(File[] files, String name) {
@@ -452,17 +429,16 @@ public class DeploymentInfo {
       return ignoredQueries;
    }
 
-   private File[] files;
-   private String filePath;
-   private List<SelectedAsset> selectedEntries;
-   private List<RequiredAsset> dependentAssets;
-   private Map<String, String> onames = new HashMap<>();
-   private Map<String, String> nnames = new HashMap<>();
-   private Map<File, Integer> queryTypeMap = new HashMap<>();
-   private Map<String, File> queryFileMap = new HashMap<>(); // key -> query name, value -> file
-   private Map<String, String> convertedNameMap = new HashMap<>(); // key -> query name, value-> file name
-   private Set<String> ignoredQueries = new HashSet<>();
-   private List<File> queryFiles = new ArrayList<>(); // key -> query name, value-> file name
-   private PartialDeploymentJarInfo jarInfo;
+   private final File[] files;
+   private final String filePath;
+   private final List<SelectedAsset> selectedEntries;
+   private final List<RequiredAsset> dependentAssets;
+   private Map<String, String> onames;
+   private final Map<String, String> nnames = new HashMap<>();
+   private final Map<File, Integer> queryTypeMap = new HashMap<>();
+   private final Map<String, File> queryFileMap = new HashMap<>(); // key -> query name, value -> file
+   private final Map<String, String> convertedNameMap = new HashMap<>(); // key -> query name, value-> file name
+   private final Set<String> ignoredQueries = new HashSet<>();
+   private final PartialDeploymentJarInfo jarInfo;
    private ImportJarProperties properties;
 }
