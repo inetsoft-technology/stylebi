@@ -36,7 +36,8 @@ import org.springframework.stereotype.Service;
 import java.security.Principal;
 import java.util.Arrays;
 
-import static inetsoft.web.composer.ws.dialog.AggregateDialogController.getAggregateInfo;
+import static inetsoft.web.composer.ws.dialog.AggregateDialogService.getAggregateInfo;
+
 
 @Service
 @ClusterProxy
