@@ -20,6 +20,7 @@ package inetsoft.test;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.Tool;
+import org.apache.ignite.IgniteException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -508,14 +509,22 @@ public class TestCluster implements Cluster {
 
    @Override
    public <K, V> Collection<K> getLocalCacheKeys(Cache<K, V> cache, Collection<K> keys) {
-      return keys.stream()
-         .filter(cache::containsKey)
-         .toList();
+      return Collections.unmodifiableCollection(keys);
    }
 
    @Override
    public <K> boolean isLocalCacheKey(String cache, K key) {
-      return getMap(cache).containsKey(key);
+      return true;
+   }
+
+   @Override
+   public <T> T affinityCall(String cache, String key, AffinityCallable<T> job) {
+      try {
+         return job.call();
+      }
+      catch(Exception e) {
+         throw new IgniteException("Failed to execute affinity call", e);
+      }
    }
 
    @Override
