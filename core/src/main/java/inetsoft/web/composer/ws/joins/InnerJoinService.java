@@ -283,7 +283,7 @@ public class InnerJoinService extends WorksheetControllerService {
             String[] pair = new String[2];
             pair[0] = sourceTable.getAbsoluteName();
             pair[1] = targetTable.getAbsoluteName();
-            jtable = CrossJoinController.process(rws, pair, true).joinTable;
+            jtable = CrossJoinService.process(rws, pair, true).joinTable;
          }
 
          if(jtable != null) {
