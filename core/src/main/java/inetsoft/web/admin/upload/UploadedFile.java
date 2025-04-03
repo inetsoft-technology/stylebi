@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.upload;
 
-import inetsoft.web.admin.model.FileData;
 import org.immutables.value.Value;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,9 +32,6 @@ public interface UploadedFile {
 
    @Nullable
    MultipartFile multipartFile();
-
-   @Nullable
-   FileData fileData();
 
    static Builder builder() {
       return new Builder();

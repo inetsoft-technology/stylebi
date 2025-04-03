@@ -160,11 +160,17 @@ public class UploadService {
       info.blob = id + "/" + file.fileName();
 
       if(file.multipartFile() != null) {
-         upload(id, info, Objects.requireNonNull(file.multipartFile())::getInputStream);
-      }
-      else if(file.fileData() != null) {
-         upload(id, info, () -> new ByteArrayInputStream(
-            Base64.getDecoder().decode(Objects.requireNonNull(file.fileData()).content())));
+         FileSystemService fsService = SingletonManager.getInstance(FileSystemService.class);
+         File localFile = fsService.getCacheTempFile("upload-" + id, ".dat");
+
+         try {
+            info.filePath = fsService.getCacheFolder().toPath().toAbsolutePath()
+               .relativize(localFile.toPath().toAbsolutePath()).toString();
+            store(info, Objects.requireNonNull(file.multipartFile())::getInputStream);
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to upload file", e);
+         }
       }
       else if(file.file() != null) {
          info.filePath = Objects.requireNonNull(file.file()).getAbsolutePath();
@@ -181,20 +187,6 @@ public class UploadService {
       }
 
       return info;
-   }
-
-   private void upload(String id, UploadFileInfo info, InputStreamSupplier input) {
-      FileSystemService fsService = SingletonManager.getInstance(FileSystemService.class);
-      File localFile = fsService.getCacheTempFile("upload-" + id, ".dat");
-
-      try {
-         info.filePath = fsService.getCacheFolder().toPath().toAbsolutePath()
-            .relativize(localFile.toPath().toAbsolutePath()).toString();
-         store(info, input);
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to upload file", e);
-      }
    }
 
    private void store(UploadFileInfo info, InputStreamSupplier input) throws IOException {

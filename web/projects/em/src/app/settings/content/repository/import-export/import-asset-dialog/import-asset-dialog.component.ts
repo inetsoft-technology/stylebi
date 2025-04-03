@@ -21,18 +21,18 @@ import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
 import { Observable, throwError, timer } from "rxjs";
 import { catchError, filter, switchMap, take, timeout } from "rxjs/operators";
+import { RepositoryEntryType } from "../../../../../../../../shared/data/repository-entry-type.enum";
 import { FeatureFlagValue } from "../../../../../../../../shared/feature-flags/feature-flags.service";
 import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../../../common/util/message-dialog";
 import { convertToKey } from "../../../../security/users/identity-id";
 import { ImportAssetResponse } from "../../model/import-asset-response";
+import { RepositoryTreeDataSource } from "../../repository-tree-data-source";
+import { RepositoryFlatNode, RepositoryTreeNode } from "../../repository-tree-node";
 import { ExportedAssetsModel } from "../exported-assets-model";
 import { RequiredAssetModel } from "../required-asset-model";
-import { RepositoryEntryType } from "../../../../../../../../shared/data/repository-entry-type.enum";
-import { RepositoryFlatNode, RepositoryTreeNode } from "../../repository-tree-node";
 import { SelectAssetFolderDialogComponent } from "../select-asset-folder-dialog/select-asset-folder-dialog.component";
-import { RepositoryTreeDataSource } from "../../repository-tree-data-source";
 
 @Component({
    selector: "em-import-asset-dialog",
@@ -73,7 +73,6 @@ export class ImportAssetDialogComponent implements OnDestroy {
    }
 
    set model(value: ExportedAssetsModel) {
-      let oldModel = this._model;
       this._model = value;
 
       if(value) {
@@ -159,7 +158,7 @@ export class ImportAssetDialogComponent implements OnDestroy {
    }
 
    private clearImportCache(): void {
-      this.http.get<ExportedAssetsModel>("../api/em/content/repository/import/clear-cache")
+      this.http.delete<ExportedAssetsModel>(`../api/em/content/repository/import/${this.model?.importId}`)
          .subscribe();
    }
 
@@ -187,9 +186,12 @@ export class ImportAssetDialogComponent implements OnDestroy {
          .map((asset) => this.isAssetIgnored(asset) ? asset.index : -1)
          .filter(i => i !== -1)
          .map(i => `${i}`);
-      const uri = `../api/em/content/repository/import/${this.importForm.get("overwrite").value}`;
-      const importId = Tool.generateRandomUUID();
-      const options = { params: new HttpParams().set("importId", importId) };
+      const uri = `../api/em/content/repository/import/${this.model?.importId}`;
+      const options = {
+         params: new HttpParams()
+            .set("overwrite", this.importForm.get("overwrite").value)
+            .set("background", "true")
+      };
 
       if(targetLocation) {
          options.params = options.params
@@ -359,7 +361,7 @@ export class ImportAssetDialogComponent implements OnDestroy {
       if(this.targetNode?.data) {
          const options = { params: new HttpParams() };
          let targetLocation = this.targetNode?.data;
-         const uri = "../api/em/content/repository/update-import-info";
+         const uri = `../api/em/content/repository/update-import-info/${this.model?.importId}`;
          options.params = options.params
             .set("targetLocation", targetLocation.path)
             .set("locationType", targetLocation.type);
