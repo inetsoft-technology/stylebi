@@ -252,6 +252,16 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
                if(Tool.equals(value, info.getOldPath())) {
                   DependencyTransformer.replaceElementCDATANode(path, info.getNewPath());
                }
+
+               if(info.isWorksheet()) {
+                  String opath = AssetEntry.createAssetEntry(info.getOldName()).getPath();
+                  String npath = AssetEntry.createAssetEntry(info.getNewName()).getPath();
+
+                  if(value.startsWith(opath + "/")) {
+                     String table = value.substring(opath.length());
+                     DependencyTransformer.replaceElementCDATANode(path, npath + table);
+                  }
+               }
             }
          }
 
