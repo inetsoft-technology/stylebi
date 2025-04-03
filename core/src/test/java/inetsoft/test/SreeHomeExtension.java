@@ -146,7 +146,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
             ThreadContext.setPrincipal(testPrincipal);
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
             Tool.copyTo(input, buffer);
-            ((RepletEngine) repository).importAssets(buffer.toByteArray(), false);
+            ((RepletEngine) repository).importAssets(buffer.toByteArray(), true);
          }
       }
       else {
