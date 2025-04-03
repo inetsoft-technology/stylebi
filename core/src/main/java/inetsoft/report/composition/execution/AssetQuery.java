@@ -3692,7 +3692,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    /**
     * Another summary filter.
     */
-   private static class SummaryFilter2 extends SummaryFilter {
+   protected static class SummaryFilter2 extends SummaryFilter {
       /**
        * Constructor.
        * @param table the specified base table.
@@ -3994,7 +3994,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    /**
     * Array table.
     */
-   private static class XArrayTable implements XTable {
+   protected static class XArrayTable implements XTable {
       /**
        * Constructor.
        */
@@ -4335,7 +4335,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    /**
     * Format table lens.
     */
-   private static class FormatTableLens extends DefaultTableFilter {
+   protected static class FormatTableLens extends DefaultTableFilter {
       /**
        * Constructor.
        */
