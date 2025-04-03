@@ -41,6 +41,10 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    public boolean checkPermission(Principal principal, ResourceType type,
                                   String resource, ResourceAction action)
    {
+      if(isAllowedDefaultGlobalVSAction(principal, action, type, resource)) {
+         return true;
+      }
+
       Identity identity = SUtil.getExecuteIdentity(principal);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       IdentityID[] roles = null;
@@ -51,7 +55,9 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
                                            OrganizationManager.getInstance().getCurrentOrgID());
 
       //check admin permissions at org level
-      if(isSecurityIdentity(type) && isNotGlobalRole(type, IdentityID.getIdentityIDFromKey(resource)) && provider.getPermission(ResourceType.SECURITY_ORGANIZATION, curOrgID) != null) {
+      if(isSecurityIdentity(type) && isNotGlobalRole(type, IdentityID.getIdentityIDFromKey(resource)) &&
+         provider.getPermission(ResourceType.SECURITY_ORGANIZATION, curOrgID) != null)
+      {
          Permission permission =
             provider.getPermission(ResourceType.SECURITY_ORGANIZATION, curOrgID);
 
@@ -439,6 +445,33 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       return checker.checkPermission(identity, perm, action, true);
+   }
+
+   /**
+    * Check if the target resource and action should be allowed for shared global vs.
+    * @param principal the current login in user.
+    * @param action    the resource action.
+    * @param type      the resource type.
+    * @param resource  the resource name.
+    * @return
+    */
+   private boolean isAllowedDefaultGlobalVSAction(Principal principal, ResourceAction action,
+                                                  ResourceType type, String resource)
+   {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String orgID = principal instanceof XPrincipal ? ((XPrincipal) principal).getOrgId() : null;
+
+      if(!SUtil.isDefaultVSGloballyVisible(principal) || Tool.equals(orgID, currOrgID) ||
+         !Organization.getDefaultOrganizationID().equals(currOrgID) || action != ResourceAction.READ)
+      {
+         return false;
+      }
+
+      if(type == ResourceType.VIEWSHEET_TOOLBAR_ACTION) {
+         return !"Edit".equals(resource) && !"Import".equals(resource) && !"Schedule".equals(resource);
+      }
+
+      return type == ResourceType.CHART_TYPE || type == ResourceType.SHARE;
    }
 
    private boolean isNotGlobalRole(ResourceType type, IdentityID name) {
