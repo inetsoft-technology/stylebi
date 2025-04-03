@@ -312,5 +312,4 @@ public class TextSizeLimitTableLens extends AbstractTableLens implements TableFi
 
    private TableLens table;
    private int size = 0;
-   private final transient Object rlock = new Object(); // table row lock
 }
