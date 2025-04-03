@@ -17,56 +17,30 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.uql.asset.RelationalJoinTableAssembly;
-import inetsoft.uql.asset.Worksheet;
-import inetsoft.uql.asset.internal.CompositeTableAssemblyInfo;
-import inetsoft.uql.asset.internal.SchemaTableInfo;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSResizeSchemaTableEvent;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-
 import java.security.Principal;
 
 @Controller
 public class WSResizeSchemaTableController extends WorksheetController {
+
+   public WSResizeSchemaTableController(WSResizeSchemaTableServiceProxy serviceProxy)
+   {
+      this.serviceProxy = serviceProxy;
+   }
+
    @Undoable
    @MessageMapping("/composer/worksheet/resize-schema-table")
    public void resizeSchemaTable(
       @Payload WSResizeSchemaTableEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      final RuntimeWorksheet rws = getRuntimeWorksheet(principal);
-      final Worksheet ws = rws.getWorksheet();
-      final RelationalJoinTableAssembly table =
-         (RelationalJoinTableAssembly) ws.getAssembly(event.joinTableName());
-
-      if(table != null) {
-         final CompositeTableAssemblyInfo info = (CompositeTableAssemblyInfo) table.getTableInfo();
-         final SchemaTableInfo schemaTableInfo = info.getSchemaTableInfo(event.schemaTableName());
-
-         if(schemaTableInfo != null) {
-            double width = Math.max(event.width(), SchemaTableInfo.MIN_SCHEMA_TABLE_WIDTH);
-            double x = schemaTableInfo.getLeft();
-
-            if(event.offsetLocation()) {
-               x += schemaTableInfo.getWidth() - width;
-
-               if(x < 0) {
-                  width += x;
-                  x = 0;
-               }
-            }
-
-            info.setSchemaTableInfo(event.schemaTableName(),
-                                    new SchemaTableInfo(x, schemaTableInfo.getTop(), width));
-            WorksheetEventUtil.refreshAssembly(
-               rws, table.getName(), false, commandDispatcher, principal);
-         }
-      }
+      serviceProxy.resizeSchemaTable(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private WSResizeSchemaTableServiceProxy serviceProxy;
 }
