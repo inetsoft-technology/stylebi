@@ -102,7 +102,6 @@ public class ReorderColumnsDialogService extends WorksheetControllerService {
    public Void reorderColumns(@ClusterProxyKey String runtimeId, ReorderColumnsDialogModel model,
                               String tableName, Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
-      tableName = Tool.byteDecode(tableName);
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       TableAssembly table = (TableAssembly) ws.getAssembly(tableName);
