@@ -40,7 +40,7 @@ public class WSLoadTableDataController extends WorksheetController {
       @Payload WSLoadTableDataEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      wsLoadTableDataServiceProxy.loadWSTableData(getRuntimeId(), assemblyName, event, principal, commandDispatcher);
+     wsLoadTableDataServiceProxy.loadWSTableData(getRuntimeId(), assemblyName, event, principal, commandDispatcher);
    }
 
    private final WSLoadTableDataServiceProxy wsLoadTableDataServiceProxy;

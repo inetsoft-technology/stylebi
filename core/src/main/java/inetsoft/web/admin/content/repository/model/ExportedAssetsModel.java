@@ -19,15 +19,19 @@ package inetsoft.web.admin.content.repository.model;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 import java.util.List;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableExportedAssetsModel.class)
 @JsonDeserialize(as = ImmutableExportedAssetsModel.class)
 public interface ExportedAssetsModel {
+   String importId();
+
    @Value.Default
    default boolean newerVersion() { return false; }
 

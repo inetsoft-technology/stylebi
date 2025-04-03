@@ -225,6 +225,8 @@ public final class AutoSaveUtils {
 
          deleteFileFromStorage(file, user);
       }
+      catch(FileNotFoundException ignore){
+      }
       catch(Exception e) {
          LOG.debug("Failed to delete auto save file {}", entry, e);
       }

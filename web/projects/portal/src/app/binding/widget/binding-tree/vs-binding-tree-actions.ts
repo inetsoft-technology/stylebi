@@ -521,7 +521,7 @@ export class VSBindingTreeActions extends ContextMenuActions {
 
       this.modelService.getModel<string>(url, params).subscribe(names => {
          if(!!names) {
-            let msg = "_#(js:common.tree.editCalcField)" + "_*" + names;
+            let msg =  Tool.formatCatalogString("_#(js:common.tree.editCalcField)", [names]);
 
             ComponentTool.showConfirmDialog(this.dialogService, "_#(js:Confirm)", msg,
                {"yes": "_#(js:Yes)", "no": "_#(js:No)"})

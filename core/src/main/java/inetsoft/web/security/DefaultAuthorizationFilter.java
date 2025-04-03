@@ -135,8 +135,12 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
 
    private Cookie getOrgCookie(String orgID) {
       Cookie cookie = new Cookie(ORG_COOKIE, orgID);
-      cookie.setAttribute("SameSite", "None");
-      cookie.setSecure(true);
+      final String sameSite = SreeEnv.getProperty("same.site", "Lax");
+
+      if(isSecurityAllowIframe() || "none".equalsIgnoreCase(sameSite)) {
+         cookie.setAttribute("SameSite", "None");
+         cookie.setSecure(true);
+      }
 
       return cookie;
    }

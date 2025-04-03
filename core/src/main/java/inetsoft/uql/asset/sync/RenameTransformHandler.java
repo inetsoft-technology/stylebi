@@ -19,6 +19,7 @@ package inetsoft.uql.asset.sync;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.XPartition;
 import inetsoft.util.SingletonManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +64,20 @@ public class RenameTransformHandler implements AutoCloseable {
             LOG.error("wait dependencyStorage update failure", e);
          }
       }
+   }
+
+   public void addExtendPartitionsTransformTask(XPartition partition, RenameInfo rinfo) {
+      String[] children = partition.getPartitionNames();
+
+      for(String child : children) {
+        String nChildPath = rinfo.getNewName() + "^" + child;
+        String oChildPath = rinfo.getOldName() + "^" + child;
+        RenameInfo childInfo = new RenameInfo(oChildPath, nChildPath,
+          RenameInfo.PARTITION | RenameInfo.SOURCE);
+        addTransformTask(childInfo);
+      }
+
+      addTransformTask(rinfo);
    }
 
    /**
