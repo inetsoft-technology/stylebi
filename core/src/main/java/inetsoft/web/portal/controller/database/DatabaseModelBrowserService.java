@@ -357,9 +357,10 @@ public class DatabaseModelBrowserService {
       RenameDependencyInfo dinfo = new RenameDependencyInfo();
       String oldFolder = logicalModel.getFolder();
       boolean isRoot = folder == null || "/".equals(folder) || "".equals(folder);
-      String oldPath = database + "/" + (oldFolder == null ? name :
-         oldFolder + "/" + name);
-      String newPath = database + "/" + (isRoot ? name : folder + "/" + name);
+      String oldPath = database + XUtil.DATAMODEL_FOLDER_SPLITER + (oldFolder == null ? name :
+         oldFolder + XUtil.DATAMODEL_PATH_SPLITER + name);
+      String newPath = database + XUtil.DATAMODEL_FOLDER_SPLITER + (isRoot ? name :
+         folder + XUtil.DATAMODEL_PATH_SPLITER + name);
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
          ActionRecord.ACTION_NAME_MOVE, oldPath, ActionRecord.OBJECT_TYPE_LOGICAL_MODEL,
          null, ActionRecord.ACTION_STATUS_SUCCESS,
@@ -423,9 +424,10 @@ public class DatabaseModelBrowserService {
 
       boolean isRoot = folder == null || "/".equals(folder) || "".equals(folder);
       String database = dataModel.getDataSource();
-      String oldPath = database + "/" + (partition.getFolder() == null ? name :
-         partition.getFolder() + "/" + name);
-      String newPath = database + "/" + (isRoot ? name : folder + "/" + name);
+      String oldPath = database + XUtil.DATAMODEL_FOLDER_SPLITER + (partition.getFolder() == null ? name :
+         partition.getFolder() + XUtil.DATAMODEL_PATH_SPLITER + name);
+      String newPath = database + XUtil.DATAMODEL_FOLDER_SPLITER +
+         (isRoot ? name : folder + XUtil.DATAMODEL_PATH_SPLITER + name);
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
           ActionRecord.ACTION_NAME_MOVE, oldPath,ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW,
          null, ActionRecord.ACTION_STATUS_SUCCESS,
@@ -442,6 +444,25 @@ public class DatabaseModelBrowserService {
                String.format("Unauthorized access to resource \"%s\" by %s",
                   oldPath, principal.getName()));
          }
+
+         RenameDependencyInfo dinfo = new RenameDependencyInfo();
+         RenameInfo rinfo = new RenameInfo(partition.getFolder(), folder,
+            RenameInfo.PARTITION | RenameInfo.FOLDER);
+         rinfo.setOldPath(oldPath);
+         rinfo.setNewPath(newPath);
+         AssetEntry oentry = new AssetEntry(AssetRepository.QUERY_SCOPE,
+            AssetEntry.Type.PARTITION,database + "/" + name,null);
+         List<AssetObject> entries = DependencyTransformer.getDependencies(oentry.toIdentifier());
+
+         if(entries == null) {
+            return;
+         }
+
+         for(AssetObject obj : entries) {
+            dinfo.addRenameInfo(obj, rinfo);
+         }
+
+         RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
 
          partition.setFolder(isRoot ? null : folder);
          dataModel.addPartition(partition);

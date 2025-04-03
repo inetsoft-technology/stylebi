@@ -184,6 +184,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
             this.updateConditionModel(m.taskConditionPaneModel);
             this.updateActionModel(m.taskActionPaneModel);
             this.updateOptionsModel(m.taskOptionsPaneModel);
+            this.originalModel = Tool.clone(this.model);
             this.saveSuccess();
 
             resolve(m);

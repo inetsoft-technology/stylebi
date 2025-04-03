@@ -100,7 +100,7 @@ public class DeploymentInfo {
    }
 
    private List<SelectedAsset> processSelectedEntries() {
-      List<SelectedAsset> list = jarInfo.getSelectedEntries();
+      List<SelectedAsset> list = (jarInfo.getSelectedEntries() != null) ? jarInfo.getSelectedEntries() : new ArrayList<>();
       List<SelectedAsset> nlist = new ArrayList<>();
       List<?> types = XAssetUtil.getXAssetTypes(true);
 
@@ -136,7 +136,7 @@ public class DeploymentInfo {
    }
 
    private List<RequiredAsset> processDependentAssets() {
-      List<RequiredAsset> list = jarInfo.getDependentAssets();
+      List<RequiredAsset> list = (jarInfo.getDependentAssets() != null) ? jarInfo.getDependentAssets() : new ArrayList<>();
       List<RequiredAsset> nlist = new ArrayList<>();
       List<?> types = XAssetUtil.getXAssetTypes(true);
 

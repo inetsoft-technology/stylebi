@@ -183,6 +183,7 @@ public class VSChartBindingController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
+      name = Tool.byteDecode(name);
       GShape shape = ImageShapes.getShape(name);
       Image img = null;
 

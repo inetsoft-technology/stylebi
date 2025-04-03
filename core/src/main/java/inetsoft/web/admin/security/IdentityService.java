@@ -887,6 +887,7 @@ public class IdentityService {
          DashboardManager.getManager().copyStorageData(oOrg.getId(), nOrg.getId());
          DependencyStorageService.getInstance().copyStorageData(oOrg, nOrg);
          RecycleBin.getRecycleBin().copyStorageData(oOrg.getId(), nOrg.getId());
+         updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
          IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg);
 
          FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
@@ -897,7 +898,6 @@ public class IdentityService {
          MVManager.getManager().copyStorageData(oOrg, nOrg);
 
          addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
-         updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
       }
       catch(Exception e) {
          LOG.warn("Could not copy Storages from "+ oOrg.getId() +" to "+ nOrg.getId() +", " + e);
@@ -905,8 +905,16 @@ public class IdentityService {
    }
 
    private void addNewOrgTaskToScheduleServer(String orgId) throws RemoteException {
-      Vector<ScheduleTask> scheduleTasks =
-         ScheduleManager.getScheduleManager().getScheduleTasks(orgId);
+      Vector<ScheduleTask> scheduleTasks = new Vector<>();
+
+      try {
+         scheduleTasks = OrganizationManager.runInOrgScope(orgId,
+            () -> ScheduleManager.getScheduleManager().getScheduleTasks(orgId));
+      }
+      catch(Exception e) {
+         LOG.warn("Could not get tasks from: "+ orgId);
+      }
+
       ScheduleServer scheduleServer = ScheduleServer.getInstance();
 
       if(scheduleTasks == null || scheduleServer == null) {

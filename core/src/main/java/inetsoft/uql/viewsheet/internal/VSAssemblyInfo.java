@@ -1520,7 +1520,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
     */
    public Hyperlink handleAssetLinkOrgMismatch(Hyperlink link) {
-      String linkPath = link.getLink();
+      String linkPath = link.getLinkValue();
       String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       int orgIdx = linkPath.lastIndexOf("^");
 

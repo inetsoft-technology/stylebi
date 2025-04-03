@@ -164,7 +164,7 @@ export class ScheduleStatusPageComponent implements OnChanges, OnInit {
 
 
       const storagePath = this.model == null ?
-         "_#(js:em.confirm.heapDump.storageLocation)" : this.model.externalStoragePath;
+         "_#(js:em.confirm.heapDump.storageLocation)" : this.model.externalStorageLocation;
 
       this.dialog.open(MessageDialog, {
          width: "500px",

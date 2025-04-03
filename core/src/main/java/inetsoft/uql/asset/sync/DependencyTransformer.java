@@ -922,7 +922,8 @@ public abstract class DependencyTransformer {
       }
 
       if(info.isPartition()) {
-         if(Tool.isEmptyString(info.getSource())) {
+         if(Tool.isEmptyString(info.getSource()) && name != null) {
+            name = name.replace("^", "/");
             return getAssetId(name , AssetEntry.Type.PARTITION);
          }
          else {

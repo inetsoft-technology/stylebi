@@ -162,6 +162,51 @@ public class CalendarVSAScriptableTest {
       calendarVSAScriptable.setSelectedObjects(m2);
       Object[] res2 = calendarVSAScriptable.getSelectedObjects();
       assert printObject(res2).equals("[m2025-2, m2025-3]");
+
+      //set year view, and set month
+      String[] m3 = {"y2025", "y2027"};
+      calendarVSAScriptable.setSelectedObjects(m3);
+      Object[] res3 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res3).equals("[y2025, y2027]");
+   }
+
+   /**
+    * Set the selectedObjects property to an array containing a Date object
+    * see Bug #70543
+    */
+   @Test
+   void testSetDateTypeOnSelectedObjects() {
+      // check set multi date on no month,  selected week, day selected is false
+      Object[] dateArrarys = new Object[2];
+      dateArrarys[0] = new Date(125, 1, 5);
+      dateArrarys[1] = new Date(125, 1, 25);
+      calendarVSAScriptable.setSelectedObjects(dateArrarys);
+      Object[] res1 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res1).equals("[w2025-1-2, w2025-1-5]");
+
+      //check set multi date on week, double calendar is true
+      dateArrarys[1] = new Date(125, 2, 25);
+      calendarVSAScriptable.setViewMode(true); //set double calendar
+      calendarVSAScriptable.setSelectedObjects(dateArrarys);
+      Object[] res2 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res2).equals("[w2025-1-2, w2025-2-5]");
+
+      //check set multi date on week, day selected is true
+      calendarVSAssemblyInfo.setDaySelection(true);
+      calendarVSAScriptable.setViewMode(false); //set single calendar
+      calendarVSAScriptable.setSelectedObjects(dateArrarys);
+      Object[] res3 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res3).equals("[d2025-1-5, d2025-2-25]");
+
+      //check set multi date on year view,double calendar is true
+      calendarVSAScriptable.setViewMode(true);
+      calendarVSAssemblyInfo.setYearView(true);
+      Object[] dateArrarys2 = new Object[2];
+      dateArrarys2[0] = new Date(125, 1, 5);
+      dateArrarys2[1] = new Date(126, 3, 25);
+      calendarVSAScriptable.setSelectedObjects(dateArrarys2);
+      Object[] res4 = calendarVSAScriptable.getSelectedObjects();
+      assert printObject(res4).equals("[m2025-1, m2026-3]");
    }
 
    String printObject(Object[] obj) {

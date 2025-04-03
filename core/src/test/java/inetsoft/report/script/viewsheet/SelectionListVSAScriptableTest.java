@@ -154,7 +154,7 @@ public class SelectionListVSAScriptableTest {
    }
 
    @Test
-   void testSetSelectedObjects() {
+   void testSetGetSelectedObjects() {
       SelectionList selectionList = new SelectionList();
       SelectionValue[] selectionValues = new SelectionValue[2];
       selectionValues[0] = new SelectionValue("label1", "value1");
@@ -170,14 +170,27 @@ public class SelectionListVSAScriptableTest {
       selectionListVSAScriptable.setSelectedObjects(objects);
       assertArrayEquals(new Object[0], selectionListVSAScriptable.getSelectedObjects());
 
-      //set selected objects when has dataref
+      //set selected objects when has dataref, meta data
       ColumnRef columnRef = new ColumnRef();
       columnRef.setDataRef(new AttributeRef("entity", "attribute"));
       selectionListVSAssemblyInfo.setDataRef(columnRef);
       selectionListVSAScriptable.setSelectedObjects(objects);
       assertArrayEquals(objects, selectionListVSAScriptable.getSelectedObjects());
 
-      //clean selection
+      //meta data, select in single selection mode
+      selectionListVSAssemblyInfo.setSingleSelection(true);
+      selectionListVSAScriptable.setSelectedObjects(objects);
+      assertArrayEquals(objects, selectionListVSAScriptable.getSelectedObjects());
+
+      //not meta data
+      selectionListVSAssemblyInfo.setUsingMetaData(false);
+      selectionListVSAScriptable.setSelectedObjects(objects);
+      assertArrayEquals(objects, selectionListVSAScriptable.getSelectedObjects());
+
+      //clean selection, select the first one when single selection mode
+      selectionListVSAScriptable.setSelectedObjects(null);
+      assertArrayEquals(new Object[] {"value1"}, selectionListVSAScriptable.getSelectedObjects());
+      selectionListVSAssemblyInfo.setSingleSelection(false);
       selectionListVSAScriptable.setSelectedObjects(null);
       assertArrayEquals(new Object[0], selectionListVSAScriptable.getSelectedObjects());
    }

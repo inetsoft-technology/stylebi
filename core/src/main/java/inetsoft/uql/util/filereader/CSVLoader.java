@@ -84,9 +84,20 @@ public final class CSVLoader {
       Map<Integer, Boolean> hasRecognizedTypes = new HashMap<>();
       Map<Integer, Boolean> hasNotApplicableValue = new HashMap<>();
       int maxTextSize = Util.getOrganizationMaxCellSize();
+      boolean fistRowEmpty = false;
 
       // scan a limited number of lines to find column type
       for(int r = 0; r < typeRows && (line = TextUtil.readCSVLine(reader)) != null; r++) {
+         if(fistRowEmpty) {
+            r = 0;
+         }
+
+         if(r == 0 && Tool.isEmptyString(line)) {
+            fistRowEmpty = true;
+            continue;
+         }
+
+         fistRowEmpty = false;
          String[] lines = splitLine(line, delim);
 
          if(colLimit > 0 && lines.length > colLimit) {
@@ -214,6 +225,10 @@ public final class CSVLoader {
       // characters in quotes.
       // read line, parse line
       while((line = TextUtil.readCSVLine(reader)) != null) {
+         if(firstLine && Tool.isEmptyString(line)) {
+            continue;
+         }
+
          String[] lines = splitLine(line, delim);
 
          if(colLimit > 0 && lines.length > colLimit) {

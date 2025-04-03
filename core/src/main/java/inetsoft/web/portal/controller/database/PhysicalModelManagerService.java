@@ -477,7 +477,8 @@ public class PhysicalModelManagerService {
       dataSourceService.updateDataSourceAssetEntry(newEntry);
       RenameInfo rinfo = new RenameInfo(path, npath, RenameInfo.PARTITION | RenameInfo.SOURCE);
       rinfo.setModelFolder(folder);
-      RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
+      RenameTransformHandler.getTransformHandler().
+         addExtendPartitionsTransformTask(dataModel.getPartition(newName), rinfo);
       DependencyStorageService service = DependencyStorageService.getInstance();
       DependencyHandler.getInstance().renameDependencies(entry, newEntry);
       service.rename(entry.toIdentifier(), newEntry.toIdentifier(), rinfo.getOrganizationId());

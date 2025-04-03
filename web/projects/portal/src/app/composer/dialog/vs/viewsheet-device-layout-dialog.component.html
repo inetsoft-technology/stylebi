@@ -55,6 +55,9 @@
       <div *ngIf="formDevice.controls.name.errors && formDevice.controls.name.errors.required" class="alert alert-danger">
         <strong>_#(Error)</strong> _#(layout.vsLayout.nameRequired)
       </div>
+      <div *ngIf="formDevice.controls.name.errors && formDevice.controls.name.errors.containsSpecialCharsForName" class="alert alert-danger">
+        <strong>_#(Error)</strong> _#(common.sree.internal.invalidCharInName)
+      </div>
       <div *ngIf="duplicateName()" class="alert alert-danger">
         <strong>_#(Error)</strong> _#(common.duplicateName)
       </div>

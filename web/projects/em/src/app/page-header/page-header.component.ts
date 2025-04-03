@@ -103,11 +103,19 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
       const params = new HttpParams()
          .set("provider", !!currentProvider ? currentProvider : "")
          .set("providerChanged", !!providerChanged ? providerChanged : "false");
+      let oldOrg = this.model != null ? this.model.currOrgID : null;
 
       this.http.get("../api/em/pageheader/get-pageheader-model", { params })
          .subscribe((result: EmPageHeaderModel) => {
             this.model = result;
             this.currentProvider = result.providerName;
+
+            if(oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
+               let currRoute = this.router.url;
+               this.routeToPath(currRoute);
+               this.usersService.loadScheduleUsers();
+            }
+
             this.initSearchResults();
          });
    }
