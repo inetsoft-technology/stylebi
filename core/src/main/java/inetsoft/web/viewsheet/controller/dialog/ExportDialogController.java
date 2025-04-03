@@ -32,6 +32,8 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.model.CSVConfigModel;
+import inetsoft.web.viewsheet.OrganizationID;
+import inetsoft.web.viewsheet.SwitchOrg;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.dialog.ExportDialogModel;
@@ -73,7 +75,9 @@ public class ExportDialogController {
     */
    @RequestMapping(value="/api/vs/export-dialog-model/**", method = RequestMethod.GET)
    @ResponseBody
+   @SwitchOrg
    public ExportDialogModel getExportDialogModel(@RemainingPath String runtimeId,
+                                                 @OrganizationID String orgId,
                                                  Principal principal)
       throws Exception
    {

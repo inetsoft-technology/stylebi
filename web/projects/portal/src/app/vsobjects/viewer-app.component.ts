@@ -1361,7 +1361,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.waiting = true;
       const modelUri: string = "../api/" + EXPORT_DIALOG_URI + "/" +
          Tool.byteEncode(this.runtimeId);
-      this.modelService.getModel(modelUri)
+      const params = new HttpParams()
+         .set("orgId", createAssetEntry(this.assetId).organization);
+
+      this.modelService.getModel(modelUri, params)
          .subscribe(
             (data: ExportDialogModel) => {
                this.waiting = false;
