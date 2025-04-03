@@ -17,6 +17,10 @@
  */
 .layout-object {
   position: absolute;
+
+  .top-index-handle {
+    z-index: 9999;
+  }
 }
 
 .object-container {
