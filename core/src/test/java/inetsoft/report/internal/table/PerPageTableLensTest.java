@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,22 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.graph.element;
 
-import inetsoft.graph.data.DataSet;
+package inetsoft.report.internal.table;
 
-import java.io.Serializable;
+import inetsoft.test.TestSerializeUtils;
+import inetsoft.test.XTableUtil;
+import inetsoft.uql.XTable;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
-/**
- * This interface is the API for selecting data point to be plotted on the chart.
- *
- * @version 13.5
- * @author InetSoft Technology Corp
- */
-public interface GraphtDataSelector extends Serializable {
-   /**
-    * Return true if the row should be plotted.
-    * @param fields if not null, the fields that are used in the caller's calculation.
-    */
-   boolean accept(DataSet data, int row, String[] fields);
+public class PerPageTableLensTest {
+   @Test
+   public void testSerialize() throws Exception {
+      PerPageTableLens originalTable = new PerPageTableLens(XTableUtil.getDefaultTableLens());
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
+      Assertions.assertEquals(PerPageTableLens.class, deserializedTable.getClass());
+   }
 }

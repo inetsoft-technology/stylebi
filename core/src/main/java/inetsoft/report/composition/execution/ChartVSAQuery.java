@@ -2042,7 +2042,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
     * Shrink number table lens to avoid db covert number to string problem.
     */
    @SuppressWarnings("serial")
-   public class ShrinkNumberTableLens extends DefaultTableFilter {
+   public static class ShrinkNumberTableLens extends DefaultTableFilter {
       /**
        * Constructor.
        */
@@ -2094,7 +2094,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
     * Convert date period label to date object.
     */
    @SuppressWarnings("serial")
-   public class PeriodDateTableLens extends DefaultTableFilter {
+   public static class PeriodDateTableLens extends DefaultTableFilter {
       /**
        * Constructor.
        */
