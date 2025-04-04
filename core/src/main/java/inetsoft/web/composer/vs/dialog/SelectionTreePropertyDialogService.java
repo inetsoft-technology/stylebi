@@ -486,8 +486,8 @@ public class SelectionTreePropertyDialogService {
          values.add(value);
          event.setValues(values);
 
-         Context context = vsSelectionService.createContext(runtimeId, principal, dispatcher, linkUri);
-         vsSelectionService.applySelection(streeInfo.getAbsoluteName(), event, context);
+         vsSelectionService.applySelection(runtimeId, streeInfo.getAbsoluteName(), event,
+                                           principal, dispatcher, linkUri);
       }
    }
 

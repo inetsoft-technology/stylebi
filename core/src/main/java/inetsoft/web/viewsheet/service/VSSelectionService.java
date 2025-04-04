@@ -19,8 +19,8 @@ package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.InputScriptEvent;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.cluster.*;
+import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.uql.XConstants;
@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
  * Service that handles selection events for selection assemblies in a viewsheet.
  */
 @Service
+@ClusterProxy
 public class VSSelectionService {
    @Autowired
    public VSSelectionService(CoreLifecycleService coreLifecycleService,
@@ -61,10 +62,219 @@ public class VSSelectionService {
       this.sharedFilterService = sharedFilterService;
    }
 
-   public Context createContext(String runtimeId, Principal principal,
-                                 CommandDispatcher dispatcher,
-                                 String linkUri)
-      throws Exception
+   /**
+    * Apply a selection event to a selection assembly.
+    *
+    * @param assemblyName the name of the selection assembly.
+    * @param event        the event to apply.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void applySelection(@ClusterProxyKey String runtimeId, String assemblyName,
+                              ApplySelectionListEvent event, Principal principal,
+                              CommandDispatcher dispatcher, String linkUri) throws Exception
+   {
+      final Context context = createContext(runtimeId, principal, dispatcher, linkUri);
+
+      ViewsheetSandbox box = context.rvs().getViewsheetSandbox();
+      box.lockRead();
+
+      try {
+         SelectionVSAssembly assembly = (SelectionVSAssembly) context.getAssembly(assemblyName);
+
+         if(assembly != null) {
+            applySelection(assembly, event, context);
+         }
+      }
+      finally {
+         box.unlockRead();
+      }
+
+      return null;
+   }
+
+   /**
+    * Select a subtree of a selection tree assembly.
+    *
+    * @param assemblyName the name of the selection tree assembly.
+    * @param event        the event to apply
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void selectSubtree(@ClusterProxyKey String runtimeId, String assemblyName,
+                             ApplySelectionListEvent event, Principal principal,
+                             CommandDispatcher dispatcher, String linkUri) throws Exception
+   {
+      final Context context = createContext(runtimeId, principal, dispatcher, linkUri);
+
+      final SelectionTreeVSAssembly assembly =
+         (SelectionTreeVSAssembly) context.getAssembly(assemblyName);
+      final SelectionList selectionList = (SelectionList) assembly.getSelectionList().clone();
+      final ApplySelectionListEvent.Value eventValue = event.getValues().get(0);
+      SelectionTreeVSAssemblyInfo treeInfo = assembly.getSelectionTreeInfo();
+      final boolean isIDTree = assembly.isIDMode();
+      final boolean requireReset = event.isToggle() || event.isToggleAll();
+      final SelectionValue subtreeRoot = !isIDTree ?
+         findSubtreeRoot(eventValue.getValue(), eventValue.isSelected(), 0, selectionList, requireReset) :
+         findIDSubtreeRoot(eventValue.getValue(), eventValue.isSelected(), 0, selectionList);
+
+      if(subtreeRoot == null) {
+         return null;
+      }
+
+      final Map<List<String>, Set<List<String>>> oldConditions = findConditionPaths(assembly);
+      List<Integer> singleLevels = treeInfo.getSingleSelectionLevels();
+
+      if(!isIDTree && !CollectionUtils.isEmpty(singleLevels)) {
+         for(ApplySelectionListEvent.Value value : event.getValues()) {
+            String[] selectionValues = value.getValue();
+
+            if(value.isSelected()) {
+               selectionValues = fixSingleSelectValue(
+                  selectionList, singleLevels, value.getValue());
+               value.setValue(selectionValues);
+            }
+
+            clearSingleSelectionValues(selectionList, singleLevels,
+                                       selectionValues, value.isSelected());
+         }
+      }
+
+      // Apply the state to the subtree
+      final String[] selectedArray = setSubtree(treeInfo, subtreeRoot, eventValue.isSelected(),
+                                                isIDTree, true, new ArrayList<>(), requireReset);
+      event.setValues(null);
+
+      if(selectedArray.length > 0 && isIDTree) {
+         updateIDSelectionTree(selectedArray, selectionList, eventValue.isSelected(), false,
+                               requireReset);
+      }
+
+      SelectionValue[] selectionValues = selectionList.getSelectionValues();
+      selectionValues = shrinkSelectionValues(selectionValues, !isIDTree);
+      selectionList.setSelectionValues(selectionValues);
+      afterSelectionListUpdate(assembly, selectionList, event, oldConditions,
+                               VSAssembly.NONE_CHANGED, context);
+
+      return null;
+   }
+
+   /**
+    * Unselect a selection assembly.
+    *
+    * @param assemblyName the name of the selection assembly.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void unselectAll(@ClusterProxyKey String runtimeId, String assemblyName, Principal principal,
+                           CommandDispatcher dispatcher, String linkUri) throws Exception {
+      final Context context = createContext(runtimeId, principal, dispatcher, linkUri);
+      final CurrentSelectionVSAssembly assembly =
+         (CurrentSelectionVSAssembly) context.getAssembly(assemblyName);
+      final Viewsheet vs2 = assembly.getViewsheet();
+
+      for(String subAssemblyName : assembly.getAssemblies()) {
+         SelectionVSAssembly subAssembly = (SelectionVSAssembly) vs2.getAssembly(subAssemblyName);
+         applySelection(subAssembly, null, context);
+      }
+
+      CurrentSelectionVSAssemblyInfo assemblyInfo =
+         (CurrentSelectionVSAssemblyInfo) assembly.getVSAssemblyInfo();
+
+      if(assemblyInfo.isShowCurrentSelection()) {
+         for(String outName : assemblyInfo.getOutSelectionNames()) {
+            SelectionVSAssembly outAssembly = (SelectionVSAssembly) vs2.getAssembly(outName);
+            applySelection(outAssembly, null, context);
+         }
+      }
+
+      // if a selection container is hidden by clear, the parent tab and its children
+      // visibility may change. (62311)
+      if(!assembly.isVisible() && assembly.getContainer() instanceof TabVSAssembly) {
+         Viewsheet viewsheet = context.rvs().getViewsheet();
+         coreLifecycleService.refreshVSAssembly(context.rvs(), assembly.getContainer(),
+                                                context.dispatcher());
+
+         for(String child : ((TabVSAssembly) assembly.getContainer()).getAbsoluteAssemblies()) {
+            VSAssembly childAssembly = viewsheet.getAssembly(child);
+
+            if(assembly.isEmbedded() && childAssembly != null) {
+               coreLifecycleService.addDeleteVSObject(context.rvs(), childAssembly, context.dispatcher());
+            }
+            else {
+               coreLifecycleService.refreshVSAssembly(context.rvs(), child, context.dispatcher());
+            }
+         }
+      }
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void toggleSelectionStyle(@ClusterProxyKey String runtimeId, String assemblyName,
+                                    Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
+   {
+      final Context context = createContext(runtimeId, principal, dispatcher, linkUri);
+      final RuntimeViewsheet rvs = context.rvs();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+
+      box.lockRead();
+
+      try {
+         SelectionVSAssembly assembly = (SelectionVSAssembly) context.getAssembly(assemblyName);
+         SelectionVSAssemblyInfo selectionVSAssemblyInfo = (SelectionVSAssemblyInfo) assembly.getInfo();
+
+         boolean single = !selectionVSAssemblyInfo.isSingleSelection();
+         selectionVSAssemblyInfo.setSingleSelectionValue(single);
+
+         final ChangedAssemblyList clist =
+            coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+         box.processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
+      }
+      finally {
+         box.unlockRead();
+      }
+
+      return null;
+   }
+
+   /**
+    * Sort a selection assembly.
+    *
+    * @param assemblyName the name of the selection assembly.
+    * @param event        the sort event.
+    */
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void sortSelection(@ClusterProxyKey String runtimeId, String assemblyName,
+                             SortSelectionListEvent event, Principal principal,
+                             CommandDispatcher dispatcher, String linkUri) throws Exception
+   {
+      final Context context = createContext(runtimeId, principal, dispatcher, linkUri);
+      final RuntimeViewsheet rvs = context.rvs();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+
+      box.lockRead();
+
+      try {
+         SelectionVSAssembly assembly = (SelectionVSAssembly) context.getAssembly(assemblyName);
+
+         if(assembly instanceof SelectionListVSAssembly) {
+            sortList((SelectionListVSAssembly) assembly, event);
+         }
+         else if(assembly instanceof SelectionTreeVSAssembly) {
+            sortTree((SelectionTreeVSAssembly) assembly, event);
+         }
+
+         final ChangedAssemblyList clist =
+            coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+         box.processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
+      }
+      finally {
+         box.unlockRead();
+      }
+
+      return null;
+   }
+
+   private Context createContext(String runtimeId, Principal principal, CommandDispatcher dispatcher,
+                                String linkUri) throws Exception
    {
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
 
@@ -79,37 +289,11 @@ public class VSSelectionService {
    /**
     * Apply a selection event to a selection assembly.
     *
-    * @param assemblyName the name of the selection assembly.
-    * @param event        the event to apply.
-    * @param context      the execution context.
-    */
-   public void applySelection(String assemblyName, ApplySelectionListEvent event,
-                              Context context)
-      throws Exception
-   {
-      ViewsheetSandbox box = context.rvs().getViewsheetSandbox();
-      box.lockRead();
-
-      try {
-         SelectionVSAssembly assembly = (SelectionVSAssembly) context.getAssembly(assemblyName);
-
-         if(assembly != null) {
-            applySelection(assembly, event, context);
-         }
-      }
-      finally {
-         box.unlockRead();
-      }
-   }
-
-   /**
-    * Apply a selection event to a selection assembly.
-    *
     * @param assembly the selection assembly.
     * @param event    the event to apply.
     * @param context  the execution context.
     */
-   public void applySelection(SelectionVSAssembly assembly,
+   private void applySelection(SelectionVSAssembly assembly,
                               ApplySelectionListEvent event,
                               Context context)
       throws Exception
@@ -140,15 +324,7 @@ public class VSSelectionService {
          final boolean toggle = event != null && event.isToggle();
          final boolean toggleAll = event != null && event.isToggleAll();
          boolean isIDMode = false;
-         //boolean notContainsCurrentLevel = false;
-         //Integer currentLevel = null;
          SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) assembly.getInfo();
-
-//         if(event != null && !CollectionUtils.isEmpty(event.getValues())) {
-//            String[] indexs = event.getValues().get(0).getValue();
-//            currentLevel = indexs.length - 1;
-//            notContainsCurrentLevel = !info.isSingleSelectionLevel(currentLevel);
-//         }
 
          if(assembly instanceof SelectionListVSAssembly) {
             SelectionListVSAssembly sassembly = (SelectionListVSAssembly) assembly;
@@ -164,12 +340,6 @@ public class VSSelectionService {
             info.setSingleSelectionLevels(null);
          }
          else if(event != null && event.getToggleLevels() != null) {
-//            if(info.isSingleSelectionLevel(currentLevel)) {
-//               info.removeSingleSelectionLevel(currentLevel);
-//            }
-//            else {
-//               info.addSingleSelectionLevel(currentLevel);
-//            }
 
             for(int level : event.getToggleLevels()) {
                if(!info.isSingleSelectionLevel(level)) {
@@ -281,178 +451,6 @@ public class VSSelectionService {
       }
 
       afterSelectionListUpdate(assembly, selectionList, event, oldConditions, hint, context);
-   }
-
-   /**
-    * Select a subtree of a selection tree assembly.
-    *
-    * @param assemblyName the name of the selection tree assembly.
-    * @param event        the event to apply
-    * @param context      the execution context
-    */
-   public void selectSubtree(String assemblyName,
-                             ApplySelectionListEvent event,
-                             Context context)
-      throws Exception
-   {
-      final SelectionTreeVSAssembly assembly =
-         (SelectionTreeVSAssembly) context.getAssembly(assemblyName);
-      final SelectionList selectionList = (SelectionList) assembly.getSelectionList().clone();
-      final ApplySelectionListEvent.Value eventValue = event.getValues().get(0);
-      SelectionTreeVSAssemblyInfo treeInfo = assembly.getSelectionTreeInfo();
-      final boolean isIDTree = assembly.isIDMode();
-      final boolean requireReset = event.isToggle() || event.isToggleAll();
-      final SelectionValue subtreeRoot = !isIDTree ?
-         findSubtreeRoot(eventValue.getValue(), eventValue.isSelected(), 0, selectionList, requireReset) :
-         findIDSubtreeRoot(eventValue.getValue(), eventValue.isSelected(), 0, selectionList);
-
-      if(subtreeRoot == null) {
-         return;
-      }
-
-      final Map<List<String>, Set<List<String>>> oldConditions = findConditionPaths(assembly);
-      List<Integer> singleLevels = treeInfo.getSingleSelectionLevels();
-
-      if(!isIDTree && !CollectionUtils.isEmpty(singleLevels)) {
-         for(ApplySelectionListEvent.Value value : event.getValues()) {
-            String[] selectionValues = value.getValue();
-
-            if(value.isSelected()) {
-               selectionValues = fixSingleSelectValue(
-                  selectionList, singleLevels, value.getValue());
-               value.setValue(selectionValues);
-            }
-
-            clearSingleSelectionValues(selectionList, singleLevels,
-               selectionValues, value.isSelected());
-         }
-      }
-
-      // Apply the state to the subtree
-      final String[] selectedArray = setSubtree(treeInfo, subtreeRoot, eventValue.isSelected(),
-         isIDTree, true, new ArrayList<>(), requireReset);
-      event.setValues(null);
-
-      if(selectedArray.length > 0 && isIDTree) {
-         updateIDSelectionTree(selectedArray, selectionList, eventValue.isSelected(), false,
-            requireReset);
-      }
-
-      SelectionValue[] selectionValues = selectionList.getSelectionValues();
-      selectionValues = shrinkSelectionValues(selectionValues, !isIDTree);
-      selectionList.setSelectionValues(selectionValues);
-      afterSelectionListUpdate(assembly, selectionList, event, oldConditions,
-                               VSAssembly.NONE_CHANGED, context);
-   }
-
-   /**
-    * Unselect a selection assembly.
-    *
-    * @param assemblyName the name of the selection assembly.
-    * @param context      the execution context.
-    */
-   public void unselectAll(String assemblyName, Context context) throws Exception {
-      final CurrentSelectionVSAssembly assembly =
-         (CurrentSelectionVSAssembly) context.getAssembly(assemblyName);
-      final Viewsheet vs2 = assembly.getViewsheet();
-
-      for(String subAssemblyName : assembly.getAssemblies()) {
-         SelectionVSAssembly subAssembly = (SelectionVSAssembly) vs2.getAssembly(subAssemblyName);
-         applySelection(subAssembly, null, context);
-      }
-
-      CurrentSelectionVSAssemblyInfo assemblyInfo =
-         (CurrentSelectionVSAssemblyInfo) assembly.getVSAssemblyInfo();
-
-      if(assemblyInfo.isShowCurrentSelection()) {
-         for(String outName : assemblyInfo.getOutSelectionNames()) {
-            SelectionVSAssembly outAssembly = (SelectionVSAssembly) vs2.getAssembly(outName);
-            applySelection(outAssembly, null, context);
-         }
-      }
-
-      // if a selection container is hidden by clear, the parent tab and its children
-      // visibility may change. (62311)
-      if(!assembly.isVisible() && assembly.getContainer() instanceof TabVSAssembly) {
-         Viewsheet viewsheet = context.rvs().getViewsheet();
-         coreLifecycleService.refreshVSAssembly(context.rvs(), assembly.getContainer(),
-                                                context.dispatcher());
-
-         for(String child : ((TabVSAssembly) assembly.getContainer()).getAbsoluteAssemblies()) {
-            VSAssembly childAssembly = viewsheet.getAssembly(child);
-
-            if(assembly.isEmbedded() && childAssembly != null) {
-               coreLifecycleService.addDeleteVSObject(context.rvs(), childAssembly, context.dispatcher());
-            }
-            else {
-               coreLifecycleService.refreshVSAssembly(context.rvs(), child, context.dispatcher());
-            }
-         }
-      }
-   }
-
-   public void toggleSelectionStyle(String assemblyName, Context context)
-      throws Exception
-   {
-      final RuntimeViewsheet rvs = context.rvs();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      box.lockRead();
-
-      try {
-         SelectionVSAssembly assembly = (SelectionVSAssembly) context.getAssembly(assemblyName);
-         SelectionVSAssemblyInfo selectionVSAssemblyInfo = (SelectionVSAssemblyInfo) assembly.getInfo();
-
-         boolean single = !selectionVSAssemblyInfo.isSingleSelection();
-         selectionVSAssemblyInfo.setSingleSelectionValue(single);
-
-         final CommandDispatcher dispatcher = context.dispatcher();
-         final String linkUri = context.linkUri();
-         final ChangedAssemblyList clist =
-            coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-         box.processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
-      }
-      finally {
-         box.unlockRead();
-      }
-   }
-
-   /**
-    * Sort a selection assembly.
-    *
-    * @param assemblyName the name of the selection assembly.
-    * @param event        the sort event.
-    * @param context      the execution context.
-    */
-   public void sortSelection(String assemblyName,
-                             SortSelectionListEvent event,
-                             Context context)
-      throws Exception
-   {
-      final RuntimeViewsheet rvs = context.rvs();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      box.lockRead();
-
-      try {
-         SelectionVSAssembly assembly = (SelectionVSAssembly) context.getAssembly(assemblyName);
-
-         if(assembly instanceof SelectionListVSAssembly) {
-            sortList((SelectionListVSAssembly) assembly, event);
-         }
-         else if(assembly instanceof SelectionTreeVSAssembly) {
-            sortTree((SelectionTreeVSAssembly) assembly, event);
-         }
-
-         final CommandDispatcher dispatcher = context.dispatcher();
-         final String linkUri = context.linkUri();
-         final ChangedAssemblyList clist =
-            coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-         box.processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
-      }
-      finally {
-         box.unlockRead();
-      }
    }
 
    private void sortList(SelectionListVSAssembly listAssembly, SortSelectionListEvent event) {

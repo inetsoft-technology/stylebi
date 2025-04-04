@@ -38,10 +38,10 @@ import java.security.Principal;
 public class VSSelectionListController {
    @Autowired
    public VSSelectionListController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                    VSSelectionService vsSelectionService)
+                                    VSSelectionServiceProxy vsSelectionServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.vsSelectionService = vsSelectionService;
+      this.vsSelectionServiceProxy = vsSelectionServiceProxy;
    }
 
    /**
@@ -63,8 +63,8 @@ public class VSSelectionListController {
                               CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.applySelection(assemblyName, event, context);
+      vsSelectionServiceProxy.applySelection(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                             event, principal, dispatcher, linkUri);
    }
 
    @Undoable
@@ -73,8 +73,8 @@ public class VSSelectionListController {
                            Principal principal, CommandDispatcher dispatcher,
                            @LinkUri String linkUri) throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.unselectAll(assemblyName, context);
+      vsSelectionServiceProxy.unselectAll(runtimeViewsheetRef.getRuntimeId(), assemblyName, principal,
+                                     dispatcher, linkUri);
    }
 
    /**
@@ -95,8 +95,8 @@ public class VSSelectionListController {
                              CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.selectSubtree(assemblyName, event, context);
+      vsSelectionServiceProxy.selectSubtree(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                       event, principal, dispatcher, linkUri);
    }
 
    @Undoable
@@ -105,8 +105,8 @@ public class VSSelectionListController {
                              Principal principal, CommandDispatcher dispatcher,
                              @LinkUri String linkUri) throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.applySelection(assemblyName, null, context);
+      vsSelectionServiceProxy.applySelection(runtimeViewsheetRef.getRuntimeId(), assemblyName, null,
+                                             principal, dispatcher, linkUri);
    }
 
    @Undoable
@@ -117,8 +117,7 @@ public class VSSelectionListController {
                              CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.sortSelection(assemblyName, event, context);
+      vsSelectionServiceProxy.sortSelection(runtimeViewsheetRef.getRuntimeId(), assemblyName, event, principal, dispatcher, linkUri);
    }
 
    @MessageMapping("/selectionList/toggle/{name}")
@@ -127,19 +126,10 @@ public class VSSelectionListController {
                                            @LinkUri String linkUri)
       throws Exception
    {
-      final Context context = createContext(principal, dispatcher, linkUri);
-      vsSelectionService.toggleSelectionStyle(assemblyName, context);
-   }
-
-   private Context createContext(Principal principal,
-                                 CommandDispatcher dispatcher,
-                                 String linkUri)
-      throws Exception
-   {
-      return vsSelectionService.createContext(runtimeViewsheetRef.getRuntimeId(),
-         principal, dispatcher, linkUri);
+      vsSelectionServiceProxy.toggleSelectionStyle(runtimeViewsheetRef.getRuntimeId(), assemblyName,
+                                              principal, dispatcher, linkUri);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSSelectionService vsSelectionService;
+   private final VSSelectionServiceProxy vsSelectionServiceProxy;
 }

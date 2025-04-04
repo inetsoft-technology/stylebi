@@ -159,6 +159,7 @@ public class ControllersExtension extends MockMessageExtension {
          new BaseTableLoadDataController(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
       selectionService = new VSSelectionService(coreLifecycleService, viewsheetService,
                                                 maxModeAssemblyService, sharedFilterService);
+      selectionServiceProxy = new VSSelectionServiceProxy();
       maxModeAssemblyService = new MaxModeAssemblyService(viewsheetService, coreLifecycleService);
    }
 
@@ -227,6 +228,10 @@ public class ControllersExtension extends MockMessageExtension {
       return selectionService;
    }
 
+   public VSSelectionServiceProxy getVSSelectionServiceProxy() {
+      return selectionServiceProxy;
+   }
+
    public SharedFilterService getSharedFilterService() {
       return sharedFilterService;
    }
@@ -258,6 +263,7 @@ public class ControllersExtension extends MockMessageExtension {
    private BaseTableLoadDataController baseTableLoadDataController;
    private LicenseService licenseService;
    private VSSelectionService selectionService;
+   private VSSelectionServiceProxy selectionServiceProxy;
    private MaxModeAssemblyService maxModeAssemblyService;
    private SharedFilterService sharedFilterService;
    private VSCompositionService vsCompositionService;
