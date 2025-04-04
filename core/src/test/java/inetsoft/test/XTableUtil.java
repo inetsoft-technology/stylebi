@@ -27,6 +27,9 @@ import inetsoft.uql.util.filereader.DelimitedFileReader;
 import org.junit.jupiter.api.Assertions;
 
 import java.io.ByteArrayInputStream;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Date;
 
 /**
  * Utility for printing, comparing tables.
@@ -101,5 +104,10 @@ public class XTableUtil {
       return reader.read(new ByteArrayInputStream(content.getBytes()), "UTF8",
                                      null, toutput, -1, 3, true,
                                      ",", false);
+   }
+
+   public static Date date(String date) {
+      return new Date(LocalDate.parse(date).atStartOfDay()
+                         .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
    }
 }

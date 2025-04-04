@@ -29,13 +29,15 @@ import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Serializable;
 import java.text.Format;
 import java.util.*;
 
 /**
  * This class merges multiple date parts into a single value.
  */
-public class DCMergeDatesCell implements DCMergeCell, Cloneable, CategoricalScale.ScaleValue {
+public class DCMergeDatesCell implements DCMergeCell, Cloneable, CategoricalScale.ScaleValue, Serializable
+{
    /**
     * @param isOnlyShowMostRecentDateAsLabel only show most recent dates of the ranges if true,
     *                                        else show dates of each ranges.
