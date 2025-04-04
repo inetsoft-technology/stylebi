@@ -29,7 +29,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.ws.TableAssemblyOperatorModel;
 import inetsoft.web.composer.model.ws.WorksheetModel;
-import inetsoft.web.composer.ws.TableModeController;
+import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.command.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -1090,7 +1090,7 @@ public class WorksheetEventUtil {
          .toArray(TableAssembly[]::new);
 
       for(TableAssembly table : tables) {
-         TableModeController.setDefaultTableMode(table, rws.getAssetQuerySandbox());
+         TableModeService.setDefaultTableMode(table, rws.getAssetQuerySandbox());
       }
    }
 

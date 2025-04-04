@@ -25,6 +25,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.web.composer.ws.TableModeController;
+import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.event.WSDragColumnsEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 
@@ -175,7 +176,7 @@ public class WSColumnDndProcessor {
          return;
       }
 
-      TableModeController.setDefaultTableMode(ntable, rws.getAssetQuerySandbox());
+      TableModeService.setDefaultTableMode(ntable, rws.getAssetQuerySandbox());
 
       ntable.setPixelOffset(new Point((int) x, (int) y));
       ws.addAssembly(ntable);

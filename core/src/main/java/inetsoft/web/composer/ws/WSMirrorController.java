@@ -75,7 +75,7 @@ public class WSMirrorController extends WorksheetController {
          nassembly = new MirrorTableAssembly(ws, nname, null, false,
                                              assembly);
          AssetEventUtil.initColumnSelection(rws, (TableAssembly) nassembly);
-         TableModeController.setDefaultTableMode((MirrorTableAssembly) nassembly,
+         TableModeService.setDefaultTableMode((MirrorTableAssembly) nassembly,
                                                  rws.getAssetQuerySandbox());
       }
 

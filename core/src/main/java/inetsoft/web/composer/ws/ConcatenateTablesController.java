@@ -280,7 +280,7 @@ public class ConcatenateTablesController extends WorksheetController {
             ws, name, new TableAssembly[]{ leftTable, rightTable },
             new TableAssemblyOperator[]{ operator });
          ws.addAssembly(ctbl);
-         TableModeController.setDefaultTableMode(ctbl, rws.getAssetQuerySandbox());
+         TableModeService.setDefaultTableMode(ctbl, rws.getAssetQuerySandbox());
          AssetEventUtil.initColumnSelection(rws, ctbl);
          WorksheetEventUtil.createAssembly(rws, ctbl, commandDispatcher, principal);
          WorksheetEventUtil.focusAssembly(ctbl.getName(), commandDispatcher);

@@ -29,7 +29,7 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.ws.TableAssemblyOperatorModel;
-import inetsoft.web.composer.ws.TableModeController;
+import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.WSFocusCompositeTableCommand;
@@ -184,7 +184,7 @@ public class InnerJoinService extends WorksheetControllerService {
 
       final AbstractTableAssembly targetTable = joinInfo.targetTable;
       final AbstractTableAssembly sourceTable = joinInfo.sourceTable;
-      TableModeController.setDefaultTableMode(jtable, rws.getAssetQuerySandbox());
+      TableModeService.setDefaultTableMode(jtable, rws.getAssetQuerySandbox());
       AssetEventUtil.layoutResultantTable(targetTable, sourceTable, jtable);
       WorksheetEventUtil.layout(rws, commandDispatcher);
       WorksheetEventUtil.createAssembly(rws, jtable, commandDispatcher, principal);
