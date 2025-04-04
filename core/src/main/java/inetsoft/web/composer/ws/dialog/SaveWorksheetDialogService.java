@@ -35,10 +35,10 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.gui.ObjectInfo;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.model.ws.*;
-import inetsoft.web.composer.ws.SaveWorksheetController;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.SetWorksheetInfoCommand;
+import inetsoft.web.composer.ws.service.SaveWorksheetService;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
@@ -310,7 +310,7 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
             WorksheetEventUtil.updateWorksheetMode(rws);
             engine.setWorksheet(rws.getWorksheet(), entry, principal, true, !model.updateDep());
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
-            SaveWorksheetController.initWorksheetOldName(rws);
+            SaveWorksheetService.initWorksheetOldName(rws);
 
             if(model.updateDep()) {
                engine.fixRenameDepEntry(rws.getID(), entry);
