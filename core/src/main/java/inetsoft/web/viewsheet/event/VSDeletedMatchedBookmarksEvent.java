@@ -20,11 +20,13 @@ package inetsoft.web.viewsheet.event;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.viewsheet.model.RemoveAnnotationsCondition;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableVSDeletedMatchedBookmarksEvent.class)
 @JsonDeserialize(as = ImmutableVSDeletedMatchedBookmarksEvent.class)
 public interface VSDeletedMatchedBookmarksEvent extends ViewsheetEvent {
