@@ -273,7 +273,8 @@ public class ExportController {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
 
       Dimension chartSize = assemblyImageService.calculateDownloadSize(width, height, rvs, chartId);
-      assemblyImageService.downloadAssemblyImage(rvs.getID(), chartId, chartSize.getWidth(),
+      String runtimeId = Tool.byteDecode(rvs.getID());
+      assemblyImageService.downloadAssemblyImage(runtimeId, chartId, chartSize.getWidth(),
                                                  chartSize.getHeight(),chartSize.getWidth(),
                                                  chartSize.getHeight(), svg,
                                                  principal, request, response);

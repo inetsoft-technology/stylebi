@@ -17,7 +17,9 @@
  */
 package inetsoft.web.viewsheet.model;
 
-public class RemoveAnnotationsCondition {
+import java.io.Serializable;
+
+public class RemoveAnnotationsCondition implements Serializable {
     public AnnotationFilterOption getFilterOption() {
         return filterOption;
     }

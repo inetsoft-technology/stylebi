@@ -92,6 +92,7 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
+      vid = Tool.byteDecode(vid);
       imageService.downloadAssemblyImage(vid, aid, width, height, width, height, svg,
                                          principal, request, response);
    }
@@ -119,6 +120,7 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
+      vid = Tool.byteDecode(vid);
       imageService.processGetAssemblyImage(vid, aid, width, height, 0, 0, null, 0, 0, 0,
                                            principal, request, response, true, false);
    }
@@ -157,7 +159,7 @@ public class GetImageController {
    {
       VSUtil.globalShareVsRunInHostScope(Tool.byteDecode(vid), principal,
          () -> {
-            imageService.processGetAssemblyImage(vid, aid, width, height, maxWidth, maxHeight, aname,
+            imageService.processGetAssemblyImage(Tool.byteDecode(vid), aid, width, height, maxWidth, maxHeight, aname,
                                            index, row, col, principal, request, response, svg,
                                            false);
             return null;
