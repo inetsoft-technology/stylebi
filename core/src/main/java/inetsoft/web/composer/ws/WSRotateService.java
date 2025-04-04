@@ -65,7 +65,7 @@ public class WSRotateService extends WorksheetControllerService{
          rws.getWorksheet().addAssembly(table);
          AssetQuerySandbox box = rws.getAssetQuerySandbox();
 
-         TableModeController.setDefaultTableMode(table, box);
+         TableModeService.setDefaultTableMode(table, box);
          AssetEventUtil.layoutResultantTable(assembly, assembly, table);
          WorksheetEventUtil.createAssembly(rws, table, commandDispatcher, principal);
          WorksheetEventUtil.refreshColumnSelection(rws, nname, false);
