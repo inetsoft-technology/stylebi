@@ -17,11 +17,6 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.asset.*;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSResizeColumnEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -29,11 +24,16 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-
 import java.security.Principal;
 
 @Controller
 public class ResizeColumnController extends WorksheetController {
+
+   public ResizeColumnController(ResizeColumnServiceProxy resizeColumnServiceProxy)
+   {
+      this.resizeColumnServiceProxy = resizeColumnServiceProxy;
+   }
+
    @Undoable
    @LoadingMask
    @MessageMapping("/composer/worksheet/resize-column")
@@ -41,34 +41,8 @@ public class ResizeColumnController extends WorksheetController {
       @Payload WSResizeColumnEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      String tname = event.getTableName();
-      ColumnRef column = (ColumnRef) event.getColumnRef().createDataRef();
-      int width = event.getWidth();
-      TableAssembly table = (TableAssembly) ws.getAssembly(tname);
-      ColumnSelection ocolumns = table.getColumnSelection(false);
-      ColumnSelection ncolumns = table.getColumnSelection(true);
-      int index = ocolumns.indexOfAttribute(column);
-
-      if(index >= 0) {
-         column = (ColumnRef) ocolumns.getAttribute(index);
-         column.setPixelWidth(width);
-      }
-
-      index = ncolumns.indexOfAttribute(column);
-
-      if(index >= 0) {
-         column = (ColumnRef) ncolumns.getAttribute(index);
-         column.setPixelWidth(width);
-      }
-
-      table.setColumnSelection(ncolumns, true);
-      table.setColumnSelection(ocolumns, false);
-
-      WorksheetEventUtil.loadTableData(rws, tname, true, false);
-      WorksheetEventUtil.refreshAssembly(rws, tname, true, commandDispatcher, principal);
-      WorksheetEventUtil.layout(rws, commandDispatcher);
-      AssetEventUtil.refreshTableLastModified(ws, tname, true);
+      resizeColumnServiceProxy.resizeColumn(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private final ResizeColumnServiceProxy resizeColumnServiceProxy;
 }
