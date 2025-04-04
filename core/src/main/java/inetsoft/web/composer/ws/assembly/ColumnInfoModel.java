@@ -20,7 +20,9 @@ package inetsoft.web.composer.ws.assembly;
 import inetsoft.uql.asset.internal.ColumnInfo;
 import inetsoft.web.binding.drm.ColumnRefModel;
 
-public class ColumnInfoModel {
+import java.io.Serializable;
+
+public class ColumnInfoModel implements Serializable {
    public ColumnInfoModel(){}
 
    public ColumnInfoModel(ColumnInfo info, int index) {
