@@ -17,15 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.graph.GraphUtil;
-import inetsoft.report.internal.binding.OrderInfo;
-import inetsoft.uql.XConstants;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
-import inetsoft.web.binding.command.SetVSBindingModelCommand;
-import inetsoft.web.binding.model.BindingModel;
-import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.chart.VSChartSortAxisEvent;
@@ -35,20 +26,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
-
 import java.security.Principal;
-import java.util.ArrayList;
 
 @Controller
-public class VSChartSortAxisController extends VSChartController<VSChartSortAxisEvent> {
+public class VSChartSortAxisController {
    @Autowired
    public VSChartSortAxisController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                    CoreLifecycleService coreLifecycleService,
-                                    VSBindingService bindingFactory,
-                                    ViewsheetService viewsheetService)
+                                    VSChartSortAxisServiceProxy serviceProxy)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
-      this.bindingFactory = bindingFactory;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.serviceProxy = serviceProxy;
    }
 
    /**
@@ -68,44 +55,9 @@ public class VSChartSortAxisController extends VSChartController<VSChartSortAxis
                             Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      processEvent(event, principal, linkUri, dispatcher, chartState -> {
-         VSChartInfo chartInfo = chartState.getChartInfo();
-         XDimensionRef innerdim = GraphUtil.getInnerDimRef(chartInfo, false);
-
-         if(innerdim == null) {
-            return VSAssembly.NONE_CHANGED;
-         }
-
-         int order = XConstants.SORT_VALUE_DESC;
-         String sortOp = event.getSortOp();
-
-         if("Asc".equals(sortOp)) {
-            order = XConstants.SORT_ASC;
-         }
-         else if("Desc".equals(sortOp)) {
-            order = XConstants.SORT_VALUE_ASC;
-         }
-
-         innerdim.setOrder(order);
-         ((VSDimensionRef) innerdim).setSortByColValue(event.getSortField());
-
-         if((innerdim.getOrder() & OrderInfo.SORT_SPECIFIC) != OrderInfo.SORT_SPECIFIC &&
-            ((VSDimensionRef) innerdim).getManualOrderList() != null)
-         {
-            ((VSDimensionRef) innerdim).setManualOrderList(new ArrayList());
-         }
-
-         // sorting ignored for time series
-         innerdim.setTimeSeries(false);
-         ChartVSAssembly chartAssembly = (ChartVSAssembly) chartState
-            .getRuntimeViewsheet().getViewsheet().getAssembly(event.getChartName());
-         BindingModel binding = bindingFactory.createModel(chartAssembly);
-         SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
-         dispatcher.sendCommand(bcommand);
-
-         return VSAssembly.OUTPUT_DATA_CHANGED;
-      });
+      serviceProxy.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, linkUri, principal, dispatcher);
    }
 
-   private final VSBindingService bindingFactory;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartSortAxisServiceProxy serviceProxy;
 }
