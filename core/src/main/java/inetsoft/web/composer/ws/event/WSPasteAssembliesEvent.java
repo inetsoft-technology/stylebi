@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.ws.event;
 
-public class WSPasteAssembliesEvent {
+import java.io.Serializable;
+
+public class WSPasteAssembliesEvent implements Serializable {
    public String[] getAssemblies() {
       return assemblies;
    }
