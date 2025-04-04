@@ -63,18 +63,21 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
     * {@link #processEvent} so the chart state can be injected and we can optionally
     * call complete after the event handling
     *
+    * @param runtimeId  The RuntimeViewsheetRef runtime id
     * @param event      A chart events that extends VSChartEvent
     * @param principal  The injected principal object
     * @param dispatcher The injected command dispatcher
     */
-   public abstract void eventHandler(@Payload T event,
-                                     @LinkUri String linkUri,
+   public abstract Void eventHandler(String runtimeId,
+                                     T event,
+                                     String linkUri,
                                      Principal principal,
                                      CommandDispatcher dispatcher) throws Exception;
 
    /**
     * Process an event that handles its own completion (usually by dispatching a command)
     *
+    * @param runtimeId  The RuntimeViewsheetRef runtime id
     * @param event      A subclass of VSChartEvent
     * @param principal  The principal object
     * @param handler    A lambda function that takes a VSChartStateInfo and returns void

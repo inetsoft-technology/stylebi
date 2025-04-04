@@ -18,13 +18,14 @@
 package inetsoft.web.viewsheet.event.chart;
 
 import java.awt.*;
+import java.io.Serializable;
 
 /**
  * Class that encapsulates the parameters for chart user actions.
  *
  * @since 12.3
  */
-public class VSChartEvent {
+public class VSChartEvent implements Serializable {
    public String getOrgId() {
       return orgId;
    }
