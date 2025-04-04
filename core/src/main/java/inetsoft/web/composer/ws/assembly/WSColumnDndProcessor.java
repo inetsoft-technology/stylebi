@@ -24,7 +24,6 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
 import inetsoft.uql.erm.DataRef;
-import inetsoft.web.composer.ws.TableModeController;
 import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.event.WSDragColumnsEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
