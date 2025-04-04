@@ -52,6 +52,7 @@ export class PageHeaderService {
       "_#(js:Security Settings Users)",
       "_#(js:Security Settings Actions)",
       "_#(js:Repository)",
+      "_#(js:Materialized Views)",
       "_#(js:Schedule Tasks)",
       "_#(js:Data Cycles)",
       "_#(js:Organization Presentation Settings)",

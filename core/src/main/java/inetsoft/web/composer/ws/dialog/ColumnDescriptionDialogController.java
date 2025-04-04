@@ -17,14 +17,7 @@
  */
 package inetsoft.web.composer.ws.dialog;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.report.composition.execution.AssetQuerySandbox;
-import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.erm.DataRef;
 import inetsoft.web.composer.ws.WorksheetController;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSColumnDescriptionEvent;
 import inetsoft.web.viewsheet.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -36,6 +29,12 @@ import java.security.Principal;
 
 @Controller
 public class ColumnDescriptionDialogController extends WorksheetController {
+
+   public ColumnDescriptionDialogController(ColumnDescriptionDialogServiceProxy dialogServiceProxy)
+   {
+      this.dialogServiceProxy = dialogServiceProxy;
+   }
+
    @Undoable
    @LoadingMask
    @InitWSExecution
@@ -44,49 +43,8 @@ public class ColumnDescriptionDialogController extends WorksheetController {
       @Payload WSColumnDescriptionEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      String name = event.tableName();
-      TableAssembly table = (TableAssembly) ws.getAssembly(name);
-      String desc = event.description();
-
-      if(table != null) {
-         int mode = WorksheetEventUtil.getMode(table);
-         boolean pub = AssetQuerySandbox.isRuntimeMode(mode) || AssetQuerySandbox.isEmbeddedMode(mode) ||
-            table.isAggregate();
-         ColumnRef column = (ColumnRef) table.getColumnSelection(pub)
-            .getAttribute(event.columnIndex());
-         ColumnSelection columns = table.getColumnSelection();
-         ColumnRef column2 = (ColumnRef) columns.findAttribute(column);
-
-         if(column2 == null) {
-            String columnName = column.getAttribute();
-
-            for(int i = 0; i < columns.getAttributeCount(); i++) {
-               DataRef dref = columns.getAttribute(i);
-
-               if(dref == null) {
-                  continue;
-               }
-
-               ColumnRef cref = (ColumnRef) dref;
-               String alias = ((ColumnRef) cref).getAlias();
-               String name0 = alias != null && !"".equals(alias) ?
-                  alias : cref.getAttribute();
-
-               if(columnName.equals(name0)) {
-                  cref.setDescription(desc);
-               }
-            }
-         }
-         else {
-            column2.setDescription(desc);
-         }
-
-         WorksheetEventUtil.refreshColumnSelection(rws, name, true);
-         WorksheetEventUtil.loadTableData(rws, name, true, true);
-         WorksheetEventUtil.refreshAssembly(rws, name, true, commandDispatcher, principal);
-         AssetEventUtil.refreshTableLastModified(ws, name, true);
-      }
+     dialogServiceProxy.updateColumnType(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private ColumnDescriptionDialogServiceProxy dialogServiceProxy;
 }

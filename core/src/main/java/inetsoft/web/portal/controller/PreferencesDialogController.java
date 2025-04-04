@@ -69,16 +69,18 @@ public class PreferencesDialogController {
       SecurityProvider provider = engine.getSecurityProvider();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       User user = provider.getUser(pId);
+      boolean editableUser = SUtil.isEditableUser(provider, pId);
 
       if(user instanceof FSUser) {
          FSUser fsUser = (FSUser) user;
          String[] emails = fsUser.getEmails();
          model.setEmail(emails == null ? null : StringUtils.join(emails, ","));
+         model.setdisable(!editableUser);
       }
-      else if(user instanceof User) {
+      else if(user != null) {
          String[] emails = user.getEmails();
          model.setEmail(emails == null ? null : StringUtils.join(emails, ","));
-         model.setdisable(true);
+         model.setdisable(!editableUser);
       }
       else {
          String SSOName = IdentityID.getIdentityIDFromKey(principal.getName()).name; //SSO users email claim stored as name
@@ -98,19 +100,18 @@ public class PreferencesDialogController {
       String email = model.getEmail();
       email = email == null ? null : email.trim();
       String[] emails = StringUtils.isEmpty(email) ? new String[0] : email.split(",");
-
       SecurityEngine engine = SecurityEngine.getSecurity();
       SecurityProvider provider = engine.getSecurityProvider();
-      EditableAuthenticationProvider eprovider = SUtil.getEditableAuthenticationProvider(provider);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      User user = eprovider.getUser(pId);
+      EditableAuthenticationProvider eprovider =
+         SUtil.getEditableAuthenticationProvider(provider, pId);
+      User user = provider.getUser(pId);
 
-      if(user == null && SUtil.isInternalUser(principal)) {
-         throw new MessageException("The authentication provider is not editable!");
-      }
+      if(user instanceof FSUser fsUser && !Tool.equals(fsUser.getEmails(), emails)) {
+         if(eprovider == null) {
+            throw new MessageException("The authentication provider is not editable!");
+         }
 
-      if(user instanceof FSUser) {
-         FSUser fsUser = (FSUser) user;
          fsUser.setEmails(emails);
          eprovider.setUser(user.getIdentityID(), fsUser);
       }

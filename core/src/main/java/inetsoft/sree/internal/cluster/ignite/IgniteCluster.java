@@ -895,6 +895,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public <T> T affinityCall(String cache, String key, AffinityCallable<T> job) {
+      return ignite.compute().affinityCall(cache, key, new IgniteAffinityCallable<>(job));
+   }
+
+   @Override
    public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
       UUID id = ignite.events()
          .remoteListen(new RebalanceListenerAdapter(listener),
@@ -1714,5 +1719,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       protected String service;
       protected Ignite ignite;
+   }
+
+   private static final class IgniteAffinityCallable<T> implements IgniteCallable<T> {
+      public IgniteAffinityCallable(AffinityCallable<T> delegate) {
+         this.delegate = delegate;
+      }
+
+      @Override
+      public T call() throws Exception {
+         return delegate.call();
+      }
+
+      private final AffinityCallable<T> delegate;
    }
 }

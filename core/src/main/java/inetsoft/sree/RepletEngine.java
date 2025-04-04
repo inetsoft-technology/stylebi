@@ -1256,7 +1256,7 @@ public class RepletEngine extends AbstractAssetEngine
                                List<RenameDependencyInfo> renameDependencyInfos)
       throws Exception
    {
-      super.changeSheet0(oentry, ostorage, nentry, nstorage, root, callFireEvent, null);
+      super.changeSheet0(oentry, ostorage, nentry, nstorage, root, callFireEvent, renameDependencyInfos);
 
       if(oentry.getScope() == GLOBAL_SCOPE) {
          SecurityEngine security = getSecurity();

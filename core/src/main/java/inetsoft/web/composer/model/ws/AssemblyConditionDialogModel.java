@@ -23,10 +23,11 @@ import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.condition.*;
 
+import java.io.Serializable;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class AssemblyConditionDialogModel {
+public class AssemblyConditionDialogModel implements Serializable {
    public boolean isAdvanced() {
       return advanced;
    }

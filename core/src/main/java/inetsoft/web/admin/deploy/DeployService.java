@@ -21,8 +21,8 @@ import inetsoft.report.LibManager;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.*;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -43,8 +43,6 @@ import org.springframework.util.StringUtils;
 import java.io.*;
 import java.security.Principal;
 import java.sql.Timestamp;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -84,12 +82,11 @@ public class DeployService {
          .build();
    }
 
-   public ExportedAssetsModel getJarFileInfo(DeploymentInfo info, Principal principal)
-   {
-      return getJarFileInfo(info, null, principal);
+   public ExportedAssetsModel getJarFileInfo(DeploymentInfo info, Principal principal) {
+      return getJarFileInfo(UUID.randomUUID().toString(), info, null, principal);
    }
 
-   public ExportedAssetsModel getJarFileInfo(DeploymentInfo info,
+   public ExportedAssetsModel getJarFileInfo(String importId, DeploymentInfo info,
                                              ImportTargetFolderInfo targetFolderInfo,
                                              Principal principal)
    {
@@ -221,10 +218,8 @@ public class DeployService {
          }
       }
 
-      String deploymentDate = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"))
-         .format(jarInfo.getDeploymentDate());
-
       return ExportedAssetsModel.builder()
+         .importId(importId)
          .name(jarInfo.getName())
          .dateFormat(Tool.getDateFormatPattern())
          .deploymentDate(jarInfo.getDeploymentDate().getTime())
@@ -383,7 +378,8 @@ public class DeployService {
 
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
       boolean noUsers = users.isEmpty() ||
-         users.size() == 1 && (users.contains("anonymous") || users.contains("_NULL_")) ||
+         users.size() == 1 &&
+         users.stream().anyMatch(id -> id != null && ("anonymous".equals(id.getName()) || "_NULL_".equals(id.getName()))) ||
          onlyScheduleTaskUsers;
 
       try {
@@ -414,8 +410,7 @@ public class DeployService {
       AnalyticRepository repository = SUtil.getRepletRepository();
 
       if(repository instanceof RepletEngine) {
-         List<String> list = new ArrayList<>();
-         list.addAll(ignoreUserAssets);
+         List<String> list = new ArrayList<>(ignoreUserAssets);
          List<String> privateSembeddedData = info.getJarInfo().getDependeciesMap().get("privateSembeddedData");
 
          if(privateSembeddedData != null) {
@@ -681,7 +676,7 @@ public class DeployService {
          errStr = Tool.concat(errPatterns.toArray(new String[0]), '\n');
       }
 
-      results.add(0, errStr);
+      results.addFirst(errStr);
       return results;
    }
 
@@ -726,7 +721,7 @@ public class DeployService {
       List<String> assets = findAssets(patterns);
 
       if(!assets.isEmpty()) {
-         assets.remove(0);
+         assets.removeFirst();
       }
 
       return assets;
@@ -844,10 +839,10 @@ public class DeployService {
       XAsset asset = SUtil.getXAsset(type, entityName, user);
 
       if(model.lastModifiedTime() != null) {
-         asset.setLastModifiedTime(model.lastModifiedTime().longValue());
+         asset.setLastModifiedTime(model.lastModifiedTime());
       }
 
-      if(asset != null && asset.getType() == ViewsheetAsset.VIEWSHEET) {
+      if(asset != null && Objects.equals(asset.getType(), ViewsheetAsset.VIEWSHEET)) {
          final String identifier = ((ViewsheetAsset) asset).getAssetEntry().toIdentifier();
          AssetEntry entry = getRegistryEntry(identifier, principal);
 
@@ -1135,7 +1130,7 @@ public class DeployService {
    }
 
    private void sortRequired(List<RequiredAssetModel> models) {
-      models.sort(new Comparator<RequiredAssetModel>() {
+      models.sort(new Comparator<>() {
          @Override
          public int compare(RequiredAssetModel o1, RequiredAssetModel o2) {
             int result = getType(o1).compareTo(getType(o2));
@@ -1414,10 +1409,13 @@ public class DeployService {
          }
       }
 
-      // escape characters
-      path = path.replace("^", "\\^");
-      path = path.replace("(", "\\(");
-      path = path.replace(")", "\\)");
+      if(path != null) {
+         // escape characters
+         path = path.replace("^", "\\^");
+         path = path.replace("(", "\\(");
+         path = path.replace(")", "\\)");
+      }
+
       return new AssetSearchOptions(global, user, type, path);
    }
 
@@ -1477,10 +1475,10 @@ public class DeployService {
          return types;
       }
 
-      private boolean global;
-      private String type;
-      private String path;
-      private IdentityID user;
+      private final boolean global;
+      private final String type;
+      private final String path;
+      private final IdentityID user;
    }
 
    private static final String SINGLE_ITEM_PATTERN = "[^/]+";

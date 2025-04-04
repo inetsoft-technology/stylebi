@@ -254,6 +254,19 @@ public interface Cluster extends AutoCloseable {
    <K> boolean isLocalCacheKey(String cache, K key);
 
    /**
+    * Executes given job on the node where data for provided affinity key is located.
+    *
+    * @param cache the name of the cache.
+    * @param key   the affinity key value.
+    * @param job   the job to execute.
+    *
+    * @return the return value of the job.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> T affinityCall(String cache, String key, AffinityCallable<T> job);
+
+   /**
     * Adds a listener that is notified when a cache is rebalanced.
     *
     * @param cacheName the name of the cache.

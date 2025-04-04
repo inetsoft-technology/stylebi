@@ -18,9 +18,11 @@
 package inetsoft.web.composer.ws.event;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableOpenAssetEventValidator.class)
 public abstract class OpenAssetEventValidator {
    public abstract String trapMessage();
