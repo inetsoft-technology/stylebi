@@ -28,7 +28,7 @@ import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
-import inetsoft.web.composer.ws.TableModeController;
+import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSCrossJoinEvent;
@@ -86,7 +86,7 @@ public class CrossJoinService extends WorksheetControllerService {
       rws.getWorksheet().checkDependencies();
       final RelationalJoinTableAssembly jTable = joinInfo.joinTable;
       AssetEventUtil.initColumnSelection(rws, jTable);
-      TableModeController.setDefaultTableMode(jTable, rws.getAssetQuerySandbox());
+      TableModeService.setDefaultTableMode(jTable, rws.getAssetQuerySandbox());
       WorksheetEventUtil.loadTableData(rws, jTable.getName(), true, false);
       WorksheetEventUtil.layout(rws, commandDispatcher);
 

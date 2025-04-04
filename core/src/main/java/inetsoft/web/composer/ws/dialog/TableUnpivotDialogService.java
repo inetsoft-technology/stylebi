@@ -29,7 +29,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
-import inetsoft.web.composer.ws.TableModeController;
+import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSUnpivotDialogEvent;
@@ -75,7 +75,7 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
          ws.addAssembly(table);
          AssetQuerySandbox box = rws.getAssetQuerySandbox();
 
-         TableModeController.setDefaultTableMode(table, box);
+         TableModeService.setDefaultTableMode(table, box);
          AssetEventUtil.layoutResultantTable(assembly, assembly, table);
          WorksheetEventUtil.createAssembly(rws, table, commandDispatcher, principal);
          WorksheetEventUtil.refreshColumnSelection(rws, nname, false);
@@ -108,7 +108,7 @@ public class TableUnpivotDialogService extends WorksheetControllerService {
 
       table.setHeaderColumns(event.getModel().getLevel());
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
-      TableModeController.setDefaultTableMode(table, box);
+      TableModeService.setDefaultTableMode(table, box);
       WorksheetEventUtil.createAssembly(rws, table, commandDispatcher, principal);
       WorksheetEventUtil.refreshColumnSelection(rws, tableName, true);
       AssetUtil.validateConditions(table.getColumnSelection(), table);

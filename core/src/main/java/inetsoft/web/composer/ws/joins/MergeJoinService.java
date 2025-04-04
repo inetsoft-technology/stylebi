@@ -27,7 +27,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
-import inetsoft.web.composer.ws.TableModeController;
+import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSMergeAddJoinTableEvent;
@@ -63,7 +63,7 @@ public class MergeJoinService extends WorksheetControllerService {
          return null;
       }
 
-      TableModeController.setDefaultTableMode(mergeTable, rws.getAssetQuerySandbox());
+      TableModeService.setDefaultTableMode(mergeTable, rws.getAssetQuerySandbox());
       WorksheetEventUtil.createAssembly(rws, mergeTable, commandDispatcher, principal);
       WorksheetEventUtil.focusAssembly(mergeTable.getName(), commandDispatcher);
 
