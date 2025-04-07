@@ -34,6 +34,8 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.util.dep.ScheduleTaskAsset;
+import inetsoft.util.dep.XAsset;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.model.ExportFormatModel;
 import inetsoft.web.admin.model.NameLabelTuple;
@@ -490,6 +492,12 @@ public class ScheduleTaskService {
                continue;
             }
 
+            if(action instanceof IndividualAssetBackupAction) {
+               IndividualAssetBackupAction backupAction = (IndividualAssetBackupAction) action;
+
+               renameBackupAction(backupAction, task.getPath(), oldTaskName, taskName);
+            }
+
             if(i >= task.getActionCount()) {
                task.addAction(action);
             }
@@ -521,6 +529,29 @@ public class ScheduleTaskService {
       }
 
       return getDialogModel(taskName, principal, em);
+   }
+
+   private void renameBackupAction(IndividualAssetBackupAction action, String path, String oid, String nid) {
+      if(action.getAssets() == null || action.getAssets().isEmpty()) {
+         return;
+      }
+
+      String currentOldTask = "/".equals(path) ? oid : path + "/" + oid;
+      String currentNewPath = "/".equals(path) ? nid : path + "/" + nid;
+
+      for(int i = 0; i < action.getAssets().size(); i++) {
+         XAsset asset = action.getAssets().get(i);
+
+         if(!(asset instanceof ScheduleTaskAsset)) {
+            continue;
+         }
+
+         ScheduleTaskAsset taskAsset = (ScheduleTaskAsset) asset;
+
+         if(Tool.equals(currentOldTask, taskAsset.getTask())) {
+            taskAsset.setTask(currentNewPath);
+         }
+      }
    }
 
 
