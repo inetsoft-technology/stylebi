@@ -631,6 +631,8 @@ public class UserTreeService {
       identityService.setIdentity(oldGroup, model, provider, principal);
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, "");
+      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      storage.migrateStorageData(oldID.getName(), newID.getName());
    }
 
    /**
