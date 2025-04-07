@@ -207,6 +207,7 @@ public class SecurityConfigController {
       throws Exception
    {
       SreeEnv.setProperty("security.login.orgLocation", passOption);
+      SreeEnv.save();
    }
 
    @GetMapping("/api/em/security/get-enable-self-signup")
