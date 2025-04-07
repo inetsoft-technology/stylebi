@@ -27,6 +27,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -295,89 +296,100 @@ public class ComposerViewsheetController {
          XSessionService.createSessionID(XSessionService.USER, null) :
          ((XPrincipal) principal).getSessionID();
       AssetEntry entry = rvs.getEntry();
-      String objectName = entry.getDescription();
-      LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
-      String execSessionID = XSessionService.createSessionID(
-         XSessionService.EXPORE_VIEW, entry.getName());
-      String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
-      String execType = ExecutionRecord.EXEC_TYPE_START;
-      java.sql.Date execTimestamp = new java.sql.Date(System.currentTimeMillis());
-      logEntry.setStartTime(execTimestamp.getTime());
-      ExecutionRecord executionRecord = new ExecutionRecord(execSessionID, userSessionID,
-                                                            objectName, objectType, execType,
-                                                            execTimestamp,
-                                                            ExecutionRecord.EXEC_STATUS_SUCCESS,
-                                                            null);
-      Audit.getInstance().auditExecution(executionRecord, principal);
-      executionRecord = new ExecutionRecord(execSessionID, userSessionID, objectName,
-                                            objectType, ExecutionRecord.EXEC_TYPE_FINISH,
-                                            execTimestamp, ExecutionRecord.EXEC_STATUS_SUCCESS,
-                                            null);
-
-      viewsheet.clearLayoutState();
-      AbstractLayout vsLayout = viewsheet.getLayoutInfo().getViewsheetLayouts()
-         .stream()
-         .filter(layout -> layout.getName().equals(event.getLayoutName()))
-         .findFirst()
-         .orElse(null);
+      boolean sharedDashboard = VSUtil.isDefaultVSGloballyViewsheet(entry, principal);
 
       try {
-         VSUtil.OPEN_VIEWSHEET.set(true);
-         final String designId = event.getRuntimeViewsheetId();
-         String id = viewsheetService.openPreviewViewsheet(designId, principal, vsLayout);
-         RuntimeViewsheet rvs2 = viewsheetService.getViewsheet(id, principal);
-         rvs2.setSocketSessionId(dispatcher.getSessionId());
-         rvs2.setSocketUserName(dispatcher.getUserName());
-         runtimeViewsheetManager.sheetOpened(id);
-         SetRuntimeIdCommand command = new SetRuntimeIdCommand();
-         command.setRuntimeId(id);
-         dispatcher.sendCommand(command);
-
-         ChangedAssemblyList clist = coreLifecycleService.createList(
-            true, event, dispatcher, rvs2, linkUri);
-         ViewsheetSandbox box = rvs2.getViewsheetSandbox();
-         AssetQuerySandbox qbox = box.getAssetQuerySandbox();
-
-         if(qbox != null) {
-            qbox.setActive(true);
+         if(sharedDashboard) {
+            OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
          }
 
-         if(!box.isCancelled(execTimestamp.getTime())) {
-            coreLifecycleService.refreshViewsheet(rvs2, rvs2.getEntry().toIdentifier(),
-                                                  linkUri, event.getWidth(), event.getHeight(), event.isMobile(),
-                                                  event.getUserAgent(), dispatcher, true, false, true, clist);
-            TextVSAssembly textVSAssembly = rvs2.getViewsheet() == null ?
-               null : rvs2.getViewsheet().getWarningTextAssembly(false);
+         String objectName = entry.getDescription();
+         LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
+         String execSessionID = XSessionService.createSessionID(
+            XSessionService.EXPORE_VIEW, entry.getName());
+         String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
+         String execType = ExecutionRecord.EXEC_TYPE_START;
+         java.sql.Date execTimestamp = new java.sql.Date(System.currentTimeMillis());
+         logEntry.setStartTime(execTimestamp.getTime());
+         ExecutionRecord executionRecord = new ExecutionRecord(execSessionID, userSessionID,
+                                                               objectName, objectType, execType,
+                                                               execTimestamp,
+                                                               ExecutionRecord.EXEC_STATUS_SUCCESS,
+                                                               null);
+         Audit.getInstance().auditExecution(executionRecord, principal);
+         executionRecord = new ExecutionRecord(execSessionID, userSessionID, objectName,
+                                               objectType, ExecutionRecord.EXEC_TYPE_FINISH,
+                                               execTimestamp, ExecutionRecord.EXEC_STATUS_SUCCESS,
+                                               null);
 
-            if(textVSAssembly != null) {
-               rvs.getViewsheet().adjustWarningTextPosition();
-               coreLifecycleService.addDeleteVSObject(rvs2, textVSAssembly, dispatcher);
-               coreLifecycleService.refreshVSAssembly(rvs2, textVSAssembly, dispatcher);
+         viewsheet.clearLayoutState();
+         AbstractLayout vsLayout = viewsheet.getLayoutInfo().getViewsheetLayouts()
+            .stream()
+            .filter(layout -> layout.getName().equals(event.getLayoutName()))
+            .findFirst()
+            .orElse(null);
+
+         try {
+            VSUtil.OPEN_VIEWSHEET.set(true);
+            final String designId = event.getRuntimeViewsheetId();
+            String id = viewsheetService.openPreviewViewsheet(designId, principal, vsLayout);
+            RuntimeViewsheet rvs2 = viewsheetService.getViewsheet(id, principal);
+            rvs2.setSocketSessionId(dispatcher.getSessionId());
+            rvs2.setSocketUserName(dispatcher.getUserName());
+            runtimeViewsheetManager.sheetOpened(id);
+            SetRuntimeIdCommand command = new SetRuntimeIdCommand();
+            command.setRuntimeId(id);
+            dispatcher.sendCommand(command);
+
+            ChangedAssemblyList clist = coreLifecycleService.createList(
+               true, event, dispatcher, rvs2, linkUri);
+            ViewsheetSandbox box = rvs2.getViewsheetSandbox();
+            AssetQuerySandbox qbox = box.getAssetQuerySandbox();
+
+            if(qbox != null) {
+               qbox.setActive(true);
+            }
+
+            if(!box.isCancelled(execTimestamp.getTime())) {
+               coreLifecycleService.refreshViewsheet(rvs2, rvs2.getEntry().toIdentifier(),
+                                                     linkUri, event.getWidth(), event.getHeight(), event.isMobile(),
+                                                     event.getUserAgent(), dispatcher, true, false, true, clist);
+               TextVSAssembly textVSAssembly = rvs2.getViewsheet() == null ?
+                  null : rvs2.getViewsheet().getWarningTextAssembly(false);
+
+               if(textVSAssembly != null) {
+                  rvs.getViewsheet().adjustWarningTextPosition();
+                  coreLifecycleService.addDeleteVSObject(rvs2, textVSAssembly, dispatcher);
+                  coreLifecycleService.refreshVSAssembly(rvs2, textVSAssembly, dispatcher);
+               }
+            }
+
+            vsCompositionService.shrinkZIndex(rvs2.getViewsheet(), dispatcher);
+            coreLifecycleService.setPermission(rvs2, principal, dispatcher);
+            coreLifecycleService.setExportType(rvs2, dispatcher);
+            execTimestamp = new java.sql.Date(System.currentTimeMillis());
+            executionRecord.setExecTimestamp(execTimestamp);
+            executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_SUCCESS);
+         }
+         catch(Exception e) {
+            execTimestamp = new java.sql.Date(System.currentTimeMillis());
+            executionRecord.setExecTimestamp(execTimestamp);
+            executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_FAILURE);
+            executionRecord.setExecError(e.getMessage());
+            throw e;
+         }
+         finally {
+            VSUtil.OPEN_VIEWSHEET.remove();
+            Audit.getInstance().auditExecution(executionRecord, principal);
+
+            if(executionRecord != null && executionRecord.getExecTimestamp() != null) {
+               logEntry.setFinishTime(executionRecord.getExecTimestamp().getTime());
+               LogUtil.logPerformance(logEntry);
             }
          }
-
-         vsCompositionService.shrinkZIndex(rvs2.getViewsheet(), dispatcher);
-         coreLifecycleService.setPermission(rvs2, principal, dispatcher);
-         coreLifecycleService.setExportType(rvs2, dispatcher);
-         execTimestamp = new java.sql.Date(System.currentTimeMillis());
-         executionRecord.setExecTimestamp(execTimestamp);
-         executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_SUCCESS);
-      }
-      catch(Exception e) {
-         execTimestamp = new java.sql.Date(System.currentTimeMillis());
-         executionRecord.setExecTimestamp(execTimestamp);
-         executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_FAILURE);
-         executionRecord.setExecError(e.getMessage());
-         throw e;
       }
       finally {
-         VSUtil.OPEN_VIEWSHEET.remove();
-         Audit.getInstance().auditExecution(executionRecord, principal);
-
-         if(executionRecord != null && executionRecord.getExecTimestamp() != null) {
-            logEntry.setFinishTime(executionRecord.getExecTimestamp().getTime());
-            LogUtil.logPerformance(logEntry);
-         }
+         OrganizationContextHolder.clear();
       }
    }
 
