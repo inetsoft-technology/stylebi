@@ -48,8 +48,7 @@ public class ArrangeDashboardDialogController {
    public ArrangeDashboardDialogModel setArrangeDashboardDialogModel(
       @RequestBody ArrangeDashboardDialogModel model, Principal principal) throws Exception
    {
-      IdentityID name = SecurityEngine.getSecurity().isSecurityEnabled() ?
-         IdentityID.getIdentityIDFromKey(principal.getName()) :
+      IdentityID name = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
          new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID());
       Identity identity = getIdentity((XPrincipal) principal);
       DashboardManager manager = DashboardManager.getManager();
@@ -159,7 +158,7 @@ public class ArrangeDashboardDialogController {
                              principal.getRoles(), null, null);
       }
       else {
-         identity = securityEnabled ? new DefaultIdentity(user, Identity.USER) :
+         identity = user != null ? new DefaultIdentity(user, Identity.USER) :
             new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
       }
 
