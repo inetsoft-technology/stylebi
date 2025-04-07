@@ -25,7 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Class that provides methods to synchronize the local file systems of report
@@ -91,6 +91,7 @@ public final class ClusterUtil {
          try {
             String file = MVStorage.getFile(mv);
             MVStorage.getInstance().remove(file);
+            addRemovedMVFile(file);
          }
          catch(Exception e) {
             LOG.error("Failed to delete MV file: {}", mv, e);
@@ -112,7 +113,24 @@ public final class ClusterUtil {
       }
    }
 
+   private static void addRemovedMVFile(String file) {
+      if(REMOVED_MV_FILES.get() == null) {
+         REMOVED_MV_FILES.set(new ArrayList<>());
+      }
+
+      REMOVED_MV_FILES.get().add(file);
+   }
+
+   public static boolean isRemovedMVFile(String file) {
+      return REMOVED_MV_FILES.get() != null && REMOVED_MV_FILES.get().contains(file);
+   }
+
+   public static void clearRemovedMVFiles() {
+      REMOVED_MV_FILES.set(null);
+   }
+
    private static final String WORK_DIR_MAP = "inetsoft.mv.fs.internal.workDirMap";
+   private static final ThreadLocal<List<String>> REMOVED_MV_FILES = new ThreadLocal<>();
    private static final Logger LOG =
       LoggerFactory.getLogger(ClusterUtil.class);
 }
