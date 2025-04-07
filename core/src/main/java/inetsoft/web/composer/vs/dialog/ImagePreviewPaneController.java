@@ -69,6 +69,7 @@ public class ImagePreviewPaneController {
    {
       name = Tool.byteDecode(name);
       runtimeId = Tool.byteDecode(runtimeId);
+      boolean isTiff = name.toLowerCase().endsWith(".tif") || name.toLowerCase().endsWith(".tiff");
 
       if(name.toLowerCase().endsWith(".gif")) {
          response.setContentType("image/gif");
@@ -82,7 +83,7 @@ public class ImagePreviewPaneController {
       else if(name.toLowerCase().endsWith(".svg")) {
          response.setContentType("image/svg+xml");
       }
-      else if(name.toLowerCase().endsWith(".tif")) {
+      else if(isTiff) {
          response.setContentType("image/jpeg");
       }
 
@@ -138,7 +139,7 @@ public class ImagePreviewPaneController {
                }
             }
 
-            if(name.toLowerCase().endsWith(".tif")) {
+            if(isTiff) {
                buf = VSUtil.transcodeTiffToJpg(buf);
             }
 
