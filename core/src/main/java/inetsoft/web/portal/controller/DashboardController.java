@@ -124,7 +124,7 @@ public class DashboardController {
    {
       try {
          Catalog catalog = Catalog.getCatalog(principal, Catalog.REPORT);
-         IdentityID user = SecurityEngine.getSecurity().isSecurityEnabled() ? IdentityID.getIdentityIDFromKey(principal.getName()) :
+         IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
             new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
          DashboardRegistry uregistry = DashboardRegistry.getRegistry(user);
          DashboardRegistry registry = DashboardRegistry.getRegistry();
@@ -233,7 +233,7 @@ public class DashboardController {
       String type;
       boolean composedDashboard = false;
 
-      IdentityID user = SecurityEngine.getSecurity().isSecurityEnabled() ? IdentityID.getIdentityIDFromKey(principal.getName()) :
+      IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
          new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
       DashboardRegistry registry = DashboardRegistry.getRegistry(user);
       // log create dashboard action
@@ -348,7 +348,7 @@ public class DashboardController {
       boolean composedDashboard = false;
 
       ActionRecord actionRecord = null;
-      IdentityID user = SecurityEngine.getSecurity().isSecurityEnabled() ? IdentityID.getIdentityIDFromKey(principal.getName()) :
+      IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
          new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
       DashboardRegistry registry = DashboardRegistry.getRegistry(user);
       Catalog catalog = Catalog.getCatalog();
@@ -530,7 +530,7 @@ public class DashboardController {
             Catalog.getCatalog().getString("dashboard.globalCopyLabel"));
          actionRecord.setObjectName(historyName);
 
-         IdentityID user = SecurityEngine.getSecurity().isSecurityEnabled() ? IdentityID.getIdentityIDFromKey(principal.getName()) :
+         IdentityID user = principal != null ? IdentityID.getIdentityIDFromKey(principal.getName()) :
             new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
          DashboardRegistry registry;
 
@@ -596,7 +596,7 @@ public class DashboardController {
             principal.getRoles(), null, null);
       }
       else {
-         identity = securityEnabled ? new DefaultIdentity(user, Identity.USER) :
+         identity = user != null ? new DefaultIdentity(user, Identity.USER) :
             new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
       }
 
