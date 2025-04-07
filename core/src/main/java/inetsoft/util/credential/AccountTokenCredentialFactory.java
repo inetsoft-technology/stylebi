@@ -32,6 +32,6 @@ public class AccountTokenCredentialFactory implements CredentialFactory {
 
    @Override
    public Credential createCredential(boolean forceLocal) {
-      return isLocal() ? new LocalAccountSecretCrendential() : new CloudAccountSecretCrendential();
+      return isLocal() || forceLocal ? new LocalAccountSecretCrendential() : new CloudAccountSecretCrendential();
    }
 }
