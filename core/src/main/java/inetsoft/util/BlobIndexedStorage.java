@@ -17,7 +17,7 @@
  */
 package inetsoft.util;
 
-import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.XPrincipal;
@@ -556,6 +556,20 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             executor.submit(() -> new MigrateCubeTask(entry, oorg, norg).process());
          }
          else if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
+            XMLSerializable result = getXMLSerializable(key, null, oId);
+
+            if(result instanceof ScheduleTask) {
+               ScheduleTask task = (ScheduleTask) result;
+               boolean usedTimeRange = task.getConditionStream()
+                  .filter(cond -> cond instanceof TimeCondition && ((TimeCondition) cond).getTimeRange() != null)
+                  .findFirst()
+                  .isPresent();
+
+               if(usedTimeRange) {
+                  continue;
+               }
+            }
+
             executor.submit(() -> new MigrateScheduleTask(entry, oorg, norg).process());
          }
          else if(entry.getType() == AssetEntry.Type.MV_DEF || entry.getType() == AssetEntry.Type.MV_DEF_FOLDER) {
