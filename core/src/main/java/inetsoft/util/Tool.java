@@ -260,6 +260,10 @@ public final class Tool extends CoreTool {
     * Normalize a file name.
     */
    public static String normalizeFileName(String key) {
+      return normalizeFileName(key, false);
+   }
+
+   public static String normalizeFileName(String key, boolean comma) {
       if(key == null) {
          return null;
       }
@@ -270,7 +274,7 @@ public final class Tool extends CoreTool {
          char c = key.charAt(i);
 
          if(c == '\\' || c == '/' || c == ':' || c =='*' || c == '?' ||
-            c == '"' || c =='<' || c == '>' || c == '|' || c == ';')
+            c == '"' || c == '<' || c == '>' || c == '|' || c == ';' || comma && c == ',')
          {
             sb.append('_');
             sb.append(Integer.toString(c));
