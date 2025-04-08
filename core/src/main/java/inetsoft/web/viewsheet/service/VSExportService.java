@@ -435,8 +435,8 @@ public class VSExportService {
                                   String disposition, String name, String mime)
    {
       String name0 = name;
-      String fileName = Tool.encodeURL(Tool.normalizeFileName(name0 + "." + suffix));
-      fileName = fileName.replaceAll("\'", "%27");
+      String fileName = Tool.encodeURL(Tool.normalizeFileName(name0 + "." + suffix, true));
+      fileName = fileName.replaceAll("'", "%27");
 
       // file name too long will cause problem in office 2010
       // @see bug1393467998696
