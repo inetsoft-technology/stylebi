@@ -76,7 +76,7 @@
 
   <properties>
     <docker.base.image>eclipse-temurin:21.0.5_11-jdk</docker.base.image>
-    <spring-boot.version>3.3.6</spring-boot.version>
+    <spring-boot.version>3.3.10</spring-boot.version>
   </properties>
 
   <modules>
