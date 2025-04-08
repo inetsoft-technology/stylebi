@@ -45,7 +45,7 @@ class VSSelectionListControllerTest {
    void setup() {
       controller = new VSSelectionListController(
          controllers.getRuntimeViewsheetRef(),
-         controllers.getVSSelectionService());
+         controllers.getVSSelectionServiceProxy());
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {

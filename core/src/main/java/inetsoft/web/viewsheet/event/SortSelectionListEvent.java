@@ -18,12 +18,14 @@
 package inetsoft.web.viewsheet.event;
 
 
+import java.io.Serializable;
+
 /**
  * Class that encapsulates the parameters for applying a selection.
  *
  * @since 12.3
  */
-public class SortSelectionListEvent {
+public class SortSelectionListEvent implements Serializable {
    public String getSearch() {
       return search;
    }

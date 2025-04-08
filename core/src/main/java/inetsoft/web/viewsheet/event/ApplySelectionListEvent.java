@@ -17,6 +17,7 @@
  */
 package inetsoft.web.viewsheet.event;
 
+import java.io.Serializable;
 import java.util.*;
 
 /**
@@ -24,7 +25,7 @@ import java.util.*;
  *
  * @since 12.3
  */
-public class ApplySelectionListEvent {
+public class ApplySelectionListEvent implements Serializable {
    public Type getType() {
       return type;
    }
@@ -116,7 +117,7 @@ public class ApplySelectionListEvent {
       APPLY, REVERSE
    }
 
-   public static final class Value {
+   public static final class Value implements Serializable {
       public String[] getValue() {
          return value;
       }
