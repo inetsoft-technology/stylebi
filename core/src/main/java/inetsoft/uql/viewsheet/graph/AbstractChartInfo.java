@@ -1817,6 +1817,20 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       this.unitWidthRatio = ratio;
    }
 
+   /**
+    * Get unit width ratio as a percent of the initial width ratio.
+    */
+   public double getUnitWidthRatioPercent() {
+      return unitWidthRatioPercent;
+   }
+
+   /**
+    * Set unit width ratio as a percent of the initial width ratio.
+    */
+   public void setUnitWidthRatioPercent(double ratio) {
+      this.unitWidthRatioPercent = ratio;
+   }
+
    public double getInitialWidthRatio() {
       return initialWidthRatio;
    }
@@ -1847,6 +1861,20 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    @Override
    public void setUnitHeightRatio(double ratio) {
       this.unitHeightRatio = ratio;
+   }
+
+   /**
+    * Get unit height ratio as a percent of the initial width ratio.
+    */
+   public double getUnitHeightRatioPercent() {
+      return unitHeightRatioPercent;
+   }
+
+   /**
+    * Set unit height ratio as a percent of the initial width ratio.
+    */
+   public void setUnitHeightRatioPercent(double ratio) {
+      this.unitHeightRatioPercent = ratio;
    }
 
    /**
@@ -2412,7 +2440,9 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
       writer.print(" isFacet=\"" + isFacet() + "\"");
       writer.print(" rtype=\"" + getRTChartType() + "\"");
       writer.print(" unitWidthRatio=\"" + getUnitWidthRatio() + "\"");
+      writer.print(" unitWidthRatioPercent=\"" + getUnitWidthRatioPercent() + "\"");
       writer.print(" unitHeightRatio=\"" + getUnitHeightRatio() + "\"");
+      writer.print(" unitHeightRatioPercent=\"" + getUnitHeightRatioPercent() + "\"");
       writer.print(" currWidthRatio=\"" + getEffectiveWidthRatio() + "\"");
       writer.print(" currHeightRatio=\"" + getEffectiveHeightRatio() + "\"");
       writer.print(" widthResized=\"" + isWidthResized() + "\"");
@@ -2653,10 +2683,17 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
 
       String unitWidth = Tool.getAttribute(elem, "unitWidthRatio");
       String unitHeight = Tool.getAttribute(elem, "unitHeightRatio");
+      String unitWidthPercent = Tool.getAttribute(elem, "unitWidthRatioPercent");
+      String unitHeightPercent = Tool.getAttribute(elem, "unitHeightRatioPercent");
 
       if(unitWidth != null && unitHeight != null) {
          setUnitWidthRatio(Double.parseDouble(unitWidth));
          setUnitHeightRatio(Double.parseDouble(unitHeight));
+      }
+
+      if(unitWidthPercent != null && unitHeightPercent != null) {
+         setUnitWidthRatioPercent(Double.parseDouble(unitWidthPercent));
+         setUnitHeightRatioPercent(Double.parseDouble(unitHeightPercent));
       }
 
       String currWidth = Tool.getAttribute(elem, "currWidthRatio");
@@ -3792,7 +3829,9 @@ public abstract class AbstractChartInfo implements ChartInfo, AssetObject {
    private boolean isFacet = true;
    private boolean adhoc = true;
    private double unitWidthRatio = 1; // user set ratio
+   private double unitWidthRatioPercent = 0;
    private double unitHeightRatio = 1;
+   private double unitHeightRatioPercent = 0;
    private double currWidthRatio = 1; // current display ratio
    private double currHeightRatio = 1;
    private double initialWidthRatio = 1;
