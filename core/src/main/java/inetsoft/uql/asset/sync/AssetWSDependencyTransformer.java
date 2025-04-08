@@ -278,10 +278,29 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
          for(int j = 0; j < assets.getLength(); j++) {
             Element assetElem = (Element) assets.item(j);
             Element path = Tool.getChildNodeByTagName(assetElem, "path");
+            Element user = Tool.getChildNodeByTagName(assetElem, "user");
             String pathVal = Tool.getValue(path);
 
             if(!rinfo .isColumn() && Tool.equals(pathVal, oentry.getPath())) {
                XMLTool.replaceValue(path, nentry.getPath());
+               assetElem.setAttribute("scope", String.valueOf(nentry.getScope()));
+
+               if(nentry.getUser() != null) {
+                  String userKey = nentry.getUser().convertToKey();
+
+                  if(user != null) {
+                     XMLTool.replaceValue(user, userKey);
+                  }
+                  else {
+                     Document document = assetElem.getOwnerDocument();
+                     Element userElem = document.createElement("user");
+                     XMLTool.addCDATAValue(userElem, userKey);
+                     assetElem.appendChild(userElem);
+                  }
+               }
+               else if(user != null) {
+                  assetElem.removeChild(user);
+               }
             }
          }
 
