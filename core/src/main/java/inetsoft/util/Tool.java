@@ -2234,7 +2234,7 @@ public final class Tool extends CoreTool {
     * @return Style Report version.
     */
    public static String getReportVersion() {
-      return "2023";
+      return "1.0.0";
    }
 
    /**
