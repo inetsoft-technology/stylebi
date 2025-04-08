@@ -387,6 +387,7 @@ public class MVSupportService {
          }
       }
 
+      ClusterUtil.clearRemovedMVFiles();
       manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
    }
 
