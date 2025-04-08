@@ -238,7 +238,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
    }
 
    private void renameBatchUpQueryParameters(Element doc, RenameInfo info) {
-      if(info.isWorksheet()) {
+      if(info.isWorksheet() && !info.isTable() && !info.isColumn()) {
          NodeList actions = getChildNodes(doc, "//Task/Action");
 
          for(int i = 0; i < actions.getLength(); i++) {
