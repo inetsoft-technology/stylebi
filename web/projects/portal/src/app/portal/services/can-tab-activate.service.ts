@@ -20,6 +20,7 @@ import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
+import { Tool } from "../../../../../shared/util/tool";
 import { ComponentTool } from "../../common/util/component-tool";
 import { PortalTab } from "../portal-tab";
 import { PortalTabsService } from "./portal-tabs.service";
@@ -59,7 +60,8 @@ export class CanTabActivateService implements CanActivate {
 
             if(!result) {
                ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-               ("_#(js:common.permit.view)" + "_*" + tabName))
+                  Tool.formatCatalogString("_#(js:common.permit.view)",
+                     [tabName]))
                   .then(() => this.router.navigate(["/portal"]));
             }
 
