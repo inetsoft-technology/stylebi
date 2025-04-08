@@ -636,6 +636,30 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       colWidths2.put(path, width);
    }
 
+   public void updateColumnWidthNames(String oldName, String newName) {
+      updateColumnWidth(colWidths2, oldName, newName);
+      updateColumnWidth(rcolWidths2, oldName, newName);
+   }
+
+   private void updateColumnWidth(Map<TableDataPath, Double> widthMap, String oldName, String newName) {
+      widthMap.keySet().stream()
+         .filter(path -> isSinglePathMatch(path, oldName))
+         .findFirst()
+         .ifPresent(oldPath -> {
+            TableDataPath newPath = (TableDataPath) oldPath.clone(new String[]{newName});
+            Double width = widthMap.remove(oldPath);
+
+            if(width != null) {
+               widthMap.put(newPath, width);
+            }
+         });
+   }
+
+   private boolean isSinglePathMatch(TableDataPath path, String name) {
+      String[] pathArr = path.getPath();
+      return pathArr.length == 1 && Objects.equals(name, pathArr[0]);
+   }
+
    private void clearColWidths(XTable lens, TableDataPath path) {
       for(int i = 0; i < lens.getColCount(); i++) {
          if(Objects.equals(lens.getDescriptor().getColDataPath(i), path)) {
