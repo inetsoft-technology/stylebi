@@ -26,6 +26,8 @@ import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.sync.RenameInfo;
+import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
@@ -424,6 +426,20 @@ public class DashboardController {
 
          if(!oldName.equals(dashboardModel.name())) {
             registry.renameDashboard(oldName, dashboardModel.name());
+            String okey = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.DASHBOARD,
+               oldName, null).toIdentifier();
+            String nkey = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.DASHBOARD,
+               dashboardModel.name(), null).toIdentifier();
+
+            if("u".equals(dashboardModel.type())) {
+               okey = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.DASHBOARD, oldName,
+                  user).toIdentifier();
+               nkey = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.DASHBOARD,
+                  dashboardModel.name(), user).toIdentifier();
+            }
+
+            RenameInfo rinfo = new RenameInfo(okey, nkey, RenameInfo.DASHBOARD);
+            RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
          }
 
          // remove the base vs is a new vs replaces it

@@ -149,6 +149,11 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
     */
    public static final int VPM = BOOKMARK << 1;
 
+   /**
+    * Dashboard dependency.
+    */
+   public static final int DASHBOARD = VPM << 1;
+
    public RenameInfo() {
       super();
    }
@@ -289,6 +294,10 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
 
    public boolean isViewsheet() {
       return (type & VIEWSHEET) == VIEWSHEET;
+   }
+
+   public boolean isDashboard() {
+      return (type & DASHBOARD) == DASHBOARD;
    }
 
    public boolean isReplet() {
