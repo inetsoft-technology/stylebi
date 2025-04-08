@@ -2019,6 +2019,11 @@ public class LocalDependencyHandler implements DependencyHandler {
                entry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
                                       AssetEntry.Type.SCHEDULE_TASK, "/" + path, null);
             }
+            else if(asset instanceof DashboardAsset) {
+               IdentityID user = asset.getUser();
+               entry = new AssetEntry(user == null ? AssetRepository.GLOBAL_SCOPE :
+                  AssetRepository.USER_SCOPE, AssetEntry.Type.DASHBOARD, asset.getPath(), user);
+            }
             else if(asset instanceof ScriptAsset) {
                String path = asset.getPath();
                entry = new AssetEntry(
