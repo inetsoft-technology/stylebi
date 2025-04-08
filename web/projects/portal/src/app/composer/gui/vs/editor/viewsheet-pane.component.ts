@@ -957,9 +957,10 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          this.heartbeatSubscription.unsubscribe();
          this.renameTransformSubscription.unsubscribe();
 
-         const message: string = "_#(js:common.expiredSheets)" +
-            ComponentTool.MESSAGEDIALOG_MESSAGE_CONNECTION +
-            (!!this.vs && !!this.vs.label ? "Viewsheet " + this.vs.label : "viewsheet");
+         const sheetName: string =
+            !!this.vs && !!this.vs.label ? "Viewsheet " + this.vs.label : "viewsheet";
+         const message: string =
+            Tool.formatCatalogString("_#(js:common.expiredSheets)", [sheetName]);
          this.confirm(message).then((ok) => {
             this.confirmExpiredDisplayed = false;
 
