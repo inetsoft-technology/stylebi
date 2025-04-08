@@ -68,13 +68,18 @@ public class RenameTransformHandler implements AutoCloseable {
 
    public void addExtendPartitionsTransformTask(XPartition partition, RenameInfo rinfo) {
       String[] children = partition.getPartitionNames();
+      DependencyStorageService service = DependencyStorageService.getInstance();
 
       for(String child : children) {
-        String nChildPath = rinfo.getNewName() + "^" + child;
-        String oChildPath = rinfo.getOldName() + "^" + child;
-        RenameInfo childInfo = new RenameInfo(oChildPath, nChildPath,
-          RenameInfo.PARTITION | RenameInfo.SOURCE);
-        addTransformTask(childInfo);
+         String nChildPath = rinfo.getNewName() + "^" + child;
+         String oChildPath = rinfo.getOldName() + "^" + child;
+         RenameInfo childInfo = new RenameInfo(oChildPath, nChildPath,
+            RenameInfo.PARTITION | RenameInfo.SOURCE);
+
+         addTransformTask(childInfo);
+         String oldKey = DependencyTransformer.getOldKey(childInfo);
+         String newKey = DependencyTransformer.getKey(childInfo, false);
+         service.rename(oldKey, newKey, rinfo.getOrganizationId());
       }
 
       addTransformTask(rinfo);

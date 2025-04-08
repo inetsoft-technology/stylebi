@@ -45,7 +45,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
-import inetsoft.web.viewsheet.InGroupedThread;
+import inetsoft.web.viewsheet.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
@@ -113,7 +113,9 @@ public class ExportController {
 
    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
    @GetMapping("/export/viewsheet/**")
+   @SwitchOrg
    public void exportViewsheet(@RemainingPath @ViewsheetPath String path,
+                               @OrganizationID String organizationId,
                                @RequestParam("format") Optional<Integer> formatParam,
                                @RequestParam("match") Optional<Boolean> matchParam,
                                @RequestParam("expandSelections") Optional<Boolean> expandSelectionsParam,

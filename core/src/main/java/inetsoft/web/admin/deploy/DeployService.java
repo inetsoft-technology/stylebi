@@ -35,6 +35,7 @@ import inetsoft.web.admin.content.repository.ContentRepositoryTreeService;
 import inetsoft.web.admin.content.repository.RepletRegistryManager;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.security.auth.MissingResourceException;
+import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -322,6 +323,7 @@ public class DeployService {
       return path;
    }
 
+   @DatasourceIgnoreGlobalShare
    public ImportAssetResponse importAsset(DeploymentInfo info, List<String> ignoreList,
                                           boolean overwriting,
                                           ImportTargetFolderInfo targetFolderInfo,

@@ -348,8 +348,12 @@ public abstract class DatasourcesBaseService {
          repository.updateDataSource(ds, null, false);
          afterUpdateSourceCallback(definition, ds, true);
 
+
+         boolean isSelfUser = Tool.equals(Organization.getSelfOrganizationID(),
+                                          OrganizationManager.getInstance().getCurrentOrgID(principal));
+
          // some kind private datasource of the current user
-         if(!folderPermission && newSourcePermission) {
+         if(isSelfUser || (!folderPermission && newSourcePermission)) {
             String userWithoutOrg = principal.getName() != null ?
                IdentityID.getIdentityIDFromKey(principal.getName()).getName() : null;
             Set<String> users = Collections.singleton(userWithoutOrg);

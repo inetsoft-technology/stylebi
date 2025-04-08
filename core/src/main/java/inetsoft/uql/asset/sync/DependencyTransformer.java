@@ -917,6 +917,10 @@ public abstract class DependencyTransformer {
          return name;
       }
 
+      if(info.isDashboard()) {
+         return name;
+      }
+
       if(info.isTableStyle()) {
          return getAssetId(name, AssetEntry.Type.TABLE_STYLE);
       }
@@ -994,6 +998,10 @@ public abstract class DependencyTransformer {
       }
 
       if(info.isVPM()) {
+         return true;
+      }
+
+      if(info.isDashboard()) {
          return true;
       }
 

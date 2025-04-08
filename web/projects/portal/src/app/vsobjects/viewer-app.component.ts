@@ -1385,6 +1385,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                         "&onlyDataComponents=" + !!format.onlyDataComponents +
                         "&exportAllTabbedTables=" + format.exportAllTabbedTables;
 
+                     if(this.securityEnabled) {
+                        url += "&organizationId=" + createAssetEntry(this.assetId).organization;
+                     }
+
                      if(format.formatType == FileFormatType.EXPORT_TYPE_CSV &&
                         !!format.csvConfig)
                      {

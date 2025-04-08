@@ -43,27 +43,27 @@
      (onResizableMove)="onResizeMove($event)"
      (onResizableEnd)="onResizeEnd()"
      actionsContextmenuAnchor [actions]="menuActions">
+  <div *ngIf="!model.editable" class="layout-overlay"></div>
   <ng-container *ngIf="selected && !dbclick">
     <div class="handle move bd-gray move-only"
          [style.top.px]="model.top < 16 ? model.height : -16"
          [style.left.px]="model.left < 16 ? model.width : -16">
       <i class="move-icon icon-size1" (click)="select($event)"></i>
     </div>
-    <div class="handle resize-handle bg-primary top left"></div>
-    <div class="handle resize-handle bg-primary top right"></div>
-    <div class="handle resize-handle bg-primary left middle"></div>
-    <div class="handle resize-handle bg-primary top middle"></div>
-    <div class="handle resize-handle bg-primary right middle"></div>
-    <div class="handle resize-handle bg-primary bottom middle"></div>
-    <div class="handle resize-handle bg-primary bottom left"></div>
-    <div class="handle resize-handle bg-primary bottom right"></div>
+    <div class="handle resize-handle bg-primary top left" [class.top-index-handle]="!model.editable"></div>
+    <div class="handle resize-handle bg-primary top right" [class.top-index-handle]="!model.editable"></div>
+    <div class="handle resize-handle bg-primary left middle" [class.top-index-handle]="!model.editable"></div>
+    <div class="handle resize-handle bg-primary top middle" [class.top-index-handle]="!model.editable"></div>
+    <div class="handle resize-handle bg-primary right middle" [class.top-index-handle]="!model.editable"></div>
+    <div class="handle resize-handle bg-primary bottom middle" [class.top-index-handle]="!model.editable"></div>
+    <div class="handle resize-handle bg-primary bottom left" [class.top-index-handle]="!model.editable"></div>
+    <div class="handle resize-handle bg-primary bottom right" [class.top-index-handle]="!model.editable"></div>
   </ng-container>
 
-  <div class="container-gutter top"></div>
-  <div class="container-gutter bottom"></div>
-  <div class="container-gutter left"></div>
-  <div class="container-gutter right"></div>
-  <div *ngIf="!model.editable" class="layout-overlay"></div>
+  <div class="container-gutter top" [class.top-index-handle]="!model.editable"></div>
+  <div class="container-gutter bottom" [class.top-index-handle]="!model.editable"></div>
+  <div class="container-gutter left" [class.top-index-handle]="!model.editable"></div>
+  <div class="container-gutter right" [class.top-index-handle]="!model.editable"></div>
 
   <div *ngIf="model.objectModel"
        class="object-container"

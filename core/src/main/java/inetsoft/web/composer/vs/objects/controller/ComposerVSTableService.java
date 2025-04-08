@@ -152,6 +152,7 @@ public class ComposerVSTableService {
             }
 
             table.setFormatInfo(nfinfo);
+            table.getTableDataVSAssemblyInfo().updateColumnWidthNames(oname, event.getText());
             box.resetDataMap(table.getName());
             ViewsheetSandbox currentBox = getSandbox(box, table.getAbsoluteName());
 

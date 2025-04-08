@@ -191,8 +191,7 @@ public final class AutoSaveUtils {
    }
 
    private static String getUserName(Principal user) {
-      SecurityEngine securityEngine = SecurityEngine.getSecurity();
-      return user != null && securityEngine.isSecurityEnabled() ? user.getName() :
+      return user != null ? user.getName() :
          new IdentityID("_NULL_",Organization.getDefaultOrganizationID()).convertToKey();
    }
 
@@ -276,8 +275,7 @@ public final class AutoSaveUtils {
     * Get the path of auto saved file.
     */
    public static String getAutoSavedFile(AssetEntry entry, Principal user, boolean recycle) {
-      SecurityEngine securityEngine = SecurityEngine.getSecurity();
-      String userName = user != null && securityEngine.isSecurityEnabled() ? user.getName() : null;
+      String userName = user != null ? user.getName() : null;
       String ipAddress = getIPAddress(user);
       String nullUser = new IdentityID("_NULL_",Organization.getDefaultOrganizationID()).convertToKey();
 

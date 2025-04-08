@@ -306,20 +306,23 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
 
          for(String email : emails.split("[;,]", 0)) {
             email = StringUtils.normalizeSpace(email);
+            String suffix = email.endsWith(Identity.USER_SUFFIX) ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
 
-            if(Tool.matchEmail(email) || !email.endsWith(Identity.USER_SUFFIX)) {
+            if(Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
+               !email.endsWith(Identity.GROUP_SUFFIX)))
+            {
                emailList.add(email);
                continue;
             }
 
-            String userName = email.substring(0, email.lastIndexOf(Identity.USER_SUFFIX));
+            String userName = email.substring(0, email.lastIndexOf(suffix));
 
             if(!Tool.equals(getOldName(), userName)) {
                emailList.add(email);
                continue;
             }
 
-            emailList.add(getNewName() + Identity.USER_SUFFIX);
+            emailList.add(getNewName() + suffix);
          }
 
          mailToItem.setAttribute("email", String.join(",", emailList));
