@@ -408,6 +408,9 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       else if(info.isTask()) {
          type = ScheduleTaskAsset.SCHEDULETASK;
       }
+      else if(info.isDashboard()) {
+         type = DashboardAsset.DASHBOARD;
+      }
 
       String newPath = null;
       IdentityID newUser = null;
