@@ -255,13 +255,13 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
    @Override
    protected void renameAutoDrill(Element doc, RenameInfo rinfo) {
-      if(rinfo.isTable()) {
-         return;
-      }
-
       NodeList list = getChildNodes(doc, ".//XDrillInfo/drillPath");
 
       for(int i = 0; i < list.getLength(); i++) {
+         if(rinfo.isTable()) {
+            continue;
+         }
+
          Element elem = (Element) list.item(i);
 
          String oname = rinfo.getOldName();
