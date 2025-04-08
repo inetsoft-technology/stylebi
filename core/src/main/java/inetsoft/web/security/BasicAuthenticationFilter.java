@@ -220,7 +220,8 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                   }
 
                   IdentityID loginAsUser = IdentityID.getIdentityIDFromKey(loginAsUserKey);
-                  boolean isSelfUser = Tool.equals(loginAsUser.orgID, Organization.getSelfOrganizationID());
+                  boolean isSelfUser = loginAsUser != null &&
+                     Tool.equals(loginAsUser.orgID, Organization.getSelfOrganizationID());
                   boolean selfLogin = isSelfUser && SecurityEngine.getSecurity().isSelfSignupEnabled();
 
                   if(principal != null && (!isSelfUser || selfLogin)) {
