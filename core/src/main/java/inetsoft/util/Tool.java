@@ -95,7 +95,7 @@ import java.util.zip.ZipOutputStream;
  */
 public final class Tool extends CoreTool {
    static {
-      PropertiesEngine.getInstance().addPropertyChangeListener("string.compare.caseSensitive", evt -> invalidateCaseSensitive());
+      PropertiesEngine.getInstance().addPropertyChangeListener("string.compare.casesensitive", evt -> invalidateCaseSensitive());
    }
    /**
     * User defined type.
@@ -2817,7 +2817,7 @@ public final class Tool extends CoreTool {
       if(!sinited) {
          synchronized(Tool.class) {
             if(!sinited) {
-               String cs = SreeEnv.getProperty("string.compare.caseSensitive");
+               String cs = SreeEnv.getProperty("string.compare.casesensitive");
                sensitive = "true".equals(cs);
                sinited = true;
             }
