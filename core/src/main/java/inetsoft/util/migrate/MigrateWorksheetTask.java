@@ -29,6 +29,12 @@ public class MigrateWorksheetTask extends MigrateDocumentTask {
       super(entry, oOrg, nOrg);
    }
 
+   public MigrateWorksheetTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg,
+                               Document document)
+   {
+      super(entry, oOrg, nOrg, document);
+   }
+
    public MigrateWorksheetTask(AssetEntry entry, String oname, String nname) {
       super(entry, oname, nname);
    }
