@@ -676,6 +676,14 @@ public class VGraphPair {
          }
       }
 
+      if(info.getUnitWidthRatioPercent() >= 1) {
+         info.setUnitWidthRatio(initialWidthRatio * info.getUnitWidthRatioPercent());
+      }
+
+      if(info.getUnitHeightRatioPercent() >= 1) {
+         info.setUnitHeightRatio(initialHeightRatio * info.getUnitHeightRatioPercent());
+      }
+
       double widthRatio = info.getUnitWidthRatio();
       double heightRatio = info.getUnitHeightRatio();
       boolean scrollable = GraphUtil.isScrollable(vgraph, info);
