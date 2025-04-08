@@ -47,7 +47,7 @@ export namespace PropertiesTool {
       "repository.tree.sort.pathOnly", "rmi.localhost.ip", "rtf.hyperlink.indicator", "rtf.merge.text",
       "schedule.auto.down", "schedule.auto.start", "schedule.reload.auto", "schedule.test.hook",
       "scheduler.restart.auto", "security.cache", "sort.crosstab.aggregate",
-      "sort.crosstab.dimension", "sree.find.backward", "string.compare.caseSensitive",
+      "sort.crosstab.dimension", "sree.find.backward", "string.compare.casesensitive",
       "text.break.pages", "text.encoding.utf8", "vs.import.button", "vs.form.enabled",
       "schedule.time.12hours", "portal.customLogo.enabled", "calendar.dateCompare.enabled"
    ];
