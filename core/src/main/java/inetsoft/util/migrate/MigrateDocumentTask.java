@@ -42,11 +42,16 @@ import javax.xml.xpath.XPathFactory;
 
 public abstract class MigrateDocumentTask implements MigrateTask {
    public MigrateDocumentTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg) {
+      this(entry, oOrg, nOrg, null);
+   }
+
+   public MigrateDocumentTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg, Document document) {
       super();
 
       this.entry = entry;
       this.oldOrganization = oOrg;
       this.newOrganization = nOrg;
+      this.document = document;
    }
 
    public MigrateDocumentTask(AssetEntry entry, String oname, String nname) {
@@ -66,8 +71,7 @@ public abstract class MigrateDocumentTask implements MigrateTask {
          if(getOldOrganization() instanceof Organization &&
             getNewOrganization() instanceof Organization)
          {
-            Document document = getIndexStorage().getDocument(oldKey,
-               ((Organization)getOldOrganization()).getId());
+            Document document = getDocument(((Organization)getOldOrganization()).getId(), oldKey);
 
             if(Tool.equals(((Organization) oldOrganization).getId(),
                            ((Organization) newOrganization).getId()) && document != null)
@@ -78,13 +82,24 @@ public abstract class MigrateDocumentTask implements MigrateTask {
             processAssemblies(document.getDocumentElement());
             AssetEntry newEntry = entry.cloneAssetEntry((Organization) getNewOrganization());
             String newKey = newEntry.toIdentifier(true);
-            getIndexStorage().putDocument(newKey, document, getAssetClassName(entry),
-                                          ((Organization) getNewOrganization()).getId());
+            setDocument(((Organization) getNewOrganization()).getId(), newKey, document);
          }
       }
       catch(Exception e) {
          LOG.error("failed to migrate entry:{}", entry.toIdentifier(), e);
       }
+   }
+
+   protected Document getDocument(String orgId, String key) {
+      return document != null ? document : getIndexStorage().getDocument(key, orgId);
+   }
+
+   protected void setDocument(String orgId, String key, Document document) {
+      if(this.document != null) {
+         return;
+      }
+
+      getIndexStorage().putDocument(key, document, getAssetClassName(entry), orgId);
    }
 
    @Override
@@ -455,6 +470,7 @@ public abstract class MigrateDocumentTask implements MigrateTask {
    private AbstractIdentity newOrganization;
    private String oname;
    private String nname;
+   private Document document;
    protected static final XPath xpath = XPathFactory.newInstance().newXPath();
    private static final Logger LOG = LoggerFactory.getLogger(MigrateDocumentTask.class);
 }

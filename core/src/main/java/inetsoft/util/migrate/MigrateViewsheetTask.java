@@ -39,6 +39,12 @@ public class MigrateViewsheetTask extends MigrateDocumentTask {
       super(entry, oname, nname);
    }
 
+   public MigrateViewsheetTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg,
+                               Document document)
+   {
+      super(entry, oOrg, nOrg, document);
+   }
+
    @Override
    protected void processAssemblies(Element root) {
       if(this.getEntry().isViewsheet()) {
