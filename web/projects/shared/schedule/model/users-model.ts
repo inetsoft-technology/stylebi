@@ -23,5 +23,6 @@ export interface UsersModel {
    owners: IdentityIdWithLabel[];
    groups: IdentityId[];
    emailUsers: IdentityId[];
+   emailUserAliases?: Map<IdentityId, string>;
    emailGroups: IdentityId[];
 }

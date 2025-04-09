@@ -139,6 +139,7 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    allParameters: string[];
    formSubscriptions: Subscription = new Subscription();
    selectedBookmarkListIndex: number = -1;
+   userAliases: Map<IdentityId, string>;
 
    @Input() set model(value: TaskActionPaneModel) {
       this._model = value;
@@ -216,6 +217,13 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
       usersService.getEmailGroups().subscribe(value => {
          if(this.groups != value) {
             this.groups = value;
+            this.initForm();
+         }
+      });
+
+      usersService.getEmailUserAliases().subscribe(value => {
+         if(this.userAliases != value) {
+            this.userAliases = value;
             this.initForm();
          }
       });
@@ -1049,7 +1057,8 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
       let identities: string[] = [];
 
       if(this.emailUsers) {
-         identities = identities.concat(this.emailUsers.map(user => user.name + Tool.USER_SUFFIX));
+         identities = identities.concat(this.usersService.populateEmailUserAliases(this.emailUsers, this.userAliases));
+
       }
 
       if(this.groups) {

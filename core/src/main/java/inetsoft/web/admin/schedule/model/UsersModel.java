@@ -24,8 +24,7 @@ import inetsoft.sree.security.IdentityIDWithLabel;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Value.Immutable
 @JsonSerialize(as = ImmutableUsersModel.class)
@@ -48,6 +47,9 @@ public abstract class UsersModel {
    public List<IdentityID> emailUsers() {
       return new ArrayList<>(0);
    }
+
+   @Nullable
+   public abstract Map<IdentityID, String> emailUserAliases();
 
    @Value.Default
    public List<IdentityID> emailGroups() {

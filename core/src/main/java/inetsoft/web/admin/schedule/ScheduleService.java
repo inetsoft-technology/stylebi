@@ -750,6 +750,12 @@ public class ScheduleService {
          }
       }
 
+      Map<IdentityID, String> emailUserAliases = new HashMap<>();
+
+      for(IdentityID uid : emailUsers) {
+         emailUserAliases.put(uid, SUtil.getUserAlias(uid));
+      }
+
       List<IdentityID> sortedEmailGroups = parentGroups.stream()
          .sorted()
          .toList();
@@ -758,6 +764,7 @@ public class ScheduleService {
          .owners(allowedUsers)
          .groups(allowedGroups)
          .emailUsers(emailUsers)
+         .emailUserAliases(emailUserAliases)
          .emailGroups(sortedEmailGroups);
 
       if(allowedUsers.length > 0) {
