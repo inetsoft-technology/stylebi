@@ -25,6 +25,8 @@ import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.sync.RenameInfo;
+import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
@@ -140,6 +142,21 @@ public class RepositoryDashboardService {
             path = parent != null ? parent + "/" + name : name;
             actionRecord.setObjectName(Util.getObjectFullPath(RepositoryEntry.DASHBOARD, oldName, principal, owner));
             actionRecord.setActionError("new name: " + name);
+
+            String okey = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.DASHBOARD,
+                                         oldName, null).toIdentifier();
+            String nkey = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.DASHBOARD,
+                                         name, null).toIdentifier();
+
+            if(!oldName.endsWith("__GLOBAL")) {
+               okey = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.DASHBOARD,
+                  oldName, owner).toIdentifier();
+               nkey = new AssetEntry(AssetRepository.USER_SCOPE, AssetEntry.Type.DASHBOARD,
+                  name, owner).toIdentifier();
+            }
+
+            RenameInfo rinfo = new RenameInfo(okey, nkey, RenameInfo.DASHBOARD);
+            RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
          }
 
          // remove the base vs if a new vs replaces it
