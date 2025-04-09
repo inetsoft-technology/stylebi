@@ -35,8 +35,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.simp.annotation.SubscribeMapping;
-import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -289,11 +287,6 @@ public class AuthenticationProviderController {
    @GetMapping("/api/em/security/isCloudSecrets")
    public boolean isCloudSecrets() {
       return Tool.isCloudSecrets();
-   }
-
-   @SubscribeMapping("/security/providers-change")
-   public void subscribeToDataCycleNames(StompHeaderAccessor stompHeaderAccessor) {
-      this.authenticationProviderService.addSubscriber(stompHeaderAccessor);
    }
 
    private final AuthenticationProviderService authenticationProviderService;
