@@ -35,6 +35,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -236,7 +238,7 @@ public class AuthenticationProviderController {
    @PostMapping("/api/em/security/get-organizationName/**")
    @DeniedMultiTenancyOrgUser
    public String getOrganizationName(@RemainingPath String id,
-                                              @RequestBody AuthenticationProviderModel model)
+                                     @RequestBody AuthenticationProviderModel model)
       throws Exception
    {
       return authenticationProviderService.getOrganizationName(model, id);
@@ -255,7 +257,7 @@ public class AuthenticationProviderController {
    @PostMapping("/api/em/security/organization-members/**")
    @DeniedMultiTenancyOrgUser
    public IdentityListModel getOrganizationMembers(@RemainingPath String org,
-                                          @RequestBody AuthenticationProviderModel model)
+                                                   @RequestBody AuthenticationProviderModel model)
       throws Exception
    {
       return authenticationProviderService.getOrganizationMembers(model, org);
@@ -287,6 +289,11 @@ public class AuthenticationProviderController {
    @GetMapping("/api/em/security/isCloudSecrets")
    public boolean isCloudSecrets() {
       return Tool.isCloudSecrets();
+   }
+
+   @SubscribeMapping("/security/providers-change")
+   public void subscribeToDataCycleNames(StompHeaderAccessor stompHeaderAccessor) {
+      this.authenticationProviderService.addSubscriber(stompHeaderAccessor);
    }
 
    private final AuthenticationProviderService authenticationProviderService;

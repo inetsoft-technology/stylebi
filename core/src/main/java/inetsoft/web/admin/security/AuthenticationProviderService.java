@@ -21,29 +21,76 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.sree.security.ldap.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.data.MapModel;
+import inetsoft.web.service.BaseSubscribeChangHandler;
 import inetsoft.web.viewsheet.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.handler.DestinationPatternsMessageCondition;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
+import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
-public class AuthenticationProviderService {
+public class AuthenticationProviderService extends BaseSubscribeChangHandler implements MessageListener {
    @Autowired
-   public AuthenticationProviderService(SecurityEngine securityEngine, ObjectMapper objectMapper) {
+   public AuthenticationProviderService(SecurityEngine securityEngine, ObjectMapper objectMapper,
+                                        SimpMessagingTemplate messageTemplate)
+   {
+      super(messageTemplate);
       this.securityEngine = securityEngine;
       this.objectMapper = objectMapper;
+      Cluster.getInstance().addMessageListener(this);
+   }
+
+   @EventListener
+   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
+      super.handleUnsubscribe(event);
+   }
+
+   @EventListener
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      super.handleDisconnect(event);
+   }
+
+   @Override
+   public Object getData(BaseSubscriber subscriber) {
+      return "";
+   }
+
+   public Object addSubscriber(StompHeaderAccessor headerAccessor) {
+      final String sessionId = headerAccessor.getSessionId();
+      final MessageHeaders messageHeaders = headerAccessor.getMessageHeaders();
+      final String destination = (String) messageHeaders
+         .get(SimpMessageHeaderAccessor.DESTINATION_HEADER);
+      final String lookupDestination = (String) messageHeaders
+         .get(DestinationPatternsMessageCondition.LOOKUP_DESTINATION_HEADER);
+      final String subscriptionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+      final BaseSubscribeChangHandler.BaseSubscriber subscriber =
+         new BaseSubscribeChangHandler.BaseSubscriber(sessionId, subscriptionId,
+                                                      lookupDestination, destination, headerAccessor.getUser());
+
+      return addSubscriber(subscriber);
    }
 
    public AuthenticationProviderModel getAuthenticationProvider(String name) {
@@ -438,7 +485,7 @@ public class AuthenticationProviderService {
    }
 
    public IdentityListModel getOrganizationMembers(AuthenticationProviderModel model,
-                                          String org)
+                                                   String org)
       throws Exception
    {
       AuthenticationProvider provider = getProviderFromModel(model).orElse(null);
@@ -713,7 +760,20 @@ public class AuthenticationProviderService {
       }
    }
 
+   @Override
+   public void messageReceived(MessageEvent event) {
+      if(event.getMessage() instanceof AuthenticationProvidersChanged) {
+         getSubscribers().stream()
+            .filter(sub -> sub.getUser() instanceof XPrincipal)
+            .forEach(sub -> {
+               this.debouncer.debounce(((XPrincipal) sub.getUser()).getCurrentOrgId(), 1L, TimeUnit.SECONDS,
+                                       () -> sendToSubscriber(sub));
+            });
+      }
+   }
+
    private final SecurityEngine securityEngine;
    private final ObjectMapper objectMapper;
+   private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
    private final Logger LOG = LoggerFactory.getLogger(AuthenticationProviderService.class);
 }
