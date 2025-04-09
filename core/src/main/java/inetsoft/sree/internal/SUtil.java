@@ -2903,7 +2903,9 @@ public class SUtil {
       }
 
       String orgID = entry.getOrgID();
-      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      XPrincipal principal = (XPrincipal) ThreadContext.getContextPrincipal();
+      String currOrgID = principal != null ?
+         principal.getOrgId() : OrganizationManager.getInstance().getCurrentOrgID();
       return !Tool.equals(orgID, currOrgID) && SUtil.isDefaultVSGloballyVisible() &&
          Organization.getDefaultOrganizationID().equals(orgID);
    }
