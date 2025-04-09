@@ -38,8 +38,18 @@ public class UtilizationMeterService implements MeterBinder {
          .tag("scope", "jvm")
          .tag("type", "cpu")
          .register(registry);
+      Gauge.builder("inetsoft.scaling.utilizationDetail", service::getJvmCpuDetail)
+         .description("The server utilization detail")
+         .tag("scope", "jvm")
+         .tag("type", "cpu")
+         .register(registry);
       Gauge.builder("inetsoft.scaling.utilization", service::getJvmMemoryUtilization)
          .description("The server utilization")
+         .tag("scope", "jvm")
+         .tag("type", "memory")
+         .register(registry);
+      Gauge.builder("inetsoft.scaling.utilizationDetail", service::getJvmMemoryDetail)
+         .description("The server utilization detail")
          .tag("scope", "jvm")
          .tag("type", "memory")
          .register(registry);
@@ -48,8 +58,18 @@ public class UtilizationMeterService implements MeterBinder {
          .tag("scope", "container")
          .tag("type", "cpu")
          .register(registry);
+      Gauge.builder("inetsoft.scaling.utilizationDetail", service::getSystemCpuDetail)
+         .description("The server utilization detail")
+         .tag("scope", "container")
+         .tag("type", "cpu")
+         .register(registry);
       Gauge.builder("inetsoft.scaling.utilization", service::getSystemMemoryUtilization)
          .description("The server utilization")
+         .tag("scope", "container")
+         .tag("type", "memory")
+         .register(registry);
+      Gauge.builder("inetsoft.scaling.utilizationDetail", service::getSystemMemoryDetail)
+         .description("The server utilization detail")
          .tag("scope", "container")
          .tag("type", "memory")
          .register(registry);
@@ -58,13 +78,28 @@ public class UtilizationMeterService implements MeterBinder {
          .tag("scope", "jvm")
          .tag("type", "scheduler")
          .register(registry);
+      Gauge.builder("inetsoft.scaling.utilizationDetail", service::getSchedulerDetail)
+         .description("The server utilization detail")
+         .tag("scope", "jvm")
+         .tag("type", "scheduler")
+         .register(registry);
       Gauge.builder("inetsoft.scaling.utilization", service::getCacheSwapMemoryUtilization)
          .description("The server utilization")
          .tag("scope", "jvm")
          .tag("type", "cacheSwapMemory")
          .register(registry);
+      Gauge.builder("inetsoft.scaling.utilizationDetail", service::getCacheSwapMemoryDetail)
+         .description("The server utilization detail")
+         .tag("scope", "jvm")
+         .tag("type", "cacheSwapMemory")
+         .register(registry);
       Gauge.builder("inetsoft.scaling.utilization", service::getCacheSwapWaitUtilization)
          .description("The server utilization")
+         .tag("scope", "jvm")
+         .tag("type", "cacheSwapWait")
+         .register(registry);
+      Gauge.builder("inetsoft.scaling.utilizationDetail", service::getCacheSwapWaitDetail)
+         .description("The server utilization detail")
          .tag("scope", "jvm")
          .tag("type", "cacheSwapWait")
          .register(registry);

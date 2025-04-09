@@ -68,6 +68,7 @@ public class ConfigDeserializer extends StdDeserializer<InetsoftConfig> {
       config.setExternalStorage(getObject(root, "externalStorage", p, ExternalStorageConfig.class));
       config.setCloudRunner(getObject(root, "cloudRunner", p, CloudRunnerConfig.class));
       config.setAudit(getObject(root, "audit", p, AuditConfig.class));
+      config.setMetrics(getObject(root, "metrics", p, MetricsConfig.class));
       config.setAdditionalProperties(additionalProperties);
 
       PasswordDeserializer.encryption.remove();
