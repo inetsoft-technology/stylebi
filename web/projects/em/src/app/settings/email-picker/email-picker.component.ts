@@ -37,12 +37,12 @@ import {
 } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
+import { ScheduleUsersService } from "../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { CheckMailInfo } from "../schedule/schedule-configuration-view/check-mail-info";
 import { IdentityId } from "../security/users/identity-id";
 import { EmailListDialogComponent } from "./email-list-dialog/email-list-dialog.component";
 import { Tool } from "../../../../../shared/util/tool";
-import { EmailListService } from "../schedule/task-action-pane/email-list.service";
 import { GuiTool } from "../../../../../portal/src/app/common/util/gui-tool";
 
 const SCHEDULE_CHECK_MAIL_URL = "../api/em/settings/schedule/check-mail";
@@ -78,6 +78,7 @@ export class EmailPickerComponent implements ControlValueAccessor, Validator, On
    @Input() allowVariable = false;
    @Output() onChangeEmails: EventEmitter<string> = new EventEmitter<string>();
    emailsControl: UntypedFormControl;
+   userAliases: Map<IdentityId, string>;
    internalValidators: ValidatorFn[];
    mobile: boolean;
 
@@ -127,11 +128,12 @@ export class EmailPickerComponent implements ControlValueAccessor, Validator, On
       return this.emailsControl.errors;
    }
 
-   constructor(private emailListService: EmailListService,
+   constructor(private userService: ScheduleUsersService,
                private dialog: MatDialog,
                private snackBar: MatSnackBar,
                private http: HttpClient)
    {
+      userService.getEmailUserAliases().subscribe(aliasMap => this.userAliases = aliasMap);
    }
 
    ngOnInit() {
@@ -207,7 +209,7 @@ export class EmailPickerComponent implements ControlValueAccessor, Validator, On
       let identities: string[] = [];
 
       if(this.users) {
-         identities = identities.concat(this.users.map(user => user.name + Tool.USER_SUFFIX));
+         identities = identities.concat(this.userService.populateEmailUserAliases(this.users, this.userAliases));
       }
 
       if(this.groups) {

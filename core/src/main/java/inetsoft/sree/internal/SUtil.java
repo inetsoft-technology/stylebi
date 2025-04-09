@@ -1050,6 +1050,11 @@ public class SUtil {
             IdentityID userID = new IdentityID(identityID.name.substring(0, identityID.name.lastIndexOf(Identity.USER_SUFFIX)), identityID.orgID);
             User user0 = security.getUser(userID);
 
+            //possibly alias
+            if(user0 == null) {
+               user0 = security.getUser(getUserIDFromAlias(userID));
+            }
+
             return (user0 == null) ? new String[0] : user0.getEmails();
          }
 
@@ -2951,6 +2956,18 @@ public class SUtil {
       }
 
       return alias;
+   }
+
+   public static IdentityID getUserIDFromAlias(IdentityID aliasID) {
+      IdentityID[] users = SecurityEngine.getSecurity().getOrgUsers(aliasID.orgID);
+
+      for(IdentityID user : users) {
+         if(Tool.equals(aliasID.name, getUserAlias(user))) {
+            return user;
+         }
+      }
+
+      return aliasID;
    }
 
    /**

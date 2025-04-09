@@ -37,6 +37,17 @@ export function convertKeyToID(key: string) {
    }
 }
 
+export function convertMappedKeyToID(key: string) {
+   const regex = /IdentityID\{name='(.*?)', orgID='(.*?)'\}/;
+   const match = key.match(regex);
+
+   if(match) {
+      return { name: match[1], orgID: match[2] };
+   }
+
+   return { name: key, orgID: "" };
+}
+
 export function equalsIdentity(id: IdentityId, id2: IdentityId) {
    return id?.name === id2?.name && id?.orgID === id2?.orgID;
 }
