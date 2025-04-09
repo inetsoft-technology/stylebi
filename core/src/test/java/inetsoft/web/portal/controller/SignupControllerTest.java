@@ -28,7 +28,9 @@ import inetsoft.web.portal.service.UserSignupService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.*;
+import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
@@ -37,6 +39,8 @@ import static org.mockito.Mockito.when;
 class SignupControllerTest {
    static SecurityEngine securityEngine;
    static SignupController signupController;
+   @Mock
+   static SimpMessagingTemplate messagingTemplate;
 
    @BeforeAll
    static void before() throws Exception {
@@ -46,7 +50,7 @@ class SignupControllerTest {
 
       ObjectMapper objectMapper = Mockito.mock(ObjectMapper.class);
       AuthenticationProviderService authenticationProviderService =
-         new AuthenticationProviderService(securityEngine, objectMapper);
+         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate);
       UserSignupService userSignupService = new UserSignupService(authenticationProviderService);
       signupController = new SignupController(userSignupService);
    }
