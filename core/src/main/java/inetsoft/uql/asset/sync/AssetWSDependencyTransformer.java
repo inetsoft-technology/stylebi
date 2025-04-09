@@ -263,14 +263,15 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
          String oname = rinfo.getOldName();
          String nname = rinfo.getNewName();
 
-         if(rinfo.isTable()) {
+         if(rinfo.isViewsheet() && (Hyperlink.VIEWSHEET_LINK + "")
+            .equals(Tool.getAttribute(elem, "linkType")))
+         {
+            replaceAttribute(elem, "link", oname, nname, true);
+         }
+
+         if(rinfo.isWorksheet()) {
             AssetEntry oentry = AssetEntry.createAssetEntry(oname);
             AssetEntry nentry = AssetEntry.createAssetEntry(nname);
-
-            if((Hyperlink.VIEWSHEET_LINK + "").equals(Tool.getAttribute(elem, "linkType"))) {
-               replaceAttribute(elem, "link", oname, nname, true);
-            }
-
             NodeList assets = getChildNodes(elem, "./subquery/worksheetEntry/assetEntry");
 
             for(int j = 0; j < assets.getLength(); j++) {
