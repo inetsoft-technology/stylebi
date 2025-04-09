@@ -72,16 +72,21 @@ import { convertKeyToID, convertToKey, IdentityId } from "../identity-id";
 })
 export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    public treeData: Observable<SecurityTreeNode[]>;
+   public authenticationProviders: string[];
    public selectedProvider: string;
    selectedNodes: SecurityTreeNode[] = [];
    nodeToExpand: SecurityTreeNode = null;
    providerEditable: boolean = true;
    isMultiTenant: boolean = false;
+   isSysAdmin: boolean = false;
    pageChanged: boolean = false;
+   private userName: string = "";
    model: SecurityTreeRootModel;
    isLoadingTemplate: boolean = false;
    public identityEditable = new Subject<boolean>;
    currOrg: string;
+   userOrg: string;
+   userOrgID: string;
    loading: boolean = false;
 
    constructor(private http: HttpClient,
@@ -93,31 +98,14 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                private snackBar: MatSnackBar,
                private usersService: ScheduleUsersService)
    {
-      orgDropdownService.onRefresh.subscribe(res => {
-         this.selectedProvider = res.provider;
-         this.refreshProvider(this.selectedProvider, res.providerChanged)
+      this.http.get("../api/em/security/get-current-user").subscribe(userModel => {
+         this.userName = userModel["name"].name;
+         this.userOrgID = userModel["name"].orgID;
+         this.userOrg = userModel["org"];
+         this.isSysAdmin = userModel["isSysAdmin"];
+         this.loadAuthenticationProviders();
       });
 
-      this.refreshProvider(orgDropdownService.getProvider(), false);
-   }
-
-   get authenticationProviders(): string[] {
-      return this.orgDropdownService.authenticationProviders;
-   }
-   get userName(): string {
-      return this.orgDropdownService.loginUserOrgName;
-   }
-
-   get userOrgID(): string {
-      return this.orgDropdownService.loginUserOrgID;
-   }
-
-   get userOrg(): string {
-      return this.orgDropdownService.loginUserOrgName;
-   }
-
-   get isSysAdmin(): boolean {
-      return this.orgDropdownService.isSystemAdmin();
    }
 
    ngOnInit(): void {
@@ -127,18 +115,14 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          .subscribe((org) => this.currOrg = org);
    }
 
-   refreshProvider(provider: string, providerChanged: boolean = true) {
-      this.changeProvider(provider, providerChanged, false);
-   }
-
-   changeProvider(provider: string, providerChanged: boolean = true, selectProvider: boolean = true) {
+   changeProvider(provider: string, providerChanged: boolean = true) {
       if(!provider) {
          return;
       }
 
       this.selectedNodes = [];
       this.selectedProvider = provider;
-      this.refreshTree(null, null, providerChanged, selectProvider);
+      this.refreshTree(null, null, providerChanged);
    }
 
    selectionChanged(event: SecurityTreeNode[]) {
@@ -404,10 +388,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       return null;
    }
 
-   private refreshTree(id?: IdentityId, type?: number, providerChanged?: boolean, selectProvider: boolean = false) {
-      if(!!selectProvider) {
-         this.orgDropdownService.refresh(this.selectedProvider, providerChanged);
-      }
+   private refreshTree(id?: IdentityId, type?: number, providerChanged?: boolean) {
+      this.orgDropdownService.refresh(this.selectedProvider, providerChanged);
 
       let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
       const url = "../api/em/security/user/get-security-tree-root/" +
@@ -515,6 +497,46 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }
          }
       }
+   }
+
+   private loadAuthenticationProviders(): void {
+      this.http.get<SecurityProviderStatusList>("../api/em/security/configured-authentication-providers")
+         .pipe(
+            map((list: SecurityProviderStatusList) => list.providers.map(p => p.name))
+         )
+         .subscribe((providers: string[]) => {
+            this.authenticationProviders = providers;
+
+            if(providers && providers.length > 0) {
+               const provider = this.orgDropdownService.getProvider();
+
+               if(provider == null && !this.isSysAdmin) {
+                  this.http.get<SecurityProviderStatus>("../api/em/security/get-current-authentication-provider")
+                     .subscribe(securityProvider => {
+                        let currprovider = securityProvider != null ? securityProvider.name : "";
+
+                        if(providers.includes(currprovider)) {
+                           this.changeProvider(currprovider, false);
+                        }
+                        else {
+                           this.changeProvider(providers[0], false);
+                        }
+                     });
+               }
+               else {
+                  if(!provider) {
+                     this.changeProvider(providers[0], false);
+                  }
+                  else if(providers.includes(provider)) {
+                     this.changeProvider(provider, false);
+                  }
+                  else {
+                     this.changeProvider(providers[0], true);
+                  }
+               }
+
+            }
+         });
    }
 
    ngOnDestroy(): void {

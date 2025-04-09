@@ -23,20 +23,16 @@ import inetsoft.test.SreeHome;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 
 import org.junit.jupiter.api.*;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 import java.util.ArrayList;
 import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @Disabled("Test is flaky on the build server")
 @SreeHome
 class UserSignupServiceTest {
    static UserSignupService userSignupService;
    static  SecurityEngine securityEngine;
-   @Mock
-   static SimpMessagingTemplate messagingTemplate;
 
    @BeforeAll
    static void before() throws Exception {
@@ -46,7 +42,7 @@ class UserSignupServiceTest {
 
       ObjectMapper objectMapper = Mockito.mock(ObjectMapper.class);
       AuthenticationProviderService authenticationProviderService =
-         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate);
+         new AuthenticationProviderService(securityEngine, objectMapper);
 
       userSignupService = new UserSignupService(authenticationProviderService);
    }

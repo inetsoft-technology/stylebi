@@ -20,8 +20,6 @@ import { IdentityId } from "../../../../em/src/app/settings/security/users/ident
 export interface CurrentUser {
    anonymous: boolean;
    name: IdentityId;
-   isSysAdmin: boolean;
-   org?: string;
    alias: string;
    localeLanguage: string;
    localeCountry: string;
