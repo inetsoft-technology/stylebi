@@ -18,7 +18,11 @@
 package inetsoft.sree.security;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.util.Identity;
+import inetsoft.web.admin.security.AuthenticationProvidersChanged;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -362,6 +366,13 @@ public class AuthenticationChain
 
       super.setProviderList(list);
 
+      try {
+         Cluster.getInstance().sendMessage(new AuthenticationProvidersChanged());
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed to send authentication providers changed message", ex);
+      }
+
       stream()
          .filter(EditableAuthenticationProvider.class::isInstance)
          .map(EditableAuthenticationProvider.class::cast)
@@ -416,4 +427,6 @@ public class AuthenticationChain
          listeners.forEach(l -> l.authenticationChanged(event));
       }
    };
+
+   private static final Logger LOG = LoggerFactory.getLogger(AuthenticationChain.class);
 }
