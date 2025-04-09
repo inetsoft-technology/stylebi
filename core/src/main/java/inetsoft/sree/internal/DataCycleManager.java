@@ -37,6 +37,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Consumer;
 
 /**
  * DataCycleManager handles the creation of pregenerated tasks at runtime.
@@ -796,6 +797,36 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       }
 
       save(oorg, norg, replace);
+   }
+
+   public void updateCycleInfoEmail(String oldEmail, String newEmail, boolean isUser) {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String suffix = isUser ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
+
+      for(String cycle : Collections.list(getDataCycles(orgId))) {
+         CycleInfo cycleInfo = getCycleInfo(cycle, orgId);
+
+         updateEmailField(cycleInfo.endNotify, cycleInfo.endEmail, oldEmail, newEmail, suffix,
+                          cycleInfo::setEndEmail);
+         updateEmailField(cycleInfo.startNotify, cycleInfo.startEmail, oldEmail, newEmail, suffix,
+                          cycleInfo::setStartEmail);
+         updateEmailField(cycleInfo.exceedNotify, cycleInfo.exceedEmail, oldEmail, newEmail, suffix,
+                          cycleInfo::setExceedEmail);
+         updateEmailField(cycleInfo.failureNotify, cycleInfo.failureEmail, oldEmail, newEmail, suffix,
+                          cycleInfo::setFailureEmail);
+      }
+   }
+
+   private void updateEmailField(boolean notify, String email,
+                                 String oldEmail, String newEmail, String suffix,
+                                 Consumer<String> setter) {
+      if(notify && email != null) {
+         String baseEmail = email.substring(0, email.lastIndexOf(suffix));
+
+         if(baseEmail.equals(oldEmail)) {
+            setter.accept(newEmail + suffix);
+         }
+      }
    }
 
    private void migrateCycleInfo(CycleInfo cycleInfo, Organization oorg, Organization norg) {
