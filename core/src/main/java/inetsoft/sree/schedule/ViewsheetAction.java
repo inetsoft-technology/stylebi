@@ -735,8 +735,9 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          bookmarks = Arrays.stream(bookmarks).filter(b -> {
             for(int i = 0; i < bookmarkNames.length; i++) {
                if(Tool.equals(bookmarkNames[i], b.getName()) &&
-                  Tool.equals(bookmarkUsers[i], b.getOwner()) &&
-                  Tool.equals(bookmarkTypes[i], b.getType()))
+                  Tool.equals(bookmarkTypes[i], b.getType()) &&
+                  (Tool.equals(bookmarkUsers[i], b.getOwner()) ||
+                     VSBookmark.HOME_BOOKMARK.equals(b.getName())))
                {
                   return true;
                }
