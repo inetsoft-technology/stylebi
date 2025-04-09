@@ -1431,6 +1431,15 @@ public class ScheduleService {
                         }
                         else if(value instanceof DynamicValueModel) {
                            value = ((DynamicValueModel) value).convertParameterValue();
+
+                           if(DynamicValueModel.VALUE.equals(parameter.value().getType())) {
+                              Object val = scheduleConditionService
+                                      .getParamValueAsType(parameter.type(), parameter.value());
+
+                              if(value instanceof DynamicParameterValue) {
+                                 ((DynamicParameterValue) value).setValue(val);
+                              }
+                           }
                         }
 
                         parametersMap.put(parameter.name(), value);
