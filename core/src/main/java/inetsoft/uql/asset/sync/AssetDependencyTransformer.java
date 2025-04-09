@@ -249,7 +249,7 @@ public class AssetDependencyTransformer extends DependencyTransformer {
             causeInfos = renameSheets(root, infos, asset.isViewsheet());
          }
          else {
-            renameAutoDrills(root, infos);
+            causeInfos = renameAutoDrills(root, infos);
          }
 
          if(getAssetFile() != null) {
@@ -268,10 +268,12 @@ public class AssetDependencyTransformer extends DependencyTransformer {
       return causeInfos;
    }
 
-   protected void renameAutoDrills(Element doc, List<RenameInfo> rinfos) {
+   protected RenameDependencyInfo renameAutoDrills(Element doc, List<RenameInfo> rinfos) {
+      return null;
    }
 
-   protected void renameAutoDrill(Element doc, RenameInfo rinfo) {
+   protected boolean renameAutoDrill(Element doc, RenameInfo rinfo) {
+      return false;
    }
 
    /**
