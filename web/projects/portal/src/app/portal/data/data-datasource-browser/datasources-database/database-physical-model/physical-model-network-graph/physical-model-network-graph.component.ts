@@ -1017,10 +1017,14 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    }
 
    getSelectedNode(currentNode: GraphNodeModel): boolean {
+      if(this.dragNodes != null && this.dragNodes.length > 0) {
+         return this.dragNodes.some(node => node.node.id === currentNode.id);
+      }
+
       if(this.selectedGraphNode) {
          return currentNode.id === this.selectedGraphNode.id;
       }
 
-      return this.dragNodes.some(node => node.node.id === currentNode.id);
+      return false;
    }
 }

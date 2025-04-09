@@ -624,7 +624,8 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                      type: nodeData.type
                   };
                   this.databaseRoot.children.push(node);
-                  this.tableTree.selectedNode = node;
+                  this.tableTree.selectedNodes = [];
+                  this.tableTree.selectedNodes.push(node)
                   this.selectNode(node);
                   let newTable = this.createPhysicalTableModel(nodeData);
                   let event: EditTableEvent = new EditTableEvent(this.physicalModel.id, newTable);
@@ -1315,15 +1316,14 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    }
 
    graphNodesSelected(nodes: string[]) {
-      let lastPath = !!nodes && nodes.length > 0 ? nodes[nodes.length - 1] : null;
-
-      if(!lastPath) {
+      if(!nodes && nodes.length == 0) {
          this.tableTree.selectedNode = null;
          this.selectNode(null);
       }
       else {
          this.resetSearchMode();
-         this.selectAndExpandToPath(lastPath);
+         this.tableTree.selectedNodes = [];
+         this.selectAndExpandToPath(nodes);
       }
    }
 
@@ -1361,15 +1361,14 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
     * @param path    the path to find
     * @param parent  the current parent node to search
     */
-   private selectAndExpandToPath(path: string, parent: TreeNodeModel = this.databaseRoot): void {
+   private selectAndExpandToPath(paths: string[], parent: TreeNodeModel = this.databaseRoot): void {
       for(let child of parent.children) {
          const childPath: string = (<DatabaseTreeNodeModel> child.data).path;
 
-         if(childPath === path) {
+         if(paths.includes(childPath)) {
             this.tableTree.selectNode(child);
-            break;
          }
-         else if(path.indexOf(childPath + "/") == 0) {
+         else if(paths.some(p => p.indexOf(childPath + "/") === 0)) {
             child.expanded = true;
 
             if(child.children.length == 0) {
@@ -1377,14 +1376,12 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
                   .subscribe(
                      data => {
                         child.children = data;
-                        this.selectAndExpandToPath(path, child);
+                        this.selectAndExpandToPath(paths, child);
                      });
             }
             else {
-               this.selectAndExpandToPath(path, child);
+               this.selectAndExpandToPath(paths, child);
             }
-
-            break;
          }
       }
    }
