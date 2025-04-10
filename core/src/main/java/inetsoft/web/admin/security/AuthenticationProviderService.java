@@ -19,9 +19,12 @@ package inetsoft.web.admin.security;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.mv.fs.FSService;
+import inetsoft.mv.mr.XJobPool;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.sree.security.ldap.*;
@@ -30,6 +33,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.data.MapModel;
+import inetsoft.web.admin.security.user.IdentityThemeService;
 import inetsoft.web.service.BaseSubscribeChangHandler;
 import inetsoft.web.viewsheet.*;
 import org.slf4j.Logger;
@@ -54,11 +58,14 @@ import java.util.stream.Collectors;
 public class AuthenticationProviderService extends BaseSubscribeChangHandler implements MessageListener {
    @Autowired
    public AuthenticationProviderService(SecurityEngine securityEngine, ObjectMapper objectMapper,
-                                        SimpMessagingTemplate messageTemplate)
+                                        SimpMessagingTemplate messageTemplate,
+                                        IdentityService identityService, IdentityThemeService themeService)
    {
       super(messageTemplate);
       this.securityEngine = securityEngine;
       this.objectMapper = objectMapper;
+      this.identityService = identityService;
+      this.themeService = themeService;
       Cluster.getInstance().addMessageListener(this);
    }
 
@@ -246,6 +253,12 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
             .orElseThrow(() -> new MessageException(
                Catalog.getCatalog(principal).getString("em.security.noSystemAdminProvider")));
 
+         List<String> removedOrgIds = Arrays.stream(removedProvider.getOrganizationIDs())
+            .filter((orgId) -> providerList.stream()
+               .noneMatch(provider -> Arrays.asList(provider.getOrganizationIDs()).contains(orgId)))
+            .toList();
+         removeOrganizations(removedOrgIds, removedProvider);
+
          removedProvider.tearDown();
          chain.setProviders(providerList);
       }
@@ -257,6 +270,28 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
    private boolean providerHasSysAdmins(AuthenticationProvider provider) {
       return Arrays.stream(provider.getRoles())
          .anyMatch(role -> provider.isSystemAdministratorRole(role) && provider.getRoleMembers(role).length > 0);
+   }
+
+   private void removeOrganizations(List<String> removedOrgIds, AuthenticationProvider provider) {
+      PortalThemesManager manager = PortalThemesManager.getManager();
+
+      for(String orgId : removedOrgIds) {
+         identityService.removeOrgProperties(orgId);
+         identityService.removeOrgScopedDataSpaceElements(provider.getOrganization(orgId));
+         themeService.removeTheme(orgId);
+         FSService.clearServerNodeCache(orgId);
+         XJobPool.resetOrgCache(orgId);
+         manager.removeCSSEntry(orgId);
+         manager.save();
+
+         try{
+            identityService.updateRepletRegistry(orgId, null);
+            identityService.removeStorages(orgId);
+         }
+         catch(Exception e) {
+            LOG.warn("Unable to remove old organization storage: "+e);
+         }
+      }
    }
 
    public void reorderAuthenticationProviders(ProviderListReorderModel reorderModel) throws Exception {
@@ -774,6 +809,8 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
 
    private final SecurityEngine securityEngine;
    private final ObjectMapper objectMapper;
+   private final IdentityService identityService;
+   private final IdentityThemeService themeService;
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
    private final Logger LOG = LoggerFactory.getLogger(AuthenticationProviderService.class);
 }

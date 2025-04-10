@@ -22,6 +22,8 @@ import inetsoft.sree.security.*;
 import inetsoft.test.SreeHome;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 
+import inetsoft.web.admin.security.IdentityService;
+import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.junit.jupiter.api.*;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -45,8 +47,11 @@ class UserSignupServiceTest {
       SUtil.setMultiTenant(true);
 
       ObjectMapper objectMapper = Mockito.mock(ObjectMapper.class);
+      IdentityService identityService = Mockito.mock(IdentityService.class);
+      IdentityThemeService themeService = Mockito.mock(IdentityThemeService.class);
       AuthenticationProviderService authenticationProviderService =
-         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate);
+         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate,
+                                           identityService, themeService);
 
       userSignupService = new UserSignupService(authenticationProviderService);
    }

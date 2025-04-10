@@ -23,6 +23,8 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.test.SreeHome;
 import inetsoft.web.admin.security.AuthenticationProviderService;
+import inetsoft.web.admin.security.IdentityService;
+import inetsoft.web.admin.security.user.IdentityThemeService;
 import inetsoft.web.portal.model.SignupResponseModel;
 import inetsoft.web.portal.service.UserSignupService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,8 +52,11 @@ class SignupControllerTest {
       SUtil.setMultiTenant(true);
 
       ObjectMapper objectMapper = Mockito.mock(ObjectMapper.class);
+      IdentityService identityService = Mockito.mock(IdentityService.class);
+      IdentityThemeService themeService = Mockito.mock(IdentityThemeService.class);
       AuthenticationProviderService authenticationProviderService =
-         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate);
+         new AuthenticationProviderService(securityEngine, objectMapper, messagingTemplate,
+                                           identityService, themeService);
       UserSignupService userSignupService = new UserSignupService(authenticationProviderService);
       signupController = new SignupController(userSignupService);
    }
