@@ -448,8 +448,12 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             executor.submit(() -> new MigrateScheduleTask(entry, oname, nname).updateNameProcess());
          }
 
+         if(entry.isViewsheet()) {
+            executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
+         }
+
          if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
-            if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+            if(entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
                executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
             }
             else if(entry.isWorksheet()) {
