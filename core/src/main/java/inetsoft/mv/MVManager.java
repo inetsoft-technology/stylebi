@@ -1204,8 +1204,10 @@ public final class MVManager {
          String metaWsId = metaData.getWsId();
 
          if(metaWsId != null) {
-            metaData.setWsId(AssetEntry.createAssetEntry(metaWsId).cloneAssetEntry(norg)
-               .toIdentifier(true));
+            String nMetaWsId = AssetEntry.createAssetEntry(metaWsId).cloneAssetEntry(norg)
+               .toIdentifier(true);
+            metaData.setWsId(nMetaWsId);
+            metaData.updatePlan(metaWsId, nMetaWsId);
          }
 
          String[] registeredSheets = metaData.getRegisteredSheets();
