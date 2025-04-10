@@ -126,8 +126,12 @@ public class RadioButtonVSAScriptableTest {
       radioButtonVSAScriptable.setDataType("Date");
       radioButtonVSAScriptable.setValues(new Object[] { new Date(125, 1, 20), new Date(125, 2, 20) });
       Object [] values = radioButtonVSAScriptable.getValues();
-      assertEquals("[Thu Feb 20 00:00:00 CST 2025, Thu Mar 20 00:00:00 CST 2025]",
-                   Arrays.toString(Arrays.copyOf(values, values.length)));
+
+      String[] expectedDates = { "2025-02-20", "2025-03-20" };
+      String[] actualDates = Arrays.stream(values)
+         .map(obj -> simpleDateFormat.format((Date) obj))
+         .toArray(String[]::new);
+      assertArrayEquals(expectedDates, actualDates);
    }
 
    @Test
