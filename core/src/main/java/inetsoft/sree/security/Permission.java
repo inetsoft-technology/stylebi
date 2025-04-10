@@ -719,7 +719,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    }
 
    /**
-    * Check if a permission setting is blank.
+    * Check if a permission setting is blank. This is system wide
     */
    public boolean isBlank() {
       for(Set<PermissionIdentity> identities : userGrants.values()) {
@@ -748,6 +748,46 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
 
       return true;
    }
+
+   /**
+    * Check if a permission setting is blank for a specific organization.
+    */
+   public boolean isBlank(String orgId) {
+      for(Set<PermissionIdentity> identities : userGrants.values()) {
+         for (PermissionIdentity identity : identities) {
+            if (orgId.equals(identity.getOrganizationID())) {
+               return false;
+            }
+         }
+      }
+
+      for(Set<PermissionIdentity> identities : roleGrants.values()) {
+         for (PermissionIdentity identity : identities) {
+            if (orgId.equals(identity.getOrganizationID())) {
+               return false;
+            }
+         }
+      }
+
+      for(Set<PermissionIdentity> identities : groupGrants.values()) {
+         for(PermissionIdentity identity : identities) {
+            if(orgId.equals(identity.getOrganizationID())) {
+               return false;
+            }
+         }
+      }
+
+      for(Set<PermissionIdentity> identities : organizationGrants.values()) {
+         for(PermissionIdentity identity : identities) {
+            if(orgId.equals(identity.getOrganizationID())) {
+               return false;
+            }
+         }
+      }
+
+      return true;
+   }
+
 
    /**
     * Return true if any grants in this permission are under the given organization
