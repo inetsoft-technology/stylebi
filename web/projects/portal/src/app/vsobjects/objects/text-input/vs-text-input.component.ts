@@ -255,8 +255,8 @@ export class VSTextInput extends NavigationComponent<VSTextInputModel>
             this.errorString = this.model.message.split("{0}").join(this.model.text);
          }
          else {
-            this.errorString = "_#(js:viewer.viewsheet.textInput.validError2)_*" +
-               this.model.text;
+            this.errorString = Tool.formatCatalogString(
+               "_#(js:viewer.viewsheet.textInput.validError2)", [this.model.text]);
          }
       }
    }
