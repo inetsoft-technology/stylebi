@@ -23,6 +23,7 @@ import inetsoft.storage.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.migrate.*;
@@ -448,12 +449,9 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             executor.submit(() -> new MigrateScheduleTask(entry, oname, nname).updateNameProcess());
          }
 
-         if(entry.isViewsheet()) {
-            executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
-         }
-
          if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
-            if(entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+            if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+               updateDependencySheet(oname, nname, key);
                executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
             }
             else if(entry.isWorksheet()) {
@@ -521,6 +519,36 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       catch(InterruptedException ignore) {
          LOG.error(Catalog.getCatalog().getString(
             "Failed to finish migrate storage from {0} to {1}", oname, nname));
+      }
+   }
+
+   private void updateDependencySheet(String oname, String nname, String key) {
+      DependencyStorageService service = DependencyStorageService.getInstance();
+      int numThreads = Runtime.getRuntime().availableProcessors();
+      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+
+      try {
+         RenameTransformObject obj = service.get(key);
+         DependenciesInfo info = (DependenciesInfo) obj;
+         List<AssetObject> infos = info.getDependencies();
+
+         for(AssetObject asset : infos) {
+            AssetEntry entry;
+
+            if(asset instanceof AssetEntry) {
+               entry = ((AssetEntry) asset);
+            }
+            else {
+               continue;
+            }
+
+            if(entry.isViewsheet()) {
+               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to update the dependencies to file.", e);
       }
    }
 
