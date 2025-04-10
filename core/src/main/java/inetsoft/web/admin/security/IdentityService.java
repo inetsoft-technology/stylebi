@@ -1535,7 +1535,7 @@ public class IdentityService {
       user.setRoles(model.roles().toArray(new IdentityID[0]));
       user.setGroups(memberNames.toArray(new String[0]));
       user.setEmails(emails);
-      user.setAlias(model.alias());
+      user.setAlias(!Tool.isEmptyString(model.alias()) ? model.alias() : null);
       user.setActive(model.status());
       user.setOrganization(model.organization());
       user.setGoogleSSOId(ouser.getGoogleSSOId());
