@@ -451,7 +451,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
          if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
             if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
-               updateDependencySheet(oname, nname, key);
+               updateDependencySheet(oname, nname, key, executor);
                executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
             }
             else if(entry.isWorksheet()) {
@@ -522,23 +522,23 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
    }
 
-   private void updateDependencySheet(String oname, String nname, String key) {
+   private void updateDependencySheet(String oname, String nname, String key,
+                                      ExecutorService executor)
+   {
       DependencyStorageService service = DependencyStorageService.getInstance();
-      int numThreads = Runtime.getRuntime().availableProcessors();
-      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
       try {
          RenameTransformObject obj = service.get(key);
+
+         if(obj == null) {
+            return;
+         }
+
          DependenciesInfo info = (DependenciesInfo) obj;
          List<AssetObject> infos = info.getDependencies();
 
          for(AssetObject asset : infos) {
-            AssetEntry entry;
-
-            if(asset instanceof AssetEntry) {
-               entry = ((AssetEntry) asset);
-            }
-            else {
+            if(!(asset instanceof AssetEntry entry)) {
                continue;
             }
 
