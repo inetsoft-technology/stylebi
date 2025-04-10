@@ -78,7 +78,6 @@ export class EmailPickerComponent implements ControlValueAccessor, Validator, On
    @Input() allowVariable = false;
    @Output() onChangeEmails: EventEmitter<string> = new EventEmitter<string>();
    emailsControl: UntypedFormControl;
-   userAliases: Map<IdentityId, string>;
    internalValidators: ValidatorFn[];
    mobile: boolean;
 
@@ -128,12 +127,10 @@ export class EmailPickerComponent implements ControlValueAccessor, Validator, On
       return this.emailsControl.errors;
    }
 
-   constructor(private userService: ScheduleUsersService,
-               private dialog: MatDialog,
+   constructor(private dialog: MatDialog,
                private snackBar: MatSnackBar,
                private http: HttpClient)
    {
-      userService.getEmailUserAliases().subscribe(aliasMap => this.userAliases = aliasMap);
    }
 
    ngOnInit() {
@@ -209,7 +206,7 @@ export class EmailPickerComponent implements ControlValueAccessor, Validator, On
       let identities: string[] = [];
 
       if(this.users) {
-         identities = identities.concat(this.userService.populateEmailUserAliases(this.users, this.userAliases));
+         identities = identities.concat(this.users.map(user => user.name + Tool.USER_SUFFIX));
       }
 
       if(this.groups) {
