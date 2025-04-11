@@ -19,7 +19,7 @@
 package inetsoft.util.migrate;
 
 import inetsoft.report.Hyperlink;
-import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.asset.AssetEntry;
@@ -39,6 +39,7 @@ import org.w3c.dom.*;
 
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathFactory;
+import java.rmi.RemoteException;
 
 public abstract class MigrateDocumentTask implements MigrateTask {
    public MigrateDocumentTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg) {
@@ -90,6 +91,28 @@ public abstract class MigrateDocumentTask implements MigrateTask {
       }
    }
 
+   private void updateScheduleServerTask(String task, String orgId) {
+      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
+
+      if(scheduleManager == null) {
+         return;
+      }
+
+      ScheduleTask scheduleTask = scheduleManager.getScheduleTask(task, orgId);
+
+      if(scheduleTask == null) {
+         return;
+      }
+
+      try {
+         ScheduleClient.getScheduleClient().taskAdded(scheduleTask);
+      }
+      catch(RemoteException e) {
+         LOG.error("Failed to update scheduler with extension task: " +
+                      scheduleTask.getTaskId(), e);
+      }
+   }
+
    protected Document getDocument(String orgId, String key) {
       return document != null ? document : getIndexStorage().getDocument(key, orgId);
    }
@@ -138,6 +161,12 @@ public abstract class MigrateDocumentTask implements MigrateTask {
 
       if(!Tool.equals(key, newKey)) {
          getIndexStorage().remove(key);
+      }
+
+      if(entry.isScheduleTask()) {
+         String newTaskName =
+            MigrateUtil.getNewUserTaskName(entry.getName(), getOldName(), getNewName());
+         updateScheduleServerTask(newTaskName, entry.getOrgID());
       }
    }
 
