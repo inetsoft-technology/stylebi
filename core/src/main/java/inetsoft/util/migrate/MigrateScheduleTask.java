@@ -289,27 +289,27 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
    }
 
    private void updateEmailAttribute(Element actionNode, String childNodeName) {
-      if (actionNode == null) {
+      if(actionNode == null) {
          return;
       }
 
       NodeList nodes = getChildNodes(actionNode, "./" + childNodeName);
 
-      for (int i = 0; nodes != null && i < nodes.getLength(); i++) {
+      for(int i = 0; nodes != null && i < nodes.getLength(); i++) {
          Element item = (Element) nodes.item(i);
 
-         if (item == null) {
+         if(item == null) {
             continue;
          }
 
          String emails = item.getAttribute("email");
          List<String> emailList = new ArrayList<>();
 
-         for (String email : emails.split("[;,]", 0)) {
+         for(String email : emails.split("[;,]", 0)) {
             email = StringUtils.normalizeSpace(email);
             String suffix = email.endsWith(Identity.USER_SUFFIX) ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
 
-            if (Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
+            if(Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
                !email.endsWith(Identity.GROUP_SUFFIX))) {
                emailList.add(email);
                continue;
@@ -317,7 +317,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
 
             String userName = email.substring(0, email.lastIndexOf(suffix));
 
-            if (!Tool.equals(getOldName(), userName)) {
+            if(!Tool.equals(getOldName(), userName)) {
                emailList.add(email);
                continue;
             }
