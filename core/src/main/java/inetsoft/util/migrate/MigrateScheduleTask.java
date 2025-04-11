@@ -273,10 +273,6 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             this.replaceElementCDATANode(queryUser.item(0), user.convertToKey());
          }
       }
-
-
-
-
    }
 
    private void syncIdentityAttribute(Element task, String attrName) {
