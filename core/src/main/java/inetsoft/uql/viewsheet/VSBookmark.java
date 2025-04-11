@@ -227,12 +227,14 @@ public class VSBookmark implements XMLSerializable {
          writer.close();
          bmap.put(name, out.toByteArray());
          long ctime = System.currentTimeMillis();
+         VSBookmarkInfo info = bookmarksInfo.get(name);
 
-         if(bookmarksInfo.get(name) == null) {
+         if(info == null) {
             bookmarksInfo.put(name, new VSBookmarkInfo(name, type, user, readOnly, ctime, ctime, ctime));
          }
          else {
-            bookmarksInfo.put(name, new VSBookmarkInfo(name, type, user, readOnly, ctime));
+            bookmarksInfo.put(name, new VSBookmarkInfo(name, type, user, readOnly, ctime,
+                                                       info.getLastAccessed(), info.getCreateTime()));
          }
       }
       catch(Exception ex) {
