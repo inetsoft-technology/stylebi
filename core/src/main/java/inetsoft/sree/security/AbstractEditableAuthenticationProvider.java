@@ -228,6 +228,19 @@ public abstract class AbstractEditableAuthenticationProvider
       identityService.copyStorages(fromOrganization, newOrg);
       identityService.copyRepletRegistry(fromOrgId, newOrgID);
 
+      if(!replace) {
+         try {
+            OrganizationManager.runInOrgScope(newOrgID, () -> {
+               identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
+
+               return null;
+            });
+         }
+         catch(Exception e) {
+            LOG.warn("Unable to migrate Auto Save Files: "+ e);
+         }
+      }
+
       try {
          DataCycleManager.getDataCycleManager().migrateDataCycles(fromOrganization, newOrg, replace);
       }
