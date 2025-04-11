@@ -20,6 +20,7 @@ package inetsoft.web.admin.security.user;
 import inetsoft.mv.MVManager;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.security.*;
@@ -632,7 +633,9 @@ public class UserTreeService {
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, "");
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
       storage.migrateStorageData(oldID.getName(), newID.getName());
+      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
    }
 
    /**
@@ -1658,6 +1661,7 @@ public class UserTreeService {
 
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
       MVManager mvManager = MVManager.getManager();
+      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
       KeyValueStorage<FavoriteList> favorites =
          SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
 
@@ -1671,6 +1675,7 @@ public class UserTreeService {
       storage.migrateStorageData(oldID.getName(), newID.getName());
       mvManager.migrateUserAssetsMV(oldID, newID);
       mvManager.updateMVUser(oldID, newID);
+      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
       DependencyStorageService.getInstance().migrateStorageData(oldID, newID);
    }
 
