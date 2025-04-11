@@ -799,7 +799,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       save(oorg, norg, replace);
    }
 
-   public void updateCycleInfoEmail(String oldEmail, String newEmail, boolean isUser) {
+   public void updateCycleInfoNotify(String oldEmail, String newEmail, boolean isUser) {
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       String suffix = isUser ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
 
@@ -817,15 +817,32 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       }
    }
 
-   private void updateEmailField(boolean notify, String email,
-                                 String oldEmail, String newEmail, String suffix,
-                                 Consumer<String> setter) {
-      if(notify && email != null) {
-         String baseEmail = email.substring(0, email.lastIndexOf(suffix));
+   private void updateEmailField(boolean notify, String emails, String oldEmail, String newEmail,
+                                 String suffix, Consumer<String> setter)
+   {
+      if(notify && emails != null) {
+         List<String> emailList = new ArrayList<>();
 
-         if(baseEmail.equals(oldEmail)) {
-            setter.accept(newEmail + suffix);
+
+         for(String email : emails.split("[;,]", 0)) {
+            if(Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
+               !email.endsWith(Identity.GROUP_SUFFIX)) || !email.endsWith(suffix))
+            {
+               emailList.add(email);
+               continue;
+            }
+
+            String emailName = email.substring(0, email.lastIndexOf(suffix));
+
+            if(emailName.equals(oldEmail)) {
+               emailList.add(newEmail + suffix);
+            }
+            else {
+               emailList.add(email);
+            }
          }
+
+         setter.accept(String.join(",", emailList));
       }
    }
 

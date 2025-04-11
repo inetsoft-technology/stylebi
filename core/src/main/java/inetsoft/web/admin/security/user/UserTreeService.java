@@ -635,7 +635,7 @@ public class UserTreeService {
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
       DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
       storage.migrateStorageData(oldID.getName(), newID.getName());
-      cycleManager.updateCycleInfoEmail(oldID.getName(), newID.getName(), false);
+      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
    }
 
    /**
@@ -1675,7 +1675,7 @@ public class UserTreeService {
       storage.migrateStorageData(oldID.getName(), newID.getName());
       mvManager.migrateUserAssetsMV(oldID, newID);
       mvManager.updateMVUser(oldID, newID);
-      cycleManager.updateCycleInfoEmail(oldID.getName(), newID.getName(), true);
+      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
       DependencyStorageService.getInstance().migrateStorageData(oldID, newID);
    }
 
