@@ -55,7 +55,7 @@ export class ChartImageDirective {
          );
       }
       else {
-         this.element.nativeElement.src = null;
+         this.element.nativeElement.src = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=";
       }
    }
 }
