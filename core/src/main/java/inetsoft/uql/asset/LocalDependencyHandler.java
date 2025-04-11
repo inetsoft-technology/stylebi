@@ -278,7 +278,7 @@ public class LocalDependencyHandler implements DependencyHandler {
 
       if(logical != null) {
          updateAttributesDependency(logical, columns, entry, add, cache);
-         xdm.addLogicalModel(logical, false);
+         xdm.addLogicalModel(logical, true);
          xrep.updateDataModel(xdm.clone());
       }
    }
@@ -1127,7 +1127,7 @@ public class LocalDependencyHandler implements DependencyHandler {
                 logicalModel.addLogicalModel(logical, false);
             }
             else {
-               xdm.addLogicalModel(logical, false);
+               xdm.addLogicalModel(logical, true);
             }
 
             xrep.updateDataModel(xdm.clone());
