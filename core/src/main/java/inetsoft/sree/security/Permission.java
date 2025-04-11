@@ -722,70 +722,26 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     * Check if a permission setting is blank. This is system wide
     */
    public boolean isBlank() {
-      for(Set<PermissionIdentity> identities : userGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
+      return isBlank(userGrants) && isBlank(roleGrants) &&
+             isBlank(groupGrants) && isBlank(organizationGrants);
+   }
 
-      for(Set<PermissionIdentity> identities : roleGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : groupGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : organizationGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      return true;
+   private boolean isBlank(Map<ResourceAction, Set<PermissionIdentity>> grants) {
+      return grants.values().stream().allMatch(Set::isEmpty);
    }
 
    /**
     * Check if a permission setting is blank for a specific organization.
     */
    public boolean isBlank(String orgId) {
-      for(Set<PermissionIdentity> identities : userGrants.values()) {
-         for (PermissionIdentity identity : identities) {
-            if (orgId.equals(identity.getOrganizationID())) {
-               return false;
-            }
-         }
-      }
+      return isBlank(userGrants, orgId) && isBlank(roleGrants, orgId) &&
+             isBlank(groupGrants, orgId) && isBlank(organizationGrants, orgId);
+   }
 
-      for(Set<PermissionIdentity> identities : roleGrants.values()) {
-         for (PermissionIdentity identity : identities) {
-            if (orgId.equals(identity.getOrganizationID())) {
-               return false;
-            }
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : groupGrants.values()) {
-         for(PermissionIdentity identity : identities) {
-            if(orgId.equals(identity.getOrganizationID())) {
-               return false;
-            }
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : organizationGrants.values()) {
-         for(PermissionIdentity identity : identities) {
-            if(orgId.equals(identity.getOrganizationID())) {
-               return false;
-            }
-         }
-      }
-
-      return true;
+   private boolean isBlank(Map<ResourceAction, Set<PermissionIdentity>> grants, String orgId) {
+      return grants.values().stream()
+         .flatMap(Set::stream)
+         .noneMatch(identity -> orgId.equals(identity.getOrganizationID()));
    }
 
 
