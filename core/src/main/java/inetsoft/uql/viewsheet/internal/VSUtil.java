@@ -8669,9 +8669,11 @@ public final class VSUtil {
       ViewsheetService service = SingletonManager.getInstance(ViewsheetService.class);
 
       try {
-         RuntimeViewsheet runtimeSheet = service.getViewsheet(sheetRuntimeId, principal);
+         RuntimeSheet runtimeSheet = service.getSheet(sheetRuntimeId, principal);
 
-         if(runtimeSheet == null || runtimeSheet.getEntry() == null) {
+         if(runtimeSheet == null || runtimeSheet.getEntry() == null ||
+            !(runtimeSheet instanceof RuntimeViewsheet))
+         {
             return false;
          }
 
