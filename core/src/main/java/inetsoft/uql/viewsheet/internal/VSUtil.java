@@ -3703,7 +3703,7 @@ public final class VSUtil {
       String name = ref.getName();
 
       // added for donut/histogram chart which created in vs wizard.
-      return ref instanceof CalculateRef && name != null &&
+      return (ref instanceof CalculateRef || ref instanceof AttributeRef) && name != null &&
          (name.startsWith("Total@") || name.startsWith("Range@"));
    }
 
