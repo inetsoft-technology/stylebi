@@ -33,6 +33,7 @@ export class PhysicalModelTableTreeComponent {
    @Output() nodeCheckboxToggled: EventEmitter<TreeNodeModel> = new EventEmitter<TreeNodeModel>();
    @Output() onNodeContextMenu: EventEmitter<{node: TreeNodeModel, event: MouseEvent}> =
       new EventEmitter<{node: TreeNodeModel, event: MouseEvent}>();
+   selectedNodes: TreeNodeModel[] = [];
    selectedNode: TreeNodeModel;
 
    /**
@@ -48,6 +49,11 @@ export class PhysicalModelTableTreeComponent {
     * @param node the node to edit
     */
    selectNode(node: TreeNodeModel): void {
+      this.selectedNodes = this.selectedNodes == null ? [] : this.selectedNodes;
+      this.selectedNodes.push(node);
+   }
+
+   selectNode0(node: TreeNodeModel) {
       this.selectedNode = node;
       this.nodeSelected.emit(node);
    }
