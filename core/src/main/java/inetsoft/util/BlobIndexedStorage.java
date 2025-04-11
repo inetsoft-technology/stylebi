@@ -23,6 +23,7 @@ import inetsoft.storage.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.migrate.*;
@@ -450,6 +451,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
          if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
             if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+               updateDependencySheet(oname, nname, key, executor);
                executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
             }
             else if(entry.isWorksheet()) {
@@ -517,6 +519,36 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       catch(InterruptedException ignore) {
          LOG.error(Catalog.getCatalog().getString(
             "Failed to finish migrate storage from {0} to {1}", oname, nname));
+      }
+   }
+
+   private void updateDependencySheet(String oname, String nname, String key,
+                                      ExecutorService executor)
+   {
+      DependencyStorageService service = DependencyStorageService.getInstance();
+
+      try {
+         RenameTransformObject obj = service.get(key);
+
+         if(obj == null) {
+            return;
+         }
+
+         DependenciesInfo info = (DependenciesInfo) obj;
+         List<AssetObject> infos = info.getDependencies();
+
+         for(AssetObject asset : infos) {
+            if(!(asset instanceof AssetEntry entry)) {
+               continue;
+            }
+
+            if(entry.isViewsheet()) {
+               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to update the dependencies to file.", e);
       }
    }
 

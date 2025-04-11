@@ -70,7 +70,7 @@ public class MigrateViewsheetTask extends MigrateDocumentTask {
       NodeList childNodes = getChildNodes(root, "//worksheetEntry/assetEntry");
 
       if(childNodes.getLength() > 0) {
-         for (int i = 0; i < childNodes.getLength(); i++) {
+         for(int i = 0; i < childNodes.getLength(); i++) {
             updateAssetEntry((Element) childNodes.item(i));
          }
       }
@@ -179,9 +179,16 @@ public class MigrateViewsheetTask extends MigrateDocumentTask {
       if(linkType != null && linkType.equals(Hyperlink.VIEWSHEET_LINK + "")) {
          String link = hyperlinkElem.getAttribute("Link");
 
-         if(link != null && !link.isEmpty() && getNewOrganization() instanceof Organization) {
+         if(link != null && !link.isEmpty() ) {
             AssetEntry entry = AssetEntry.createAssetEntry(link);
-            link = entry.cloneAssetEntry((Organization) getNewOrganization()).toIdentifier();
+
+            if(getNewOrganization() != null && getNewOrganization() instanceof Organization) {
+               link = entry.cloneAssetEntry((Organization) getNewOrganization()).toIdentifier();
+            }
+            else if(getOldName().equals(entry.getUser().getName())) {
+               link = entry.cloneAssetEntry(entry.getOrgID(), getNewName()).toIdentifier();
+            }
+
             hyperlinkElem.setAttribute("Link", link);
          }
       }

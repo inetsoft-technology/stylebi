@@ -2020,7 +2020,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
 
       IdentityID user = newEntry.getUser();
 
-      if(!newEntry.isScheduleTask()) {
+      if(!newEntry.isScheduleTask() && user != null) {
          user.setName(name);
       }
 
