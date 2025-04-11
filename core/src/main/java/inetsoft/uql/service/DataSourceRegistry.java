@@ -41,6 +41,7 @@ import java.beans.PropertyChangeListener;
 import java.io.Serializable;
 import java.lang.SecurityException;
 import java.lang.reflect.Method;
+import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -1638,11 +1639,86 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       Permission permission = engine.getPermission(type, oldResource);
+      Permission newPermission = new Permission();
+      Principal principal = ThreadContext.getContextPrincipal();
+      IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+      boolean isRemovePermission = false;
 
       if(permission != null) {
-         engine.removePermission(type, oldResource);
-         engine.setPermission(type, newResource, permission);
+         for(ResourceAction action : ResourceAction.values()) {
+            isRemovePermission |= moveOrgUserGrants(permission, newPermission, action, user.getOrgID());
+            isRemovePermission |= moveOrgRoleGrants(permission, newPermission, action, user.getOrgID());
+            isRemovePermission |= moveOrgGroupGrants(permission, newPermission, action, user.getOrgID());
+            isRemovePermission |= moveOrgOrganzaitionGrants(permission, newPermission, action, user.getOrgID());
+         }
       }
+
+      if(permission != null) {
+         if(isRemovePermission) {
+            engine.setPermission(type, newResource, newPermission);
+         }
+         else {
+            engine.removePermission(type, oldResource);
+            engine.setPermission(type, newResource, permission);
+         }
+      }
+   }
+
+
+   private boolean moveOrgUserGrants(Permission permission, Permission newPermission, ResourceAction action, String orgID) {
+      Set<Permission.PermissionIdentity> allUserGrants = permission.getAllUserGrants(action);
+      Set<Permission.PermissionIdentity> currentOrgUserGrants = permission.getUserGrants(action, orgID);
+
+      if(allUserGrants != null && currentOrgUserGrants != null && allUserGrants.size() > 1 && !currentOrgUserGrants.isEmpty()) {
+         allUserGrants.removeAll(currentOrgUserGrants);
+         newPermission.setUserGrants(action, currentOrgUserGrants);
+         permission.setUserGrants(action, allUserGrants);
+         return true;
+      }
+
+      return false;
+   }
+
+   private boolean moveOrgRoleGrants(Permission permission, Permission newPermission, ResourceAction action, String orgID) {
+      Set<Permission.PermissionIdentity> allRoleGrants = permission.getAllRoleGrants(action);
+      Set<Permission.PermissionIdentity> currentOrgRoleGrants = permission.getRoleGrants(action, orgID);
+
+      if(allRoleGrants != null && currentOrgRoleGrants != null && allRoleGrants.size() > 1 && !currentOrgRoleGrants.isEmpty()) {
+         allRoleGrants.removeAll(currentOrgRoleGrants);
+         newPermission.setUserGrants(action, currentOrgRoleGrants);
+         permission.setRoleGrants(action, allRoleGrants);
+         return true;
+      }
+
+      return false;
+   }
+
+   private boolean moveOrgGroupGrants(Permission permission, Permission newPermission, ResourceAction action, String orgID) {
+      Set<Permission.PermissionIdentity> allGroupGrants = permission.getAllGroupGrants(action);
+      Set<Permission.PermissionIdentity> currentOrgGroupGrants = permission.getGroupGrants(action, orgID);
+
+      if(allGroupGrants != null && currentOrgGroupGrants != null && allGroupGrants.size() > 1 && !currentOrgGroupGrants.isEmpty()) {
+         allGroupGrants.removeAll(currentOrgGroupGrants);
+         newPermission.setUserGrants(action, currentOrgGroupGrants);
+         permission.setGroupGrants(action, allGroupGrants);
+         return true;
+      }
+
+      return false;
+   }
+
+   private boolean moveOrgOrganzaitionGrants(Permission permission, Permission newPermission, ResourceAction action, String orgID) {
+      Set<Permission.PermissionIdentity> allOrganizationGrants = permission.getAllOrganizationGrants(action);
+      Set<Permission.PermissionIdentity> currentOrgOrganizationGrants = permission.getOrganizationGrants(action, orgID);
+
+      if(allOrganizationGrants != null && currentOrgOrganizationGrants != null && allOrganizationGrants.size() > 1 && !currentOrgOrganizationGrants.isEmpty()) {
+         allOrganizationGrants.removeAll(currentOrgOrganizationGrants);
+         newPermission.setUserGrants(action, currentOrgOrganizationGrants);
+         permission.setOrganizationGrants(action, allOrganizationGrants);
+         return true;
+      }
+
+      return false;
    }
 
    /**
