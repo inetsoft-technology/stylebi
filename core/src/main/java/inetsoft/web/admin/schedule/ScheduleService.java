@@ -1031,34 +1031,7 @@ public class ScheduleService {
          List<SelectedAssetModel> assetModels = backupAction.getAssets()
             .stream()
             .filter(XAsset::exists)
-            .map((xAsset) -> {
-
-               if(xAsset instanceof XDataSourceAsset) {
-                  String ds = ((XDataSourceAsset) xAsset).getDatasource();
-                  XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(ds);
-
-                  if(dataSource != null) {
-                     return SelectedAssetModel.builder()
-                        .label(getAssetLabel(xAsset))
-                        .path(xAsset.getPath())
-                        .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
-                        .typeName(xAsset.getType())
-                        .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
-                        .user(xAsset.getUser())
-                        .icon(ContentRepositoryTreeService.getDataSourceIconClass(dataSource.getType()))
-                        .build();
-                  }
-               }
-
-                return SelectedAssetModel.builder()
-                  .label(getAssetLabel(xAsset))
-                  .path(xAsset.getPath())
-                  .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
-                  .typeName(xAsset.getType())
-                  .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
-                  .user(xAsset.getUser())
-                  .build();
-            })
+            .map(a -> createSelectedAssetModel(a, catalog))
             .collect(Collectors.toList());
 
          model = BackupActionModel.builder()
@@ -1114,6 +1087,34 @@ public class ScheduleService {
       }
 
       return model;
+   }
+
+   private SelectedAssetModel createSelectedAssetModel(XAsset xAsset, Catalog catalog) {
+      if(xAsset instanceof XDataSourceAsset) {
+         String ds = ((XDataSourceAsset) xAsset).getDatasource();
+         XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(ds);
+
+         if(dataSource != null) {
+            return SelectedAssetModel.builder()
+               .label(getAssetLabel(xAsset))
+               .path(xAsset.getPath())
+               .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
+               .typeName(xAsset.getType())
+               .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
+               .user(xAsset.getUser())
+               .icon(ContentRepositoryTreeService.getDataSourceIconClass(dataSource.getType()))
+               .build();
+         }
+      }
+
+      return SelectedAssetModel.builder()
+         .label(getAssetLabel(xAsset))
+         .path(xAsset.getPath())
+         .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
+         .typeName(xAsset.getType())
+         .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
+         .user(xAsset.getUser())
+         .build();
    }
 
    private String getAssetLabel(XAsset xAsset) {
