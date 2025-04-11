@@ -119,8 +119,8 @@ public class VSBookmarkService {
                                      !Tool.equals(rvs.getEntry() == null ? "" :
                                      rvs.getEntry().getOrgID(),((XPrincipal)principal).getOrgId());
 
-      if(!engine.checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
-         "AddBookmark", ResourceAction.READ))
+      if(!engine.checkPermission(principal, ResourceType.VIEWSHEET_ACTION, "Bookmark",
+                                 ResourceAction.READ))
       {
          messageCommand.setMessage(catalog.getString("viewer.viewsheet.security.addbookmark"));
          messageCommand.setType(MessageCommand.Type.WARNING);
