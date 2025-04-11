@@ -111,13 +111,13 @@ export class VSDataTipDirective implements DoCheck {
             let topOffset: number = DataTipService.DATA_TIP_OFFSET;
             let leftOffset: number = DataTipService.DATA_TIP_OFFSET;
 
-            if(containerInfo && left + containerInfo.width > viewportSize[0]) {
+            if(containerInfo && left + reducedEmbeddedVsLeft + containerInfo.width > viewportSize[0]) {
                // place on left
                leftOffset = -Math.min(left, containerInfo.width + leftOffset -
                   viewerRect.scrollLeft);
             }
             // same as above for container itself or if not in container
-            else if(!containerInfo && left + mainComponent.clientWidth > viewportSize[0]) {
+            else if(!containerInfo && left + reducedEmbeddedVsLeft + mainComponent.clientWidth > viewportSize[0]) {
                const selfWidth = mainComponent.clientWidth;
 
                // place on left
