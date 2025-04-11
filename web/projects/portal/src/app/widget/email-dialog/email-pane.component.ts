@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { HttpClient } from "@angular/common/http";
 import {
    Component,
    Input,
@@ -29,7 +30,10 @@ import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, Subscription } from "rxjs";
 import { debounceTime, map } from "rxjs/operators";
-import { IdentityId } from "../../../../../em/src/app/settings/security/users/identity-id";
+import {
+   convertMappedKeyToID,
+   IdentityId
+} from "../../../../../em/src/app/settings/security/users/identity-id";
 import { ScheduleUsersService } from "../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../shared/util/tool";
@@ -75,12 +79,17 @@ export class EmailPane implements OnInit, OnDestroy {
       }
    }
 
-   constructor(private modalService: NgbModal, private userService: ScheduleUsersService) {
-      userService.getEmailUserAliases().subscribe(aliasMap => this.userAliases = aliasMap);
+   constructor(private modalService: NgbModal, private userService: ScheduleUsersService, private http: HttpClient) {
    }
 
    ngOnInit(): void {
-      this.initForm();
+      this.http.get<Map<IdentityId, string>>("../api/portal/get-user-aliases/").subscribe(aliases => {
+         this.userAliases = new Map<IdentityId, string>(
+            Object.entries(aliases).map(
+               ([key, value]) => [convertMappedKeyToID(key), value] as [IdentityId, string]));
+
+         this.initForm();
+      });
    }
 
    private initForm(): void {

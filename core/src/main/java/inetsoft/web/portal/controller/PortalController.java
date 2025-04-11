@@ -40,6 +40,7 @@ import inetsoft.web.portal.GlobalParameterProvider;
 import inetsoft.web.portal.model.*;
 import inetsoft.web.reportviewer.model.ParameterPageModel;
 import inetsoft.web.viewsheet.controller.ComposerClientController;
+import inetsoft.web.viewsheet.controller.dialog.EmailDialogController;
 import inetsoft.web.viewsheet.service.ComposerClientService;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.HttpServletRequest;
@@ -321,6 +322,18 @@ public class PortalController {
          !"false".equals(SreeEnv.getProperty("dashboard.enabled")) &&
          analyticRepository.checkPermission(
             principal, ResourceType.DASHBOARD, "*", ResourceAction.READ);
+   }
+
+   @GetMapping("/api/portal/get-user-aliases/")
+   public Map<IdentityID, String> getUserAliases(Principal principal) {
+      Map<IdentityID, String> emailUserAliases = new HashMap<>();
+      List<IdentityID> emailUsers = EmailDialogController.getUsers(principal);
+
+      for(IdentityID uid : emailUsers) {
+         emailUserAliases.put(uid, SUtil.getUserAlias(uid));
+      }
+
+      return emailUserAliases;
    }
 
    private final SecurityEngine securityEngine;
