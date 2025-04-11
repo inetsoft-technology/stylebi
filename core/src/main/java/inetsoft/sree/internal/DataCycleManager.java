@@ -799,31 +799,33 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       save(oorg, norg, replace);
    }
 
-   public void updateCycleInfoNotify(String oldEmail, String newEmail, boolean isUser) {
+   public void updateCycleInfoNotify(String oldIdentity , String newIdentity, boolean isUser) throws Exception {
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       String suffix = isUser ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
 
       for(String cycle : Collections.list(getDataCycles(orgId))) {
          CycleInfo cycleInfo = getCycleInfo(cycle, orgId);
 
-         updateEmailField(cycleInfo.endNotify, cycleInfo.endEmail, oldEmail, newEmail, suffix,
-                          cycleInfo::setEndEmail);
-         updateEmailField(cycleInfo.startNotify, cycleInfo.startEmail, oldEmail, newEmail, suffix,
-                          cycleInfo::setStartEmail);
-         updateEmailField(cycleInfo.exceedNotify, cycleInfo.exceedEmail, oldEmail, newEmail, suffix,
-                          cycleInfo::setExceedEmail);
-         updateEmailField(cycleInfo.failureNotify, cycleInfo.failureEmail, oldEmail, newEmail, suffix,
-                          cycleInfo::setFailureEmail);
+         updateEmailField(cycleInfo.endNotify, cycleInfo.endEmail, oldIdentity, newIdentity,
+                          suffix, cycleInfo::setEndEmail);
+         updateEmailField(cycleInfo.startNotify, cycleInfo.startEmail, oldIdentity, newIdentity,
+                          suffix, cycleInfo::setStartEmail);
+         updateEmailField(cycleInfo.exceedNotify, cycleInfo.exceedEmail, oldIdentity, newIdentity,
+                          suffix, cycleInfo::setExceedEmail);
+         updateEmailField(cycleInfo.failureNotify, cycleInfo.failureEmail, oldIdentity, newIdentity,
+                          suffix, cycleInfo::setFailureEmail);
       }
+
+      save();
    }
 
-   private void updateEmailField(boolean notify, String emails, String oldEmail, String newEmail,
+   private void updateEmailField(boolean notify, String identities, String oldIdentity, String newIdentity,
                                  String suffix, Consumer<String> setter)
    {
-      if(notify && emails != null) {
+      if(notify && identities != null) {
          List<String> emailList = new ArrayList<>();
 
-         for(String email : emails.split("[;,]", 0)) {
+         for(String email : identities.split("[;,]", 0)) {
             if(Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
                !email.endsWith(Identity.GROUP_SUFFIX)) || !email.endsWith(suffix))
             {
@@ -833,8 +835,8 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
 
             String emailName = email.substring(0, email.lastIndexOf(suffix));
 
-            if(emailName.equals(oldEmail)) {
-               emailList.add(newEmail + suffix);
+            if(emailName.equals(oldIdentity)) {
+               emailList.add(newIdentity + suffix);
             }
             else {
                emailList.add(email);
