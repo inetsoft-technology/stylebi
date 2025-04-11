@@ -262,6 +262,21 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             this.replaceElementCDATANode(queryOrg.item(0), getNewOrganization().getOrganizationID());
          }
       }
+
+      NodeList queryUser = getChildNodes(action, "./queryEntry/assetEntry/user");
+
+      if(queryUser != null && queryUser.getLength() > 0 && queryUser.item(0) != null) {
+         IdentityID user = IdentityID.getIdentityIDFromKey(Tool.getValue(queryUser.item(0)));
+
+         if(!Tool.equals(user.orgID, getOldOrganization())) {
+            user.orgID = getNewOrganization().getOrganizationID();
+            this.replaceElementCDATANode(queryUser.item(0), user.convertToKey());
+         }
+      }
+
+
+
+
    }
 
    private void syncIdentityAttribute(Element task, String attrName) {
