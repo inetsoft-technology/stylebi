@@ -269,7 +269,7 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
             replaceAttribute(elem, "link", oname, nname, true);
          }
 
-         if(rinfo.isWorksheet()) {
+         if(rinfo.isWorksheet() && !rinfo.isTable()) {
             AssetEntry oentry = AssetEntry.createAssetEntry(oname);
             AssetEntry nentry = AssetEntry.createAssetEntry(nname);
             NodeList assets = getChildNodes(elem, "./subquery/worksheetEntry/assetEntry");
