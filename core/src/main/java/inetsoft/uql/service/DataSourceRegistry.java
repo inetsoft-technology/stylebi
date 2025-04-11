@@ -1666,7 +1666,6 @@ public class DataSourceRegistry implements MessageListener {
       }
    }
 
-
    private boolean moveOrgUserGrants(Permission permission, Permission newPermission, ResourceAction action, String orgID) {
       Set<Permission.PermissionIdentity> allUserGrants = permission.getAllUserGrants(action);
       Set<Permission.PermissionIdentity> currentOrgUserGrants = permission.getUserGrants(action, orgID);
@@ -1753,7 +1752,6 @@ public class DataSourceRegistry implements MessageListener {
 
       return false;
    }
-
 
    /**
     * Helper method for getting the entries of all assets stored in the registry
