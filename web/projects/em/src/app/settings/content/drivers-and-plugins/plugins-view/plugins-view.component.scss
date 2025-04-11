@@ -26,6 +26,7 @@
   .em-staged-file-chooser {
     flex-grow: 1;
     flex-shrink: 1;
+    max-height: fit-content;
   }
 
   .file-loading-indicator {
