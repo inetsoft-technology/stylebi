@@ -2083,16 +2083,16 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       }
 
       newEntry.orgID = org.getId();
-      IdentityID user = newEntry.getUser();
+      IdentityID user = getUser();
 
       if(user != null) {
          user.setOrgID(org.getId());
+         newEntry.user = user;
       }
 
       if(newEntry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
          String path = newEntry.getPath();
          newEntry.setPath(cloneBookmarkPath(path, org));
-         newEntry.user = new IdentityID(newEntry.getUser().getName(), org.getId());
       }
       else if(newEntry.isScheduleTask()) {
          String taskName = newEntry.getPath().substring(1);
