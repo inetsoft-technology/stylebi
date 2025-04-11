@@ -819,13 +819,13 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       save();
    }
 
-   private void updateEmailField(boolean notify, String identities, String oldIdentity, String newIdentity,
-                                 String suffix, Consumer<String> setter)
+   private void updateEmailField(boolean notify, String emailAddresses, String oldIdentity,
+                                 String newIdentity, String suffix, Consumer<String> setter)
    {
-      if(notify && identities != null) {
+      if(notify && emailAddresses != null) {
          List<String> emailList = new ArrayList<>();
 
-         for(String email : identities.split("[;,]", 0)) {
+         for(String email : emailAddresses.split("[;,]", 0)) {
             if(Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
                !email.endsWith(Identity.GROUP_SUFFIX)) || !email.endsWith(suffix))
             {
