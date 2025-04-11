@@ -823,7 +823,6 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       if(notify && emails != null) {
          List<String> emailList = new ArrayList<>();
 
-
          for(String email : emails.split("[;,]", 0)) {
             if(Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
                !email.endsWith(Identity.GROUP_SUFFIX)) || !email.endsWith(suffix))
