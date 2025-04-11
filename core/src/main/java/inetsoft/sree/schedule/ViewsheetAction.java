@@ -40,8 +40,10 @@ import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.Mailer;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
@@ -1374,6 +1376,11 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       }
 
       url.append(entry.getPath());
+
+      //append organization
+      if(SUtil.isMultiTenant()) {
+         url.append("^" + OrganizationManager.getInstance().getCurrentOrgID(principal));
+      }
 
       return url.toString();
    }
