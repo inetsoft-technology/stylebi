@@ -795,7 +795,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                if(type == ResourceType.SCRIPT_LIBRARY || type == ResourceType.TABLE_STYLE_LIBRARY) {
                   final Permission parentPerm = getPermission(parent.getType(), parent.getPath());
 
-                  if(isBlank(parentPerm)) {
+                  if(isBlank(parentPerm, OrganizationManager.getInstance().getCurrentOrgID(principal))) {
                      allowed = action == ResourceAction.READ;
                   }
                   else {
@@ -804,7 +804,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   }
                }
                else {
-                  allowed = checkPermission(principal, parent.getType(), parent.getPath(), action);
+                  allowed = checkPermission(principal, parent.getType(), parent.getPath(), action); ///fails, possibly host-org issue?
                }
             }
             else {
@@ -844,7 +844,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
             {
                Permission perm = getPermission(type, resource);
 
-               if(isBlank(perm) && type.isHierarchical()) {
+               if(isBlank(perm, OrganizationManager.getInstance().getCurrentOrgID()) && type.isHierarchical()) {
                   Resource parent = type.getParent(resource);
 
                   if(parent != null) {
@@ -1586,6 +1586,10 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
    private static boolean isBlank(Permission permission) {
       return permission == null || permission.isBlank();
+   }
+
+   private static boolean isBlank(Permission permission, String orgId) {
+      return permission == null || permission.isBlank(orgId);
    }
 
    private static final Lock touchLock = new ReentrantLock();

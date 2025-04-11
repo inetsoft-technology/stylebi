@@ -719,35 +719,31 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    }
 
    /**
-    * Check if a permission setting is blank.
+    * Check if a permission setting is blank. This is system wide
     */
    public boolean isBlank() {
-      for(Set<PermissionIdentity> identities : userGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : roleGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : groupGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : organizationGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      return true;
+      return isBlank(userGrants) && isBlank(roleGrants) &&
+             isBlank(groupGrants) && isBlank(organizationGrants);
    }
+
+   private boolean isBlank(Map<ResourceAction, Set<PermissionIdentity>> grants) {
+      return grants.values().stream().allMatch(Set::isEmpty);
+   }
+
+   /**
+    * Check if a permission setting is blank for a specific organization.
+    */
+   public boolean isBlank(String orgId) {
+      return isBlank(userGrants, orgId) && isBlank(roleGrants, orgId) &&
+             isBlank(groupGrants, orgId) && isBlank(organizationGrants, orgId);
+   }
+
+   private boolean isBlank(Map<ResourceAction, Set<PermissionIdentity>> grants, String orgId) {
+      return grants.values().stream()
+         .flatMap(Set::stream)
+         .noneMatch(identity -> orgId.equals(identity.getOrganizationID()));
+   }
+
 
    /**
     * Return true if any grants in this permission are under the given organization
