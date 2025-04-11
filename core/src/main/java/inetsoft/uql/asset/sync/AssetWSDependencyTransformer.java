@@ -254,11 +254,12 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
    }
 
    @Override
-   protected void renameAutoDrill(Element doc, RenameInfo rinfo) {
+   protected boolean renameAutoDrill(Element doc, RenameInfo rinfo) {
       if(rinfo.isTable()) {
-         return;
+         return false;
       }
 
+      boolean autoDrillChanged = false;
       NodeList list = getChildNodes(doc, ".//XDrillInfo/drillPath");
 
       for(int i = 0; i < list.getLength(); i++) {
@@ -270,7 +271,7 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
          AssetEntry nentry = AssetEntry.createAssetEntry(nname);
 
          if((Hyperlink.VIEWSHEET_LINK + "").equals(Tool.getAttribute(elem, "linkType"))) {
-            replaceAttribute(elem, "link", oname, nname, true);
+            autoDrillChanged |= replaceAttribute(elem, "link", oname, nname, true);
          }
 
          NodeList assets = getChildNodes(elem, "./subquery/worksheetEntry/assetEntry");
@@ -301,13 +302,15 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
                else if(user != null) {
                   assetElem.removeChild(user);
                }
+
+               autoDrillChanged = true;
             }
          }
 
          NodeList fieldNodes = getChildNodes(elem, "./parameterField");
 
          if(fieldNodes == null || fieldNodes.getLength() == 0 && !rinfo .isColumn()) {
-            return;
+            return autoDrillChanged;
          }
 
          for(int j = 0; j < fieldNodes.getLength(); j++) {
@@ -315,10 +318,12 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
             String field = Tool.getAttribute(fieldNode, "field");
 
             if(Tool.equals(oname, field)) {
-               replaceAttribute(fieldNode, "field", oname, nname, true);
+               autoDrillChanged |= replaceAttribute(fieldNode, "field", oname, nname, true);
             }
          }
       }
+
+      return autoDrillChanged;
    }
 
    private void renameVSAndAssemblyScript(Element doc, RenameInfo info) {
