@@ -91,7 +91,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                private orgDropdownService: OrganizationDropdownService,
                private dialog: MatDialog,
                private snackBar: MatSnackBar,
-               private usersService: ScheduleUsersService)
+               private usersService: ScheduleUsersService,
+               private orgDropDownService: OrganizationDropdownService)
    {
       orgDropdownService.onRefresh.subscribe(res => {
          this.selectedProvider = res.provider;
@@ -210,6 +211,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             if(model) {
                let id: IdentityId = {name: model.name, orgID: model.id};
                this.refreshTree(id, IdentityType.ORGANIZATION);
+               this.orgDropDownService.refresh();
             }
 
             this.loading = false;
