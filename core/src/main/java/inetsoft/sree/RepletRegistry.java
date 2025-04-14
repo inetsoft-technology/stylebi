@@ -35,6 +35,7 @@ import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -667,29 +668,37 @@ public class RepletRegistry implements Serializable {
    /**
     * Get sub folders of a folder.
     */
-   public synchronized String[] getFolders(String folder, boolean publicOnly, String orgID) {
-      boolean root = folder == null || folder.equals("/");
-      Iterator<String> iterator = getFolderMap(orgID).keySet().iterator();
-      List<String> result = new ArrayList<>();
+   public String[] getFolders(String folder, boolean publicOnly, String orgID) {
+      getOrgLock(orgID).readLock().lock();
 
-      while(iterator.hasNext()) {
-         String tfolder = iterator.next();
-         int index = tfolder.lastIndexOf('/');
+      try {
+         boolean root = folder == null || folder.equals("/");
+         Iterator<String> iterator = getFolderMap(orgID).keySet().iterator();
+         List<String> result = new ArrayList<>();
 
-         if(index == -1 && root) {
-            result.add(tfolder);
+         while(iterator.hasNext()) {
+            String tfolder = iterator.next();
+            int index = tfolder.lastIndexOf('/');
+
+            if(index == -1 && root) {
+               result.add(tfolder);
+            }
+            else if(index != -1 &&
+               Tool.equals(folder, tfolder.substring(0, index))) {
+               result.add(tfolder);
+            }
          }
-         else if(index != -1 &&
-            Tool.equals(folder, tfolder.substring(0, index))) {
-            result.add(tfolder);
+
+         if(!root || publicOnly) {
+            result.remove(Tool.MY_DASHBOARD);
          }
+
+         return result.toArray(new String[0]);
+      }
+      finally {
+         getOrgLock(orgID).readLock().unlock();
       }
 
-      if(!root || publicOnly) {
-         result.remove(Tool.MY_DASHBOARD);
-      }
-
-      return result.toArray(new String[0]);
    }
 
    /**
@@ -710,68 +719,84 @@ public class RepletRegistry implements Serializable {
     * @param newFolderName new folder name.
     * @return true if change successfully, error message if not.
     */
-   public synchronized String changeFolder(String oldFolderName, String newFolderName, Principal principal) {
-      Catalog catalog = Catalog.getCatalog();
+   public String changeFolder(String oldFolderName, String newFolderName, Principal principal) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      getOrgLock(currentOrgID).writeLock().lock();
 
-      if(oldFolderName == null) {
-         return catalog.getString("common.repletRegistry.oldNameNull");
-      }
+      try {
+         Catalog catalog = Catalog.getCatalog();
 
-      if(newFolderName == null) {
-         return catalog.getString("common.repletRegistry.folderNameNull");
-      }
+         if(oldFolderName == null) {
+            return catalog.getString("common.repletRegistry.oldNameNull");
+         }
 
-      if(oldFolderName.equals(newFolderName)) {
+         if(newFolderName == null) {
+            return catalog.getString("common.repletRegistry.folderNameNull");
+         }
+
+         if(oldFolderName.equals(newFolderName)) {
+            return "true";
+         }
+
+         if(getFolderMap().containsKey(newFolderName)) {
+            return catalog.getString("common.repletRegistry.folderExist", newFolderName);
+         }
+
+         if(SUtil.isDefaultVSGloballyVisible(principal) && principal != null && principal != null &&
+            !Tool.equals(((XPrincipal) principal).getOrgId(), Organization.getDefaultOrganizationID()) &&
+            !getFolderMap(((XPrincipal) principal).getOrgId()).contains(oldFolderName) &&
+            getFolderMap(Organization.getDefaultOrganizationID()).contains(oldFolderName)) {
+            return catalog.getString("common.writeAuthority", Organization.getDefaultOrganizationID());
+         }
+
+         String oprefix = oldFolderName + "/";
+         List<String> all = new ArrayList<>(getFolderMap().keySet());
+         boolean changed = false;
+
+         for(String oname : all) {
+            if(oname.equals(oldFolderName) || oname.startsWith(oprefix)) {
+               String nname = newFolderName + oname.substring(oldFolderName.length());
+               renameFolder(oname, nname, principal, oname.equals(oldFolderName));
+               changed = true;
+            }
+         }
+
+         if(changed) {
+            fireEvent("registry_", CHANGE_EVENT, null, null);
+         }
+
          return "true";
       }
-
-      if(getFolderMap().containsKey(newFolderName)) {
-         return catalog.getString("common.repletRegistry.folderExist", newFolderName);
+      finally {
+         getOrgLock(currentOrgID).writeLock().unlock();
       }
-
-      if(SUtil.isDefaultVSGloballyVisible(principal) && principal != null && principal != null &&
-         !Tool.equals(((XPrincipal) principal).getOrgId(), Organization.getDefaultOrganizationID()) &&
-         !getFolderMap(((XPrincipal) principal).getOrgId()).contains(oldFolderName) &&
-         getFolderMap(Organization.getDefaultOrganizationID()).contains(oldFolderName)) {
-         return catalog.getString("common.writeAuthority", Organization.getDefaultOrganizationID());
-      }
-
-      String oprefix = oldFolderName + "/";
-      List<String> all = new ArrayList<>(getFolderMap().keySet());
-      boolean changed = false;
-
-      for(String oname : all) {
-         if(oname.equals(oldFolderName) || oname.startsWith(oprefix)) {
-            String nname = newFolderName + oname.substring(oldFolderName.length());
-            renameFolder(oname, nname, principal, oname.equals(oldFolderName));
-            changed = true;
-         }
-      }
-
-      if(changed) {
-         fireEvent("registry_", CHANGE_EVENT, null, null);
-      }
-
-      return "true";
    }
 
    /**
     * Rename folder.
     */
-   private synchronized void renameFolder(String ofolder, String nfolder, Principal principal,
+   private void renameFolder(String ofolder, String nfolder, Principal principal,
                                           boolean transaction)
    {
-      getFolderMap().remove(ofolder);
-      getFolderMap().put(nfolder, nfolder);
-      FolderContext context = getFolderContextmap().get(ofolder);
-      getFolderContextmap().remove(ofolder);
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      getOrgLock(currentOrgID).writeLock().lock();
 
-      if(context != null) {
-         context.setName(nfolder);
-         getFolderContextmap().put(nfolder, context);
+      try {
+         getFolderMap().remove(ofolder);
+         getFolderMap().put(nfolder, nfolder);
+         FolderContext context = getFolderContextmap().get(ofolder);
+         getFolderContextmap().remove(ofolder);
+
+         if(context != null) {
+            context.setName(nfolder);
+            getFolderContextmap().put(nfolder, context);
+         }
+
+         fireEvent("registry_" + transaction, RENAME_FOLDER_EVENT, ofolder, nfolder);
       }
-
-      fireEvent("registry_" + transaction, RENAME_FOLDER_EVENT, ofolder, nfolder);
+      finally {
+         getOrgLock(currentOrgID).writeLock().unlock();
+      }
    }
 
    /**
@@ -1052,52 +1077,106 @@ public class RepletRegistry implements Serializable {
       }
    }
 
-   private synchronized Hashtable<String, String> getFolderMap() {
+   private Hashtable<String, String> getFolderMap() {
       return getFolderMap(null);
    }
 
-   private synchronized Hashtable<String, String> getFolderMap(String orgID) {
+   private Hashtable<String, String> getFolderMap(String orgID) {
       if(orgID == null) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
-      else {
-         orgID = orgID;
+
+      getOrgLock(orgID).readLock().lock();
+
+      try {
+         return folders.computeIfAbsent(orgID, k -> {
+            Hashtable<String, String> orgFolders = new Hashtable<>();
+            orgFolders.put("/", "/");
+            orgFolders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+            return orgFolders;
+         });
       }
-      return folders.computeIfAbsent(orgID, k -> {
-         Hashtable<String, String> orgFolders = new Hashtable<>();
-         orgFolders.put("/", "/");
-         orgFolders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
-         return orgFolders;
-      });
+      finally {
+         getOrgLock(orgID).readLock().unlock();
+      }
    }
 
-   private synchronized void moveFolderMap(String oOrgID, String nOrgID) {
+   private void moveFolderMap(String oOrgID, String nOrgID) {
       if(folders.containsKey(oOrgID)) {
          Hashtable<String, String> orgFolders = folders.remove(oOrgID);
          folders.put(nOrgID, orgFolders);
       }
+      Hashtable<String, String> orgFolders = null;
+      Hashtable<String, FolderContext> orgFolderContext = null;
 
-      if(foldercontextmap.containsKey(oOrgID)) {
-         Hashtable<String, FolderContext> orgFolderContext = foldercontextmap.remove(oOrgID);
-         foldercontextmap.put(nOrgID, orgFolderContext);
+      try {
+         getOrgLock(oOrgID).writeLock().lock();
+
+         if(folders.containsKey(oOrgID)) {
+            orgFolders = folders.remove(oOrgID);
+         }
+
+         if(foldercontextmap.containsKey(oOrgID)) {
+            orgFolderContext = foldercontextmap.remove(oOrgID);
+         }
+      }
+      finally {
+         getOrgLock(oOrgID).writeLock().unlock();
+      }
+
+      try {
+         getOrgLock(nOrgID).writeLock().lock();
+
+         if(orgFolders != null) {
+            folders.put(nOrgID, orgFolders);
+         }
+
+         if(orgFolderContext != null) {
+            foldercontextmap.put(nOrgID, orgFolderContext);
+         }
+      }
+      finally {
+         getOrgLock(nOrgID).writeLock().unlock();
       }
    }
 
-   public synchronized boolean hasFolders(String orgID) {
-      return folders.containsKey(orgID) || foldercontextmap.containsKey(orgID);
+   public boolean hasFolders(String orgID) {
+      try {
+         getOrgLock(orgID).readLock().lock();
+         return folders.containsKey(orgID) || foldercontextmap.containsKey(orgID);
+      }
+      finally {
+         getOrgLock(orgID).readLock().unlock();
+      }
+
    }
 
-   private synchronized Hashtable<String, FolderContext> getFolderContextmap() {
+   private Hashtable<String, FolderContext> getFolderContextmap() {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      return getFolderContextmap(orgID);
+
+      try {
+         getOrgLock(orgID).readLock().lock();
+         return getFolderContextmap(orgID);
+      }
+      finally {
+         getOrgLock(orgID).readLock().unlock();
+      }
    }
 
-   private synchronized Hashtable<String, FolderContext> getFolderContextmap(String orgID) {
-      return foldercontextmap.computeIfAbsent(orgID, k -> {
-         Hashtable<String, FolderContext> orgContextMap = new Hashtable<>();
-         orgContextMap.put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
-         return orgContextMap;
-      });
+   private Hashtable<String, FolderContext> getFolderContextmap(String orgID) {
+      try {
+         getOrgLock(orgID).readLock().lock();
+
+         return foldercontextmap.computeIfAbsent(orgID, k -> {
+            Hashtable<String, FolderContext> orgContextMap = new Hashtable<>();
+            orgContextMap.put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
+            return orgContextMap;
+         });
+      }
+      finally {
+         getOrgLock(orgID).readLock().unlock();
+      }
+
    }
 
    public void copyFolderContextMap(String oOID, String nOID) {
@@ -1203,6 +1282,12 @@ public class RepletRegistry implements Serializable {
          WeakReference<PropertyChangeListener> ref = new WeakReference<>(listener);
          globalListeners.add(ref);
       }
+   }
+
+   private ReentrantReadWriteLock getOrgLock(String orgId) {
+      orgId = orgId == null ? "" : orgId;
+
+      return lockMap.computeIfAbsent(orgId, k -> new ReentrantReadWriteLock());
    }
 
    /**
@@ -1536,6 +1621,7 @@ public class RepletRegistry implements Serializable {
    protected DataChangeListenerManager dmgr = new DataChangeListenerManager();
    protected long date = -2L; // last modified
    protected boolean loaded;
+   private final ConcurrentHashMap<String, ReentrantReadWriteLock> lockMap = new ConcurrentHashMap<>();
 
    private static final String GLOBAL_REPOSITORY = "__ADMIN__";
 
