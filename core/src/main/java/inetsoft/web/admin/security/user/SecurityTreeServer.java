@@ -51,12 +51,12 @@ public class SecurityTreeServer {
    public SecurityTreeRootModel getSecurityTree(String providerName, Principal principal,
                                                 boolean isPermissions, boolean providerChanged)
    {
-      return getSecurityTree(providerName, principal, isPermissions, providerChanged, false);
+      return getSecurityTree(providerName, principal, isPermissions, providerChanged, false, false);
    }
 
    public SecurityTreeRootModel getSecurityTree(String providerName, Principal principal,
                                                 boolean isPermissions, boolean providerChanged,
-                                                boolean hideOrgAdminRole)
+                                                boolean hideOrgAdminRole, boolean isTimeRange)
    {
       boolean isMultiTenant = SUtil.isMultiTenant();
 
@@ -80,7 +80,9 @@ public class SecurityTreeServer {
          ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
       }
 
-      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+      String currOrgID = isTimeRange ? identityID.getOrgID() :
+         OrganizationManager.getInstance().getCurrentOrgID(principal);
       currOrgID = currOrgID == null ? Organization.getDefaultOrganizationID() : currOrgID;
       String[] orgIds = provider.getOrganizationIDs();
 
