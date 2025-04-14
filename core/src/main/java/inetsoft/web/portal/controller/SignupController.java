@@ -263,9 +263,11 @@ public class SignupController {
                return result;
             }
 
+            String cookiesString = SUtil.writeCookiesString(request.getCookies());
             SRPrincipal principal = new SRPrincipal(userID);
             principal.setProperty("SignUpFirstName", firstName);
             principal.setProperty("SignUpLastName", lastName);
+            principal.setProperty("SignupCookies", cookiesString);
 
             User newUser = userSignupService.createUser(userID, password, email, principal);
 
