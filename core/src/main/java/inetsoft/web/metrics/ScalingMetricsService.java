@@ -25,22 +25,12 @@ import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 
 @Component
 @Lazy(false)
 public class ScalingMetricsService {
-   private JvmCpuScalingMetric jvmCpu;
-   private JvmMemoryScalingMetric jvmMemory;
-   private SystemCpuScalingMetric systemCpu;
-   private SystemMemoryScalingMetric systemMemory;
-   private SchedulerScalingMetric scheduler;
-   private CacheSwapMemoryScalingMetric cacheSwapMemory;
-   private CacheSwapWaitScalingMetric cacheSwapWait;
-   private List<ScalingMetric> enabledMetrics;
-   private ScheduledExecutorService executor;
 
    @PostConstruct
    public void initEnabledMetrics() {
@@ -90,6 +80,15 @@ public class ScalingMetricsService {
          if(config.isCacheSwapWait()) {
             enabledMetrics.add(cacheSwapWait);
          }
+
+         for(ScalingMetricPublisherFactory factory :
+             ServiceLoader.load(ScalingMetricPublisherFactory.class))
+         {
+            if(factory.isSupported(config)) {
+               publisher = factory.createMetricPublisher(config);
+               break;
+            }
+         }
       }
 
       executor = Executors.newSingleThreadScheduledExecutor(
@@ -112,34 +111,76 @@ public class ScalingMetricsService {
       scheduler.update();
       cacheSwapMemory.update();
       cacheSwapWait.update();
+
+      if(publisher != null) {
+         ScalingMetricData data = new ScalingMetricData(
+            jvmCpu.get(), jvmCpu.calculate(),
+            jvmMemory.get(), jvmMemory.calculate(),
+            systemCpu.get(), systemMemory.calculate(),
+            systemMemory.get(), systemMemory.calculate(),
+            scheduler.get(), scheduler.calculate(),
+            cacheSwapMemory.get(), cacheSwapMemory.calculate(),
+            cacheSwapWait.get(), cacheSwapWait.calculate(),
+            getServerUtilization()
+         );
+         publisher.publish(data);
+      }
    }
 
    public double getJvmCpuUtilization() {
       return jvmCpu.get();
    }
 
+   public double getJvmCpuDetail() {
+      return jvmCpu.calculate();
+   }
+
    public double getJvmMemoryUtilization() {
       return jvmMemory.get();
+   }
+
+   public double getJvmMemoryDetail() {
+      return jvmMemory.calculate();
    }
 
    public double getSystemCpuUtilization() {
       return systemCpu.get();
    }
 
+   public double getSystemCpuDetail() {
+      return systemCpu.calculate();
+   }
+
    public double getSystemMemoryUtilization() {
       return systemMemory.get();
+   }
+
+   public double getSystemMemoryDetail() {
+      return systemMemory.calculate();
    }
 
    public double getSchedulerUtilization() {
       return scheduler.get();
    }
 
+   public double getSchedulerDetail() {
+      return scheduler.calculate();
+   }
+
    public double getCacheSwapMemoryUtilization() {
       return cacheSwapMemory.get();
    }
 
+   public double getCacheSwapMemoryDetail() {
+      return cacheSwapMemory.calculate();
+   }
+
    public double getCacheSwapWaitUtilization() {
       return cacheSwapWait.get();
+   }
+
+   public double getCacheSwapWaitDetail() {
+      return cacheSwapWait.calculate();
    }
 
    public double getServerUtilization() {
@@ -152,4 +193,15 @@ public class ScalingMetricsService {
          .max(Double::compare)
          .orElse(0D);
    }
+
+   private JvmCpuScalingMetric jvmCpu;
+   private JvmMemoryScalingMetric jvmMemory;
+   private SystemCpuScalingMetric systemCpu;
+   private SystemMemoryScalingMetric systemMemory;
+   private SchedulerScalingMetric scheduler;
+   private CacheSwapMemoryScalingMetric cacheSwapMemory;
+   private CacheSwapWaitScalingMetric cacheSwapWait;
+   private List<ScalingMetric> enabledMetrics;
+   private ScheduledExecutorService executor;
+   private ScalingMetricPublisher publisher;
 }

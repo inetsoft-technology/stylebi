@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,14 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { IdentityIdWithLabel } from "../../../em/src/app/settings/security/users/idenity-id-with-label";
-import { IdentityId } from "../../../em/src/app/settings/security/users/identity-id";
 
-export interface UsersModel {
-   adminName: string;
-   owners: IdentityIdWithLabel[];
-   groups: IdentityId[];
-   emailUsers: IdentityId[];
-   emailUserAliases?: Map<IdentityId, string>;
-   emailGroups: IdentityId[];
+package inetsoft.web.metrics;
+
+public record ScalingMetricData(double jvmCpu, double jvmCpuDetail,
+                                double jvmMemory, double jvmMemoryDetail,
+                                double systemCpu, double systemCpuDetail,
+                                double systemMemory, double systemMemoryDetail,
+                                double scheduler, double schedulerDetail,
+                                double cacheSwapMemory, double cacheSwapMemoryDetail,
+                                double cacheSwapWait, double cacheSwapWaitDetail,
+                                double serverUtilization)
+{
 }

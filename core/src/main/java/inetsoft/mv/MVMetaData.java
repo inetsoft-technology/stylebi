@@ -101,6 +101,10 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
       this.plan = plan;
    }
 
+   public void updatePlan(String oWsId, String nWsId) {
+      this.plan = this.plan.replace(oWsId, nWsId);
+   }
+
    /**
     * Set mv break column.
     */

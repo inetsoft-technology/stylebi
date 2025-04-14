@@ -1050,6 +1050,11 @@ public class SUtil {
             IdentityID userID = new IdentityID(identityID.name.substring(0, identityID.name.lastIndexOf(Identity.USER_SUFFIX)), identityID.orgID);
             User user0 = security.getUser(userID);
 
+            //possibly alias
+            if(user0 == null) {
+               user0 = security.getUser(getUserIDFromAlias(userID));
+            }
+
             return (user0 == null) ? new String[0] : user0.getEmails();
          }
 
@@ -2903,7 +2908,9 @@ public class SUtil {
       }
 
       String orgID = entry.getOrgID();
-      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      XPrincipal principal = (XPrincipal) ThreadContext.getContextPrincipal();
+      String currOrgID = principal != null ?
+         principal.getOrgId() : OrganizationManager.getInstance().getCurrentOrgID();
       return !Tool.equals(orgID, currOrgID) && SUtil.isDefaultVSGloballyVisible() &&
          Organization.getDefaultOrganizationID().equals(orgID);
    }
@@ -2949,6 +2956,18 @@ public class SUtil {
       }
 
       return alias;
+   }
+
+   public static IdentityID getUserIDFromAlias(IdentityID aliasID) {
+      IdentityID[] users = SecurityEngine.getSecurity().getOrgUsers(aliasID.orgID);
+
+      for(IdentityID user : users) {
+         if(Tool.equals(aliasID.name, getUserAlias(user))) {
+            return user;
+         }
+      }
+
+      return aliasID;
    }
 
    /**

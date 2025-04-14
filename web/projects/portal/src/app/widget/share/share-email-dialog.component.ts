@@ -112,8 +112,7 @@ export class ShareEmailDialogComponent implements OnInit {
 
    private handleError<T>(error: HttpErrorResponse, toAddress: string): Observable<T> {
       ComponentTool.showMessageDialog(
-         this.modalService, ComponentTool.getDialogTitle("ERROR"),
-         "_#(js:common.mail.sendFailed)" + error.error.message + "_*" + toAddress);
+         this.modalService, ComponentTool.getDialogTitle("ERROR"),"_#(js:viewer.viewsheet.email.failed)");
       this.loading = false;
       return throwError(error);
    }

@@ -20,6 +20,7 @@ package inetsoft.mv;
 import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVStorage;
 import inetsoft.mv.fs.*;
+import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.mv.trans.*;
 import inetsoft.report.composition.QueryTreeModel.QueryNode;
 import inetsoft.report.composition.WorksheetWrapper;
@@ -1705,6 +1706,10 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          MVStorage.getInstance().remove(file);
       }
       catch(Exception e) {
+         if(e instanceof FileNotFoundException && ClusterUtil.isRemovedMVFile(file)) {
+            return;
+         }
+
          if(LOG.isDebugEnabled() && !(e instanceof FileNotFoundException)) {
             LOG.debug("Failed to remove mv file: {}", mvname, e);
          }

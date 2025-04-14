@@ -69,10 +69,10 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
          {
             replaceChildValue(elem, "path", opath, npath, true);
             replaceChildValue(elem, "description", oentry.getDescription(), nentry.getDescription(),
-               false);
+                              false);
             replacePropertyNode0(elem, "localStr", oentry.getName(), nentry.getName(), true);
             replacePropertyNode0(elem, "_description_", oentry.getDescription(),
-               nentry.getDescription(), false);
+                                 nentry.getDescription(), false);
             syncScope(elem, oentry, nentry);
          }
       }
@@ -93,7 +93,7 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
       }
 
       replaceAttribute(elem, "scope", oentry.getScope() + "",
-         nentry.getScope() + "", true);
+                       nentry.getScope() + "", true);
 
       if(oentry.getScope() == AssetRepository.GLOBAL_SCOPE) {
          Element node = Tool.getChildNodeByTagName(elem, "user");
@@ -249,7 +249,7 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
       if(info.isColumn()) {
          super.transformExpression(elem,
-                 new RenameInfo(oname, nname, info.getType(), info.getSource()));
+                                   new RenameInfo(oname, nname, info.getType(), info.getSource()));
       }
    }
 
@@ -277,10 +277,29 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
             for(int j = 0; j < assets.getLength(); j++) {
                Element assetElem = (Element) assets.item(j);
                Element path = Tool.getChildNodeByTagName(assetElem, "path");
+               Element user = Tool.getChildNodeByTagName(assetElem, "user");
                String pathVal = Tool.getValue(path);
 
-               if(!rinfo.isColumn() && Tool.equals(pathVal, oentry.getPath())) {
+               if(!rinfo .isColumn() && Tool.equals(pathVal, oentry.getPath())) {
                   XMLTool.replaceValue(path, nentry.getPath());
+                  assetElem.setAttribute("scope", String.valueOf(nentry.getScope()));
+
+                  if(nentry.getUser() != null) {
+                     String userKey = nentry.getUser().convertToKey();
+
+                     if(user != null) {
+                        XMLTool.replaceValue(user, userKey);
+                     }
+                     else {
+                        Document document = assetElem.getOwnerDocument();
+                        Element userElem = document.createElement("user");
+                        XMLTool.addCDATAValue(userElem, userKey);
+                        assetElem.appendChild(userElem);
+                     }
+                  }
+                  else if(user != null) {
+                     assetElem.removeChild(user);
+                  }
                }
             }
          }
@@ -304,10 +323,10 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
    private void renameVSAndAssemblyScript(Element doc, RenameInfo info) {
       NodeList list = getChildNodes(doc,
-         "//assemblies/oneAssembly/assembly/assemblyInfo/script");
+                                    "//assemblies/oneAssembly/assembly/assemblyInfo/script");
       renameScript(list, info);
       list = getChildNodes(doc,
-         "//viewsheetInfo/viewsheetInfo/initScript");
+                           "//viewsheetInfo/viewsheetInfo/initScript");
       renameScript(list, info);
    }
 
@@ -318,7 +337,7 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
          if(info.isTable() || info.isColumn()) {
             if(scriptEle != null) {
                String nscript = Util.renameScriptRefDepended(info.getOldName(),
-                   info.getNewName(), Tool.getValue(scriptEle));
+                                                             info.getNewName(), Tool.getValue(scriptEle));
 
                if(nscript != null) {
                   replaceCDATANode(scriptEle, nscript);

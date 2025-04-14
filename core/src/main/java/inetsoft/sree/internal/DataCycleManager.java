@@ -37,6 +37,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Consumer;
 
 /**
  * DataCycleManager handles the creation of pregenerated tasks at runtime.
@@ -796,6 +797,54 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       }
 
       save(oorg, norg, replace);
+   }
+
+   public void updateCycleInfoNotify(String oldIdentity , String newIdentity, boolean isUser) throws Exception {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String suffix = isUser ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
+
+      for(String cycle : Collections.list(getDataCycles(orgId))) {
+         CycleInfo cycleInfo = getCycleInfo(cycle, orgId);
+
+         updateEmailField(cycleInfo.endNotify, cycleInfo.endEmail, oldIdentity, newIdentity,
+                          suffix, cycleInfo::setEndEmail);
+         updateEmailField(cycleInfo.startNotify, cycleInfo.startEmail, oldIdentity, newIdentity,
+                          suffix, cycleInfo::setStartEmail);
+         updateEmailField(cycleInfo.exceedNotify, cycleInfo.exceedEmail, oldIdentity, newIdentity,
+                          suffix, cycleInfo::setExceedEmail);
+         updateEmailField(cycleInfo.failureNotify, cycleInfo.failureEmail, oldIdentity, newIdentity,
+                          suffix, cycleInfo::setFailureEmail);
+      }
+
+      save();
+   }
+
+   private void updateEmailField(boolean notify, String emailAddresses, String oldIdentity,
+                                 String newIdentity, String suffix, Consumer<String> setter)
+   {
+      if(notify && emailAddresses != null) {
+         List<String> emailList = new ArrayList<>();
+
+         for(String email : emailAddresses.split("[;,]", 0)) {
+            if(Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
+               !email.endsWith(Identity.GROUP_SUFFIX)) || !email.endsWith(suffix))
+            {
+               emailList.add(email);
+               continue;
+            }
+
+            String emailName = email.substring(0, email.lastIndexOf(suffix));
+
+            if(emailName.equals(oldIdentity)) {
+               emailList.add(newIdentity + suffix);
+            }
+            else {
+               emailList.add(email);
+            }
+         }
+
+         setter.accept(String.join(",", emailList));
+      }
    }
 
    private void migrateCycleInfo(CycleInfo cycleInfo, Organization oorg, Organization norg) {

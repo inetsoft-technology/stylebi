@@ -26,6 +26,7 @@ import inetsoft.report.internal.TablePaintable;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.style.TableStyle;
 import inetsoft.report.style.XTableStyle;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
@@ -87,17 +88,25 @@ public class TableViewStylePaneController {
             sheet.addTable(0, 0, lens);
          }
          else {
-            TableStyle tabStyle = StyleTreeModel.get(style);
+               TableStyle tabStyle = StyleTreeModel.get(style);
 
-            if(tabStyle == null) {
-               if(!style.startsWith("inetsoft.report.style.")) {
-                  style = "inetsoft.report.style." + style;
+               if(tabStyle == null) {
+                  //handle globally visible styles
+                  if(SUtil.isDefaultVSGloballyVisible()) {
+                     tabStyle = StyleTreeModel.get(style, Organization.getDefaultOrganizationID());
+                  }
                }
 
-               if(Class.forName(style) != null) {
-                  tabStyle = (TableStyle) Class.forName(style).newInstance();
+               if(tabStyle == null) {
+
+                  if(!style.startsWith("inetsoft.report.style.")) {
+                     style = "inetsoft.report.style." + style;
+                  }
+
+                  if(Class.forName(style) != null) {
+                     tabStyle = (TableStyle) Class.forName(style).newInstance();
+                  }
                }
-            }
 
             String[][] data = isStyle ? new String[5][4] : new String[4][3];
 

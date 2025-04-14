@@ -17,12 +17,13 @@
  */
 package inetsoft.util;
 
-import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.migrate.*;
@@ -450,6 +451,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
          if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
             if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+               updateDependencySheet(oname, nname, key, executor);
                executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
             }
             else if(entry.isWorksheet()) {
@@ -520,6 +522,36 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
    }
 
+   private void updateDependencySheet(String oname, String nname, String key,
+                                      ExecutorService executor)
+   {
+      DependencyStorageService service = DependencyStorageService.getInstance();
+
+      try {
+         RenameTransformObject obj = service.get(key);
+
+         if(obj == null) {
+            return;
+         }
+
+         DependenciesInfo info = (DependenciesInfo) obj;
+         List<AssetObject> infos = info.getDependencies();
+
+         for(AssetObject asset : infos) {
+            if(!(asset instanceof AssetEntry entry)) {
+               continue;
+            }
+
+            if(entry.isViewsheet()) {
+               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to update the dependencies to file.", e);
+      }
+   }
+
    private void fixRightUser(String oname, String nname, AssetEntry entry) {
       if(Tool.equals(oname, entry.getCreatedUsername())) {
          entry.setCreatedUsername(nname);
@@ -556,6 +588,20 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             executor.submit(() -> new MigrateCubeTask(entry, oorg, norg).process());
          }
          else if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
+            XMLSerializable result = getXMLSerializable(key, null, oId);
+
+            if(result instanceof ScheduleTask) {
+               ScheduleTask task = (ScheduleTask) result;
+               boolean usedTimeRange = task.getConditionStream()
+                  .filter(cond -> cond instanceof TimeCondition && ((TimeCondition) cond).getTimeRange() != null)
+                  .findFirst()
+                  .isPresent();
+
+               if(usedTimeRange) {
+                  continue;
+               }
+            }
+
             executor.submit(() -> new MigrateScheduleTask(entry, oorg, norg).process());
          }
          else if(entry.getType() == AssetEntry.Type.MV_DEF || entry.getType() == AssetEntry.Type.MV_DEF_FOLDER) {

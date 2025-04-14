@@ -378,8 +378,9 @@ export class BackupFileComponent implements OnDestroy {
          }
 
          if(!this.selectedEntities.some((entity) => entity.path == path)) {
-            //additional datasource connection should not be exported
-            if(type == RepositoryEntryType.DATA_SOURCE) {
+            // additional datasource connection should not be exported
+            // cube models should not be exported, they are implicitly dependencies of the XMLA data source
+            if(type == RepositoryEntryType.DATA_SOURCE || type == RepositoryEntryType.CUBE) {
                continue;
             }
 

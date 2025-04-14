@@ -79,11 +79,13 @@ public class VSChartPlotResizeController extends VSChartController<VSChartPlotRe
 
             if(!heightResized || square) {
                chartInfo.setUnitWidthRatio(sizeRatio);
+               chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialWidthRatio());
                chartInfo.setWidthResized(true);
             }
 
             if(heightResized || square) {
                chartInfo.setUnitHeightRatio(sizeRatio);
+               chartInfo.setUnitWidthRatioPercent(sizeRatio / chartInfo.getInitialHeightRatio());
                chartInfo.setHeightResized(true);
             }
          }

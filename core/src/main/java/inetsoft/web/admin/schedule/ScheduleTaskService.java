@@ -925,7 +925,7 @@ public class ScheduleTaskService {
          model.idType(type);
 
          if(type == Identity.Type.USER.code()) {
-            model.idAlias(((User) task.getIdentity()).getAlias());
+            model.idAlias(SUtil.getUserAlias(task.getIdentity().getIdentityID()));
          }
       }
 

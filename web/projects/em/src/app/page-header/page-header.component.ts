@@ -69,6 +69,7 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
    }
 
    ngOnInit() {
+      this.currentProvider = this.orgDropdownService.getProvider();
       this.refreshModel(this.currentProvider);
 
       if(this.refreshSubscription == null) {

@@ -429,7 +429,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       if(time && (<TimeConditionModel> this.condition).type != TimeConditionType.AT) {
          (<TimeConditionModel> this.condition).hour = time.hour;
          (<TimeConditionModel> this.condition).minute = time.minute;
-         (<TimeConditionModel> this.condition).second = 0;
+         (<TimeConditionModel> this.condition).second = time.second;
       }
       else if((<TimeConditionModel> this.condition).type == TimeConditionType.AT) {
          const dateTime: number = (<TimeConditionModel>this.condition).date;

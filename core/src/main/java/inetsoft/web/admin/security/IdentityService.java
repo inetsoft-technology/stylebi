@@ -1535,7 +1535,7 @@ public class IdentityService {
       user.setRoles(model.roles().toArray(new IdentityID[0]));
       user.setGroups(memberNames.toArray(new String[0]));
       user.setEmails(emails);
-      user.setAlias(model.alias());
+      user.setAlias(!Tool.isEmptyString(model.alias()) ? model.alias() : null);
       user.setActive(model.status());
       user.setOrganization(model.organization());
       user.setGoogleSSOId(ouser.getGoogleSSOId());
@@ -2272,38 +2272,7 @@ public class IdentityService {
    }
 
    public void updateAutoSaveFiles(Organization oorg, Organization norg, Principal principal) {
-      if(oorg.getId().equals(norg.getId())) {
-         return;
-      }
-
-      List<String> list = AutoSaveUtils.getAutoSavedFiles(principal, true);
-
-      if(list.isEmpty()) {
-         return;
-      }
-
-      for(String file : list) {
-         String asset = AutoSaveUtils.getName(file);
-         String[] attrs = Tool.split(asset, '^');
-
-         if(attrs.length > 3) {
-            String user = attrs[2];
-            user = "anonymous".equals(user) ? "_NULL_" : user;
-
-            if(user == null || Tool.equals(user, "_NULL_")) {
-               continue;
-            }
-
-            IdentityID userID = IdentityID.getIdentityIDFromKey(user);
-
-            if(oorg.getId().equals(userID.getOrgID())) {
-               userID.setOrgID(norg.getId());
-               attrs[2] = userID.convertToKey();
-               String newFilePath = AutoSaveUtils.RECYCLE_PREFIX + String.join("^", attrs);
-               AutoSaveUtils.renameAutoSaveFile(file, newFilePath, principal);
-            }
-         }
-      }
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal);
    }
 
    public void updateTaskSaveFiles(Organization oorganization, Organization norganization) {

@@ -19,9 +19,14 @@ import { HttpClient } from "@angular/common/http";
 import { Inject, Injectable, InjectionToken, OnDestroy, Optional } from "@angular/core";
 import { BehaviorSubject, Observable, Subscription } from "rxjs";
 import { IdentityIdWithLabel } from "../../em/src/app/settings/security/users/idenity-id-with-label";
-import { IdentityId } from "../../em/src/app/settings/security/users/identity-id";
+import {
+   convertMappedKeyToID,
+   equalsIdentity,
+   IdentityId
+} from "../../em/src/app/settings/security/users/identity-id";
 import { StompClientConnection } from "../stomp/stomp-client-connection";
 import { StompClientService } from "../stomp/stomp-client.service";
+import { Tool } from "../util/tool";
 import { UsersModel } from "./model/users-model";
 
 export const PORTAL = new InjectionToken<boolean>("PORTAL");
@@ -32,6 +37,7 @@ export class ScheduleUsersService implements OnDestroy {
    groups = new BehaviorSubject<IdentityId[]>([]);
    emailGroups = new BehaviorSubject<IdentityId[]>([]);
    emailUsers = new BehaviorSubject<IdentityId[]>([]);
+   emailUserAliases = new BehaviorSubject<Map<IdentityId, string>>(new Map());
    adminName = new BehaviorSubject<string>(null);
    private reload = false;
    private loading = false;
@@ -69,6 +75,14 @@ export class ScheduleUsersService implements OnDestroy {
                this.groups.next(usersModel.groups);
                this.emailGroups.next(usersModel.emailGroups);
                this.emailUsers.next(usersModel.emailUsers);
+
+               if(usersModel.emailUserAliases) {
+                  const mapValue = new Map<IdentityId, string>(
+                                   Object.entries(usersModel.emailUserAliases).map(
+                                   ([key, value]) => [convertMappedKeyToID(key), value] as [IdentityId, string]));
+                  this.emailUserAliases.next(mapValue);
+               }
+
                this.adminName.next((usersModel.adminName));
             },
             () => {},
@@ -101,6 +115,28 @@ export class ScheduleUsersService implements OnDestroy {
 
    getEmailUsers(): Observable<IdentityId[]> {
       return this.emailUsers;
+   }
+
+   getEmailUserAliases(): Observable<Map<IdentityId, string>> {
+      return this.emailUserAliases;
+   }
+
+   public populateEmailUserAliases(users: IdentityId[], aliases: Map<IdentityId, string>): string[] {
+      return users.map(user => {
+         const alias = aliases ? this.findAlias(user, aliases) : null;
+         return (alias ?? user.name) + Tool.USER_SUFFIX;
+      });
+   }
+
+   public findAlias(user: IdentityId, aliasMap: Map<IdentityId, string>): string | null {
+      for(const [key, value] of aliasMap.entries()) {
+
+         if(equalsIdentity(key, user)) {
+            return value;
+         }
+      }
+
+      return null;
    }
 
    getAdminName(): Observable<string> {

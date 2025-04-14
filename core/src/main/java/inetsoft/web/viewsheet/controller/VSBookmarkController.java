@@ -216,7 +216,6 @@ public class VSBookmarkController {
       }
 
       if("add".equals(action)) {
-         rvs.removeBookmark(name, ownerId, false);
          //add the bookmark
          bookmarkService.addBookmark(rvs, name, type, readOnly,
                                      !"add".equals(originalAction) || value.confirmed(), owner,

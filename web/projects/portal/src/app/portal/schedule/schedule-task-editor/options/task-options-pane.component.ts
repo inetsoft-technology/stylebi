@@ -146,10 +146,10 @@ export class TaskOptionsPane implements OnInit {
    private getExecuteAsName(): void {
       let idName = this._model.owner;
 
-      if(this._model.idName != null) {
-         idName = this._model.idAlias == null ? this._model.idName : this._model.idAlias;
+      if(!!this._model.idName) {
+         idName = !this._model.idAlias ? this._model.idName : this._model.idAlias;
       }
-      else if(this._model.ownerAlias != null) {
+      else if(!!this._model.ownerAlias) {
          idName = this._model.ownerAlias;
       }
 

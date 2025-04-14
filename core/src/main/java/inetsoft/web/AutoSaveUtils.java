@@ -25,9 +25,14 @@ import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
+import inetsoft.util.migrate.MigrateViewsheetTask;
+import inetsoft.util.migrate.MigrateWorksheetTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.*;
+import org.xml.sax.InputSource;
 
+import javax.xml.parsers.*;
 import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.security.Principal;
@@ -203,6 +208,11 @@ public final class AutoSaveUtils {
       }).collect(Collectors.toList());
    }
 
+   private static List<String> getAutoSavedFiles(Principal principal) {
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
+      return blobStorage.paths().collect(Collectors.toList());
+   }
+
    public static void renameAutoSaveFile(String source, String target, Principal principal) {
       try {
          BlobStorage<Metadata> blobStorage = getStorage(principal);
@@ -314,7 +324,7 @@ public final class AutoSaveUtils {
          principal = ThreadContext.getContextPrincipal();
       }
 
-      String orgId = OrganizationManager.getInstance().getUserOrgId(principal);
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       if(orgId == null) {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
@@ -378,6 +388,144 @@ public final class AutoSaveUtils {
    public static void writeAutoSaveFile(byte[] data, AssetEntry entry, Principal principal) {
       BlobStorage<Metadata> blobStorage = getStorage(principal);
       String file = getAutoSavedFile(entry, principal);
+
+      try(BlobTransaction<Metadata> tx = blobStorage.beginTransaction();
+          OutputStream out = tx.newStream(file, null))
+      {
+         out.write(data);
+         out.flush();
+         tx.commit();
+      }
+      catch(IOException ex) {
+         LOG.error("Failed to write to the blob storage: {}", file, ex);
+      }
+   }
+
+   public static void migrateAutoSaveFiles(Organization oorg, Organization norg, Principal principal) {
+      if(oorg.getId().equals(norg.getId())) {
+         return;
+      }
+
+      List<String> list = AutoSaveUtils.getAutoSavedFiles(principal);
+
+      if(list.isEmpty()) {
+         return;
+      }
+
+      for(String file : list) {
+         String asset = AutoSaveUtils.getName(file);
+         String[] attrs = Tool.split(asset, '^');
+
+         if(attrs.length <= 3) {
+            continue;
+         }
+
+         String user = attrs[2];
+         user = "anonymous".equals(user) ? "_NULL_" : user;
+
+         if(user == null || Tool.equals(user, "_NULL_")) {
+            continue;
+         }
+
+         IdentityID userID = IdentityID.getIdentityIDFromKey(user);
+
+         if(!oorg.getId().equals(userID.getOrgID())) {
+            continue;
+         }
+
+         userID.setOrgID(norg.getId());
+         attrs[2] = userID.convertToKey();
+         String newFilePath = String.join("^", attrs);
+         AutoSaveUtils.renameAutoSaveFile(file, newFilePath, principal);
+         Document document = null;
+
+         try(InputStream in = AutoSaveUtils.getInputStream(newFilePath, principal)) {
+            AssetEntry assetEntry = AutoSaveUtils.createAssetEntry(
+               file.startsWith(AutoSaveUtils.RECYCLE_PREFIX) ?
+                  file.substring(AutoSaveUtils.RECYCLE_PREFIX.length()) : file);
+            document = Tool.parseXML(in);
+
+            if(assetEntry != null) {
+               if(assetEntry.isViewsheet()) {
+                  new MigrateViewsheetTask(assetEntry, oorg, norg, document).process();
+               }
+               else if(assetEntry.isWorksheet()) {
+                  new MigrateWorksheetTask(assetEntry, oorg, norg, document).process();
+               }
+            }
+         }
+         catch(Exception e) {
+            LOG.error("Failed to migrate the auto save sheet", e);
+         }
+
+         if(document != null) {
+            migrateProcessingInstructionAndWrite(document, norg, newFilePath, principal);
+         }
+      }
+   }
+
+   private static void migrateProcessingInstructionAndWrite(Document document, Organization norg,
+                                                            String newFilePath, Principal principal)
+   {
+      if(document == null) {
+         return;
+      }
+
+      ByteArrayOutputStream bout = new ByteArrayOutputStream();
+
+      NodeList childNodes = document.getChildNodes();
+      String identifier = null;
+      String className = null;
+
+      for(int i = 0; i < childNodes.getLength(); i++) {
+         Node childNode = childNodes.item(i);
+
+         if(childNode.getNodeType() == Node.PROCESSING_INSTRUCTION_NODE) {
+            String nodeValue = childNode.getNodeValue();
+            StringBuilder builder = new StringBuilder();
+            builder.append("<");
+            builder.append(childNode.getNodeName());
+            builder.append(" ");
+            builder.append(nodeValue);
+            builder.append("/>");
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder;
+
+            try {
+               docBuilder = factory.newDocumentBuilder();
+               Document newDocument = docBuilder.parse(new InputSource(new StringReader(builder.toString())));
+               Element documentElement = newDocument.getDocumentElement();
+               NamedNodeMap attributes = documentElement.getAttributes();
+
+               for(int j = 0; j < attributes.getLength(); j++) {
+                  Node attr = attributes.item(j);
+                  String attrName = attr.getNodeName();
+
+                  if(Tool.equals(attrName, "identifier")) {
+                     AssetEntry assetEntry = AssetEntry.createAssetEntry(attr.getNodeValue());
+                     identifier = assetEntry.cloneAssetEntry(norg).toIdentifier();
+                  }
+                  else if(Tool.equals(attrName, "classname")) {
+                     className = attr.getNodeValue();
+                  }
+               }
+
+               if(identifier != null && className != null) {
+                  break;
+               }
+            }
+            catch(Exception e) {
+               LOG.error("Failed to migrate the processing instruction", e);
+            }
+         }
+      }
+
+      XMLTool.writeAssets(document, bout, className, identifier);
+      AutoSaveUtils.writeAutoSaveFile(bout.toByteArray(), newFilePath, principal);
+   }
+
+   public static void writeAutoSaveFile(byte[] data, String file, Principal principal) {
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
 
       try(BlobTransaction<Metadata> tx = blobStorage.beginTransaction();
           OutputStream out = tx.newStream(file, null))

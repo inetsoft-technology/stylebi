@@ -409,14 +409,14 @@ public class ScheduleService {
          if(!(action instanceof IndividualAssetBackupAction)) {
             continue;
          }
-         
+
          IndividualAssetBackupAction bAction = (IndividualAssetBackupAction) action;
 
          for(XAsset asset : bAction.getAssets()) {
             if(!(asset instanceof ScheduleTaskAsset)) {
                continue;
             }
-               
+
             ScheduleTaskAsset taskAsset = (ScheduleTaskAsset) asset;
 
             if(Tool.equals(currentOldTask, taskAsset.getTask())) {
@@ -691,8 +691,10 @@ public class ScheduleService {
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(Organization.getSelfOrganizationID().equals(((XPrincipal) principal).getOrgId())) {
+         String alias = ((XPrincipal) principal).getAlias();
+         alias = !Tool.isEmptyString(alias) ? alias : null;
          allowedUsers = new IdentityIDWithLabel[] {
-            new IdentityIDWithLabel(IdentityID.getIdentityIDFromKey(principal.getName()), ((XPrincipal) principal).getAlias()) };
+            new IdentityIDWithLabel(IdentityID.getIdentityIDFromKey(principal.getName()), alias) };
       }
       else {
          Arrays.stream(securityProvider.getUsers())
@@ -700,7 +702,8 @@ public class ScheduleService {
             .forEach(u -> allUsers.put(u, securityProvider.getUser(u)));
 
          allowedUsers = allUsers.values().stream()
-            .map(u -> new IdentityIDWithLabel(u.getIdentityID(), u.getAlias()))
+            .map(u -> new IdentityIDWithLabel(
+               u.getIdentityID(), !Tool.isEmptyString(u.getAlias()) ? u.getAlias() : null))
             .filter(u -> securityProvider.checkPermission(
                principal, ResourceType.SECURITY_USER, u.getIdentityID().convertToKey(), ResourceAction.ADMIN))
             .sorted()
@@ -750,6 +753,12 @@ public class ScheduleService {
          }
       }
 
+      Map<IdentityID, String> emailUserAliases = new HashMap<>();
+
+      for(IdentityID uid : emailUsers) {
+         emailUserAliases.put(uid, SUtil.getUserAlias(uid));
+      }
+
       List<IdentityID> sortedEmailGroups = parentGroups.stream()
          .sorted()
          .toList();
@@ -758,6 +767,7 @@ public class ScheduleService {
          .owners(allowedUsers)
          .groups(allowedGroups)
          .emailUsers(emailUsers)
+         .emailUserAliases(emailUserAliases)
          .emailGroups(sortedEmailGroups);
 
       if(allowedUsers.length > 0) {
@@ -1021,34 +1031,7 @@ public class ScheduleService {
          List<SelectedAssetModel> assetModels = backupAction.getAssets()
             .stream()
             .filter(XAsset::exists)
-            .map((xAsset) -> {
-
-               if(xAsset instanceof XDataSourceAsset) {
-                  String ds = ((XDataSourceAsset) xAsset).getDatasource();
-                  XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(ds);
-
-                  if(dataSource != null) {
-                     return SelectedAssetModel.builder()
-                        .label(getAssetLabel(xAsset))
-                        .path(xAsset.getPath())
-                        .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
-                        .typeName(xAsset.getType())
-                        .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
-                        .user(xAsset.getUser())
-                        .icon(ContentRepositoryTreeService.getDataSourceIconClass(dataSource.getType()))
-                        .build();
-                  }
-               }
-
-                return SelectedAssetModel.builder()
-                  .label(getAssetLabel(xAsset))
-                  .path(xAsset.getPath())
-                  .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
-                  .typeName(xAsset.getType())
-                  .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
-                  .user(xAsset.getUser())
-                  .build();
-            })
+            .map(a -> createSelectedAssetModel(a, catalog))
             .collect(Collectors.toList());
 
          model = BackupActionModel.builder()
@@ -1104,6 +1087,34 @@ public class ScheduleService {
       }
 
       return model;
+   }
+
+   private SelectedAssetModel createSelectedAssetModel(XAsset xAsset, Catalog catalog) {
+      if(xAsset instanceof XDataSourceAsset) {
+         String ds = ((XDataSourceAsset) xAsset).getDatasource();
+         XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(ds);
+
+         if(dataSource != null) {
+            return SelectedAssetModel.builder()
+               .label(getAssetLabel(xAsset))
+               .path(xAsset.getPath())
+               .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
+               .typeName(xAsset.getType())
+               .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
+               .user(xAsset.getUser())
+               .icon(ContentRepositoryTreeService.getDataSourceIconClass(dataSource.getType()))
+               .build();
+         }
+      }
+
+      return SelectedAssetModel.builder()
+         .label(getAssetLabel(xAsset))
+         .path(xAsset.getPath())
+         .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
+         .typeName(xAsset.getType())
+         .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
+         .user(xAsset.getUser())
+         .build();
    }
 
    private String getAssetLabel(XAsset xAsset) {
@@ -1433,8 +1444,12 @@ public class ScheduleService {
                            value = ((DynamicValueModel) value).convertParameterValue();
 
                            if(DynamicValueModel.VALUE.equals(parameter.value().getType())) {
-                              value = scheduleConditionService
+                              Object val = scheduleConditionService
                                       .getParamValueAsType(parameter.type(), parameter.value());
+
+                              if(value instanceof DynamicParameterValue) {
+                                 ((DynamicParameterValue) value).setValue(val);
+                              }
                            }
                         }
 
