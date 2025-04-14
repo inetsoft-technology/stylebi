@@ -843,8 +843,11 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                type == ResourceType.DATA_MODEL_FOLDER)
             {
                Permission perm = getPermission(type, resource);
+               boolean isNullPermission = perm == null ||
+                  !perm.hasOrgEditedGrantAll(OrganizationManager.getInstance().getCurrentOrgID());
 
-               if(isBlank(perm, OrganizationManager.getInstance().getCurrentOrgID()) && type.isHierarchical()) {
+               if(isBlank(perm, OrganizationManager.getInstance().getCurrentOrgID()) &&
+                  type.isHierarchical() && isNullPermission) {
                   Resource parent = type.getParent(resource);
 
                   if(parent != null) {
