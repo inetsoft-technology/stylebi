@@ -613,7 +613,7 @@ public class DashboardController {
       }
       else {
          identity = user != null ? new DefaultIdentity(user, Identity.USER) :
-            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
 
       return identity;

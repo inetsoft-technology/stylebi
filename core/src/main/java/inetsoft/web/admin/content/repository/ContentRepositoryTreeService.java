@@ -1180,7 +1180,7 @@ public class ContentRepositoryTreeService {
       List<String> dashboardNames = Arrays.asList(registry.getDashboardNames());
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
       List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
-      Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+      Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
 
       if(SecurityEngine.getSecurity().isSecurityEnabled()) {
          if(OrganizationManager.getInstance().isSiteAdmin(principal) &&
@@ -1940,7 +1940,7 @@ public class ContentRepositoryTreeService {
       else {
          identity = securityEnabled || !XPrincipal.ANONYMOUS.equals(userID.name) ?
             new DefaultIdentity(userID, Identity.USER) :
-            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
 
       return identity;

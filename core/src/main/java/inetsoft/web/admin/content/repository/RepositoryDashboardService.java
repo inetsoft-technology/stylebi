@@ -69,7 +69,7 @@ public class RepositoryDashboardService {
       final ResourcePermissionModel tableModel = owner != null ? null :
          permissionService.getTableModel(dashboardName, ResourceType.DASHBOARD,
                                          EnumSet.of(ResourceAction.ACCESS, ResourceAction.ADMIN), principal);
-      Identity anonymous = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+      Identity anonymous = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       boolean enable = Arrays.asList(dashboardManager.getDashboards(anonymous))
          .contains(dashboardName) ||
          Arrays.asList(dashboardManager.getDeselectedDashboards(anonymous)).contains(dashboardName);
@@ -220,7 +220,7 @@ public class RepositoryDashboardService {
             }
          }
          else if(!security) {
-            Identity anonymous = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+            Identity anonymous = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
             List<String> selectedDashboards = new ArrayList<>(
                Arrays.asList(dashboardManager.getDashboards(anonymous)));
             List<String> deselectedDashboards = new ArrayList<>(
@@ -310,7 +310,7 @@ public class RepositoryDashboardService {
          registry.save();
          Identity identity = SecurityEngine.getSecurity().isSecurityEnabled() ?
             contentRepositoryTreeService.getIdentity((XPrincipal) principal) :
-            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
          dashboardManager.addDashboard(identity, dashboardName);
       }
       catch(Exception e) {
@@ -413,7 +413,7 @@ public class RepositoryDashboardService {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
       List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
       IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
-      Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+      Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
 
       if(SecurityEngine.getSecurity().isSecurityEnabled()) {
          if(orgID.equals(currentUser.orgID)) {

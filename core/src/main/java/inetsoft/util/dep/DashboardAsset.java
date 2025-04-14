@@ -233,7 +233,7 @@ public class DashboardAsset extends AbstractXAsset {
       IdentityID[] roles = engine.getRoles();
       IdentityID[] groups = engine.getGroups();
       List<DefaultIdentity> identities = new ArrayList<>();
-      identities.add(new DefaultIdentity(ClientInfo.ANONYMOUS, Identity.ROLE));
+      identities.add(new DefaultIdentity(ClientInfo.ANONYMOUS, Identity.USER));
 
       Arrays.stream(users)
          .map(u -> new DefaultIdentity(u, Identity.USER))
