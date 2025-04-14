@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { HttpClient } from "@angular/common/http";
 import {
    Component,
    Input,
@@ -30,11 +29,6 @@ import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, Subscription } from "rxjs";
 import { debounceTime, map } from "rxjs/operators";
-import {
-   convertMappedKeyToID,
-   IdentityId
-} from "../../../../../em/src/app/settings/security/users/identity-id";
-import { ScheduleUsersService } from "../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../shared/util/tool";
 import { GuiTool } from "../../common/util/gui-tool";
@@ -65,7 +59,6 @@ export class EmailPane implements OnInit, OnDestroy {
    @ViewChild("emailAddrDialog") emailAddrDialog: TemplateRef<any>;
    isIE = GuiTool.isIE();
    initialAddresses: string = "";
-   userAliases: Map<IdentityId, string>;
    subscriptions: Subscription = new Subscription();
    private _model: EmailPaneModel;
 
@@ -79,17 +72,11 @@ export class EmailPane implements OnInit, OnDestroy {
       }
    }
 
-   constructor(private modalService: NgbModal, private userService: ScheduleUsersService, private http: HttpClient) {
+   constructor(private modalService: NgbModal) {
    }
 
    ngOnInit(): void {
-      this.http.get<Map<IdentityId, string>>("../api/portal/get-user-aliases/").subscribe(aliases => {
-         this.userAliases = new Map<IdentityId, string>(
-            Object.entries(aliases).map(
-               ([key, value]) => [convertMappedKeyToID(key), value] as [IdentityId, string]));
-
-         this.initForm();
-      });
+      this.initForm();
    }
 
    private initForm(): void {
@@ -210,7 +197,7 @@ export class EmailPane implements OnInit, OnDestroy {
       let identities: string[] = [];
 
       if(this.model.users) {
-         identities = identities.concat(this.userService.populateEmailUserAliases(this.model.users, this.userAliases));
+         identities = identities.concat(this.model.users.map(user => user.name + Tool.USER_SUFFIX));
       }
 
       if(this.model.groups) {

@@ -324,18 +324,6 @@ public class PortalController {
             principal, ResourceType.DASHBOARD, "*", ResourceAction.READ);
    }
 
-   @GetMapping("/api/portal/get-user-aliases/")
-   public Map<IdentityID, String> getUserAliases(Principal principal) {
-      Map<IdentityID, String> emailUserAliases = new HashMap<>();
-      List<IdentityID> emailUsers = EmailDialogController.getUsers(principal);
-
-      for(IdentityID uid : emailUsers) {
-         emailUserAliases.put(uid, SUtil.getUserAlias(uid));
-      }
-
-      return emailUserAliases;
-   }
-
    private final SecurityEngine securityEngine;
    private final AnalyticRepository analyticRepository;
    private static final Logger LOG = LoggerFactory.getLogger(PortalController.class);
