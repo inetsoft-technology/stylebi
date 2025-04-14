@@ -409,14 +409,14 @@ public class ScheduleService {
          if(!(action instanceof IndividualAssetBackupAction)) {
             continue;
          }
-         
+
          IndividualAssetBackupAction bAction = (IndividualAssetBackupAction) action;
 
          for(XAsset asset : bAction.getAssets()) {
             if(!(asset instanceof ScheduleTaskAsset)) {
                continue;
             }
-               
+
             ScheduleTaskAsset taskAsset = (ScheduleTaskAsset) asset;
 
             if(Tool.equals(currentOldTask, taskAsset.getTask())) {
@@ -1444,8 +1444,12 @@ public class ScheduleService {
                            value = ((DynamicValueModel) value).convertParameterValue();
 
                            if(DynamicValueModel.VALUE.equals(parameter.value().getType())) {
-                              value = scheduleConditionService
+                              Object val = scheduleConditionService
                                       .getParamValueAsType(parameter.type(), parameter.value());
+
+                              if(value instanceof DynamicParameterValue) {
+                                 ((DynamicParameterValue) value).setValue(val);
+                              }
                            }
                         }
 
