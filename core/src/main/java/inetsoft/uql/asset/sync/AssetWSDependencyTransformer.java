@@ -255,10 +255,6 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
    @Override
    protected boolean renameAutoDrill(Element doc, RenameInfo rinfo) {
-      if(rinfo.isTable()) {
-         return false;
-      }
-
       boolean autoDrillChanged = false;
       NodeList list = getChildNodes(doc, ".//XDrillInfo/drillPath");
 
@@ -267,43 +263,47 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
          String oname = rinfo.getOldName();
          String nname = rinfo.getNewName();
-         AssetEntry oentry = AssetEntry.createAssetEntry(oname);
-         AssetEntry nentry = AssetEntry.createAssetEntry(nname);
 
-         if((Hyperlink.VIEWSHEET_LINK + "").equals(Tool.getAttribute(elem, "linkType"))) {
+         if(rinfo.isViewsheet() && (Hyperlink.VIEWSHEET_LINK + "")
+            .equals(Tool.getAttribute(elem, "linkType")))
+         {
             autoDrillChanged |= replaceAttribute(elem, "link", oname, nname, true);
          }
 
-         NodeList assets = getChildNodes(elem, "./subquery/worksheetEntry/assetEntry");
+         if(rinfo.isWorksheet() && !rinfo.isTable()) {
+            AssetEntry oentry = AssetEntry.createAssetEntry(oname);
+            AssetEntry nentry = AssetEntry.createAssetEntry(nname);
+            NodeList assets = getChildNodes(elem, "./subquery/worksheetEntry/assetEntry");
 
-         for(int j = 0; j < assets.getLength(); j++) {
-            Element assetElem = (Element) assets.item(j);
-            Element path = Tool.getChildNodeByTagName(assetElem, "path");
-            Element user = Tool.getChildNodeByTagName(assetElem, "user");
-            String pathVal = Tool.getValue(path);
+            for(int j = 0; j < assets.getLength(); j++) {
+               Element assetElem = (Element) assets.item(j);
+               Element path = Tool.getChildNodeByTagName(assetElem, "path");
+               Element user = Tool.getChildNodeByTagName(assetElem, "user");
+               String pathVal = Tool.getValue(path);
 
-            if(!rinfo .isColumn() && Tool.equals(pathVal, oentry.getPath())) {
-               XMLTool.replaceValue(path, nentry.getPath());
-               assetElem.setAttribute("scope", String.valueOf(nentry.getScope()));
+               if(!rinfo.isColumn() && Tool.equals(pathVal, oentry.getPath())) {
+                  XMLTool.replaceValue(path, nentry.getPath());
+                  assetElem.setAttribute("scope", String.valueOf(nentry.getScope()));
 
-               if(nentry.getUser() != null) {
-                  String userKey = nentry.getUser().convertToKey();
+                  if(nentry.getUser() != null) {
+                     String userKey = nentry.getUser().convertToKey();
 
-                  if(user != null) {
-                     XMLTool.replaceValue(user, userKey);
+                     if(user != null) {
+                        XMLTool.replaceValue(user, userKey);
+                     }
+                     else {
+                        Document document = assetElem.getOwnerDocument();
+                        Element userElem = document.createElement("user");
+                        XMLTool.addCDATAValue(userElem, userKey);
+                        assetElem.appendChild(userElem);
+                     }
                   }
-                  else {
-                     Document document = assetElem.getOwnerDocument();
-                     Element userElem = document.createElement("user");
-                     XMLTool.addCDATAValue(userElem, userKey);
-                     assetElem.appendChild(userElem);
+                  else if(user != null) {
+                     assetElem.removeChild(user);
                   }
-               }
-               else if(user != null) {
-                  assetElem.removeChild(user);
-               }
 
-               autoDrillChanged = true;
+                  autoDrillChanged = true;
+               }
             }
          }
 
