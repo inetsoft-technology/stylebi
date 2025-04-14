@@ -129,11 +129,9 @@
   <div class="modal fade" id="activeSession" tabindex="-1" aria-labelledby="activeSessionTitle" aria-hidden="true" style="display: none">
   <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="activeSessoinTitle" data-th-text="#{Confirm}">Confirm</h5>
-        <button type="button" class="btn-close close" data-dismiss="modal" aria-label="Close">
-        </button>
-      </div>
+      <modal-header
+        [title]="'_#(Confirm)'">
+      </modal-header>
       <div class="modal-body text-info" data-th-utext="#{login.warning.activeSession(${currentUser})}"></div>
       <div class="modal-footer">
         <button type="button" id="confirmLogin" class="btn btn-primary" data-th-text="#{Yes}">Yes</button>
