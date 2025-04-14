@@ -125,6 +125,20 @@ public interface AssetRepository {
                              ResourceAction action) throws Exception;
 
    /**
+    * Check asset permission.
+    * @param principal the specified user.
+    * @param entry the specified asset entry.
+    * @param action the specified permission.
+    * @param checkUserAsset if check the private asset permission.
+    */
+   default void checkAssetPermission(Principal principal, AssetEntry entry, ResourceAction action,
+                                     boolean checkUserAsset)
+      throws Exception
+   {
+      checkAssetPermission(principal, entry, action);
+   }
+
+   /**
     * Get the sub entries of a folder.
     * @param entry the specified folder entry.
     * @param user the specified user.
