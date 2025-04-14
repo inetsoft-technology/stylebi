@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
-   AfterViewInit,
+   AfterViewInit, ChangeDetectorRef,
    Component,
    EventEmitter,
    Input,
@@ -98,7 +98,8 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
    private currOrgID: string = null;
 
    constructor(private http: HttpClient, private modal: NgbModal,
-               private pageTabService: PageTabService)
+               private pageTabService: PageTabService,
+               private changeDetectorRef: ChangeDetectorRef)
    {
       this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{
          this.currOrgID = org;
@@ -205,6 +206,7 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
             (node) => {
                this.searchRootNode = node;
                this.searchMode = true;
+               this.changeDetectorRef.detectChanges();
             },
             (error) => ComponentTool.showHttpError("Failed to search assets", error, this.modal)
          );
