@@ -113,6 +113,10 @@ export class OrganizationDropdownService implements OnDestroy  {
       return this.refreshSubject;
    }
 
+   refreshProviders(): void {
+      this.loadAuthenticationProviders();
+   }
+
    public refresh(provider?: string, providerChanged?: boolean) {
       this.provider = provider;
       this.refreshSubject.next({provider : provider, providerChanged: providerChanged});

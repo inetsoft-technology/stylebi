@@ -150,7 +150,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
              }
              else {
                 this.multiTenancyEnabled = event.enable;
-                this.orgDropdownService.refresh();
+                this.orgDropdownService.refreshProviders();
                 this.refreshContent();
              }
           });
