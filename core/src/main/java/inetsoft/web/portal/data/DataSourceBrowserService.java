@@ -349,17 +349,25 @@ public class DataSourceBrowserService {
             principal, ResourceType.DATA_SOURCE, dataSource.getFullName(), ResourceAction.WRITE))
          .deletable(securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE, dataSource.getFullName(), ResourceAction.DELETE))
-         .queryCreatable(isQueryCreatable(dataSource.getFullName(), principal))
+         .queryCreatable(isQueryCreatable(dataSource, principal))
          .childrenCreatable(isChildrenCreatable(dataSource.getFullName(), principal))
          .hasSubFolder(false)
          .build();
    }
 
-   private boolean isQueryCreatable(String name, Principal principal) throws SecurityException {
-      return securityEngine.checkPermission(
-         principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS) &&
-         securityEngine.checkPermission(
-            principal, ResourceType.DATA_SOURCE, name, ResourceAction.READ);
+   private boolean isQueryCreatable(XDataSource dataSource, Principal principal) throws SecurityException {
+      if(!securityEngine.checkPermission(
+         principal, ResourceType.DATA_SOURCE, dataSource.getFullName(), ResourceAction.READ))
+      {
+         return false;
+      }
+
+      if(!(dataSource instanceof TabularDataSource)) {
+         return securityEngine.checkPermission(
+            principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
+      }
+
+      return true;
    }
 
    private boolean isChildrenCreatable(String name, Principal principal) throws SecurityException {
