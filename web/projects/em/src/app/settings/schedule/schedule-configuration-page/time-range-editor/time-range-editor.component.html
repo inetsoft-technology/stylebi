@@ -44,7 +44,7 @@
         </mat-card>
       </mat-tab>
       <mat-tab *ngIf="permissions?.securityEnabled" label="_#(Security)">
-        <em-resource-permission [model]="permissions">
+        <em-resource-permission [model]="permissions" [isTimeRange]=true>
         </em-resource-permission>
       </mat-tab>
     </mat-tab-group>

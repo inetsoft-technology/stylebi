@@ -23,4 +23,5 @@ export interface SecurityTreeDialogData {
    organizationsEnabled?: boolean;
    hideOrgAdminRole?: boolean;
    provider?: string;
+   isTimeRange?: boolean;
 }
