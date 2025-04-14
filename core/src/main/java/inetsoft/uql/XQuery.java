@@ -18,6 +18,7 @@
 package inetsoft.uql;
 
 import inetsoft.report.internal.Util;
+import inetsoft.sree.internal.DeployManagerService;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
@@ -467,10 +468,16 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
          setName(Tool.getValue(nlist.item(0)));
       }
 
-      nlist = Tool.getChildNodesByTagName(root, "orgId");
+      //if importing, assign to current organization
+      if(DeployManagerService.IS_IMPORTING.get()) {
+         setOrganizationId(OrganizationManager.getInstance().getCurrentOrgID());
+      }
+      else {
+         nlist = Tool.getChildNodesByTagName(root, "orgId");
 
-      if(nlist.getLength() > 0) {
-         setOrganizationId(Tool.getValue(nlist.item(0)));
+         if(nlist.getLength() > 0) {
+            setOrganizationId(Tool.getValue(nlist.item(0)));
+         }
       }
 
       nlist = Tool.getChildNodesByTagName(root, "folder");
@@ -490,7 +497,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
          }
 
          XDataSource xds = registry.getDataSource(datasourceName, orgId);
-         setDataSource(xds != null ? xds : getDataSource());
+         setDataSource(xds != null ? xds : getDataSource()); ///populating before registry contains datasource being imported
       }
 
       nlist = Tool.getChildNodesByTagName(root, "partition");
