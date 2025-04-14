@@ -1378,6 +1378,53 @@ public abstract class DependencyTransformer {
       return null;
    }
 
+   /**
+    * Get RenameDependencyInfo for the extend models when the base model name is changed.
+    * @param model base model.
+    * @param oldBaseModelName old name of the base model.
+    * @param newBaseModelName new name of the base model.
+    *
+    * @return extend Model DependencyInfo
+    */
+   public static RenameDependencyInfo createExtendModelDependencyInfo(XLogicalModel model,
+                                                                      String oldBaseModelName,
+                                                                      String newBaseModelName)
+   {
+      if(model == null) {
+         return null;
+      }
+
+      String[] extendModelNames = model.getLogicalModelNames();
+
+      if(extendModelNames == null) {
+         return null;
+      }
+
+      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
+      String datasource = model.getDataSource();
+
+      for(String extendModelName : extendModelNames) {
+         List<AssetObject> modelDependencies =
+            getModelDependencies(model.getDataSource() + "/" + oldBaseModelName + "/" + extendModelName);
+
+         if(modelDependencies == null) {
+            continue;
+         }
+
+         int type = RenameInfo.LOGIC_MODEL | RenameInfo.SOURCE;
+         RenameInfo rinfo = new RenameInfo(oldBaseModelName +  XUtil.DATAMODEL_PATH_SPLITER + extendModelName,
+                                           newBaseModelName +  XUtil.DATAMODEL_PATH_SPLITER + extendModelName, type);
+         rinfo.setPrefix(datasource);
+         rinfo.setModelFolder(model.getFolder());
+
+         for(AssetObject modelDependency : modelDependencies) {
+            renameDependencyInfo.addRenameInfo(modelDependency, rinfo);
+         }
+      }
+
+      return renameDependencyInfo;
+   }
+
    private File assetFile;
 
    protected static final XPath xpath = XPathFactory.newInstance().newXPath();
