@@ -774,6 +774,14 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
                 .anyMatch(o -> o.equals(orgId));
    }
 
+   public boolean hasChanges() {
+      return (userGrants != null && !userGrants.isEmpty())
+         || (roleGrants != null && !roleGrants.isEmpty())
+         || (groupGrants != null && !groupGrants.isEmpty())
+         || (organizationGrants != null && !organizationGrants.isEmpty())
+         || (orgUpdatedList != null && !orgUpdatedList.isEmpty());
+   }
+
    /**
     * clean any permissions belonging to the given organization
     * @param action the name of the granted action.

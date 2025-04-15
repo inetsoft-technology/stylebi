@@ -1653,7 +1653,7 @@ public class DataSourceRegistry implements MessageListener {
          }
       }
 
-      if(permission != null) {
+      if(newPermission.hasChanges()) {
          if(isRemovePermission) {
             engine.setPermission(type, newResource, newPermission);
             engine.setPermission(type, oldResource, permission);
