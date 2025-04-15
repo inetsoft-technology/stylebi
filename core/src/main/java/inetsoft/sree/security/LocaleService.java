@@ -108,7 +108,7 @@ public class LocaleService {
             }
 
             if((locale == null || locale.isEmpty()) && clientLocale != null) {
-               locale = clientLocale;
+               locale = localeMap.containsValue(clientLocale) ? clientLocale : locale;
             }
          }
 
