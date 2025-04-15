@@ -1,35 +1,77 @@
-<!--
-  ~ This file is part of StyleBI.
-  ~ Copyright (C) 2025  InetSoft Technology
-  ~
-  ~ This program is free software: you can redistribute it and/or modify
-  ~ it under the terms of the GNU Affero General Public License as published by
-  ~ the Free Software Foundation, either version 3 of the License, or
-  ~ (at your option) any later version.
-  ~
-  ~ This program is distributed in the hope that it will be useful,
-  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
-  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  ~ GNU Affero General Public License for more details.
-  ~
-  ~ You should have received a copy of the GNU Affero General Public License
-  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
-  -->
-
+<!-- chat-ai-panel.component.html -->
 <div class="chat-ai-panel" [class.active]="isOpen" [style.width.px]="isOpen ? width : 0">
   <div class="chat-ai-header">
-    <span>AI Assistant</span>
-    <button class="close-btn" (click)="closePanel()">×</button>
+    <div class="header-title">
+      <i class="ai-icon"></i>
+      <span>AI Assistant</span>
+    </div>
+    <button class="close-btn" (click)="closePanel()" aria-label="Close chat">
+      <i class="close-icon"></i>
+    </button>
   </div>
 
   <div class="chat-ai-content">
-    <div class="chat-messages">
-      <!-- 消息列表 -->
+    <!-- Welcome message when empty -->
+    <div class="welcome-section" *ngIf="messages.length === 0">
+      <div class="welcome-card">
+        <h3>{{ welcomeConfig.title }}</h3>
+        <p class="subtitle">{{ welcomeConfig.subtitle }}</p>
+        <p class="description">{{ welcomeConfig.description }}</p>
+
+        <div class="example-prompts">
+          <div class="prompt" *ngFor="let prompt of welcomeConfig.examplePrompts"
+               (click)="currentMessage = prompt; focusInput()">
+            "{{ prompt }}"
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="chat-input">
-      <input type="text" placeholder="Type your message...">
-      <button>Send</button>
+    <!-- Messages container -->
+    <div class="chat-messages" #messageContainer>
+      <div *ngFor="let msg of messages" class="message" [class.user]="msg.isUser">
+        <div class="message-content">
+          <pre>{{ msg.text }}</pre>
+        </div>
+        <div class="message-time">
+          {{ msg.timestamp | date:'shortTime' }}
+        </div>
+      </div>
+
+      <!-- Loading indicator -->
+      <div class="message ai-message" *ngIf="isLoading">
+        <div class="message-content">
+          <div class="typing-indicator">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input area -->
+    <div class="chat-input-container">
+      <form (submit)="sendMessage(); $event.preventDefault()">
+        <div class="chat-input">
+          <input
+            type="text"
+            placeholder="Type your message..."
+            [(ngModel)]="currentMessage"
+            #messageInputModel="ngModel"
+            #messageInput
+            name="messageInput"
+            (keyup.enter)="sendMessage()"
+            [disabled]="isLoading"
+          >
+          <button type="submit" [disabled]="!currentMessage.trim() || isLoading">
+            <i class="send-icon"></i>
+          </button>
+        </div>
+      </form>
+      <p class="disclaimer">
+        AI may produce inaccurate information. Verify critical data.
+      </p>
     </div>
   </div>
 
