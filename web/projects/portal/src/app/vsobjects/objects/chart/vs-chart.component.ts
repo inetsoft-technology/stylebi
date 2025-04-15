@@ -332,7 +332,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                   this.dropdownService, []);
                break;
             default:
-               propertiesHandler.handleEvent(event, this.variableValues(this.getAssemblyName()), null);
+               propertiesHandler.handleEvent(event, this.variableValues(this.getAssemblyName()), (<any> this.vsInfo).id);
             }
          });
          this.clickAction = value.clickAction;
