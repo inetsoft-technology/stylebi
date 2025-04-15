@@ -221,6 +221,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    setOrganization(model: EditIdentityPaneModel) {
       let isCurrentOrgAndChanged = (model.oldName == this.userOrg && model.oldName != model.name) ||
          ((model.oldName == this.userOrg || model.name == this.userOrg) && (model as EditOrganizationPaneModel).id != this.userOrgID);
+      let orgNameChanged = model.oldName != model.name;
 
       if(isCurrentOrgAndChanged) {
          this.dialog.open(MessageDialog, {
@@ -274,6 +275,10 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             }
 
             this.loading = false;
+
+            if(orgNameChanged) {
+               this.orgDropdownService.refresh(this.selectedProvider, false);
+            }
          });
       }
    }
