@@ -1669,7 +1669,7 @@ public class DataSourceRegistry implements MessageListener {
       Set<Permission.PermissionIdentity> allUserGrants = permission.getAllUserGrants(action);
       Set<Permission.PermissionIdentity> currentOrgUserGrants = permission.getUserGrants(action, orgID);
 
-      if(allUserGrants != null && currentOrgUserGrants != null && allUserGrants.size() > 1 && !currentOrgUserGrants.isEmpty()) {
+      if(allUserGrants != null && currentOrgUserGrants != null && allUserGrants.size() > 0 && !currentOrgUserGrants.isEmpty()) {
          allUserGrants.removeAll(currentOrgUserGrants);
          newPermission.setUserGrants(action, currentOrgUserGrants);
          permission.setUserGrants(action, allUserGrants);
@@ -1686,7 +1686,7 @@ public class DataSourceRegistry implements MessageListener {
       Set<Permission.PermissionIdentity> allRoleGrants = permission.getAllRoleGrants(action);
       Set<Permission.PermissionIdentity> currentOrgRoleGrants = permission.getRoleGrants(action, orgID);
 
-      if(allRoleGrants != null && currentOrgRoleGrants != null && allRoleGrants.size() > 1 && !currentOrgRoleGrants.isEmpty()) {
+      if(allRoleGrants != null && currentOrgRoleGrants != null && allRoleGrants.size() > 0 && !currentOrgRoleGrants.isEmpty()) {
          allRoleGrants.removeAll(currentOrgRoleGrants);
          newPermission.setRoleGrants(action, currentOrgRoleGrants);
          permission.setRoleGrants(action, allRoleGrants);
@@ -1703,7 +1703,7 @@ public class DataSourceRegistry implements MessageListener {
       Set<Permission.PermissionIdentity> allGroupGrants = permission.getAllGroupGrants(action);
       Set<Permission.PermissionIdentity> currentOrgGroupGrants = permission.getGroupGrants(action, orgID);
 
-      if(allGroupGrants != null && currentOrgGroupGrants != null && allGroupGrants.size() > 1 && !currentOrgGroupGrants.isEmpty()) {
+      if(allGroupGrants != null && currentOrgGroupGrants != null && allGroupGrants.size() > 0 && !currentOrgGroupGrants.isEmpty()) {
          allGroupGrants.removeAll(currentOrgGroupGrants);
          newPermission.setGroupGrants(action, currentOrgGroupGrants);
          permission.setGroupGrants(action, allGroupGrants);
@@ -1720,7 +1720,7 @@ public class DataSourceRegistry implements MessageListener {
       Set<Permission.PermissionIdentity> allOrganizationGrants = permission.getAllOrganizationGrants(action);
       Set<Permission.PermissionIdentity> currentOrgOrganizationGrants = permission.getOrganizationGrants(action, orgID);
 
-      if(allOrganizationGrants != null && currentOrgOrganizationGrants != null && allOrganizationGrants.size() > 1 && !currentOrgOrganizationGrants.isEmpty()) {
+      if(allOrganizationGrants != null && currentOrgOrganizationGrants != null && allOrganizationGrants.size() > 0 && !currentOrgOrganizationGrants.isEmpty()) {
          allOrganizationGrants.removeAll(currentOrgOrganizationGrants);
          newPermission.setOrganizationGrants(action, currentOrgOrganizationGrants);
          permission.setOrganizationGrants(action, allOrganizationGrants);
@@ -1736,7 +1736,7 @@ public class DataSourceRegistry implements MessageListener {
    private boolean moveOrgOrgUpdatedList(Permission permission, Permission newPermission, String orgID) {
       Map<String, Boolean> orgUpdatedList = permission.getOrgEditedGrantAll();
 
-      if(orgUpdatedList.size() > 1 && permission.hasOrgEditedGrantAll(orgID)) {
+      if(orgUpdatedList.size() > 0 && permission.hasOrgEditedGrantAll(orgID)) {
          permission.removeGrantAllByOrg(orgID);
          newPermission.updateGrantAllByOrg(orgID, true);
          return !orgUpdatedList.isEmpty();
