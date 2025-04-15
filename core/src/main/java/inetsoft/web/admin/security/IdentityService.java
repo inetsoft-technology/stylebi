@@ -984,16 +984,17 @@ public class IdentityService {
    }
 
    public void updateRepletRegistry(String oOID, String nOID) throws Exception {
-      RepletRegistry registry = RepletRegistry.getRegistry();
-      String[] oldFolders = registry.getAllFolders(oOID);
+      RepletRegistry oldRegistry = RepletRegistry.getRegistry(oOID);
+      RepletRegistry newRegistry = RepletRegistry.getRegistry(oOID);
+      String[] oldFolders = oldRegistry.getAllFolders();
       boolean removeOrg = nOID == null;
 
       if(!Tool.equals(oOID, nOID)) {
          for(String oldFolder : oldFolders) {
-            registry.removeFolder(oldFolder, true, false, oOID, false);
+            oldRegistry.removeFolder(oldFolder, true, false, false);
 
             if(!removeOrg) {
-               registry.addFolder(oldFolder, nOID, false);
+               newRegistry.addFolder(oldFolder, false);
             }
          }
       }
@@ -1004,16 +1005,17 @@ public class IdentityService {
       OrganizationManager.getInstance().setCurrentOrgID(nOID);
 
       try {
-         RepletRegistry registry = RepletRegistry.getRegistry();
-         String[] oldFolders = registry.getAllFolders(oOID);
+         RepletRegistry oldRegistry = RepletRegistry.getRegistry(oOID);
+         RepletRegistry newRegistry = RepletRegistry.getRegistry(nOID);
+         String[] oldFolders = oldRegistry.getAllFolders();
 
          for(String oldFolder : oldFolders) {
             if(!Tool.MY_DASHBOARD.equals(oldFolder)) {
-               registry.addFolder(oldFolder, nOID, false);
+               newRegistry.addFolder(oldFolder, false);
             }
          }
 
-         registry.copyFolderContextMap(oOID, nOID);
+         RepletRegistry.copyFolderContextMap(oOID, nOID);
          IdentityID[] orgUsers = securityEngine.getOrgUsers(oOID);
 
          if(orgUsers != null) {
@@ -1023,7 +1025,7 @@ public class IdentityService {
             }
          }
 
-         registry.save();
+         newRegistry.save();
       }
       catch(Exception e) {
          LOG.warn("Could not copy registry from {} to {}", oOID, nOID, e);
