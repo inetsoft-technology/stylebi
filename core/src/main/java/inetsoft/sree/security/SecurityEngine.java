@@ -847,7 +847,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   !perm.hasOrgEditedGrantAll(OrganizationManager.getInstance().getCurrentOrgID());
 
                if(isBlank(perm, OrganizationManager.getInstance().getCurrentOrgID()) &&
-                  type.isHierarchical() && isNullPermission) {
+                  type.isHierarchical() && isNullPermission)
+               {
                   Resource parent = type.getParent(resource);
 
                   if(parent != null) {
