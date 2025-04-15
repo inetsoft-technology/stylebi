@@ -303,11 +303,6 @@ public class VSBookmarkController {
          VSBookmarkInfo bookmarkInfo = rvs.getBookmarkInfo(name, IdentityID.getIdentityIDFromKey(principal.getName()));
 
          if(bookmarkInfo == null) {
-            MessageCommand messageCommand = new MessageCommand();
-            messageCommand.setMessage(
-               catalog.getString("viewer.viewsheet.bookmark.withoutDeletePermission"));
-            messageCommand.setType(MessageCommand.Type.ERROR);
-            commandDispatcher.sendCommand(messageCommand);
             return;
          }
 
