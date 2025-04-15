@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.util.Tool;
@@ -78,6 +79,12 @@ public class RuntimeSheetTransformController implements MessageListener {
          if(((ViewsheetBookmarkChangedEvent) event.getMessage()).deleted) {
             String bookmark = ((ViewsheetBookmarkChangedEvent) event.getMessage()).bookmark;
             handleMessageForBookmarks(asset, id, bookmark, true);
+         }
+         else if(((ViewsheetBookmarkChangedEvent) event.getMessage()).getOldBookmark() != null) {
+            String oname = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getOldBookmark();
+            String nname = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getBookmark();
+            IdentityID owner = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getOwner();
+            handleRenameBookmark(asset, id, oname, nname, owner);
          }
       }
       else if(event.getMessage() instanceof RenameTransformFinishedEvent) {
@@ -187,6 +194,33 @@ public class RuntimeSheetTransformController implements MessageListener {
                .build();
             messagingTemplate.convertAndSendToUser(destination, "/dependency-changed", model);
          });
+   }
+
+   private void handleRenameBookmark(AssetEntry entry, String id, String oname, String nname,
+                                          IdentityID owner) {
+      RuntimeViewsheet[] sheets = null;
+
+      if(viewsheetService instanceof ViewsheetEngine) {
+         ViewsheetEngine engine = (ViewsheetEngine) viewsheetService;
+
+         if(entry.isViewsheet()) {
+            sheets = engine.getAllRuntimeViewsheets();
+         }
+      }
+
+      if(sheets == null || sheets.length == 0) {
+         return;
+      }
+
+      for(int i = 0; i < sheets.length; i++) {
+         RuntimeViewsheet sheet = sheets[i];
+
+         if(Tool.equals(entry, sheet.getEntry()) && !Tool.equals(sheet.getID(), id)) {
+            if(Tool.equals(oname, sheet.getOpenedBookmark().getName())) {
+               sheet.setOpenedBookmark(sheet.getBookmarkInfo(nname, owner));
+            }
+         }
+      }
    }
 
    /**

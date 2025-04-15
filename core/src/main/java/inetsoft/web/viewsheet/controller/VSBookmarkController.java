@@ -464,7 +464,7 @@ public class VSBookmarkController {
       AuditRecordUtils.executeEditBookmarkRecord(rvs, origBookmarkInfo, name, owner);
 
       if(!Tool.equals(name, oldName)) {
-         Cluster.getInstance().sendMessage(new ViewsheetBookmarkChangedEvent(rvs.getEntry()));
+         Cluster.getInstance().sendMessage(new ViewsheetBookmarkChangedEvent(rvs, oldName, name, owner));
       }
    }
 
