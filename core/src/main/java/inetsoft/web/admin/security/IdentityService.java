@@ -240,6 +240,11 @@ public class IdentityService {
    private void logoutSession(IdentityID user) {
       SessionLicenseManager sessionLicenseManager =
          SessionLicenseService.getSessionLicenseService();
+
+      if(sessionLicenseManager == null) {
+         return;
+      }
+
       Set<SRPrincipal> principals = sessionLicenseManager.getActiveSessions();
       Iterator<SRPrincipal> iterator  = principals.iterator();
 
