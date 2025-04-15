@@ -765,11 +765,8 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          return user.getType() == Identity.USER && !"anonymous".equals(user.getName());
       }
 
-      IdentityID id = new IdentityID(user.getName(), user.getOrganizationID());
-      boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(id);
-
       for(Identity user1 : users) {
-         if(user1.equals(user) || siteAdmin && Tool.equals(user1.getOrganizationID(), id.getOrgID())) {
+         if(user1.equals(user)) {
             return true;
          }
       }
