@@ -1546,7 +1546,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
                //  If the assembly script was executed earlier before the viewsheet's onInit
                //  do not execute it again
-               if(!(info.isScriptEnabled() && info.getScript() != null &&
+               if(!(info instanceof ViewsheetVSAssemblyInfo) || !(info.isScriptEnabled() && info.getScript() != null &&
                   info.getScript().contains("thisParameter")))
                {
                   executeView(entry.getName(), false, initing);
