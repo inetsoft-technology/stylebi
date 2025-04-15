@@ -84,7 +84,7 @@ public class RuntimeSheetTransformController implements MessageListener {
             String oname = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getOldBookmark();
             String nname = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getBookmark();
             IdentityID owner = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getOwner();
-            handleMessageForBookmarks(asset, id, oname, nname, owner);
+            handleRameBookmark(asset, id, oname, nname, owner);
          }
       }
       else if(event.getMessage() instanceof RenameTransformFinishedEvent) {
@@ -196,7 +196,7 @@ public class RuntimeSheetTransformController implements MessageListener {
          });
    }
 
-   private void handleMessageForBookmarks(AssetEntry entry, String id, String oname, String nname,
+   private void handleRameBookmark(AssetEntry entry, String id, String oname, String nname,
                                           IdentityID owner) {
       RuntimeViewsheet[] sheets = null;
 
@@ -221,36 +221,6 @@ public class RuntimeSheetTransformController implements MessageListener {
             }
          }
       }
-   }
-
-   private void handleRameBookmark(AssetEntry entry, String id, String bookmark, boolean reload) {
-      RuntimeViewsheet[] sheets = null;
-
-      if(viewsheetService instanceof ViewsheetEngine) {
-         ViewsheetEngine engine = (ViewsheetEngine) viewsheetService;
-
-         if(entry.isViewsheet()) {
-            sheets = engine.getAllRuntimeViewsheets();
-         }
-      }
-
-      if(sheets == null || sheets.length == 0) {
-         return;
-      }
-
-      Arrays.stream(sheets)
-         .filter(sheet -> Tool.equals(entry, sheet.getEntry()) && !Tool.equals(sheet.getID(), id))
-         .filter(sheet -> sheet.getOpenedBookmark() != null &&
-            Tool.equals(sheet.getOpenedBookmark().getName(), bookmark))
-         .forEach(sheet -> {
-            RenameEventModel model = RenameEventModel.builder()
-               .id(sheet.getID())
-               .bookmark(bookmark)
-               .reload(reload)
-               .entry(entry)
-               .build();
-            messagingTemplate.convertAndSendToUser(destination, "/dependency-changed", model);
-         });
    }
 
    /**
