@@ -742,7 +742,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return the sandbox of the specified sub viewsheet.
     */
    public ViewsheetSandbox getSandbox(String name) {
-      if(root != this) {
+      if(root != this && root.getViewsheet().getAssembly(name) != null) {
          return root.getSandbox(name);
       }
 
