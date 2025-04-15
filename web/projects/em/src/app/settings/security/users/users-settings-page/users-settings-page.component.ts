@@ -211,7 +211,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             if(model) {
                let id: IdentityId = {name: model.name, orgID: model.id};
                this.refreshTree(id, IdentityType.ORGANIZATION);
-               this.orgDropDownService.refresh();
+               this.orgDropDownService.refreshProviders();
             }
 
             this.loading = false;
