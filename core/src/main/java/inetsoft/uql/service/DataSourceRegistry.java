@@ -1639,7 +1639,7 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       Permission permission = engine.getPermission(type, oldResource);
-      Permission newPermission = new Permission();
+      Permission newPermission = engine.getPermission(type, newResource);
       String org = OrganizationManager.getInstance().getCurrentOrgID();
       boolean isRemovePermission = false;
 
@@ -1653,7 +1653,7 @@ public class DataSourceRegistry implements MessageListener {
          }
       }
 
-      if(newPermission.hasChanges()) {
+      if(newPermission != null) {
          if(isRemovePermission) {
             engine.setPermission(type, newResource, newPermission);
             engine.setPermission(type, oldResource, permission);
