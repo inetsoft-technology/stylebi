@@ -48,9 +48,6 @@ public abstract class UsersModel {
       return new ArrayList<>(0);
    }
 
-   @Nullable
-   public abstract Map<IdentityID, String> emailUserAliases();
-
    @Value.Default
    public List<IdentityID> emailGroups() {
       return new ArrayList<>(0);

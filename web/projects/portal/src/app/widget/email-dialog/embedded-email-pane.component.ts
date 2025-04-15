@@ -353,8 +353,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
       if(this.embeddedOnly) {
          result = this.addedIdentities
             .map((identity) => identity.type == IdentityType.USER ?
-                 ((identity.alias != null ? identity.alias : identity.identityID.name) + Tool.USER_SUFFIX) :
-               identity.identityID.name + Tool.GROUP_SUFFIX)
+               identity.identityID.name + Tool.USER_SUFFIX : identity.identityID.name + Tool.GROUP_SUFFIX)
             .join(",") + (this.otherEmail ?
             (this.addedIdentities.length > 0 ? "," + this.otherEmail : this.otherEmail) : "");
       }
@@ -472,8 +471,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
 
       if(this.addedIdentities) {
          identities = this.addedIdentities.map(identity =>  identity.type == IdentityType.USER ?
-            ((identity.alias != null ? identity.alias : identity.identityID.name) + Tool.USER_SUFFIX) :
-            identity.identityID + Tool.GROUP_SUFFIX);
+            identity.identityID + Tool.USER_SUFFIX : identity.identityID + Tool.GROUP_SUFFIX);
       }
 
       return identities;
