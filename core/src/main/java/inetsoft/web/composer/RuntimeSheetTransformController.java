@@ -84,7 +84,7 @@ public class RuntimeSheetTransformController implements MessageListener {
             String oname = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getOldBookmark();
             String nname = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getBookmark();
             IdentityID owner = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getOwner();
-            handleRameBookmark(asset, id, oname, nname, owner);
+            handleRenameBookmark(asset, id, oname, nname, owner);
          }
       }
       else if(event.getMessage() instanceof RenameTransformFinishedEvent) {
@@ -196,7 +196,7 @@ public class RuntimeSheetTransformController implements MessageListener {
          });
    }
 
-   private void handleRameBookmark(AssetEntry entry, String id, String oname, String nname,
+   private void handleRenameBookmark(AssetEntry entry, String id, String oname, String nname,
                                           IdentityID owner) {
       RuntimeViewsheet[] sheets = null;
 
