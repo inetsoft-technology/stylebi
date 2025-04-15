@@ -1640,17 +1640,16 @@ public class DataSourceRegistry implements MessageListener {
 
       Permission permission = engine.getPermission(type, oldResource);
       Permission newPermission = new Permission();
-      Principal principal = ThreadContext.getContextPrincipal();
-      IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+      String org = OrganizationManager.getInstance().getCurrentOrgID();
       boolean isRemovePermission = false;
 
       if(permission != null) {
          for(ResourceAction action : ResourceAction.values()) {
-            isRemovePermission |= moveOrgUserGrants(permission, newPermission, action, user.getOrgID());
-            isRemovePermission |= moveOrgRoleGrants(permission, newPermission, action, user.getOrgID());
-            isRemovePermission |= moveOrgGroupGrants(permission, newPermission, action, user.getOrgID());
-            isRemovePermission |= moveOrgOrganzaitionGrants(permission, newPermission, action, user.getOrgID());
-            isRemovePermission |= moveOrgOrgUpdatedList(permission, newPermission, user.getOrgID());
+            isRemovePermission |= moveOrgUserGrants(permission, newPermission, action, org);
+            isRemovePermission |= moveOrgRoleGrants(permission, newPermission, action, org);
+            isRemovePermission |= moveOrgGroupGrants(permission, newPermission, action, org);
+            isRemovePermission |= moveOrgOrganzaitionGrants(permission, newPermission, action, org);
+            isRemovePermission |= moveOrgOrgUpdatedList(permission, newPermission, org);
          }
       }
 
@@ -1676,7 +1675,7 @@ public class DataSourceRegistry implements MessageListener {
          permission.setUserGrants(action, allUserGrants);
          return true;
       }
-      else if(allUserGrants.size() == 1 && currentOrgUserGrants.isEmpty()) {
+      else if(allUserGrants.size() > 0 && currentOrgUserGrants.isEmpty()) {
          newPermission.setUserGrants(action, currentOrgUserGrants);
          return true;
       }
@@ -1694,7 +1693,7 @@ public class DataSourceRegistry implements MessageListener {
          permission.setRoleGrants(action, allRoleGrants);
          return true;
       }
-      else if(allRoleGrants.size() == 1 && currentOrgRoleGrants.isEmpty()) {
+      else if(allRoleGrants.size() > 0 && currentOrgRoleGrants.isEmpty()) {
          newPermission.setRoleGrants(action, currentOrgRoleGrants);
          return true;
       }
@@ -1712,7 +1711,7 @@ public class DataSourceRegistry implements MessageListener {
          permission.setGroupGrants(action, allGroupGrants);
          return true;
       }
-      else if(allGroupGrants.size() == 1 && currentOrgGroupGrants.isEmpty()) {
+      else if(allGroupGrants.size() > 0 && currentOrgGroupGrants.isEmpty()) {
          newPermission.setGroupGrants(action, currentOrgGroupGrants);
          return true;
       }
@@ -1730,7 +1729,7 @@ public class DataSourceRegistry implements MessageListener {
          permission.setOrganizationGrants(action, allOrganizationGrants);
          return true;
       }
-      else if(allOrganizationGrants.size() == 1 && currentOrgOrganizationGrants.isEmpty()) {
+      else if(allOrganizationGrants.size() > 0 && currentOrgOrganizationGrants.isEmpty()) {
          newPermission.setOrganizationGrants(action, currentOrgOrganizationGrants);
          return true;
       }
@@ -1746,7 +1745,7 @@ public class DataSourceRegistry implements MessageListener {
          newPermission.updateGrantAllByOrg(orgID, true);
          return true;
       }
-      else if(orgUpdatedList.size() == 1 && !permission.hasOrgEditedGrantAll(orgID)) {
+      else if(orgUpdatedList.size() > 0 && !permission.hasOrgEditedGrantAll(orgID)) {
          return true;
       }
 
