@@ -455,10 +455,16 @@ public class ComposerObjectController {
          }
 
          move(viewsheet, position, (VSAssembly) assembly);
-         ChangedAssemblyList clist = this.coreLifecycleService.createList(false, dispatcher, rvs,
-                                                                          linkUri);
-         this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-                                                   info.getAbsoluteName(), clist);
+
+         if(assembly instanceof ContainerVSAssembly || (viewsheet.getViewsheetInfo() != null &&
+            viewsheet.getViewsheetInfo().isScaleToScreen()))
+         {
+            ChangedAssemblyList clist = this.coreLifecycleService.createList(false, dispatcher, rvs,
+                                                                             linkUri);
+            this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+                                                      info.getAbsoluteName(), clist);
+         }
+
          this.coreLifecycleService.refreshVSAssembly(rvs, assembly.getAbsoluteName(), dispatcher);
          this.coreLifecycleService.loadTableLens(rvs, assembly.getAbsoluteName(), linkUri, dispatcher);
       }
