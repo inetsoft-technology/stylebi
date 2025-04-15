@@ -1627,6 +1627,11 @@ public class UserTreeService {
 
       for(String dataSource : dataSources) {
          XDataModel dataModel = repository.getDataModel(dataSource);
+
+         if(dataModel == null) {
+            continue;
+         }
+
          String[] vpms = dataModel.getVirtualPrivateModelNames();
 
          for(String vpm : vpms) {
