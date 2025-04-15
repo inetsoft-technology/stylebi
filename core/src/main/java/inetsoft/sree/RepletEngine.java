@@ -277,11 +277,23 @@ public class RepletEngine extends AbstractAssetEngine
    protected RepletRegistry getRegistry(String name, Principal principal)
       throws Exception
    {
+      return getRegistry(name, OrganizationManager.getInstance().getCurrentOrgID(), principal);
+   }
+
+   /**
+    * Get replet registry.
+    * @param name the specified folder or replet name.
+    * @param principal the specified user.
+    * @return replet registry contains the specified folder or replet name.
+    */
+   protected RepletRegistry getRegistry(String name, String orgID, Principal principal)
+      throws Exception
+   {
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
       return SUtil.isMyReport(name) ?
          RepletRegistry.getRegistry(pId) :
-         RepletRegistry.getRegistry();
+         RepletRegistry.getRegistry(orgID);
    }
 
    /**
@@ -674,6 +686,13 @@ public class RepletEngine extends AbstractAssetEngine
       // for administrative reports, we needn't show myreport and archive
       boolean myreport = SUtil.isMyReport(folder);
       List<RepositoryEntry> result = new ArrayList<>();
+
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SUtil.isDefaultVSGloballyVisible(user) && isDefaultOrgAsset) {
+         orgId = Organization.getDefaultOrganizationID();
+      }
+
       RepletRegistry registry;
 
       try {
@@ -691,19 +710,13 @@ public class RepletEngine extends AbstractAssetEngine
          throw new RemoteException("Failed to reset repository folder", ex);
       }
 
-      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-
-      if(SUtil.isDefaultVSGloballyVisible(user) && isDefaultOrgAsset) {
-         orgId = Organization.getDefaultOrganizationID();
-      }
-
       // get folders
       if((selector & RepositoryEntry.FOLDER) != 0 || isDefaultOrgAsset) {
          boolean noMyreports = user == null || isDefaultOrgAsset ||
             !checkPermission(user, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ);
 
-         String[] repletFolders = noMyreports ? registry.getFolders(folder, noMyreports, orgId) :
-            registry.getFolders(folder, orgId);
+         String[] repletFolders = noMyreports ? registry.getFolders(folder, noMyreports) :
+            registry.getFolders(folder);
          List<String> addedFolders = new ArrayList<>();
 
          for(String repletFolder : repletFolders) {
@@ -711,7 +724,7 @@ public class RepletEngine extends AbstractAssetEngine
                RepletFolderEntry entry =
                   new RepletFolderEntry(repletFolder, myreport ? pId : null);
                entry.setDescription(registry.getFolderDescription(repletFolder));
-               entry.setAlias(registry.getFolderAlias(repletFolder, orgId));
+               entry.setAlias(registry.getFolderAlias(repletFolder));
 
                if(SUtil.isDefaultVSGloballyVisible(user) && !Tool.equals(((XPrincipal)user).getOrgId(), orgId)) {
                   entry.setDefaultOrgAsset(true);
@@ -2101,7 +2114,7 @@ public class RepletEngine extends AbstractAssetEngine
 
          RepletRegistry registry = SUtil.isMyReport(entry.getPath()) ?
             RepletRegistry.getRegistry(pId) :
-               RepletRegistry.getRegistry(null);
+               RepletRegistry.getRegistry();
 
          String parentFolder = entry.getPath();
          String folderName = "/".equalsIgnoreCase(parentFolder) ? name :

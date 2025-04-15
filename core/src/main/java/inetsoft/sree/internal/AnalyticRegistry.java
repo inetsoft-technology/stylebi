@@ -18,7 +18,7 @@
 package inetsoft.sree.internal;
 
 import inetsoft.sree.*;
-import inetsoft.util.GroupedThread;
+import inetsoft.sree.security.OrganizationManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +35,14 @@ public class AnalyticRegistry extends RepletRegistry {
     * Create a new registry.
     */
    public AnalyticRegistry() throws Exception {
-      super();
+      this(OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Create a new registry.
+    */
+   public AnalyticRegistry(String orgID) throws Exception {
+      super(orgID);
 
       String timeout = SreeEnv.getProperty("analytic.registry.timeout");
 
@@ -46,7 +53,7 @@ public class AnalyticRegistry extends RepletRegistry {
       }
       catch(Exception ex) {
          LOG.error("Invalid numeric value for analytic registry " +
-            "timeout (analytic.registry.timeout): " + timeout, ex);
+                      "timeout (analytic.registry.timeout): " + timeout, ex);
       }
    }
 

@@ -73,13 +73,6 @@ public class AnalyticEngine extends RepletEngine implements AnalyticRepository {
     */
    @Override
    public void init() {
-      try {
-         aregistry = new AnalyticRegistry();
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to initialize analytic engine", ex);
-      }
-
       initStorageRefreshListener();
       super.init();
    }
@@ -91,7 +84,22 @@ public class AnalyticEngine extends RepletEngine implements AnalyticRepository {
     */
    @Override
    public RepletRegistry getRegistry(String name, Principal principal) throws Exception {
-      return SUtil.isAnalyticReport(name) ? aregistry : super.getRegistry(name, principal);
+      return SUtil.isAnalyticReport(name) ?
+         getAnalyticRegistry(OrganizationManager.getInstance().getCurrentOrgID(principal)) :
+         super.getRegistry(name, principal);
+   }
+
+   public AnalyticRegistry getAnalyticRegistry(String orgID) throws Exception {
+      return registryMap.computeIfAbsent(orgID, (key) -> {
+         try {
+            return new AnalyticRegistry(key);
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to initialize analytic engine", ex);
+         }
+
+         return null;
+      });
    }
 
    /**
@@ -163,7 +171,7 @@ public class AnalyticEngine extends RepletEngine implements AnalyticRepository {
       return null;
    }
 
-   private AnalyticRegistry aregistry;
+   private Map<String, AnalyticRegistry> registryMap = new HashMap<>();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(AnalyticEngine.class);

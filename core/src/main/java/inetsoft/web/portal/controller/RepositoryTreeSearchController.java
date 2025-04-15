@@ -264,7 +264,7 @@ public class RepositoryTreeSearchController {
 
          RepletRegistry registry = SUtil.isMyReport(folder.path) ?
             RepletRegistry.getRegistry(pId) :
-            RepletRegistry.getRegistry(null);
+            RepletRegistry.getRegistry();
 
          dragName = "RepositoryEntry";
 
@@ -301,7 +301,7 @@ public class RepositoryTreeSearchController {
       else {
          RepletRegistry registry = SUtil.isMyReport(folder.path) ?
             RepletRegistry.getRegistry(pId) :
-            RepletRegistry.getRegistry(null);
+            RepletRegistry.getRegistry();
 
          label = registry.getFolderAlias(folder.path);
 

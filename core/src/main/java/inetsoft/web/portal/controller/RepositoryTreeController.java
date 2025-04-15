@@ -348,7 +348,7 @@ public class RepositoryTreeController {
    {
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       RepletRegistry registry = SUtil.isMyReport(entry.getPath()) ?
-              RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry(null);
+              RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry();
       Catalog catalog = Catalog.getCatalog(principal);
       String oldName = entry.getPath();
       newName = SUtil.removeControlChars(newName);
@@ -622,7 +622,7 @@ public class RepositoryTreeController {
          }
 
          RepletRegistry registry = SUtil.isMyReport(entry.getPath()) ?
-            RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry(null);
+            RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry();
 
          // don't rename if the name did not change
          if(!entry.getName().equals(name)) {
