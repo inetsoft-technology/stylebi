@@ -29,12 +29,12 @@ export class PhysicalModelTableTreeComponent {
    @Input() showOnlySelectedTables: boolean = false;
    @Input() disabled = false;
    @Output() nodeExpanded: EventEmitter<TreeNodeModel> = new EventEmitter<TreeNodeModel>();
-   @Output() nodeSelected: EventEmitter<TreeNodeModel> = new EventEmitter<TreeNodeModel>();
+   @Output() nodeSelected: EventEmitter<TreeNodeModel[]> = new EventEmitter<TreeNodeModel[]>();
    @Output() nodeCheckboxToggled: EventEmitter<TreeNodeModel> = new EventEmitter<TreeNodeModel>();
    @Output() onNodeContextMenu: EventEmitter<{node: TreeNodeModel, event: MouseEvent}> =
       new EventEmitter<{node: TreeNodeModel, event: MouseEvent}>();
    selectedNodes: TreeNodeModel[] = [];
-   selectedNode: TreeNodeModel;
+   selectedNode: TreeNodeModel[] = [];
 
    /**
     * Node was expanded, emit node.
@@ -53,8 +53,7 @@ export class PhysicalModelTableTreeComponent {
       this.selectedNodes.push(node);
    }
 
-   selectNode0(node: TreeNodeModel) {
-      this.selectedNode = node;
+   selectNode0(node: TreeNodeModel[]) {
       this.nodeSelected.emit(node);
    }
 

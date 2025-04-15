@@ -87,8 +87,8 @@ export class PhysicalModelTableTreeNodeComponent {
       if(this.tree.selectedNodes != null && this.tree.selectedNodes.length > 0) {
          return this.tree.selectedNodes.includes(this.node);
       }
-      else if(this.tree.selectedNode != null) {
-         return this.tree.selectedNode == this.node;
+      else if(this.tree.selectedNode != null && this.tree.selectedNode.length > 0) {
+         return this.tree.selectedNode.includes(this.node);
       }
 
       return false;
@@ -97,13 +97,19 @@ export class PhysicalModelTableTreeNodeComponent {
    /**
     * Select this node.
     */
-   selectNode(): void {
+   selectNode(event: MouseEvent): void {
       if(!this.node.leaf || this.disabled) {
          return;
       }
 
-      this.tree.selectedNodes = [];
-      this.tree.selectNode0(this.node);
+      if(event.ctrlKey || event.shiftKey) {
+         this.tree.selectedNode.push(this.node)
+      }
+      else {
+         this.tree.selectedNode = [this.node];
+      }
+
+      this.tree.selectNode0(this.tree.selectedNode);
    }
 
    /**

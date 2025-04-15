@@ -79,7 +79,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    @Input() graphViewModel: GraphViewModel;
    @Input() highlightConnections: HighlightInfo[];
    @Input() scrollPoint: Point = new Point();
-   @Input() selectedGraphNode: GraphNodeModel;
+   @Input() selectedGraphNode: GraphNodeModel[];
 
    @Output() onCreateAutoAlias = new EventEmitter<string>();
    @Output() onEditInlineView = new EventEmitter<string>();
@@ -1022,7 +1022,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
       }
 
       if(this.selectedGraphNode) {
-         return currentNode.id === this.selectedGraphNode.id;
+         return this.selectedGraphNode.some(node => node.id === currentNode.id)
       }
 
       return false;
