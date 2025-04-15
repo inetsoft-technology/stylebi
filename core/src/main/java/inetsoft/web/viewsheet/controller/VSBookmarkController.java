@@ -279,7 +279,6 @@ public class VSBookmarkController {
       assert vsBookmarkInfoModel != null;
       String name = Tool.defaultIfNull(vsBookmarkInfoModel.name(), "");
       IdentityID owner = Tool.defaultIfNull(vsBookmarkInfoModel.owner(), new IdentityID("", ""));
-
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
       if(!value.confirmed()) {
@@ -302,6 +301,11 @@ public class VSBookmarkController {
       try {
          VSBookmarkInfo currBookmark = rvs.getOpenedBookmark();
          VSBookmarkInfo bookmarkInfo = rvs.getBookmarkInfo(name, IdentityID.getIdentityIDFromKey(principal.getName()));
+
+         if(bookmarkInfo == null) {
+            return;
+         }
+
          rvs.removeBookmark(name, owner);
          AuditRecordUtils.executeBookmarkRecord(
             rvs.getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE);
