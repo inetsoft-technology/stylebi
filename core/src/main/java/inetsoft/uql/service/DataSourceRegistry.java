@@ -1660,7 +1660,7 @@ public class DataSourceRegistry implements MessageListener {
          }
          else {
             engine.removePermission(type, oldResource);
-            engine.setPermission(type, newResource, permission);
+            engine.setPermission(type, newResource, newPermission);
          }
       }
    }
@@ -1673,15 +1673,9 @@ public class DataSourceRegistry implements MessageListener {
          allUserGrants.removeAll(currentOrgUserGrants);
          newPermission.setUserGrants(action, currentOrgUserGrants);
          permission.setUserGrants(action, allUserGrants);
-         return true;
+         return !allUserGrants.isEmpty();
       }
       else if(allUserGrants.size() > 0 && currentOrgUserGrants.isEmpty()) {
-         newPermission.setUserGrants(action, currentOrgUserGrants);
-         return true;
-      }
-      else if(allUserGrants.size() > 1 && !currentOrgUserGrants.isEmpty() && allUserGrants.equals(currentOrgUserGrants)) {
-         permission.setUserGrants(action, newPermission.getAllUserGrants(action));
-         newPermission.setUserGrants(action, allUserGrants);
          return true;
       }
 
@@ -1696,15 +1690,9 @@ public class DataSourceRegistry implements MessageListener {
          allRoleGrants.removeAll(currentOrgRoleGrants);
          newPermission.setRoleGrants(action, currentOrgRoleGrants);
          permission.setRoleGrants(action, allRoleGrants);
-         return true;
+         return !allRoleGrants.isEmpty();
       }
       else if(allRoleGrants.size() > 0 && currentOrgRoleGrants.isEmpty()) {
-         newPermission.setRoleGrants(action, currentOrgRoleGrants);
-         return true;
-      }
-      else if(allRoleGrants.size() > 1 && !currentOrgRoleGrants.isEmpty() && allRoleGrants.equals(currentOrgRoleGrants)) {
-         permission.setRoleGrants(action, newPermission.getAllRoleGrants(action));
-         newPermission.setRoleGrants(action, allRoleGrants);
          return true;
       }
 
@@ -1719,15 +1707,9 @@ public class DataSourceRegistry implements MessageListener {
          allGroupGrants.removeAll(currentOrgGroupGrants);
          newPermission.setGroupGrants(action, currentOrgGroupGrants);
          permission.setGroupGrants(action, allGroupGrants);
-         return true;
+         return !allGroupGrants.isEmpty();
       }
       else if(allGroupGrants.size() > 0 && currentOrgGroupGrants.isEmpty()) {
-         newPermission.setGroupGrants(action, currentOrgGroupGrants);
-         return true;
-      }
-      else if(allGroupGrants.size() > 1 && !currentOrgGroupGrants.isEmpty() && allGroupGrants.equals(currentOrgGroupGrants)) {
-         permission.setGroupGrants(action, newPermission.getAllGroupGrants(action));
-         newPermission.setGroupGrants(action, allGroupGrants);
          return true;
       }
 
@@ -1742,15 +1724,9 @@ public class DataSourceRegistry implements MessageListener {
          allOrganizationGrants.removeAll(currentOrgOrganizationGrants);
          newPermission.setOrganizationGrants(action, currentOrgOrganizationGrants);
          permission.setOrganizationGrants(action, allOrganizationGrants);
-         return true;
+         return !allOrganizationGrants.isEmpty();
       }
       else if(allOrganizationGrants.size() > 0 && currentOrgOrganizationGrants.isEmpty()) {
-         newPermission.setOrganizationGrants(action, currentOrgOrganizationGrants);
-         return true;
-      }
-      else if(allOrganizationGrants.size() > 1 && !currentOrgOrganizationGrants.isEmpty() && allOrganizationGrants.equals(currentOrgOrganizationGrants)) {
-         permission.setOrganizationGrants(action, newPermission.getAllOrganizationGrants(action));
-         newPermission.setOrganizationGrants(action, allOrganizationGrants);
          return true;
       }
 
@@ -1763,7 +1739,7 @@ public class DataSourceRegistry implements MessageListener {
       if(orgUpdatedList.size() > 1 && permission.hasOrgEditedGrantAll(orgID)) {
          permission.removeGrantAllByOrg(orgID);
          newPermission.updateGrantAllByOrg(orgID, true);
-         return true;
+         return !orgUpdatedList.isEmpty();
       }
       else if(orgUpdatedList.size() > 0 && !permission.hasOrgEditedGrantAll(orgID)) {
          return true;
