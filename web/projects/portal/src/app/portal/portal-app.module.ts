@@ -35,6 +35,7 @@ import { FeatureFlagsModule } from "../../../../shared/feature-flags/feature-fla
 import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
 import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
+import { ChatAiPanelComponent } from "../chat-ai/chat-ai-panel.component";
 import { CanDeactivateGuard } from "../common/services/can-deactivate-guard.service";
 import { UIContextService } from "../common/services/ui-context.service";
 import { FormatModule } from "../format/format.module";
@@ -317,7 +318,8 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       DriverWizardComponent,
       ViewSampleDataDialog,
       SelectAttributePaneComponent,
-      SelectQueryFieldPaneComponent
+      SelectQueryFieldPaneComponent,
+      ChatAiPanelComponent
    ],
    imports: [
       CommonModule,

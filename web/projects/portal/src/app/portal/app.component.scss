@@ -80,3 +80,18 @@
 .no-hover {
   pointer-events: none;
 }
+
+.main-content-container {
+  display: flex;
+  height: calc(100vh - 52px);
+  width: 100%;
+}
+
+.chat-ai-panel {
+  width: 0;
+  transition: width 0.3s ease;
+}
+
+.chat-ai-panel.active {
+  width: 300px;
+}

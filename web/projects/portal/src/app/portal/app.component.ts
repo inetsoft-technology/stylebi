@@ -66,6 +66,7 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
    mobile: boolean;
    currentUrl: string;
    tabBodyHeight: number;
+   isChatAIOpen: boolean = false;
    private routeSubscription: Subscription;
    private licenseInfo: LicenseInfo;
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
@@ -307,6 +308,10 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
       }
    }
 
+   getChatAITabTooltip(): string {
+      return "_#(js:ChatAI)"
+   }
+
    isTabSelected(name: string): boolean {
       if(!this.portalTabs || !this.currentUrl) {
          return false;
@@ -381,6 +386,26 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
             this.showPreferences();
          }
       }
+   }
+
+   toggleChatAI() {
+      this.isChatAIOpen = !this.isChatAIOpen;
+
+      if (this.isChatAIOpen) {
+         setTimeout(() => this.scrollToBottom(), 100);
+
+         this.focusInput();
+      }
+   }
+
+   private scrollToBottom() {
+      const container = document.querySelector('.chat-messages');
+      if (container) container.scrollTop = container.scrollHeight;
+   }
+
+   private focusInput() {
+      const input = document.querySelector('.chat-input input') as HTMLInputElement;
+      input?.focus();
    }
 }
 

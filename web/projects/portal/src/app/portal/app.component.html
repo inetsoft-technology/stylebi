@@ -83,6 +83,19 @@
       </li>
     </ul>
     <ul class="navbar-nav ms-auto">
+      <li *ngIf="!mobile"
+          [title]="getChatAITabTooltip()">
+        <div class="nav-item portal-nav-item"
+             [class.bb-highlight-filler]="!isChatAIOpen"
+             [class.bb-highlight-primary]="isChatAIOpen">
+          <a class="nav-link nav-icon nav-icon-size"
+             (click)="toggleChatAI()"
+             routerLinkActive="active" aria-label="_#(ChatAI)">
+            <i class="datetime-field-icon nav-icon-size portal-toolbar-icon" aria-hidden="true"></i>
+            <span class="visually-hidden">_#(ChatAI)</span>
+          </a>
+        </div>
+      </li>
       <li *ngIf="!mobile && (model.newDatasourceEnabled || model.newWorksheetEnabled
        || model.newViewsheetEnabled || model.reportEnabled)"
           class="nav-item portal-nav-item bb-highlight-filler">
@@ -208,7 +221,13 @@
       </li>
     </ul>
   </header>
-  <div class="tab-body bg-white2" [style.height.px]="tabBodyHeight">
-    <router-outlet></router-outlet>
+  <div class="main-content-container">
+    <div class="tab-body bg-white2" [style.height.px]="tabBodyHeight">
+      <router-outlet></router-outlet>
+    </div>
+    <app-chat-ai-panel
+      [isOpen]="isChatAIOpen"
+      (toggle)="toggleChatAI()">
+    </app-chat-ai-panel>
   </div>
 </div>
