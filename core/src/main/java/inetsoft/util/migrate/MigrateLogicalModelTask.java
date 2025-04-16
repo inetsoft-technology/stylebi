@@ -32,6 +32,10 @@ public class MigrateLogicalModelTask extends MigrateDocumentTask {
       super(entry, ooname, nname);
    }
 
+   public MigrateLogicalModelTask(AssetEntry entry, String ooname, String nname, Organization currOrg) {
+      super(entry, ooname, nname, currOrg);
+   }
+
    @Override
    protected void processAssemblies(Element elem) {
       updateDrillPaths(elem);

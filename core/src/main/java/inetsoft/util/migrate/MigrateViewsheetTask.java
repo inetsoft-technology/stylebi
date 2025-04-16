@@ -39,6 +39,10 @@ public class MigrateViewsheetTask extends MigrateDocumentTask {
       super(entry, oname, nname);
    }
 
+   public MigrateViewsheetTask(AssetEntry entry, String oname, String nname, Organization currOrg) {
+      super(entry, oname, nname, currOrg);
+   }
+
    public MigrateViewsheetTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg,
                                Document document)
    {

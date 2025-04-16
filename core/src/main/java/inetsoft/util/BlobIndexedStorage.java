@@ -441,27 +441,29 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    public void migrateStorageData(String oname, String nname) throws Exception {
       int numThreads = Runtime.getRuntime().availableProcessors();
       ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+      Organization currOrg = SecurityEngine.getSecurity().getSecurityProvider()
+                              .getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
 
       for(String key : getKeys(null)) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
 
          if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
-            executor.submit(() -> new MigrateScheduleTask(entry, oname, nname).updateNameProcess());
+            executor.submit(() -> new MigrateScheduleTask(entry, oname, nname, currOrg).updateNameProcess());
          }
 
          if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
             if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
                updateDependencySheet(oname, nname, key, executor);
-               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
+               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname, currOrg).updateNameProcess());
             }
             else if(entry.isWorksheet()) {
-               executor.submit(() -> new MigrateWorksheetTask(entry, oname, nname).updateNameProcess());
+               executor.submit(() -> new MigrateWorksheetTask(entry, oname, nname, currOrg).updateNameProcess());
             }
             else if(entry.isLogicModel()) {
-               executor.submit(() -> new MigrateLogicalModelTask(entry, oname, nname).updateNameProcess());
+               executor.submit(() -> new MigrateLogicalModelTask(entry, oname, nname, currOrg).updateNameProcess());
             }
             else if(entry.isDomain()) {
-               executor.submit(() -> new MigrateCubeTask(entry, oname, nname).updateNameProcess());
+               executor.submit(() -> new MigrateCubeTask(entry, oname, nname, currOrg).updateNameProcess());
             }
             else if(entry.getType() == AssetEntry.Type.MV_DEF) {
                // done by mv manager.

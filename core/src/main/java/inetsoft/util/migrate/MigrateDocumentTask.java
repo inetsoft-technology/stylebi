@@ -20,10 +20,8 @@ package inetsoft.util.migrate;
 
 import inetsoft.report.Hyperlink;
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.Organization;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.Worksheet;
+import inetsoft.sree.security.*;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.asset.sync.DependencyTransformer;
 import inetsoft.uql.erm.XLogicalModel;
@@ -61,6 +59,17 @@ public abstract class MigrateDocumentTask implements MigrateTask {
       this.entry = entry;
       this.oname = oname;
       this.nname = nname;
+   }
+
+   public MigrateDocumentTask(AssetEntry entry, String oname, String nname, Organization currOrg) {
+      super();
+
+      this.entry = entry;
+      this.oname = oname;
+      this.nname = nname;
+
+      this.oldOrganization = currOrg;
+      this.newOrganization = currOrg;
    }
 
    @Override
@@ -175,6 +184,9 @@ public abstract class MigrateDocumentTask implements MigrateTask {
             MigrateUtil.getNewUserTaskName(entry.getName(), getOldName(), getNewName());
          updateScheduleServerTask(newTaskName, entry.getOrgID());
       }
+
+      //any private assets user created must be updated, and all dependent assets as well
+      DependencyHandler.getInstance().renameDependencies(entry, newEntry);
    }
 
    abstract void processAssemblies(Element elem);

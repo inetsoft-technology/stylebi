@@ -39,6 +39,10 @@ public class MigrateWorksheetTask extends MigrateDocumentTask {
       super(entry, oname, nname);
    }
 
+   public MigrateWorksheetTask(AssetEntry entry, String oname, String nname, Organization currOrg) {
+      super(entry, oname, nname, currOrg);
+   }
+
    @Override
    protected void processAssemblies(Element root) {
       NodeList list = getChildNodes(root,
