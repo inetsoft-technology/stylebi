@@ -201,7 +201,7 @@ public class RepositoryTreeController {
             continue;
          }
 
-         entry.setFavoritesUser(repositoryTreeService.hasFavoritesUser(entry, principal));
+         entry.setFavoritesUser(!isDefaultOrgAsset && repositoryTreeService.hasFavoritesUser(entry, principal));
          RepositoryEntryModel entryModel = repositoryEntryModelFactoryService
             .createModel(entry);
          entryModel.setOp(repositoryTreeService.getSupportedOperations(entry, principal));
