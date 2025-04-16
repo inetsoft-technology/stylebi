@@ -41,7 +41,6 @@ import java.beans.PropertyChangeListener;
 import java.io.Serializable;
 import java.lang.SecurityException;
 import java.lang.reflect.Method;
-import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -1670,11 +1669,20 @@ public class DataSourceRegistry implements MessageListener {
 
    private boolean moveOrgUserGrants(Permission permission, Permission newPermission, ResourceAction action, String orgID) {
       Set<Permission.PermissionIdentity> allUserGrants = permission.getAllUserGrants(action);
+      Set<Permission.PermissionIdentity> newAllUserGrants = newPermission.getAllUserGrants(action);
       Set<Permission.PermissionIdentity> currentOrgUserGrants = permission.getUserGrants(action, orgID);
 
       if(allUserGrants != null && currentOrgUserGrants != null && allUserGrants.size() > 0 && !currentOrgUserGrants.isEmpty()) {
          allUserGrants.removeAll(currentOrgUserGrants);
-         newPermission.setUserGrants(action, currentOrgUserGrants);
+
+         if(newAllUserGrants != null && !newAllUserGrants.isEmpty()) {
+            newAllUserGrants.addAll(currentOrgUserGrants);
+            newPermission.setUserGrants(action, newAllUserGrants);
+         }
+         else {
+            newPermission.setUserGrants(action, currentOrgUserGrants);
+         }
+
          permission.setUserGrants(action, allUserGrants);
          return !allUserGrants.isEmpty();
       }
@@ -1687,11 +1695,20 @@ public class DataSourceRegistry implements MessageListener {
 
    private boolean moveOrgRoleGrants(Permission permission, Permission newPermission, ResourceAction action, String orgID) {
       Set<Permission.PermissionIdentity> allRoleGrants = permission.getAllRoleGrants(action);
+      Set<Permission.PermissionIdentity> newAllRoleGrants = newPermission.getAllRoleGrants(action);
       Set<Permission.PermissionIdentity> currentOrgRoleGrants = permission.getRoleGrants(action, orgID);
 
       if(allRoleGrants != null && currentOrgRoleGrants != null && allRoleGrants.size() > 0 && !currentOrgRoleGrants.isEmpty()) {
          allRoleGrants.removeAll(currentOrgRoleGrants);
-         newPermission.setRoleGrants(action, currentOrgRoleGrants);
+
+         if(newAllRoleGrants != null && !newAllRoleGrants.isEmpty()) {
+            newAllRoleGrants.addAll(currentOrgRoleGrants);
+            newPermission.setRoleGrants(action, newAllRoleGrants);
+         }
+         else {
+            newPermission.setRoleGrants(action, currentOrgRoleGrants);
+         }
+
          permission.setRoleGrants(action, allRoleGrants);
          return !allRoleGrants.isEmpty();
       }
@@ -1704,11 +1721,20 @@ public class DataSourceRegistry implements MessageListener {
 
    private boolean moveOrgGroupGrants(Permission permission, Permission newPermission, ResourceAction action, String orgID) {
       Set<Permission.PermissionIdentity> allGroupGrants = permission.getAllGroupGrants(action);
+      Set<Permission.PermissionIdentity> newAllGroupGrants = newPermission.getAllGroupGrants(action);
       Set<Permission.PermissionIdentity> currentOrgGroupGrants = permission.getGroupGrants(action, orgID);
 
       if(allGroupGrants != null && currentOrgGroupGrants != null && allGroupGrants.size() > 0 && !currentOrgGroupGrants.isEmpty()) {
          allGroupGrants.removeAll(currentOrgGroupGrants);
-         newPermission.setGroupGrants(action, currentOrgGroupGrants);
+
+         if(newAllGroupGrants != null && !newAllGroupGrants.isEmpty()) {
+            newAllGroupGrants.addAll(currentOrgGroupGrants);
+            newPermission.setGroupGrants(action, newAllGroupGrants);
+         }
+         else {
+            newPermission.setGroupGrants(action, currentOrgGroupGrants);
+         }
+
          permission.setGroupGrants(action, allGroupGrants);
          return !allGroupGrants.isEmpty();
       }
@@ -1721,11 +1747,20 @@ public class DataSourceRegistry implements MessageListener {
 
    private boolean moveOrgOrganzaitionGrants(Permission permission, Permission newPermission, ResourceAction action, String orgID) {
       Set<Permission.PermissionIdentity> allOrganizationGrants = permission.getAllOrganizationGrants(action);
+      Set<Permission.PermissionIdentity> newAllOrganizationGrants = newPermission.getAllOrganizationGrants(action);
       Set<Permission.PermissionIdentity> currentOrgOrganizationGrants = permission.getOrganizationGrants(action, orgID);
 
       if(allOrganizationGrants != null && currentOrgOrganizationGrants != null && allOrganizationGrants.size() > 0 && !currentOrgOrganizationGrants.isEmpty()) {
          allOrganizationGrants.removeAll(currentOrgOrganizationGrants);
-         newPermission.setOrganizationGrants(action, currentOrgOrganizationGrants);
+
+         if(newAllOrganizationGrants != null && !newAllOrganizationGrants.isEmpty()) {
+            newAllOrganizationGrants.addAll(currentOrgOrganizationGrants);
+            newPermission.setOrganizationGrants(action, newAllOrganizationGrants);
+         }
+         else {
+            newPermission.setOrganizationGrants(action, currentOrgOrganizationGrants);
+         }
+
          permission.setOrganizationGrants(action, allOrganizationGrants);
          return !allOrganizationGrants.isEmpty();
       }
