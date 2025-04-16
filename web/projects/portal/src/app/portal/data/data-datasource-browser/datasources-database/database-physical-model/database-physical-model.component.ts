@@ -1454,7 +1454,6 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          });
 
          if(newTable) {
-            console.log(3);
             this.editingTable = newTable;
          }
          else {
