@@ -2672,6 +2672,6 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
    isDefaultOrgAsset() {
       let assetEntry: AssetEntry = createAssetEntry(this.vs.id);
-      return assetEntry?.organization != this.orgInfo.key;
+      return assetEntry?.organization != this.orgInfo?.key;
    }
 }
