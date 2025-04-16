@@ -104,7 +104,9 @@ export class SelectionListCell implements OnInit, OnChanges {
    measureTextVAlign: string;
    isParentIDTree: boolean = false;
    htmlLabel: SafeHtml;
-   mobile = GuiTool.isMobileDevice();
+
+   mobileDevice: boolean = GuiTool.isMobileDevice();
+
 
    constructor(public vsSelectionComponent: VSSelection,
                private sanitization: DomSanitizer,
@@ -148,6 +150,10 @@ export class SelectionListCell implements OnInit, OnChanges {
       this.measureTextHAlign = GuiTool.getFlexHAlign(this.measureTextFormat.hAlign);
       this.measureTextVAlign = GuiTool.getFlexVAlign(this.measureTextFormat.vAlign);
       this.isParentIDTree = model.objectType === "VSSelectionTree" && (<VSSelectionTreeModel> model).mode == MODE.ID;
+
+      if(this.mobileDevice) {
+         this.cellFormat.font = "15px Roboto, roboto, arial, helvetica, sans-serif"
+      }
 
       switch(this.measureTextFormat.vAlign) {
       case "top":

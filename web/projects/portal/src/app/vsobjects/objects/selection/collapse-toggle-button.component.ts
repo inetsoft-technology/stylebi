@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { GuiTool } from "../../../common/util/gui-tool";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { ContextProvider } from "../../context-provider.service";
 
@@ -43,6 +44,7 @@ export class CollapseToggleButton {
    public hideButtonVisible: boolean = true;
    public showButtonVisible: boolean = true;
    private viewerOrPreview: boolean;
+   mobileDevice: boolean = GuiTool.isMobileDevice();
 
    constructor(private contextProvider: ContextProvider) {
       this.viewerOrPreview = contextProvider.viewer || contextProvider.preview;
