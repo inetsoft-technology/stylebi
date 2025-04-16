@@ -49,12 +49,12 @@ export class AbstractHighlight {
 
       if(highlightsStr.length > 0) {
          ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-            "_#(js:highlights.incomplete.definitions)" + "_*" + highlightsStr);
+            Tool.formatCatalogString("_#(js:highlights.incomplete.definitions)", [highlightsStr]));
          return false;
       }
       else if(highlightsStr2.length > 0) {
          ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-            "_#(js:highlight.names.already.used)" + "_*" + highlightsStr2);
+            Tool.formatCatalogString("_#(js:highlight.names.already.used)", [highlightsStr2]));
          return false;
       }
       else {
