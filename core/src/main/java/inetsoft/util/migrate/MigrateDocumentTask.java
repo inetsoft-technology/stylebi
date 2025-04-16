@@ -451,13 +451,13 @@ public abstract class MigrateDocumentTask implements MigrateTask {
          String userKey = arr[2];
          IdentityID id = IdentityID.getIdentityIDFromKey(userKey);
 
-         if(id != null) {
+         if(id != null && org != null) {
             id.setOrgID(org.getOrganizationID());
             arr[2] = id.convertToKey();
          }
       }
 
-      if(arr.length > 4) {
+      if(arr.length > 4 && org != null) {
          arr[arr.length - 1] = ((Organization) org).getId();
       }
 
