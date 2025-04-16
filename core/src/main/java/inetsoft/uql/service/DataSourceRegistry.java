@@ -1191,7 +1191,7 @@ public class DataSourceRegistry implements MessageListener {
    /**
     * Fire a modified event.
     */
-   protected void fireModifiedEvent() {
+   protected void fireModifiedEvent(String orgId) {
       final List<PropertyChangeListener> modifiedListeners =
          new ArrayList<>(this.modifiedListeners);
 
@@ -1200,7 +1200,7 @@ public class DataSourceRegistry implements MessageListener {
             for(PropertyChangeListener listener : modifiedListeners) {
                listener.propertyChange(
                   new PropertyChangeEvent(DataSourceRegistry.this,
-                                          "DataSourceRegistry", null, null));
+                                          "DataSourceRegistry", orgId, orgId));
             }
          }
       }).start();
@@ -1288,7 +1288,7 @@ public class DataSourceRegistry implements MessageListener {
          Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent());
 
          if(fireEvent) {
-            fireModifiedEvent();
+            fireModifiedEvent(entry.getOrgID());
          }
          else {
             // update the last modified timestamp to prevent firing of the storage refresh event
