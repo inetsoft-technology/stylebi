@@ -71,6 +71,11 @@ public class AssetTreeRefreshController {
       }
 
       DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+
+      if(principal == null) {
+         return;
+      }
+
       final String orgId = ((XPrincipal) principal).getOrgId();
       registry.addRefreshedListener(event -> {
          // Data Source Entry
