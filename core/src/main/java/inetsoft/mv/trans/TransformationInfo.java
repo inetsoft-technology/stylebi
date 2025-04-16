@@ -74,11 +74,11 @@ public final class TransformationInfo implements Comparable<TransformationInfo> 
 
    public static String multiDistinctCount() {
       return "Only one distinct count formula field is supported in " +
-             "distribute mv for assemblies with same source table.";
+             "distributed MV for assemblies using the same source table.";
    }
 
    public static String namedGroup(DataRef ref) {
-      return "Field '" + ref.getName() + "' with named group is not combinable";
+      return "Field '" + ref.getName() + "' with a named group is not combinable";
    }
 
    public static String formulaNotCombinable(DataRef ref, AggregateFormula f) {
@@ -186,19 +186,19 @@ public final class TransformationInfo implements Comparable<TransformationInfo> 
     */
    public static TransformationInfo mvConditionUnderSelection(String table) {
       table = AbstractTransformer.normalizeBlockName(table);
-      String desc = "Mv conditions defined in '" + table + "' is not suitable,"
-                    + " because there is not selection below/on this table";
+      String desc = "MV conditions defined in '" + table + "' is not suitable, "
+                    + "as no selection exists on or below this table.";
       return new TransformationInfo(desc, DETAIL);
    }
 
    /**
-    * Warning users that the mv conditions defined in the table which is
-    * upper of mv table.
+    * Warn users about MV conditions that will not be applied because the table is above
+    * the MV table
     */
-   public static TransformationInfo mvConditionUseless(String table) {
+   public static TransformationInfo mvConditionsIgnored(String table) {
       table = AbstractTransformer.normalizeBlockName(table);
-      String desc = "MV conditions defined in table '" + table + "' is upper of" +
-         " mv table,so will not be applied in mv.";
+      String desc = "MV conditions in table '" + table +
+         "' are defined above the MV table and will not be applied.";
       return new TransformationInfo(desc, DETAIL);
    }
 

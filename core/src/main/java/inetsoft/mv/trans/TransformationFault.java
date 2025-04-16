@@ -103,7 +103,7 @@ public final class TransformationFault {
       String desc = "Transfer all selections down to child block '" +
          tbln + "' FAILED";
       String reason = "Can't move selections down from '" + tbln +
-         "' to mv table '" + mvtbln + "'.";
+         "' to MV table '" + mvtbln + "'.";
       return new TransformationFault(desc, reason);
    }
 
@@ -117,7 +117,7 @@ public final class TransformationFault {
       String desc = "Transfer all aggregates down to child block '" +
          tbln + "' FAILED";
       String reason = "Can't move aggregate down from '" + tbln +
-         "' to mv table '" + mvtbln + "'.";
+         "' to MV table '" + mvtbln + "'.";
       return new TransformationFault(desc, reason);
    }
 
@@ -139,8 +139,8 @@ public final class TransformationFault {
       table = AbstractTransformer.normalizeBlockName(table);
       String desc = "Create mv on table '" + table + "' for viewsheet " +
          "assembly '" + vassembly + "' FAILED.";
-      String reason = "The table '" + table + "' is a cube table, cube table" +
-         " cannot support mv.";
+      String reason = "The table '" + table + "' is a cube table. A cube table" +
+         " cannot support MVs.";
       return new TransformationFault(desc, reason);
    }
 
@@ -192,7 +192,7 @@ public final class TransformationFault {
       vassembly = AbstractTransformer.normalizeBlockName(vassembly);
       String desc = "Create mv at block '" + tbl + "' for viewsheet assembly '"
          + vassembly + "' FAILED";
-      String reason = "Cannot create mv on data block '" + tbl +
+      String reason = "Cannot create MV on data block '" + tbl +
          "' because the selected column in the data block is hidden.";
       return new TransformationFault(desc, reason);
    }
@@ -237,7 +237,7 @@ public final class TransformationFault {
       ptbl = AbstractTransformer.normalizeBlockName(ptbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' up to parent block '" + ptbl + "' FAILED";
-      String reason = "Child block '" + tbl + "' with ranking variable " +
+      String reason = "Child block '" + tbl + "' with a ranking variable " +
          "condition, and parent block '" + ptbl + "' with conditions.";
       return new TransformationFault(desc, reason);
    }
@@ -251,8 +251,8 @@ public final class TransformationFault {
       ptbl = AbstractTransformer.normalizeBlockName(ptbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' up to parent block '" + ptbl + "' FAILED";
-      String reason = "Child block '" + tbl + "' with ranking variable " +
-         "condition, and parent block '" + ptbl + "' with group aggregate.";
+      String reason = "Child block '" + tbl + "' with a ranking variable " +
+         "condition, and parent block '" + ptbl + "' with a group aggregate.";
       return new TransformationFault(desc, reason);
    }
 
@@ -278,7 +278,7 @@ public final class TransformationFault {
       ptbl = AbstractTransformer.normalizeBlockName(ptbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' up to parent block '" + ptbl + "' FAILED";
-      String reason = "Child block '" + tbl + "' with ranking variable " +
+      String reason = "Child block '" + tbl + "' with a ranking variable " +
          "condition and multiple group columns.";
       return new TransformationFault(desc, reason);
    }
@@ -290,8 +290,8 @@ public final class TransformationFault {
       tbl = AbstractTransformer.normalizeBlockName(tbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
-      String reason = "There exists both ranking condition and variable " +
-         "condition in the talbe '"+ tbl + "'.";
+      String reason = "There are both ranking and variable " +
+         "conditions in the table '" + tbl + "'.";
       return new TransformationFault(desc, reason);
    }
 
@@ -302,8 +302,8 @@ public final class TransformationFault {
       tbl = AbstractTransformer.normalizeBlockName(tbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
-      String reason = "It contains variable aggregate ranking condition" +
-         " in table '"+ tbl + "'.";
+      String reason = "It contains a variable aggregate ranking condition" +
+         " in the table '" + tbl + "'.";
       return new TransformationFault(desc, reason);
    }
 
@@ -316,9 +316,8 @@ public final class TransformationFault {
       ptbl = AbstractTransformer.normalizeBlockName(ptbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
-      String reason = "There is ranking condition in parent node '"+ ptbl +
-         "'. " + "It's not support to move selection up for the table " +
-         "contains ranking condition. ";
+      String reason = "There is a ranking condition in the parent node '"+ ptbl +
+         "'. Moving selections up to a table with a ranking condition is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -331,9 +330,8 @@ public final class TransformationFault {
       ptbl = AbstractTransformer.normalizeBlockName(ptbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
-      String reason = "There is post condition in parent node '"+ ptbl +
-         "'. It's not support to move selection up for the table contains " +
-         "post condition. ";
+      String reason = "There is a post condition in the parent node '"+ ptbl +
+         "'. Moving selections up to a table with a post condition is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -346,9 +344,8 @@ public final class TransformationFault {
       ptbl = AbstractTransformer.normalizeBlockName(ptbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
-      String reason = "There is percentage aggregation in parent node '"+ ptbl
-         + "'. It's not support to move selection up for the table contains " +
-         "percentage aggregation. ";
+      String reason = "There is a percentage aggregation in the parent node '" + ptbl +
+         "'. Moving selections up to a table with a percentage aggregation is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -361,8 +358,8 @@ public final class TransformationFault {
       ptbl = AbstractTransformer.normalizeBlockName(ptbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
-      String reason = "There is named group assembly in parent node '"+ ptbl +
-         "'. It's not support to create mv for the table contains named group.";
+      String reason = "There is a named group assembly in the parent node '" + ptbl +
+         "'. Creating an MV for a table with a named group is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -376,7 +373,7 @@ public final class TransformationFault {
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
       String reason = "The parent node '" + ptbl + "' is a crosstab table. " +
-         "It's not support to move up selection for a crosstab table.";
+         "Moving selections up to a crosstab table is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -390,7 +387,7 @@ public final class TransformationFault {
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
       String reason = "The parent node '" + ptbl + "' is a rotated table. " +
-         "It's not support to move up selection to a rotated table.";
+         "Moving selections up to a rotated table is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -402,7 +399,7 @@ public final class TransformationFault {
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
       String reason = "The child node '" + tbl + "' is a rotated table. " +
-         "It's not support to move up selection from a rotated table.";
+         "Moving selections up from a rotated table is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -416,7 +413,7 @@ public final class TransformationFault {
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
       String reason = "The parent node '" + ptbl + "' is an unpivot table. " +
-         "It's not support to move up selection to an unpivot table.";
+         "Moving selections up to an unpivot table is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -428,7 +425,7 @@ public final class TransformationFault {
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
       String reason = "The child node '" + tbl + "' is an unpivot table. " +
-         "It's not support to move up selection from a unpivot table.";
+         "Moving selections up from an unpivot table is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -439,8 +436,8 @@ public final class TransformationFault {
       tbl = AbstractTransformer.normalizeBlockName(tbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
-      String reason = "There is named group assembly in child block '"+ tbl +
-         "'. It's not support to create mv for the table contains named group.";
+      String reason = "There is a named group assembly in the child block '" + tbl +
+         "'. Creating an MV for a table with a named group is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -452,7 +449,7 @@ public final class TransformationFault {
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
       String reason = "The block '" + tbl + "' is a crosstab table. " +
-         "It's not support to move up selection for a crosstab table.";
+         "Moving selections up from a crosstab table is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -463,9 +460,8 @@ public final class TransformationFault {
       tbl = AbstractTransformer.normalizeBlockName(tbl);
       String desc = "Transfer all selections from block '" + tbl +
          "' FAILED";
-      String reason = "The max rows is defined in block '" + tbl + "'. " +
-         "It's not support to move up selection for the table " +
-         "contains max rows.";
+      String reason = "The max rows is defined in the block '" + tbl +
+         "'. Moving selections up from a table with max rows defined is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -477,7 +473,7 @@ public final class TransformationFault {
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
       String reason = "The selection column is aggregated. " +
-         "It's not support to create mv for aggregate selection. ";
+         "Creating an MV for an aggregated selection is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -490,9 +486,8 @@ public final class TransformationFault {
       ptbl = AbstractTransformer.normalizeBlockName(ptbl);
       String desc = "Transfer all selections from child block '" + tbl +
          "' FAILED";
-      String reason = "The parent node '" + ptbl +
-         "' contains nested selection. " +
-         "It's not support to move up selection for nest selection. ";
+      String reason = "The parent node '" + ptbl + "' contains a nested selection. " +
+         "Moving selections up to a table that contains a nested selection is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -507,8 +502,7 @@ public final class TransformationFault {
       String desc = "Create mv at '" + tbl + "' for viewsheet assembly '"
          + vassembly + "' FAILED";
       String reason = "The block '" + tbl + "' is an embedded table. " +
-         "Embedded table is not support to create mv, " +
-         "for embedded table might be changed at runtime.";
+         "Embedded tables cannot be used to create an MV, as they may be changed at runtime.";
       return new TransformationFault(desc, reason);
    }
 
@@ -531,9 +525,8 @@ public final class TransformationFault {
       String ptbln = AbstractTransformer.normalizeBlockName(ptbl.getName());
       String desc = "Transfer all selections from child block '" + tbln +
          "' FAILED";
-      String reason = "The parent node '" + ptbln +
-         "' is a concatenated table. " +
-         "It's not support to move selection up to a concatenated table.";
+      String reason = "The parent node '" + ptbln + "' is a concatenated table. " +
+         "Moving selections up to a concatenated table is not supported.";
       return new TransformationFault(desc, reason);
    }
 
@@ -546,7 +539,7 @@ public final class TransformationFault {
       String desc = "Create mv at '" + tbl + "' for worksheet '"
          + wsName + "' FAILED";
       String reason = "The block '" + tbl + "' is an embedded table. " +
-         "Embedded tables do not support mv as they might be changed at runtime.";
+         "Embedded tables do not support MVs, as they may be changed at runtime.";
       return new TransformationFault(desc, reason);
    }
 
@@ -559,7 +552,7 @@ public final class TransformationFault {
       String desc = "Create mv at '" + tbl + "' for worksheet '"
          + wsName + "' FAILED";
       String reason = "The block '" + tbl + "' is a cube table. " +
-         "Cube tables do not support mv.";
+         "Cube tables do not support MVs.";
       return new TransformationFault(desc, reason);
    }
 
