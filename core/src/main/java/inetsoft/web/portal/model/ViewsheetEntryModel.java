@@ -20,6 +20,7 @@ package inetsoft.web.portal.model;
 import inetsoft.mv.MVManager;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.ViewsheetEntry;
+import inetsoft.util.ThreadContext;
 import org.springframework.stereotype.Component;
 
 public class ViewsheetEntryModel extends RepositoryEntryModel<ViewsheetEntry> {
@@ -67,7 +68,7 @@ public class ViewsheetEntryModel extends RepositoryEntryModel<ViewsheetEntry> {
    }
 
    private boolean getMaterialized(ViewsheetEntry entry) {
-      return MVManager.getManager().isMaterialized(entry.getAssetEntry().toIdentifier(), false);
+      return MVManager.getManager().isMaterialized(entry.getAssetEntry().toIdentifier(), false, ThreadContext.getContextPrincipal());
    }
 
    private String alias;

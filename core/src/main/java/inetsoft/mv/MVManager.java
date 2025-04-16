@@ -1454,9 +1454,62 @@ public final class MVManager {
    }
 
    public boolean isMaterialized(String id, boolean ws, Principal user) {
-      MVDef[] defs = list(true, def -> def.isWSMV() == ws, user);
+      MVDef[] defs = list(true, getIsMaterializedFilter(id, ws, user), user);
       return Arrays.stream(defs)
          .anyMatch(def -> def.isSuccess() && def.getMetaData().isRegistered(id));
+   }
+
+   private MVFilter getIsMaterializedFilter(String assetIdentifier, boolean ws, Principal user) {
+      return def -> {
+         if(def.isWSMV() != ws) {
+            return false;
+         }
+
+         if(user == null) {
+            return true;
+         }
+
+         Identity id = user == null ? null : new DefaultIdentity(IdentityID.getIdentityIDFromKey(user.getName()), Identity.USER);
+         AssetEntry entry = AssetEntry.createAssetEntry(assetIdentifier);
+         String userOrgId = user instanceof XPrincipal ? ((XPrincipal) user).getOrgId() : OrganizationManager.getInstance().getCurrentOrgID();
+         Identity systemAdmin = new DefaultIdentity(IdentityID.getIdentityIDFromKey(XPrincipal.SYSTEM), Identity.USER);
+
+         // don't need to show Materialized icon for global shared dashbaord.
+         if(SUtil.isDefaultVSGloballyVisible(user) &&
+            !Tool.equals(userOrgId, entry.getOrgID()) &&
+            Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
+         {
+            return false;
+         }
+
+         if(def.containsUser(id) || def.containsUser(systemAdmin)) {
+            return true;
+         }
+
+         // try hitting mv for group
+         String[] groups = user == null ? null : XUtil.getUserGroups(user, true);
+
+         for(int i = 0; groups != null && i < groups.length; i++) {
+            id = new DefaultIdentity(groups[i], Identity.GROUP);
+
+            if(def.containsUser(id)) {
+               return true;
+            }
+         }
+
+         // try hitting mv for role
+         IdentityID[] roles = user == null ? null : XUtil.getUserRoles(user, true);
+
+         for(int i = 0; roles != null && i < roles.length; i++) {
+            id = new DefaultIdentity(roles[i], Identity.ROLE);
+
+            if(def.containsUser(id)) {
+               return true;
+            }
+         }
+
+         return false;
+      };
    }
 
    public void initMVDefMap() {
