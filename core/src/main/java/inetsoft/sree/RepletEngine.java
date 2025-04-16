@@ -696,7 +696,7 @@ public class RepletEngine extends AbstractAssetEngine
       RepletRegistry registry;
 
       try {
-         registry = getRegistry(folder, user);
+         registry = getRegistry(folder, orgId, user);
 
          if(rts == -1) {
             rts = registry.getLastModified();
