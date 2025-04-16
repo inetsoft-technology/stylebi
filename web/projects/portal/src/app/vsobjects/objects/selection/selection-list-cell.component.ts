@@ -105,7 +105,8 @@ export class SelectionListCell implements OnInit, OnChanges {
    isParentIDTree: boolean = false;
    htmlLabel: SafeHtml;
 
-   mobileDevice: boolean = GuiTool.isMobileDevice();
+   mobile: boolean = GuiTool.isMobileDevice();
+
 
 
    constructor(public vsSelectionComponent: VSSelection,
@@ -151,7 +152,7 @@ export class SelectionListCell implements OnInit, OnChanges {
       this.measureTextVAlign = GuiTool.getFlexVAlign(this.measureTextFormat.vAlign);
       this.isParentIDTree = model.objectType === "VSSelectionTree" && (<VSSelectionTreeModel> model).mode == MODE.ID;
 
-      if(this.mobileDevice) {
+      if(this.mobile) {
          this.cellFormat.font = "15px Roboto, roboto, arial, helvetica, sans-serif"
       }
 
