@@ -465,7 +465,8 @@ public class ScheduleConditionService {
 
    public Object[] getParamValueAsArray(String type, String initialValue) {
       initialValue = initialValue.replace("\\,", "\n");
-      String[] initialArray = initialValue.split(",");
+      initialValue = initialValue.replaceAll("[\\[\\]]", "");
+      String[] initialArray = initialValue.split(",\\s*");
       Object[] valuesArray = new Object[initialArray.length];
       SimpleDateFormat formatter;
 
