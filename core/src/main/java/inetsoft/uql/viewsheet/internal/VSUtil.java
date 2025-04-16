@@ -8686,6 +8686,9 @@ public final class VSUtil {
             return true;
          }
       }
+      catch(ExpiredSheetException ignored) {
+         // no-op
+      }
       catch(Exception ignored) {
          LOG.warn("Can't get runtime viewsheet by id: " + sheetRuntimeId);
       }
