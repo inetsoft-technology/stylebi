@@ -216,7 +216,9 @@ public class RuntimeSheetTransformController implements MessageListener {
          RuntimeViewsheet sheet = sheets[i];
 
          if(Tool.equals(entry, sheet.getEntry()) && !Tool.equals(sheet.getID(), id)) {
-            if(Tool.equals(oname, sheet.getOpenedBookmark().getName())) {
+            if(sheet.getOpenedBookmark() != null &&
+               Tool.equals(oname, sheet.getOpenedBookmark().getName()))
+            {
                sheet.setOpenedBookmark(sheet.getBookmarkInfo(nname, owner));
             }
          }
