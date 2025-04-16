@@ -145,6 +145,10 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       return getGrants(action, Identity.ROLE);
    }
 
+   public Set<PermissionIdentity> getRoleGrants(ResourceAction action, String orgID) {
+      return getGrants(action, Identity.ROLE, orgID);
+   }
+
    public Set<PermissionIdentity> getAllRoleGrants(ResourceAction action) {
       return getGrants(action, Identity.ROLE, null);
    }
