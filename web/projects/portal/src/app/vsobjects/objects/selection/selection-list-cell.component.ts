@@ -64,6 +64,7 @@ export class SelectionListCell implements OnInit, OnChanges {
    @Input() isEmbedded: boolean;
    @Input() scrollbarWidth: number;
    @Input() keyNav: boolean = false;
+   @Input() maxMode: boolean = false;
    @Output() selectionStateChanged = new EventEmitter<any>();
    @Output() resizeCell = new EventEmitter<number>();
    @Output() resizeMeasures = new EventEmitter<{text: number, bar: number}>();

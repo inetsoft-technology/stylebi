@@ -1027,9 +1027,9 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
          this.confirmExpiredDisplayed = true;
          this.heartbeatSubscription.unsubscribe();
 
-         const message: string = "_#(js:common.expiredSheets)" + "_*" +
-            (!!this.worksheet && !!this.worksheet.label ? "Worksheet " + this.worksheet.label
-            : "worksheet ");
+         const worksheet = !!this.worksheet && !!this.worksheet.label ?
+            "Worksheet " + this.worksheet.label : "worksheet "
+         const message: string = Tool.formatCatalogString("_#(js:common.expiredSheets)", [worksheet]);
          this.confirm(message).then((ok) => {
             this.confirmExpiredDisplayed = false;
 

@@ -83,6 +83,13 @@ public abstract class MigrateDocumentTask implements MigrateTask {
             processAssemblies(document.getDocumentElement());
             AssetEntry newEntry = entry.cloneAssetEntry((Organization) getNewOrganization());
             String newKey = newEntry.toIdentifier(true);
+
+            if(document.getChildNodes().getLength() == 2 &&
+               document.getFirstChild().getNodeValue().indexOf(oldKey) > 0)
+            {
+               document.removeChild(document.getFirstChild());
+            }
+
             setDocument(((Organization) getNewOrganization()).getId(), newKey, document);
          }
       }
