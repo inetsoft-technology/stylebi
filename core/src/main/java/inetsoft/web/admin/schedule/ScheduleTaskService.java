@@ -25,6 +25,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.*;
@@ -838,7 +839,8 @@ public class ScheduleTaskService {
 
                for(int j = 0; j < bookmarkTypes.length; j++) {
                   if(bookmarkTypes[j] == VSBookmarkInfo.ALLSHARE ||
-                     (bookmarkTypes[j] != VSBookmarkInfo.GROUPSHARE && groupShare))
+                     (bookmarkTypes[j] != VSBookmarkInfo.GROUPSHARE && groupShare) ||
+                     Tool.equals(task.getIdentity(), bookmarkUsers[j]))
                   {
                      bookmarkList.add(bookmarks[j]);
                      bookmarkUserList.add(bookmarkUsers[j]);
