@@ -1375,7 +1375,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          if(ref instanceof VSDimensionRef) {
             GroupRef group = ((VSDimensionRef) ref).createGroupRef(null);
 
-            if(!ainfo.containsGroup(group)) {
+            if(group != null && !ainfo.containsGroup(group)) {
                ainfo.addGroup(group);
             }
          }
