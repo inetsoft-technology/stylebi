@@ -310,7 +310,14 @@ public class BatchAction extends AbstractAction {
             DynamicParameterValue parameterValue = (DynamicParameterValue) val;
             writer.print("<dynamicParameterValue>");
             writer.print("<value>");
-            writer.print("<![CDATA[" + Tool.getDataString(parameterValue.getValue()) + "]]>");
+
+            if(parameterValue.getValue() != null && parameterValue.isArray() && parameterValue.getValue() instanceof Object[]) {
+               writer.print("<![CDATA[" + Tool.getDataString((Object[]) parameterValue.getValue()) + "]]>");
+            }
+            else {
+               writer.print("<![CDATA[" + Tool.getDataString(parameterValue.getValue()) + "]]>");
+            }
+
             writer.print("</value>");
             writer.print("<type>");
             writer.print("<![CDATA[" + parameterValue.getType() + "]]>");
@@ -318,6 +325,9 @@ public class BatchAction extends AbstractAction {
             writer.print("<valueType>");
             writer.print("<![CDATA[" + parameterValue.getDataType() + "]]>");
             writer.print("</valueType>");
+            writer.print("<array>");
+            writer.print("<![CDATA[" + parameterValue.isArray() + "]]>");
+            writer.print("</array>");
             writer.print("</dynamicParameterValue>");
          }
          else {
@@ -352,10 +362,14 @@ public class BatchAction extends AbstractAction {
             Element valNode = Tool.getChildNodeByTagName(dynamicParameterValue, "value");
             Element typeNode = Tool.getChildNodeByTagName(dynamicParameterValue, "type");
             Element dataTypeNode = Tool.getChildNodeByTagName(dynamicParameterValue, "valueType");
+            Element arrayNode = Tool.getChildNodeByTagName(dynamicParameterValue, "array");
             String value = Tool.getValue(valNode);
             String type = Tool.getValue(typeNode);
             String dataType = Tool.getValue(dataTypeNode);
-            map.put(key, new DynamicParameterValue(value, type, dataType));
+            String array = Tool.getValue(arrayNode);
+
+            Boolean isArray = "true".equals(array) ? true : false;
+            map.put(key, new DynamicParameterValue(value, type, dataType, isArray));
          }
          else {
             Element valNode = Tool.getChildNodeByTagName(propNode, "value");

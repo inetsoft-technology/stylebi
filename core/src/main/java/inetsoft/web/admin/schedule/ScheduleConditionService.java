@@ -208,6 +208,24 @@ public class ScheduleConditionService {
          String paramName = (String) paramNames.nextElement();
          Object value = repRequest.getParameter(paramName);
          String type = getParameterType(repRequest, paramName, value);
+
+         if(!type.equals("array") && value instanceof DynamicParameterValue) {
+            boolean array = ((DynamicParameterValue) value).isArray();
+
+            if(array) {
+               AddParameterDialogModel paramModel = AddParameterDialogModel.builder()
+                  .name(paramName)
+                  .type(type)
+                  .array(array)
+                  .value(value instanceof DynamicValueModel ? (DynamicValueModel) value
+                            : new DynamicValueModel(((DynamicParameterValue) value).getValue(), DynamicValueModel.VALUE, type, array))
+                  .build();
+
+               paramModels.add(paramModel);
+               continue;
+            }
+         }
+
          value = decodeParameter(value, "array".equals(type));
          boolean array = "array".equals(type);
          Object[] vals = null;

@@ -1283,12 +1283,26 @@ public class CoreTool {
       return getDataString(val, true, false);
    }
 
+   public static String getDataString(Object[] val) {
+      return getDataString(val, true, false);
+   }
+
    /**
     * Get a string representation of a value.
     * @param val the object to get a string representation of.
     */
    public static String getDataString(Object val, boolean keepBlank) {
       return getDataString(val, keepBlank, false);
+   }
+
+   public static String getDataString(Object[] val, boolean keepBlank, boolean strictNull) {
+      StringBuilder buffer = new StringBuilder();
+
+      for(int i = 0; i < val.length; i++) {
+         buffer.append(i != 0 ? "," : "").append(getDataString(val[i], true, strictNull));
+      }
+
+      return buffer.toString();
    }
 
    /**
@@ -1342,6 +1356,8 @@ public class CoreTool {
          return val.toString();
       }
    }
+
+
 
    /**
     * Get the string data.
