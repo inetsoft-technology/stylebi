@@ -29,12 +29,15 @@
 
     <!-- Messages container -->
     <div class="chat-messages" #messageContainer>
-      <div *ngFor="let msg of messages" class="message" [class.user]="msg.isUser">
-        <div class="message-content">
-          <pre>{{ msg.text }}</pre>
-        </div>
-        <div class="message-time">
-          {{ msg.timestamp | date:'shortTime' }}
+      <div *ngFor="let msg of messages; trackBy: trackByMessage"
+           class="message"
+           [class.user-message]="msg.isUser"
+           [class.ai-message]="!msg.isUser">
+        <div class="message-bubble">
+          <div class="message-text">{{ msg.text }}</div>
+          <div class="message-time">
+            {{ msg.timestamp | date:'HH:mm' }}
+          </div>
         </div>
       </div>
 

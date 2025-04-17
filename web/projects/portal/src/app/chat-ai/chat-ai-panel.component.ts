@@ -27,6 +27,7 @@ import {
    AfterViewInit
 } from '@angular/core';
 import { NgModel } from '@angular/forms';
+import { ChatService } from "./ai-chat.service";
 
 interface ChatMessage {
    text: string;
@@ -40,8 +41,9 @@ interface ChatMessage {
    styleUrls: ['./chat-ai-panel.component.scss']
 })
 export class ChatAiPanelComponent implements AfterViewInit {
-   @Input() isOpen = false;
-   @Output() toggle = new EventEmitter<void>();
+   @Input() isOpen: boolean = false;
+   @Output() toggle: EventEmitter<void> = new EventEmitter<void>();
+   @Input() context: string = "Viewsheet"
    @ViewChild('messageInput') messageInput!: ElementRef<HTMLInputElement>;
    @ViewChild('messageContainer') messageContainer!: ElementRef<HTMLDivElement>;
    @ViewChild('messageInputModel') messageInputModel!: NgModel;
@@ -63,22 +65,12 @@ export class ChatAiPanelComponent implements AfterViewInit {
       ]
    };
 
+   constructor(private chatService: ChatService) {}
+
    ngAfterViewInit() {
       if (this.isOpen) {
          this.focusInput();
       }
-   }
-
-   // Panel control methods
-   togglePanel() {
-      this.isOpen = !this.isOpen;
-      if (this.isOpen) {
-         setTimeout(() => this.focusInput(), 100);
-         if (this.messages.length === 0) {
-            this.addWelcomeMessage();
-         }
-      }
-      this.toggle.emit();
    }
 
    closePanel() {
@@ -101,14 +93,23 @@ export class ChatAiPanelComponent implements AfterViewInit {
    }
 
    private simulateAIResponse(userMessage: string) {
-      // Simulate API call delay
-      setTimeout(() => {
-         const response = this.generateAIResponse(userMessage);
-         this.addMessage(response, false);
-         this.isLoading = false;
-         this.scrollToBottom();
-         this.focusInput();
-      }, 1000);
+      this.isLoading = true;
+
+      this.chatService.sendMessage(userMessage, this.context).subscribe({
+         next: (response) => {
+            console.log(response);
+            this.addMessage(response.answer, false);
+         },
+         error: (error) => {
+            console.error('API Error:', error);
+            this.addMessage("Sorry, I couldn't get a response.", false);
+         },
+         complete: () => {
+            this.isLoading = false;
+            this.scrollToBottom();
+            this.focusInput();
+         }
+      });
    }
 
    private generateAIResponse(userMessage: string): string {
@@ -173,5 +174,9 @@ export class ChatAiPanelComponent implements AfterViewInit {
       this.startX = event.clientX;
       this.startWidth = this.width;
       event.preventDefault();
+   }
+
+   trackByMessage(index: number, message: ChatMessage): string {
+      return `${message.text}-${message.timestamp?.getTime()}`;
    }
 }

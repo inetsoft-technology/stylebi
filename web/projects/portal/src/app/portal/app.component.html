@@ -226,6 +226,7 @@
       <router-outlet></router-outlet>
     </div>
     <app-chat-ai-panel
+      [context]="'Viewsheet'"
       [isOpen]="isChatAIOpen"
       (toggle)="toggleChatAI()">
     </app-chat-ai-panel>
