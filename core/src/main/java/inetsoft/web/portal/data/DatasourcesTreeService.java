@@ -362,10 +362,21 @@ public class DatasourcesTreeService {
 
    private boolean isQueryCreatable(String name, Principal principal) {
       try {
-         return securityEngine.checkPermission(
-            principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS) &&
-            securityEngine.checkPermission(
-               principal, ResourceType.DATA_SOURCE, name, ResourceAction.READ);
+         if(!securityEngine.checkPermission(
+            principal, ResourceType.DATA_SOURCE, name, ResourceAction.READ))
+         {
+            return false;
+         }
+
+         XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(name,
+            OrganizationManager.getInstance().getCurrentOrgID(principal));
+
+         if(dataSource instanceof JDBCDataSource) {
+            return securityEngine.checkPermission(
+               principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
+         }
+
+         return true;
       }
       catch(inetsoft.sree.security.SecurityException ex) {
          LOG.error("Failed to check permission for: " + name, ex);
