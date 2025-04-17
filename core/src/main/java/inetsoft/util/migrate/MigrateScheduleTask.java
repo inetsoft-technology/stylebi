@@ -40,6 +40,10 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
       super(entry, oname, nname);
    }
 
+   public MigrateScheduleTask(AssetEntry entry, String oname, String nname, Organization currOrg) {
+      super(entry, oname, nname, currOrg);
+   }
+
    @Override
    void processAssemblies(Element elem) {
       NodeList list = getChildNodes(elem, "//Task");
