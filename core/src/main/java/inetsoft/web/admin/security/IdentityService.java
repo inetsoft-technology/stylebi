@@ -1839,6 +1839,7 @@ public class IdentityService {
 
       if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
          DashboardRegistry.migrateRegistry(null, fromOrg, newOrg);
+         RepletRegistry.getRegistry(fromOrgID).removeListener();
          updateOrgScopedDataSpace(fromOrg, newOrg);
       }
 
