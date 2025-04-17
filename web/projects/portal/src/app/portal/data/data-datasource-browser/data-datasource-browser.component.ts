@@ -725,9 +725,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     * Create Query.
     */
    createQuery(datasource: DataSourceInfo): void {
-      if(!datasource.queryCreatable || !this.physicalTablePermission ||
-         !datasource.childrenCreatable)
-      {
+      if(!datasource.queryCreatable || !datasource.childrenCreatable) {
          return;
       }
 
