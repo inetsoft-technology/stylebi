@@ -23,11 +23,12 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
+import org.w3c.dom.*;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.*;
@@ -332,6 +333,93 @@ public class RepletRegistry implements Serializable {
       catch(Exception ex) {
          LOG.error("Failed to clear registry cache for user: " + user, ex);
       }
+   }
+
+   /**
+    * Convert the old storage file to new.
+    */
+   private static void isolateOrgRegistryFiles() {
+      if(RepletRegistry.converted) {
+         return;
+      }
+
+      synchronized(RepletRegistry.CONVERT_LOCK) {
+         if(RepletRegistry.converted) {
+            return;
+         }
+
+         String configRegistryPath = getConfigRegistryPath();
+         DataSpace space = DataSpace.getDataSpace();
+
+         if(!space.exists(null, configRegistryPath)) {
+            converted = true;
+            return;
+         }
+
+         Map<String, Document> orgDocMap = new HashMap<>();
+         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+
+         try {
+            DocumentBuilder docBuilder = factory.newDocumentBuilder();
+            Document document;
+
+            try(InputStream inputStream = space.getInputStream(null, configRegistryPath)) {
+               document = Tool.parseXML(inputStream);
+            }
+
+            if(document == null) {
+               RepletRegistry.converted = true;
+               return;
+            }
+
+            Element documentElement = document.getDocumentElement();
+            NodeList childNodes = Tool.getChildNodesByTagName(documentElement, "Replet");
+
+            for(int i = 0; i < childNodes.getLength(); i++) {
+               Node childNode = childNodes.item(i);
+
+               if(childNode instanceof Element element) {
+                  String orgID = element.getAttribute("orgID");
+
+                  if(Tool.isEmptyString(orgID)) {
+                     orgID = Organization.getDefaultOrganizationID();
+                  }
+
+                  Document orgDoc =
+                     orgDocMap.computeIfAbsent(orgID, (key) -> {
+                        Document doc = docBuilder.newDocument();
+                        Element registryDoc = doc.createElement("Registry");
+                        Element versionDoc = doc.createElement("Version");
+                        versionDoc.setTextContent(FileVersions.REPOSITORY);
+                        registryDoc.appendChild(versionDoc);
+                        doc.appendChild(registryDoc);
+
+                        return doc;
+                     });
+
+                  childNode = orgDoc.importNode(childNode, true);
+                  orgDoc.getDocumentElement().appendChild(childNode);
+               }
+            }
+
+            for(String org : orgDocMap.keySet()) {
+               Document orgDoc = orgDocMap.get(org);
+               space.withOutputStream(org, configRegistryPath,
+                                      out -> XMLTool.write(orgDoc, out));
+            }
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Can not isolate RepletRegistry", e);
+         }
+
+         RepletRegistry.converted = true;
+      }
+   }
+
+   private static String getConfigRegistryPath() {
+      String path = SreeEnv.getProperty("replet.repository.file");
+      int index = path.lastIndexOf(';');
+      return index >= 0 ? path.substring(index + 1) : path;
    }
 
    /**
@@ -1486,6 +1574,7 @@ public class RepletRegistry implements Serializable {
    public static final class Reference extends SingletonManager.Reference<RepletRegistry> {
       @Override
       public RepletRegistry get(Object ... parameters) {
+         isolateOrgRegistryFiles();
          ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
          try {
             return registryCache.get((String) parameters[0]);
@@ -1511,12 +1600,14 @@ public class RepletRegistry implements Serializable {
    protected DataChangeListenerManager dmgr = new DataChangeListenerManager();
    protected long date = -2L; // last modified
    protected boolean loaded;
+   private static boolean converted = false;
 
    private static final String GLOBAL_REPOSITORY = "__ADMIN__";
 
    private static final Logger LOG = LoggerFactory.getLogger(RepletRegistry.class);
 
    private static final ReadWriteLock REGISTRY_CACHE_LOCK = new ReentrantReadWriteLock();
+   private static final Object CONVERT_LOCK = new Object();
    private static final String REGISTRY_CACHE_KEY =
       RepletRegistry.class.getName() + ".registryCache";
    private static Vector<WeakReference<PropertyChangeListener>> globalListeners = new Vector<>();
