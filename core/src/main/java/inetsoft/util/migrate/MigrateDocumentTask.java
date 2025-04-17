@@ -164,6 +164,30 @@ public abstract class MigrateDocumentTask implements MigrateTask {
          }
       }
 
+      if(entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+         VSBookmark vsbm = new VSBookmark();
+
+         try {
+            vsbm.parseXML(document.getDocumentElement());
+            VSBookmark.DefaultBookmark defBM = vsbm.getDefaultBookmark();
+
+            if(defBM != null && Tool.equals(defBM.getOwner().name, oname)) {
+               defBM.setOwner(new IdentityID(nname, defBM.getOwner().orgID));
+
+               getIndexStorage().putXMLSerializable(newKey, vsbm);
+
+               if(!Tool.equals(key, newKey)) {
+                  getIndexStorage().remove(key);
+               }
+
+               return;
+            }
+         }
+         catch(Exception e) {
+            LOG.warn("Could not update user bookmark on name change: " + entry.getName());
+         }
+      }
+
       getIndexStorage().putDocument(newKey, document, getAssetClassName(entry));
 
       if(!Tool.equals(key, newKey)) {
