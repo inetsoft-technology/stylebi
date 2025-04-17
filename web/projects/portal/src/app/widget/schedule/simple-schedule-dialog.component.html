@@ -94,7 +94,7 @@
           <div class="form-check">
             <input type="checkbox" class="form-check-input"
                    id="onlyDataComponents"
-                   [attr.disabled]="model.expandEnabled && !model.actionModel.emailInfoModel.matchLayout ? null : ''"
+                   [disabled]="!model.expandEnabled || model.actionModel.emailInfoModel.matchLayout"
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="model.actionModel.emailInfoModel.onlyDataComponents">
             <label class="form-check-label" for="onlyDataComponents">
