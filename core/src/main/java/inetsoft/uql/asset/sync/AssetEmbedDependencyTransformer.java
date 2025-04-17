@@ -58,7 +58,7 @@ public class AssetEmbedDependencyTransformer extends AssetDependencyTransformer 
          String eleUser = Tool.getChildValueByTagName(elem, "user");
          String eleScope = elem.getAttribute("scope");
 
-         if(!Tool.equals(opath, elePath) || !Tool.equals(oentry.getUser(), eleUser) ||
+         if(!Tool.equals(opath, elePath) || !Tool.equals(oentry.getUser().convertToKey(), eleUser) ||
             !Tool.equals(eleScope, oentry.getScope() + ""))
          {
             continue;
