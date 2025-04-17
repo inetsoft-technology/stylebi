@@ -101,6 +101,7 @@ export abstract class DataSourceSettingsPage implements OnInit {
    driverAvailability: DriverAvailability;
    dataSourceSettingsValid: boolean = true;
    databaseStatus: string = "_#(js:em.security.testlogin.note4)";
+   currOrg: string;
    protected _auditPath: string;
 
    get isEqual(): boolean {
@@ -160,6 +161,9 @@ export abstract class DataSourceSettingsPage implements OnInit {
 
    ngOnInit() {
       this.refreshDrivers();
+
+      this.http.get<string>("../api/em/navbar/organization")
+         .subscribe((org) => this.currOrg = org);
    }
 
    setModel(newModel: DataSourceSettingsModel): void {
@@ -285,7 +289,12 @@ export abstract class DataSourceSettingsPage implements OnInit {
          })
       ).subscribe(connection => {
          if(connection && connection.status === "Duplicate") {
-            this.showMessage("_#(js:em.data.databases.duplicateDatabaseName)");
+            if(this.currOrg == "SELF") {
+               this.showMessage("_#(em.data.databases.duplicateSelfDatabaseName)");
+            }
+            else {
+               this.showMessage("_#(js:em.data.databases.duplicateDatabaseName)");
+            }
          }
          else if(connection && connection.status === "Duplicate Folder") {
             this.showMessage("_#(js:em.data.databases.duplicateFolder)");
