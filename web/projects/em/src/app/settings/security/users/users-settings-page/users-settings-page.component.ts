@@ -376,11 +376,13 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                this.snackBar.open("_#(js:em.security.userNameChangeWarning)", "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
             }
 
+            const selectProvider = !!identities.find(node => node.type == IdentityType.ORGANIZATION);
+
             if(sameTypeNode != null && this.isSysAdmin) {
                this.refreshTree(sameTypeNode.identityID, sameTypeNode.type);
             }
             else {
-               this.refreshTree();
+               this.refreshTree(null, null, false, selectProvider);
             }
          });
    }
