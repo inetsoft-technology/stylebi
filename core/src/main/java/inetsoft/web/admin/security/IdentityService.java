@@ -445,6 +445,7 @@ public class IdentityService {
                DataSourceRegistry.getRegistry().clearCache(orgID);
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
+               RepletRegistry.clearOrgCache(orgID);
             }
 
             // deleting current organization should reset curOrg

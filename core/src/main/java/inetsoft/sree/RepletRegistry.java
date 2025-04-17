@@ -320,17 +320,23 @@ public class RepletRegistry implements Serializable {
     * admin, otherwise it may cause a synchronization problem.
     */
    public static synchronized void clear(String user) {
-      String key = getRegistryKey(user, null);
+      clearCacheByKey(getRegistryKey(user, null));
+   }
 
+   public static synchronized void clearOrgCache(String orgID) {
+      clearCacheByKey(getRegistryKey(null, orgID));
+   }
+
+   private static void clearCacheByKey(String cacheKey) {
       try {
-         RepletRegistry registry = getRegistryCache().remove(key);
+         RepletRegistry registry = getRegistryCache().remove(cacheKey);
 
          if(registry != null) {
             registry.dmgr.clear();
          }
       }
       catch(Exception ex) {
-         LOG.error("Failed to clear registry cache for user: " + user, ex);
+         LOG.error("Failed to clear registry cache for: " + cacheKey, ex);
       }
    }
 
@@ -467,7 +473,7 @@ public class RepletRegistry implements Serializable {
 
             try(InputStream repository = space.getInputStream(null, repfile)) {
                if(repository == null) {
-                  LOG.warn("Repository XML file not found: {}", repfile);
+                  LOG.debug("Repository XML file not found: {}", repfile);
                   continue;
                }
 
