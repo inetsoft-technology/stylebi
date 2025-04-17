@@ -420,7 +420,10 @@ public final class VSMVAnalyzer implements MVAnalyzer {
          String name = desc.getMVConditionTable(tbl);
 
          if(name != null) {
-            desc.addWarning(TransformationInfo.mvConditionUseless(name));
+            desc.addWarning(TransformationInfo.mvConditionsIgnored(name));
+            String msg = catalog.getString("mv.conditions.ignored", VSUtil.stripOuter(name));
+            UserInfo info = new UserInfo(getVsPath(), name, msg);
+            desc.addUserInfo(info);
          }
       }
    }
