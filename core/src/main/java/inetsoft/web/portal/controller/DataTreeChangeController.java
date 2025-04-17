@@ -19,8 +19,7 @@ package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.Organization;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import jakarta.annotation.PostConstruct;
@@ -47,7 +46,6 @@ public class DataTreeChangeController {
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
-      this.orgManager = OrganizationManager.getInstance();
    }
 
    @PostConstruct
@@ -65,24 +63,22 @@ public class DataTreeChangeController {
    @SubscribeMapping(CHANGE_TOPIC)
    public void subscribeToTopic(StompHeaderAccessor stompHeaders, Principal principal) {
       String user = SUtil.getUserDestination(principal);
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       if(user != null) {
-         subscriptions.put(stompHeaders.getSessionId(), user);
-         subscriptionOrgs.put(user, orgManager.getCurrentOrgID(principal));
+         subscriptions.put(stompHeaders.getSessionId(), new IdentityID(user, orgId));
       }
    }
 
    @EventListener
    public void onSessionUnsubscribe(SessionUnsubscribeEvent event) {
       StompHeaderAccessor stompHeaders = StompHeaderAccessor.wrap(event.getMessage());
-      String user = subscriptions.remove(stompHeaders.getSessionId());
-      subscriptionOrgs.remove(user);
+      subscriptions.remove(stompHeaders.getSessionId());
    }
 
    @EventListener
    public void onSessionDisconnect(SessionDisconnectEvent event) {
-      String user = subscriptions.remove(event.getSessionId());
-      subscriptionOrgs.remove(user);
+      subscriptions.remove(event.getSessionId());
    }
 
    private void assetChanged(AssetChangeEvent event) {
@@ -105,19 +101,17 @@ public class DataTreeChangeController {
          SreeEnv.getProperty("security.exposeDefaultOrgToAll", "false"));
 
       // Only notify organizations able to view the asset
-      for(String user : subscriptions.values()) {
-         String userOrgId = subscriptionOrgs.get(user);
-
-         if(orgId == null || orgId.equals(userOrgId)) {
-            messagingTemplate.convertAndSendToUser(user, CHANGE_TOPIC, "");
+      for(IdentityID id : subscriptions.values()) {
+         if(orgId == null || orgId.equals(id.getOrgID())) {
+            messagingTemplate.convertAndSendToUser(id.getName(), CHANGE_TOPIC, "");
          }
          else if(isDefaultOrg) {
-            String orgScopedProperty = "security." + userOrgId + ".exposeDefaultOrgToAll";
+            String orgScopedProperty = "security." + id.getOrgID() + ".exposeDefaultOrgToAll";
 
             if(isDefaultOrgPublic || Boolean.parseBoolean(
                SreeEnv.getProperty(orgScopedProperty)))
             {
-               messagingTemplate.convertAndSendToUser(user, CHANGE_TOPIC, "");
+               messagingTemplate.convertAndSendToUser(id.getName(), CHANGE_TOPIC, "");
             }
          }
       }
@@ -125,9 +119,7 @@ public class DataTreeChangeController {
 
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
-   private final OrganizationManager orgManager;
-   private final ConcurrentMap<String, String> subscriptions = new ConcurrentHashMap<>();
-   private final ConcurrentMap<String, String> subscriptionOrgs = new ConcurrentHashMap<>();
+   private final ConcurrentMap<String, IdentityID> subscriptions = new ConcurrentHashMap<>();
 
    private final AssetChangeListener assetListener = this::assetChanged;
    private final PropertyChangeListener dataSourceListener = this::dataSourceChanged;
