@@ -6202,7 +6202,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
 
-         if(pair == null || !pair.isCompleted() && pair.isCancelled()) {
+         XPrincipal principal = ThreadContext.getContextPrincipal() == null ?
+            null : (XPrincipal)ThreadContext.getContextPrincipal();
+
+         if(pair == null || !pair.isCompleted() && pair.isCancelled() ||
+            // init to throw CheckMissingMVEvent to make sure client display progress bar to
+            // wait for mv insteadof always loading becauseof an empty graph.
+            init && MVManager.getManager().isPending(getAssetEntry(), principal))
+         {
             pair = new VGraphPair();
             needInit = true;
             pairs.put(name, pair);
