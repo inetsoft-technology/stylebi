@@ -81,6 +81,19 @@ public class MigrateViewsheetTask extends MigrateDocumentTask {
          Element entry = (Element) list.item(i);
          updateAssetEntry(entry);
       }
+
+      if(this.getEntry().getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+         String oldUserKey = root.getAttribute("defaultBookmarkUser");
+
+         if(!Tool.isEmptyString(oldUserKey)) {
+            IdentityID oldUID = IdentityID.getIdentityIDFromKey(oldUserKey);
+
+            if(Tool.equals(oldUID.name, getOldName())) {
+               IdentityID newUID = new IdentityID(getNewName(), oldUID.orgID);
+               root.setAttribute("defaultBookmarkUser", newUID.convertToKey());
+            }
+         }
+      }
    }
 
    private void processAssembly(Element assembly) {
