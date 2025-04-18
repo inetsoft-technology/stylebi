@@ -226,7 +226,7 @@ public abstract class AbstractEditableAuthenticationProvider
 
       addOrganization(newOrg);
 
-      identityService.copyStorages(fromOrganization, newOrg);
+      identityService.copyStorages(fromOrganization, newOrg, replace);
       identityService.copyRepletRegistry(fromOrgId, newOrgID);
 
       if(!replace) {

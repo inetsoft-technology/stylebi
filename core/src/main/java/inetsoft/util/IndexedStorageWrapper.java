@@ -408,8 +408,8 @@ public class IndexedStorageWrapper implements IndexedStorage {
    }
 
    @Override
-   public void copyStorageData(Organization oOrg, Organization nOrg) throws Exception {
-      storage.copyStorageData(oOrg, nOrg);
+   public void copyStorageData(Organization oOrg, Organization nOrg, boolean rename) throws Exception {
+      storage.copyStorageData(oOrg, nOrg, rename);
    }
 
    @Override

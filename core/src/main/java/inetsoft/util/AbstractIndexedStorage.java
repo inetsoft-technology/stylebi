@@ -587,7 +587,7 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
    }
 
    @Override
-   public void copyStorageData(Organization oOrg, Organization nOrg) throws Exception {
+   public void copyStorageData(Organization oOrg, Organization nOrg, boolean rename) throws Exception {
       // no-op
    }
 

@@ -1330,6 +1330,10 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       favoritesUser.remove(favoritesUser0);
    }
 
+   public void clearFavoritesUser() {
+      favoritesUser.clear();
+   }
+
    /**
     * Get the description without localization.
     * @return the description.
