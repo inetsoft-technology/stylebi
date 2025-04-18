@@ -58,7 +58,8 @@ public class AssetEmbedDependencyTransformer extends AssetDependencyTransformer 
          String eleUser = Tool.getChildValueByTagName(elem, "user");
          String eleScope = elem.getAttribute("scope");
 
-         if(!Tool.equals(opath, elePath) || !Tool.equals(oentry.getUser(), eleUser) ||
+
+         if(!Tool.equals(opath, elePath) || !isUserMatch(oentry, eleUser) ||
             !Tool.equals(eleScope, oentry.getScope() + ""))
          {
             continue;
@@ -74,6 +75,15 @@ public class AssetEmbedDependencyTransformer extends AssetDependencyTransformer 
                            nentry.getUser() == null ? null : nentry.getUser().name,
                            true, true);
          elem.setAttribute("scope", nentry.getScope() + "");
+      }
+   }
+
+   private boolean isUserMatch(AssetEntry oentry, String eleUser) {
+      if(oentry.getUser() == null) {
+         return eleUser == null;
+      }
+      else {
+         return Tool.equals(oentry.getUser().convertToKey(), eleUser);
       }
    }
 }
