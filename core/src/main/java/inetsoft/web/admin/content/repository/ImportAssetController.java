@@ -159,7 +159,7 @@ public class ImportAssetController {
          return deployService.importAsset(deploymentInfo, ignoreList, overwriting,
             targetFolderInfo, principal);
       }
-      else {
+      else if(importCache.getIfPresent(importId) == null) {
          CompletableFuture<ImportAssetResponse> future = new CompletableFuture<>();
          importCache.put(importId, future);
          ThreadPool.addOnDemand(() -> {
@@ -177,8 +177,9 @@ public class ImportAssetController {
 
             ThreadContext.setPrincipal(oPrincipal);
          });
-         return ImportAssetResponse.builder().complete(false).build();
       }
+
+      return ImportAssetResponse.builder().complete(false).build();
    }
 
    @GetMapping("/api/em/content/repository/import/clear-cache")
@@ -196,6 +197,7 @@ public class ImportAssetController {
       }
 
       String cacheFolder = properties.unzipFolderPath();
+         System.out.println("importFinish=========:" + cacheFolder);
       Tool.deleteFile(new File(cacheFolder));
    }
 
