@@ -123,7 +123,7 @@ public class TableStyleAsset extends AbstractXAsset {
       XTableStyle tableStyle = manager.getTableStyle(path);
 
       if(tableStyle == null) {
-         throw new RuntimeException("Cannot find table style with path: " + path);
+         throw new ResourceNotFoundException("Cannot find table style with path: " + path);
       }
 
       style = tableStyle.getID();

@@ -2131,8 +2131,8 @@ public class SUtil {
          try {
             asset.parseIdentifier(path, user);
          }
-         catch(Exception ex) {
-            LOG.warn(String.format("Failed to parse identifier with path %s for %s.", path, asset.getClass().getName()), ex);
+         catch(ResourceNotFoundException ex) {
+            LOG.warn(String.format("Ignore the not exist resource %s with path %s", type, path), ex);
             asset = null;
          }
       }
