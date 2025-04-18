@@ -3055,6 +3055,10 @@ public class AssetUtil {
                dsName = getDataModelSource(entry);
             }
 
+            if(dsName == null) {
+               dsName = entry.getParentPath(); // Logic model path is dataSourceName + "/" + modelName
+            }
+
             String path = entry.getName() + "::" + dsName;
             path += folder == null ? "" : XUtil.DATAMODEL_FOLDER_SPLITER + folder;
             resource = new Resource(ResourceType.QUERY, path);
