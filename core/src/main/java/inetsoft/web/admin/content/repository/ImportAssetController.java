@@ -197,7 +197,6 @@ public class ImportAssetController {
       }
 
       String cacheFolder = properties.unzipFolderPath();
-         System.out.println("importFinish=========:" + cacheFolder);
       Tool.deleteFile(new File(cacheFolder));
    }
 
