@@ -39,6 +39,33 @@
             {{ msg.timestamp | date:'HH:mm' }}
           </div>
         </div>
+
+        <!-- 操作按钮放在气泡外部 -->
+        <div class="message-actions">
+          <!-- AI消息的操作按钮 -->
+          <ng-container *ngIf="!msg.isUser">
+            <button class="action-btn like-btn" (click)="rateMessage(msg.id, 'like')" title="点赞">
+              <i class="thumb-up-icon"></i>
+            </button>
+            <button class="action-btn dislike-btn" (click)="rateMessage(msg.id, 'dislike')" title="不喜欢">
+              <i class="thumb-down-icon"></i>
+            </button>
+            <button class="action-btn copy-btn" (click)="copyMessage(msg.text)" title="复制">
+              <i class="copy-icon"></i>
+            </button>
+            <button class="action-btn regenerate-btn" (click)="regenerateResponse(msg.id)" title="重新生成">
+              <i class="refresh-icon"></i>
+            </button>
+          </ng-container>
+          <ng-container *ngIf="msg.isUser">
+            <button class="action-btn copy-btn" (click)="copyMessage(msg.text)" title="复制">
+              <i class="copy-icon"></i>
+            </button>
+            <button class="action-btn edit-btn" (click)="editMessage(msg.id)" title="修改">
+              <i class="edit-icon"></i>
+            </button>
+          </ng-container>
+        </div>
       </div>
 
       <!-- Loading indicator -->

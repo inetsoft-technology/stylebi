@@ -80,7 +80,9 @@ export class ChatAiPanelComponent implements AfterViewInit {
 
    // Message handling methods
    sendMessage() {
-      if (!this.currentMessage.trim() || this.isLoading) return;
+      if (!this.currentMessage.trim() || this.isLoading) {
+         return
+      }
 
       const userMessage = this.currentMessage.trim();
       this.currentMessage = '';
@@ -178,5 +180,25 @@ export class ChatAiPanelComponent implements AfterViewInit {
 
    trackByMessage(index: number, message: ChatMessage): string {
       return `${message.text}-${message.timestamp?.getTime()}`;
+   }
+
+   // 复制消息
+   copyMessage(text: string) {
+      navigator.clipboard.writeText(text);
+   }
+
+// 评价消息
+   rateMessage(messageId: string, rating: 'like' | 'dislike') {
+      // 实现评价逻辑
+   }
+
+// 重新生成响应
+   regenerateResponse(messageId: string) {
+      // 实现重新生成逻辑
+   }
+
+// 编辑消息
+   editMessage(messageId: string) {
+      // 实现编辑逻辑
    }
 }

@@ -61,23 +61,21 @@
     min-height: 0;
 
     .welcome-section {
-      // 移除flex:1和overflow-y:auto，改用固定高度
       height: 100%;
       display: flex;
-      align-items: center; // 垂直居中
-      justify-content: center; // 水平居中
+      align-items: center;
+      justify-content: center;
       padding: 20px;
 
       .welcome-card {
         text-align: center;
-        width: 100%; // 改为100%宽度
-        max-width: 400px; // 设置最大宽度
+        width: 100%;
+        max-width: 400px;
         padding: 24px;
         border-radius: 12px;
         background: #f8f9fa;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        margin: auto; // 确保在容器内居中
-        overflow: hidden; // 防止内容溢出
+        margin: auto;
 
         h3 {
           font-size: 1.5rem;
@@ -96,11 +94,11 @@
           color: #718096;
           margin-bottom: 24px;
           line-height: 1.5;
-          max-height: 60px; // 限制描述高度
+          max-height: 60px;
           overflow: hidden;
           text-overflow: ellipsis;
           display: -webkit-box;
-          -webkit-line-clamp: 3; // 最多显示3行
+          -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
         }
 
@@ -109,8 +107,8 @@
           flex-direction: column;
           gap: 12px;
           margin-top: 20px;
-          max-height: 200px; // 限制示例提示高度
-          overflow-y: auto; // 只在提示过多时显示滚动条
+          max-height: 200px;
+          overflow-y: auto;
 
           .prompt {
             padding: 10px 16px;
@@ -142,13 +140,17 @@
       overflow-y: auto;
       overflow-x: hidden;
 
+      /* 消息容器样式 */
       .message {
         display: flex;
         max-width: 80%;
+        margin-bottom: 8px;
 
+        /* 用户消息靠右 */
         &.user-message {
           align-self: flex-end;
-          justify-content: flex-end;
+          flex-direction: column;
+          align-items: flex-end;
 
           .message-bubble {
             background: #3182ce;
@@ -159,41 +161,84 @@
           .message-time {
             color: rgba(255, 255, 255, 0.7);
           }
+
+          /* 用户消息按钮靠右下角 */
+          .message-actions {
+            justify-content: flex-end;
+            margin-top: 4px;
+          }
         }
 
+        /* AI消息靠左 */
         &.ai-message {
           align-self: flex-start;
-          justify-content: flex-start;
+          flex-direction: column;
+          align-items: flex-start;
 
           .message-bubble {
             background: #edf2f7;
             color: #2d3748;
             border-bottom-left-radius: 4px;
           }
+
+          /* AI消息按钮靠左下角 */
+          .message-actions {
+            justify-content: flex-start;
+            margin-top: 4px;
+          }
         }
 
+        /* 消息气泡通用样式 */
         .message-bubble {
-          padding: 12px 16px;
+          padding: 8px 12px;
           border-radius: 18px;
           word-break: break-word;
-          white-space: pre-wrap;
-          animation: fadeIn 0.3s ease;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
 
-        .message-content {
-          font-size: 0.9375rem;
-          line-height: 1.5;
-        }
-
+        /* 消息时间样式 */
         .message-time {
           font-size: 0.75rem;
-          text-align: right;
           margin-top: 6px;
-          color: #718096;
+          opacity: 0.7;
+        }
+
+        /* 操作按钮容器 - 内联在气泡下方 */
+        .message-actions {
+          display: flex;
+          gap: 6px;
+          margin-top: 4px;
+          opacity: 0.3; /* 默认半透明 */
+          transition: opacity 0.2s ease;
+        }
+
+        /* 悬停时按钮变明显 */
+        &:hover .message-actions {
+          opacity: 1;
+        }
+
+        /* 按钮样式 */
+        .action-btn {
+          background: rgba(255, 255, 255, 0.2);
+          border: none;
+          border-radius: 4px;
+          padding: 2px 8px;
+          font-size: 12px;
+          color: inherit;
+          cursor: pointer;
+          transition: background 0.2s ease;
+
+          &:hover {
+            background: rgba(255, 255, 255, 0.4);
+          }
+        }
+
+        /* 用户消息按钮颜色微调 */
+        &.user-message .action-btn {
+          color: rgba(255, 255, 255, 0.9);
         }
       }
 
+      /* 加载指示器样式 */
       .typing-indicator {
         display: flex;
         gap: 4px;
