@@ -57,7 +57,8 @@
              [class.mobile-max-model-icon]="mobile && maxMode"
              [style.color]="cellFormat.foreground"
              *ngIf="isFolder()" (click)="toggleFolder($event)"
-             [style.padding-left.px]="nodeIndent - indent">
+             [style.padding-left.px]="nodeIndent - indent"
+             [style.padding-right]="(mobile && maxMode) ? '10px' : ''">
         </div>
         <div [class.unselectable-icon]="isFolder() && singleSelection && !isParentIDTree"
              class="selection-list-icon-layout"
