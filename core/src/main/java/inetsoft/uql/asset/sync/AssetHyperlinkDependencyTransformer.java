@@ -49,6 +49,7 @@ public class AssetHyperlinkDependencyTransformer extends AssetDependencyTransfor
 
       for(int i = 0; i < list.getLength(); i++) {
          replaceAttribute((Element) list.item(i), "Link", oname, nname, true);
+         replaceAttribute((Element) list.item(i), "BookmarkName", oname, nname, true);
       }
    }
 
