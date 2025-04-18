@@ -2391,22 +2391,15 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       List<Assembly> list = new ArrayList<>();
 
       for(Assembly assembly : getAssemblies()) {
-         if(assembly.getAssemblyType() != VIEWSHEET_ASSET &&
-            !(assembly instanceof ContainerVSAssembly))
+         if(!(assembly instanceof ContainerVSAssembly))
          {
             continue;
          }
 
          Assembly[] arr;
 
-         if(assembly instanceof Viewsheet) {
-            Viewsheet tvs = (Viewsheet) assembly;
-            arr = tvs.layout();
-         }
-         else {
-            ContainerVSAssembly cassembly = (ContainerVSAssembly) assembly;
-            arr = cassembly.layout();
-         }
+         ContainerVSAssembly cassembly = (ContainerVSAssembly) assembly;
+         arr = cassembly.layout();
 
          if(arr != null) {
             Collections.addAll(list, arr);
