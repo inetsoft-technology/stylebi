@@ -4470,7 +4470,7 @@ public final class VSUtil {
    /**
     * Add data ref from condition list.
     */
-   public static void addConditionListRef(ConditionList conlist,
+   public static void addConditionListRef(ConditionListWrapper conlist,
                                           List<DataRef> datarefs)
    {
       if(conlist != null) {
