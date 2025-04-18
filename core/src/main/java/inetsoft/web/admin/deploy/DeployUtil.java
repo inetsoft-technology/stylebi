@@ -157,7 +157,11 @@ public class DeployUtil {
       List<XAsset> assets = new ArrayList<>();
 
       for(PartialDeploymentJarInfo.RequiredAsset required : assetData) {
-         assets.add(getAsset(required));
+         XAsset asset = getAsset(required);
+
+         if(asset != null) {
+            assets.add(asset);
+         }
       }
 
       return assets;
