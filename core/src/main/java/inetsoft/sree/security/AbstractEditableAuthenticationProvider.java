@@ -19,6 +19,7 @@ package inetsoft.sree.security;
 
 import inetsoft.mv.fs.FSService;
 import inetsoft.mv.mr.XJobPool;
+import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.*;
@@ -257,6 +258,7 @@ public abstract class AbstractEditableAuthenticationProvider
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
          manager.save();
+         RepletRegistry.clearOrgCache(fromOrgId);
 
          try{
             identityService.updateRepletRegistry(fromOrgId, null);
