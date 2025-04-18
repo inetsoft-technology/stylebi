@@ -1177,6 +1177,10 @@ public class RepositoryObjectService {
          registryManager.checkPermission(src, src, resource.getType(), actions, true,
             principal);
       }
+      else if(type == (RepositoryEntry.LOGIC_MODEL | RepositoryEntry.FOLDER)) {
+         registryManager.checkPermission(resource.getPath(), src, resource.getType(),
+                                         actions, true, principal);
+      }
       else if((type & RepositoryEntry.FOLDER) != 0) {
          registryManager.checkPermission(src, src, resource.getType(),
             actions, true, principal);
