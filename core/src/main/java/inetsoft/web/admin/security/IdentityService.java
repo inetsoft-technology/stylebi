@@ -888,13 +888,13 @@ public class IdentityService {
       removeBlobStorage("__autoSave", orgID, LibManager.Metadata.class);
    }
 
-   public void copyStorages(Organization oOrg, Organization nOrg) {
+   public void copyStorages(Organization oOrg, Organization nOrg, boolean rename) {
       try {
          DashboardManager.getManager().copyStorageData(oOrg.getId(), nOrg.getId());
          DependencyStorageService.getInstance().copyStorageData(oOrg, nOrg);
          RecycleBin.getRecycleBin().copyStorageData(oOrg.getId(), nOrg.getId());
          updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
-         IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg);
+         IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg, rename);
 
          FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
          //updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);

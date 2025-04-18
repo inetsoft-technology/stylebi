@@ -434,7 +434,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    public void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg) throws Exception  {
-      migrateStorageData(oorg, norg, true);
+      migrateStorageData(oorg, norg, true, true);
    }
 
    @Override
@@ -564,7 +564,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
    }
 
-   private void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg, boolean removeOld)
+   private void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg, boolean removeOld,
+                                   boolean rename)
       throws Exception
    {
       String oId = oorg instanceof Organization ? ((Organization) oorg).getId() :
@@ -622,6 +623,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
                }
 
                for(AssetEntry newEntry : newEntries) {
+                  if(!rename) {
+                     newEntry.clearFavoritesUser();
+                  }
+
                   folder.addEntry(newEntry);
                }
             }
@@ -648,8 +653,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
-   public void copyStorageData(Organization oOrg, Organization nOrg) throws Exception {
-      migrateStorageData(oOrg, nOrg, false);
+   public void copyStorageData(Organization oOrg, Organization nOrg, boolean rename) throws Exception {
+      migrateStorageData(oOrg, nOrg, false, rename);
    }
 
    @Override
