@@ -747,9 +747,12 @@ public class RepositoryObjectService {
    private void setResourcePermission(ResourceType type, Principal principal, String name) {
       AuthorizationProvider authz = securityProvider.getAuthorizationProvider();
       Permission perm = new Permission();
-      Set<String> userGrants = new HashSet<>();
-      userGrants.add(IdentityID.getIdentityIDFromKey(principal.getName()).name);
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      Set<String> userGrants = new HashSet<>();
+
+      if(principal instanceof XPrincipal && Tool.equals(((XPrincipal) principal).getOrgId(), currentOrgID)) {
+         userGrants.add(IdentityID.getIdentityIDFromKey(principal.getName()).name);
+      }
 
       for(ResourceAction action : ResourceAction.values()) {
          perm.setUserGrantsForOrg(action, userGrants, currentOrgID);
