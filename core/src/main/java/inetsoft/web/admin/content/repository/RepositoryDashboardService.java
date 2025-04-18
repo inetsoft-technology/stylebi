@@ -70,9 +70,13 @@ public class RepositoryDashboardService {
          permissionService.getTableModel(dashboardName, ResourceType.DASHBOARD,
                                          EnumSet.of(ResourceAction.ACCESS, ResourceAction.ADMIN), principal);
       Identity anonymous = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
+      Identity user = new DefaultIdentity(owner, Identity.USER);
+      final String dashName = dashboardName;
       boolean enable = Arrays.asList(dashboardManager.getDashboards(anonymous))
          .contains(dashboardName) ||
-         Arrays.asList(dashboardManager.getDeselectedDashboards(anonymous)).contains(dashboardName);
+         Arrays.asList(dashboardManager.getDeselectedDashboards(anonymous)).contains(dashboardName) ||
+         (!SecurityEngine.getSecurity().isSecurityEnabled() &&
+            Arrays.stream(dashboardManager.getDashboards(user)).anyMatch(dash -> Tool.equals(dash, dashName)));
       String path = null;
       ViewsheetEntry vsEntry = dashboard.getViewsheet();
 
