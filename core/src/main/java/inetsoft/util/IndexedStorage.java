@@ -367,10 +367,11 @@ public interface IndexedStorage {
     *
     * @param oOrg the oOrg used for the old storage
     * @param nOrg the nOrg used for the old storage
+    * @param rename rename or copy org
     *
     * @since 14.0
     */
-   void copyStorageData(Organization oOrg, Organization nOrg) throws Exception;
+   void copyStorageData(Organization oOrg, Organization nOrg, boolean rename) throws Exception;
 
    /**
     * Deletes an indexed storage store
