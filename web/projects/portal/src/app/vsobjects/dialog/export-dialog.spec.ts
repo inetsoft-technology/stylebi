@@ -30,6 +30,7 @@ describe("Export Dialog Unit Test", () => {
             sendLink: false,
             selectedBookmarks: [],
             allBookmarks: [],
+            allBookmarkLabels: [],
             expandEnabled: false,
             expandSelections: false,
             onlyDataComponents: false
