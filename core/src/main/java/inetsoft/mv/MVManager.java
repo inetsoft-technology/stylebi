@@ -828,7 +828,16 @@ public final class MVManager {
       Set<String> sheetNames = new LinkedHashSet<>();
 
       for(MVDef mvDef : list) {
-         sheetNames.addAll(Arrays.asList(mvDef.getMetaData().getRegisteredSheets()));
+         if(mvDef.getMetaData() == null) {
+            continue;
+         }
+
+         String[] sheets = mvDef.getMetaData().getRegisteredSheets();
+
+         for(String sheet : sheets) {
+            AssetEntry assetEntry = AssetEntry.createAssetEntry(sheet);
+            sheetNames.add(assetEntry.getName());
+         }
       }
 
       return sheetNames.toArray(new String[0]);
