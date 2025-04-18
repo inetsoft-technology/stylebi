@@ -2128,7 +2128,13 @@ public class SUtil {
          LOG.warn("Unsupported asset type: " + type);
       }
       else {
-         asset.parseIdentifier(path, user);
+         try {
+            asset.parseIdentifier(path, user);
+         }
+         catch(Exception ex) {
+            LOG.warn(String.format("Failed to parse identifier with path %s for %s.", path, asset.getClass().getName()), ex);
+            asset = null;
+         }
       }
 
       return asset;

@@ -121,6 +121,11 @@ public class TableStyleAsset extends AbstractXAsset {
    public void parseIdentifier(String path, IdentityID userIdentity) {
       LibManager manager = LibManager.getManager();
       XTableStyle tableStyle = manager.getTableStyle(path);
+
+      if(tableStyle == null) {
+         throw new RuntimeException("Cannot find table style with path: " + path);
+      }
+
       style = tableStyle.getID();
    }
 
