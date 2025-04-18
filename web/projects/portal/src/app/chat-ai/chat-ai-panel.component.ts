@@ -78,6 +78,11 @@ export class ChatAiPanelComponent implements AfterViewInit {
       this.toggle.emit();
    }
 
+   clearHistory() {
+      this.messages = [];
+      this.focusInput();
+   }
+
    // Message handling methods
    sendMessage() {
       if (!this.currentMessage.trim() || this.isLoading) {

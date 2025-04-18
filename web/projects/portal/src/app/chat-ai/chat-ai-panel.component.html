@@ -5,6 +5,8 @@
       <i class="ai-icon"></i>
       <span>AI Assistant</span>
     </div>
+    <button class="new-chat-btn" (click)="clearHistory()" title="New Chat">New Chat
+    </button>
     <button class="close-btn" (click)="closePanel()" aria-label="Close chat">
       <i class="close-icon"></i>
     </button>
@@ -94,9 +96,7 @@
             (keyup.enter)="sendMessage()"
             [disabled]="isLoading"
           >
-          <button type="submit" [disabled]="!currentMessage.trim() || isLoading">
-            <i class="send-icon"></i>
-          </button>
+          <button type="submit" [disabled]="!currentMessage.trim() || isLoading">Send</button>
         </div>
       </form>
       <p class="disclaimer">
