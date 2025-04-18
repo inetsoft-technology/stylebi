@@ -1084,6 +1084,11 @@ public class RepletRegistry implements Serializable {
       }
    }
 
+   public synchronized void shutdown() {
+      DataSpace space = DataSpace.getDataSpace();
+      dmgr.removeChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
+   }
+
    protected String getRegistryDir() {
       return null;
    }
