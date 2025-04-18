@@ -33,6 +33,7 @@ interface ChatMessage {
    text: string;
    isUser: boolean;
    timestamp?: Date;
+   id?: string;
 }
 
 @Component({
@@ -48,10 +49,11 @@ export class ChatAiPanelComponent implements AfterViewInit {
    @ViewChild('messageContainer') messageContainer!: ElementRef<HTMLDivElement>;
    @ViewChild('messageInputModel') messageInputModel!: NgModel;
 
-   width = 350;
-   currentMessage = '';
+   width: number = 350;
+   currentMessage: string = '';
    messages: ChatMessage[] = [];
-   isLoading = false;
+   isLoading: boolean = false;
+   showCopyNotification: boolean = false;
 
    // Welcome configuration
    welcomeConfig = {
@@ -179,12 +181,19 @@ export class ChatAiPanelComponent implements AfterViewInit {
    }
 
    trackByMessage(index: number, message: ChatMessage): string {
-      return `${message.text}-${message.timestamp?.getTime()}`;
+      return message.id || `${index}-${message.timestamp?.getTime() || Date.now()}`;
    }
 
    // 复制消息
    copyMessage(text: string) {
-      navigator.clipboard.writeText(text);
+      navigator.clipboard.writeText(text).then(() => {
+         this.showCopyNotification = true;
+         setTimeout(() => {
+            this.showCopyNotification = false;
+         }, 2500); // 2.5秒后自动消失
+      }).catch(err => {
+         console.error('Failed to copy text: ', err);
+      });
    }
 
 // 评价消息
@@ -192,13 +201,22 @@ export class ChatAiPanelComponent implements AfterViewInit {
       // 实现评价逻辑
    }
 
-// 重新生成响应
-   regenerateResponse(messageId: string) {
-      // 实现重新生成逻辑
-   }
-
-// 编辑消息
+   // 添加编辑方法
    editMessage(messageId: string) {
-      // 实现编辑逻辑
+      // 找到要编辑的消息
+      const messageToEdit = this.messages.find(msg => msg.id === messageId);
+
+      if(messageToEdit) {
+         // 将消息内容填充到输入框
+         this.currentMessage = messageToEdit.text;
+
+         setTimeout(() => {
+            if(this.messageInput) {
+               const inputEl = this.messageInput.nativeElement;
+               inputEl.focus();
+               inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+            }
+         });
+      }
    }
 }

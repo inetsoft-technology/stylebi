@@ -225,7 +225,11 @@
           font-size: 12px;
           color: inherit;
           cursor: pointer;
-          transition: background 0.2s ease;
+
+          &:active {
+            transform: scale(0.98); /* 点击时轻微缩小 */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 点击时阴影加深 */
+          }
 
           &:hover {
             background: rgba(255, 255, 255, 0.4);
@@ -354,6 +358,34 @@
 
     &:hover, &:active {
       background: #3182ce;
+    }
+  }
+}
+
+.copy-notification {
+  position: absolute;  // 改为绝对定位，相对于chat-ai-content
+  top: 10px;          // 距离顶部10px
+  left: 50%;          // 水平居中
+  transform: translateX(-50%); // 精确居中
+  background-color: #4caf50;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  z-index: 100;
+  animation: fadeInOut 2.5s ease-in-out;
+
+  .notification-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+
+    .check-icon {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>');
     }
   }
 }

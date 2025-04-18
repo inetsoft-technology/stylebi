@@ -11,6 +11,13 @@
   </div>
 
   <div class="chat-ai-content">
+    <div class="copy-notification" *ngIf="showCopyNotification">
+      <div class="notification-content">
+        <i class="check-icon"></i>
+        <span>复制成功</span>
+      </div>
+    </div>
+
     <!-- Welcome message when empty -->
     <div class="welcome-section" *ngIf="messages.length === 0">
       <div class="welcome-card">
@@ -52,9 +59,6 @@
             </button>
             <button class="action-btn copy-btn" (click)="copyMessage(msg.text)" title="复制">
               <i class="copy-icon"></i>
-            </button>
-            <button class="action-btn regenerate-btn" (click)="regenerateResponse(msg.id)" title="重新生成">
-              <i class="refresh-icon"></i>
             </button>
           </ng-container>
           <ng-container *ngIf="msg.isUser">
