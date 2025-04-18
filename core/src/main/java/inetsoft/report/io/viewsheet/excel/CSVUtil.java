@@ -34,6 +34,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableDateComparisonFormat;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.CoreTool;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.VSExportService;
 import org.apache.commons.lang.StringUtils;
 
@@ -95,7 +96,9 @@ public class CSVUtil {
          writer = new PrintWriter(new OutputStreamWriter(out));
       }
 
-      if(StringUtils.isEmpty(quote)) {
+      boolean hasQuote = !StringUtils.isEmpty(quote);
+
+      if(!hasQuote) {
          quote = "\"";
       }
 
@@ -152,7 +155,13 @@ public class CSVUtil {
             if(obj != null) {
                String str = CoreTool.toString(obj);
                str = cleanCsv(str);
-               writer.print(quote + str.replaceAll("\"", "\"\"") + quote);
+
+               if(hasQuote || needsCsvQuoting(str, delim)) {
+                  writer.print(quote + str.replaceAll("\"", "\"\"") + quote);
+               }
+               else {
+                  writer.print(str);
+               }
             }
          }
 
@@ -160,6 +169,17 @@ public class CSVUtil {
       }
 
       writer.flush();
+   }
+
+   /**
+    * Checks if a string requires quoting in CSV output according to RFC 4180.
+    */
+   public static boolean needsCsvQuoting(String str, String delim) {
+      if (str == null) {
+         return false;
+      }
+
+      return str.contains(delim) || str.contains("\"");
    }
 
    public static boolean needExport(VSAssembly assembly) {
