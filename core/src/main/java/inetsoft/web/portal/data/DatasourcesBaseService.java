@@ -52,11 +52,11 @@ import java.util.stream.Collectors;
 
 public abstract class DatasourcesBaseService {
    public DatasourcesBaseService(XRepository repository,
-                                 SecurityProvider securityProvider,
+                                 SecurityEngine securityEngine,
                                  DataSourceStatusService dataSourceStatusService)
    {
       this.repository = repository;
-      this.securityProvider = securityProvider;
+      this.securityEngine = securityEngine;
       this.dataSourceStatusService = dataSourceStatusService;
    }
 
@@ -79,6 +79,7 @@ public abstract class DatasourcesBaseService {
 
    private DataSourceDefinition createDataSourceDefinition(XDataSource dataSource,
                                                            Principal principal)
+      throws Exception
    {
       String path = dataSource.getFullName();
       DataSourceDefinition result = new DataSourceDefinition();
@@ -93,7 +94,7 @@ public abstract class DatasourcesBaseService {
       String parentPath = path.lastIndexOf("/") > 0 ? path.substring(0, path.lastIndexOf("/")) : "";
       result.setParentPath(parentPath);
       result.setType(dataSource.getType());
-      result.setDeletable(securityProvider.checkPermission(
+      result.setDeletable(securityEngine.checkPermission(
          principal, ResourceType.DATA_SOURCE, path, ResourceAction.DELETE));
 
       LayoutCreator layoutCreator = new LayoutCreator();
@@ -107,7 +108,14 @@ public abstract class DatasourcesBaseService {
          if(ads.getBaseDatasource() == null) {
             result.setAdditionalConnections(Arrays.stream(ads.getDataSourceNames())
                .map(ads::getDataSource)
-               .map(child -> createDataSourceDefinition(child, principal))
+               .map(child -> {
+                  try {
+                     return createDataSourceDefinition(child, principal);
+                  }
+                  catch(Exception e) {
+                     throw new RuntimeException(e);
+                  }
+               })
                .collect(Collectors.toList()));
          }
          else {
@@ -244,7 +252,7 @@ public abstract class DatasourcesBaseService {
       throws Exception
    {
       repository.removeDataSource(path, force);
-      securityProvider.removePermission(ResourceType.DATA_SOURCE, path);
+      securityEngine.removePermission(ResourceType.DATA_SOURCE, path);
       SreeEnv.remove("inetsoft.uql.jdbc.pool." + path + ".connectionTestQuery");
       SreeEnv.save();
       return null;
@@ -312,16 +320,16 @@ public abstract class DatasourcesBaseService {
       boolean folderPermission;
 
       if(StringUtils.isEmpty(folder) || "/".equals(folder)) {
-         folderPermission = securityProvider.checkPermission(
+         folderPermission = securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.WRITE);
 
          if(!folderPermission) {
-            newSourcePermission = securityProvider.checkPermission(
+            newSourcePermission = securityEngine.checkPermission(
                principal, ResourceType.CREATE_DATA_SOURCE, "*", ResourceAction.ACCESS);
          }
       }
       else {
-         folderPermission = securityProvider.checkPermission(
+         folderPermission = securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE_FOLDER, folder, ResourceAction.WRITE);
       }
 
@@ -363,7 +371,7 @@ public abstract class DatasourcesBaseService {
             permission.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
             permission.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
             permission.updateGrantAllByOrg(orgId, true);
-            securityProvider.setPermission(
+            securityEngine.setPermission(
                ResourceType.DATA_SOURCE, ds.getFullName(), permission);
          }
 
@@ -424,6 +432,7 @@ public abstract class DatasourcesBaseService {
 
    protected void checkUpdateDatasourcePermission(String nName, XDataSource oldSrc,
                                                   Principal principal)
+      throws Exception
    {
       String oldName = null;
 
@@ -432,7 +441,7 @@ public abstract class DatasourcesBaseService {
       }
 
       if(oldSrc != null && !Tool.equals(oldName, nName)) {
-         boolean hasPermission = securityProvider.checkPermission(
+         boolean hasPermission = securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE, oldName, ResourceAction.DELETE);
 
          if(!hasPermission) {
@@ -441,7 +450,7 @@ public abstract class DatasourcesBaseService {
          }
       }
       else if(oldSrc != null) {
-         boolean hasPermission = securityProvider.checkPermission(
+         boolean hasPermission = securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE, oldName, ResourceAction.WRITE);
 
          if(!hasPermission) {
@@ -596,7 +605,7 @@ public abstract class DatasourcesBaseService {
    }
 
    private final XRepository repository;
-   private final SecurityProvider securityProvider;
+   private final SecurityEngine securityEngine;
    private final DataSourceStatusService dataSourceStatusService;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);
 }
