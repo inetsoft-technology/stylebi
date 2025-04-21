@@ -52,7 +52,7 @@ div.loading-indicator {
   top: 0;
 }
 
-.close {
+.modal-header .close {
   margin-left: auto;
 }
 
