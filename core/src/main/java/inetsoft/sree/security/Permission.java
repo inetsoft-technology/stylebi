@@ -756,16 +756,16 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     * @return boolean value, true if any grant under the given orgId exists
     */
    public boolean isOrgInPerm(ResourceAction action, String orgId) {
-      return getUserGrants(action).stream()
+      return getAllUserGrants(action).stream()
                .map(pid -> pid.organizationID)
                .anyMatch(o -> o.equals(orgId)) ||
-             getGroupGrants(action).stream()
+             getAllGroupGrants(action).stream()
                 .map(pid -> pid.organizationID)
                 .anyMatch(o -> o.equals(orgId)) ||
-             getRoleGrants(action).stream()
+             getAllRoleGrants(action).stream()
                 .map(pid -> pid.organizationID)
                 .anyMatch(o -> o != null && o.equals(orgId)) ||
-             getOrganizationGrants(action).stream()
+             getAllOrganizationGrants(action).stream()
                 .map(pid -> pid.organizationID)
                 .anyMatch(o -> o.equals(orgId));
    }
