@@ -1399,7 +1399,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                         }
 
                         if(csvConfig.quote) {
-                           const quote = Tool.encodeURIPath(csvConfig.quote);
+                           const quote = encodeURIComponent(csvConfig.quote);
                            url += "&quote=" + quote;
                         }
 
