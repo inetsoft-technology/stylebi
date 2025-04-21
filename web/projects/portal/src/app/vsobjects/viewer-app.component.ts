@@ -1399,7 +1399,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                         }
 
                         if(csvConfig.quote) {
-                           url += "&quote=" + csvConfig.quote;
+                           const quote = Tool.encodeURIPath(csvConfig.quote);
+                           url += "&quote=" + quote;
                         }
 
                         if(csvConfig.selectedAssemblies &&
