@@ -6,7 +6,7 @@
       <span>AI Assistant</span>
     </div>
     <button class="new-chat-btn" (click)="clearHistory()" title="New Chat">
-      <i class="close-icon"></i>
+      <i class="new-chat">newChat</i>
     </button>
     <button class="close-btn" (click)="closePanel()" aria-label="Close chat">
       <i class="close-icon"></i>
@@ -14,6 +14,10 @@
   </div>
 
   <div class="chat-ai-content">
+    <div class="history-hint-card" *ngIf="messages.length === 0 && historyMessages.length > 0">
+      <p>You have <strong>{{ historyMessages.length }}</strong> messages from a previous session.</p>
+      <button class="show-history-btn" (click)="showHistory()">Click to restore previous conversation</button>
+    </div>
     <!-- Welcome message when empty -->
     <div class="welcome-section" *ngIf="messages.length === 0">
       <div class="welcome-card">

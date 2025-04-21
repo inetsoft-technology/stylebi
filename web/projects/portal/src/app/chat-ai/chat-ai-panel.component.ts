@@ -24,7 +24,7 @@ import {
    Input,
    Output,
    ViewChild,
-   AfterViewInit
+   AfterViewInit, OnInit
 } from '@angular/core';
 import { NgModel } from '@angular/forms';
 import { ChatService } from "./ai-chat.service";
@@ -51,6 +51,7 @@ export class ChatAiPanelComponent implements AfterViewInit {
    width = 350;
    currentMessage = '';
    messages: ChatMessage[] = [];
+   historyMessages: ChatMessage[] = [];
    isLoading = false;
 
    // Welcome configuration
@@ -81,6 +82,14 @@ export class ChatAiPanelComponent implements AfterViewInit {
    clearHistory() {
       this.messages = [];
       this.focusInput();
+   }
+
+   showHistory() {
+      if(this.messages.length === 0 && this.historyMessages.length > 0) {
+         this.messages = [...this.historyMessages];
+         this.scrollToBottom();
+         this.focusInput();
+      }
    }
 
    // Message handling methods
@@ -130,11 +139,23 @@ export class ChatAiPanelComponent implements AfterViewInit {
    }
 
    private addMessage(text: string, isUser: boolean) {
+      const timestamp = new Date;
+
       this.messages.push({
          text,
          isUser,
-         timestamp: new Date()
+         timestamp
       });
+
+      this.historyMessages.push({
+         text,
+         isUser,
+         timestamp
+      });
+
+      if(this.historyMessages.length > 100) {
+         this.historyMessages.shift();
+      }
    }
 
    private addWelcomeMessage() {
