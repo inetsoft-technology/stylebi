@@ -22,6 +22,7 @@ import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.util.*;
 import inetsoft.util.SingletonManager;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -745,7 +746,10 @@ public class DashboardManager implements AutoCloseable {
       }
 
       data.setDashboards(nselected);
-      dashboardStorage.put(getIdentityKey(user), data).get();
+
+      if(!Tool.equals(selected, nselected)) {
+         dashboardStorage.put(getIdentityKey(user), data).get();
+      }
    }
 
    private List<String> syncUserDashboards(Identity user, List<String> selected) throws Exception {
