@@ -14,6 +14,13 @@
   </div>
 
   <div class="chat-ai-content">
+    <div class="copy-notification" *ngIf="showCopyNotification">
+      <div class="notification-content">
+        <i class="check-icon"></i>
+        <span>复制成功</span>
+      </div>
+    </div>
+
     <div class="history-hint-card" *ngIf="messages.length === 0 && historyMessages.length > 0">
       <p>You have <strong>{{ historyMessages.length }}</strong> messages from a previous session.</p>
       <button class="show-history-btn" (click)="showHistory()">Click to restore previous conversation</button>
@@ -101,7 +108,9 @@
             (keyup.enter)="sendMessage()"
             [disabled]="isLoading"
           >
-          <button type="submit" [disabled]="!currentMessage.trim() || isLoading">Send</button>
+          <button type="submit" [disabled]="!currentMessage.trim() || isLoading">
+            <i class="send-icon"></i>
+          </button>
         </div>
       </form>
       <p class="disclaimer">
