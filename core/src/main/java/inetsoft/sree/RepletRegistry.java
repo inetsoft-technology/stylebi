@@ -1516,7 +1516,7 @@ public class RepletRegistry implements Serializable {
 
                this.context = new FolderContext(name, "", alias);
                this.context.addFavoritesUser(favoritesUser);
-               getFolderContextmap().put(name, (FolderContext) this.context); //link added here?
+               getFolderContextmap().put(name, (FolderContext) this.context);
                return;
             }
 
