@@ -39,6 +39,10 @@ public abstract class AbstractAuthorizationProvider
    }
 
    @Override
+   public void removePermission(ResourceType type, String resource, String orgID) {
+   }
+
+   @Override
    public void removePermission(ResourceType type, IdentityID identityID) {
    }
 

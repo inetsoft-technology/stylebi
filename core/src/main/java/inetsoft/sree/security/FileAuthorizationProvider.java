@@ -143,6 +143,22 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       }
    }
 
+   /**
+    * {@inheritDoc}
+    */
+   @Override
+   public void removePermission(ResourceType type, String resource, String orgID) {
+      init();
+
+      Permission perm = storage.get(getResourceKey(type, resource));
+
+      for(ResourceAction action: ResourceAction.values()) {
+         perm.cleanOrganizationFromPermission(action, orgID);
+      }
+
+      setPermission(type, resource, perm);
+   }
+
    public void cleanOrganizationFromPermissions(String orgId) {
       for(Tuple3<ResourceType, String, Permission> permissionSet : getPermissions()) {
          for (ResourceAction action : ResourceAction.values()) {
