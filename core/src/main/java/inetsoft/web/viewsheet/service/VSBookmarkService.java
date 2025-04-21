@@ -369,8 +369,11 @@ public class VSBookmarkService {
    /**
     * Check whether the bookmark is used in schedule.
     */
-   public boolean isBookmarkUsedInSchedule(String bookmark, IdentityID user)
-   {
+   public boolean isBookmarkUsedInSchedule(AssetEntry vs, String bookmark, IdentityID user) {
+      if(vs == null) {
+         return false;
+      }
+
       ScheduleManager manager = ScheduleManager.getScheduleManager();
       Vector<ScheduleTask> tasks = manager.getScheduleTasks();
 
@@ -380,6 +383,7 @@ public class VSBookmarkService {
          for(int j = 0; j < currtask.getActionCount(); j++) {
             if(currtask.getAction(j) instanceof ViewsheetAction) {
                ViewsheetAction vact = (ViewsheetAction) currtask.getAction(j);
+               String actionVs = vact.getViewsheet();
                String[] names = vact.getBookmarks();
                IdentityID[] userNames = vact.getBookmarkUsers();
 
@@ -387,7 +391,9 @@ public class VSBookmarkService {
                   String name = names[k];
                   IdentityID userName = userNames[k];
 
-                  if(Tool.equals(name, bookmark) && Tool.equals(user, userName)) {
+                  if(Tool.equals(actionVs, vs.toIdentifier()) && Tool.equals(name, bookmark) &&
+                     Tool.equals(user, userName))
+                  {
                      return true;
                   }
                }
