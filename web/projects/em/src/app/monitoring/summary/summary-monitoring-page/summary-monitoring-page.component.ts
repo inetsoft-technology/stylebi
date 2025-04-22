@@ -151,7 +151,8 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
       columns: [
          {field: "userName", header: "_#(js:User)"},
          {field: "viewsheetCount", header: "_#(js:Viewsheets)"},
-         {field: "age", header: "_#(js:Session Age)"}
+         {field: "age", header: "_#(js:Session Age)"},
+         {field: "organizationId", header: "_#(js:Organization ID)"}
       ],
       selectionEnabled: false,
       title: "_#(js:Top 5 Users)"
