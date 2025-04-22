@@ -441,7 +441,7 @@ public class VSBookmarkController {
 
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
       boolean bookmarkRenamedInSchedule = !Tool.equals(name, oldName) &&
-         bookmarkService.isBookmarkUsedInSchedule(oldName, user);
+         bookmarkService.isBookmarkUsedInSchedule(rvs.getEntry(), oldName, user);
 
       if(bookmarkRenamedInSchedule) {
          if(!value.confirmed()) {
