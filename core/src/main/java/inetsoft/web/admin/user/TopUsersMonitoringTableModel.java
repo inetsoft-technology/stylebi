@@ -39,6 +39,8 @@ public interface TopUsersMonitoringTableModel {
 
    String age();
 
+   String organizationId();
+
    static TopUsersMonitoringTableModel.Builder builder() {
       return new TopUsersMonitoringTableModel.Builder();
    }
@@ -56,6 +58,7 @@ public interface TopUsersMonitoringTableModel {
             Util.formatAge(new Date(topUser.age()), false);
          age(ageString);
          userName(topUser.name().name);
+         organizationId(topUser.name().orgID);
 
          return this;
       }
