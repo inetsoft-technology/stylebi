@@ -106,6 +106,7 @@ export class DataSourcesTreeActionsService {
                   type: AssetType.DATA_SOURCE_FOLDER,
                   scope: null})
             .pipe(map(response => response.duplicate));
+      dialog.duplicateMessage = "_#(js:common.datasource.newFolder.duplicateName)";
    }
 
    addDataWorksheet(currentFolderID: string): void {
