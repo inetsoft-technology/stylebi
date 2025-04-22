@@ -70,7 +70,7 @@ public class RepositoryDashboardService {
          permissionService.getTableModel(dashboardName, ResourceType.DASHBOARD,
                                          EnumSet.of(ResourceAction.ACCESS, ResourceAction.ADMIN), principal);
       Identity anonymous = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
-      Identity user = new DefaultIdentity(owner, Identity.USER);
+      Identity user = owner == null ? anonymous : new DefaultIdentity(owner, Identity.USER);
       final String dashName = dashboardName;
       boolean enable = Arrays.asList(dashboardManager.getDashboards(anonymous))
          .contains(dashboardName) ||
