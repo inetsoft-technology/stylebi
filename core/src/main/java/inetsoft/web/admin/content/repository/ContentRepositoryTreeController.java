@@ -18,10 +18,10 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.security.*;
+import inetsoft.util.*;
 import inetsoft.util.data.CommonKVModel;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.util.Tool;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.repository.model.LicensedComponents;
 import inetsoft.web.security.*;
@@ -46,6 +46,12 @@ public class ContentRepositoryTreeController {
    public ContentRepositoryTreeModel getRepositoryTree(@RequestBody List<String> usersToLoad,
                                                        Principal principal) throws Exception
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       List<ContentRepositoryTreeNode> nodes = treeService.getRootNodes(principal, usersToLoad);
       return new ContentRepositoryTreeModel(nodes);
    }

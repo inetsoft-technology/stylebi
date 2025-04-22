@@ -22,6 +22,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
+import inetsoft.util.*;
 import inetsoft.web.admin.content.dataspace.DataSpaceContentSettingsService;
 import inetsoft.web.admin.general.WebMapSettingsService;
 import inetsoft.web.admin.presentation.model.*;
@@ -81,6 +82,12 @@ public class PresentationSettingsController {
       boolean securityEnabled = !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
       boolean globalProperty = (OrganizationManager.getInstance().isSiteAdmin(principal) && !orgSettings)
          || !securityEnabled || securityEnabled && !SUtil.isMultiTenant();
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       return PresentationSettingsModel.builder()
          .lookAndFeelSettingsModel(lookAndFeelService.getModel(principal, globalProperty))
          .welcomePageSettingsModel(welcomePageService.getModel(globalProperty))
@@ -118,6 +125,11 @@ public class PresentationSettingsController {
       boolean globalSettings = OrganizationManager.getInstance().isSiteAdmin(principal) &&
          (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled ||
          !SUtil.isMultiTenant();
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       if(model.formatsSettingsModel() != null) {
          formatsSettingsService.setModel(model.formatsSettingsModel(), globalSettings);
