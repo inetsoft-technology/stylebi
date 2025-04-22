@@ -758,7 +758,7 @@ public class RepositoryObjectService {
          perm.setUserGrantsForOrg(action, userGrants, currentOrgID);
       }
 
-      perm.updateGrantAllByOrg(currentOrgID, true);
+      perm.updateGrantAllByOrg(currentOrgID, !userGrants.isEmpty());
       authz.setPermission(type, name, perm);
    }
 
