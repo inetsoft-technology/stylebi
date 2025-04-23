@@ -27,28 +27,28 @@ public abstract class AbstractAuthorizationProvider
    implements AuthorizationProvider
 {
    @Override
-   public void setPermission(ResourceType type, String resource, Permission perm) {
+   public void setPermission(ResourceType type, String resource, Permission perm, String orgID) {
    }
 
    @Override
-   public void setPermission(ResourceType type, IdentityID identityID, Permission perm) {
+   public void setPermission(ResourceType type, IdentityID identityID, Permission perm, String orgID) {
    }
 
    @Override
-   public void removePermission(ResourceType type, String resource) {
+   public void removePermission(ResourceType type, String resource, String orgID) {
    }
 
    @Override
-   public void removePermission(ResourceType type, IdentityID identityID) {
+   public void removePermission(ResourceType type, IdentityID identityID, String orgID) {
    }
 
    @Override
-   public Permission getPermission(ResourceType type, String resource) {
+   public Permission getPermission(ResourceType type, String resource, String orgID) {
       return null;
    }
 
    @Override
-   public Permission getPermission(ResourceType type, IdentityID identityID) {
+   public Permission getPermission(ResourceType type, IdentityID identityID, String orgID) {
       return null;
    }
 
