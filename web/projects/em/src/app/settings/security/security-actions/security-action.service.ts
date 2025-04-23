@@ -28,7 +28,7 @@ import { ActionTreeNode } from "./action-tree-node";
    providedIn: "root"
 })
 export class SecurityActionService {
-   emptyModel: ResourcePermissionModel = {
+   private readonly emptyModel: ResourcePermissionModel = {
       displayActions: [],
       hasOrgEdited: false,
       securityEnabled: false,
