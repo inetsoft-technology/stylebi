@@ -477,6 +477,7 @@ public abstract class DatasourcesBaseService {
             date = entry.getCreatedDate();
          }
 
+         newSrc.setLastModified(System.currentTimeMillis());
          dataSourceStatusService.updateStatus(newSrc);
          repository.updateDataSource(newSrc, oldName, false);
          afterUpdateSourceCallback(definition, newSrc, true);
