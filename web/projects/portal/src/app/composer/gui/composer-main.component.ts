@@ -83,6 +83,7 @@ import {
 } from "../../widget/dialog/script-pane/script-pane-tree-model";
 import { NotificationsComponent } from "../../widget/notifications/notifications.component";
 import { PresenterPropertyDialogModel } from "../../widget/presenter/data/presenter-property-dialog-model";
+import { FontService } from "../../widget/services/font.service";
 import { ModelService } from "../../widget/services/model.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { VSScaleService } from "../../widget/services/scale/vs-scale.service";
@@ -315,7 +316,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       private zone: NgZone,
       private gettingStartedService: GettingStartedService,
       private router: Router,
-      private scriptService: ScriptService) {
+      private scriptService: ScriptService,
+      private fontService: FontService)
+   {
       GuiTool.isTouchDevice().then((value: boolean) => {
          this.touchDevice = value;
       });
@@ -1597,7 +1600,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.navigateToExisting(index);
       }
       else {
-         const vs: Viewsheet = new Viewsheet();
+         const vs: Viewsheet = new Viewsheet(this.fontService);
          vs.localId = sheetCounter++;
          vs.newSheet = true;
          vs.autoSaveFile = autoSaveFile;
@@ -1619,7 +1622,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          baseEntry = null;
       }
 
-      const vs: Viewsheet = new Viewsheet();
+      const vs: Viewsheet = new Viewsheet(this.fontService);
       vs.localId = sheetCounter++;
       vs.newSheet = true;
       vs.label = "";
@@ -1682,7 +1685,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                }
                break;
             case "viewsheet":
-               const vs = new Viewsheet();
+               const vs = new Viewsheet(this.fontService);
                vs.localId = sheetCounter++;
                vs.label = "";
                vs.id = id;
@@ -2155,7 +2158,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
     * @param {string} id vs assetId
     */
    private showLinkVSInTab(id: string): void {
-      const vs = new Viewsheet();
+      const vs = new Viewsheet(this.fontService);
       vs.localId = sheetCounter++;
       vs.label = this.getLinkVSLabel(id);
       vs.id = id;
@@ -2175,7 +2178,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
    previewViewsheet(sheet: Sheet): void {
       if(sheet && sheet.type === "viewsheet") {
-         const vs = new Viewsheet();
+         const vs = new Viewsheet(this.fontService);
          vs.localId = sheetCounter++;
          vs.label = "_#(js:Preview) " + sheet.label;
          vs.id = sheet.id;
@@ -2974,7 +2977,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
       //new vs by wizard and open full editor.
       if(!this.focusedViewsheet || this.focusedViewsheet.id != evt.model.assetId) {
-         let vs: Viewsheet = new Viewsheet();
+         let vs: Viewsheet = new Viewsheet(this.fontService);
          vs.newSheet = evt.model.oinfo.editMode == VsWizardEditModes.WIZARD_DASHBOARD;
          vs.runtimeId = evt.model.runtimeId;
          vs.id = evt.model.assetId;

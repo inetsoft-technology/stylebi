@@ -21,6 +21,7 @@ import { VSObjectFormatInfoModel } from "../../../common/data/vs-object-format-i
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { GuideBounds } from "../../../vsobjects/model/layout/guide-bounds";
 import { PrintLayoutSection } from "../../../vsobjects/model/layout/print-layout-section";
+import { FontService } from "../../../widget/services/font.service";
 import { VSLayoutObjectModel } from "./vs-layout-object-model";
 
 export enum PrintLayoutMeasures {
@@ -58,14 +59,14 @@ export class VSLayoutModel {
       new BehaviorSubject<VSLayoutObjectModel[]>([]);
    public focusedObjects: VSLayoutObjectModel[] = [];
 
-   constructor(layout: VSLayoutModel = null) {
+   constructor(fontService: FontService = null, layout: VSLayoutModel = null) {
       this.focusedObjectsChanged();
       this.guideType = GuideBounds.GUIDES_NONE;
       this.currentPrintSection = PrintLayoutSection.CONTENT;
       this.currentFormat = <VSObjectFormatInfoModel> {
          type: "inetsoft.web.composer.model.vs.VSObjectFormatInfoModel",
          font: {
-            fontFamily: "Roboto",
+            fontFamily: fontService ? fontService.defaultFont : "Roboto",
             fontStyle: "normal",
             fontUnderline: "normal",
             fontStrikethrough: "normal",

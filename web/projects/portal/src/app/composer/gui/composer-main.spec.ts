@@ -30,6 +30,7 @@ import { DataTipService } from "../../vsobjects/objects/data-tip/data-tip.servic
 import { PopComponentService } from "../../vsobjects/objects/data-tip/pop-component.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
+import { FontService } from "../../widget/services/font.service";
 import { ModelService } from "../../widget/services/model.service";
 import { Viewsheet } from "../data/vs/viewsheet";
 import { Worksheet } from "../data/ws/worksheet";
@@ -58,6 +59,7 @@ describe("ComposerMain Unit Tests", () => {
    let httpService: any;
    let composerRecentService: any;
    let appInfoService: any;
+   let fontService: any;
 
    beforeEach(async(() => {
       composerObjectService = { getNewIndex: jest.fn() };
@@ -108,6 +110,10 @@ describe("ComposerMain Unit Tests", () => {
          getCurrentOrgInfo: jest.fn(() => observableOf({})),
       };
 
+      fontService = {
+         defaultFont: "Roboto"
+      };
+
       viewsheet = new Viewsheet();
       viewsheet.localId = 1;
       viewsheet.label = "vs1";
@@ -142,7 +148,8 @@ describe("ComposerMain Unit Tests", () => {
             { provide: StompClientService, useValue: stompClientService },
             { provide: HttpClient, useValue: httpService },
             { provide: ComposerRecentService, useValue: composerRecentService },
-            { provide: AppInfoService, useValue: appInfoService }
+            { provide: AppInfoService, useValue: appInfoService },
+            { provide: FontService, useValue: fontService }
          ],
          declarations: [
             ComposerMainComponent

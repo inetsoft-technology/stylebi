@@ -65,6 +65,7 @@ describe("Viewsheet Pane Test", () => {
    let resizeHandlerService: any;
    let composerVsSearchService: any;
    let appInfoService: any;
+   let fontService: any;
 
    let createChartObject: () =>  ChartObject = () => {
       return {
@@ -180,12 +181,16 @@ describe("Viewsheet Pane Test", () => {
          getCurrentOrgInfo: jest.fn(() => observableOf({})),
       };
 
+      fontService = {
+         defaultFont: "Roboto"
+      };
+
       viewsheetPane = new VSPane(
          elementRef, composerObjectService, viewsheetClientService,
          treeService, changeDetectorRef, modelService, modalService,
          downloadService, dragService, scaleService, renderer, actionFactory,
          dialogService, dataTipService, debounceService, uiContextService, zone, domService, null,
-         resizeHandlerService, composerVsSearchService, appInfoService);
+         resizeHandlerService, composerVsSearchService, appInfoService, fontService);
    });
 
    // Bug #10442 make sure to update send to back/front enabled after adding vs object to vs
