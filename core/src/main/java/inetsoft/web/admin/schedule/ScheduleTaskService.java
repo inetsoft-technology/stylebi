@@ -836,11 +836,13 @@ public class ScheduleTaskService {
                String[] bookmarks = action.getBookmarks();
                int[] bookmarkTypes = action.getBookmarkTypes();
                IdentityID[] bookmarkUsers = action.getBookmarkUsers();
+               Identity identity = task.getIdentity();
+               IdentityID identityID = identity == null ? null : identity.getIdentityID();
 
                for(int j = 0; j < bookmarkTypes.length; j++) {
                   if(bookmarkTypes[j] == VSBookmarkInfo.ALLSHARE ||
-                     (bookmarkTypes[j] != VSBookmarkInfo.GROUPSHARE && groupShare) ||
-                     Tool.equals(task.getIdentity(), bookmarkUsers[j]))
+                     (bookmarkTypes[j] == VSBookmarkInfo.GROUPSHARE && groupShare) ||
+                     Tool.equals(identityID, bookmarkUsers[j]))
                   {
                      bookmarkList.add(bookmarks[j]);
                      bookmarkUserList.add(bookmarkUsers[j]);
