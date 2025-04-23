@@ -20,6 +20,8 @@ package inetsoft.util;
 import com.github.zafarkhaja.semver.Version;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.storage.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Config;
@@ -331,6 +333,8 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
          Audit.getInstance().auditAction(actionRecord, principal);
       }
 
+      resetDBProviderConnection();
+
       return installed;
    }
 
@@ -546,6 +550,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       DataSourceRegistry.getRegistry().clearCache();
       plugin.getClassLoader().close();
       delete(plugin.getFolder());
+      resetDBProviderConnection();
 
       LOG.info("Removed plugin {}:{}", plugin.getId(), plugin.getVersion());
    }
@@ -721,6 +726,19 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
          }
          catch(Exception ex) {
             LOG.warn("Failed to process action event", ex);
+         }
+      }
+   }
+
+   private void resetDBProviderConnection() {
+      List<AuthenticationProvider> providers = SecurityEngine.getSecurity()
+         .getAuthenticationChain()
+         .map(AuthenticationChain::getProviders)
+         .orElse(Collections.emptyList());
+
+      for(AuthenticationProvider provider : providers) {
+         if(provider instanceof DatabaseAuthenticationProvider) {
+            ((DatabaseAuthenticationProvider) provider).resetConnection();
          }
       }
    }
