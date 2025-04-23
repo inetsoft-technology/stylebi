@@ -308,7 +308,8 @@ export class ContentRepositoryService implements OnDestroy {
             .pipe(
                catchError((error) => {
                   if(!!error.error && error.error.type === "MissingResourceException") {
-                     this.showMessage("_#(js:em.repository.missingResource)");
+                     this.showMessage(Tool.formatCatalogString(
+                        "_#(js:em.repository.missingResource)", [data.label]));
                   }
 
                   return of(null);
