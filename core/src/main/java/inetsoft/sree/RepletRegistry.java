@@ -288,6 +288,8 @@ public class RepletRegistry implements Serializable {
             newRegistry = getRegistryCache().get(getRegistryKey(null, nOrgID));
          }
 
+         //Bug #70909, in the case of matching orgID, old and new are same object, updating is extraneous
+         //clearing will lose newRegistry too, so only put and clear if different objects to prevent loss of data
          if(oldRegistry != newRegistry) {
             Hashtable<String, String> oldFolderMap = oldRegistry.getFolderMap();
             Hashtable<String, String> newFolderMap = newRegistry.getFolderMap();
