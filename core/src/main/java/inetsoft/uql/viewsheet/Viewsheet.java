@@ -2892,7 +2892,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    protected boolean isLayoutVisible(Assembly assembly) {
       VSAssembly vassembly = (VSAssembly) assembly;
 
-      if(assembly instanceof FloatableVSAssembly) {
+      if(assembly instanceof FloatableVSAssembly || assembly instanceof Viewsheet) {
          return false;
       }
 
