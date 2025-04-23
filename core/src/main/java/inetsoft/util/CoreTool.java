@@ -18,9 +18,11 @@
 package inetsoft.util;
 
 import com.google.common.collect.ImmutableMap;
+import inetsoft.report.Hyperlink;
 import inetsoft.report.pdf.PDFDevice;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.web.viewsheet.command.MessageCommand.Type;
@@ -3742,6 +3744,28 @@ public class CoreTool {
       catch(Throwable e) {
          return null;
       }
+   }
+
+   /**
+    * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
+    */
+   public static Hyperlink handleAssetLinkOrgMismatch(Hyperlink link) {
+      String linkPath = link.getLinkValue();
+      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      int orgIdx = linkPath.lastIndexOf("^");
+
+      if(orgIdx > 0) {
+         String linkOrg = linkPath.substring(orgIdx + 1);
+
+         if(!Tool.equals(linkOrg, curOrgId)) {
+            String updatedLink = linkPath.substring(0,orgIdx + 1) + curOrgId;
+            link.setLink(updatedLink);
+
+            return link;
+         }
+      }
+
+      return link;
    }
 
    // date time format cache
