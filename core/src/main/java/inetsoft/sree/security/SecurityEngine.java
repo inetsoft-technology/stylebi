@@ -757,7 +757,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       }
 
       boolean datasource = "true".equals(securityDatasourceEveryone.get());
-      boolean script = "true".equals(securityScriptEveryone.get());;
+      boolean script = "true".equals(securityScriptEveryone.get());
       boolean tablestyle = "true".equals(securityTablestyleEveryone.get());
       boolean scheduletask = "true".equals(securitySchduletaskEveryone.get());
       boolean allowed = provider.checkPermission(principal, type, resource, action);
