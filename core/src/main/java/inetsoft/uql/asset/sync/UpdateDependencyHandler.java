@@ -313,6 +313,7 @@ public final class UpdateDependencyHandler {
          try {
             AssetEntry vs = new AssetEntry();
             vs.parseXML(ele);
+            vs.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
 
             if(entry != null) {
                addDependencyToFile(vs.toIdentifier(), entry);
