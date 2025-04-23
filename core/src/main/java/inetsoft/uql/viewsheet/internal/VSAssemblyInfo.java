@@ -1038,9 +1038,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
          Hyperlink link = new Hyperlink();
          link.parseXML((Element) lnode.getFirstChild());
 
-         link = handleAssetLinkOrgMismatch(link);
-
-         linkValue.setDValue(link);
+         linkValue.setDValue(Tool.handleAssetLinkOrgMismatch(link));
       }
 
       Element rnode = Tool.getChildNodeByTagName(elem, "hyperLinkRef");
@@ -1514,28 +1512,6 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       }
 
       return new StyleFont(DEFAULT_FONT, style, size);
-   }
-
-   /**
-    * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
-    */
-   public Hyperlink handleAssetLinkOrgMismatch(Hyperlink link) {
-      String linkPath = link.getLinkValue();
-      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
-      int orgIdx = linkPath.lastIndexOf("^");
-
-      if(orgIdx > 0) {
-         String linkOrg = linkPath.substring(orgIdx + 1);
-
-         if(!Tool.equals(linkOrg, curOrgId)) {
-            String updatedLink = linkPath.substring(0,orgIdx + 1) + curOrgId;
-            link.setLink(updatedLink);
-
-            return link;
-         }
-      }
-
-      return link;
    }
 
    /**
