@@ -837,7 +837,7 @@ public class ScheduleTaskService {
                int[] bookmarkTypes = action.getBookmarkTypes();
                IdentityID[] bookmarkUsers = action.getBookmarkUsers();
 
-               for(int j = 0; j < bookmarkTypes.length; j++) {
+               for(int j = 0; bookmarkTypes != null && j < bookmarkTypes.length; j++) {
                   if(bookmarkTypes[j] == VSBookmarkInfo.ALLSHARE ||
                      (bookmarkTypes[j] != VSBookmarkInfo.GROUPSHARE && groupShare) ||
                      Tool.equals(task.getIdentity(), bookmarkUsers[j]))
