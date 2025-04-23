@@ -39,6 +39,7 @@ export class FontService {
          this.fonts = this.modelService.getModel<string[]>("../api/format/fonts").pipe(
             map(arr => {
                this.defaultFont = arr.shift();
+               console.log("=========getallfonts: " + this.defaultFont, arr);
                return arr;
             }),
             publishReplay(1),

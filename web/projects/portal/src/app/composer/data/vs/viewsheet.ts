@@ -21,6 +21,7 @@ import { AlignmentInfo } from "../../../common/data/format-info-model";
 import { VSObjectFormatInfoModel } from "../../../common/data/vs-object-format-info-model";
 import { GuideBounds } from "../../../vsobjects/model/layout/guide-bounds";
 import { VSObjectModel } from "../../../vsobjects/model/vs-object-model";
+import { FontService } from "../../../widget/services/font.service";
 import { Sheet } from "../sheet";
 import { VSLayoutModel } from "./vs-layout-model";
 import { MessageCommand } from "../../../common/viewsheet-client/message-command";
@@ -54,13 +55,13 @@ export class Viewsheet extends Sheet {
    private layoutChangeSubject: Subject<any> = new Subject<any>();
    private messageCommandsSubject = new Subject<MessageCommand>();
 
-   constructor(sheet: Viewsheet = null) {
+   constructor(fontService: FontService = null, sheet: Viewsheet = null) {
       super(sheet);
       this.type = "viewsheet";
       this.currentFormat = <VSObjectFormatInfoModel> {
          type: "inetsoft.web.composer.model.vs.VSObjectFormatInfoModel",
          font: {
-            fontFamily: "Roboto",
+            fontFamily: fontService ? fontService.defaultFont : "Roboto",
             fontStyle: "normal",
             fontUnderline: "normal",
             fontStrikethrough: "normal",
