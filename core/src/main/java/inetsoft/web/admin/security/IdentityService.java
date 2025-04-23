@@ -623,7 +623,8 @@ public class IdentityService {
 
    }
 
-   private void updateOrganizationMembers(Organization identity, String oldOrgID,
+   private void updateOrganizationMembers(Organization identity, List<IdentityModel> memberModels,
+                                          String oldOrgID,
                                           EditableAuthenticationProvider eprovider)
    {
       String orgID = identity.getId();
@@ -631,6 +632,20 @@ public class IdentityService {
       IdentityID[] users = Arrays.stream(eprovider.getUsers()).filter(u -> Tool.equals(oldOrgID, u.orgID)).toArray(IdentityID[]::new);
       IdentityID[] groups = Arrays.stream(eprovider.getGroups()).filter(u -> Tool.equals(oldOrgID, u.orgID)).toArray(IdentityID[]::new);
       IdentityID[] roles = Arrays.stream(eprovider.getRoles()).filter(u -> Tool.equals(oldOrgID, u.orgID)).toArray(IdentityID[]::new);
+      IdentityID[] newUsers = memberModels.stream()
+         .filter(member -> member.type() == Identity.USER)
+         .filter(newUser -> Arrays.stream(users).noneMatch(oldUser -> oldUser.getName().equals(newUser.identityID().getName())))
+         .map(IdentityModel::identityID).toArray(IdentityID[]::new);
+      IdentityID[] newGroups = memberModels.stream()
+         .filter(member -> member.type() == Identity.GROUP)
+         .filter(newGroup -> Arrays.stream(users).noneMatch(oldGroup -> oldGroup.getName().equals(newGroup.identityID().getName())))
+         .map(IdentityModel::identityID)
+         .toArray(IdentityID[]::new);
+      IdentityID[] newRoles = memberModels.stream()
+         .filter(member -> member.type() == Identity.ROLE)
+         .filter(newRole -> Arrays.stream(users).noneMatch(oldRole -> oldRole.getName().equals(newRole.identityID().getName())))
+         .map(IdentityModel::identityID)
+         .toArray(IdentityID[]::new);
       boolean orgIdChange = !OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId());
       boolean orgNameChanged = !Tool.equals(orgIdChange, oldOrgID);
 
@@ -675,6 +690,11 @@ public class IdentityService {
          }
       }
 
+      for(int i = 0; i < newUsers.length; i ++) {
+         FSUser user = new FSUser(newUsers[i]);
+         eprovider.setUser(user.getIdentityID(), user);
+      }
+
       for(int i = 0; i < groups.length; i++) {
          FSGroup group = (FSGroup) eprovider.getGroup(groups[i]);
 
@@ -695,6 +715,11 @@ public class IdentityService {
          }
       }
 
+      for(int i = 0; i < newGroups.length; i ++) {
+         FSGroup group = new FSGroup(newGroups[i]);
+         eprovider.setGroup(group.getIdentityID(), group);
+      }
+
       for(int i = 0; i < roles.length; i++) {
          FSRole role = (FSRole) eprovider.getRole(roles[i]);
 
@@ -710,6 +735,11 @@ public class IdentityService {
          else if(members.contains(role.getName())) {
             updateRoleForOrg(identity, role, orgID, eprovider, authoc);
          }
+      }
+
+      for(int i = 0; i < newRoles.length; i ++) {
+         FSRole role = new FSRole(newRoles[i]);
+         eprovider.setRole(role.getIdentityID(), role);
       }
    }
 
@@ -1835,7 +1865,7 @@ public class IdentityService {
             !Tool.equals(oldOrg.getMembers(), memberNames) ||
             !Tool.equals(fromOrgID, model.id()))
       {
-         updateOrganizationMembers(newOrg, oldID, eprovider);
+         updateOrganizationMembers(newOrg, members, oldID, eprovider);
       }
 
       if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
