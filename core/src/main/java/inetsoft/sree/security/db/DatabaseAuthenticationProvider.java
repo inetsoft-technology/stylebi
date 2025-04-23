@@ -1243,7 +1243,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
              connectionLastTested.isBefore(Instant.now().minusMillis(connectionRetryInterval));
    }
 
-   private void resetConnection() {
+   public void resetConnection() {
       poolLock.lock();
 
       try {
