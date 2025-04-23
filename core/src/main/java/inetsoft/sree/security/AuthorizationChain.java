@@ -17,7 +17,7 @@
  */
 package inetsoft.sree.security;
 
-import inetsoft.util.Tuple3;
+import inetsoft.util.Tuple4;
 
 import java.util.List;
 import java.util.Objects;
@@ -40,46 +40,71 @@ public class AuthorizationChain
 
    @Override
    public void setPermission(ResourceType type, String resource, Permission perm) {
+      setPermission(type, resource, perm, null);
+   }
+
+   @Override
+   public void setPermission(ResourceType type, String resource, Permission perm, String orgID) {
       for(AuthorizationProvider provider : getProviderList()) {
-         if(provider.getPermission(type, resource) != null) {
-            provider.setPermission(type, resource, perm);
+         if(provider.getPermission(type, resource, orgID) != null) {
+            provider.setPermission(type, resource, perm, orgID);
             return;
          }
       }
 
       // not found in any provider, set it on the first
-      getProviderList().get(0).setPermission(type, resource, perm);
+      getProviderList().get(0).setPermission(type, resource, perm, orgID);
    }
 
    @Override
    public void setPermission(ResourceType type, IdentityID identityID, Permission perm) {
+      setPermission(type, identityID, perm, null);
+   }
+
+   @Override
+   public void setPermission(ResourceType type, IdentityID identityID, Permission perm, String orgID) {
       for(AuthorizationProvider provider : getProviderList()) {
-         if(provider.getPermission(type, identityID) != null) {
-            provider.setPermission(type, identityID, perm);
+         if(provider.getPermission(type, identityID, orgID) != null) {
+            provider.setPermission(type, identityID, perm, orgID);
             return;
          }
       }
 
       // not found in any provider, set it on the first
-      getProviderList().get(0).setPermission(type, identityID, perm);
+      getProviderList().get(0).setPermission(type, identityID, perm, orgID);
    }
 
    @Override
    public void removePermission(ResourceType type, String resource) {
+      removePermission(type, resource, null);
+   }
+
+   @Override
+   public void removePermission(ResourceType type, String resource, String orgID) {
       stream()
-         .forEach(p -> p.removePermission(type, resource));
+         .forEach(p -> p.removePermission(type, resource, orgID));
    }
 
    @Override
    public void removePermission(ResourceType type, IdentityID resourceID) {
+      removePermission(type, resourceID, null);
+   }
+
+   @Override
+   public void removePermission(ResourceType type, IdentityID resourceID, String orgID) {
       stream()
-         .forEach(p -> p.removePermission(type, resourceID));
+         .forEach(p -> p.removePermission(type, resourceID, orgID));
    }
 
    @Override
    public Permission getPermission(ResourceType type, String resource) {
+      return getPermission(type, resource, null);
+   }
+
+   @Override
+   public Permission getPermission(ResourceType type, String resource, String orgID) {
       return stream()
-         .map(p -> p.getPermission(type, resource))
+         .map(p -> p.getPermission(type, resource, orgID))
          .filter(Objects::nonNull)
          .findFirst()
          .orElse(null);
@@ -87,15 +112,20 @@ public class AuthorizationChain
 
    @Override
    public Permission getPermission(ResourceType type, IdentityID identityID) {
+      return getPermission(type, identityID, null);
+   }
+
+   @Override
+   public Permission getPermission(ResourceType type, IdentityID identityID, String orgID) {
       return stream()
-         .map(p -> p.getPermission(type, identityID))
+         .map(p -> p.getPermission(type, identityID, orgID))
          .filter(Objects::nonNull)
          .findFirst()
          .orElse(null);
    }
 
    @Override
-   public List<Tuple3<ResourceType, String, Permission>> getPermissions() {
+   public List<Tuple4<ResourceType, String, String, Permission>> getPermissions() {
       for(AuthorizationProvider provider : getProviders()) {
          try {
             return provider.getPermissions();

@@ -17,10 +17,10 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.TimeRange;
 import inetsoft.storage.*;
-import inetsoft.util.SingletonManager;
-import inetsoft.util.Tuple3;
+import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,36 +53,44 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
     * {@inheritDoc}
     */
    @Override
-   public Permission getPermission(ResourceType type, String resource) {
+   public Permission getPermission(ResourceType type, String resource, String orgID) {
       init();
-      return storage.get(getResourceKey(type, resource));
+      return storage.get(getResourceKey(type, resource, orgID));
    }
 
    /**
     * {@inheritDoc}
     */
    @Override
-   public Permission getPermission(ResourceType type, IdentityID resource) {
+   public Permission getPermission(ResourceType type, IdentityID resource, String orgID) {
       init();
-      return storage.get(getResourceKey(type, resource.convertToKey()));
+      return storage.get(getResourceKey(type, resource.convertToKey(), getResourceOrgID(orgID)));
    }
+
 
    /**
     * {@inheritDoc}
     */
    @Override
-   public List<Tuple3<ResourceType, String, Permission>> getPermissions() {
+   public List<Tuple4<ResourceType, String, String, Permission>> getPermissions() {
       init();
 
-      Function<KeyValuePair<Permission>, Tuple3<ResourceType, String, Permission>> mapper =
+      Function<KeyValuePair<Permission>, Tuple4<ResourceType, String, String, Permission>> mapper =
          pair -> {
             String key = pair.getKey();
             int delimiter = key.indexOf(":");
 
             ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
             String path = key.substring(delimiter + 1);
+            delimiter = path.indexOf(":");
+            String orgID = null;
 
-            return new Tuple3<>(type, path, pair.getValue());
+            if(delimiter != -1) {
+               orgID = path.substring(0, delimiter);
+               path = path.substring(delimiter + 1);
+            }
+
+            return new Tuple4<>(type, orgID, path, pair.getValue());
          };
 
       return storage.stream().map(mapper).collect(Collectors.toList());
@@ -92,15 +100,16 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
     * {@inheritDoc}
     */
    @Override
-   public void setPermission(ResourceType type, String resource, Permission perm) {
+   public void setPermission(ResourceType type, String resource, Permission perm, String orgID) {
       init();
+      orgID = getResourceOrgID(orgID);
 
       if(perm == null) {
-         removePermission(type, resource);
+         removePermission(type, resource, orgID);
       }
       else {
          try {
-            storage.put(getResourceKey(type, resource), perm).get();
+            storage.put(getResourceKey(type, resource, orgID), perm).get();
          }
          catch(Exception e) {
             LOG.error("Failed to set permission on {} {}", type, resource, e);
@@ -112,15 +121,16 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
     * {@inheritDoc}
     */
    @Override
-   public void setPermission(ResourceType type, IdentityID identityID, Permission perm) {
+   public void setPermission(ResourceType type, IdentityID identityID, Permission perm, String orgID) {
       init();
+      orgID = getResourceOrgID(orgID);
 
       if(perm == null) {
-         removePermission(type, identityID);
+         removePermission(type, identityID, orgID);
       }
       else {
          try {
-            storage.put(getResourceKey(type, identityID.convertToKey()), perm).get();
+            storage.put(getResourceKey(type, identityID.convertToKey(), orgID), perm).get();
          }
          catch(Exception e) {
             LOG.error("Failed to set permission on {} {}", type, identityID, e);
@@ -128,15 +138,13 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       }
    }
 
-   /**
-    * {@inheritDoc}
-    */
    @Override
-   public void removePermission(ResourceType type, String resource) {
+   public void removePermission(ResourceType type, String resource, String orgID) {
       init();
+      orgID = getResourceOrgID(orgID);
 
       try {
-         storage.remove(getResourceKey(type, resource)).get();
+         storage.remove(getResourceKey(type, resource, orgID)).get();
       }
       catch(Exception e) {
          LOG.error("Failed to remove permission from {} {}", type, resource, e);
@@ -144,15 +152,17 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    }
 
    public void cleanOrganizationFromPermissions(String orgId) {
-      for(Tuple3<ResourceType, String, Permission> permissionSet : getPermissions()) {
-         for (ResourceAction action : ResourceAction.values()) {
-            Permission permission = permissionSet.getThird();
-            if(permission.isOrgInPerm(action, orgId)) {
-               permission.cleanOrganizationFromPermission(action, orgId);
-               permission.removeGrantAllByOrg(orgId);
-               setPermission(permissionSet.getFirst(),permissionSet.getSecond(), permission);
-            }
+      for(Tuple4<ResourceType, String, String, Permission> permissionSet : getPermissions()) {
+         String resourceOrgID = permissionSet.getSecond();
+
+         if(resourceOrgID != null && !Tool.equals(resourceOrgID, orgId)) {
+            continue;
          }
+
+         ResourceType type = permissionSet.getFirst();
+         String path = permissionSet.getThird();
+
+         removePermission(type, path, resourceOrgID);
       }
    }
 
@@ -186,6 +196,8 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       IdentityID oldID = event.getOldID();
       IdentityID newID = event.getNewID();
 
+      // to-do, org changed ?
+
       List<KeyValuePair<Permission>> list = storage.stream().collect(Collectors.toList());
 
       try {
@@ -214,7 +226,13 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    }
 
    private static String getResourceKey(ResourceType type, String path) {
-         return type + ":" + path;
+      return getResourceKey(type, path, null);
+   }
+
+   private static String getResourceKey(ResourceType type, String path, String orgID) {
+      orgID = orgID != null ? orgID : SUtil.isMultiTenant() ?
+         OrganizationManager.getInstance().getCurrentOrgID() : Organization.getDefaultOrganizationID();
+      return type + ":" + orgID + ":" + path;
    }
 
    private KeyValueStorage<Permission> storage;

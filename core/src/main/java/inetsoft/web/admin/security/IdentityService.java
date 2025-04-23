@@ -2010,23 +2010,26 @@ public class IdentityService {
       Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
          null : provider.getOrganization(oldOrgId);
 
-      for(Tuple3<ResourceType, String, Permission> permissionSet : provider.getPermissions()) {
-         String second = permissionSet.getSecond();
-         Permission permission = permissionSet.getThird();
+      for(Tuple4<ResourceType, String, String, Permission> permissionSet : provider.getPermissions()) {
+         String resourceOrgID = permissionSet.getSecond();
+         String path = permissionSet.getThird();
+         Permission permission = permissionSet.getForth();
 
          if(permission == null) {
             continue;
          }
 
-         if(newName == null && second.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(second).orgID != null &&
-               !Tool.equals(IdentityID.getIdentityIDFromKey(second).orgID,oldName.orgID) &&
-               !Tool.equals(IdentityID.getIdentityIDFromKey(second).orgID,oldOrgId)) {
+         if(newName == null && (resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) ||
+            path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
+               !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldName.orgID) &&
+               !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldOrgId)))
+         {
             //skip permissions not in this organization
             continue;
          }
 
-         if(containsOrgID(second, oldName.getOrgID()) && newName == null) {
-            provider.removePermission(permissionSet.getFirst(), second);
+         if(containsOrgID(path, oldName.getOrgID()) && newName == null) {
+            provider.removePermission(permissionSet.getFirst(), path, resourceOrgID);
          }
 
          for(ResourceAction action : ResourceAction.values()) {
@@ -2035,7 +2038,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedUserGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), second, doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), path, doReplace);
                      }
                   }
                }
@@ -2043,7 +2046,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedGroupGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), second, doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), path, doReplace);
                      }
                   }
                }
@@ -2051,7 +2054,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedRoleGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), second, doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), path, doReplace);
                      }
                   }
                }
@@ -2081,32 +2084,33 @@ public class IdentityService {
    }
 
    private void updatePermission(SecurityProvider provider,
-                                 Tuple3<ResourceType, String, Permission> permissionSet,
+                                 Tuple4<ResourceType, String, String, Permission> permissionSet,
                                  String oIdentityName, String nIdentityName, String oorgId,
                                  String norgId, boolean doReplace, int changeIdentityType)
    {
       ResourceType type = permissionSet.getFirst();
-      String second = permissionSet.getSecond();
-      Permission permission = permissionSet.getThird();
+      String resourceOrgID = permissionSet.getSecond();
+      String path = permissionSet.getThird();
+      Permission permission = permissionSet.getForth();
       updateOrgEditedGrantAll(permission, oorgId, norgId);
-      String newPath = getNewPermissionPath(permissionSet.getFirst(), second, oorgId, norgId,
+      String newPath = getNewPermissionPath(permissionSet.getFirst(), path, oorgId, norgId,
          oIdentityName, nIdentityName, changeIdentityType);
 
       if(newPath != null) {
-         provider.setPermission(type, newPath, permission);
+         provider.setPermission(type, newPath, permission, norgId);
       }
       else {
-         provider.setPermission(type, second, permission);
+         provider.setPermission(type, path, permission, norgId);
       }
 
-      if(doReplace && !Tool.equals(oorgId, norgId) && !Tool.equals(newPath, second)) {
-         provider.removePermission(type, second);
+      if(doReplace && !Tool.equals(oorgId, norgId) && !Tool.equals(newPath, path)) {
+         provider.removePermission(type, path, resourceOrgID);
       }
    }
 
-   private boolean containsOrgID(String secondPath, String oorgID) {
-      if(secondPath != null && secondPath.contains(IdentityID.KEY_DELIMITER)) {
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(secondPath);
+   private boolean containsOrgID(String path, String oorgID) {
+      if(path != null && path.contains(IdentityID.KEY_DELIMITER)) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(path);
 
          return Tool.equals(oorgID, identityID.getOrgID());
       }
@@ -2114,12 +2118,12 @@ public class IdentityService {
       return false;
    }
 
-   private String getNewPermissionPath(ResourceType type, String secondPath,
+   private String getNewPermissionPath(ResourceType type, String path,
                                        String oorgID, String norgID, String oIdentityName,
                                        String nIdentityName, int changeIdentityType)
    {
       if(type == ResourceType.SECURITY_ORGANIZATION &&
-         Tool.equals(secondPath, new IdentityID(oIdentityName, oorgID).convertToKey()))
+         Tool.equals(path, new IdentityID(oIdentityName, oorgID).convertToKey()))
       {
          return new IdentityID(nIdentityName, norgID).convertToKey();
       }
@@ -2128,7 +2132,7 @@ public class IdentityService {
          if(changeIdentityType == Identity.USER) {
             IdentityID oldIdentityID = new IdentityID(oIdentityName, oorgID);
             IdentityID newIdentityID = new IdentityID(nIdentityName, norgID);
-            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(secondPath);
+            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(path);
 
             if(Tool.equals(taskMetaData.getTaskOwnerId(), oldIdentityID.convertToKey())) {
                taskMetaData.setTaskOwnerId(newIdentityID.convertToKey());
@@ -2137,7 +2141,7 @@ public class IdentityService {
             }
          }
          else if(changeIdentityType == Identity.ORGANIZATION) {
-            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(secondPath);
+            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(path);
             IdentityID ownerIdentityID = IdentityID.getIdentityIDFromKey(taskMetaData.getTaskOwnerId());
 
             if(ownerIdentityID != null && Tool.equals(ownerIdentityID.getOrgID(), oorgID)) {
@@ -2149,10 +2153,10 @@ public class IdentityService {
          }
       }
 
-      String newPath = secondPath;
+      String newPath = path;
 
-      if(containsOrgID(secondPath, oorgID) && !Tool.equals(oorgID, norgID)) {
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(secondPath);
+      if(containsOrgID(path, oorgID) && !Tool.equals(oorgID, norgID)) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(path);
          identityID.setOrgID(norgID);
          newPath = identityID.convertToKey();
       }
