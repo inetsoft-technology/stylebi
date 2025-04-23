@@ -169,7 +169,12 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
 
    get modelValid(): boolean {
       return !!this.selectedViewsheet && !this.duplicateBookmark && this.notificationEmailsValid && this.deliveryEmailsValid &&
-         this.serverSaveValid;
+         this.serverSaveValid && this.bookmarksExist;
+   }
+
+   get bookmarksExist(): boolean {
+      return !this.selectedBookmarks.filter(value => !!value)
+         .some(value => value.owner == null && value.name == null);
    }
 
    get selectedViewsheetName(): string {
