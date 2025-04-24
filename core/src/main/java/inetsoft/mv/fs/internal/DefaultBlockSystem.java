@@ -145,6 +145,11 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
       return copy0(from, currentOrgID, to, currentOrgID,true);
    }
 
+   @Override
+   public NBlock rename(XBlock from, XBlock to, String fromOrgId, String toOrgId) {
+      return copy0(from, fromOrgId, to, toOrgId,true);
+   }
+
    /**
     * Copy one XBlock.
     */

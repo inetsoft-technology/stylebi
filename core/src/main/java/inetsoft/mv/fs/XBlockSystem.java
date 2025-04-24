@@ -44,6 +44,11 @@ public interface XBlockSystem {
    NBlock rename(XBlock from, XBlock to);
 
    /**
+    * Rename one XBlock.
+    */
+   NBlock rename(XBlock from, XBlock to, String fromOrgId, String toOrgId);
+
+   /**
     * Copy one XBlock.
     */
    NBlock copy(XBlock from, String fromOrgId, XBlock to, String toOrgId);

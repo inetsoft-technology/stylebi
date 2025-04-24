@@ -366,36 +366,51 @@ public final class LocalFileSystem extends AbstractFileSystem {
             List<SBlock> nsblocks = new ArrayList<>(sblocks.size());
 
             for(int i = 0; i < sblocks.size(); i++) {
+               SBlock sblock = sblocks.get(i);
                String blkid = getBlockID(to, i);
 
                // unlock to allow other thread to proceed to update SBlock
                lock.unlock();
 
                try {
-                  sblocks.get(i).waitReady(file);
+                  sblock.waitReady(file);
                }
                finally {
                   lock.lock();
                }
 
-               SNBlock[] snblocks = sblocks.get(i).list();
-               SBlock nsnblk = new SBlock(to, blkid);
-               nsnblk.setLength(sblocks.get(i).getLength());
+               SBlock nsblock = new SBlock(to, blkid);
+               nsblock.setLength(sblock.getLength());
 
-               for(SNBlock snblock : snblocks) {
-                  SNBlock nsn = new SNBlock(to, blkid);
-                  nsn.setLength(snblock.getLength());
+               NBlock renamedfileBlock = !keepGlobalFile ?
+                                         bsys.rename(sblock, nsblock, fromOrgId, toOrgId) :
+                                         bsys.copy(sblock, fromOrgId, nsblock, toOrgId) ;
 
-                  NBlock block = !keepGlobalFile ? bsys.rename(snblock, nsn) : bsys.copy(snblock, fromOrgId, nsn, toOrgId);
-
-                  if(block == null) {
-                     LOG.warn(Tool.convertUserLogInfo(
-                        "Failed to rename block " + snblock.getID() +
-                           " from " + from + " to " + to));
-                  }
+               if(renamedfileBlock == null) {
+                  LOG.warn(Tool.convertUserLogInfo(
+                     "Failed to rename block " + sblock.getID() +
+                        " from " + from + " to " + to));
                }
 
-               nsblocks.add(nsnblk);
+               SNBlock sourceSNBlock = sblock.get();
+               if(sourceSNBlock != null) {
+                  SNBlock targetSNBlock = new SNBlock(to, blkid);
+                  targetSNBlock.setLength(sourceSNBlock.getLength());
+
+                  NBlock renamedBlock = !keepGlobalFile ?
+                                        bsys.rename(sourceSNBlock, targetSNBlock, fromOrgId, toOrgId) :
+                                        bsys.copy(sourceSNBlock, fromOrgId, targetSNBlock, toOrgId);
+
+                  if(renamedBlock == null) {
+                     LOG.warn(Tool.convertUserLogInfo(
+                        "Failed to rename block " + sourceSNBlock.getID() +
+                           " from " + from + " to " + to));
+                  }
+
+                  nsblock.add(targetSNBlock);
+               }
+
+               nsblocks.add(nsblock);
             }
 
             newfile = new XFile(to, nsblocks);
