@@ -213,8 +213,6 @@ public class VSChartDimensionRef extends VSDimensionRef
       if(node != null) {
          link = new Hyperlink();
          link.parseXML(node);
-
-         setHyperlink(Tool.handleAssetLinkOrgMismatch(link));
       }
 
       parseHighlightGroup(elem);
