@@ -80,6 +80,7 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    @Input() highlightConnections: HighlightInfo[];
    @Input() scrollPoint: Point = new Point();
    @Input() selectedGraphNode: GraphNodeModel[];
+   @Input() selectedGraphModels: GraphModel[];
 
    @Output() onCreateAutoAlias = new EventEmitter<string>();
    @Output() onEditInlineView = new EventEmitter<string>();
@@ -259,6 +260,11 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          this.nodes = {};
          this.jsp.deleteEveryConnection();
          this.jsp.deleteEveryEndpoint();
+      }
+
+      if(changes['selectedGraphModels'] && this.selectedGraphModels) {
+         this.dragNodes = [...this.selectedGraphModels];
+         this.refreshDragSelection();
       }
    }
 

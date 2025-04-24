@@ -125,6 +125,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    loadingTree: boolean = false;
    private graphViewModel: GraphViewModel;
    selectedGraphNode: GraphNodeModel[] = [];
+   selectedGraphModels: GraphModel[] = [];
 
    actions: ToolbarAction[] =
       [
@@ -995,11 +996,13 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
    selectNode(node: TreeNodeModel[]): void {
       if(node != null && node.length == 1) {
          this.selectedGraphNode = [];
+         this.selectedGraphModels = [];
          this.selectPhysicalGraphNode(node[0])
          this.changeEditingTable(node[0]);
       }
       else if(node == null) {
          this.selectedGraphNode = [];
+         this.selectedGraphModels = [];
          this.changeEditingTable(null);
       }
       else {
@@ -1026,6 +1029,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
          if(node.data?.path == this.graphViewModel.graphs[i].node.treeLink) {
             this.selectedGraphNode.push(this.graphViewModel.graphs[i].node);
+            this.selectedGraphModels.push(this.graphViewModel.graphs[i]);
          }
       }
    }
