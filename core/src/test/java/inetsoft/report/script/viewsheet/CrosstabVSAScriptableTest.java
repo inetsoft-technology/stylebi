@@ -22,10 +22,9 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-
 import java.awt.*;
 
 import static org.mockito.Mockito.mock;
@@ -37,8 +36,6 @@ public class CrosstabVSAScriptableTest {
 
    private CrosstabVSAScriptable crosstabVSAScriptable;
 
-   private CrosstabVSAssemblyInfo crosstabVSAssemblyInfo;
-
    @BeforeEach
    void setUp() {
       openMocks(this);
@@ -47,7 +44,7 @@ public class CrosstabVSAScriptableTest {
 
       CrosstabVSAssembly crosstabVSAssembly = new CrosstabVSAssembly();
 
-      crosstabVSAssemblyInfo = (CrosstabVSAssemblyInfo) crosstabVSAssembly.getVSAssemblyInfo();
+      CrosstabVSAssemblyInfo crosstabVSAssemblyInfo = (CrosstabVSAssemblyInfo) crosstabVSAssembly.getVSAssemblyInfo();
       crosstabVSAssemblyInfo.setName("crosstab1");
 
       viewsheet.addAssembly(crosstabVSAssembly);
