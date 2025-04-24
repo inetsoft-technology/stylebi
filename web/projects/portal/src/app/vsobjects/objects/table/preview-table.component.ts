@@ -224,18 +224,18 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
       return this._tableData;
    }
 
-   getBackground(cell: BaseTableCellModel) {
+   isHeaderValid(cell: BaseTableCellModel) {
       if(!this.checkHeaderValid) {
-         return cell.vsFormatModel?.background;
+         return true;
       }
 
       let label = this.getCellLabel(cell);
 
       if(FormValidators.matchCalcSpecialCharacters(label)) {
-         return "#fe688b";
+         return false;
       }
 
-      return cell.vsFormatModel?.background;
+      return true;
    }
 
    @Input()
