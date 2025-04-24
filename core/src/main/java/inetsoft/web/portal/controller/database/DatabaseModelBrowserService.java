@@ -398,6 +398,14 @@ public class DatabaseModelBrowserService {
          }
 
          RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+         RenameDependencyInfo extendModelDependencyInfo =
+            DependencyTransformer.createExtendModelDepInfoForFolderChanged(logicalModel, oldFolder, folder);
+
+         if(extendModelDependencyInfo != null &&
+            !ArrayUtils.isEmpty(extendModelDependencyInfo.getAssetObjects()))
+         {
+            RenameTransformHandler.getTransformHandler().addTransformTask(extendModelDependencyInfo);
+         }
       }
       catch(Exception ex) {
          actionRecord.setActionError(ex.getMessage() + ", Target Entry: " + newPath);
