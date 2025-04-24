@@ -66,7 +66,7 @@ public class VSViewsheetModel extends VSObjectModel<Viewsheet> {
     * If any parent assembly has visibility off, apply it to the nested assemblies
     */
    private boolean isOpenActionVisible(ViewsheetVSAssemblyInfo info) {
-      boolean result = true;
+      boolean result = info.isActionVisible("Open");
       Viewsheet vs = info.getViewsheet();
 
       while(result && vs != null) {
