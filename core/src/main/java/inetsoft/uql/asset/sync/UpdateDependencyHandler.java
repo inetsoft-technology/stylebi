@@ -711,7 +711,7 @@ public final class UpdateDependencyHandler {
       }
 
       identifier = Tool.byteDecode(identifier);
-      dependencies.add(AssetEntry.createAssetEntry(identifier));
+      dependencies.add(AssetEntry.createAssetEntryForCurrentOrg(identifier));
    }
 
    private static void getTaskSupportTargetDependencies(Element doc,

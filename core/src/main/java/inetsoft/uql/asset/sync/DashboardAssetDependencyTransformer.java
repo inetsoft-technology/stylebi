@@ -110,7 +110,7 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
 
          identifier = Tool.byteDecode(identifier);
 
-         if(!Tool.equals(identifier, info.getOldName())) {
+         if(!needTransform(identifier, info)) {
             return;
          }
 
@@ -136,6 +136,22 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
          catch(Exception ignore){
          }
       }
+   }
+
+   private boolean needTransform(String identifier, RenameInfo info) {
+      boolean match = Tool.equals(identifier, info.getOldName());
+
+      if(!match && getAssetFile() != null && dashboard != null) {
+         AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+
+         if(!Tool.equals(entry.getOrgID(), dashboard.getOrgID())) {
+            entry.setOrgID(dashboard.getOrgID());
+            identifier = entry.toIdentifier();
+            match = Tool.equals(identifier, info.getOldName());
+         }
+      }
+
+      return match;
    }
 
    private AssetEntry dashboard;
