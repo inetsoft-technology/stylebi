@@ -33,7 +33,7 @@
               [style.border-bottom]="tableData[0][_i].vsFormatModel?.border.bottom"
               [style.border-right]="tableData[0][_i].vsFormatModel?.border.right"
               [style.color]="tableData[0][_i].vsFormatModel?.foreground"
-              [style.background]="tableData[0][_i].vsFormatModel?.background"
+              [style.background]="getBackground(tableData[0][_i])"
               [style.font]="tableData[0][_i].vsFormatModel?.font"
               [class.cell-editor]="renaming  && isSelected(_i, 0)"
               [class.background-clip-padding-box]="isFirefox"
