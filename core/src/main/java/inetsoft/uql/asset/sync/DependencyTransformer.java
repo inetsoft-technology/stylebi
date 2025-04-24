@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
@@ -1371,7 +1372,20 @@ public abstract class DependencyTransformer {
    protected Document getAssetFileDoc() throws Exception {
       try(InputStream input = new FileInputStream(getAssetFile())) {
          if(input.available() > 0) {
-            return Tool.parseXML(input, "UTF-8", false, false);
+            Document document = Tool.parseXML(input, "UTF-8", false, false);
+            Element root = getChildNode(document.getDocumentElement(), "./assembly");
+            NodeList linkList = getChildNodes(root, ".//Hyperlink");
+
+            for(int i = 0; i < linkList.getLength(); i++) {
+               String link = Tool.getAttribute((Element) linkList.item(i), "Link");
+
+               if(link != null) {
+                  ((Element) linkList.item(i)).setAttribute("Link",
+                     Hyperlink.handleAssetLinkOrgMismatch(link));
+               }
+            }
+
+            return document;
          }
       }
 

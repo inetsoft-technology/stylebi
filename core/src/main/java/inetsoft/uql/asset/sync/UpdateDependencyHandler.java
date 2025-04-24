@@ -885,12 +885,13 @@ public final class UpdateDependencyHandler {
          int linkType = Integer.parseInt(Tool.getAttribute(link, "LinkType"));
          String linkName = Tool.getAttribute(link, "Link");
 
+
          if(Tool.isEmptyString(linkName)) {
             continue;
          }
 
          if(linkType == Hyperlink.VIEWSHEET_LINK){
-            dependencies.add(AssetEntry.createAssetEntry(linkName));
+            dependencies.add(AssetEntry.createAssetEntry(Hyperlink.handleAssetLinkOrgMismatch(linkName)));
          }
       }
    }
