@@ -115,10 +115,18 @@ export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
       });
       this.nameGroup.get("name").valueChanges.pipe(
          takeUntil(this.destroy$),
-         tap(value => this.datasource.name = value),
+         tap(value => this.updateDatasourceName(value)),
          map(() => this.nameValid)
       )
          .subscribe(v => this.nameValid$.next(v));
+   }
+
+   updateDatasourceName(value: string): void {
+      if(!this.datasource.oldName) {
+         this.datasource.oldName = this.datasource.name;
+      }
+
+      this.datasource.name = value;
    }
 
    ngOnInit(): void {

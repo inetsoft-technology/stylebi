@@ -36,6 +36,14 @@ public class BaseDataSourceDefinition {
       this.name = name;
    }
 
+   public String getOldName() {
+      return oldName;
+   }
+
+   public void setOldName(String oldName) {
+      this.oldName = oldName;
+   }
+
    public String getDescription() {
       return description;
    }
@@ -61,6 +69,7 @@ public class BaseDataSourceDefinition {
    }
 
    private String name;
+   private String oldName;
    private String description;
    private String parentPath;
 }

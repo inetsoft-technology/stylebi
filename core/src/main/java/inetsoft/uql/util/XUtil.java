@@ -4800,6 +4800,7 @@ public final class XUtil {
    public static final String DATASOURCE_ADDITIONAL = "additional";
    public static final String DATAMODEL_FOLDER_SPLITER = "^__^";
    public static final String DATAMODEL_PATH_SPLITER = "^";
+   public static final String ADDITIONAL_DS_CONNECTOR = "::";
 
    private static final Logger LOG = LoggerFactory.getLogger(XUtil.class);
 
