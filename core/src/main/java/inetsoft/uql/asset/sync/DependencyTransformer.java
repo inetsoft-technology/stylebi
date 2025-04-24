@@ -1450,10 +1450,12 @@ public abstract class DependencyTransformer {
       RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
       String datasource = model.getDataSource();
       String baseModelName = model.getName();
+      String pathSpliter = XUtil.DATAMODEL_PATH_SPLITER;
+      String folderSpliter = XUtil.DATAMODEL_FOLDER_SPLITER;
 
       for(String extendModelName : extendModelNames) {
-         List<AssetObject> modelDependencies =
-            getModelDependencies(model.getDataSource() + "/" + baseModelName + "/" + extendModelName);
+         List<AssetObject> modelDependencies = getModelDependencies(
+            Tool.buildString(model.getDataSource(), "/", baseModelName, "/", extendModelName));
 
          if(modelDependencies == null) {
             continue;
@@ -1461,12 +1463,14 @@ public abstract class DependencyTransformer {
 
          int type = RenameInfo.LOGIC_MODEL | RenameInfo.FOLDER;
          RenameInfo rinfo = new RenameInfo(baseModelName, baseModelName, type);
-         String oldBasePath = Tool.isEmptyString(oldFolderName) || "/".equals(oldFolderName) ?
-            "^" + baseModelName : XUtil.DATAMODEL_FOLDER_SPLITER + oldFolderName + "^" + baseModelName;
-         String newBasePath = Tool.isEmptyString(newFolderName) || "/".equals(newFolderName) ?
-            "^" + baseModelName : XUtil.DATAMODEL_FOLDER_SPLITER + newFolderName + "^" + baseModelName;
-         rinfo.setOldPath(datasource + oldBasePath + "^" + extendModelName);
-         rinfo.setNewPath(datasource + newBasePath + "^" + extendModelName);
+         String oldBasePath = Tool.isEmptyString(oldFolderName) || "/".equals(oldFolderName)
+            ? Tool.buildString(pathSpliter, baseModelName)
+            : Tool.buildString(folderSpliter, oldFolderName, pathSpliter, baseModelName);
+         String newBasePath = Tool.isEmptyString(newFolderName) || "/".equals(newFolderName)
+            ? Tool.buildString(pathSpliter, baseModelName)
+            : Tool.buildString(folderSpliter, newFolderName, pathSpliter, baseModelName);
+         rinfo.setOldPath(Tool.buildString(datasource, oldBasePath, pathSpliter, extendModelName));
+         rinfo.setNewPath(Tool.buildString(datasource, newBasePath, pathSpliter, extendModelName));
 
          for(AssetObject modelDependency : modelDependencies) {
             renameDependencyInfo.addRenameInfo(modelDependency, rinfo);
