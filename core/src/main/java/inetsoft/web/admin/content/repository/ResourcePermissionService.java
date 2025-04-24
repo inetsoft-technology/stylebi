@@ -24,8 +24,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XUtil;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.admin.security.ResourcePermissionTableModel;
@@ -571,6 +570,7 @@ public class ResourcePermissionService {
 
    boolean isIdentityAuthorized(IdentityID identity, Identity.Type type, Principal principal) {
       final ResourceType resourceType;
+      ThreadContext.setContextPrincipal(principal);
 
       // Only show users from the same organization and site admins (if permission allows)
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
