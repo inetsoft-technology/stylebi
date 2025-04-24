@@ -864,7 +864,6 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
       return link;
    }
 
-
    /**
     * Check if the hyperlink is created by script.
     * @return

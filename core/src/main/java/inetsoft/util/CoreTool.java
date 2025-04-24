@@ -18,11 +18,9 @@
 package inetsoft.util;
 
 import com.google.common.collect.ImmutableMap;
-import inetsoft.report.Hyperlink;
 import inetsoft.report.pdf.PDFDevice;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.web.viewsheet.command.MessageCommand.Type;
@@ -3745,7 +3743,6 @@ public class CoreTool {
          return null;
       }
    }
-
 
    // date time format cache
    static final FormatCache DATETIME_FORMAT_CACHE =
