@@ -136,7 +136,7 @@
     </form>
 
     <div class="preview-container" *ngIf="previewTable && this.form.valid">
-      <preview-table [tableData]="previewTable" [runtimeId]="worksheet.runtimeId"
+      <preview-table [tableData]="previewTable" [runtimeId]="worksheet.runtimeId" [checkHeaderValid]="true"
                      [formattingEnabled]="false" [draggable]="false" [hideEnabled]="false"
                      (onRename)="onHeaderRename($event)">
       </preview-table>

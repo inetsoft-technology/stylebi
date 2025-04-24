@@ -419,6 +419,7 @@ export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
       this.previewTable = result.previewTable;
       this.setEnabled();
       this.model.headerNames = null;
+      this.validateHeaders0();
       let message = result.validator.message;
 
       if(message) {
@@ -512,6 +513,25 @@ export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
                   return;
                }
             }
+         }
+      }
+   }
+
+   validateHeaders0() {
+      if(!this.previewTable && this.previewTable.length <= 0) {
+         return;
+      }
+
+      let cols = this.previewTable[0].length;
+      this.duplicateHeaders = false;
+      this.invalidCharacters = false;
+
+      for(let col0 = 0; col0 < cols; col0 ++) {
+         let header = this.previewTable[0][col0].cellData.toString();
+
+         if(FormValidators.matchCalcSpecialCharacters(header)) {
+            this.invalidCharacters = true;
+            return;
          }
       }
    }
