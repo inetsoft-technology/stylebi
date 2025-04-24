@@ -126,7 +126,7 @@ export class EditDashboardDialog implements OnInit {
             .subscribe((duplicate) => {
                if(duplicate) {
                   ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                     "_#(js:viewer.nameValid)");
+                     "_#(js:viewer.dashboard.nameValid)");
                }
                else {
                   this.http.post<DashboardModel>(NEW_DASHBOARD_URI, newDashboard)
