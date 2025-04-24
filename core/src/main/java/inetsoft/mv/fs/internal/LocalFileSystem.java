@@ -393,6 +393,7 @@ public final class LocalFileSystem extends AbstractFileSystem {
                }
 
                SNBlock sourceSNBlock = sblock.get();
+
                if(sourceSNBlock != null) {
                   SNBlock targetSNBlock = new SNBlock(to, blkid);
                   targetSNBlock.setLength(sourceSNBlock.getLength());
