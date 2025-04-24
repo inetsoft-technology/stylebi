@@ -84,6 +84,7 @@ import { FlatTreeNodeMenu, FlatTreeNodeMenuItem } from "../../../common/util/tre
 import { ToggleTaskResponse } from "../model/toggle-task-response";
 import { ScheduleTaskDragService } from "./schedule-task-drag.service";
 import { ScheduleFolderTreeAction } from "../schedule-folder-tree/schedule-folder-tree-action";
+import { convertToKey } from "../../security/users/identity-id";
 
 const GET_SCHEDULED_TASKS_URI = "../api/em/schedule/scheduled-tasks";
 const NEW_TASKS_URI = "../api/em/schedule/new";
@@ -102,6 +103,7 @@ const ASSET_FILE_BACKUP = "__asset file backup__";
 const BALANCE_TASKS = "__balance tasks__";
 const UPDATE_ASSETS_DEPENDENCIES = "__update assets dependencies__";
 const SYSTEM_USER = "INETSOFT_SYSTEM";
+
 
 export enum DistributionType {
    WEEK, DAY, HOUR
@@ -777,7 +779,8 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
 
    private mergeChange(change: ScheduleTaskChange): void {
       const list = this.tasks.slice();
-      const index = list.findIndex(t => t.name === change.name);
+      const index = list.findIndex(t => t.name === change.name || change.type == "REMOVED" &&
+         change.name === convertToKey(t.owner) + ":" + t.name);
 
       if(index >= 0) {
          if(change.type === "REMOVED") {
