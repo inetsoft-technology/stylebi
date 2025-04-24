@@ -22,6 +22,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.ConditionUtil;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.CalculateRef;
+import inetsoft.util.Tool;
 
 import java.util.*;
 
@@ -107,8 +108,17 @@ public final class SelectionDownTransformer extends AbstractTransformer {
 
          // if parent table condition column used sub-table's aggregate column,
          // do not move down, fix bug1309172158406
-         if(cainfo != null && cainfo.getAggregate(arr[0]) != null) {
-            return false;
+         if(cainfo != null) {
+           if(cainfo.getAggregate(arr[0]) != null) {
+              return false;
+           }
+
+            // check the existence of the aggregate by the attribute
+            for(AggregateRef aggr : cainfo.getAggregates()) {
+               if(Tool.equals(aggr.getAttribute(), arr[0].getAttribute())) {
+                  return false;
+               }
+            }
          }
 
          // this selection comes from operations such as brush, zoom,
