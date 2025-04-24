@@ -239,11 +239,10 @@ public class ResourcePermissionService {
       }
 
       Permission permission = provider.getPermission(resourceType, oldPath);
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(permission != null) {
          securityProvider.setPermission(ResourceType.ASSET, newPath, permission);
-         securityProvider.removePermission(ResourceType.ASSET, oldPath, orgID);
+         securityProvider.removePermission(ResourceType.ASSET, oldPath);
       }
    }
 

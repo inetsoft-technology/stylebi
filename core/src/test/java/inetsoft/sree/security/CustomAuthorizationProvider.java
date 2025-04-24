@@ -41,18 +41,6 @@ public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
       permissions.remove(new Resource(type, resource));
    }
 
-
-   @Override
-   public void removePermission(ResourceType type, String resource, String orgID) {
-      Permission perm = permissions.get(new Resource(type, resource));
-
-      for(ResourceAction action: ResourceAction.values()) {
-         perm.cleanOrganizationFromPermission(action, orgID);
-      }
-
-      setPermission(type, resource, perm);
-   }
-
    @Override
    public void removePermission(ResourceType type, IdentityID resource) {
       permissions.remove(new Resource(type, resource.convertToKey()));
