@@ -1037,8 +1037,6 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       if(lnode != null) {
          Hyperlink link = new Hyperlink();
          link.parseXML((Element) lnode.getFirstChild());
-
-         linkValue.setDValue(Tool.handleAssetLinkOrgMismatch(link));
       }
 
       Element rnode = Tool.getChildNodeByTagName(elem, "hyperLinkRef");

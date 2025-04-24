@@ -664,8 +664,6 @@ public class VSChartAggregateRef extends VSAggregateRef
       if(node != null) {
          link = new Hyperlink();
          link.parseXML(node);
-
-         setHyperlink(Tool.handleAssetLinkOrgMismatch(link));
       }
 
       node = Tool.getChildNodeByTagName(elem, "summaryColorVisualFrame");
