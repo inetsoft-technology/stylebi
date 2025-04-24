@@ -608,11 +608,10 @@ public class DataSetService {
 
       // get permission for originally named resource
       Permission oldPermission = securityProvider.getPermission(ResourceType.ASSET, path);
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       assetRepository.changeSheet(oldEntry, newEntry, principal, true);
       securityProvider.setPermission(ResourceType.ASSET, newPath, oldPermission);
-      securityProvider.removePermission(ResourceType.ASSET, info.path(), orgID);
+      securityProvider.removePermission(ResourceType.ASSET, info.path());
    }
 
    public void renameFolder(String auditPath, WorksheetBrowserInfo info, String newName,
@@ -622,7 +621,6 @@ public class DataSetService {
          ActionRecord.ACTION_NAME_RENAME, auditPath, ActionRecord.OBJECT_TYPE_FOLDER, null,
          ActionRecord.ACTION_STATUS_SUCCESS, "Target Entry: " + newName);
       newName = SUtil.removeControlChars(newName);
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       try {
          String oldPath = info.path();
@@ -646,7 +644,7 @@ public class DataSetService {
          assetRepository.changeFolder(oldEntry, newEntry, principal, true);
 
          securityProvider.setPermission(ResourceType.ASSET, newPath, oldPermission);
-         securityProvider.removePermission(ResourceType.ASSET, oldPath, orgID);
+         securityProvider.removePermission(ResourceType.ASSET, oldPath);
       }
       catch (Exception ex) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -988,7 +986,6 @@ public class DataSetService {
       RecycleBin recycleBin = RecycleBin.getRecycleBin();
       IdentityID user = getUser(principal, scope);
       AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.FOLDER, path, user);
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       if(!assetRepository.containsEntry(entry)) {
          throw new FileNotFoundException(entry.getPath());
@@ -998,7 +995,7 @@ public class DataSetService {
 
       if(RecycleUtils.isInRecycleBin(path)) {
          assetRepository.removeFolder(entry, principal, true);
-         securityProvider.removePermission(ResourceType.ASSET, path, orgID);
+         securityProvider.removePermission(ResourceType.ASSET, path);
          recycleBin.removeEntry(path);
       }
       else {
@@ -1026,7 +1023,7 @@ public class DataSetService {
 
          assetRepository.changeFolder(entry, newEntry, principal, true);
 
-         securityProvider.removePermission(ResourceType.ASSET, entry.getPath(), orgID);
+         securityProvider.removePermission(ResourceType.ASSET, entry.getPath());
          securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), oldPermission);
 
          recycleBin.addEntry(newEntry.getPath(), entry.getPath(), entry.getName(),
@@ -1044,7 +1041,6 @@ public class DataSetService {
    {
       IdentityID user = getUser(principal, scope);
       AssetEntry entry = new AssetEntry(scope, AssetEntry.Type.WORKSHEET, path, user);
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       if(!assetRepository.containsEntry(entry)) {
          throw new FileNotFoundException(path);
@@ -1052,14 +1048,14 @@ public class DataSetService {
 
       if(RecycleUtils.isInRecycleBin(path)) {
          assetRepository.removeSheet(entry, principal, true);
-         securityProvider.removePermission(ResourceType.ASSET, path, orgID);
+         securityProvider.removePermission(ResourceType.ASSET, path);
 
          RecycleBin recycleBin = RecycleBin.getRecycleBin();
          recycleBin.removeEntry(entry.getPath());
       }
       else if(force) {
          assetRepository.removeSheet(entry, principal, true);
-         securityProvider.removePermission(ResourceType.ASSET, path, orgID);
+         securityProvider.removePermission(ResourceType.ASSET, path);
       }
       else {
          moveSheetToBin(entry, scope, principal);
@@ -1287,7 +1283,6 @@ public class DataSetService {
    private void moveSheetToBin(AssetEntry oldEntry, int scope, Principal principal) throws Exception {
       oldEntry = assetRepository.getAssetEntry(oldEntry);
       String newName = UUID.randomUUID().toString().replaceAll("-", "");
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       IdentityID user = getUser(principal, scope);
       AssetEntry newEntry = new AssetEntry(scope, oldEntry.getType(),
                                            RecycleUtils.getRecycleBinPath(newName), user);
@@ -1306,7 +1301,7 @@ public class DataSetService {
 
       assetRepository.changeSheet(oldEntry, newEntry, principal, true);
 
-      securityProvider.removePermission(ResourceType.ASSET, oldEntry.getPath(), orgID);
+      securityProvider.removePermission(ResourceType.ASSET, oldEntry.getPath());
       securityProvider.setPermission(ResourceType.ASSET, newEntry.getPath(), permission);
       SecurityEngine.touch();
 

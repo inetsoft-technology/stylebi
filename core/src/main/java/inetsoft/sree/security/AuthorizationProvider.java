@@ -58,15 +58,6 @@ public interface AuthorizationProvider
    void removePermission(ResourceType type, String resource);
 
    /**
-    * Clears org scoped permissions on the specified resource.
-    *
-    * @param type     the resource type.
-    * @param resource the resource name, such as a replet path or a saved report path.
-    * @param orgID    the organization to clear permissions from.
-    */
-   void removePermission(ResourceType type, String resource, String orgID);
-
-   /**
     * Clears all permissions on the specified identity.
     *
     * @param type     the resource type.
