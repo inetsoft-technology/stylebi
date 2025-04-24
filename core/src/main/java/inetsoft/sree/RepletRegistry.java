@@ -263,7 +263,7 @@ public class RepletRegistry implements Serializable {
          space.copy(oapath, napath);
       }
 
-      RepletRegistry.changeOrgID(nID, oID.getOrgID(), nID.getOrgID());
+      RepletRegistry.changeOrgID(oID, oID.getOrgID(), nID.getOrgID());
    }
 
    /**
@@ -288,18 +288,22 @@ public class RepletRegistry implements Serializable {
             newRegistry = getRegistryCache().get(getRegistryKey(null, nOrgID));
          }
 
-         Hashtable<String, String> oldFolderMap = oldRegistry.getFolderMap();
-         Hashtable<String, String> newFolderMap = newRegistry.getFolderMap();
-         newFolderMap.putAll(oldFolderMap);
-         oldFolderMap.clear();
+         //Bug #70909, in the case of matching orgID, old and new are same object, updating is extraneous
+         //clearing will lose newRegistry too, so only put and clear if different objects to prevent loss of data
+         if(oldRegistry != newRegistry) {
+            Hashtable<String, String> oldFolderMap = oldRegistry.getFolderMap();
+            Hashtable<String, String> newFolderMap = newRegistry.getFolderMap();
+            newFolderMap.putAll(oldFolderMap);
+            oldFolderMap.clear();
 
-         Hashtable<String, FolderContext> oldFolderContextMap = oldRegistry.getFolderContextmap();
-         Hashtable<String, FolderContext> newFolderContextMap = newRegistry.getFolderContextmap();
-         newFolderContextMap.putAll(oldFolderContextMap);
-         oldFolderContextMap.clear();
+            Hashtable<String, FolderContext> oldFolderContextMap = oldRegistry.getFolderContextmap();
+            Hashtable<String, FolderContext> newFolderContextMap = newRegistry.getFolderContextmap();
+            newFolderContextMap.putAll(oldFolderContextMap);
+            oldFolderContextMap.clear();
 
-         oldRegistry.save();
-         newRegistry.save();
+            oldRegistry.save();
+            newRegistry.save();
+         }
       }
       catch(Exception ex) {
          LOG.error("Failed to move private folders from " + oOrgID + " to " + nOrgID, ex);
