@@ -18,29 +18,22 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.viewsheet.CrosstabVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.ArrayList;
 import java.util.List;
-
-import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 public class VSCrosstabBindingScriptableTest {
-   private ViewsheetSandbox viewsheetSandbox ;
 
    private CrosstabVSAScriptable crosstabVSAScriptable;
-
-   private CrosstabVSAssemblyInfo crosstabVSAssemblyInfo;
 
    private VSCrosstabBindingScriptable vsCrosstabBindingScriptable;
 
@@ -52,12 +45,12 @@ public class VSCrosstabBindingScriptableTest {
 
       CrosstabVSAssembly crosstabVSAssembly = new CrosstabVSAssembly();
 
-      crosstabVSAssemblyInfo = (CrosstabVSAssemblyInfo) crosstabVSAssembly.getVSAssemblyInfo();
+       CrosstabVSAssemblyInfo crosstabVSAssemblyInfo = (CrosstabVSAssemblyInfo) crosstabVSAssembly.getVSAssemblyInfo();
       crosstabVSAssemblyInfo.setName("crosstab1");
 
       viewsheet.addAssembly(crosstabVSAssembly);
 
-      viewsheetSandbox = mock(ViewsheetSandbox.class);
+      ViewsheetSandbox viewsheetSandbox = mock(ViewsheetSandbox.class);
       when(viewsheetSandbox.getID()).thenReturn("vs-crosstab-1");
       when(viewsheetSandbox.getViewsheet()).thenReturn(viewsheet);
 
@@ -80,14 +73,14 @@ public class VSCrosstabBindingScriptableTest {
       vsCrosstabBindingScriptable.setMeasureFields(measureFields);
       vsCrosstabBindingScriptable.setFormula("measure1", XConstants.SUM_FORMULA, null);
       vsCrosstabBindingScriptable.setPercentageType("measure1", "16");
-      vsCrosstabBindingScriptable.setPercentageMode( "2");
+      vsCrosstabBindingScriptable.setPercentageMode("2");
       vsCrosstabBindingScriptable.setFormula("measure2", XConstants.AVERAGE_FORMULA, "row2");
 
       assert vsCrosstabBindingScriptable.getRowFields().equals(List.of("row1", "row2"));
       assert vsCrosstabBindingScriptable.getColFields().equals(List.of("col1", "col2"));
       assert vsCrosstabBindingScriptable.getMeasureFields().equals(List.of("measure1", "measure2"));
       assert vsCrosstabBindingScriptable.getFormula("measure1").equals(XConstants.SUM_FORMULA);
-      assert vsCrosstabBindingScriptable.getPercentageMode() == "2";
+      assert vsCrosstabBindingScriptable.getPercentageMode().equals("2");
       assert vsCrosstabBindingScriptable.getPercentageType("measure1").equals("16");
 
       vsCrosstabBindingScriptable.setShowRowTotal(true);
@@ -100,7 +93,7 @@ public class VSCrosstabBindingScriptableTest {
 
       vsCrosstabBindingScriptable.setTimeSeries("row1", true);
       assert vsCrosstabBindingScriptable.isTimeSeries("row1");
- }
+   }
 
    @Test
    void testTopNFunctions() {
@@ -112,14 +105,14 @@ public class VSCrosstabBindingScriptableTest {
      vsCrosstabBindingScriptable.setShowColumnTotal(true);
 
      vsCrosstabBindingScriptable.setTopN("name", XConstants.ROW_HEADER, 3);
-     vsCrosstabBindingScriptable.setTopNSummaryCol("name", XConstants.ROW_HEADER, "sum(total)");
+     vsCrosstabBindingScriptable.setTopNSummaryCol("name", XConstants.ROW_HEADER, "Sum(total)");
      vsCrosstabBindingScriptable.setTopNReverse("name", XConstants.ROW_HEADER, false);
      vsCrosstabBindingScriptable.setGroupOthers("name", XConstants.ROW_HEADER, true);
      vsCrosstabBindingScriptable.setGroupOrder("date", XConstants.COL_HEADER,XConstants.YEAR_DATE_GROUP);
      vsCrosstabBindingScriptable.setGroupTotal("date", XConstants.COL_HEADER, "show");
 
      assert vsCrosstabBindingScriptable.getTopN("name", XConstants.ROW_HEADER) == 3;
-     assert vsCrosstabBindingScriptable.getTopNSummaryCol("name", XConstants.ROW_HEADER).equals("sum(total)");
+     assert vsCrosstabBindingScriptable.getTopNSummaryCol("name", XConstants.ROW_HEADER).equals("Sum(total)");
      assert !vsCrosstabBindingScriptable.isTopNReverse("name", XConstants.ROW_HEADER);
      assert vsCrosstabBindingScriptable.isGroupOthers("name", XConstants.ROW_HEADER);
      assert vsCrosstabBindingScriptable.getGroupOrder("date", XConstants.COL_HEADER) == XConstants.YEAR_DATE_GROUP;

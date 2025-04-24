@@ -53,7 +53,6 @@ public class ViewsheetScopeTest {
       new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
 
    private ViewsheetScope viewsheetScope;
-   private Worksheet worksheet;
    private ViewsheetSandbox sandbox;
    ViewsheetService viewsheetService = mock(ViewsheetService.class);
 
@@ -70,7 +69,7 @@ public class ViewsheetScopeTest {
    }
 
    private XEmbeddedTable getXEmbeddedTable() {
-      worksheet = sandbox.getViewsheet().getOriginalWorksheet();
+       Worksheet worksheet = sandbox.getViewsheet().getOriginalWorksheet();
       return ((EmbeddedTableAssembly) worksheet.getAssembly("Query1")).getEmbeddedData();
    }
 
@@ -112,17 +111,15 @@ public class ViewsheetScopeTest {
 
    @Test
    void testAppendRowWithTypeMismatchThrowsException() {
-      RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-         viewsheetScope.appendRow("Query1", new Object[]{2, true, null, null});
-      });
+      RuntimeException exception = assertThrows(RuntimeException.class, () ->
+         viewsheetScope.appendRow("Query1", new Object[]{2, true, null, null}));
       assertEquals("Failed to append row. Check order and data type!", exception.getMessage());
    }
 
    @Test
    void testAppendRowWithColCountMismatchThrowsException() {
-      RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-         viewsheetScope.appendRow("Query1", new Object[]{2, true, null});
-      });
+      RuntimeException exception = assertThrows(RuntimeException.class, () ->
+         viewsheetScope.appendRow("Query1", new Object[]{2, true, null}));
       assertEquals("Failed to append row. Check order and data type!", exception.getMessage());
    }
 
@@ -161,9 +158,8 @@ public class ViewsheetScopeTest {
    void testExecuteScript() throws Exception {
       Object result = viewsheetScope.execute("fields","TableView1", false);
 
-      if (result instanceof List<?>) {
-         List<?> resultList = (List<?>) result;
-         List<String> actual = resultList.stream()
+      if (result instanceof List<?> resultList) {
+          List<String> actual = resultList.stream()
             .map(ref -> ((ColumnRef) ref).getName())
             .collect(Collectors.toList());
 
@@ -179,9 +175,8 @@ public class ViewsheetScopeTest {
 
    @Test
    void testExecuteThrowRuntimeException() {
-      RuntimeException exception = assertThrows(RuntimeException.class, () -> {
-         viewsheetScope.execute("sadad","TableView1", true);
-      });
+      RuntimeException exception = assertThrows(RuntimeException.class, () ->
+         viewsheetScope.execute("test","TableView1", true));
       assert exception.getMessage().replace("\n", " ")
          .contains("Script execution error in assembly: TableView1");
    }
