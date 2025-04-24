@@ -17,11 +17,11 @@
  */
 package inetsoft.web.admin.schedule;
 
-import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
-import inetsoft.util.Catalog;
+import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeModel;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
@@ -94,6 +94,12 @@ public class EMScheduleTaskFolderController {
    public ContentRepositoryTreeModel getFolder(Principal principal)
            throws Exception
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       AssetEntry rootEntry = scheduleTaskFolderService.getRootEntry();
       List<ContentRepositoryTreeNode> children = getSubTree(rootEntry, principal);
 

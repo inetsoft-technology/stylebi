@@ -19,8 +19,7 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.util.Tool;
-import inetsoft.util.UserMessage;
+import inetsoft.util.*;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.factory.DecodePathVariable;
@@ -136,6 +135,12 @@ public class OrganizationController {
                                 @DecodePathVariable("provider") String provider,
                                 @AuditUser Principal principal) throws Exception
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       userTreeService.editOrganization(model, provider, principal);
       OrganizationManager.getInstance().reset();
       UserMessage message = Tool.getUserMessage();

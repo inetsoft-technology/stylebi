@@ -440,6 +440,10 @@ public class UserTreeService {
 
          String currOrgID =  OrganizationManager.getInstance().getCurrentOrgID();
 
+         if(provider.getOrganization(currOrgID) == null) {
+            throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+         }
+
          FSGroup identity = null;
 
          for(int i = 0; identity == null; i++) {
@@ -496,6 +500,10 @@ public class UserTreeService {
 
       final AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(selectedProvider);
+
+      if(currentProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       if((!SUtil.isMultiTenant() || !securityEngine.isSecurityEnabled()) && isGroupRoot(groupID, principal) &&
          (getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP,
@@ -595,6 +603,12 @@ public class UserTreeService {
       IdentityID newID = new IdentityID(model.name(), model.organization());
       IdentityID root = new IdentityID("Groups", model.organization());
 
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       if(isGroupRoot(new IdentityID(model.name(), group.orgID), principal)) {
          if(getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, root.convertToKey(), ResourceAction.ADMIN) ||
             getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, new IdentityID(model.name(), model.organization()).convertToKey(), ResourceAction.ADMIN))
@@ -650,6 +664,11 @@ public class UserTreeService {
          authenticationProviderService.getProviderByName(providerName);
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
       ThreadContext.setContextPrincipal(principal);
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       try {
          if(!(provider instanceof EditableAuthenticationProvider)) {
@@ -657,7 +676,6 @@ public class UserTreeService {
          }
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
-         String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
          String prefix = "user";
          FSUser identity;
 
@@ -737,6 +755,11 @@ public class UserTreeService {
       AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(provider);
       String rootUser = "Users";
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       if(rootUser.equals(userName.name) &&
          (getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER, new IdentityID(rootUser, OrganizationManager.getInstance().getCurrentOrgID()).convertToKey(), ResourceAction.ADMIN) ||
@@ -747,7 +770,6 @@ public class UserTreeService {
 
       User user = currentProvider.getUser(userName);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(SUtil.isMultiTenant()) {
          if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
@@ -928,6 +950,10 @@ public class UserTreeService {
    public EditOrganizationPaneModel getOrganizationModel(String provider, IdentityID orgID, Principal principal) {
       AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(provider);
+
+      if(currentProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       if(Catalog.getCatalog(principal).getString("Organizations").equals(orgID.name) &&
          getSecurityProvider().checkPermission(

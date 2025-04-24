@@ -19,6 +19,8 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.InvalidOrgException;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.factory.DecodePathVariable;
@@ -77,6 +79,12 @@ public class UserController {
                         @DecodePathVariable("provider") String provider,
                         @AuditUser Principal principal) throws Exception
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       userTreeService.editUser(model, provider, principal);
       HttpSession session = request.getSession(true);
       Object ticket = session.getAttribute(SUtil.TICKET);

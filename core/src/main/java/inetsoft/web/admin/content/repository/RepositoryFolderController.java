@@ -17,7 +17,8 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.*;
+import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.repository.model.SetRepositoryFolderTableModel;
 import inetsoft.web.admin.security.ConnectionStatus;
@@ -42,6 +43,12 @@ public class RepositoryFolderController {
       Principal principal)
       throws Exception
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       return this.repositoryFolderService.getSettings(path, isWorksheetFolder, ownerID, principal);
    }

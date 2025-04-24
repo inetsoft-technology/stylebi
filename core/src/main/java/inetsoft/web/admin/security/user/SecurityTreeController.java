@@ -17,8 +17,9 @@
  */
 package inetsoft.web.admin.security.user;
 
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
+import inetsoft.util.*;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.factory.DecodePathVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,12 @@ public class SecurityTreeController {
                                                 Principal principal)
    {
       IdentityID[] identityNames = {};
+
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       if(type == Identity.USER) {
          identityNames = service.getFilteredUsers(providerName, principal).toArray(new IdentityID[0]);

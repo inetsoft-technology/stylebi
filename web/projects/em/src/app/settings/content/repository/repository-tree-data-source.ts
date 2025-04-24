@@ -17,12 +17,14 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Injectable, NgZone, OnDestroy } from "@angular/core";
+import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { BehaviorSubject, observable, Observable, of, Subject } from "rxjs";
-import { map, tap } from "rxjs/operators";
+import { catchError, map, tap } from "rxjs/operators";
 import { RepositoryEntryType, } from "../../../../../../shared/data/repository-entry-type.enum";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../../../../shared/stomp/stomp-client.service";
 import { Tool } from "../../../../../../shared/util/tool";
+import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { FlatTreeDataSource } from "../../../common/util/tree/flat-tree-data-source";
 import {
    FlatTreeNodeMenu,
@@ -130,7 +132,9 @@ export class RepositoryTreeDataSource
       }
    };
 
-   constructor(private http: HttpClient, private client: StompClientService, private zone: NgZone) {
+   constructor(private http: HttpClient, private client: StompClientService,
+               private zone: NgZone, private dialog: MatDialog)
+   {
       super();
       this.connectSocket(true);
    }
@@ -202,7 +206,24 @@ export class RepositoryTreeDataSource
       }
 
       return this.http.post<TreeDataModel<RepositoryTreeNode>>("../api/em/content/repository/tree", expandedUsers)
-         .pipe(map((model) => this.transform(model, 0)));
+         .pipe(
+            catchError(error => {
+               const orgInvalid = error.error.type === "InvalidOrgException";
+
+               if(orgInvalid) {
+                  this.dialog.open(MessageDialog, <MatDialogConfig>{
+                     width: "350px",
+                     data: {
+                        title: "_#(js:Error)",
+                        content: error.error.message,
+                        type: MessageDialogType.ERROR
+                     }
+                  });
+               }
+
+               return of(null);
+            }),
+            map((model) => this.transform(model, 0)));
    }
 
    /**
@@ -410,6 +431,24 @@ export class RepositoryTreeDataSource
             .set("path", Tool.byteEncode(node.data.path))
             .set("owner", Tool.byteEncode(convertToKey(node.data.owner)));
          return this.http.get<any>("../api/em/content/repository/tree", { params }).pipe(
+            catchError(error => {
+               const orgInvalid = error.error.type === "InvalidOrgException";
+
+               const errContent: string = orgInvalid
+                  ? error.error.message
+                  : "_#(js:em.security.orgAdmin.identityPermissionDenied)";
+
+               this.dialog.open(MessageDialog, <MatDialogConfig>{
+                  width: "350px",
+                  data: {
+                     title: "_#(js:Error)",
+                     content: errContent,
+                     type: MessageDialogType.ERROR
+                  }
+               });
+
+               return of(null);
+            }),
             tap(((result: TreeDataModel<RepositoryTreeNode>) => {
                if(result && this.lazyLoadChildrenFilter) {
                   this.lazyLoadChildrenFilter(result.nodes);

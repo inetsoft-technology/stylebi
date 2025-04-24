@@ -71,11 +71,15 @@ export class EditIdentityPaneComponent implements OnChanges {
             const userUri = "../api/em/security/providers/" + provider + "/users/" + identity + "/";
             model$ = this.http.get<EditUserPaneModel>(userUri).pipe(
                catchError(error => {
+                  const orgInvalid = error.error.type == "InvalidOrgException";
+                  const errContent: string = orgInvalid ? error.error.message :
+                                             "_#(js:em.security.orgAdmin.identityPermissionDenied)";
+
                   this.dialog.open(MessageDialog, <MatDialogConfig>{
                      width: "350px",
                      data: {
                         title: "_#(js:Error)",
-                        content: "_#(js:em.security.orgAdmin.identityPermissionDenied)",
+                        content: errContent,
                         type: MessageDialogType.ERROR
                      }
                   });
@@ -87,11 +91,15 @@ export class EditIdentityPaneComponent implements OnChanges {
             const groupUri = "../api/em/security/providers/" + provider + "/groups/" + identity + "/";
             model$ = this.http.get<EditGroupPaneModel>(groupUri).pipe(
                catchError(error => {
+                  const orgInvalid = error.error.type == "InvalidOrgException";
+                  const errContent: string = orgInvalid ? error.error.message :
+                                             "_#(js:em.security.orgAdmin.identityPermissionDenied)";
+
                   this.dialog.open(MessageDialog, <MatDialogConfig>{
                      width: "350px",
                      data: {
                         title: "_#(js:Error)",
-                        content: "_#(js:em.security.orgAdmin.identityPermissionDenied)",
+                        content: errContent,
                         type: MessageDialogType.ERROR
                      }
                   });
@@ -102,11 +110,15 @@ export class EditIdentityPaneComponent implements OnChanges {
             const roleUri = "../api/em/security/providers/" + provider + "/roles/" + identity + "/";
             model$ = this.http.get<EditRolePaneModel>(roleUri).pipe(
                catchError(error => {
+                  const orgInvalid = error.error.type == "InvalidOrgException";
+                  const errContent: string = orgInvalid ? error.error.message :
+                     "_#(js:em.security.orgAdmin.identityPermissionDenied)";
+
                   this.dialog.open(MessageDialog, <MatDialogConfig>{
                      width: "350px",
                      data: {
                         title: "_#(js:Error)",
-                        content: "_#(js:em.security.orgAdmin.identityPermissionDenied)",
+                        content: errContent,
                         type: MessageDialogType.ERROR
                      }
                   });
@@ -117,11 +129,15 @@ export class EditIdentityPaneComponent implements OnChanges {
             const organizationUri = "../api/em/security/providers/" + provider + "/organization/" + orgIdentity + "/";
             model$ = this.http.get<EditOrganizationPaneModel>(organizationUri).pipe(
                catchError(error => {
+                  const orgInvalid = error.error.type == "InvalidOrgException";
+                  const errContent: string = orgInvalid ? error.error.message :
+                                             "_#(js:em.security.orgAdmin.identityPermissionDenied)";
+
                   this.dialog.open(MessageDialog, <MatDialogConfig>{
                      width: "350px",
                      data: {
                         title: "_#(js:Error)",
-                        content: "_#(js:em.security.orgAdmin.identityPermissionDenied)",
+                        content: errContent,
                         type: MessageDialogType.ERROR
                      }
                   });

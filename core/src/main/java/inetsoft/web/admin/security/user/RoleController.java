@@ -23,8 +23,7 @@ import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.util.Identity;
-import inetsoft.util.Catalog;
-import inetsoft.util.MessageException;
+import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.web.admin.security.IdentityModel;
 import inetsoft.web.admin.security.IdentityService;
@@ -93,6 +92,10 @@ public class RoleController {
             currOrg = Organization.getDefaultOrganizationID();
          }
 
+         if(provider.getOrganization(currOrg) == null) {
+            throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+         }
+
          for(int i = 0; ; i++) {
             String name = prefix + i;
             IdentityID id = new IdentityID(name, currOrg);
@@ -153,6 +156,11 @@ public class RoleController {
       IdentityID roleIdentityID= IdentityID.getIdentityIDFromKey(roleId);
       String rootRoleID = new IdentityID("Roles", roleIdentityID.orgID).convertToKey();
       String rootOrgRoleID = new IdentityID("Organization Roles", roleIdentityID.orgID).convertToKey();
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       if(isRoleRoot(roleId, principal) &&
          (securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE, rootRoleID, ResourceAction.ADMIN) ||
@@ -265,6 +273,12 @@ public class RoleController {
                         @DecodePathVariable("provider") String providerName)
       throws Exception
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       IdentityID oldIdentityID = new IdentityID(model.oldName(), model.organization());
       String rootOrgName = "Organization Roles";
       String rootName = "Roles";
@@ -296,6 +310,12 @@ public class RoleController {
                                                     @DecodePathVariable("provider") String providerName,
                                                     Principal principal)
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       List<String> warnings = new ArrayList<>();
       Set<Identity> identitiesToDelete = Arrays.stream(models)
          .map(m -> systemAdminService.createIdentity(m.identityID(), m.type()))

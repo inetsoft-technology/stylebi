@@ -18,8 +18,7 @@
 package inetsoft.web.admin.security.action;
 
 import inetsoft.sree.security.*;
-import inetsoft.util.Catalog;
-import inetsoft.util.ThreadContext;
+import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.factory.RemainingPath;
@@ -85,6 +84,11 @@ public class ActionPermissionController {
       ResourceType type = ResourceType.valueOf(typeName);
       Resource resource = new Resource(type, path);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       String label = isGrant ? "Grant access to all users" : "Deny access to all users";
 
@@ -124,6 +128,12 @@ public class ActionPermissionController {
       throws Exception
    {
       ResourceType type = ResourceType.valueOf(typeName);
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       permissionService
          .setResourcePermissions(path, type, getActionObjectName(typeName, path), permissions, principal);
       return getPermissions(typeName, path, isGrant, principal);
