@@ -1430,8 +1430,13 @@ public class ScheduleService {
                         Object value = parameter.value();
 
                         if(parameter.array()) {
-                           value = scheduleConditionService
+                           Object[] val = scheduleConditionService
                               .getParamValueAsArray(parameter.type(), parameter.value().getValue().toString());
+
+                           ArrayParameterValue arrayParameterValue = new ArrayParameterValue();
+                           arrayParameterValue.setValue(val);
+                           arrayParameterValue.setType(parameter.type());
+                           value = arrayParameterValue.convertModel();
                         }
                         else if(value instanceof DynamicValueModel) {
                            value = ((DynamicValueModel) value).convertParameterValue();
