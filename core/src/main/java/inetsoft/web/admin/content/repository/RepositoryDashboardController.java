@@ -17,7 +17,8 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.*;
+import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.schedule.ScheduleTaskActionService;
@@ -45,6 +46,12 @@ public class RepositoryDashboardController {
                                                                 Principal principal)
       throws Exception
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       path = treeService.getUnscopedPath(path);
       return repositoryDashboardService.getSettings(path, ownerID, principal);

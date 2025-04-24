@@ -18,7 +18,8 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
-import inetsoft.sree.security.Resource;
+import inetsoft.sree.security.*;
+import inetsoft.util.*;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -37,6 +38,12 @@ public class ResourcePermissionController {
                                                                 @RequestParam("type") int type,
                                                                 Principal principal)
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
       return this.resourcePermissionService.getTableModel(
          resource.getPath(), resource.getType(),
