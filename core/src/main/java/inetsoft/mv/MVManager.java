@@ -1512,7 +1512,7 @@ public final class MVManager {
          for(int i = 0; roles != null && i < roles.length; i++) {
             id = new DefaultIdentity(roles[i], Identity.ROLE);
 
-            if(def.containsUser(id) || id.getName().equals("Organization Administrator")) {
+            if(def.containsUser(id)) {
                return true;
             }
          }

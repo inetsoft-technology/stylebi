@@ -1123,8 +1123,7 @@ public class MVSupportService {
             }
 
             // user enable security, but without any permission, default to administrator
-            if(!SecurityEngine.getSecurity().getSecurityProvider().isVirtual() &&
-               identities.isEmpty())
+            if(!SecurityEngine.getSecurity().getSecurityProvider().isVirtual())
             {
                String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
                List<IdentityID> orgAdminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
@@ -1132,21 +1131,26 @@ public class MVSupportService {
                if(!orgID.equals(Organization.getDefaultOrganizationID()) &&
                   !orgAdminUsers.isEmpty())
                {
-                  //assign org admin role instead of printing all org admins
-                  if(orgAdminUsers.size() > 1) {
-                     SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+                  boolean isCurrentUserOrgAdmin = orgAdminUsers.stream()
+                     .anyMatch(id -> Tool.equals(id.convertToKey(), this.principal.getName()));
 
-                     for(IdentityID roleID : provider.getRoles()) {
-                        if(roleID != null && (roleID.orgID == null || Tool.equals(roleID.orgID, orgID)) && provider.isOrgAdministratorRole(roleID)) {
-                           identities.add(new DefaultIdentity(roleID.name, orgID, Identity.ROLE));
+                  //assign org admin role instead of printing all org admins
+                  if(isCurrentUserOrgAdmin) {
+                     if(orgAdminUsers.size() > 1) {
+                        SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+                        for(IdentityID roleID : provider.getRoles()) {
+                           if(roleID != null && (roleID.orgID == null || Tool.equals(roleID.orgID, orgID)) && provider.isOrgAdministratorRole(roleID)) {
+                              identities.add(new DefaultIdentity(roleID.name, orgID, Identity.ROLE));
+                           }
                         }
                      }
-                  }
-                  else {
-                     identities.add(new DefaultIdentity(orgAdminUsers.get(0).name, orgID, Identity.USER));
+                     else {
+                        identities.add(new DefaultIdentity(orgAdminUsers.get(0).name, orgID, Identity.USER));
+                     }
                   }
                }
-               else {
+               else if(identities.isEmpty()) {
                   identities.add(new DefaultIdentity(XPrincipal.SYSTEM, orgID, Identity.USER));
                }
             }
