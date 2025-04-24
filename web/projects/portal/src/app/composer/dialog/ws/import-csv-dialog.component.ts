@@ -419,7 +419,7 @@ export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
       this.previewTable = result.previewTable;
       this.setEnabled();
       this.model.headerNames = null;
-      this.validateHeaders0();
+      this.validateFirstRow();
       let message = result.validator.message;
 
       if(message) {
@@ -517,7 +517,7 @@ export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
       }
    }
 
-   validateHeaders0() {
+   validateFirstRow() {
       if(!this.previewTable && this.previewTable.length <= 0) {
          return;
       }
