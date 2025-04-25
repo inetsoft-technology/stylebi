@@ -232,6 +232,11 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    private static String getResourceKey(ResourceType type, String path, String orgID) {
       orgID = orgID != null ? orgID : SUtil.isMultiTenant() ?
          OrganizationManager.getInstance().getCurrentOrgID() : Organization.getDefaultOrganizationID();
+
+      if(Organization.getSelfOrganizationID().equals(orgID)) {
+         orgID = Organization.getDefaultOrganizationID();
+      }
+
       return type + ":" + orgID + ":" + path;
    }
 

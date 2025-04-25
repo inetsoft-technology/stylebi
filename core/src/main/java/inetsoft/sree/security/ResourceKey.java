@@ -30,7 +30,7 @@ public class ResourceKey implements Serializable, Comparable<ResourceKey> {
    public ResourceKey(ResourceType type, String path, String orgID) {
       this.type = type;
       this.path = path;
-      this.orgID = orgID;
+      this.orgID = fixOrgID(orgID);
    }
 
    public ResourceType getType() {
@@ -46,7 +46,7 @@ public class ResourceKey implements Serializable, Comparable<ResourceKey> {
    }
 
    public void setOrgID(String orgID) {
-      this.orgID = orgID;
+      this.orgID = fixOrgID(orgID);
    }
 
    public String getPath() {
@@ -55,6 +55,11 @@ public class ResourceKey implements Serializable, Comparable<ResourceKey> {
 
    public void setPath(String path) {
       this.path = path;
+   }
+
+   private String fixOrgID(String orgID) {
+      return Organization.getSelfOrganizationID().equals(orgID) ?
+         Organization.getDefaultOrganizationID() : orgID;
    }
 
    @Override
