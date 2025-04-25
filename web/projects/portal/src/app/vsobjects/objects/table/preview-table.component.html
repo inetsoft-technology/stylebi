@@ -26,6 +26,7 @@
             [style.max-width.px]="leftOfColRangeWidth"></th>
         <ng-container *ngFor="let _i of columnIndexRange">
           <th *ngIf="tableData[0][_i]"
+              [ngClass]="{'bg-danger': !isHeaderValid(tableData[0][_i])}"
               [style.min-width.px]="_columnWidths[_i]"
               [style.max-width.px]="_columnWidths[_i]"
               [style.border-top]="tableData[0][_i].vsFormatModel?.border.top"
