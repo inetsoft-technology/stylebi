@@ -308,8 +308,14 @@ public class RepletRegistryManager {
       }
 
       if((typeFrom & RepositoryEntry.FOLDER) != 0) {
-         return copyFolder(pathFrom, userFrom, typeFrom, pathTo,
+         boolean result = copyFolder(pathFrom, userFrom, typeFrom, pathTo,
             userTo, typeTo, move, infos, principal);
+
+         if(result) {
+            updateFolderPermission(pathFrom, pathTo);
+         }
+
+         return result;
       }
       else if((typeFrom & RepositoryEntry.VIEWSHEET) != 0) {
          return copySheet(identifier, pathFrom, userFrom, pathTo, userTo, infos,
@@ -321,6 +327,20 @@ public class RepletRegistryManager {
       }
 
       return true;
+   }
+
+   private void updateFolderPermission(String pathFrom, String pathTo) {
+      SecurityEngine engine = SecurityEngine.getSecurity();
+      ResourceType type = ResourceType.ASSET;
+      Permission permission = engine.getPermission(type, pathFrom);
+
+      if(permission != null) {
+         engine.removePermission(type, pathFrom);
+         int pindex = pathFrom.lastIndexOf("/");
+         String entryName = pindex < 0 ? pathFrom : pathFrom.substring(pindex + 1);
+         String newPath = pathTo + "/" + entryName;
+         engine.setPermission(type, newPath, permission);
+      }
    }
 
    /**
