@@ -408,7 +408,7 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
       return this.miniToolbarService.getToolbarLeft(left, this.containerBounds,
          this.scaleService.getCurrentScale(),
          this.containerScrollLeft, this.checkContainerHasVerticalScrollbar(),
-         this.vsObjectActions[i].showingActions, this.embeddedVSBounds);
+         this.vsObjectActions[i].showingActions, this.embeddedVSBounds, (<any> object).maxMode);
    }
 
    public getToolbarWidth(object: VSObjectModel): number {
