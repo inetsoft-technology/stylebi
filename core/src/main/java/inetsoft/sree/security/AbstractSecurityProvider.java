@@ -308,11 +308,6 @@ public abstract class AbstractSecurityProvider implements SecurityProvider {
    }
 
    @Override
-   public void removePermission(ResourceType type, String resource, String orgID) {
-      authorization.removePermission(type, resource, orgID);
-   }
-
-   @Override
    public void removePermission(ResourceType type, IdentityID resource) {
       authorization.removePermission(type, resource);
    }

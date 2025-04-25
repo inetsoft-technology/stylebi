@@ -71,12 +71,6 @@ public class AuthorizationChain
    }
 
    @Override
-   public void removePermission(ResourceType type, String resource, String orgID) {
-      stream()
-         .forEach(p -> p.removePermission(type, resource, orgID));
-   }
-
-   @Override
    public void removePermission(ResourceType type, IdentityID resourceID) {
       stream()
          .forEach(p -> p.removePermission(type, resourceID));
