@@ -203,7 +203,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
       });
 
       if(index >= 0) {
-         if(change.type === "REMOVED") {
+         if(change.type === "REMOVED" || change.task.hideInPortal) {
             list.splice(index, 1);
          }
          else {

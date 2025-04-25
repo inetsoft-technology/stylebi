@@ -56,6 +56,8 @@ public interface ScheduleTaskModel {
    @Nullable
    String lastRunTime();
 
+   boolean hideInPortal();
+
    static Builder builder() {
       return new Builder();
    }
@@ -65,6 +67,24 @@ public interface ScheduleTaskModel {
          TaskActivity activity = scheduleService.getActivity(task.getTaskId());
          boolean securityEnabled = scheduleService.isSecurityEnabled();
          return fromTask(task, activity, catalog, securityEnabled);
+      }
+
+      private boolean hasBackupOrBatchActions(ScheduleTask task) {
+         int count = task.getActionCount();
+
+         if(count == 0) {
+            return false;
+         }
+
+         for(int i = 0; i < count; i++) {
+            if(task.getAction(i) instanceof AssetFileBackupAction ||
+               task.getAction(i) instanceof BatchAction)
+            {
+               return true;
+            }
+         }
+
+         return false;
       }
 
       public Builder fromTask(ScheduleTask task, TaskActivity activity,
@@ -116,6 +136,7 @@ public interface ScheduleTaskModel {
 
          enabled(task.isEnabled());
          distribution(TaskDistribution.builder().from(task, catalog).build());
+         hideInPortal(hasBackupOrBatchActions(task));
 
          return this;
       }
