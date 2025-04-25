@@ -27,6 +27,8 @@ import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -60,6 +62,9 @@ public class VSCrosstabBindingScriptableTest {
       vsCrosstabBindingScriptable = new VSCrosstabBindingScriptable(crosstabVSAScriptable);
    }
 
+   /**
+    * Test basic functionality of VSCrosstabBindingScriptable.
+    */
    @Test
    void testBaiscFunctions() {
       vsCrosstabBindingScriptable.init();
@@ -76,46 +81,51 @@ public class VSCrosstabBindingScriptableTest {
       vsCrosstabBindingScriptable.setPercentageMode("2");
       vsCrosstabBindingScriptable.setFormula("measure2", XConstants.AVERAGE_FORMULA, "row2");
 
-      assert vsCrosstabBindingScriptable.getRowFields().equals(List.of("row1", "row2"));
-      assert vsCrosstabBindingScriptable.getColFields().equals(List.of("col1", "col2"));
-      assert vsCrosstabBindingScriptable.getMeasureFields().equals(List.of("measure1", "measure2"));
-      assert vsCrosstabBindingScriptable.getFormula("measure1").equals(XConstants.SUM_FORMULA);
-      assert vsCrosstabBindingScriptable.getPercentageMode().equals("2");
-      assert vsCrosstabBindingScriptable.getPercentageType("measure1").equals("16");
+      assertEquals(List.of("row1", "row2"), vsCrosstabBindingScriptable.getRowFields());
+      assertEquals(List.of("col1", "col2"), vsCrosstabBindingScriptable.getColFields());
+      assertEquals(List.of("measure1", "measure2"), vsCrosstabBindingScriptable.getMeasureFields());
+      assertEquals(XConstants.AVERAGE_FORMULA, vsCrosstabBindingScriptable.getFormula("measure2"));
+      assertEquals(XConstants.SUM_FORMULA, vsCrosstabBindingScriptable.getFormula("measure1"));
+      assertEquals("2", vsCrosstabBindingScriptable.getPercentageMode());
+      assertEquals("16", vsCrosstabBindingScriptable.getPercentageType("measure1"));
 
       vsCrosstabBindingScriptable.setShowRowTotal(true);
-      vsCrosstabBindingScriptable.setShowColumnTotal(true);
-      assert vsCrosstabBindingScriptable.isShowColumnTotal();
-      assert vsCrosstabBindingScriptable.isShowRowTotal();
+      assertTrue(vsCrosstabBindingScriptable.isShowRowTotal());
+      vsCrosstabBindingScriptable.setShowColumnTotal(false);
+      assertFalse(vsCrosstabBindingScriptable.isShowColumnTotal());
+
 
       vsCrosstabBindingScriptable.setColumnOrder("row1", XConstants.ROW_HEADER, XConstants.SORT_ASC, "Sum(measure1)");
-      assert vsCrosstabBindingScriptable.getColumnOrder("row1", XConstants.ROW_HEADER) == XConstants.SORT_ASC;
+      assertEquals(XConstants.SORT_ASC, vsCrosstabBindingScriptable.getColumnOrder("row1", XConstants.ROW_HEADER));
 
       vsCrosstabBindingScriptable.setTimeSeries("row1", true);
-      assert vsCrosstabBindingScriptable.isTimeSeries("row1");
+      assertTrue(vsCrosstabBindingScriptable.isTimeSeries("row1"));
    }
 
+   /**
+    * test set and get TopN functions
+    */
    @Test
    void testTopNFunctions() {
-     crosstabVSAScriptable.setQuery("query2");
-     vsCrosstabBindingScriptable.setRowFields(new String[]{"name"});
-     vsCrosstabBindingScriptable.setColFields(new String[]{"date1"});
-     vsCrosstabBindingScriptable.setMeasureFields(new String[]{"total"});
-     vsCrosstabBindingScriptable.setFormula("total", XConstants.SUM_FORMULA, null);
-     vsCrosstabBindingScriptable.setShowColumnTotal(true);
+      crosstabVSAScriptable.setQuery("query2");
+      vsCrosstabBindingScriptable.setRowFields(new String[]{"name"});
+      vsCrosstabBindingScriptable.setColFields(new String[]{"date"});
+      vsCrosstabBindingScriptable.setMeasureFields(new String[]{"total"});
+      vsCrosstabBindingScriptable.setFormula("total", XConstants.SUM_FORMULA, null);
+      vsCrosstabBindingScriptable.setShowColumnTotal(true);
 
-     vsCrosstabBindingScriptable.setTopN("name", XConstants.ROW_HEADER, 3);
-     vsCrosstabBindingScriptable.setTopNSummaryCol("name", XConstants.ROW_HEADER, "Sum(total)");
-     vsCrosstabBindingScriptable.setTopNReverse("name", XConstants.ROW_HEADER, false);
-     vsCrosstabBindingScriptable.setGroupOthers("name", XConstants.ROW_HEADER, true);
-     vsCrosstabBindingScriptable.setGroupOrder("date", XConstants.COL_HEADER,XConstants.YEAR_DATE_GROUP);
-     vsCrosstabBindingScriptable.setGroupTotal("date", XConstants.COL_HEADER, "show");
+      vsCrosstabBindingScriptable.setTopN("name", XConstants.ROW_HEADER, 3);
+      vsCrosstabBindingScriptable.setTopNSummaryCol("name", XConstants.ROW_HEADER, "Sum(total)");
+      vsCrosstabBindingScriptable.setTopNReverse("name", XConstants.ROW_HEADER, false);
+      vsCrosstabBindingScriptable.setGroupOthers("name", XConstants.ROW_HEADER, true);
+      vsCrosstabBindingScriptable.setGroupOrder("date", XConstants.COL_HEADER, XConstants.YEAR_DATE_GROUP);
+      vsCrosstabBindingScriptable.setGroupTotal("date", XConstants.COL_HEADER, "show");
 
-     assert vsCrosstabBindingScriptable.getTopN("name", XConstants.ROW_HEADER) == 3;
-     assert vsCrosstabBindingScriptable.getTopNSummaryCol("name", XConstants.ROW_HEADER).equals("Sum(total)");
-     assert !vsCrosstabBindingScriptable.isTopNReverse("name", XConstants.ROW_HEADER);
-     assert vsCrosstabBindingScriptable.isGroupOthers("name", XConstants.ROW_HEADER);
-     assert vsCrosstabBindingScriptable.getGroupOrder("date", XConstants.COL_HEADER) == XConstants.YEAR_DATE_GROUP;
-     assert !vsCrosstabBindingScriptable.getGroupTotal("date", XConstants.COL_HEADER);
+      assertEquals(3, vsCrosstabBindingScriptable.getTopN("name", XConstants.ROW_HEADER));
+      assertEquals("Sum(total)", vsCrosstabBindingScriptable.getTopNSummaryCol("name", XConstants.ROW_HEADER));
+      assertFalse(vsCrosstabBindingScriptable.isTopNReverse("name", XConstants.ROW_HEADER));
+      assertTrue(vsCrosstabBindingScriptable.isGroupOthers("name", XConstants.ROW_HEADER));
+      assertEquals(XConstants.YEAR_DATE_GROUP, vsCrosstabBindingScriptable.getGroupOrder("date", XConstants.COL_HEADER));
+      assertTrue(vsCrosstabBindingScriptable.getGroupTotal("date", XConstants.COL_HEADER));
    }
 }

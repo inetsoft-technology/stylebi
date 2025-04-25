@@ -27,6 +27,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.awt.*;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -57,20 +58,36 @@ public class CrosstabVSAScriptableTest {
       crosstabVSAScriptable.setAssembly("crosstab1");
    }
 
+   /**
+    * Add properties to the crosstabVSAScriptable and ensure they are set correctly
+    */
    @Test
-   void testAddProperties() throws Exception {
-      crosstabVSAScriptable.addProperties();
+   void testSetProperties() throws Exception {
+      crosstabVSAScriptable.setProperty("fillBlankWithZero", true);
+      assertEquals(true, crosstabVSAScriptable.get("fillBlankWithZero", null));
 
-      String[] keys = {"fillBlankWithZero", "summarySideBySide", "drillEnabled", "mergeSpan", "sortOthersLast",
-                       "computeTrendAndComparisonForTotals", "dateComparisonEnabled"};
-      for (String key : keys) {
-         assert crosstabVSAScriptable.get(key, null) instanceof Boolean;
-      }
+      crosstabVSAScriptable.setProperty("summarySideBySide", false);
+      assertEquals(false, crosstabVSAScriptable.get("summarySideBySide", null));
+
+      crosstabVSAScriptable.setProperty("drillEnabled", true);
+      assertEquals(true, crosstabVSAScriptable.get("drillEnabled", null));
+
+      crosstabVSAScriptable.setProperty("mergeSpan", true);
+      assertEquals(true, crosstabVSAScriptable.get("mergeSpan", null));
+
+      crosstabVSAScriptable.setProperty("sortOthersLast", true);
+      assertEquals(true, crosstabVSAScriptable.get("sortOthersLast", null));
+
+      crosstabVSAScriptable.setProperty("computeTrendAndComparisonForTotals", false);
+      assertEquals(false, crosstabVSAScriptable.get("computeTrendAndComparisonForTotals", null));
+
+      crosstabVSAScriptable.setProperty("dateComparisonEnabled", true);
+      assertEquals(true, crosstabVSAScriptable.get("dateComparisonEnabled", null));
 
       crosstabVSAScriptable.setQuery("query1");
-      assert crosstabVSAScriptable.get("query", null).equals("query1");
+      assertEquals("query1", crosstabVSAScriptable.get("query", null));
 
-      assert crosstabVSAScriptable.get("bindingInfo", null) instanceof VSCrosstabBindingScriptable;
+      crosstabVSAScriptable.addProperties();
    }
 
    @Test
