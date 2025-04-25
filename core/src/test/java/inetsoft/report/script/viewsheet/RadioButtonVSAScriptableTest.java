@@ -76,7 +76,7 @@ public class RadioButtonVSAScriptableTest {
    }
 
    @Test
-   void tetGet() {
+   void testGet() {
       assertNull(radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
       radioButtonVSAScriptable.setCellValue("value1");
       assertEquals("value1", radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
@@ -84,7 +84,7 @@ public class RadioButtonVSAScriptableTest {
    }
 
    @Test
-   void tetHas() {
+   void testHas() {
       assertFalse(radioButtonVSAScriptable.has("property1", radioButtonVSAScriptable));
       radioButtonVSAScriptable.setCellValue("value1");
       assertTrue(radioButtonVSAScriptable.has("value", radioButtonVSAScriptable));

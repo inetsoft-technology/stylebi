@@ -65,12 +65,12 @@ public class ComboBoxVSAScriptableTest {
    }
 
    @Test
-   void tetGet() {
+   void testGet() {
       assertEquals(false, comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
    }
 
    @Test
-   void tetHas() {
+   void testHas() {
       assertFalse(comboBoxVSAScriptable.has("property1", comboBoxVSAScriptable));
       assertTrue(comboBoxVSAScriptable.has("serverTimeZone", comboBoxVSAScriptable));
    }

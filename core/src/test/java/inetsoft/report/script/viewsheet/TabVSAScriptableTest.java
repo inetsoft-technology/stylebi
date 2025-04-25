@@ -87,5 +87,23 @@ public class TabVSAScriptableTest {
       assertEquals(1, tabVSAScriptable.getSelectedIndex());
       tabVSAScriptable.setSelectedIndexValue(2);
       assertEquals(2, tabVSAScriptable.getSelectedIndex());
+
+      //invalid index
+      tabVSAScriptable.setSelectedIndex(-3);
+      assertEquals(0, tabVSAScriptable.getSelectedIndex());
+
+      RuntimeException runtimeException = assertThrows(RuntimeException.class, () -> {
+         tabVSAScriptable.setSelectedIndex(3);
+      });
+      assertEquals("Index 3 out of bounds for length 3", runtimeException.getMessage());
+   }
+
+   @Test
+   void testSetSize() {
+      when(viewsheetSandbox.isRuntime()).thenReturn(true);
+      tabVSAssemblyInfo.setAssemblies(new String[]{"Text1", "Gauge1"});
+      Dimension size1 = new Dimension(180, 70);
+      tabVSAScriptable.setSize(size1);
+      assertEquals(size1, tabVSAScriptable.getSize());
    }
 }
