@@ -45,4 +45,5 @@ export interface ScheduleTaskModel {
    enabled: boolean;
    distribution?: TaskDistribution;
    ownerAlias?: string;
+   hideInPortal?: boolean;
 }
