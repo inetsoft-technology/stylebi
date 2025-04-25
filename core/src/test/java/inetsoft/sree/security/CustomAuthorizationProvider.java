@@ -27,42 +27,42 @@ import java.util.stream.Collectors;
 
 public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
    @Override
-   public Permission getPermission(ResourceType type, String resource) {
-      return permissions.get(new Resource(type, resource));
+   public Permission getPermission(ResourceType type, String resource, String orgID) {
+      return permissions.get(new ResourceKey(type, resource, orgID));
    }
 
    @Override
-   public Permission getPermission(ResourceType type, IdentityID identityID) {
-      return permissions.get(new Resource(type, identityID.convertToKey()));
+   public Permission getPermission(ResourceType type, IdentityID identityID, String orgID) {
+      return permissions.get(new ResourceKey(type, identityID.convertToKey(), orgID));
    }
 
    @Override
-   public void removePermission(ResourceType type, String resource) {
-      permissions.remove(new Resource(type, resource));
+   public void removePermission(ResourceType type, String resource, String orgID) {
+      permissions.remove(new ResourceKey(type, resource, orgID));
    }
 
    @Override
-   public void removePermission(ResourceType type, IdentityID resource) {
-      permissions.remove(new Resource(type, resource.convertToKey()));
+   public void removePermission(ResourceType type, IdentityID resource, String orgID) {
+      permissions.remove(new ResourceKey(type, resource.convertToKey(), orgID));
    }
 
    @Override
-   public void setPermission(ResourceType type, String resource, Permission perm) {
+   public void setPermission(ResourceType type, String resource, Permission perm, String orgID) {
       if(perm == null) {
-         removePermission(type, resource);
+         removePermission(type, resource, orgID);
       }
       else {
-         permissions.put(new Resource(type, resource), perm);
+         permissions.put(new ResourceKey(type, resource, orgID), perm);
       }
    }
 
    @Override
-   public void setPermission(ResourceType type, IdentityID identityID, Permission perm) {
+   public void setPermission(ResourceType type, IdentityID identityID, Permission perm, String orgID) {
       if(perm == null) {
-         removePermission(type, identityID);
+         removePermission(type, identityID, orgID);
       }
       else {
-         permissions.put(new Resource(type, identityID.convertToKey()), perm);
+         permissions.put(new ResourceKey(type, identityID.convertToKey(), orgID), perm);
       }
    }
 
@@ -70,8 +70,8 @@ public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
    public void readConfiguration(JsonNode configuration) {
       try {
          Configuration config = new ObjectMapper().treeToValue(configuration, Configuration.class);
-         Map<Resource, Permission> map = config.permissions.stream()
-            .collect(Collectors.toMap(ResourceConfig::toResource, ResourceConfig::toPermission));
+         Map<ResourceKey, Permission> map = config.permissions.stream()
+            .collect(Collectors.toMap(ResourceConfig::toResourceKey, ResourceConfig::toPermission));
          permissions.clear();
          permissions.putAll(map);
       }
@@ -97,7 +97,7 @@ public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
    public void authenticationChanged(AuthenticationChangeEvent event) {
    }
 
-   private final Map<Resource, Permission> permissions = new ConcurrentHashMap<>();
+   private final Map<ResourceKey, Permission> permissions = new ConcurrentHashMap<>();
 
    public static final class Configuration {
       public List<ResourceConfig> permissions = new ArrayList<>();
@@ -106,15 +106,17 @@ public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
    public static final class ResourceConfig {
       public String type;
       public String resource;
+      public String orgID;
       public Map<String, GrantConfig> grants;
 
       public ResourceConfig() {
          this.grants = new HashMap<>();
       }
 
-      public ResourceConfig(Resource resource, Permission permission) {
+      public ResourceConfig(ResourceKey resource, Permission permission) {
          this.type = resource.getType().name();
          this.resource = resource.getPath();
+         this.orgID = resource.getOrgID();
          this.grants = new HashMap<>();
 
          for(ResourceAction action : ResourceAction.values()) {
@@ -126,8 +128,8 @@ public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
          }
       }
 
-      public Resource toResource() {
-         return new Resource(ResourceType.valueOf(type), resource);
+      public ResourceKey toResourceKey() {
+         return new ResourceKey(ResourceType.valueOf(type), resource, orgID);
       }
 
       public Permission toPermission() {

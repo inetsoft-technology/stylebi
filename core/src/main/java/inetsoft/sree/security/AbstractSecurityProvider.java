@@ -18,7 +18,7 @@
 package inetsoft.sree.security;
 
 import inetsoft.uql.util.Identity;
-import inetsoft.util.Tuple3;
+import inetsoft.util.Tuple4;
 
 import java.security.Principal;
 import java.util.List;
@@ -293,37 +293,37 @@ public abstract class AbstractSecurityProvider implements SecurityProvider {
    }
 
    @Override
-   public void setPermission(ResourceType type, String resource, Permission perm) {
-      authorization.setPermission(type, resource, perm);
+   public void setPermission(ResourceType type, String resource, Permission perm, String orgID) {
+      authorization.setPermission(type, resource, perm, orgID);
    }
 
    @Override
-   public void setPermission(ResourceType type, IdentityID identityID, Permission perm) {
-      authorization.setPermission(type, identityID, perm);
+   public void setPermission(ResourceType type, IdentityID identityID, Permission perm, String orgID) {
+      authorization.setPermission(type, identityID, perm, orgID);
    }
 
    @Override
-   public void removePermission(ResourceType type, String resource) {
-      authorization.removePermission(type, resource);
+   public void removePermission(ResourceType type, String resource, String orgID) {
+      authorization.removePermission(type, resource, orgID);
    }
 
    @Override
-   public void removePermission(ResourceType type, IdentityID resource) {
-      authorization.removePermission(type, resource);
+   public void removePermission(ResourceType type, IdentityID resource, String orgID) {
+      authorization.removePermission(type, resource, orgID);
    }
 
    @Override
-   public Permission getPermission(ResourceType type, String resource) {
-      return authorization.getPermission(type, resource);
+   public Permission getPermission(ResourceType type, String resource, String orgID) {
+      return authorization.getPermission(type, resource, orgID);
    }
 
    @Override
-   public Permission getPermission(ResourceType type, IdentityID identityID) {
-      return authorization.getPermission(type, identityID);
+   public Permission getPermission(ResourceType type, IdentityID identityID, String orgID) {
+      return authorization.getPermission(type, identityID, orgID);
    }
 
    @Override
-   public List<Tuple3<ResourceType, String, Permission>> getPermissions() {
+   public List<Tuple4<ResourceType, String, String, Permission>> getPermissions() {
       return authorization.getPermissions();
    }
 

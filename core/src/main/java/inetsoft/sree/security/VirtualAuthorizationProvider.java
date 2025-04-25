@@ -59,9 +59,18 @@ public class VirtualAuthorizationProvider extends AbstractAuthorizationProvider 
       return userPermission;
    }
 
+   public Permission getPermission(ResourceType type, String resource, String orgID) {
+      return getPermission(type, resource);
+   }
+
    @Override
    public Permission getPermission(ResourceType type, IdentityID resource) {
       return userPermission;
+   }
+
+   @Override
+   public Permission getPermission(ResourceType type, IdentityID resource, String orgID) {
+      return getPermission(type, resource);
    }
 
    /**
