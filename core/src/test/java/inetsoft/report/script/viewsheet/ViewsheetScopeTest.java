@@ -35,8 +35,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -70,43 +69,93 @@ public class ViewsheetScopeTest {
 
    private XEmbeddedTable getXEmbeddedTable() {
        Worksheet worksheet = sandbox.getViewsheet().getOriginalWorksheet();
-      return ((EmbeddedTableAssembly) worksheet.getAssembly("Query1")).getEmbeddedData();
+       EmbeddedTableAssembly tableAssembly = (EmbeddedTableAssembly) worksheet.getAssembly("Query1");
+       if (tableAssembly == null) {
+           throw new RuntimeException("EmbeddedTableAssembly 'Query1' not found.");
+       }
+       viewsheetScope.refreshData();
+       return tableAssembly.getEmbeddedData();
    }
 
+   /**
+    * test toList with array of objects
+    */
    @Test
    void testToListWithObj() {
       Object arrObj = new Object[]{"banana", "apple", "apple", "cherry"};
       Object result = viewsheetScope.toList(arrObj, "sort=asc, distinct=true");
-      assert Arrays.equals((Object[]) result, new Object[]{"apple", "banana", "cherry"});
+      assertArrayEquals(new Object[]{"apple", "banana", "cherry"}, (Object[]) result);
 
       Object arrObj1 = new Object[]{"apple", "banana", "cherry"};
       Object result1 = viewsheetScope.toList(arrObj1, "maxrows=2, remainder=other");
-      assert Arrays.equals((Object[]) result1, new Object[]{"apple", "banana", "other"});
+      assertArrayEquals(new Object[]{"apple", "banana", "other"}, (Object[]) result1);
 
-      Object arrObj2 = new Object[]{"2022-01-01", "2022-01-02", "2022-01-03"};
-      Object result2 = viewsheetScope.toList(arrObj2, "date=day");
-      assert Arrays.equals((Object[]) result2, new Object[]{"2022-01-01", "2022-01-02", "2022-01-03"});
+      // Test case with null values
+      Object arrObj4 = new Object[]{"apple", null, "banana"};
+      Object result4 = viewsheetScope.toList(arrObj4, "sort=asc");
+      assertArrayEquals(new Object[]{null, "apple", "banana"}, (Object[]) result4);
    }
 
+   /**
+    * test toList with array of date objects
+    */
+   @Test
+   void testToListWithDateObj() {
+      // Test case with different date format, Assuming the date format is "yyyy-MM-dd"
+      Object arrObj1 = new Object[]{"2022-01-01", "2023-02-02", "2022-01-03"};
+      Object result1 = viewsheetScope.toList(arrObj1, "date=year, sort=asc");
+      assertArrayEquals(new Object[]{"2022-01-01", "2022-01-03", "2023-02-02"}, (Object[]) result1);
+
+      // Test data is date type
+      Object[] dateArray1 ={
+         new Date(2021 - 1900, 0, 1),
+         new Date(2023 - 1900, 5, 15),
+         new Date(2025 - 1900, 11, 31)
+      };
+
+      Object[] dateArray2 = dateArray1.clone();
+
+      Object result2 = viewsheetScope.toList(dateArray1, "date=month, sort=desc");
+      assertArrayEquals(new Object[]{12, 6, 1}, (Object[])result2);
+
+      Object[] expArray2 = {
+         new Date(2021 - 1900, 0, 1),
+         new Date(2022 - 1900, 0, 1),
+         new Date(2023 - 1900, 0, 1),
+         new Date(2024 - 1900, 0, 1),
+         new Date(2025 - 1900, 0, 1),
+      };
+      Object result3 = viewsheetScope.toList(dateArray2, "rounddate=year,interval=1");
+      assertArrayEquals(expArray2, (Object[])result3);
+   }
+
+   /**
+    * test toList with DefaultTableLens
+    */
    @Test
    void testToListWithXTable() {
-      DefaultTableLens table = new DefaultTableLens(new Object[][]{
+      DefaultTableLens table1 = new DefaultTableLens(new Object[][]{
          {"col1", "col2", "date"},
-         {"banana", "1", "2022-01-06"},
-         {"apple", "2", "2022-01-04"},
-         {"banana", "3", "2022-01-04"},
-         {"peach", "2", "2022-01-01"},
+         {"banana", "1", new Date(2021 - 1900, 0, 1)},
+         {"apple", "2",  new Date(2023 - 1900, 5, 15)},
+         {"banana", "3", new Date(2025 - 1900, 11, 31)},
+         {"peach", "2",  new Date(2021 - 1900, 2, 1)},
          });
-      Object result = viewsheetScope.toList(table, "field=col1, sort=asc, sorton=col1, distinct=true");
-      assert Arrays.equals((Object[]) result, new Object[]{"apple", "banana", "peach"});
+      DefaultTableLens table2 = table1.clone();
+      Object result = viewsheetScope.toList(table1, "field=col1, sort=asc, sorton=col1, distinct=true");
+      assertArrayEquals(new Object[]{"apple", "banana", "peach"}, (Object[]) result);
 
       // Test topN and timeSeries
-      Object result2 = viewsheetScope.toList(table, "field=date,sort=desc,,sort2=desc, rounddate=day,sorton=col2,interval=1.0,timeseries=true,maxrows=2, remainder=other");
-      assert Arrays.equals((Object[]) result2, new Object[]{"2022-01-01","2022-01-04", "other"});
+      Object result2 = viewsheetScope.toList(table2, "field=date, sort=desc,,sort2=desc, rounddate=quarter, sorton=col2,timeseries=true,maxrows=2, remainder=other");
+      assertArrayEquals(new Object[]{new Date(2023 - 1900, 3, 1),
+                                     new Date(2025 - 1900, 9, 1),
+                                     "other"}, (Object[]) result2);
 
       // Test sort by options
-      Object result3 = viewsheetScope.toList(table, "field=date,sort=asc,rounddate=day,sorton2=col2,interval=1.0,timeseries=true");
-      assert Arrays.equals((Object[]) result3, new Object[]{"2022-01-06","2022-01-01", "2022-01-04"});
+      Object result3 = viewsheetScope.toList(table2, "field=date,sort=asc,rounddate=year,sorton2=col2,interval=2.0,timeseries=false");
+      assertArrayEquals(new Object[]{new Date(2020 - 1900, 0, 1),
+                                     new Date(2022 - 1900, 0, 1),
+                                     new Date(2024 - 1900, 0, 1)}, (Object[]) result3);
    }
 
    @Test
@@ -123,6 +172,9 @@ public class ViewsheetScopeTest {
       assertEquals("Failed to append row. Check order and data type!", exception.getMessage());
    }
 
+   /**
+    * test appendRow with a normal value
+    */
    @Test
    void testAppendValidRow() {
       String dateStr = "2025-04-24 01:01:01";
@@ -133,6 +185,9 @@ public class ViewsheetScopeTest {
       assertEquals(4, getXEmbeddedTable().getColCount());
    }
 
+   /**
+    * test setCellValue with a normal value
+    */
    @Test
    void testSetCellValueUpdatesExistingRow() {
       // when row <= rowCount, it will update the row cell
@@ -154,6 +209,9 @@ public class ViewsheetScopeTest {
       assertEquals(4, getXEmbeddedTable().getColCount());*/
    }
 
+   /**
+    * test execute script with a normal value
+    */
    @Test
    void testExecuteScript() throws Exception {
       Object result = viewsheetScope.execute("fields","TableView1", false);
