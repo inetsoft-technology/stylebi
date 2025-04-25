@@ -146,7 +146,7 @@ public class EMScheduleTaskController {
          throw new SecurityException(catalog.getString("en.schedule.task.unauthorized", name));
       }
 
-      return scheduleTaskService.getDialogModel(taskName, principal);
+      return scheduleTaskService.getDialogModel(taskName, principal, true);
    }
 
    @Secured(
