@@ -1271,6 +1271,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
       for(int i = 0; i < bookmarks.length; i ++) {
          String bookmarkName = bookmarks[i].getName();
+         String orgID = null;
 
          // ignore bookmarks that didn't pass the highlight condition
          if(alertTriggeredBookmarks != null && !alertTriggeredBookmarks.contains(bookmarkName)) {
@@ -1281,9 +1282,13 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             bookmarkName += "(" + bookmarks[i].getOwner().getName() + ")";
          }
 
+         if(bookmarks[i].getOwner() != null) {
+            orgID = bookmarks[i].getOwner().getOrgID();
+         }
+
          setScheduleParameters(variableTable);
          ViewsheetSandbox box = new ViewsheetSandbox(
-            rvs.getOriginalBookmark(bookmarkName), vmode, principal, false,
+            rvs.getOriginalBookmark(bookmarkName, orgID), vmode, principal, false,
             rvs.getEntry());
          AssetQuerySandbox assetQuerySandbox = box.getAssetQuerySandbox();
 
