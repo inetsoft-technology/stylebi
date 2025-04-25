@@ -19,6 +19,7 @@ import { TabularView } from "../../../portal/src/app/common/data/tabular/tabular
 
 export interface DataSourceDefinitionModel {
    name: string;
+   oldName: string;
    description?: string;
    parentPath: string;
    parentDataSource?: string;

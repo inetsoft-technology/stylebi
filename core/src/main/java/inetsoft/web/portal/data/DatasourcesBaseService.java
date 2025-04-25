@@ -31,8 +31,7 @@ import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.service.*;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
-import inetsoft.uql.util.Config;
-import inetsoft.uql.util.XUtil;
+import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.security.ConnectionStatus;
@@ -514,6 +513,7 @@ public abstract class DatasourcesBaseService {
             }
 
             parent.addDatasource(child);
+            updateAdditionalPermission(definition, additional);
          }
       }
 
@@ -521,6 +521,28 @@ public abstract class DatasourcesBaseService {
          if(!updated.contains(child)) {
             parent.removeDatasource(child);
          }
+      }
+   }
+
+   private void updateAdditionalPermission(DataSourceDefinition parent, DataSourceDefinition additional)
+   {
+      if(additional.getOldName() == null || Tool.equals(additional.getOldName(), additional.getName())) {
+         return;
+      }
+
+      String folder = additional.getParentPath();
+      folder = folder == null ? "" : folder;
+      String oParentName = parent.getOldName();
+      oParentName = oParentName == null ? parent.getName() : oParentName;
+      String resource = Tool.buildString(folder, oParentName,
+                                         XUtil.ADDITIONAL_DS_CONNECTOR, additional.getOldName());
+      Permission perm = securityEngine.getPermission(ResourceType.DATA_SOURCE, resource);
+
+      if(perm != null) {
+         securityEngine.removePermission(ResourceType.DATA_SOURCE, resource);
+         String nresource = Tool.buildString(folder, parent.getName(),
+                                             XUtil.ADDITIONAL_DS_CONNECTOR, additional.getName());
+         securityEngine.setPermission(ResourceType.DATA_SOURCE, nresource, perm);
       }
    }
 
