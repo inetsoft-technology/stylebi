@@ -2033,6 +2033,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          nstorage.putXMLSerializable(npidentifier, npfolder);
       }
 
+      updatePermission(oentry, nentry);
       changed.put(oentry, nentry);
 
       AssetEntry[] entries = ofolder.getEntries();
@@ -2100,6 +2101,23 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       fireEvent(oentry.getType().id(), AssetChangeEvent.ASSET_RENAMED, nentry,
          oentry.toIdentifier(), root, null, "changeFolder: " + oentry + ", " + nentry);
+   }
+
+   private void updatePermission(AssetEntry oentry, AssetEntry nentry) {
+      if(oentry == null || nentry == null) {
+         return;
+      }
+
+      SecurityEngine securityEngine = SecurityEngine.getSecurity();
+      ResourceType type = getAssetResourceType(oentry);
+      Permission oldPermission = securityEngine.getPermission(type, oentry.getPath());
+
+      if(oldPermission == null) {
+         return;
+      }
+
+      securityEngine.removePermission(type, oentry.getPath());
+      securityEngine.setPermission(type, nentry.getPath(), oldPermission);
    }
 
    /**
