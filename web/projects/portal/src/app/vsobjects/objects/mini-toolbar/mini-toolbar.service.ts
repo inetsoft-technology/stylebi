@@ -155,10 +155,10 @@ export class MiniToolbarService {
 
    public getToolbarLeft(left: number, bounds: DOMRectInit, scale: number, boundsScrollLeft: number,
                          includeScrollbar: boolean, actions: AssemblyActionGroup[],
-                         embeddedVSBounds?: Rectangular): number
+                         embeddedVSBounds?: Rectangular, maxMode?: boolean): number
    {
       const actionsWidth: number = this.getActionsWidth(actions);
-      const embeddedVSLeftBound = embeddedVSBounds ? embeddedVSBounds.x : 0;
+      const embeddedVSLeftBound = embeddedVSBounds && !maxMode ? embeddedVSBounds.x : 0;
       const scrollbarOffset = includeScrollbar ? this.scrollbarWidth / scale : 0;
       const containerRightBound = (bounds.width + boundsScrollLeft - scrollbarOffset) / scale;
 
