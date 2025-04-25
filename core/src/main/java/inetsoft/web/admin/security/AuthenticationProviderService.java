@@ -35,6 +35,7 @@ import inetsoft.web.viewsheet.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.DestinationPatternsMessageCondition;
@@ -51,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
+@EnableAspectJAutoProxy(proxyTargetClass = true)
 public class AuthenticationProviderService extends BaseSubscribeChangHandler implements MessageListener {
    @Autowired
    public AuthenticationProviderService(SecurityEngine securityEngine, ObjectMapper objectMapper,
