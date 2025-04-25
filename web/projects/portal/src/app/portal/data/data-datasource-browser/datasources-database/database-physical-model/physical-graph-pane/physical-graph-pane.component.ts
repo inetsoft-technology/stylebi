@@ -51,7 +51,7 @@ export class PhysicalGraphPane implements OnInit, AfterViewChecked, OnDestroy {
    @Input() physicalView: string;
    @Input() datasource: string;
    @Input() runtimeId: string;
-   @Input() selectedGraphNode: GraphNodeModel[];
+   @Input() selectedGraphModels: GraphModel[];
 
    @Output() onCreateAutoAlias = new EventEmitter<string>();
    @Output() onEditInlineView = new EventEmitter<string>();
