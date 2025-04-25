@@ -1374,14 +1374,17 @@ public abstract class DependencyTransformer {
          if(input.available() > 0) {
             Document document = Tool.parseXML(input, "UTF-8", false, false);
             Element root = getChildNode(document.getDocumentElement(), "./assembly");
-            NodeList linkList = getChildNodes(root, ".//Hyperlink");
 
-            for(int i = 0; i < linkList.getLength(); i++) {
-               String link = Tool.getAttribute((Element) linkList.item(i), "Link");
+            if(root != null) {
+               NodeList linkList = getChildNodes(root, ".//Hyperlink");
 
-               if(link != null) {
-                  ((Element) linkList.item(i)).setAttribute("Link",
-                     Hyperlink.handleAssetLinkOrgMismatch(link));
+               for(int i = 0; i < linkList.getLength(); i++) {
+                  String link = Tool.getAttribute((Element) linkList.item(i), "Link");
+
+                  if(link != null) {
+                     ((Element) linkList.item(i)).setAttribute("Link",
+                                                               Hyperlink.handleAssetLinkOrgMismatch(link));
+                  }
                }
             }
 
