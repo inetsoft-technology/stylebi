@@ -966,10 +966,20 @@ public class UserTreeService {
       String[] propertyNames = {"max.row.count", "max.col.count", "max.cell.size", "max.user.count"};
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      Set<Object> keyset = SreeEnv.getProperties().keySet();
+      String orgPrefix = "inetsoft.org." + orgID.getOrgID() + ".";
 
-      for(String key : propertyNames) {
-         if(SreeEnv.getProperty(key, false, true) != null) {
-            properties.add(PropertyModel.builder().name(key).value(SreeEnv.getProperty(key, false, true)).build());
+      for(Object key : keyset) {
+         String propName = (String) key;
+
+         if(!(propName).startsWith(orgPrefix)) {
+            continue;
+         }
+
+         propName = propName.substring(orgPrefix.length());
+
+         if(SreeEnv.getProperty(propName, false, true) != null) {
+            properties.add(PropertyModel.builder().name(propName).value(SreeEnv.getProperty(propName, false, true)).build());
          }
       }
 
