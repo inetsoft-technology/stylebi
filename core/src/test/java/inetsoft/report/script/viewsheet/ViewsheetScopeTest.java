@@ -20,11 +20,16 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.AssetTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.test.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -60,8 +65,12 @@ public class ViewsheetScopeTest {
       openMocks(this);
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
       sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
+      //Principal principal = mock(Principal.class);
+      SRPrincipal org_admin = new SRPrincipal(new IdentityID("admin", "host-org"),
+                                              new IdentityID[] { new IdentityID("Organization Administrator", null)},
+                                              new String[0], "host-org",
+                                              Tool.getSecureRandom().nextLong());
+      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), org_admin))
          .thenReturn(viewsheetResource.getRuntimeViewsheet());
 
       viewsheetScope = new ViewsheetScope(sandbox, false);
@@ -118,15 +127,10 @@ public class ViewsheetScopeTest {
       Object result2 = viewsheetScope.toList(dateArray1, "date=month, sort=desc");
       assertArrayEquals(new Object[]{12, 6, 1}, (Object[])result2);
 
-      Object[] expArray2 = {
-         new Date(2021 - 1900, 0, 1),
-         new Date(2022 - 1900, 0, 1),
-         new Date(2023 - 1900, 0, 1),
-         new Date(2024 - 1900, 0, 1),
-         new Date(2025 - 1900, 0, 1),
-      };
-      Object result3 = viewsheetScope.toList(dateArray2, "rounddate=year,interval=1");
-      assertArrayEquals(expArray2, (Object[])result3);
+      Object result3 = viewsheetScope.toList(dateArray2, "rounddate=year,interval=2,timeseries=false");
+      assertArrayEquals(new Object[]{new Date(2020 - 1900, 0, 1),
+                                     new Date(2022 - 1900, 0, 1),
+                                     new Date(2024 - 1900, 0, 1)}, (Object[])result3);
    }
 
    /**
@@ -146,7 +150,7 @@ public class ViewsheetScopeTest {
       assertArrayEquals(new Object[]{"apple", "banana", "peach"}, (Object[]) result);
 
       // Test topN and timeSeries
-      Object result2 = viewsheetScope.toList(table2, "field=date, sort=desc,,sort2=desc, rounddate=quarter, sorton=col2,timeseries=true,maxrows=2, remainder=other");
+      Object result2 = viewsheetScope.toList(table2, "field=date, sort=desc,sort2=desc, rounddate=quarter, sorton=col2,timeseries=true,maxrows=2, remainder=other");
       assertArrayEquals(new Object[]{new Date(2023 - 1900, 3, 1),
                                      new Date(2025 - 1900, 9, 1),
                                      "other"}, (Object[]) result2);
@@ -233,10 +237,21 @@ public class ViewsheetScopeTest {
 
    @Test
    void testExecuteThrowRuntimeException() {
+      // Assert that a RuntimeException is thrown when executing the script
       RuntimeException exception = assertThrows(RuntimeException.class, () ->
          viewsheetScope.execute("test","TableView1", true));
+      // Assert that the exception message contains the expected error message
       assert exception.getMessage().replace("\n", " ")
          .contains("Script execution error in assembly: TableView1");
+   }
+
+   /**
+    * test runQuery with a worksheet table
+    */
+   @Test
+   void testRunQuery() {
+      Object result = viewsheetScope.runQuery("ws:global:emwsTest", null);
+      assertNotNull(result);
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {
