@@ -159,7 +159,7 @@ public class ViewsheetScopeTest {
       Object result = viewsheetScope.execute("fields","TableView1", false);
 
       if (result instanceof List<?> resultList) {
-          List<String> actual = resultList.stream()
+         List<String> actual = resultList.stream()
             .map(ref -> ((ColumnRef) ref).getName())
             .collect(Collectors.toList());
 
