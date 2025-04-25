@@ -22,6 +22,7 @@ import inetsoft.report.filter.DCMergeCell;
 import inetsoft.report.filter.GroupedTable;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.DrillPath;
 import inetsoft.uql.DrillSubQuery;
 import inetsoft.uql.asset.AssetEntry;
@@ -773,7 +774,7 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
       String attr;
 
       if((attr = Tool.getAttribute(tag, "Link")) != null) {
-         setLink(attr);
+         setLink(handleAssetLinkOrgMismatch(attr));
       }
 
       if((attr = Tool.getAttribute(tag, "TargetFrame")) != null) {
@@ -843,6 +844,24 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
          setParameterLabel(name, label);
          setParameterType(name, type);
       }
+   }
+
+   /**
+    * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
+    */
+   public static String handleAssetLinkOrgMismatch(String link) {
+      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      int orgIdx = link.lastIndexOf("^");
+
+      if(orgIdx > 0) {
+         String linkOrg = link.substring(orgIdx + 1);
+
+         if(!Tool.equals(linkOrg, curOrgId)) {
+            return link.substring(0, orgIdx + 1) + curOrgId;
+         }
+      }
+
+      return link;
    }
 
    /**

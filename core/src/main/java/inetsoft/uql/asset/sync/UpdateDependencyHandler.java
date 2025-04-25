@@ -890,8 +890,8 @@ public final class UpdateDependencyHandler {
             continue;
          }
 
-         if(linkType == Hyperlink.VIEWSHEET_LINK){
-            dependencies.add(AssetEntry.createAssetEntry(linkName));
+         if(linkType == Hyperlink.VIEWSHEET_LINK) {
+            dependencies.add(AssetEntry.createAssetEntry(Hyperlink.handleAssetLinkOrgMismatch(linkName)));
          }
       }
    }
