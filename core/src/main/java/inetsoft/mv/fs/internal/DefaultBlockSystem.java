@@ -142,7 +142,12 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
    @Override
    public NBlock rename(XBlock from, XBlock to) {
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
-      return copy0(from, currentOrgID, to, currentOrgID,true);
+      return copy0(from, currentOrgID, to, currentOrgID, true);
+   }
+
+   @Override
+   public NBlock rename(XBlock from, XBlock to, String fromOrgId, String toOrgId) {
+      return copy0(from, fromOrgId, to, toOrgId, true);
    }
 
    /**
