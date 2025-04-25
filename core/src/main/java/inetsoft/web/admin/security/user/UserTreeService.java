@@ -911,10 +911,6 @@ public class UserTreeService {
          List<String> localesList = localizationSettingsService.getModel().locales()
             .stream().map(LocalizationModel::label).collect(Collectors.toList());
 
-         //update to this organization
-         String newOrgID = identity.getId();
-         OrganizationManager.getInstance().setCurrentOrgID(newOrgID);
-
          return EditOrganizationPaneModel.builder()
             .name(identity.getName())
             .id(identity.getId())
@@ -930,6 +926,7 @@ public class UserTreeService {
       catch(Exception e) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
          actionRecord.setActionError(e.getMessage());
+         newOrgId = null;
          throw e;
       }
       finally {
@@ -938,6 +935,11 @@ public class UserTreeService {
 
          if(identityInfoRecord != null) {
             Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
+         }
+
+         //update to new organization
+         if(newOrgId != null) {
+            OrganizationManager.getInstance().setCurrentOrgID(newOrgId);
          }
       }
    }
