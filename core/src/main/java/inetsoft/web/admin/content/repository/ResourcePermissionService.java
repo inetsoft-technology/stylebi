@@ -570,74 +570,80 @@ public class ResourcePermissionService {
 
    boolean isIdentityAuthorized(IdentityID identity, Identity.Type type, Principal principal) {
       final ResourceType resourceType;
-      ThreadContext.setContextPrincipal(principal);
+      Principal oprincipal = ThreadContext.getContextPrincipal();
 
-      // Only show users from the same organization and site admins (if permission allows)
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      String org = Arrays.stream(provider.getOrganizationIDs())
-         .map(provider::getOrganization)
-         .filter((o) -> o.getOrganizationID().equals(orgID))
-         .map(Organization::getId)
-         .findFirst()
-         .orElse("");
+      try {
+         ThreadContext.setContextPrincipal(principal);
+         // Only show users from the same organization and site admins (if permission allows)
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         String org = Arrays.stream(provider.getOrganizationIDs())
+            .map(provider::getOrganization)
+            .filter((o) -> o.getOrganizationID().equals(orgID))
+            .map(Organization::getId)
+            .findFirst()
+            .orElse("");
 
-      switch(type) {
-      case USER:
-         User user = provider.getUser(identity);
+         switch(type) {
+         case USER:
+            User user = provider.getUser(identity);
 
-         if(user != null) {
-            IdentityID[] roles = user == null ? new IdentityID[0] : provider.getRoles(user.getIdentityID());
-            boolean userIsSiteAdmin = Arrays.stream(provider.getAllRoles(roles))
-               .anyMatch(provider::isSystemAdministratorRole);
+            if(user != null) {
+               IdentityID[] roles = user == null ? new IdentityID[0] : provider.getRoles(user.getIdentityID());
+               boolean userIsSiteAdmin = Arrays.stream(provider.getAllRoles(roles))
+                  .anyMatch(provider::isSystemAdministratorRole);
 
-            if(userIsSiteAdmin || org.equals(user.getOrganizationID())) {
-               resourceType = ResourceType.SECURITY_USER;
+               if(userIsSiteAdmin || org.equals(user.getOrganizationID())) {
+                  resourceType = ResourceType.SECURITY_USER;
+                  break;
+               }
+            }
+
+            return false;
+         case GROUP:
+            if(provider.getGroup(identity) != null && org.equals(provider.getGroup(identity).getOrganizationID())) {
+               resourceType = ResourceType.SECURITY_GROUP;
                break;
             }
+
+            return false;
+         case ROLE:
+            Role role = provider.getRole(identity);
+
+            if(role == null) {
+               IdentityID globalID = new IdentityID(identity.name, null);
+               role = provider.getRole(globalID);
+               identity = globalID;
+            }
+
+            boolean roleIsSiteAdmin = Arrays.stream(
+                  provider.getAllRoles(new IdentityID[]{ role.getIdentityID() }))
+               .anyMatch(provider::isSystemAdministratorRole);
+            boolean userIsAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+
+            if((!roleIsSiteAdmin || userIsAdmin) || org.equals(role.getOrganizationID())) {
+               resourceType = ResourceType.SECURITY_ROLE;
+               break;
+            }
+
+            return false;
+         case ORGANIZATION:
+            if(org.equals(identity.orgID)) {
+               resourceType = ResourceType.SECURITY_ORGANIZATION;
+               break;
+            }
+
+            return false;
+         default:
+            return false;
          }
 
-         return false;
-      case GROUP:
-         if(provider.getGroup(identity) != null && org.equals(provider.getGroup(identity).getOrganizationID())) {
-            resourceType = ResourceType.SECURITY_GROUP;
-            break;
-         }
-
-         return false;
-      case ROLE:
-         Role role = provider.getRole(identity);
-
-         if(role == null) {
-            IdentityID globalID = new IdentityID(identity.name, null);
-            role = provider.getRole(globalID);
-            identity = globalID;
-         }
-
-         boolean roleIsSiteAdmin = Arrays.stream(
-               provider.getAllRoles(new IdentityID[]{role.getIdentityID()}))
-            .anyMatch(provider::isSystemAdministratorRole);
-         boolean userIsAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
-
-         if((!roleIsSiteAdmin || userIsAdmin) || org.equals(role.getOrganizationID())) {
-            resourceType = ResourceType.SECURITY_ROLE;
-            break;
-         }
-
-         return false;
-      case ORGANIZATION:
-         if(org.equals(identity.orgID)) {
-            resourceType = ResourceType.SECURITY_ORGANIZATION;
-            break;
-         }
-
-         return false;
-      default:
-         return false;
+         return securityProvider.checkPermission(principal, resourceType, identity.convertToKey(),
+                                                 ResourceAction.ADMIN);
       }
-
-      return securityProvider.checkPermission(principal, resourceType, identity.convertToKey(),
-                                              ResourceAction.ADMIN);
+      finally {
+         ThreadContext.setContextPrincipal(oprincipal);
+      }
    }
 
    private List<ResourcePermissionTableModel> getIdentityActions(Permission perm,
