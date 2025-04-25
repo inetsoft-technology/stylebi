@@ -929,7 +929,7 @@ public class ScheduleService {
          }
 
          actionModel
-            .label(getTaskActionLabel(action, catalog, principal))
+            .label(getTaskActionLabel(action, catalog, principal, em))
             .notificationEnabled(abstractAction.getNotifications() != null
                                     && !abstractAction.getNotifications().isEmpty())
             .notifications(abstractAction.getNotifications())
@@ -1028,7 +1028,7 @@ public class ScheduleService {
             .collect(Collectors.toList());
 
          model = BackupActionModel.builder()
-            .label(getTaskActionLabel(action, catalog, principal))
+            .label(getTaskActionLabel(action, catalog, principal, em))
             .backupPathsEnabled(path != null && !path.isEmpty())
             .assets(assetModels)
             .backupPath(Objects.requireNonNull(path))
@@ -1067,7 +1067,7 @@ public class ScheduleService {
          }
 
          model = BatchActionModel.builder()
-            .label(getTaskActionLabel(action, catalog, principal))
+            .label(getTaskActionLabel(action, catalog, principal, em))
             .taskName(batchAction.getTaskId())
             .queryEntry(batchAction.getQueryEntry())
             .queryParameters(queryParameterModels.toArray(new AddParameterDialogModel[0]))
@@ -1536,19 +1536,53 @@ public class ScheduleService {
 
       for(int i = 0; i < task.getActionCount(); i++) {
          action = task.getAction(i);
-         actions[i] = getTaskActionLabel(action, catalog, principal);
+         actions[i] = getTaskActionLabel(action, catalog, principal, false);
       }
 
       return actions;
    }
 
-   public String getTaskActionLabel(ScheduleAction action, Catalog catalog, Principal principal) {
+   public String getTaskActionLabel(ScheduleAction action, Catalog catalog, Principal principal,
+                                    boolean em)
+   {
       String label = action.toString();
 
-      if(action instanceof ViewsheetAction || action instanceof BatchAction) {
+      if(action instanceof BatchAction) {
          int idx = label.indexOf(":") + 2; // remove the prefix
          label = catalog.getString(label.substring(0, idx)) +
             SUtil.localize(label.substring(idx), principal);
+      }
+      else if(action instanceof ViewsheetAction) {
+         int idx = label.indexOf(":") + 2; // remove the prefix
+         String prefix = catalog.getString(label.substring(0, idx));
+         String folder = null;
+         String vsName = null;
+         String fullName = label.substring(idx);
+
+         if(fullName.contains("/")) {
+            folder = fullName.substring(0, fullName.lastIndexOf("/"));
+            vsName = fullName.substring(fullName.lastIndexOf("/") + 1);
+         }
+         else {
+            vsName = fullName;
+         }
+
+         if(!em) {
+            AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
+            String vsId = ((ViewsheetAction) action).getViewsheet();
+
+            if(vsId != null) {
+               try {
+                  AssetEntry vs = assetRepository.getAssetEntry(AssetEntry.createAssetEntry(vsId));
+                  vsName = vs.getAlias();
+               }
+               catch(Exception ignore) {
+               }
+            }
+         }
+
+         folder = folder != null ? SUtil.localize(folder, principal) : "";
+         label = Tool.buildString(prefix, Tool.isEmptyString(folder) ? "" : folder + "/", vsName);
       }
       else if(action instanceof IndividualAssetBackupAction) {
          label = catalog.getString(label);
