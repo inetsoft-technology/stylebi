@@ -998,6 +998,11 @@ public class RepletRegistry implements Serializable {
    public void addFolderFavoritesUser(String name, String principal) {
       FolderContext context = getFolderContext(name);
 
+      if(context == null) {
+         context = new FolderContext(name);
+         getFolderContextmap().put(name, context);
+      }
+
       if(context != null) {
          context.addFavoritesUser(principal);
       }
