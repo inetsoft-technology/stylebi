@@ -19,6 +19,7 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
@@ -79,7 +80,7 @@ public class SelectionTreeVSAScriptableTest {
       }
 
       assertEquals("SelectionTree", selectionTreeVSAScriptable.get("title", selectionTreeVSAScriptable));
-      assertEquals(8, selectionTreeVSAScriptable.get("sortType", selectionTreeVSAScriptable));
+      assertEquals(XConstants.SORT_SPECIFIC, selectionTreeVSAScriptable.get("sortType", selectionTreeVSAScriptable));
       assertNull(selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
    }
 
@@ -90,7 +91,7 @@ public class SelectionTreeVSAScriptableTest {
    }
 
    @Test
-   void tetGet() {
+   void testGet() {
       assertNull(selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
       selectionTreeVSAScriptable.setCellValue("value1");
       assertEquals("value1", selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
@@ -100,7 +101,7 @@ public class SelectionTreeVSAScriptableTest {
    }
 
    @Test
-   void tetHas() {
+   void testHas() {
       assertFalse(selectionTreeVSAScriptable.has("property1", selectionTreeVSAScriptable));
       selectionTreeVSAScriptable.setCellValue("value1");
       assertTrue(selectionTreeVSAScriptable.has("value", selectionTreeVSAScriptable));

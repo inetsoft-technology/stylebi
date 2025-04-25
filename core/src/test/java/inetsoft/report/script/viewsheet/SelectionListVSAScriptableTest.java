@@ -19,6 +19,7 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
@@ -76,7 +77,7 @@ public class SelectionListVSAScriptableTest {
       }
 
       assertEquals("SelectionList", selectionListVSAScriptable.get("title", selectionListVSAScriptable));
-      assertEquals(8, selectionListVSAScriptable.get("sortType", selectionListVSAScriptable));
+      assertEquals(XConstants.SORT_SPECIFIC, selectionListVSAScriptable.get("sortType", selectionListVSAScriptable));
       assertNull(selectionListVSAScriptable.get("value", selectionListVSAScriptable));
    }
 
@@ -87,7 +88,7 @@ public class SelectionListVSAScriptableTest {
    }
 
    @Test
-   void tetGet() {
+   void testGet() {
       assertNull(selectionListVSAScriptable.get("value", selectionListVSAScriptable));
       selectionListVSAScriptable.setCellValue("value1");
       assertEquals("value1", selectionListVSAScriptable.get("value", selectionListVSAScriptable));
@@ -95,7 +96,7 @@ public class SelectionListVSAScriptableTest {
    }
 
    @Test
-   void tetHas() {
+   void testHas() {
       assertFalse(selectionListVSAScriptable.has("property1", selectionListVSAScriptable));
       selectionListVSAScriptable.setCellValue("value1");
       assertTrue(selectionListVSAScriptable.has("value", selectionListVSAScriptable));
@@ -137,6 +138,8 @@ public class SelectionListVSAScriptableTest {
 
    @Test
    void testSetSize() {
+      when(viewsheetSandbox.isRuntime()).thenReturn(true);
+
       //keep default size when set size is invalid
       Dimension defaultSize = new Dimension(100, 120);
       Dimension[] invalidDimensions = new Dimension[] {
@@ -148,7 +151,7 @@ public class SelectionListVSAScriptableTest {
 
       Dimension dim1 = new Dimension(80, 100);
       selectionListVSAScriptable.setSize(dim1);
-//      assertEquals(dim1, selectionListVSAScriptable.getSize());//???todo
+      assertEquals(dim1, selectionListVSAScriptable.getSize());
       selectionListVSAScriptable.setShowTypeValue(false);
       assertFalse(selectionListVSAScriptable.getShowType());
    }
