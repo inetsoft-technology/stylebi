@@ -394,7 +394,7 @@ public class RepositoryTreeController {
             analyticRepository.renameRepositoryEntry(entry, newPath, principal);
          }
          else {
-            boolean reAlias = assetEntry.getAlias() != null || containsSpecialChars(newName);
+            boolean reAlias = !Tool.isEmptyString(assetEntry.getAlias()) || containsSpecialChars(newName);
             String name = assetEntry.getScope() == AssetRepository.USER_SCOPE ?
                newPath.substring(Tool.MY_DASHBOARD.length() + 1) : newPath;
             AssetEntry nentry = new AssetEntry(assetEntry.getScope(),
