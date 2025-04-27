@@ -1574,7 +1574,7 @@ public class ScheduleService {
             if(vsId != null) {
                try {
                   AssetEntry vs = assetRepository.getAssetEntry(AssetEntry.createAssetEntry(vsId));
-                  vsName = vs.getAlias();
+                  vsName = Tool.isEmptyString(vs.getAlias()) ? vsName : vs.getAlias();
                }
                catch(Exception ignore) {
                }
