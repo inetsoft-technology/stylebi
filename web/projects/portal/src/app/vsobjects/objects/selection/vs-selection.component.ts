@@ -102,6 +102,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    @Input() atBottom = false;
    @Input() container: Element;
    @Input() isWizard = false;
+   @Input() maxMode = false;
    @Input() popupShowing = false; // used to force change detection
    @Input() objectContainerHeight: number;
    @Input() submittedSelections: Observable<boolean>;
