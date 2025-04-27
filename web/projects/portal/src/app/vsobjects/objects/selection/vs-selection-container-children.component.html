@@ -83,6 +83,7 @@
                       [style.width.px]="childObject.objectFormat.width"
                       [actions]="childActions[i]"
                       [model]="childObject"
+                      [maxMode]="vsObject.maxMode"
                       [vsInfo]="vsInfo"
                       [draggable]="true"
                       (contextmenu)="showContextMenu($event, childActions[i])"
