@@ -387,10 +387,8 @@ export class BackupFileComponent implements OnDestroy {
             if(node.label !== "_#(js:Data Model)" &&
                ((type & RepositoryEntryType.FOLDER) != RepositoryEntryType.FOLDER ||
                   (type & RepositoryEntryType.DATA_SOURCE) == RepositoryEntryType.DATA_SOURCE ||
-                  ((type & RepositoryEntryType.LOGIC_MODEL) == RepositoryEntryType.LOGIC_MODEL &&
-                     node.children.length === 0) ||
-                  ((type & RepositoryEntryType.PARTITION) == RepositoryEntryType.PARTITION &&
-                     node.children.length === 0))) {
+                  (type & RepositoryEntryType.LOGIC_MODEL) == RepositoryEntryType.LOGIC_MODEL ||
+                  (type & RepositoryEntryType.PARTITION) == RepositoryEntryType.PARTITION)) {
                assets.push(<SelectedAssetModel>{
                   label: label,
                   path: path,
