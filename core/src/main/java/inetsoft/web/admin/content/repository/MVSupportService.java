@@ -1128,14 +1128,44 @@ public class MVSupportService {
                String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
                List<IdentityID> orgAdminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
 
-               if(!orgID.equals(Organization.getDefaultOrganizationID()) &&
-                  !orgAdminUsers.isEmpty())
-               {
-                  boolean isCurrentUserOrgAdmin = orgAdminUsers.stream()
-                     .anyMatch(id -> Tool.equals(id.convertToKey(), this.principal.getName()));
+               if(this.principal == null) {
+                  this.principal = ThreadContext.getContextPrincipal();
+               }
 
+               boolean isOrgAdmin = OrganizationManager.getInstance().isOrgAdmin(this.principal);
+               String[] groups = ((XPrincipal)this.principal).getGroups();
+               IdentityID[] Roles = ((XPrincipal)this.principal).getRoles();
+               boolean found = false;
+
+               if(isOrgAdmin) {
                   //assign org admin role instead of printing all org admins
-                  if(isCurrentUserOrgAdmin) {
+                  if(!identities.isEmpty()) {
+                     for(Identity identity : identities) {
+                        if(groups != null && groups.length > 0) {
+                           for(String group : groups) {
+                              if(group.equals(identity.getName())) {
+                                 found = true;
+                                 break;
+                              }
+                           }
+                        }
+
+                        if(Roles != null && Roles.length > 0 && !found) {
+                           for(IdentityID roleID : Roles) {
+                              if(roleID.getName().equals(identity.getName())) {
+                                 found = true;
+                                 break;
+                              }
+                           }
+                        }
+
+                        if(found) {
+                           break;
+                        }
+                     }
+                  }
+
+                  if(!found && !orgAdminUsers.isEmpty()) {
                      if(orgAdminUsers.size() > 1) {
                         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
