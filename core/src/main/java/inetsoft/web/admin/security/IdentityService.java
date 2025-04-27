@@ -2019,10 +2019,10 @@ public class IdentityService {
             continue;
          }
 
-         if(newName == null && (resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) ||
-            path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
+         if(resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) ||
+            newName == null && path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
                !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldName.orgID) &&
-               !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldOrgId)))
+               !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldOrgId))
          {
             //skip permissions not in this organization
             continue;
