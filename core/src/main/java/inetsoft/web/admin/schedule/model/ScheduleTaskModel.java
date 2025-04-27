@@ -56,7 +56,8 @@ public interface ScheduleTaskModel {
    @Nullable
    String lastRunTime();
 
-   boolean hideInPortal();
+   @Nullable
+   Boolean hideInPortal();
 
    static Builder builder() {
       return new Builder();
