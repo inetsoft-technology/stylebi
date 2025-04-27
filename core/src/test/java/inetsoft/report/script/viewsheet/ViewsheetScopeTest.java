@@ -20,13 +20,11 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.AssetTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.test.*;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.Tool;
@@ -34,10 +32,13 @@ import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-import java.security.Principal;
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.net.URL;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -65,7 +66,6 @@ public class ViewsheetScopeTest {
       openMocks(this);
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
       sandbox = rvs.getViewsheetSandbox();
-      //Principal principal = mock(Principal.class);
       SRPrincipal org_admin = new SRPrincipal(new IdentityID("admin", "host-org"),
                                               new IdentityID[] { new IdentityID("Organization Administrator", null)},
                                               new String[0], "host-org",
@@ -146,6 +146,7 @@ public class ViewsheetScopeTest {
          {"peach", "2",  new Date(2021 - 1900, 2, 1)},
          });
       DefaultTableLens table2 = table1.clone();
+
       Object result = viewsheetScope.toList(table1, "field=col1, sort=asc, sorton=col1, distinct=true");
       assertArrayEquals(new Object[]{"apple", "banana", "peach"}, (Object[]) result);
 
@@ -193,7 +194,7 @@ public class ViewsheetScopeTest {
     * test setCellValue with a normal value
     */
    @Test
-   void testSetCellValueUpdatesExistingRow() {
+   void testSetCellValue() {
       // when row <= rowCount, it will update the row cell
       viewsheetScope.setCellValue("Query1", 2, 0, true);
       assertEquals(true, getXEmbeddedTable().getObject(2,0));
@@ -252,6 +253,21 @@ public class ViewsheetScopeTest {
    void testRunQuery() {
       Object result = viewsheetScope.runQuery("ws:global:emwsTest", null);
       assertNotNull(result);
+   }
+
+   /**
+    * test addImage with a url image
+    * @throws Exception
+    */
+   @Test
+   void testAddImage() throws Exception {
+      URL url = new URL("https://www.inetsoft.com/images/website/homepage/dataPipeline-1.png");
+      Image image = ImageIO.read(url);
+
+      assertEquals(0, sandbox.getViewsheet().getUploadedImageNames().length);
+      viewsheetScope.refreshScriptable();
+      viewsheetScope.addImage("Image1", image);
+      assertEquals(1, sandbox.getViewsheet().getUploadedImageNames().length);
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {
