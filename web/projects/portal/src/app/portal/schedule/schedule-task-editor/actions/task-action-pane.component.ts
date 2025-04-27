@@ -380,26 +380,15 @@ export class TaskActionPane implements OnInit {
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message).then(
          (result: string) => {
             if(result === "ok") {
-               const params = new HttpParams()
-                  .set("name", Tool.byteEncode(this.oldTaskName))
-                  .set("owner", Tool.byteEncode(this.taskOwner));
                const actions: number[] = Tool.clone(this.selectedActions);
                actions.sort();
-               actions.reverse();
 
-               this.http.post(ACTION_URI + "/delete", actions, { params })
-                  .subscribe(() => {
-                     actions.sort();
+               for(let i = actions.length - 1; i >= 0; i--) {
+                  this._model.actions.splice(actions[i], 1);
+               }
 
-                     for(let i = actions.length - 1; i >= 0; i--) {
-                        this._model.actions.splice(actions[i], 1);
-                     }
-
-                     this.selectedActions = [];
-                  },
-                     (error: string) => {
-                        // Error
-                     });
+               this.selectedActions = [];
+               this.actionIndex = this._model.actions.length - 1;
             }
          });
    }

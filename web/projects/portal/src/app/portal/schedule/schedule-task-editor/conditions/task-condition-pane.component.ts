@@ -626,23 +626,16 @@ export class TaskConditionPane implements OnInit, OnChanges {
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message).then(
          (result: string) => {
             if(result === "ok") {
-               const params = new HttpParams().set("name", Tool.byteEncode(this.oldTaskName));
                const conditions: number[] = Tool.clone(this.selectedConditions);
                conditions.sort();
                conditions.reverse();
 
-               this.http.post(TASK_URI + "/delete", conditions, { params: params })
-                  .subscribe(() => {
-                        for(let index of conditions) {
-                           this._model.conditions.splice(index, 1);
-                        }
+               for(let index of conditions) {
+                  this._model.conditions.splice(index, 1);
+               }
 
-                        this.selectedConditions = [];
-                        this.conditionIndex = this._model.conditions.length - 1;
-                     },
-                     () => {
-                        // Error
-                     });
+               this.selectedConditions = [];
+               this.conditionIndex = this._model.conditions.length - 1;
             }
          });
    }
