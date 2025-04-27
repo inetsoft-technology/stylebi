@@ -84,14 +84,7 @@ export class PhysicalModelTableTreeNodeComponent {
     * @returns {boolean}   true if selected
     */
    isSelected(): boolean {
-      if(this.tree.selectedNodes != null && this.tree.selectedNodes.length > 0) {
-         return this.tree.selectedNodes.includes(this.node);
-      }
-      else if(this.tree.selectedNode != null && this.tree.selectedNode.length > 0) {
-         return this.tree.selectedNode.includes(this.node);
-      }
-
-      return false;
+      return !!this.tree.selectedNodes && this.tree.selectedNodes.includes(this.node);
    }
 
    /**
@@ -103,13 +96,13 @@ export class PhysicalModelTableTreeNodeComponent {
       }
 
       if(event.ctrlKey || event.shiftKey) {
-         this.tree.selectedNode.push(this.node)
+         this.tree.selectedNodes.push(this.node)
       }
       else {
-         this.tree.selectedNode = [this.node];
+         this.tree.selectedNodes = [this.node];
       }
 
-      this.tree.selectNode0(this.tree.selectedNode);
+      this.tree.selectNode0(this.tree.selectedNodes);
    }
 
    /**
