@@ -534,13 +534,13 @@ public abstract class DatasourcesBaseService {
       folder = folder == null ? "" : folder;
       String oParentName = parent.getOldName();
       oParentName = oParentName == null ? parent.getName() : oParentName;
-      String resource = Tool.buildString(folder, oParentName,
+      String resource = Tool.buildString(folder, "/", oParentName,
                                          XUtil.ADDITIONAL_DS_CONNECTOR, additional.getOldName());
       Permission perm = securityEngine.getPermission(ResourceType.DATA_SOURCE, resource);
 
       if(perm != null) {
          securityEngine.removePermission(ResourceType.DATA_SOURCE, resource);
-         String nresource = Tool.buildString(folder, parent.getName(),
+         String nresource = Tool.buildString(folder, "/", parent.getName(),
                                              XUtil.ADDITIONAL_DS_CONNECTOR, additional.getName());
          securityEngine.setPermission(ResourceType.DATA_SOURCE, nresource, perm);
       }
