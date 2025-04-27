@@ -77,7 +77,7 @@ public interface ScheduleTaskModel {
          }
 
          for(int i = 0; i < count; i++) {
-            if(task.getAction(i) instanceof AssetFileBackupAction ||
+            if(task.getAction(i) instanceof IndividualAssetBackupAction ||
                task.getAction(i) instanceof BatchAction)
             {
                return true;
