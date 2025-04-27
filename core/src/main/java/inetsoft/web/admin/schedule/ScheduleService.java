@@ -929,7 +929,7 @@ public class ScheduleService {
          }
 
          actionModel
-            .label(getTaskActionLabel(action, catalog, principal, em))
+            .label(getTaskActionLabel(action, catalog, principal))
             .notificationEnabled(abstractAction.getNotifications() != null
                                     && !abstractAction.getNotifications().isEmpty())
             .notifications(abstractAction.getNotifications())
@@ -1028,7 +1028,7 @@ public class ScheduleService {
             .collect(Collectors.toList());
 
          model = BackupActionModel.builder()
-            .label(getTaskActionLabel(action, catalog, principal, em))
+            .label(getTaskActionLabel(action, catalog, principal))
             .backupPathsEnabled(path != null && !path.isEmpty())
             .assets(assetModels)
             .backupPath(Objects.requireNonNull(path))
@@ -1067,7 +1067,7 @@ public class ScheduleService {
          }
 
          model = BatchActionModel.builder()
-            .label(getTaskActionLabel(action, catalog, principal, em))
+            .label(getTaskActionLabel(action, catalog, principal))
             .taskName(batchAction.getTaskId())
             .queryEntry(batchAction.getQueryEntry())
             .queryParameters(queryParameterModels.toArray(new AddParameterDialogModel[0]))
@@ -1536,15 +1536,13 @@ public class ScheduleService {
 
       for(int i = 0; i < task.getActionCount(); i++) {
          action = task.getAction(i);
-         actions[i] = getTaskActionLabel(action, catalog, principal, false);
+         actions[i] = getTaskActionLabel(action, catalog, principal);
       }
 
       return actions;
    }
 
-   public String getTaskActionLabel(ScheduleAction action, Catalog catalog, Principal principal,
-                                    boolean em)
-   {
+   public String getTaskActionLabel(ScheduleAction action, Catalog catalog, Principal principal) {
       String label = action.toString();
 
       if(action instanceof BatchAction) {
@@ -1567,17 +1565,15 @@ public class ScheduleService {
             vsName = fullName;
          }
 
-         if(!em) {
-            AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
-            String vsId = ((ViewsheetAction) action).getViewsheet();
+         AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
+         String vsId = ((ViewsheetAction) action).getViewsheet();
 
-            if(vsId != null) {
-               try {
-                  AssetEntry vs = assetRepository.getAssetEntry(AssetEntry.createAssetEntry(vsId));
-                  vsName = Tool.isEmptyString(vs.getAlias()) ? vsName : vs.getAlias();
-               }
-               catch(Exception ignore) {
-               }
+         if(vsId != null) {
+            try {
+               AssetEntry vs = assetRepository.getAssetEntry(AssetEntry.createAssetEntry(vsId));
+               vsName = Tool.isEmptyString(vs.getAlias()) ? vsName : vs.getAlias();
+            }
+            catch(Exception ignore) {
             }
          }
 
