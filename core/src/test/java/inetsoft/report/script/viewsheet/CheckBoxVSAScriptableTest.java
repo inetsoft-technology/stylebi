@@ -74,7 +74,7 @@ public class CheckBoxVSAScriptableTest {
    }
 
    @Test
-   void tetGet() {
+   void testGet() {
       assertArrayEquals(new Object[0], (Object[]) checkBoxVSAScriptable.get("value", checkBoxVSAScriptable));
       checkBoxVSAScriptable.setCellValue(new Date(125, 1, 20));
       assert simpleDateFormat.format(checkBoxVSAScriptable.get("value", checkBoxVSAScriptable)).equals("2025-02-20");
@@ -82,7 +82,7 @@ public class CheckBoxVSAScriptableTest {
    }
 
    @Test
-   void tetHas() {
+   void testHas() {
       assertFalse(checkBoxVSAScriptable.has("property1", checkBoxVSAScriptable));
       checkBoxVSAScriptable.setCellValue("value1");
       assertTrue(checkBoxVSAScriptable.has("value", checkBoxVSAScriptable));
