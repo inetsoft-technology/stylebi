@@ -1123,7 +1123,7 @@ public class MVSupportService {
             }
 
             // user enable security, but without any permission, default to administrator
-            if(!SecurityEngine.getSecurity().getSecurityProvider().isVirtual())
+            if(!SecurityEngine.getSecurity().getSecurityProvider().isVirtual() && MVDef.REJECT_VPM.get())
             {
                String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
                List<IdentityID> orgAdminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
