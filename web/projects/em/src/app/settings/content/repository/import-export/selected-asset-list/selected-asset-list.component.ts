@@ -77,7 +77,13 @@ export class SelectedAssetListComponent implements OnInit {
       return this.selection.selected.length === this.assets.length;
    }
 
-   getLabel(path: string) {
+   getLabel(path: string, index: number) {
+      const assetType = this.assets[index]?.typeName;
+
+      if(assetType != "AUTOSAVEVS" && assetType != "AUTOSAVEWS") {
+         return path;
+      }
+
       if(path != null && path.indexOf("^") != -1) {
          let paths = path.split("^");
 
