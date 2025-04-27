@@ -820,6 +820,7 @@ public class ScheduleTaskService {
       task.setDescription(model.description());
       task.setTimeZone(model.timeZone());
       IdentityID modelID = getIdentityId(model.idName(), principal);
+      modelID = modelID == null ? task.getOwner() : modelID;
 
       //handle vs bookmark when executer has changed.
       if((modelID == null && oldIdentity != null && oldIdentityID != null
