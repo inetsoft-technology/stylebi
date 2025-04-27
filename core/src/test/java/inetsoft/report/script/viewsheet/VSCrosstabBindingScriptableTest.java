@@ -47,7 +47,8 @@ public class VSCrosstabBindingScriptableTest {
 
       CrosstabVSAssembly crosstabVSAssembly = new CrosstabVSAssembly();
 
-       CrosstabVSAssemblyInfo crosstabVSAssemblyInfo = (CrosstabVSAssemblyInfo) crosstabVSAssembly.getVSAssemblyInfo();
+      CrosstabVSAssemblyInfo crosstabVSAssemblyInfo =
+         (CrosstabVSAssemblyInfo) crosstabVSAssembly.getVSAssemblyInfo();
       crosstabVSAssemblyInfo.setName("crosstab1");
 
       viewsheet.addAssembly(crosstabVSAssembly);
@@ -94,9 +95,11 @@ public class VSCrosstabBindingScriptableTest {
       vsCrosstabBindingScriptable.setShowColumnTotal(false);
       assertFalse(vsCrosstabBindingScriptable.isShowColumnTotal());
 
-
-      vsCrosstabBindingScriptable.setColumnOrder("row1", XConstants.ROW_HEADER, XConstants.SORT_ASC, "Sum(measure1)");
-      assertEquals(XConstants.SORT_ASC, vsCrosstabBindingScriptable.getColumnOrder("row1", XConstants.ROW_HEADER));
+      vsCrosstabBindingScriptable.setColumnOrder("row1",
+                                                 XConstants.ROW_HEADER, XConstants.SORT_ASC,
+                                                 "Sum(measure1)");
+      assertEquals(XConstants.SORT_ASC,
+                   vsCrosstabBindingScriptable.getColumnOrder("row1", XConstants.ROW_HEADER));
 
       vsCrosstabBindingScriptable.setTimeSeries("row1", true);
       assertTrue(vsCrosstabBindingScriptable.isTimeSeries("row1"));
@@ -122,10 +125,12 @@ public class VSCrosstabBindingScriptableTest {
       vsCrosstabBindingScriptable.setGroupTotal("date", XConstants.COL_HEADER, "show");
 
       assertEquals(3, vsCrosstabBindingScriptable.getTopN("name", XConstants.ROW_HEADER));
-      assertEquals("Sum(total)", vsCrosstabBindingScriptable.getTopNSummaryCol("name", XConstants.ROW_HEADER));
+      assertEquals("Sum(total)",
+                   vsCrosstabBindingScriptable.getTopNSummaryCol("name", XConstants.ROW_HEADER));
       assertFalse(vsCrosstabBindingScriptable.isTopNReverse("name", XConstants.ROW_HEADER));
       assertTrue(vsCrosstabBindingScriptable.isGroupOthers("name", XConstants.ROW_HEADER));
-      assertEquals(XConstants.YEAR_DATE_GROUP, vsCrosstabBindingScriptable.getGroupOrder("date", XConstants.COL_HEADER));
+      assertEquals(XConstants.YEAR_DATE_GROUP,
+                   vsCrosstabBindingScriptable.getGroupOrder("date", XConstants.COL_HEADER));
       assertTrue(vsCrosstabBindingScriptable.getGroupTotal("date", XConstants.COL_HEADER));
    }
 }
