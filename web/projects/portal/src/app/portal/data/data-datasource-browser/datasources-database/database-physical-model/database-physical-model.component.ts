@@ -404,7 +404,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
     * @param node the node an alias is being created for
     */
    showCreateAliasDialog(node: TreeNodeModel = null): void {
-      node = node ?? this.tableTree.selectedNode[0];
+      node = node ?? this.tableTree.selectedNodes[0];
       this.changeEditingTable(node);
 
       this.tableDuplicateCheck = (name: string) => {
@@ -962,7 +962,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "add", event)
             .subscribe(() => this.dataPhysicalModelService.emitModelChange());
 
-         if(this.tableTree.selectedNode == node) {
+         if(this.tableTree.selectedNodes?.length == 1 &&  this.tableTree.selectedNodes[0] == node) {
             this.editingTable = newTable;
          }
       }
@@ -990,23 +990,18 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
    /**
     * Called when user selects node on tree. Navigate router to the selected nodes path.
-    * @param node   the selected node on tree
+    * @param nodes   the selected node on tree
     */
-   selectNode(node: TreeNodeModel[]): void {
-      if(node != null && node.length == 1) {
-         this.selectedGraphModels = [];
-         this.selectPhysicalGraphNode(node[0])
-         this.changeEditingTable(node[0]);
-      }
-      else if(node == null) {
-         this.selectedGraphModels = [];
-         this.changeEditingTable(null);
-      }
-      else {
-         this.editingTable = null;
-         node.some(n => {
-            this.selectPhysicalGraphNode(n);
-         })
+   selectNode(nodes: TreeNodeModel[]): void {
+      this.selectedGraphModels = [];
+      this.changeEditingTable(null);
+
+      if(nodes) {
+         nodes.forEach(node => this.selectPhysicalGraphNode(node));
+
+         if(nodes.length == 1) {
+            this.changeEditingTable(nodes[0]);
+         }
       }
    }
 
@@ -1155,8 +1150,10 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
             removeTable);
          this.httpClient.post<PhysicalModelDefinition>(PHYSICAL_MODEL_TABLE_URI + "remove", event)
             .subscribe(() => {
-               if(this.tableTree.selectedNode == node) {
-                  this.tableTree.selectedNode = null;
+               let index = this.tableTree.selectedNodes.indexOf(node);
+
+               if(index >= 0) {
+                  this.tableTree.selectedNodes.splice(index, 1);
                }
 
                this.dataPhysicalModelService.emitModelChange();
@@ -1332,7 +1329,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
       this.tableTree.selectedNodes = [];
 
       if(!nodes || nodes.length == 0) {
-         this.tableTree.selectedNode = [];
+         this.tableTree.selectedNodes = [];
          this.selectNode(null);
       }
       else {
@@ -1372,7 +1369,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
 
    /**
     * Expand nodes until the node with the given path is found then select it.
-    * @param path    the path to find
+    * @param paths    the path to find
     * @param parent  the current parent node to search
     */
    private selectAndExpandToPath(paths: string[], parent: TreeNodeModel = this.databaseRoot): void {

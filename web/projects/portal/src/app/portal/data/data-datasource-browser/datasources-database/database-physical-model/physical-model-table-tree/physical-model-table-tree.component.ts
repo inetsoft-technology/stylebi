@@ -34,7 +34,6 @@ export class PhysicalModelTableTreeComponent {
    @Output() onNodeContextMenu: EventEmitter<{node: TreeNodeModel, event: MouseEvent}> =
       new EventEmitter<{node: TreeNodeModel, event: MouseEvent}>();
    selectedNodes: TreeNodeModel[] = [];
-   selectedNode: TreeNodeModel[] = [];
 
    /**
     * Node was expanded, emit node.
@@ -51,10 +50,6 @@ export class PhysicalModelTableTreeComponent {
    selectNode(node: TreeNodeModel): void {
       this.selectedNodes = this.selectedNodes == null ? [] : this.selectedNodes;
       this.selectedNodes.push(node);
-
-      if(this.selectedNodes != null && this.selectedNodes.length == 1) {
-         this.selectNode0(this.selectedNodes);
-      }
    }
 
    selectNode0(node: TreeNodeModel[]) {
