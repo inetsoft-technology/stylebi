@@ -1383,8 +1383,21 @@ public abstract class DependencyTransformer {
 
                   if(link != null) {
                      ((Element) linkList.item(i)).setAttribute("Link",
-                                                               Hyperlink.handleAssetLinkOrgMismatch(link));
+                        Hyperlink.handleAssetLinkOrgMismatch(link));
                   }
+               }
+            }
+
+            NodeList dirllList = getChildNodes(document.getDocumentElement(),
+               ".//XDrillInfo/drillPath");
+
+            for(int i = 0; i < dirllList.getLength(); i++) {
+               String link = Tool.getAttribute((Element) dirllList.item(i), "link");
+               String linkType = Tool.getAttribute((Element) dirllList.item(i), "linkType");
+
+               if(link != null && (Hyperlink.VIEWSHEET_LINK + "").equals(linkType)) {
+                  ((Element) dirllList.item(i)).setAttribute("link",
+                     Hyperlink.handleAssetLinkOrgMismatch(link));
                }
             }
 
