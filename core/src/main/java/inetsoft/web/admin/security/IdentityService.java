@@ -2103,7 +2103,7 @@ public class IdentityService {
          provider.setPermission(type, path, permission, norgId);
       }
 
-      if(doReplace && !Tool.equals(oorgId, norgId) && !Tool.equals(newPath, path)) {
+      if(doReplace && (!Tool.equals(oorgId, norgId) || !Tool.equals(newPath, path))) {
          provider.removePermission(type, path, resourceOrgID);
       }
    }
