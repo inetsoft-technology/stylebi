@@ -83,7 +83,7 @@ public interface XFileSystem {
    /**
     * Rename one XFile.
     */
-   boolean rename(String from, String fromOrgId, String to, String toOrgId, boolean keepGlobalFile);
+   boolean rename(String from, String fromOrgId, String to, String toOrgId);
 
    /**
     * Remove the XFile for the given name.

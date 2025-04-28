@@ -926,12 +926,12 @@ public class IdentityService {
          updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
          IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg, rename);
 
-         FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
-         //updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+         //FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
          updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          updateBlobStorageName("__pdata", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          updateBlobStorageName("__autoSave", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
-         MVManager.getManager().copyStorageData(oOrg, nOrg);
+         updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+         MVManager.getManager().migrateStorageData(oOrg, nOrg, !rename);
 
          addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
       }

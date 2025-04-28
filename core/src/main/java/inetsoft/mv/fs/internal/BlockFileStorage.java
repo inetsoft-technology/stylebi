@@ -84,6 +84,10 @@ public class BlockFileStorage implements AutoCloseable {
    }
 
    public void rename(BlockFile oldFile, BlockFile newFile) throws IOException {
+      rename(null, oldFile, newFile);
+   }
+
+   public void rename(String orgId, BlockFile oldFile, BlockFile newFile) throws IOException {
       if((oldFile instanceof CacheBlockFile) && (newFile instanceof CacheBlockFile)) {
          FileSystemService fs = FileSystemService.getInstance();
          File source = fs.getCacheFile(oldFile.getName());
@@ -99,7 +103,7 @@ public class BlockFileStorage implements AutoCloseable {
          copy(oldFile, newFile);
       }
       else if((oldFile instanceof StorageBlockFile) && (newFile instanceof StorageBlockFile)) {
-         getStorage().rename(oldFile.getName(), newFile.getName());
+         getStorage(orgId).rename(oldFile.getName(), newFile.getName());
       }
    }
 
