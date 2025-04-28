@@ -36,9 +36,6 @@ import { TreeNodeModel } from "../../../../../../../../widget/tree/tree-node-mod
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { NgbDropdown, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AutoDrillPathModel } from "../../../../../../model/datasources/database/physical-model/logical-model/auto-drill-path-model";
-import {
-   CheckCycleDependenciesEvent
-} from "../../../../../../model/datasources/database/physical-model/logical-model/check-cycle-dependencies-event";
 import { DrillParameterModel } from "../../../../../../model/datasources/database/physical-model/logical-model/drill-parameter-model";
 import { ComponentTool } from "../../../../../../../../common/util/component-tool";
 import { ParameterDialog } from "./parameter-dialog/parameter-dialog.component";
@@ -71,7 +68,6 @@ export class AutoDrillDialog implements OnInit, AfterViewInit {
    @Input() entities: EntityModel[];
    @Input() fields: QueryFieldModel[];
    @Input() portal: boolean = true;
-   @Input() logicalModelName: string;
    @Output() onCommit: EventEmitter<any> = new EventEmitter<any>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    @ViewChild("repositoryTree") repositoryTree: RepositoryTreeComponent;
@@ -777,27 +773,9 @@ export class AutoDrillDialog implements OnInit, AfterViewInit {
          vsLinks.push(path.link);
       }
 
-      if(vsLinks.length != 0) {
-         let event: CheckCycleDependenciesEvent = new CheckCycleDependenciesEvent();
-         event.logicalModelName = this.logicalModelName;
-         event.links = vsLinks;
 
-         this.http.post("../api/data/logicalmodel/autoDrill/checkCycleDependencies", event).subscribe((cycle) => {
-            if(cycle) {
-               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                  "_#(js:data.logical.model.cycleDependOnWarning)");
-               return;
-            }
-            else {
-               this.selectDrill(null, -1);
-               this.onCommit.emit(this.autoDrillModel);
-            }
-         });
-      }
-      else {
-         this.selectDrill(null, -1);
-         this.onCommit.emit(this.autoDrillModel);
-      }
+      this.selectDrill(null, -1);
+      this.onCommit.emit(this.autoDrillModel);
    }
 
    /**
