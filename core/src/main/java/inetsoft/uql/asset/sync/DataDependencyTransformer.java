@@ -140,7 +140,7 @@ public class DataDependencyTransformer extends DependencyTransformer {
                                       List<RenameInfo> rinfos)
    {
       String dsname = info.getSource();
-      String key = DependencyTransformer.getAssetId(dsname, AssetEntry.Type.DATA_SOURCE);
+      String key = DependencyTransformer.getAssetId(dsname, AssetEntry.Type.DATA_SOURCE, null);
 
       // For sql table, its table name is in column info, so only add its prefix
       // to rename info and fix it in AssetSQLTableDependencyTransformer.

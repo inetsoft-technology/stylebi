@@ -97,9 +97,17 @@ public interface DependencyHandler {
    void updatePhysicalDependencies(AssetEntry entry, String sourcePath);
 
    static String getAssetId(String path, AssetEntry.Type type) {
-      int scope = AssetRepository.GLOBAL_SCOPE;
+      return getAssetId(path, type, AssetRepository.GLOBAL_SCOPE, null);
+   }
 
-      if(type.isDataSource() || type.isQuery() || type.isLogicModel() || type.isPartition() || type.isVPM()) {
+   static String getAssetId(String path, AssetEntry.Type type, int scope) {
+      return getAssetId(path, type, scope, null);
+   }
+
+   static String getAssetId(String path, AssetEntry.Type type, int scope, String organizationId) {
+      if(type.isDataSource() || type.isQuery() || type.isLogicModel() || type.isPartition() ||
+         type.isVPM())
+      {
          scope = AssetRepository.QUERY_SCOPE;
       }
 
@@ -107,15 +115,7 @@ public interface DependencyHandler {
          scope = AssetRepository.COMPONENT_SCOPE;
       }
 
-      return getAssetId(path, type, scope);
-   }
-
-   static String getAssetId(String path, AssetEntry.Type type, int scope) {
-      if(type.isDataSource() || type.isQuery() || type.isLogicModel() || type.isPartition()) {
-         scope = AssetRepository.QUERY_SCOPE;
-      }
-
-      AssetEntry entry = new AssetEntry(scope, type, path, null);
+      AssetEntry entry = new AssetEntry(scope, type, path, null, organizationId);
 
       return entry.toIdentifier();
    }
