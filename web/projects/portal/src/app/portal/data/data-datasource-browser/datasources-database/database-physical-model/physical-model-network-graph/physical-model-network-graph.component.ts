@@ -260,6 +260,10 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
          this.jsp.deleteEveryConnection();
          this.jsp.deleteEveryEndpoint();
       }
+
+      if(changes['selectedGraphModels'] && this.selectedGraphModels) {
+         this.dragNodes = [...this.selectedGraphModels];
+      }
    }
 
    ngAfterViewChecked(): void {
@@ -1019,10 +1023,6 @@ export class PhysicalModelNetworkGraphComponent implements OnInit, OnChanges, Af
    getSelectedNode(currentNode: GraphNodeModel): boolean {
       if(this.dragNodes != null && this.dragNodes.length > 0) {
          return this.dragNodes.some(node => node.node.id === currentNode.id);
-      }
-
-      if(this.selectedGraphModels) {
-         return this.selectedGraphModels.some(model => model.node.id === currentNode.id)
       }
 
       return false;
