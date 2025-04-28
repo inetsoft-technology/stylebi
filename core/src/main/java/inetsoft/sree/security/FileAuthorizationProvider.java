@@ -267,58 +267,56 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          map.put(getResourceKey(ResourceType.REPORT, "Built-in Admin Reports", orgId), perm);
       }
 
-      private static void addDefaultRoleGrants(String orgID, Map<String, Permission> map) {
-         Permission perm = new Permission();
-         Map<String, Boolean> defedited = new HashMap<>();
-         defedited.put(orgID, true);
+      public static void addDefaultRoleGrants(String orgID, Map<String, Permission> map) {
+         String selforgName = Organization.getSelfOrganizationName();
+         Permission perm = null;
 
-         String name = "Advanced";
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), orgID);
-         perm.setOrgEditedGrantAll(defedited);
+         if(Organization.getDefaultOrganizationID().equals(orgID)) {
+            perm = new Permission();
+            Map<String, Boolean> defedited = new HashMap<>();
+            defedited.put(orgID, true);
+            perm.setOrgEditedGrantAll(defedited);
+            perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton("Advanced"), orgID);
+            map.put(getResourceKey(ResourceType.SCHEDULER, "*", orgID), perm);
+         }
 
-         map.put(getResourceKey(ResourceType.SCHEDULER, "*", orgID), perm);
-
-         //self org permissions for remaining
          Map<String, Boolean> edited = new HashMap<>();
          edited.put(orgID, true);
 
          perm = new Permission();
-         name = "Designer";
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), orgID);
+         perm.setOrgEditedGrantAll(edited);
 
-         if(Organization.getSelfOrganizationID().equals(orgID)) {
+         if(Organization.getDefaultOrganizationID().equals(orgID)) {
+            perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton("Designer"), orgID);
+         }
+         else if(Organization.getSelfOrganizationID().equals(orgID)) {
             perm.setOrganizationGrantsForOrg(ResourceAction.ACCESS,
-                                             Collections.singleton(Organization.getSelfOrganizationName()), orgID);
+                                             Collections.singleton(selforgName), orgID);
          }
 
-         perm.setOrgEditedGrantAll(edited);
          map.put(getResourceKey(ResourceType.COMPOSER, "*", orgID), perm);
          map.put(getResourceKey(ResourceType.WORKSHEET, "*", orgID), perm);
          map.put(getResourceKey(ResourceType.VIEWSHEET, "*", orgID), perm);
 
-         perm = new Permission();
-         name = "Designer";
-         perm.setRoleGrantsForOrg(ResourceAction.READ, Collections.singleton(name), orgID);
-         perm.setRoleGrantsForOrg(ResourceAction.WRITE, Collections.singleton(name), orgID);
 
-         if(Organization.getSelfOrganizationID().equals(orgID)) {
-            perm.setOrganizationGrantsForOrg(ResourceAction.READ,
-                                             Collections.singleton(Organization.getSelfOrganizationName()), orgID);
-            perm.setOrganizationGrantsForOrg(ResourceAction.WRITE,
-                                             Collections.singleton(Organization.getSelfOrganizationName()), orgID);
+         perm = new Permission();
+         perm.setOrgEditedGrantAll(edited);
+
+         if(Organization.getDefaultOrganizationID().equals(orgID)) {
+            String name = "Designer";
+            perm.setRoleGrantsForOrg(ResourceAction.READ, Collections.singleton(name), orgID);
+            perm.setRoleGrantsForOrg(ResourceAction.WRITE, Collections.singleton(name), orgID);
+         }
+         else if(Organization.getSelfOrganizationID().equals(orgID)) {
+            perm.setOrganizationGrantsForOrg(ResourceAction.READ, Collections.singleton(selforgName), orgID);
+            perm.setOrganizationGrantsForOrg(ResourceAction.WRITE, Collections.singleton(selforgName), orgID);
          }
 
-         perm.setOrgEditedGrantAll(edited);
          map.put(getResourceKey(ResourceType.DASHBOARD, "*", orgID), perm);
 
-         for(TimeRange range : TimeRange.getTimeRanges()) {
-            map.put(getResourceKey(ResourceType.SCHEDULE_TIME_RANGE, range.getName(), orgID), perm);
+         if(Organization.getDefaultOrganizationID().equals(orgID)) {
+            perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton("Advanced"), orgID);
          }
-
-         perm = new Permission();
-         name = "Advanced";
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), orgID);
-         perm.setOrgEditedGrantAll(edited);
 
          for(TimeRange range : TimeRange.getTimeRanges()) {
             map.put(getResourceKey(ResourceType.SCHEDULE_TIME_RANGE, range.getName(), orgID), perm);
