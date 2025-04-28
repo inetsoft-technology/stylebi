@@ -1090,6 +1090,7 @@ public class MVSupportService {
          else if(!bypass) {
             Resource resource = AssetUtil.getSecurityResource(entry);
             Permission permission = findPermission(resource.getType(), resource.getPath());
+            String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
 
             if(permission != null) {
                for(Permission.PermissionIdentity pident : permission.getGroupGrants(ResourceAction.READ)) {
@@ -1126,7 +1127,6 @@ public class MVSupportService {
             if(!SecurityEngine.getSecurity().getSecurityProvider().isVirtual() &&
                identities.isEmpty())
             {
-               String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
                List<IdentityID> orgAdminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
 
                if(!orgID.equals(Organization.getDefaultOrganizationID()) &&
@@ -1150,11 +1150,69 @@ public class MVSupportService {
                   identities.add(new DefaultIdentity(XPrincipal.SYSTEM, orgID, Identity.USER));
                }
             }
+
+            if(this.isSupport()) {
+               identities.add(new DefaultIdentity(((XPrincipal) this.principal).getIdentityID().getName(), orgID, Identity.USER));
+            }
          }
 
          if(identities.isEmpty()) {
             identities.add(null);
          }
+      }
+
+      private boolean containsIdentity(List<Identity> identities, String name) {
+         if(identities == null || name == null) {
+            return false;
+         }
+
+         for(Identity identity : identities) {
+            if(identity != null && name.equals(identity.getName())) {
+               return true;
+            }
+         }
+
+         return false;
+      }
+
+      private boolean isSupport() {
+         if(this.principal == null || !MVDef.REJECT_VPM.get()) {
+            return false;
+         }
+
+         boolean isOrgAdmin = OrganizationManager.getInstance().isOrgAdmin(this.principal);
+         boolean isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(this.principal);
+
+         if(!isOrgAdmin && !isSiteAdmin) {
+            return false;
+         }
+
+         if(!identities.isEmpty()) {
+            if(containsIdentity(identities, ((XPrincipal)this.principal).getIdentityID().getName()) ||
+               containsIdentity(identities, XPrincipal.SYSTEM)) {
+               return false;
+            }
+         }
+
+         String[] groups = ((XPrincipal)this.principal).getGroups();
+         IdentityID[] roles = ((XPrincipal)this.principal).getRoles();
+         boolean exists = true;
+
+         if(groups != null && groups.length > 0) {
+            exists =  Arrays.stream(groups)
+               .anyMatch(group -> containsIdentity(identities, group));
+
+            return exists ? false : true;
+         }
+
+         if(roles != null && roles.length > 0) {
+            exists = Arrays.stream(roles)
+               .anyMatch(role -> containsIdentity(identities, role.getName()));
+
+            return exists ? false : true;
+         }
+
+         return exists;
       }
 
       /**
