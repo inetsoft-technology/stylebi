@@ -878,6 +878,7 @@ public abstract class DependencyTransformer {
 
       if(info.isLogicalModel()) {
          if(info.isSource()) {
+            name = name.replace("^", "/");
             return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.LOGIC_MODEL, organizationId);
          }
          else if(info.isDataSource() || info.isDataSourceFolder()) {
@@ -1419,10 +1420,23 @@ public abstract class DependencyTransformer {
     */
    public static RenameDependencyInfo createExtendModelDependencyInfo(XLogicalModel model,
                                                                       String oldBaseModelName,
-                                                                      String newBaseModelName)
+                                                                      String newBaseModelName,
+                                                                      RenameInfo binfo)
    {
       if(model == null) {
          return null;
+      }
+
+      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
+      List<RenameInfo> rinfos = new ArrayList<>();
+      rinfos.add(binfo);
+      List<AssetObject> baseDependencies =
+         getModelDependencies(model.getDataSource() + "/" + oldBaseModelName);
+
+      if(baseDependencies != null) {
+         for(AssetObject baseDependency : baseDependencies) {
+            renameDependencyInfo.addRenameInfo(baseDependency, binfo);
+         }
       }
 
       String[] extendModelNames = model.getLogicalModelNames();
@@ -1431,7 +1445,6 @@ public abstract class DependencyTransformer {
          return null;
       }
 
-      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
       String datasource = model.getDataSource();
 
       for(String extendModelName : extendModelNames) {
@@ -1447,11 +1460,14 @@ public abstract class DependencyTransformer {
                                            newBaseModelName +  XUtil.DATAMODEL_PATH_SPLITER + extendModelName, type);
          rinfo.setPrefix(datasource);
          rinfo.setModelFolder(model.getFolder());
+         rinfos.add(rinfo);
 
          for(AssetObject modelDependency : modelDependencies) {
             renameDependencyInfo.addRenameInfo(modelDependency, rinfo);
          }
       }
+
+      renameDependencyInfo.setRenameInfos(rinfos);
 
       return renameDependencyInfo;
    }
