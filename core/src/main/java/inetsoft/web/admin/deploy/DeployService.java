@@ -845,6 +845,10 @@ public class DeployService {
       IdentityID user = entityUser == null || "__NULL__".equals(entityUser.name) ? null : entityUser;
       XAsset asset = SUtil.getXAsset(type, entityName, user);
 
+      if(asset instanceof TableStyleAsset style) {
+         asset = SUtil.getXAsset(type, style.getStyleID(), user);
+      }
+
       if(model.lastModifiedTime() != null) {
          asset.setLastModifiedTime(model.lastModifiedTime().longValue());
       }
