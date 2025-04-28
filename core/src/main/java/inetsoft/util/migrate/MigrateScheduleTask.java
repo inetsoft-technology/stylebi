@@ -283,7 +283,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
    private void syncIdentityAttribute(Element task, String attrName) {
       String user = task.getAttribute(attrName);
 
-      if(user == null) {
+      if(Tool.isEmptyString(user)) {
          return;
       }
 
