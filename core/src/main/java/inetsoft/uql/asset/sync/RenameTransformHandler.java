@@ -73,9 +73,7 @@ public class RenameTransformHandler implements AutoCloseable {
       for(String child : children) {
          String nChildPath = rinfo.getNewName() + "^" + child;
          String oChildPath = rinfo.getOldName() + "^" + child;
-         RenameInfo childInfo = new RenameInfo(oChildPath, nChildPath,
-            RenameInfo.PARTITION | RenameInfo.SOURCE);
-
+         RenameInfo childInfo = new RenameInfo(oChildPath, nChildPath, rinfo.getType());
          addTransformTask(childInfo);
          String oldKey = DependencyTransformer.getOldKey(childInfo);
          String newKey = DependencyTransformer.getKey(childInfo, false);
