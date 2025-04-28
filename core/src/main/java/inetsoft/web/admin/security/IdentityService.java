@@ -2019,7 +2019,7 @@ public class IdentityService {
             continue;
          }
 
-         if(resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) ||
+         if(resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) && !Tool.equals(resourceOrgID, newOrgId) ||
             newName == null && path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
                !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldName.orgID) &&
                !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldOrgId))
@@ -2038,7 +2038,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedUserGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), path, doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
@@ -2046,7 +2046,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedGroupGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), path, doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
@@ -2054,12 +2054,12 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedRoleGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), path, doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
                else if(type == Identity.ORGANIZATION) {
-                  updateOrgIdentitiesPermission(newName, oldName, oldOrganization, newOrgId, permission, action, doReplace);
+                  updateOrgIdentitiesPermission(newName, oldName, oldOrganization, newOrgId, permission, action);
                }
             }
          }
@@ -2104,7 +2104,7 @@ public class IdentityService {
       }
 
       if(doReplace && (!Tool.equals(oorgId, norgId) || !Tool.equals(newPath, path))) {
-         provider.removePermission(type, path, resourceOrgID);
+         provider.removePermission(type, path, oorgId);
       }
    }
 
@@ -2166,7 +2166,7 @@ public class IdentityService {
 
    private void updateOrgIdentitiesPermission(IdentityID newName, IdentityID oldName,
                                               Organization oldOrg, String newOrgId, Permission permission,
-                                              ResourceAction action, boolean doReplace)
+                                              ResourceAction action)
    {
       Set<String> userGrants = new HashSet<>();
       Set<String> groupGrants = new HashSet<>();
@@ -2206,7 +2206,7 @@ public class IdentityService {
       }
 
       if(oldOrg != null) {
-         String oldOrgId = doReplace ? oldOrg.getOrganizationID() : null;
+         String oldOrgId = oldOrg == null ? null : oldOrg.getOrganizationID();
 
          if(!userGrants.isEmpty()) {
             permission.setUserGrantsForOrg(action, userGrants, oldOrgId, newOrgId);
@@ -2227,19 +2227,21 @@ public class IdentityService {
          if(permission.isOrgInPerm(action, newOrgId)) {
             permission.updateGrantAllByOrg(newOrgId, true);
 
-            if(doReplace && !Tool.equals(oldOrgId, newOrgId)) {
+            if(!Tool.equals(oldOrgId, newOrgId)) {
                permission.removeGrantAllByOrg(oldOrgId);
             }
          }
       }
    }
 
-   private void updateIdentityPermission(int type, IdentityID newIdentityID, IdentityID oldIdentityID, Organization oldOrg, String newOrgId, Permission permission,
-                                         ResourceAction action, ResourceType rType, String rpath, boolean doReplace) {
+   private void updateIdentityPermission(int type, IdentityID newIdentityID, IdentityID oldIdentityID,
+                                         Organization oldOrg, String newOrgId, Permission permission,
+                                         ResourceAction action)
+   {
       Set<String> identityGrants = new HashSet<>();
 
       if(permission != null) {
-         if(doReplace || newIdentityID == null) {
+         if(newIdentityID == null) {
             Set<IdentityID> orgScopedGrants = null;
 
             switch(type) {
@@ -2277,18 +2279,20 @@ public class IdentityService {
          identityGrants.add(newIdentityID.name);
       }
 
+      String oorgID = oldOrg != null ? oldOrg.getId() : null;
+
       switch(type) {
       case Identity.USER:
-         permission.setUserGrantsForOrg(action, identityGrants, newOrgId);
+         permission.setUserGrantsForOrg(action, identityGrants, oorgID, newOrgId);
          break;
       case Identity.GROUP:
-         permission.setGroupGrantsForOrg(action, identityGrants, newOrgId);
+         permission.setGroupGrantsForOrg(action, identityGrants, oorgID, newOrgId);
          break;
       case Identity.ROLE:
-         permission.setRoleGrantsForOrg(action, identityGrants, newOrgId);
+         permission.setRoleGrantsForOrg(action, identityGrants, oorgID, newOrgId);
          break;
       case Identity.ORGANIZATION:
-         permission.setOrganizationGrantsForOrg(action, identityGrants, newOrgId);
+         permission.setOrganizationGrantsForOrg(action, identityGrants, oorgID, newOrgId);
          break;
       }
 
