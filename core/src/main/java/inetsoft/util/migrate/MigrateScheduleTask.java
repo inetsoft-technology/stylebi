@@ -28,6 +28,7 @@ import inetsoft.util.dep.*;
 import org.apache.commons.lang.StringUtils;
 import org.w3c.dom.*;
 
+import java.net.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -129,6 +130,8 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             if(viewsheet != null && getNewOrganization() != null && getNewOrganization() instanceof Organization) {
                String newIdentifier = MigrateUtil.getNewIdentifier(viewsheet, (Organization) getNewOrganization());
                item.setAttribute("viewsheet", newIdentifier);
+               processLinkUrl(item, getOldOrganization().getOrganizationID(),
+                  getNewOrganization().getOrganizationID());
             }
 
             NodeList childNodes = getChildNodes(item, "./Bookmark ");
@@ -177,6 +180,40 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
                updateMVDef(element);
             }
          }
+      }
+   }
+
+   private void processLinkUrl(Element actionNode, String oldOrg, String newOrg) {
+      NodeList linkURI = getChildNodes(actionNode, "LinkURI");
+
+      if(linkURI == null || linkURI.getLength() == 0) {
+         return;
+      }
+
+      Element linkNode = (Element) linkURI.item(0);
+      String value = linkNode.getAttribute("uri");
+
+      if(Tool.isEmptyString(value)) {
+         return;
+      }
+
+      try {
+         URI originalUri = URI.create(value);
+         String newHost = originalUri.getHost().replace(oldOrg + ".", newOrg + ".");
+
+         URI newUri = new URI(
+            originalUri.getScheme(),
+            originalUri.getUserInfo(),
+            newHost,
+            originalUri.getPort(),
+            originalUri.getPath(),
+            originalUri.getQuery(),
+            originalUri.getFragment()
+         );
+
+         linkNode.setAttribute("uri", newUri.toString());
+      }
+      catch(Exception ignore) {
       }
    }
 
