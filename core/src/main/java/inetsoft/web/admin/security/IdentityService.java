@@ -670,7 +670,7 @@ public class IdentityService {
 
             if(orgIdChange || orgNameChanged) {
                //Update replet registry here.
-               RepletRegistry.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId());
+               RepletRegistry.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
                DashboardRegistry.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
             }
 

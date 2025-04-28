@@ -263,7 +263,7 @@ public class RepletRegistry implements Serializable {
          space.copy(oapath, napath);
       }
 
-      RepletRegistry.changeOrgID(oID, oID.getOrgID(), nID.getOrgID());
+      RepletRegistry.changeOrgID(oID, oID.getOrgID(), nID.getOrgID(), true);
    }
 
    /**
@@ -273,7 +273,7 @@ public class RepletRegistry implements Serializable {
     * @param oOrgID the orgID to change from.
     * @param nOrgID the orgID to change to.
     */
-   public static synchronized void changeOrgID(IdentityID id, String oOrgID, String nOrgID) {
+   public static synchronized void changeOrgID(IdentityID id, String oOrgID, String nOrgID, boolean clone) {
       try {
          RepletRegistry oldRegistry;
          RepletRegistry newRegistry;
@@ -294,12 +294,15 @@ public class RepletRegistry implements Serializable {
             Hashtable<String, String> oldFolderMap = oldRegistry.getFolderMap();
             Hashtable<String, String> newFolderMap = newRegistry.getFolderMap();
             newFolderMap.putAll(oldFolderMap);
-            oldFolderMap.clear();
 
             Hashtable<String, FolderContext> oldFolderContextMap = oldRegistry.getFolderContextmap();
             Hashtable<String, FolderContext> newFolderContextMap = newRegistry.getFolderContextmap();
             newFolderContextMap.putAll(oldFolderContextMap);
-            oldFolderContextMap.clear();
+
+            if(!clone) {
+               oldFolderMap.clear();
+               oldFolderContextMap.clear();
+            }
 
             oldRegistry.save();
             newRegistry.save();
