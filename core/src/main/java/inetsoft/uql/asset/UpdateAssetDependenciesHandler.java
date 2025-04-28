@@ -496,9 +496,7 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
    }
 
    private String getUpdateKey() {
-      String version = FileVersions.REPORT;
-      double currentVersion = Double.parseDouble(version);
-      return currentVersion < 13.7 ? PROPERTY : PROPERTY_13_7;
+      return PROPERTY;
    }
 
    private Catalog catalog = Catalog.getCatalog();
@@ -516,7 +514,6 @@ public final class UpdateAssetDependenciesHandler implements AutoCloseable {
    private static final long STATE_UPDATED = 2L;
 
    private static final String PROPERTY = "source.dependencies.transformed";
-   private static final String PROPERTY_13_7 = "source.dependencies.transformed.13_7";
    private static final String STATE_NAME = UpdateAssetDependenciesHandler.class.getName() + ".state";
    private static final String LOCK_NAME = UpdateAssetDependenciesHandler.class.getName() + ".lock";
 }
