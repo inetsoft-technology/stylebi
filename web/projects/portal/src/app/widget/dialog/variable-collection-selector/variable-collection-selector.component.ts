@@ -45,6 +45,7 @@ export class VariableCollectionSelector implements OnInit {
    @Input() labels: string[];
    @Input() values: any[];
    @Input() value: any[];
+   @Input() varIndex: number;
    @Input() dataTruncated: boolean;
    @Output() valueChange = new EventEmitter<any[]>();
    StyleType = StyleType;

@@ -51,9 +51,9 @@
   <div *ngSwitchCase="StyleType.CHECKBOXES" class="container-fluid">
     <div class="row">
       <div class="form-check col-auto" *ngFor="let _label of labels; let i = index">
-        <input class="form-check-input" type="checkbox" [id]="'item' + i" [ngModel]="value[i]"
+        <input class="form-check-input" type="checkbox" [id]="varIndex + ':item' + i" [ngModel]="value[i]"
              (ngModelChange)="checkboxChange($event, i)">
-        <label class="form-check-label" [for]="'item' + i">
+        <label class="form-check-label" [for]="varIndex + ':item' + i">
           {{_label}}
         </label>
       </div>
