@@ -1472,6 +1472,55 @@ public abstract class DependencyTransformer {
       return renameDependencyInfo;
    }
 
+   public static RenameDependencyInfo createExtendPartitionsDependencyInfo(XPartition model,
+                                                                           RenameInfo binfo)
+   {
+      if(model == null) {
+         return null;
+      }
+
+      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
+      List<RenameInfo> rinfos = new ArrayList<>();
+      rinfos.add(binfo);
+      List<AssetObject> baseDependencies =
+         getPartitionDependencies(binfo.getOldName());
+
+      if(baseDependencies != null) {
+         for(AssetObject baseDependency : baseDependencies) {
+            renameDependencyInfo.addRenameInfo(baseDependency, binfo);
+         }
+      }
+
+      String[] extendModelNames = model.getPartitionNames();
+
+      if(extendModelNames == null) {
+         return null;
+      }
+
+      for(String extendModelName : extendModelNames) {
+         List<AssetObject> modelDependencies =
+            getPartitionDependencies(binfo.getOldName() + "/" + extendModelName);
+
+         if(modelDependencies == null) {
+            continue;
+         }
+
+         String nChildPath = binfo.getNewName() + XUtil.DATAMODEL_PATH_SPLITER + extendModelName;
+         String oChildPath = binfo.getOldName() + XUtil.DATAMODEL_PATH_SPLITER + extendModelName;
+         RenameInfo rinfo = new RenameInfo(oChildPath, nChildPath, binfo.type);
+         rinfo.setModelFolder(model.getFolder());
+         rinfos.add(rinfo);
+
+         for(AssetObject modelDependency : modelDependencies) {
+            renameDependencyInfo.addRenameInfo(modelDependency, rinfo);
+         }
+      }
+
+      renameDependencyInfo.setRenameInfos(rinfos);
+
+      return renameDependencyInfo;
+   }
+
    /**
     * Get RenameDependencyInfo for the extend models when the base model folder is changed.
     * @param model base model.
