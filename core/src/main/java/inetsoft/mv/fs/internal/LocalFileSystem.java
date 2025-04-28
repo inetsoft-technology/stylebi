@@ -330,14 +330,14 @@ public final class LocalFileSystem extends AbstractFileSystem {
    @Override
    public boolean rename(String from, String to) {
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
-      return rename(from, currentOrgID, to, currentOrgID, false);
+      return rename(from, currentOrgID, to, currentOrgID);
    }
 
    /**
     * Copy one XFile.
     */
    @Override
-   public boolean rename(String from, String fromOrgId, String to, String toOrgId, boolean keepGlobalFile) {
+   public boolean rename(String from, String fromOrgId, String to, String toOrgId) {
       if(bsys == null) {
          return false;
       }
@@ -382,9 +382,7 @@ public final class LocalFileSystem extends AbstractFileSystem {
                SBlock nsblock = new SBlock(to, blkid);
                nsblock.setLength(sblock.getLength());
 
-               NBlock renamedfileBlock = !keepGlobalFile ?
-                                         bsys.rename(sblock, nsblock, fromOrgId, toOrgId) :
-                                         bsys.copy(sblock, fromOrgId, nsblock, toOrgId) ;
+               NBlock renamedfileBlock = bsys.rename(sblock, nsblock, fromOrgId, toOrgId);
 
                if(renamedfileBlock == null) {
                   LOG.warn(Tool.convertUserLogInfo(
@@ -398,9 +396,7 @@ public final class LocalFileSystem extends AbstractFileSystem {
                   SNBlock targetSNBlock = new SNBlock(to, blkid);
                   targetSNBlock.setLength(sourceSNBlock.getLength());
 
-                  NBlock renamedBlock = !keepGlobalFile ?
-                                        bsys.rename(sourceSNBlock, targetSNBlock, fromOrgId, toOrgId) :
-                                        bsys.copy(sourceSNBlock, fromOrgId, targetSNBlock, toOrgId);
+                  NBlock renamedBlock = bsys.rename(sourceSNBlock, targetSNBlock, fromOrgId, toOrgId);
 
                   if(renamedBlock == null) {
                      LOG.warn(Tool.convertUserLogInfo(

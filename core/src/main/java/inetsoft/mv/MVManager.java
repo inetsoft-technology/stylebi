@@ -1101,7 +1101,7 @@ public final class MVManager {
       migrateStorageData(oorg, norg, true);
    }
 
-   private void migrateStorageData(Organization oorg, Organization norg, boolean copy)
+   public void migrateStorageData(Organization oorg, Organization norg, boolean copy)
       throws Exception
    {
       mvs.initRoot(norg.getOrganizationID());
@@ -1159,7 +1159,7 @@ public final class MVManager {
             defName = def.getName();
             mv.setDef(def);
             mv.save(MVStorage.getFile(def.getName()), storeId, false);
-            fsys.rename(oldDefName, oorgId, defName, norgId, copy);
+            fsys.rename(oldDefName, oorgId, defName, norgId);
          }
          catch(IOException e) {
             throw new RuntimeException(e);

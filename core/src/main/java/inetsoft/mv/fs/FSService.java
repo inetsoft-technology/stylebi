@@ -219,6 +219,7 @@ public final class FSService {
 
       if(removeNode != null) {
          removeNode.getFSystem().dispose();
+         datas.remove(orgId);
       }
    }
 
