@@ -22,6 +22,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.XFactory;
 import inetsoft.uql.asset.*;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.viewsheet.command.ClearLoadingCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Controller;
@@ -63,6 +64,7 @@ public class CancelLoadingController extends WorksheetController {
 
       XFactory.getRepository().refreshMetaData();
       box.reset();
+      commandDispatcher.sendCommand(new ClearLoadingCommand());
       WorksheetEventUtil.refreshWorksheet(
          rws, getWorksheetEngine(), false, false, commandDispatcher, principal);
    }
