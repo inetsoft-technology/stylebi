@@ -270,7 +270,7 @@ public abstract class DependencyTransformer {
    public static RenameDependencyInfo createCubeDependencyInfo(String oldSourceName,
                                                                String newSourceName)
    {
-      String id = getAssetId(oldSourceName, AssetEntry.Type.DATA_SOURCE);
+      String id = getAssetId(oldSourceName, AssetEntry.Type.DATA_SOURCE, null);
       oldSourceName = Assembly.CUBE_VS + oldSourceName;
       newSourceName = Assembly.CUBE_VS + newSourceName;
       List<RenameInfo> tinfos = new ArrayList<>();
@@ -708,8 +708,8 @@ public abstract class DependencyTransformer {
 
    // For dependency storage should using asset entry's idenfifier as key, so create one key
    // for query and model name.
-   public static String getAssetId(String name, AssetEntry.Type type) {
-      return DependencyHandler.getAssetId(name, type);
+   public static String getAssetId(String name, AssetEntry.Type type, String organizationId) {
+      return DependencyHandler.getAssetId(name, type, AssetRepository.GLOBAL_SCOPE, organizationId);
    }
 
    public static String getTabularAssetId(String name) {
@@ -852,11 +852,12 @@ public abstract class DependencyTransformer {
 
    protected static String getKey(RenameInfo info, boolean old) {
       String name = old ? info.getOldName() : info.getNewName();
+      String organizationId = info.getOrganizationId();
 
       if(info.isCube() && name != null && name.startsWith(Assembly.CUBE_VS)) {
          name = name.substring(Assembly.CUBE_VS.length());
 
-         return getAssetId(name, AssetEntry.Type.DATA_SOURCE);
+         return getAssetId(name, AssetEntry.Type.DATA_SOURCE, organizationId);
       }
 
       if(info.isWorksheet()) {
@@ -864,11 +865,11 @@ public abstract class DependencyTransformer {
       }
 
       if(info.isTask()) {
-         return getAssetId("/" + name, AssetEntry.Type.SCHEDULE_TASK);
+         return getAssetId("/" + name, AssetEntry.Type.SCHEDULE_TASK, organizationId);
       }
 
       if(info.isQuery() && info.isFolder()) {
-         return getAssetId(info.getSource(), AssetEntry.Type.QUERY);
+         return getAssetId(info.getSource(), AssetEntry.Type.QUERY, organizationId);
       }
 
       if(info.isTabularSource()) {
@@ -877,37 +878,37 @@ public abstract class DependencyTransformer {
 
       if(info.isLogicalModel()) {
          if(info.isSource()) {
-            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.LOGIC_MODEL);
+            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.LOGIC_MODEL, organizationId);
          }
          else if(info.isDataSource() || info.isDataSourceFolder()) {
-            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.LOGIC_MODEL);
+            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.LOGIC_MODEL, organizationId);
          }
       }
 
       if(info.isPhysicalTable()) {
          if(info.isSource()) {
-            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.DATA_SOURCE);
+            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.DATA_SOURCE, organizationId);
          }
          else if(info.isDataSource() || info.isDataSourceFolder()) {
-            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.DATA_SOURCE);
+            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.DATA_SOURCE, organizationId);
          }
       }
 
       if(info.isScriptFunction()) {
-         return getAssetId(name, AssetEntry.Type.SCRIPT);
+         return getAssetId(name, AssetEntry.Type.SCRIPT, organizationId);
       }
 
       if(info.isVPM()) {
-         return getAssetId(name, AssetEntry.Type.VPM);
+         return getAssetId(name, AssetEntry.Type.VPM, organizationId);
       }
 
       if(info.isSqlTable()) {
-         return getAssetId(name, AssetEntry.Type.DATA_SOURCE);
+         return getAssetId(name, AssetEntry.Type.DATA_SOURCE, organizationId);
       }
 
       if(info.isHyperlink()) {
          if(info.isReportLink()) {
-            return getAssetId(name, AssetEntry.Type.REPLET);
+            return getAssetId(name, AssetEntry.Type.REPLET, organizationId);
          }
          else {
             return name;
@@ -923,20 +924,20 @@ public abstract class DependencyTransformer {
       }
 
       if(info.isTableStyle()) {
-         return getAssetId(name, AssetEntry.Type.TABLE_STYLE);
+         return getAssetId(name, AssetEntry.Type.TABLE_STYLE, organizationId);
       }
 
       if(info.isPartition()) {
          if(Tool.isEmptyString(info.getSource()) && name != null) {
             name = name.replace("^", "/");
-            return getAssetId(name , AssetEntry.Type.PARTITION);
+            return getAssetId(name , AssetEntry.Type.PARTITION, organizationId);
          }
          else {
-            return getAssetId(name + "/" + info.getSource(), AssetEntry.Type.PARTITION);
+            return getAssetId(name + "/" + info.getSource(), AssetEntry.Type.PARTITION, organizationId);
          }
       }
 
-      return getAssetId(name, info.isQuery() ? AssetEntry.Type.QUERY : AssetEntry.Type.LOGIC_MODEL);
+      return getAssetId(name, info.isQuery() ? AssetEntry.Type.QUERY : AssetEntry.Type.LOGIC_MODEL, organizationId);
    }
 
    protected static String getOldKey(RenameInfo info) {
