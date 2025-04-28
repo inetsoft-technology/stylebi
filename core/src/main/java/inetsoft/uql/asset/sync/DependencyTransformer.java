@@ -992,7 +992,7 @@ public abstract class DependencyTransformer {
          return true;
       }
 
-      if(info.isPartition() && info.isDataSourceFolder()) {
+      if(info.isPartition() && (info.isSource() || info.isDataSourceFolder())) {
          return true;
       }
 
