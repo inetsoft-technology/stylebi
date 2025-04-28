@@ -27,7 +27,7 @@
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()"
    (onEsc)="cancel()" *ngIf="model" blockMouse>
   <div (mouseup)="onMouseUp($event)">
-    <div *ngFor="let _variableInfo of model.varInfos">
+    <div *ngFor="let _variableInfo of model.varInfos let i = index">
       <fieldset>
         <legend>{{_variableInfo.alias ? _variableInfo.alias : _variableInfo.name}}</legend>
         <variable-value-editor *ngIf="_variableInfo.style === 0"
@@ -37,6 +37,7 @@
                                [type]="_variableInfo.type" [timeInstantFormat]="timeInstantFormat">
         </variable-value-editor>
         <variable-collection-selector *ngIf="_variableInfo.style > 0" [style]="_variableInfo.style"
+                                      [varIndex]="i"
                                       [value]="_variableInfo.value"
                                       [labels]="_variableInfo.choices"
                                       [values]="getVariableValues(_variableInfo)"
