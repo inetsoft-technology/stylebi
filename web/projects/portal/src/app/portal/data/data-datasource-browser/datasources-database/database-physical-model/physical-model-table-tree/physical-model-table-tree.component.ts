@@ -50,6 +50,7 @@ export class PhysicalModelTableTreeComponent {
    selectNode(node: TreeNodeModel): void {
       this.selectedNodes = this.selectedNodes == null ? [] : this.selectedNodes;
       this.selectedNodes.push(node);
+      this.selectNode0(this.selectedNodes);
    }
 
    selectNode0(node: TreeNodeModel[]) {
