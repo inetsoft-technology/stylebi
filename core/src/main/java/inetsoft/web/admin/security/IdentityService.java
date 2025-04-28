@@ -2038,7 +2038,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedUserGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), path);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
@@ -2046,7 +2046,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedGroupGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), path);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
@@ -2054,7 +2054,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedRoleGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), path);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
