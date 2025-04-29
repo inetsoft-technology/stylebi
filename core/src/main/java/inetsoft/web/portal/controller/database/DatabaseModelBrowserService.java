@@ -432,10 +432,13 @@ public class DatabaseModelBrowserService {
 
       boolean isRoot = folder == null || "/".equals(folder) || "".equals(folder);
       String database = dataModel.getDataSource();
-      String oldPath = database + XUtil.DATAMODEL_FOLDER_SPLITER + (partition.getFolder() == null ? name :
-         partition.getFolder() + XUtil.DATAMODEL_PATH_SPLITER + name);
-      String newPath = database + XUtil.DATAMODEL_FOLDER_SPLITER +
-         (isRoot ? name : folder + XUtil.DATAMODEL_PATH_SPLITER + name);
+      String oldPath = partition.getFolder() == null ?
+         Tool.buildString(database, XUtil.DATAMODEL_PATH_SPLITER, name) :
+         Tool.buildString(database, XUtil.DATAMODEL_FOLDER_SPLITER, partition.getFolder(),
+         XUtil.DATAMODEL_PATH_SPLITER, name);
+      String newPath = isRoot ? Tool.buildString(database, XUtil.DATAMODEL_PATH_SPLITER, name) :
+         Tool.buildString(database, XUtil.DATAMODEL_FOLDER_SPLITER, folder,
+         XUtil.DATAMODEL_PATH_SPLITER, name);
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
           ActionRecord.ACTION_NAME_MOVE, oldPath,ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW,
          null, ActionRecord.ACTION_STATUS_SUCCESS,
@@ -470,6 +473,8 @@ public class DatabaseModelBrowserService {
             dinfo.addRenameInfo(obj, rinfo);
          }
 
+         DependencyTransformer.createExtendViewDepInfoForFolderChanged(
+            dinfo, partition, oldPath, newPath, rinfo, oentry.getPath());
          RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
 
          partition.setFolder(isRoot ? null : folder);
