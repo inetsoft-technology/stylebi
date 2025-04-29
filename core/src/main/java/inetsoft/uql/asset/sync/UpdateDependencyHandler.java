@@ -189,6 +189,7 @@ public final class UpdateDependencyHandler {
          String prefix = null;
          String entryPaths = null;
          boolean physicalTable = false;
+         boolean worksheetType = false;
 
          for(int j = 0; j < propertyList.getLength(); j++) {
             Element property = (Element) propertyList.item(j);
@@ -214,9 +215,12 @@ public final class UpdateDependencyHandler {
                Element valE = Tool.getChildNodeByTagName(property, "value");
                entryPaths = Tool.getValue(valE);
             }
+            else if(AssetEntry.WORKSHEET_TYPE.equals(key)) {
+               worksheetType = true;
+            }
          }
 
-         if("worksheet".equals(type)) {
+         if("worksheet".equals(type) || type == null && worksheetType) {
             int scope = AssetRepository.GLOBAL_SCOPE;
 
             try {
