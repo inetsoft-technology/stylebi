@@ -21,6 +21,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.util.SingletonManager;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,11 +72,9 @@ public class RenameTransformHandler implements AutoCloseable {
       DependencyStorageService service = DependencyStorageService.getInstance();
 
       for(String child : children) {
-         String nChildPath = rinfo.getNewName() + "^" + child;
-         String oChildPath = rinfo.getOldName() + "^" + child;
-         RenameInfo childInfo = new RenameInfo(oChildPath, nChildPath,
-            RenameInfo.PARTITION | RenameInfo.SOURCE);
-
+         String nChildPath = Tool.buildString(rinfo.getNewName(), "^", child);
+         String oChildPath = Tool.buildString(rinfo.getOldName(), "^", child);
+         RenameInfo childInfo = new RenameInfo(oChildPath, nChildPath, rinfo.getType());
          addTransformTask(childInfo);
          String oldKey = DependencyTransformer.getOldKey(childInfo);
          String newKey = DependencyTransformer.getKey(childInfo, false);

@@ -270,7 +270,7 @@ public abstract class DependencyTransformer {
    public static RenameDependencyInfo createCubeDependencyInfo(String oldSourceName,
                                                                String newSourceName)
    {
-      String id = getAssetId(oldSourceName, AssetEntry.Type.DATA_SOURCE);
+      String id = getAssetId(oldSourceName, AssetEntry.Type.DATA_SOURCE, null);
       oldSourceName = Assembly.CUBE_VS + oldSourceName;
       newSourceName = Assembly.CUBE_VS + newSourceName;
       List<RenameInfo> tinfos = new ArrayList<>();
@@ -708,8 +708,8 @@ public abstract class DependencyTransformer {
 
    // For dependency storage should using asset entry's idenfifier as key, so create one key
    // for query and model name.
-   public static String getAssetId(String name, AssetEntry.Type type) {
-      return DependencyHandler.getAssetId(name, type);
+   public static String getAssetId(String name, AssetEntry.Type type, String organizationId) {
+      return DependencyHandler.getAssetId(name, type, AssetRepository.GLOBAL_SCOPE, organizationId);
    }
 
    public static String getTabularAssetId(String name) {
@@ -852,11 +852,12 @@ public abstract class DependencyTransformer {
 
    protected static String getKey(RenameInfo info, boolean old) {
       String name = old ? info.getOldName() : info.getNewName();
+      String organizationId = info.getOrganizationId();
 
       if(info.isCube() && name != null && name.startsWith(Assembly.CUBE_VS)) {
          name = name.substring(Assembly.CUBE_VS.length());
 
-         return getAssetId(name, AssetEntry.Type.DATA_SOURCE);
+         return getAssetId(name, AssetEntry.Type.DATA_SOURCE, organizationId);
       }
 
       if(info.isWorksheet()) {
@@ -864,11 +865,11 @@ public abstract class DependencyTransformer {
       }
 
       if(info.isTask()) {
-         return getAssetId("/" + name, AssetEntry.Type.SCHEDULE_TASK);
+         return getAssetId("/" + name, AssetEntry.Type.SCHEDULE_TASK, organizationId);
       }
 
       if(info.isQuery() && info.isFolder()) {
-         return getAssetId(info.getSource(), AssetEntry.Type.QUERY);
+         return getAssetId(info.getSource(), AssetEntry.Type.QUERY, organizationId);
       }
 
       if(info.isTabularSource()) {
@@ -877,37 +878,38 @@ public abstract class DependencyTransformer {
 
       if(info.isLogicalModel()) {
          if(info.isSource()) {
-            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.LOGIC_MODEL);
+            name = name.replace("^", "/");
+            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.LOGIC_MODEL, organizationId);
          }
          else if(info.isDataSource() || info.isDataSourceFolder()) {
-            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.LOGIC_MODEL);
+            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.LOGIC_MODEL, organizationId);
          }
       }
 
       if(info.isPhysicalTable()) {
          if(info.isSource()) {
-            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.DATA_SOURCE);
+            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.DATA_SOURCE, organizationId);
          }
          else if(info.isDataSource() || info.isDataSourceFolder()) {
-            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.DATA_SOURCE);
+            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.DATA_SOURCE, organizationId);
          }
       }
 
       if(info.isScriptFunction()) {
-         return getAssetId(name, AssetEntry.Type.SCRIPT);
+         return getAssetId(name, AssetEntry.Type.SCRIPT, organizationId);
       }
 
       if(info.isVPM()) {
-         return getAssetId(name, AssetEntry.Type.VPM);
+         return getAssetId(name, AssetEntry.Type.VPM, organizationId);
       }
 
       if(info.isSqlTable()) {
-         return getAssetId(name, AssetEntry.Type.DATA_SOURCE);
+         return getAssetId(name, AssetEntry.Type.DATA_SOURCE, organizationId);
       }
 
       if(info.isHyperlink()) {
          if(info.isReportLink()) {
-            return getAssetId(name, AssetEntry.Type.REPLET);
+            return getAssetId(name, AssetEntry.Type.REPLET, organizationId);
          }
          else {
             return name;
@@ -923,20 +925,20 @@ public abstract class DependencyTransformer {
       }
 
       if(info.isTableStyle()) {
-         return getAssetId(name, AssetEntry.Type.TABLE_STYLE);
+         return getAssetId(name, AssetEntry.Type.TABLE_STYLE, organizationId);
       }
 
       if(info.isPartition()) {
          if(Tool.isEmptyString(info.getSource()) && name != null) {
             name = name.replace("^", "/");
-            return getAssetId(name , AssetEntry.Type.PARTITION);
+            return getAssetId(name , AssetEntry.Type.PARTITION, organizationId);
          }
          else {
-            return getAssetId(name + "/" + info.getSource(), AssetEntry.Type.PARTITION);
+            return getAssetId(name + "/" + info.getSource(), AssetEntry.Type.PARTITION, organizationId);
          }
       }
 
-      return getAssetId(name, info.isQuery() ? AssetEntry.Type.QUERY : AssetEntry.Type.LOGIC_MODEL);
+      return getAssetId(name, info.isQuery() ? AssetEntry.Type.QUERY : AssetEntry.Type.LOGIC_MODEL, organizationId);
    }
 
    protected static String getOldKey(RenameInfo info) {
@@ -990,7 +992,7 @@ public abstract class DependencyTransformer {
          return true;
       }
 
-      if(info.isPartition() && info.isDataSourceFolder()) {
+      if(info.isPartition() && (info.isSource() || info.isDataSourceFolder())) {
          return true;
       }
 
@@ -1418,10 +1420,23 @@ public abstract class DependencyTransformer {
     */
    public static RenameDependencyInfo createExtendModelDependencyInfo(XLogicalModel model,
                                                                       String oldBaseModelName,
-                                                                      String newBaseModelName)
+                                                                      String newBaseModelName,
+                                                                      RenameInfo binfo)
    {
       if(model == null) {
          return null;
+      }
+
+      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
+      List<RenameInfo> rinfos = new ArrayList<>();
+      rinfos.add(binfo);
+      List<AssetObject> baseDependencies =
+         getModelDependencies(Tool.buildString(model.getDataSource(), "/", oldBaseModelName));
+
+      if(baseDependencies != null) {
+         for(AssetObject baseDependency : baseDependencies) {
+            renameDependencyInfo.addRenameInfo(baseDependency, binfo);
+         }
       }
 
       String[] extendModelNames = model.getLogicalModelNames();
@@ -1430,27 +1445,83 @@ public abstract class DependencyTransformer {
          return null;
       }
 
-      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
       String datasource = model.getDataSource();
 
       for(String extendModelName : extendModelNames) {
          List<AssetObject> modelDependencies =
-            getModelDependencies(model.getDataSource() + "/" + oldBaseModelName + "/" + extendModelName);
+            getModelDependencies(Tool.buildString(
+               model.getDataSource(), "/", oldBaseModelName, "/", extendModelName));
 
          if(modelDependencies == null) {
             continue;
          }
 
          int type = RenameInfo.LOGIC_MODEL | RenameInfo.SOURCE;
-         RenameInfo rinfo = new RenameInfo(oldBaseModelName +  XUtil.DATAMODEL_PATH_SPLITER + extendModelName,
-                                           newBaseModelName +  XUtil.DATAMODEL_PATH_SPLITER + extendModelName, type);
+         RenameInfo rinfo = new RenameInfo(
+            Tool.buildString(oldBaseModelName, XUtil.DATAMODEL_PATH_SPLITER, extendModelName),
+            Tool.buildString(newBaseModelName, XUtil.DATAMODEL_PATH_SPLITER, extendModelName),
+            type);
          rinfo.setPrefix(datasource);
          rinfo.setModelFolder(model.getFolder());
+         rinfos.add(rinfo);
 
          for(AssetObject modelDependency : modelDependencies) {
             renameDependencyInfo.addRenameInfo(modelDependency, rinfo);
          }
       }
+
+      renameDependencyInfo.setRenameInfos(rinfos);
+
+      return renameDependencyInfo;
+   }
+
+   public static RenameDependencyInfo createExtendPartitionsDependencyInfo(XPartition model,
+                                                                           RenameInfo binfo)
+   {
+      if(model == null) {
+         return null;
+      }
+
+      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
+      List<RenameInfo> rinfos = new ArrayList<>();
+      rinfos.add(binfo);
+      List<AssetObject> baseDependencies =
+         getPartitionDependencies(binfo.getOldName());
+
+      if(baseDependencies != null) {
+         for(AssetObject baseDependency : baseDependencies) {
+            renameDependencyInfo.addRenameInfo(baseDependency, binfo);
+         }
+      }
+
+      String[] extendModelNames = model.getPartitionNames();
+
+      if(extendModelNames == null) {
+         return null;
+      }
+
+      for(String extendModelName : extendModelNames) {
+         List<AssetObject> modelDependencies =
+            getPartitionDependencies(Tool.buildString(binfo.getOldName(), "/", extendModelName));
+
+         if(modelDependencies == null) {
+            continue;
+         }
+
+         String nChildPath = Tool.buildString(binfo.getNewName(), XUtil.DATAMODEL_PATH_SPLITER,
+            extendModelName);
+         String oChildPath = Tool.buildString(binfo.getOldName(), XUtil.DATAMODEL_PATH_SPLITER,
+             extendModelName);
+         RenameInfo rinfo = new RenameInfo(oChildPath, nChildPath, binfo.type);
+         rinfo.setModelFolder(model.getFolder());
+         rinfos.add(rinfo);
+
+         for(AssetObject modelDependency : modelDependencies) {
+            renameDependencyInfo.addRenameInfo(modelDependency, rinfo);
+         }
+      }
+
+      renameDependencyInfo.setRenameInfos(rinfos);
 
       return renameDependencyInfo;
    }

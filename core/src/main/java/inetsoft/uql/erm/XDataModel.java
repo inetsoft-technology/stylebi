@@ -172,16 +172,10 @@ public class XDataModel implements Cloneable, Serializable,
          RenameInfo rinfo = new RenameInfo(oldName, newName, type);
          rinfo.setPrefix(getDataSource());
          rinfo.setModelFolder(model.getFolder());
-         RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
          RenameDependencyInfo extendModelDependencyInfo =
             DependencyTransformer.createExtendModelDependencyInfo(getLogicalModel(newName),
-               oldName, newName);
-
-         if(extendModelDependencyInfo != null &&
-            !ArrayUtils.isEmpty(extendModelDependencyInfo.getAssetObjects()))
-         {
-            RenameTransformHandler.getTransformHandler().addTransformTask(extendModelDependencyInfo);
-         }
+               oldName, newName, rinfo);
+         RenameTransformHandler.getTransformHandler().addTransformTask(extendModelDependencyInfo);
       }
    }
 
