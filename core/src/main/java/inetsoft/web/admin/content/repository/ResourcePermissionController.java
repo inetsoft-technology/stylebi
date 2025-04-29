@@ -18,6 +18,7 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import inetsoft.web.admin.security.ResourcePermissionModel;
@@ -45,9 +46,10 @@ public class ResourcePermissionController {
       }
 
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+      boolean tableStyleFolder = type == (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE);
       return this.resourcePermissionService.getTableModel(
          resource.getPath(), resource.getType(),
-         ResourcePermissionService.ADMIN_ACTIONS, principal);
+         ResourcePermissionService.ADMIN_ACTIONS, principal, tableStyleFolder);
    }
 
    @PostMapping("/api/em/content/repository/permission")
@@ -59,8 +61,9 @@ public class ResourcePermissionController {
    {
       Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
       String fullPath = Util.getObjectFullPath(type, path, principal);
+      boolean tableStyleFolder = (type & (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE)) != 0;
       this.resourcePermissionService.setResourcePermissions(
-         resource.getPath(), resource.getType(), fullPath, permissionModel, principal);
+         resource.getPath(), resource.getType(), fullPath, permissionModel, principal, tableStyleFolder);
    }
 
    private final ResourcePermissionService resourcePermissionService;
