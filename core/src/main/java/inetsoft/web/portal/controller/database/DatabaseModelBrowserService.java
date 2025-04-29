@@ -474,7 +474,7 @@ public class DatabaseModelBrowserService {
          }
 
          DependencyTransformer.createExtendViewDepInfoForFolderChanged(
-            dinfo, partition, oldPath, newPath, rinfo);
+            dinfo, partition, oldPath, newPath, rinfo, oentry.getPath());
          RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
 
          partition.setFolder(isRoot ? null : folder);
