@@ -27,6 +27,9 @@ import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -65,35 +68,25 @@ public class TextVSAScriptableTest {
       assertEquals("TextVSA", textVSAScriptable.getClassName());
    }
 
-   @Test
-   void testAddProperties() {
+   @ParameterizedTest
+   @ValueSource(strings = {"wrapping", "autoSize", "scaleVertical", "embedAsURL", "shadow", "tooltipVisible"})
+   void testAddProperties(String propertyName) {
       textVSAScriptable.addProperties();
-      String[] keys = {"wrapping", "autoSize", "scaleVertical", "embedAsURL", "shadow", "tooltipVisible"};
-
-      for (String key : keys) {
-         assert textVSAScriptable.get(key, textVSAScriptable) instanceof Boolean;
-      }
+      assert textVSAScriptable.get(propertyName, textVSAScriptable) instanceof Boolean;
    }
 
-   @Test
-   void testSetProperty() {
-      textVSAScriptable.setProperty("wrapping", true);
-      assertEquals(true, textVSAScriptable.get("wrapping", textVSAScriptable));
-
-      textVSAScriptable.setProperty("autoSize", true);
-      assertEquals(true, textVSAScriptable.get("autoSize", textVSAScriptable));
-
-      textVSAScriptable.setProperty("scaleVertical", false);
-      assertEquals(false, textVSAScriptable.get("scaleVertical", textVSAScriptable));
-
-      textVSAScriptable.setProperty("embedAsURL", true);
-      assertEquals(true, textVSAScriptable.get("embedAsURL", textVSAScriptable));
-
-      textVSAScriptable.setProperty("shadow", true);
-      assertEquals(true, textVSAScriptable.get("shadow", textVSAScriptable));
-
-      textVSAScriptable.setProperty("toolTip", "testTooltip");
-      assertEquals("testTooltip", textVSAScriptable.get("toolTip", textVSAScriptable));
+   @ParameterizedTest
+   @CsvSource({
+      "wrapping, true, true",
+      "autoSize, true, true",
+      "scaleVertical, false, false",
+      "embedAsURL, true, true",
+      "shadow, true, true",
+      "toolTip, testTooltip, testTooltip"
+   })
+   void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
+      textVSAScriptable.setProperty(propertyName, propertyValue);
+      assertEquals(expectedValue, textVSAScriptable.get(propertyName, textVSAScriptable));
    }
 
    @Test
