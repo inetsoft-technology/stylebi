@@ -1508,10 +1508,18 @@ public abstract class DependencyTransformer {
             continue;
          }
 
-         String nChildPath = Tool.buildString(binfo.getNewName(), XUtil.DATAMODEL_PATH_SPLITER,
-            extendModelName);
-         String oChildPath = Tool.buildString(binfo.getOldName(), XUtil.DATAMODEL_PATH_SPLITER,
-             extendModelName);
+         StringBuilder nChildPathBuilder = new StringBuilder();
+         nChildPathBuilder.append(binfo.getNewName())
+                          .append(XUtil.DATAMODEL_PATH_SPLITER)
+                          .append(extendModelName);
+         String nChildPath = nChildPathBuilder.toString();
+
+         StringBuilder oChildPathBuilder = new StringBuilder();
+         oChildPathBuilder.append(binfo.getOldName())
+                 .append(XUtil.DATAMODEL_PATH_SPLITER)
+                 .append(extendModelName);
+         String oChildPath = oChildPathBuilder.toString();
+
          RenameInfo rinfo = new RenameInfo(oChildPath, nChildPath, binfo.type);
          rinfo.setModelFolder(model.getFolder());
          rinfos.add(rinfo);
