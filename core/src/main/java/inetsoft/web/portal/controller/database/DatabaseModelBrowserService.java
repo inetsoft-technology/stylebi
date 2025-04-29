@@ -432,11 +432,13 @@ public class DatabaseModelBrowserService {
 
       boolean isRoot = folder == null || "/".equals(folder) || "".equals(folder);
       String database = dataModel.getDataSource();
-      String oldPath = database + (partition.getFolder() == null ? "" :
-         XUtil.DATAMODEL_FOLDER_SPLITER + partition.getFolder()) +
-         XUtil.DATAMODEL_PATH_SPLITER + name;
-      String newPath = database +  (isRoot ? "" : XUtil.DATAMODEL_FOLDER_SPLITER + folder) +
-         XUtil.DATAMODEL_PATH_SPLITER + name;
+      String oldPath = partition.getFolder() == null ?
+         Tool.buildString(database, XUtil.DATAMODEL_PATH_SPLITER, name) :
+         Tool.buildString(database, XUtil.DATAMODEL_FOLDER_SPLITER, partition.getFolder(),
+         XUtil.DATAMODEL_PATH_SPLITER, name);
+      String newPath = isRoot ? Tool.buildString(database, XUtil.DATAMODEL_PATH_SPLITER, name) :
+         Tool.buildString(database, XUtil.DATAMODEL_FOLDER_SPLITER, folder,
+         XUtil.DATAMODEL_PATH_SPLITER, name);
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
           ActionRecord.ACTION_NAME_MOVE, oldPath,ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW,
          null, ActionRecord.ACTION_STATUS_SUCCESS,
