@@ -192,6 +192,10 @@ public class VSChartAreasController {
 
                model = (VSChartModel) new GraphBuilder(
                   state.getAssembly(), chartInfo, chartArea, state.getChartDescriptor(), model).build();
+
+               if(pair.isCompleted() && pair.getRealSizeVGraph() == null) {
+                  model.setNoData(true);
+               }
             }
             catch(Exception ex) {
                if(pair.isCancelled()) {
