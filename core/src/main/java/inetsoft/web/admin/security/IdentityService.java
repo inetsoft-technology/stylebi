@@ -638,12 +638,12 @@ public class IdentityService {
          .map(IdentityModel::identityID).toArray(IdentityID[]::new);
       IdentityID[] newGroups = memberModels.stream()
          .filter(member -> member.type() == Identity.GROUP)
-         .filter(newGroup -> Arrays.stream(users).noneMatch(oldGroup -> oldGroup.getName().equals(newGroup.identityID().getName())))
+         .filter(newGroup -> Arrays.stream(groups).noneMatch(oldGroup -> oldGroup.getName().equals(newGroup.identityID().getName())))
          .map(IdentityModel::identityID)
          .toArray(IdentityID[]::new);
       IdentityID[] newRoles = memberModels.stream()
          .filter(member -> member.type() == Identity.ROLE)
-         .filter(newRole -> Arrays.stream(users).noneMatch(oldRole -> oldRole.getName().equals(newRole.identityID().getName())))
+         .filter(newRole -> Arrays.stream(roles).noneMatch(oldRole -> oldRole.getName().equals(newRole.identityID().getName())))
          .map(IdentityModel::identityID)
          .toArray(IdentityID[]::new);
       boolean orgIdChange = !OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId());
