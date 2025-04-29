@@ -1431,7 +1431,7 @@ public abstract class DependencyTransformer {
       List<RenameInfo> rinfos = new ArrayList<>();
       rinfos.add(binfo);
       List<AssetObject> baseDependencies =
-         getModelDependencies(model.getDataSource() + "/" + oldBaseModelName);
+         getModelDependencies(Tool.buildString(model.getDataSource(), "/", oldBaseModelName));
 
       if(baseDependencies != null) {
          for(AssetObject baseDependency : baseDependencies) {
@@ -1449,15 +1449,18 @@ public abstract class DependencyTransformer {
 
       for(String extendModelName : extendModelNames) {
          List<AssetObject> modelDependencies =
-            getModelDependencies(model.getDataSource() + "/" + oldBaseModelName + "/" + extendModelName);
+            getModelDependencies(Tool.buildString(
+               model.getDataSource(), "/", oldBaseModelName, "/", extendModelName));
 
          if(modelDependencies == null) {
             continue;
          }
 
          int type = RenameInfo.LOGIC_MODEL | RenameInfo.SOURCE;
-         RenameInfo rinfo = new RenameInfo(oldBaseModelName +  XUtil.DATAMODEL_PATH_SPLITER + extendModelName,
-                                           newBaseModelName +  XUtil.DATAMODEL_PATH_SPLITER + extendModelName, type);
+         RenameInfo rinfo = new RenameInfo(
+            Tool.buildString(oldBaseModelName, XUtil.DATAMODEL_PATH_SPLITER, extendModelName),
+            Tool.buildString(newBaseModelName, XUtil.DATAMODEL_PATH_SPLITER, extendModelName),
+            type);
          rinfo.setPrefix(datasource);
          rinfo.setModelFolder(model.getFolder());
          rinfos.add(rinfo);
@@ -1499,14 +1502,16 @@ public abstract class DependencyTransformer {
 
       for(String extendModelName : extendModelNames) {
          List<AssetObject> modelDependencies =
-            getPartitionDependencies(binfo.getOldName() + "/" + extendModelName);
+            getPartitionDependencies(Tool.buildString(binfo.getOldName(), "/", extendModelName));
 
          if(modelDependencies == null) {
             continue;
          }
 
-         String nChildPath = binfo.getNewName() + XUtil.DATAMODEL_PATH_SPLITER + extendModelName;
-         String oChildPath = binfo.getOldName() + XUtil.DATAMODEL_PATH_SPLITER + extendModelName;
+         String nChildPath = Tool.buildString(binfo.getNewName(), XUtil.DATAMODEL_PATH_SPLITER,
+            extendModelName);
+         String oChildPath = Tool.buildString(binfo.getOldName(), XUtil.DATAMODEL_PATH_SPLITER,
+             extendModelName);
          RenameInfo rinfo = new RenameInfo(oChildPath, nChildPath, binfo.type);
          rinfo.setModelFolder(model.getFolder());
          rinfos.add(rinfo);
