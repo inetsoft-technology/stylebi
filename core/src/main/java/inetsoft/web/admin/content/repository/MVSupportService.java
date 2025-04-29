@@ -1151,7 +1151,7 @@ public class MVSupportService {
                }
             }
 
-            if(this.canAddUserIdentity()) {
+            if(this.shouldAddCurrentUser()) {
                identities.add(new DefaultIdentity(((XPrincipal) this.principal).getIdentityID().getName(), orgID, Identity.USER));
             }
          }
@@ -1175,7 +1175,7 @@ public class MVSupportService {
          return false;
       }
 
-      private boolean canAddUserIdentity() {
+      private boolean shouldAddCurrentUser() {
          if(this.principal == null || !MVDef.REJECT_VPM.get()) {
             return false;
          }
