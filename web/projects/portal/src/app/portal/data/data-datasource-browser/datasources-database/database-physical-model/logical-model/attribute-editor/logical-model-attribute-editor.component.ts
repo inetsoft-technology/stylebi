@@ -390,7 +390,6 @@ export class LogicalModelAttributeEditor implements OnInit, OnDestroy {
 
       dialog.autoDrillModel = this.attribute.drillInfo;
       dialog.entities = this.entities;
-      dialog.logicalModelName = this.logicalModelName;
    }
 
    /**

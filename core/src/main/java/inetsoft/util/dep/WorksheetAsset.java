@@ -268,7 +268,7 @@ public class WorksheetAsset extends AbstractSheetAsset implements
       String fromDesc = getPath();
 
       for(int i = 0; i < selection.getColumnCount(); i++) {
-         getAutoDrillDependency(selection.getXMetaInfo(i), dependencies, fromDesc);
+         getAutoDrillDependency(selection.getXMetaInfo(i), dependencies, fromDesc, null);
       }
    }
 

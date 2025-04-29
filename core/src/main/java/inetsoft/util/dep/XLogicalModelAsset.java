@@ -177,7 +177,7 @@ public class XLogicalModelAsset extends AbstractXAsset implements
                   XAssetDependency.XLOGICALMODEL_BROWSE_XQUERY, desc));
             }
 
-            getAutoDrillDependency(xattr.getXMetaInfo(), dependencies, fromDesc);
+            getAutoDrillDependency(xattr.getXMetaInfo(), dependencies, fromDesc, lmodel.getName());
          }
       }
 
