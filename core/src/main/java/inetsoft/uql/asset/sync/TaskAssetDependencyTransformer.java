@@ -390,7 +390,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       else if(info.isQuery()) {
          type = XQueryAsset.XQUERY;
       }
-      else if(info.isDataSource()) {
+      else if(info.isDataSource() || info.isDataSourceFolder()) {
          type = XDataSourceAsset.XDATASOURCE;
       }
       else if(info.isWorksheet()) {
@@ -466,6 +466,10 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          if(newPath.startsWith(Assembly.CUBE_VS)) {
             newPath = newPath.substring(Assembly.CUBE_VS.length());
          }
+      }
+      else if(info.isDataSourceFolder()) {
+         path = info.getOldName();
+         newPath = info.getNewName();
       }
       else {
          try {
