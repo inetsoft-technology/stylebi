@@ -21,7 +21,7 @@ import inetsoft.report.lib.ScriptEntry;
 import inetsoft.report.lib.logical.*;
 import inetsoft.report.lib.physical.*;
 import inetsoft.report.style.XTableStyle;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
@@ -466,6 +466,14 @@ public class LibManager implements AutoCloseable {
     */
    public void renameTableStyleFolder(String oldName, String newName) {
       styleFolders.rename(oldName, newName);
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      Permission permission = provider.getPermission(ResourceType.TABLE_STYLE, oldName);
+
+      if(permission != null) {
+         provider.setPermission(ResourceType.TABLE_STYLE, newName, permission);
+         provider.removePermission(ResourceType.TABLE_STYLE, oldName);
+      }
+
       fireActionEvent(newName, STYLE_MODIFIED);
    }
 
