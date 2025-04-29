@@ -1510,6 +1510,41 @@ public abstract class DependencyTransformer {
       return renameDependencyInfo;
    }
 
+   public static void createExtendViewDepInfoForFolderChanged(
+      RenameDependencyInfo renameDependencyInfo, XPartition partition, String opath,
+      String npath, RenameInfo rinfo)
+   {
+      if(partition == null) {
+         return;
+      }
+
+      String[] extendViewNames = partition.getPartitionNames();
+
+      if(extendViewNames == null) {
+         return;
+      }
+
+      for(String extendViewName : extendViewNames) {
+         String nChildPath = Tool.buildString(npath, "^", extendViewName);
+         String oChildPath = Tool.buildString(opath, "^", extendViewName);
+         RenameInfo childInfo = new RenameInfo(rinfo.getOldName(), rinfo.getNewName(),
+                                               RenameInfo.PARTITION | RenameInfo.FOLDER);
+         childInfo.setNewPath(nChildPath);
+         childInfo.setOldPath(oChildPath);
+         String childKey = oChildPath.replace("^__^", "/");
+         childKey = childKey.replace("^", "/");
+         List<AssetObject> viewDependencies = getPartitionDependencies(childKey);
+
+         if(viewDependencies == null) {
+            continue;
+         }
+
+         for(AssetObject modelDependency : viewDependencies) {
+            renameDependencyInfo.addRenameInfo(modelDependency, childInfo);
+         }
+      }
+   }
+
    private File assetFile;
 
    protected static final XPath xpath = XPathFactory.newInstance().newXPath();
