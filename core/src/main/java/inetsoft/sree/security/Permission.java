@@ -1047,6 +1047,11 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       private final String name;
       private final String organizationID;
 
+      public PermissionIdentity(IdentityID identityID) {
+         this.name = identityID == null ? null : identityID.getName();
+         this.organizationID = identityID == null ? null : identityID.getOrgID();
+      }
+
       public PermissionIdentity(String name, String organization) {
          this.name = name;
          this.organizationID = organization;
