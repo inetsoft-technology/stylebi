@@ -100,7 +100,7 @@ public class VSBookmarkService {
          return messageCommand;
       }
 
-      vs.getRuntimeEntry().setProperty("keepAnnonVis", "true");
+      vs.getRuntimeEntry().setProperty("keepAnnoVis", "true");
       rvs.addBookmark(bookmarkName, type,
                       principal.getName() == null ? new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()) :
                       IdentityID.getIdentityIDFromKey(principal.getName()), readOnly);
