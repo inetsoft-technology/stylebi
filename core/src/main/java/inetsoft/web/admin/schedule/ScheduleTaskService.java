@@ -447,7 +447,8 @@ public class ScheduleTaskService {
       String taskName = internalTask ? oldTaskName : model.taskName();
 
       if(internalTask) {
-         task = scheduleManager.getScheduleTask(oldTaskName).clone();
+         task = scheduleManager.getScheduleTask(oldTaskName) == null ? null :
+            scheduleManager.getScheduleTask(oldTaskName).clone();
       }
       else {
          if("".equals(taskName)) {
@@ -461,7 +462,8 @@ public class ScheduleTaskService {
          }
 
          taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
-         task = scheduleManager.getScheduleTask(taskName).clone();
+         task = scheduleManager.getScheduleTask(taskName) == null ? null :
+            scheduleManager.getScheduleTask(taskName).clone();
       }
 
       if(task == null) {
