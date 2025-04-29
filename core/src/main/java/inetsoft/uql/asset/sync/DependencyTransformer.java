@@ -1591,7 +1591,7 @@ public abstract class DependencyTransformer {
 
    public static void createExtendViewDepInfoForFolderChanged(
       RenameDependencyInfo renameDependencyInfo, XPartition partition, String opath,
-      String npath, RenameInfo rinfo)
+      String npath, RenameInfo rinfo, String storagePath)
    {
       if(partition == null) {
          return;
@@ -1610,9 +1610,8 @@ public abstract class DependencyTransformer {
                                                RenameInfo.PARTITION | RenameInfo.FOLDER);
          childInfo.setNewPath(nChildPath);
          childInfo.setOldPath(oChildPath);
-         String childKey = oChildPath.replace("^__^", "/");
-         childKey = childKey.replace("^", "/");
-         List<AssetObject> viewDependencies = getPartitionDependencies(childKey);
+         List<AssetObject> viewDependencies =
+            getPartitionDependencies(Tool.buildString(storagePath, "/", extendViewName));
 
          if(viewDependencies == null) {
             continue;
