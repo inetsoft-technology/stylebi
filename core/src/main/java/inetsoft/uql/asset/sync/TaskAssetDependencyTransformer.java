@@ -223,7 +223,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
 
          Element user = getChildNode(item, "user");
 
-         if(!Tool.equals(ouser, Tool.getValue(user))) {
+         if(!Tool.equals(ouser == null ? null : ouser.convertToKey(), Tool.getValue(user))) {
             continue;
          }
 
