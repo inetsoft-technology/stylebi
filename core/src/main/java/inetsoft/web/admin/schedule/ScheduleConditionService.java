@@ -233,7 +233,8 @@ public class ScheduleConditionService {
                .name(paramName)
                .type(type)
                .array(array)
-               .value(new DynamicValueModel(vals, DynamicValueModel.VALUE, type, array))
+               .value(new DynamicValueModel(formatParameterValue(
+                  repRequest, "array", vals, paramName), DynamicValueModel.VALUE, type, array))
                .build();
 
             paramModels.add(paramModel);
