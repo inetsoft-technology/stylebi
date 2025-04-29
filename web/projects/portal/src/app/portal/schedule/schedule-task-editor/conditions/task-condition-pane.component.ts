@@ -733,7 +733,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
          startControl = new UntypedFormControl(this.formStartTime, this.checkTimeNotNull);
       }
       else {
-         startControl = new UntypedFormControl(this.formStartTimeData, this.checkStartTimeData);
+         startControl = new UntypedFormControl(this.formStartTimeData,
+            this.startTimeEnabled || this.timeRangeEnabled ? this.checkStartTimeData : null);
       }
 
       // Daily Condition
