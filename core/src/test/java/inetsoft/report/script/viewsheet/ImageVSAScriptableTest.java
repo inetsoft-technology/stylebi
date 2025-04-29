@@ -26,6 +26,9 @@ import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.PopVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -68,29 +71,23 @@ public class ImageVSAScriptableTest {
       assertEquals("ImageVSA", imageVSAScriptable.getClassName());
    }
 
-   @Test
-   void testAddProperties() {
+   @ParameterizedTest
+   @ValueSource(strings = {"maintainAspectRatio", "scaleImage", "animate", "tile"})
+   void testAddProperties(String propertyName) {
       imageVSAScriptable.addProperties();
-      String[] keys = {"maintainAspectRatio", "scaleImage", "animate", "tile"};
-
-      for (String key : keys) {
-         assert imageVSAScriptable.get(key, imageVSAScriptable) instanceof Boolean;
-      }
+      assert imageVSAScriptable.get(propertyName, imageVSAScriptable) instanceof Boolean;
    }
 
-   @Test
-   void testSetProperty() {
-      imageVSAScriptable.setProperty("maintainAspectRatio", false);
-      assertEquals(false, imageVSAScriptable.get("maintainAspectRatio", imageVSAScriptable));
-
-      imageVSAScriptable.setProperty("scaleImage", true);
-      assertEquals(true, imageVSAScriptable.get("scaleImage", imageVSAScriptable));
-
-      imageVSAScriptable.setProperty("animate", true);
-      assertEquals(true, imageVSAScriptable.get("animate", imageVSAScriptable));
-
-      imageVSAScriptable.setProperty("tile", true);
-      assertEquals(true, imageVSAScriptable.get("tile", imageVSAScriptable));
+   @ParameterizedTest
+   @CsvSource({
+      "maintainAspectRatio, false, false",
+      "scaleImage, true, true",
+      "animate, true, true",
+      "tile, true, true"
+   })
+   void testSetProperty(String propertyName, Object propertyValue, Object expectedValue) {
+      imageVSAScriptable.setProperty(propertyName, propertyValue);
+      assertEquals(expectedValue, imageVSAScriptable.get(propertyName, imageVSAScriptable));
    }
 
    @Test
