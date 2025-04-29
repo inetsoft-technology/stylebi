@@ -216,6 +216,7 @@
                 [width]="tableCellDisplayWidth(j)"
                 [height]="getRowHeight(indexToRow(i))"
                 [selectedDataIndex]="selectedDataIndex"
+                [lastStart]="lastStart"
                 [dataCellIndex]="{row: i, column: j}"
                 [isRendered]="!firstRow || loadedRows.start > 0"
                 (nextCellChanged)="nextCellChange($event)"
