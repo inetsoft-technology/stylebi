@@ -149,10 +149,6 @@ export class SelectionListCell implements OnInit, OnChanges {
       this.measureTextVAlign = GuiTool.getFlexVAlign(this.measureTextFormat.vAlign);
       this.isParentIDTree = model.objectType === "VSSelectionTree" && (<VSSelectionTreeModel> model).mode == MODE.ID;
 
-      if(this.mobile) {
-         this.cellFormat.font = "15px Roboto, roboto, arial, helvetica, sans-serif"
-      }
-
       switch(this.measureTextFormat.vAlign) {
       case "top":
          this.barY = this.sanitization.bypassSecurityTrustStyle("2px");
