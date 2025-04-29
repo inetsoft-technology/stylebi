@@ -504,7 +504,7 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
       let c = event.col;
 
       if(r < this.model.rowCount - 1) {
-         this.nextCell = this.tableData[r + 1][c];
+         this.nextCell = this.tableData[r - this.lastStart + 1][c];
       }
       else if(r == this.model.rowCount - 1) {
          this.nextCell = this.tableData[0][c];
