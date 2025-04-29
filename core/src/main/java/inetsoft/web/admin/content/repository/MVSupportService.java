@@ -1151,7 +1151,7 @@ public class MVSupportService {
                }
             }
 
-            if(this.isSupport()) {
+            if(this.canAddUserIdentity()) {
                identities.add(new DefaultIdentity(((XPrincipal) this.principal).getIdentityID().getName(), orgID, Identity.USER));
             }
          }
@@ -1175,19 +1175,19 @@ public class MVSupportService {
          return false;
       }
 
-      private boolean isSupport() {
+      private boolean canAddUserIdentity() {
          if(this.principal == null || !MVDef.REJECT_VPM.get()) {
             return false;
          }
 
-         boolean isOrgAdmin = OrganizationManager.getInstance().isOrgAdmin(this.principal);
-         boolean isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(this.principal);
-
-         if(!isOrgAdmin && !isSiteAdmin) {
-            return false;
-         }
-
          if(!identities.isEmpty()) {
+            boolean isOrgAdmin = OrganizationManager.getInstance().isOrgAdmin(this.principal);
+            boolean isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(this.principal);
+
+            if(!isOrgAdmin && !isSiteAdmin) {
+               return false;
+            }
+
             if(containsIdentity(identities, ((XPrincipal)this.principal).getIdentityID().getName()) ||
                containsIdentity(identities, XPrincipal.SYSTEM)) {
                return false;
@@ -1196,23 +1196,26 @@ public class MVSupportService {
 
          String[] groups = ((XPrincipal)this.principal).getGroups();
          IdentityID[] roles = ((XPrincipal)this.principal).getRoles();
-         boolean exists = true;
 
          if(groups != null && groups.length > 0) {
-            exists =  Arrays.stream(groups)
+            boolean exists =  Arrays.stream(groups)
                .anyMatch(group -> containsIdentity(identities, group));
 
-            return exists ? false : true;
+            if(exists) {
+               return false;
+            }
          }
 
          if(roles != null && roles.length > 0) {
-            exists = Arrays.stream(roles)
+            boolean exists = Arrays.stream(roles)
                .anyMatch(role -> containsIdentity(identities, role.getName()));
 
-            return exists ? false : true;
+            if(exists) {
+               return false;
+            }
          }
 
-         return exists;
+         return true;
       }
 
       /**
