@@ -1706,12 +1706,11 @@ public class RepletEngine extends AbstractAssetEngine
          if(!SUtil.isMyReport(oname)) {
             SecurityEngine security = getSecurity();
 
-            if(security != null) {
-               security.setPermission(
-                  ResourceType.REPORT, nname,
-                  security.getPermission(ResourceType.REPORT, oname));
+            if(security != null && !Tool.equals(nname, oname)) {
+               Permission perm = security.getPermission(ResourceType.REPORT, oname);
 
-               if(!Tool.equals(nname, oname)) {
+               if(perm != null) {
+                  security.setPermission(ResourceType.REPORT, nname, perm);
                   security.removePermission(ResourceType.REPORT, oname);
                }
             }
