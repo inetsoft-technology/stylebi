@@ -30,8 +30,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
+import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -2389,17 +2388,32 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
 
          // Queries must use the correct orgID to get the datasource
          if(orgID != null) {
-            for(Assembly assembly : ws.getAssemblies()) {
-               if(assembly instanceof SQLBoundTableAssembly) {
-                  ((SQLBoundTableAssemblyInfo) assembly.getInfo()).getQuery().setOrganizationId(orgID);
-               }
-            }
+            updateWorksheetContentOrgId(ws, orgID);
          }
 
          MVWorksheetStorage.getInstance().putWorksheet(getWorksheetPath(), ws, orgID);
       }
       finally {
          Worksheet.setIsTEMP(false);
+      }
+   }
+
+   private void updateWorksheetContentOrgId(Worksheet ws, String orgID) {
+      if(ws == null) {
+         return;
+      }
+
+      for(Assembly assembly : ws.getAssemblies()) {
+         if(assembly instanceof SQLBoundTableAssembly) {
+            ((SQLBoundTableAssemblyInfo) assembly.getInfo()).getQuery().setOrganizationId(orgID);
+         }
+         else if(assembly.getInfo() instanceof TabularTableAssemblyInfo tabularInfo) {
+            tabularInfo.getQuery().setOrganizationId(orgID);
+         }
+      }
+
+      if(ws instanceof WorksheetWrapper worksheetWrapper) {
+         updateWorksheetContentOrgId(worksheetWrapper.getWorksheet(), orgID);
       }
    }
 
