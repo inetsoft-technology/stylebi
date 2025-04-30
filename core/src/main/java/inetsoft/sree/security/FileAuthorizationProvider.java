@@ -47,6 +47,63 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       storage = SingletonManager.getInstance(KeyValueStorage.class,
                                    "defaultSecurityPermissions",
                                    (Supplier<LoadPermissionsTask>) LoadPermissionsTask::new);
+
+      isolatePermissionForOrg();
+   }
+
+   /**
+    * Permission was isolated by organiztion to fix bugs like Bug #7091, this function is to
+    * isolate permissions by organization for old storage.
+    */
+   private void isolatePermissionForOrg() {
+      if(!needIsolate()) {
+         return;
+      }
+
+      Map<String, Permission> map = new HashMap<>();
+      storage.stream().forEach(pair -> map.put(pair.getKey(), pair.getValue()));
+      storage.removeAll(storage.keys().collect(Collectors.toSet()));
+
+      for(Map.Entry<String, Permission> entry : map.entrySet()) {
+         String key = entry.getKey();
+         int delimiter = key.indexOf(":");
+         ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
+         String path = key.substring(delimiter + 1);
+         Permission permission = entry.getValue();
+
+         if(permission == null) {
+            continue;
+         }
+
+         Map<String, Permission> permissionMap = permission.splitPermissionForOrg();
+
+         permissionMap.forEach((orgId, orgPermission) -> {
+            // no meaningful scenario for setting permissions on a global role.
+            if("null".equals(orgId)) {
+               return;
+            }
+
+            setPermission(type, path, orgPermission, orgId);
+         });
+      }
+   }
+
+   private boolean needIsolate() {
+      String key = storage.keys().findFirst().orElse(null);
+
+      if(key == null) {
+         return false;
+      }
+
+      String[] arr = key.split(":");
+
+      if(arr.length < 3) {
+         return true;
+      }
+
+      String orgID = arr[1];
+
+      return SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null;
    }
 
    /**
