@@ -22,6 +22,8 @@ import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.InvalidOrgException;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.web.MapSession;
+import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.security.*;
@@ -31,17 +33,22 @@ import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.Map;
 
 @RestController
 public class UserController {
    @Autowired
    public UserController(UserTreeService userTreeService,
-                         IdentityService identityService) {
+                         IdentityService identityService,
+                         MapSessionRepository mapSessionRepository)
+   {
       this.userTreeService = userTreeService;
       this.identityService = identityService;
+      this.mapSessionRepository = mapSessionRepository;
    }
 
    @PostMapping("/api/em/security/users/create-user/{provider}")
@@ -86,6 +93,10 @@ public class UserController {
       }
 
       userTreeService.editUser(model, provider, principal);
+
+      Map<String, MapSession> userSessions = mapSessionRepository.findByIndexNameAndIndexValue(
+         FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, model.oldIdentityKey());
+      userSessions.keySet().forEach(mapSessionRepository::deleteById);
       HttpSession session = request.getSession(true);
       Object ticket = session.getAttribute(SUtil.TICKET);
       String warning = identityService.getTimeOutWarning(ticket, model.oldName());
@@ -97,5 +108,6 @@ public class UserController {
 
    private final UserTreeService userTreeService;
    private final IdentityService identityService;
+   private final MapSessionRepository mapSessionRepository;
    private static final Logger LOG = LoggerFactory.getLogger(UserController.class);
 }
