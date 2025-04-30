@@ -1534,9 +1534,9 @@ public abstract class DependencyTransformer {
     *
     * @return extend Model DependencyInfo
     */
-   public static RenameDependencyInfo createExtendModelDepInfoForFolderChanged(XLogicalModel model,
-                                                                               String oldFolderName,
-                                                                               String newFolderName)
+   public static RenameDependencyInfo createExtendModelDepInfoForFolderChanged(
+      RenameDependencyInfo renameDependencyInfo, XLogicalModel model, String oldFolderName,
+      String newFolderName)
    {
       if(model == null) {
          return null;
@@ -1548,7 +1548,6 @@ public abstract class DependencyTransformer {
          return null;
       }
 
-      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
       String datasource = model.getDataSource();
       String baseModelName = model.getName();
       String pathSpliter = XUtil.DATAMODEL_PATH_SPLITER;

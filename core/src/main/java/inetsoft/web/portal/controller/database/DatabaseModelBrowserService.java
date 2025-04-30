@@ -397,15 +397,9 @@ public class DatabaseModelBrowserService {
             dinfo.addRenameInfo(obj, rinfo);
          }
 
+         DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
+            oldFolder, folder);
          RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
-         RenameDependencyInfo extendModelDependencyInfo =
-            DependencyTransformer.createExtendModelDepInfoForFolderChanged(logicalModel, oldFolder, folder);
-
-         if(extendModelDependencyInfo != null &&
-            !ArrayUtils.isEmpty(extendModelDependencyInfo.getAssetObjects()))
-         {
-            RenameTransformHandler.getTransformHandler().addTransformTask(extendModelDependencyInfo);
-         }
       }
       catch(Exception ex) {
          actionRecord.setActionError(ex.getMessage() + ", Target Entry: " + newPath);
@@ -677,12 +671,17 @@ public class DatabaseModelBrowserService {
             List<AssetObject> entries = DependencyTransformer.getDependencies(oentry.toIdentifier());
 
             if(entries == null) {
+               DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
+                  oldName, folderName);
                continue;
             }
 
             for(AssetObject obj : entries) {
                dinfo.addRenameInfo(obj, rinfo);
             }
+
+            DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
+               oldName, folderName);
          }
 
          for(String partitionName : dataModel.getPartitionNames()) {
@@ -708,12 +707,17 @@ public class DatabaseModelBrowserService {
             List<AssetObject> entries = DependencyTransformer.getDependencies(oentry.toIdentifier());
 
             if(entries == null) {
+               DependencyTransformer.createExtendViewDepInfoForFolderChanged(dinfo,
+                  partitionModel, opath, npath, rinfo, oentry.getPath());
                continue;
             }
 
             for(AssetObject obj : entries) {
                dinfo.addRenameInfo(obj, rinfo);
             }
+
+            DependencyTransformer.createExtendViewDepInfoForFolderChanged(dinfo,
+               partitionModel, opath, npath, rinfo, oentry.getPath());
          }
 
          Permission permission = securityEngine.getPermission(
