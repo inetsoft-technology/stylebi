@@ -4419,7 +4419,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       IndexedStorage nstorage = getStorage(nbentry);
 
-      if(nstorage == null) { //s0 here
+      if(nstorage == null) {
          throw new MessageException(catalog.getString(
             "common.invalidStorage", nbentry));
       }
