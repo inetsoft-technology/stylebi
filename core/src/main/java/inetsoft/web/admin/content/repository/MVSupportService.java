@@ -651,15 +651,21 @@ public class MVSupportService {
       }
    }
 
-   private static Permission findPermission(ResourceType type, String path) {
+   private static Permission findPermission(String orgId, ResourceType type, String path) {
+      if(orgId == null) {
+         orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      }
+
       Permission perm = SecurityEngine.getSecurity().getPermission(type, path);
 
-      if(perm == null && type.isHierarchical()) {
+      if((perm == null || perm.isBlank() && !perm.hasOrgEditedGrantAll(orgId)) &&
+         type.isHierarchical())
+      {
          Resource resource = new Resource(type, path);
          Resource parent = type.getParent(path);
 
          if(parent != null && !Objects.equals(resource, parent)) {
-            return findPermission(parent.getType(), parent.getPath());
+            return findPermission(orgId, parent.getType(), parent.getPath());
          }
       }
 
@@ -1089,8 +1095,8 @@ public class MVSupportService {
          }
          else if(!bypass) {
             Resource resource = AssetUtil.getSecurityResource(entry);
-            Permission permission = findPermission(resource.getType(), resource.getPath());
             String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
+            Permission permission = findPermission(orgID, resource.getType(), resource.getPath());
 
             if(permission != null) {
                for(Permission.PermissionIdentity pident : permission.getGroupGrants(ResourceAction.READ)) {
