@@ -353,7 +353,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
                replaceCDATANode(item, value.replace(info.getOldName(), info.getNewName()));
             }
             else if(Tool.equals(value, info.getOldName())) {
-               replaceCDATANode(item, info.alias ? info.getNewName() : newColName2);
+               replaceCDATANode(item, info.alias || newColName2 == null ? info.getNewName() : newColName2);
             }
             else if(Tool.equals(value, oldColName2)) {
                replaceCDATANode(item, newColName2);
