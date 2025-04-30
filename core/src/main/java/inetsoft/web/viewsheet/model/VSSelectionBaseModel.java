@@ -52,7 +52,17 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
       textWidth = (showText && measure != null) ? assemblyInfo.getMeasureSize() : 0;
       barWidth = (showBar && measure != null) ? assemblyInfo.getBarSize() : 0;
 
-      final Dimension maxSize = assemblyInfo.getMaxSize();
+      Dimension maxSize = assemblyInfo.getMaxSize();
+
+      if(assembly.getContainer() != null &&
+         assembly.getContainer() instanceof CurrentSelectionVSAssembly currentSelection)
+      {
+         MaxModeSupportAssemblyInfo maxModeSupportAssemblyInfo = currentSelection.getMaxModeInfo();
+
+         if(maxModeSupportAssemblyInfo != null && maxModeSupportAssemblyInfo.getMaxSize() != null) {
+            maxSize = maxModeSupportAssemblyInfo.getMaxSize();
+         }
+      }
 
       if(maxSize != null) {
          final VSFormatModel titleFormat = getTitleFormat();
