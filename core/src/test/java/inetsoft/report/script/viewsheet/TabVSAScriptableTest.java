@@ -25,6 +25,8 @@ import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.awt.*;
 
@@ -105,5 +107,14 @@ public class TabVSAScriptableTest {
       Dimension size1 = new Dimension(180, 70);
       tabVSAScriptable.setSize(size1);
       assertEquals(size1, tabVSAScriptable.getSize());
+   }
+
+   @ParameterizedTest
+   @CsvSource({
+      "labels, []",
+      "visible, ''"
+   })
+   void testGetSuffix(String propertyName, String expectedValue) {
+      assertEquals(expectedValue, tabVSAScriptable.getSuffix(propertyName));
    }
 }
