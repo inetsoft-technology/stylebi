@@ -3132,12 +3132,17 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       changeSheetDependents(sheet, oentry, nentry);
 
-      clearCache(oentry);
-      clearCache(nentry);
-
       if(oentry.getType() == AssetEntry.Type.VIEWSHEET) {
          renameVSBookmark(oentry, nentry);
       }
+
+      //remove oidentifier last, otherwise dependencies might rewrite it
+      if(!Objects.equals(oidentifier, nidentifier)) {
+         ostorage.remove(oidentifier);
+      }
+
+      clearCache(oentry);
+      clearCache(nentry);
 
       if(callFireEvent) {
          fireEvent(sheet.getType(), AssetChangeEvent.ASSET_RENAMED, nentry,
@@ -4414,7 +4419,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       IndexedStorage nstorage = getStorage(nbentry);
 
-      if(nstorage == null) {
+      if(nstorage == null) { //s0 here
          throw new MessageException(catalog.getString(
             "common.invalidStorage", nbentry));
       }
