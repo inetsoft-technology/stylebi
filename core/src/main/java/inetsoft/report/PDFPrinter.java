@@ -2505,6 +2505,7 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
          }
       }
 
+      boolean hasArabicDigits = str.matches(".*[0-9].*");
       // scale space proportional to the size differences
       double tc = (len > 1 + combining) ? (awtW - psW) / (len - 1 - combining) : 0;
 
@@ -2529,7 +2530,7 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
       // @by mikec, in case if we limit the tc, some text may be truncated,
       // let user can choose overlap it or truncate it.
       if(tc < -1 &&
-         "true".equals(SreeEnv.getProperty("pdf.text.avoidoverlap")))
+         "true".equals(SreeEnv.getProperty("pdf.text.avoidoverlap")) && !hasArabicDigits)
       {
          tc = -1;
       }
