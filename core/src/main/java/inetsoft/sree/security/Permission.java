@@ -1035,6 +1035,62 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       return Objects.hash(userGrants, roleGrants, groupGrants, organizationGrants);
    }
 
+   /**
+    * Isolate permission by organization id for old storage.
+    */
+   public Map<String, Permission> splitPermissionForOrg() {
+      Map<String, Permission> permissionMap = new HashMap<>();
+      splitPermissionForOrg(permissionMap, Identity.USER, userGrants);
+      splitPermissionForOrg(permissionMap, Identity.ROLE, roleGrants);
+      splitPermissionForOrg(permissionMap, Identity.GROUP, groupGrants);
+      splitPermissionForOrg(permissionMap, Identity.ORGANIZATION, organizationGrants);
+      return permissionMap;
+   }
+
+   private void splitPermissionForOrg(Map<String, Permission> permissionMap, int identityType,
+                                      Map<ResourceAction, Set<PermissionIdentity>> grants)
+   {
+      Map<String, Map<ResourceAction, Set<PermissionIdentity>>> userMap = splitByOrganizationId(grants);
+
+      for(Map.Entry<String, Map<ResourceAction, Set<PermissionIdentity>>> entry : userMap.entrySet()) {
+         String orgID = entry.getKey();
+         Permission permission = permissionMap.computeIfAbsent(orgID, p -> new Permission());
+
+         switch(identityType) {
+            case Identity.USER -> permission.userGrants = entry.getValue();
+            case Identity.ROLE -> permission.roleGrants = entry.getValue();
+            case Identity.GROUP -> permission.groupGrants = entry.getValue();
+            case Identity.ORGANIZATION -> permission.organizationGrants = entry.getValue();
+         };
+      }
+   }
+
+   private Map<String, Map<ResourceAction, Set<PermissionIdentity>>> splitByOrganizationId(
+      Map<ResourceAction, Set<PermissionIdentity>> grants)
+   {
+      Map<String, Map<ResourceAction, Set<PermissionIdentity>>> result = new HashMap<>();
+
+      for(Map.Entry<ResourceAction, Set<PermissionIdentity>> entry : grants.entrySet()) {
+         ResourceAction action = entry.getKey();
+         Set<PermissionIdentity> identities = entry.getValue();
+
+         Map<String, Set<PermissionIdentity>> groupedById = identities.stream()
+            .collect(Collectors.groupingBy(
+               identity -> identity.getOrganizationID() == null ? "null" : identity.getOrganizationID(),
+               Collectors.toSet()
+            ));
+
+         for(Map.Entry<String, Set<PermissionIdentity>> groupEntry : groupedById.entrySet()) {
+            String orgId = groupEntry.getKey();
+            Set<PermissionIdentity> orgIdentities = groupEntry.getValue();
+            result.computeIfAbsent(orgId, k -> new EnumMap<>(ResourceAction.class))
+               .put(action, orgIdentities);
+         }
+      }
+
+      return result;
+   }
+
    private Map<ResourceAction, Set<PermissionIdentity>> userGrants = new EnumMap<>(ResourceAction.class);
    private Map<ResourceAction, Set<PermissionIdentity>> roleGrants = new EnumMap<>(ResourceAction.class);
    private Map<ResourceAction, Set<PermissionIdentity>> groupGrants = new EnumMap<>(ResourceAction.class);
