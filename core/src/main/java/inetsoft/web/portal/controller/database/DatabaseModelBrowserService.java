@@ -397,15 +397,9 @@ public class DatabaseModelBrowserService {
             dinfo.addRenameInfo(obj, rinfo);
          }
 
+         DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
+            oldFolder, folder);
          RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
-         RenameDependencyInfo extendModelDependencyInfo =
-            DependencyTransformer.createExtendModelDepInfoForFolderChanged(logicalModel, oldFolder, folder);
-
-         if(extendModelDependencyInfo != null &&
-            !ArrayUtils.isEmpty(extendModelDependencyInfo.getAssetObjects()))
-         {
-            RenameTransformHandler.getTransformHandler().addTransformTask(extendModelDependencyInfo);
-         }
       }
       catch(Exception ex) {
          actionRecord.setActionError(ex.getMessage() + ", Target Entry: " + newPath);
@@ -677,8 +671,8 @@ public class DatabaseModelBrowserService {
             List<AssetObject> entries = DependencyTransformer.getDependencies(oentry.toIdentifier());
 
             if(entries == null) {
-               DependencyTransformer.createExtendModelDepInfoForFolderChanged(logicalModel, oldName,
-                  folderName);
+               DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
+                  oldName, folderName);
                continue;
             }
 
@@ -686,8 +680,8 @@ public class DatabaseModelBrowserService {
                dinfo.addRenameInfo(obj, rinfo);
             }
 
-            DependencyTransformer.createExtendModelDepInfoForFolderChanged(logicalModel, oldName,
-               folderName);
+            DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
+               oldName, folderName);
          }
 
          for(String partitionName : dataModel.getPartitionNames()) {
