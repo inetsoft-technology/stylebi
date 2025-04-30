@@ -677,12 +677,17 @@ public class DatabaseModelBrowserService {
             List<AssetObject> entries = DependencyTransformer.getDependencies(oentry.toIdentifier());
 
             if(entries == null) {
+               DependencyTransformer.createExtendModelDepInfoForFolderChanged(logicalModel, oldName,
+                  folderName);
                continue;
             }
 
             for(AssetObject obj : entries) {
                dinfo.addRenameInfo(obj, rinfo);
             }
+
+            DependencyTransformer.createExtendModelDepInfoForFolderChanged(logicalModel, oldName,
+               folderName);
          }
 
          for(String partitionName : dataModel.getPartitionNames()) {
@@ -708,12 +713,17 @@ public class DatabaseModelBrowserService {
             List<AssetObject> entries = DependencyTransformer.getDependencies(oentry.toIdentifier());
 
             if(entries == null) {
+               DependencyTransformer.createExtendViewDepInfoForFolderChanged(dinfo,
+                  partitionModel, opath, npath, rinfo, oentry.getPath());
                continue;
             }
 
             for(AssetObject obj : entries) {
                dinfo.addRenameInfo(obj, rinfo);
             }
+
+            DependencyTransformer.createExtendViewDepInfoForFolderChanged(dinfo,
+               partitionModel, opath, npath, rinfo, oentry.getPath());
          }
 
          Permission permission = securityEngine.getPermission(
