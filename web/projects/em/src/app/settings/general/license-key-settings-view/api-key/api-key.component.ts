@@ -29,7 +29,7 @@ import { MessageDialog, MessageDialogType } from "../../../../common/util/messag
    styleUrls: ["./api-key.component.scss"]
 })
 export class ApiKeyComponent implements OnInit {
-   @Input() title: string;
+   title: string;
    key: string = "";
    editValue: string = "";
    loading = true;
@@ -40,6 +40,7 @@ export class ApiKeyComponent implements OnInit {
 
    ngOnInit() {
       this.key="initial";
+      this.title = "_#(js:API Key)";
       this.fetchKey();
    }
 
