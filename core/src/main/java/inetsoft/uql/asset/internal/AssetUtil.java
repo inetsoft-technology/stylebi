@@ -3296,7 +3296,6 @@ public class AssetUtil {
       }
 
       ColumnIndexMap columnIndexMap = new ColumnIndexMap(table);
-      ColumnIndexMap fuzzyColumnIndexMap = new ColumnIndexMap(table, true);
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
          ColumnRef column = (ColumnRef) columns.getAttribute(i);
@@ -3308,10 +3307,10 @@ public class AssetUtil {
          int col;
 
          if(column.getEntity() == null || column.getEntity().isEmpty()) {
-            col = Util.findColumn(fuzzyColumnIndexMap, column.getAttribute());
+            col = Util.findColumn(columnIndexMap, column.getAttribute());
          }
          else {
-            col = Util.findColumn(fuzzyColumnIndexMap,
+            col = Util.findColumn(columnIndexMap,
                column.getEntity() + "." + column.getAttribute());
          }
 
