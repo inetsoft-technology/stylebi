@@ -54,8 +54,10 @@ export class BCategoricalColorPane implements OnInit {
    }
 
    initPalettes(): void {
+      let paletteEntry = createAssetEntry(this.assetId);
       const params = new HttpParams()
-         .set("orgId", createAssetEntry(this.assetId).organization);
+         .set("orgId", (paletteEntry != null && paletteEntry.organization != null) ?
+                        paletteEntry.organization : null);
       this.http.get("../api/composer/chart/colorpalettes", {params: params})
          .subscribe((data: any) => {
                this.colorPalettes = <CategoricalColorModel[]> data;
