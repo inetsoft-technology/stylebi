@@ -969,7 +969,7 @@ public class UserTreeService {
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       Set<Object> keyset = SreeEnv.getProperties().keySet();
-      String orgPrefix = "inetsoft.org." + orgID.getOrgID() + ".";
+      String orgPrefix = "inetsoft.org." + orgID.getOrgID().toLowerCase() + ".";
 
       for(Object key : keyset) {
          String propName = (String) key;
