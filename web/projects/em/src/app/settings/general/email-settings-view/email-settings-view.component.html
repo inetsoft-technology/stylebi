@@ -39,7 +39,20 @@
         <mat-checkbox class="mat-checkbox-field" formControlName="smtpAuthentication">
           _#(SMTP Authentication)
         </mat-checkbox>
+
         <ng-container *ngIf="model?.smtpAuthentication">
+        </ng-container>
+
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(SMTP Authentication Type)</mat-label>
+          <mat-select formControlName="smtpAuthentication" placeholder="_#(SMTP Authentication Type)">
+            <mat-option [value]="SMTPAuthType.NONE">_#(None)</mat-option>
+            <mat-option [value]="SMTPAuthType.SMTP_AUTH">_#(SMTP Authentication)</mat-option>
+            <mat-option [value]="SMTPAuthType.SASL_XOAUTH2">_#(SASL XOAuth2)</mat-option>
+            <mat-option [value]="SMTPAuthType.GOOGLE_AUTH">_#(Google OAuth2 SMTP)</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <ng-container *ngIf="model?.smtpAuthentication == SMTPAuthType.SMTP_AUTH">
           <mat-form-field appearance="outline" color="accent">
             <mat-label>_#(User Name)</mat-label>
             <input matInput placeholder="_#(User Name)" formControlName="smtpUser">
@@ -68,6 +81,80 @@
             </mat-form-field>
           </ng-container>
         </ng-container>
+        <ng-container *ngIf="model?.smtpAuthentication == SMTPAuthType.SASL_XOAUTH2 || model?.smtpAuthentication == SMTPAuthType.GOOGLE_AUTH">
+          <ng-container *ngIf="model?.smtpAuthentication == SMTPAuthType.SASL_XOAUTH2">
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(User Name)</mat-label>
+              <input matInput placeholder="_#(User Name)" formControlName="smtpUser">
+              <mat-error>_#(Invalid user name)</mat-error>
+            </mat-form-field>
+          </ng-container>
+          <ng-container *ngIf="model?.smtpAuthentication == SMTPAuthType.GOOGLE_AUTH">
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(em.mail.smtp.gmailUser)</mat-label>
+              <input matInput placeholder="_#(em.mail.smtp.gmailUser)" formControlName="smtpUser">
+              <mat-error>_#(Invalid email)</mat-error>
+            </mat-form-field>
+          </ng-container>
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Client ID)</mat-label>
+            <input matInput placeholder="_#(Client ID)" formControlName="smtpClientId">
+            <mat-error>_#(Invalid Client ID)</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Client Secret)</mat-label>
+            <input matInput [type]="hideSecret ? 'password' : 'text'" placeholder="_#(Client Secret)" formControlName="smtpClientSecret">
+            <mat-icon matSuffix fontSet="ineticons" [fontIcon]="hideSecret ? 'eye-icon' : 'eye-off-icon'" (click)="hideSecret = !hideSecret"></mat-icon>
+            <mat-error>_#(Invalid Client Secret)</mat-error>
+          </mat-form-field>
+          <ng-container *ngIf="model?.smtpAuthentication == SMTPAuthType.SASL_XOAUTH2">
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Authorization URI)</mat-label>
+              <input matInput placeholder="_#(Authorization URI)" formControlName="smtpAuthUri">
+              <mat-error>_#(Please enter a value)</mat-error>
+            </mat-form-field>
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Token URI)</mat-label>
+              <input matInput placeholder="_#(Token URI)" formControlName="smtpTokenUri">
+              <mat-error>_#(Please enter a value)</mat-error>
+            </mat-form-field>
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Scope)</mat-label>
+              <input matInput placeholder="_#(Scope)" formControlName="smtpOAuthScopes">
+              <mat-error>_#(Invalid Client ID)</mat-error>
+            </mat-form-field>
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(OAuth Flags)</mat-label>
+              <input matInput placeholder="_#(OAuth Flags)" formControlName="smtpOAuthFlags">
+            </mat-form-field>
+            <mat-label>_#(em.mail.smtp.redirect.uri.description)</mat-label>
+            <mat-card-actions>
+              <button mat-raised-button (click)="authorize()">_#(Authorize)</button>
+            </mat-card-actions>
+          </ng-container>
+          <ng-container *ngIf="model?.smtpAuthentication == SMTPAuthType.GOOGLE_AUTH">
+            <mat-label>_#(em.mail.smtp.redirect.uri.description)</mat-label>
+            <div style="padding: 6px">
+              <button type="button" class="btn-google-auth" (click)="authorizeGoogle()">
+              </button>
+            </div>
+          </ng-container>
+          <mat-form-field appearance="outline" color="accent" class="readonly-form">
+            <mat-label>_#(Access Token)</mat-label>
+            <input matInput readonly class="readonly-form" [type]="hideAccessToken ? 'password' : 'text'" placeholder="_#(Access Token)" formControlName="smtpAccessToken">
+            <mat-icon matSuffix class="visible-btn" fontSet="ineticons" [fontIcon]="hideAccessToken ? 'eye-icon' : 'eye-off-icon'" (click)="hideAccessToken = !hideAccessToken"></mat-icon>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent" class="readonly-form">
+            <mat-label>_#(Refresh Token)</mat-label>
+            <input matInput readonly class="readonly-form" [type]="hideRefreshToken ? 'password' : 'text'" placeholder="_#(Refresh Token)" formControlName="smtpRefreshToken">
+            <mat-icon matSuffix class="visible-btn" fontSet="ineticons" [fontIcon]="hideRefreshToken ? 'eye-icon' : 'eye-off-icon'" (click)="hideRefreshToken = !hideRefreshToken"></mat-icon>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent" class="readonly-form">
+            <mat-label>_#(Token Expiration)</mat-label>
+            <input matInput readonly placeholder="_#(Token Expiration)" formControlName="tokenExpiration">
+          </mat-form-field>
+        </ng-container>
+
         <mat-checkbox class="mat-checkbox-field" formControlName="historyEnabled">
           _#(Autocomplete Email)
         </mat-checkbox>

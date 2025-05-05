@@ -19,7 +19,10 @@ package inetsoft.sree.internal;
 
 import com.github.mustachejava.DefaultMustacheFactory;
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.tabular.oauth.AuthorizationClient;
+import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.*;
+import inetsoft.web.admin.general.model.model.SMTPAuthType;
 import jakarta.activation.DataSource;
 import jakarta.activation.FileDataSource;
 import jakarta.mail.*;
@@ -28,10 +31,12 @@ import jakarta.mail.util.ByteArrayDataSource;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.mail.*;
+import org.joda.time.Instant;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.safety.Safelist;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import jakarta.mail.internet.*;
@@ -169,10 +174,15 @@ public class Mailer {
 
       for(int i = 0; i < hostArr.length && !sendCompleted; i++) {
          try {
+            SMTPAuthType authType = SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth"));
             Properties prop = new Properties();
             prop.setProperty("mail." + prot + ".host", hostArr[i]);
             prop.setProperty("mail." + prot + ".auth",
-                             SreeEnv.getProperty("mail.smtp.auth"));
+                             (authType != SMTPAuthType.NONE) + "");
+
+            if(authType == SMTPAuthType.SASL_XOAUTH2 || authType == SMTPAuthType.GOOGLE_AUTH) {
+               prop.setProperty("mail.smtp.auth.mechanisms", "XOAUTH2");
+            }
 
             // @by stephenwebster, for bug1401228327081
             // Add support for TLS. Note: With Gmail, prot needed to be smtp
@@ -246,6 +256,7 @@ public class Mailer {
          ccaddrs = checkAddresses(ccaddrs);
          bccaddrs = checkAddresses(bccaddrs);
          String nencode = SreeEnv.getProperty("mail.mime.charset");
+         SMTPAuthType authType = SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth"));
 
          if(nencode != null && !nencode.isEmpty()) {
             prop.setProperty("mail.mime.charset", nencode);
@@ -381,16 +392,20 @@ public class Mailer {
 
          // @by billh, property "mail.smtp.auth" is used both in sree
          // and javamail, so do not rename it please...
-         boolean auth = "true".equals(SreeEnv.getProperty("mail.smtp.auth"));
+         boolean auth = authType != SMTPAuthType.NONE;
 
          try(Transport trans = session.getTransport(prot)) {
             String user = null;
             String pass = null;
 
             // need authentication?
-            if(auth) {
+            if(authType == SMTPAuthType.SMTP_AUTH) {
                user = SreeEnv.getProperty("mail.smtp.user");
                pass = SreeEnv.getPassword("mail.smtp.pass");
+            }
+            else if(authType == SMTPAuthType.SASL_XOAUTH2 || authType == SMTPAuthType.GOOGLE_AUTH) {
+               user = SreeEnv.getProperty("mail.smtp.user");
+               pass = getAccessToken(authType);
             }
 
             String[] smtpHostArr;
@@ -452,6 +467,39 @@ public class Mailer {
       }
       catch(EmailException e) {
          throw new MessageException(e.getMessage(), e);
+      }
+   }
+
+   private static String getAccessToken(SMTPAuthType authType) {
+      String expiration = SreeEnv.getProperty("mail.smtp.tokenExpiration");
+      String accessToken = SreeEnv.getPassword("mail.smtp.accessToken");
+
+      if(expiration != null && Instant.ofEpochMilli(Long.parseLong(expiration)).isAfter(Instant.now())) {
+         return accessToken;
+      }
+
+      Tokens tokens;
+
+      try {
+         final Set<String> flagsSet = new HashSet<>();
+
+         final String refreshToken = SreeEnv.getPassword("mail.smtp.refreshToken");
+         final String clientId = SreeEnv.getProperty("mail.smtp.clientId");
+         final String clientSecret = SreeEnv.getPassword("mail.smtp.clientSecret");
+         final String tokenUri = authType == SMTPAuthType.GOOGLE_AUTH ?
+            "https://oauth2.googleapis.com/token" : SreeEnv.getProperty("mail.smtp.tokenUri");
+
+         tokens = AuthorizationClient.refresh(null, refreshToken, clientId, clientSecret,
+                                              tokenUri, flagsSet, false, null);
+
+         SreeEnv.setPassword("mail.smtp.accessToken", tokens.accessToken());
+         SreeEnv.setPassword("mail.smtp.refreshToken",tokens.refreshToken());
+         SreeEnv.setProperty("mail.smtp.tokenExpiration", tokens.expiration() + "");
+         return tokens.accessToken();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to refresh access token", e);
+         return null;
       }
    }
 
@@ -630,4 +678,6 @@ public class Mailer {
          .execute(buffer, scopes);
       return buffer.toString();
    }
+
+   private static final Logger LOG = LoggerFactory.getLogger(Mailer.class);
 }
