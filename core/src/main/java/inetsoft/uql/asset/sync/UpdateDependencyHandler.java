@@ -774,7 +774,9 @@ public final class UpdateDependencyHandler {
 
                   String assetType = assetEle.getAttribute("type");
                   String assetPath = Tool.byteDecode(assetEle.getAttribute("path"));
-                  IdentityID assetUser = IdentityID.getIdentityIDFromKey(assetEle.getAttribute("user"));
+                  String userStr = assetEle.getAttribute("user");
+                  IdentityID assetUser =
+                     Tool.isEmptyString(userStr) ? null : IdentityID.getIdentityIDFromKey(userStr);
                   XAsset xAsset = SUtil.getXAsset(assetType, assetPath, assetUser);
                   AssetObject assetObject = DeployHelper.getAssetObjectByAsset(xAsset);
 
