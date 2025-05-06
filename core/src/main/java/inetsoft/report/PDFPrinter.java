@@ -2505,7 +2505,7 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
          }
       }
 
-      boolean hasArabicDigits = str.matches(".*[0-9].*");
+      boolean hasArabicDigits = str.chars().anyMatch(n -> Character.isDigit((char) n));
       // scale space proportional to the size differences
       double tc = (len > 1 + combining) ? (awtW - psW) / (len - 1 - combining) : 0;
 
