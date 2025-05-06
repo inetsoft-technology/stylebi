@@ -62,9 +62,37 @@ declare const window: any;
 })
 export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    @Input() url: string;
-   @Input() hideToolbar: boolean = true;
-   @Input() hideMiniToolbar: boolean = true;
-   @Input() globalLoadingIndicator: boolean = true;
+
+   @Input()
+   set globalLoadingIndicator(value: boolean | string) {
+      this._globalLoadingIndicator = this.isTrue(value);
+   }
+
+   get globalLoadingIndicator(): boolean {
+      return this._globalLoadingIndicator;
+   }
+
+   @Input()
+   set hideMiniToolbar(value: boolean | string) {
+      this._hideMiniToolbar = this.isTrue(value);
+   }
+
+   get hideMiniToolbar(): boolean {
+      return this._hideMiniToolbar;
+   }
+
+   @Input()
+   set hideToolbar(value: boolean | string) {
+      this._hideToolbar = this.isTrue(value);
+   }
+
+   get hideToolbar(): boolean {
+      return this._hideToolbar;
+   }
+
+   private _hideToolbar: boolean = true;
+   private _hideMiniToolbar: boolean = true;
+   private _globalLoadingIndicator: boolean = true;
    assetId: string;
    queryParams: Map<string, string[]>;
    mobileDevice: boolean = GuiTool.isMobileDevice();
@@ -198,6 +226,10 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
             this.cdRef.detectChanges();
          }, 500, []);
       }
+   }
+
+   private isTrue(value: boolean | string) {
+      return value === true || value === "true" || value === "";
    }
 }
 

@@ -18,4 +18,46 @@
 
 inetsoft-viewer {
   @import "target/generated-resources/gulp/inetsoft/web/resources/viewer-element/concat-viewer-element";
+
+  range-slider {
+    .vs-range-slider .range-slider {
+      background-image: url('assets/default/timeslider/track.png') !important;
+    }
+  }
+
+  slider, vs-slider {
+    .slider-track {
+      background-image: url('assets/default/slider/slider_track_skin.png') !important;
+    }
+
+    .slider-tracked {
+      background-image: url('assets/default/slider/slider_tracked_skin.png') !important;
+    }
+
+    .slider .slider-handle {
+      background-image: url('assets/default/slider/slider_thumb_up_skin.png') !important;
+    }
+
+    .slider .slider-handle:hover {
+      background-image: url('assets/default/slider/slider_thumb_down_skin.png') !important;
+    }
+
+    .slider .slider-handle:active {
+      background-image: url('assets/default/slider/slider_thumb_down_skin.png') !important;
+    }
+  }
+
+  vs-range-slider {
+    .vs-range-slider .range-slider {
+      background-image: url('assets/default/timeslider/track.png') !important;
+    }
+
+    .vs-range-slider .range-slider-handle {
+      background-image: url('assets/default/timeslider/button_up.png') !important;
+    }
+
+    .vs-range-slider .thumb-middle {
+      background-image: url('assets/default/timeslider/thumb_middle_up.png') !important;
+    }
+  }
 }
