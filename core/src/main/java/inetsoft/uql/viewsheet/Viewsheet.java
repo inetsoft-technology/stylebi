@@ -1130,26 +1130,30 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * @return an array of AssemblyRef.
     */
    public synchronized AssemblyRef[] getScriptDependings(AssemblyEntry entry) {
+      Set<AssemblyRef> refs =  getScriptDependings().get(entry);
+      return refs == null ? new AssemblyRef[0] : refs.toArray(new AssemblyRef[0]);
+   }
+
+   public Map<AssemblyEntry, Set<AssemblyRef>> getScriptDependings() {
+      Map<AssemblyEntry, Set<AssemblyRef>> map = new HashMap<>();
       Set<AssemblyRef> set = new HashSet<>();
-      Set<AssemblyRef> set2 = new HashSet<>();
 
       for(Assembly assemblyItem : getAssemblies()) {
-         if(!(assemblyItem instanceof AbstractVSAssembly)) {
+         if(!(assemblyItem instanceof AbstractContainerVSAssembly)) {
             continue;
          }
 
          AbstractVSAssembly assembly = (AbstractVSAssembly) assemblyItem;
-         set2.clear();
-         assembly.getScriptReferencedAssets(set2);
+         set.clear();
+         assembly.getScriptReferencedAssets(set);
 
-         for(AssemblyRef ref : set2) {
-            if(ref.getEntry().equals(entry)) {
-               set.add(new AssemblyRef(ref.getType(), assembly.getAssemblyEntry()));
-            }
+         for(AssemblyRef ref : set) {
+            map.computeIfAbsent(ref.getEntry(), k -> new HashSet<>())
+               .add(new AssemblyRef(ref.getType(), assembly.getAssemblyEntry()));
          }
       }
 
-      return set.toArray(new AssemblyRef[0]);
+      return map;
    }
 
    /**

@@ -205,7 +205,7 @@ public final class WorksheetWrapper extends Worksheet {
       alist.toArray(arr);
 
       if(sort) {
-         Arrays.sort(arr, new DependencyComparator(this, true));
+         Tool.mergeSort(arr, new DependencyComparator(this, true));
       }
 
       return arr;

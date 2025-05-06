@@ -2049,6 +2049,13 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       }
    }
 
+   processDelayVisibilityCommand(command: DelayVisibilityCommand): void {
+      timer(command.delay).subscribe(() => {
+         const event: DelayVisibilityEvent = { assemblies: command.assemblies };
+         this.viewsheetClient.sendEvent("/events/vs/showDelayedVisibility", event);
+      });
+   }
+
    /**
     * Adds or updates an assembly object.
     *

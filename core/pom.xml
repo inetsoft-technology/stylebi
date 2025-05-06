@@ -188,8 +188,8 @@
     </dependency>
 
     <dependency>
-      <groupId>org.iq80.snappy</groupId>
-      <artifactId>snappy</artifactId>
+      <groupId>org.xerial.snappy</groupId>
+      <artifactId>snappy-java</artifactId>
       <scope>compile</scope>
     </dependency>
 
