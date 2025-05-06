@@ -54,7 +54,7 @@
       <div class="icon-label-content"
            tooltipIf [disableTooltipIf]="toggleEnabled">
         <div [ngClass]="getTreeIconClass()"
-             [class.mobile-max-model-icon]="mobile && maxMode"
+             [class.mobile-max-mode-icon]="mobile && maxMode"
              [style.color]="cellFormat.foreground"
              *ngIf="isFolder()" (click)="toggleFolder($event)"
              [style.padding-left.px]="nodeIndent - indent"
@@ -64,7 +64,7 @@
              class="selection-list-icon-layout"
              [ngClass]="getIconClass()"
              [title]="getCellTooltip()"
-             [class.mobile-max-model-icon]="mobile && maxMode"
+             [class.mobile-max-mode-icon]="mobile && maxMode"
              [style.padding-left.px]="isFolder() ? 1 : nodeIndent"
              [style.color]="cellFormat.foreground"
              (click)="click($event)">

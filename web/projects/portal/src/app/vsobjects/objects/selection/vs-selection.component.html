@@ -242,6 +242,7 @@
                [style.background]="othersFormat?.background"
                [safeFont]="othersFormat?.font">
             <i class="plus-box-outline-icon icon-size1 show-others-icon"
+               [class.mobile-max-mode-icon]="mobile && model.maxMode"
                [style.color]="othersFormat?.foreground"
                (click)="showAllValues($event)"></i>
             _#(Others)...
