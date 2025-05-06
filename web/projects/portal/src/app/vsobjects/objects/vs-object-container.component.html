@@ -288,7 +288,7 @@
                     [keyNavigation]="keyNavigation">
       </vs-viewsheet>
     </div>
-    <mini-toolbar *ngIf="isMiniToolbarVisible(vsObject) && vsObject.enabled"
+    <mini-toolbar *ngIf="!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled"
                   VSDataTip [dataTipName]="vsObject.absoluteName" [miniToolbar]="true"
                   VSPopComponent [popComponentName]="vsObject.absoluteName"
                   [popContainerName]="vsObject.container"

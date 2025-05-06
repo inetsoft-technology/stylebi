@@ -155,6 +155,11 @@ export class OpenViewsheetEvent implements ViewsheetEvent {
    public embedAssemblySize: Dimension = null;
 
    /**
+    * Embed mode (web component)
+    */
+   public embed: boolean;
+
+   /**
     * Creates a new instance of <tt>OpenViewsheetEvent</tt>.
     *
     * @param entryId   the asset entry identifier of the viewsheet.

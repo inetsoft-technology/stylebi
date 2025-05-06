@@ -27,7 +27,12 @@ import { ActionsContextmenuAnchorDirective } from "../../../widget/fixed-dropdow
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { InteractService } from "../../../widget/interact/interact.service";
 import { InteractableDirective } from "../../../widget/interact/interactable.directive";
-import { ComposerToken, ContextProvider, ViewerContextProviderFactory } from "../../context-provider.service";
+import {
+   ComposerToken,
+   ContextProvider,
+   EmbedToken,
+   ViewerContextProviderFactory
+} from "../../context-provider.service";
 import { VSFormatModel } from "../../model/vs-format-model";
 import { VSSelectionContainerModel } from "../../model/vs-selection-container-model";
 import { MiniToolbar } from "../mini-toolbar/mini-toolbar.component";
@@ -72,7 +77,7 @@ describe("CurrentSelection Unit Tests", () => {
             {
                provide: ContextProvider,
                useFactory: ViewerContextProviderFactory,
-               deps: [[new Optional(), ComposerToken]]
+               deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
             },
             { provide: SsoHeartbeatService, useValue: ssoHeartbeatService }
          ],

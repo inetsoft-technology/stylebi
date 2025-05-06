@@ -79,6 +79,7 @@ import { UpdateZIndexesCommand } from "../composer/gui/vs/command/update-zindexe
 import { EditViewsheetEvent } from "../composer/gui/vs/event/edit-viewsheet-event";
 import { ExpiredSheetCommand } from "../composer/gui/ws/socket/expired-sheet/expired-sheet-command";
 import { TouchAssetEvent } from "../composer/gui/ws/socket/touch-asset-event";
+import { EmbedErrorCommand } from "../embed/embed-error-command";
 import { ChartTool } from "../graph/model/chart-tool";
 import { ChartService } from "../graph/services/chart.service";
 import { PageTabService } from "../viewer/services/page-tab.service";
@@ -128,6 +129,7 @@ import { UpdateUndoStateCommand } from "./command/update-unto-state-command";
 import {
    ComposerToken,
    ContextProvider,
+   EmbedToken,
    ViewerContextProviderFactory
 } from "./context-provider.service";
 import { ViewsheetInfo } from "./data/viewsheet-info";
@@ -272,7 +274,7 @@ const BOOKMARK_URIS = {
       {
          provide: ContextProvider,
          useFactory: ViewerContextProviderFactory,
-         deps: [[new Optional(), ComposerToken]]
+         deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
       },
       {
          provide: DialogService,
@@ -330,6 +332,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() fullscreenId: string;
    @Input() designSaved: boolean;
    @Input() isIframe = false;
+   @Input() hideToolbar: boolean = false;
+   @Input() hideMiniToolbar: boolean = false;
    @Output() onAnnotationChanged = new EventEmitter<boolean>();
    @Output() runtimeIdChange = new EventEmitter<string>();
    @Output() socket = new EventEmitter<ViewsheetClientService>();
@@ -341,6 +345,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Output() fullScreenChange = new EventEmitter<boolean>();
    @Output() onMessageCommand = new EventEmitter<MessageCommand>();
    @Output() onOpenViewsheetOptionDialog = new EventEmitter<Dimension>();
+   @Output() onEmbedError = new EventEmitter<string>();
 
    @Input()
    get runtimeId(): string {
@@ -448,6 +453,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    pageControlStartX: number = 0;
    pageControlStartY: number = 0;
    buttonSize: number = 80;
+   embed: boolean;
 
    textLimitConfirmed: boolean = false;
    columnLimitConfirmed: boolean = false;
@@ -512,6 +518,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       // Need to set a default min and max date otherwise the range is only 20 years.
       ngbDatepickerConfig.minDate = {year: 1900, month: 1, day: 1};
       ngbDatepickerConfig.maxDate = {year: 2099, month: 12, day: 31};
+      this.embed = this.contextProvider.embed;
 
       this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{this.currOrgID = org;});
    }
@@ -620,7 +627,13 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this.showBookmarks();
       }
       else if(this.assetId) {
-         this.viewsheetClient.connect();
+         if(this.embed) {
+            this.subscriptions.add(this.viewsheetClient.connectionError().subscribe((error) => {
+               this.onEmbedError.emit(error);
+            }));
+         }
+
+         this.viewsheetClient.connect(this.embed);
          this.viewsheetClient.beforeDestroy = () => this.beforeDestroy();
          this.openViewsheet();
       }
@@ -2735,6 +2748,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          window.navigator.userAgent);
       event.fullScreenId = this.fullscreenId;
       event.runtimeViewsheetId = runtimeId;
+      event.embed = this.contextProvider.embed;
 
       if(!!this.fullscreenId && !this.viewsheetClient.runtimeId) {
          this.viewsheetClient.runtimeId = this.fullscreenId;
@@ -3911,5 +3925,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       }
 
       return null;
+   }
+
+   // noinspection JSUnusedGlobalSymbols
+   processEmbedErrorCommand(command: EmbedErrorCommand): void {
+      this.onEmbedError.emit(command.message);
    }
 }

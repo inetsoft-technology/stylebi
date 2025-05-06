@@ -74,6 +74,7 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
    @Input() focusedObject: VSObjectModel;
    @Input() guideType: GuideBounds = GuideBounds.GUIDES_NONE;
    @Input() submitted: Subject<boolean>;
+   @Input() hideMiniToolbar: boolean = false;
    @Output() public openContextMenu = new EventEmitter<{
       actions: AbstractVSActions<any>,
       event: MouseEvent

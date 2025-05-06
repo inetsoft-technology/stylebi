@@ -17,6 +17,7 @@
  */
 import {
    AfterViewInit,
+   ChangeDetectorRef,
    Component,
    ElementRef,
    Injector,
@@ -32,11 +33,7 @@ import { BehaviorSubject, forkJoin, Subscription } from "rxjs";
 import { Tool } from "../../../../../shared/util/tool";
 import { Dimension } from "../../common/data/dimension";
 import { GuiTool } from "../../common/util/gui-tool";
-import {
-   CommandProcessor,
-   StompClientService,
-   ViewsheetClientService
-} from "../../common/viewsheet-client";
+import { CommandProcessor, ViewsheetClientService } from "../../common/viewsheet-client";
 import { TouchAssetEvent } from "../../composer/gui/ws/socket/touch-asset-event";
 import { AbstractVSActions } from "../../vsobjects/action/abstract-vs-actions";
 import { AddVSObjectCommand } from "../../vsobjects/command/add-vs-object-command";
@@ -137,7 +134,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
                private injector: Injector,
                private shadowDomService: ShadowDomService,
                private showHyperlinkService: ShowHyperlinkService,
-               private debounceService: DebounceService)
+               private debounceService: DebounceService,
+               private cdRef: ChangeDetectorRef)
    {
       super(viewsheetClient, zone, true);
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
@@ -175,12 +173,14 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
 
                this.showError = false;
                this.openViewsheet();
+               this.cdRef.detectChanges();
             }
 
             if(!this.connected && !connected) {
                this.errorTimeout = setTimeout(() => {
                   this.showError = true;
                   console.error("InetSoft client not connected. Please make sure to login first.");
+                  this.cdRef.detectChanges();
                }, 1000);
             }
          });

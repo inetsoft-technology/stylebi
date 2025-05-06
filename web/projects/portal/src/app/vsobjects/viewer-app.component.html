@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<ng-container *ngIf="expired || transformFinished || editBookmarkFinished">
+<ng-container *ngIf="(expired || transformFinished || editBookmarkFinished) && !embed">
   <div class="expired-vs-banner alert-danger" role="alert">
     <div class="p-2">{{getReloadMessage()}}</div>
     <div class="ms-auto me-1">
@@ -57,7 +57,7 @@
      [class.server-refresh]="updateEnabled && !exporting"
      tabindex="-1" outOfZone
      [attr.runtime-id]="runtimeId">
-  <div class="btn-toolbar viewer-toolbar bb-gray" #viewerToolbar
+  <div *ngIf="!hideToolbar" class="btn-toolbar viewer-toolbar bb-gray" #viewerToolbar
        [class.mobile]="mobileDevice"
        [class.viewer-toolbar-visible]="toolbarVisible"
        [style.transform]="toolbarTransform"
@@ -426,11 +426,12 @@
         [keyNavigation]="keyNavigation"
         [focusedObject]="focusedObject"
         [guideType]="guideType"
+        [hideMiniToolbar]="hideMiniToolbar"
         (onSubmit)="submitData()">
       </vs-object-container>
     </div>
   </div>
-  <ng-container *ngIf="profilingVisible && !maxMode">
+  <ng-container *ngIf="profilingVisible && !maxMode && !embed">
   <div class="profile-report-banner alert-info" role="alert">
     <div class="d-flex flex-row">
       <div class="ms-auto me-1 align-self-center">

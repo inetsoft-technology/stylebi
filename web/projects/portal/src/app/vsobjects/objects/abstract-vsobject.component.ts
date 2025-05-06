@@ -91,7 +91,7 @@ export abstract class AbstractVSObject<T extends VSObjectModel> extends CommandP
    }
 
    getVisible(): boolean {
-      if(this.context.embed) {
+      if(this.context.embedAssembly) {
          return true;
       }
 
