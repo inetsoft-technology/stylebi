@@ -87,6 +87,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
       return this.contextProvider.vsWizardPreview;
    }
 
+   protected get embed(): boolean {
+      return this.contextProvider.embed;
+   }
+
    public get toolbarActions(): AssemblyActionGroup[] {
       if(!this.assemblyToolbarActions) {
          this.assemblyToolbarActions = this.createToolbarActions([]);

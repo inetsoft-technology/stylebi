@@ -346,7 +346,7 @@ public class AggregateDialogController extends WorksheetController {
       }
 
       // sort assemblies according to dependencies
-      Arrays.sort(assemblies, new DependencyComparator(ws, true));
+      Tool.mergeSort(assemblies, new DependencyComparator(ws, true));
 
       for(int i = 0; i < assemblies.length; i++) {
          WSAssembly sub = (WSAssembly) assemblies[i];

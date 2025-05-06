@@ -15,29 +15,27 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HTTP_INTERCEPTORS, HttpClientModule} from "@angular/common/http";
-import {ApplicationRef, DoBootstrap, NgModule} from "@angular/core";
-import {BrowserModule} from "@angular/platform-browser";
-import {NgbModalModule} from "@ng-bootstrap/ng-bootstrap";
-import {SsoHeartbeatInterceptor} from "../../../shared/sso/sso-heartbeat-interceptor";
-import {SsoHeartbeatService} from "../../../shared/sso/sso-heartbeat.service";
-import {AppRoutingModule} from "./app-routing.module";
-import {CsrfInterceptor} from "./common/services/csrf-interceptor";
-import {FirstDayOfWeekService} from "./common/services/first-day-of-week.service";
-import {HttpDebounceInterceptor} from "./common/services/http-debounce-interceptor";
-import {HttpParamsCodecInterceptor} from "./common/services/http-params-codec-interceptor";
-import {LicenseInfoService} from "./common/services/license-info.service";
-import {RequestedWithInterceptor} from "./common/services/requested-with-interceptor";
-import {ViewDataService} from "./viewer/services/view-data.service";
-import {DragService} from "./widget/services/drag.service";
-import {FontService} from "./widget/services/font.service";
-import {ModelService} from "./widget/services/model.service";
-import {DebounceService} from "./widget/services/debounce.service";
-import {DomService} from "./widget/dom-service/dom.service";
-import {FormsModule, ReactiveFormsModule} from "@angular/forms";
-import {BaseUrlInterceptor} from "./common/services/base-url-interceptor";
-import {APP_BASE_HREF} from "@angular/common";
-import {EmbedChartModule} from "./embed/chart/embed-chart.module";
+import { APP_BASE_HREF } from "@angular/common";
+import { HTTP_INTERCEPTORS, HttpClientModule } from "@angular/common/http";
+import { ApplicationRef, DoBootstrap, NgModule } from "@angular/core";
+import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { BrowserModule } from "@angular/platform-browser";
+import { NgbModalModule } from "@ng-bootstrap/ng-bootstrap";
+import { SsoHeartbeatInterceptor } from "../../../../shared/sso/sso-heartbeat-interceptor";
+import { SsoHeartbeatService } from "../../../../shared/sso/sso-heartbeat.service";
+import { BaseUrlInterceptor } from "../common/services/base-url-interceptor";
+import { CsrfInterceptor } from "../common/services/csrf-interceptor";
+import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
+import { HttpDebounceInterceptor } from "../common/services/http-debounce-interceptor";
+import { HttpParamsCodecInterceptor } from "../common/services/http-params-codec-interceptor";
+import { LicenseInfoService } from "../common/services/license-info.service";
+import { RequestedWithInterceptor } from "../common/services/requested-with-interceptor";
+import { ViewDataService } from "../viewer/services/view-data.service";
+import { DomService } from "../widget/dom-service/dom.service";
+import { DebounceService } from "../widget/services/debounce.service";
+import { DragService } from "../widget/services/drag.service";
+import { FontService } from "../widget/services/font.service";
+import { ModelService } from "../widget/services/model.service";
 
 export const httpInterceptorProviders = [
    {provide: HTTP_INTERCEPTORS, useClass: HttpDebounceInterceptor, multi: true},
@@ -57,11 +55,9 @@ export function GetAppBaseHref(): string {
    imports: [
       BrowserModule,
       HttpClientModule,
-      AppRoutingModule,
       NgbModalModule,
       FormsModule,
       ReactiveFormsModule,
-      EmbedChartModule
    ],
    providers: [
       SsoHeartbeatService,
@@ -77,7 +73,7 @@ export function GetAppBaseHref(): string {
       {provide: APP_BASE_HREF, useFactory: GetAppBaseHref},
    ],
 })
-export class AppElementsModule implements DoBootstrap {
+export class AppBaseElementModule implements DoBootstrap {
    ngDoBootstrap(appRef: ApplicationRef): void {
    }
 }

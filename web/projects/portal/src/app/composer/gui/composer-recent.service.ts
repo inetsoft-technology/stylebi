@@ -59,6 +59,10 @@ export class ComposerRecentService {
   }
 
   removeRecentlyViewed(entries: AssetEntry[]) {
+    if(!this.recentlyViewed) {
+      return;
+    }
+
     for(let i = 0; i < entries.length; i++) {
       for(let j = 0; j < this.recentlyViewed.length; j++) {
         if(entries[i].path == this.recentlyViewed[j].path) {
@@ -72,6 +76,10 @@ export class ComposerRecentService {
   }
 
   addRecentlyViewed(entry: AssetEntry): void {
+    if(!this.recentlyViewed) {
+      return;
+    }
+
     for(let i = 0; i < this.recentlyViewed.length; i++) {
       if(entry.path === this.recentlyViewed[i].path) {
         this.recentlyViewed.splice(i, 1);

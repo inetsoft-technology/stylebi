@@ -21,6 +21,7 @@ import {
 } from "@angular/core";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { StyleConstants } from "../../common/util/style-constants";
+import { BaseHrefService } from "../../common/services/base-href.service";
 
 const borderSelectState = {
    borderTop: false, borderLeft: false,
@@ -42,7 +43,7 @@ export class BindingBorderPane implements AfterViewInit, OnChanges {
    currentColor: { colorString: string } = { colorString: ""};
    defaultColor = "#DADADA";
 
-   constructor() {
+   constructor(private baseHrefService: BaseHrefService) {
       this.selectedBorder = borderSelectState;
    }
 
@@ -108,7 +109,7 @@ export class BindingBorderPane implements AfterViewInit, OnChanges {
          ctx.fillText("_#(js:Select All)", 45, 60);
       };
 
-      imagePaper.src = "assets/format_style.gif";
+      imagePaper.src = this.baseHrefService.getBaseHref() + "/assets/format_style.gif";
    }
 
    drawBorders(): void {

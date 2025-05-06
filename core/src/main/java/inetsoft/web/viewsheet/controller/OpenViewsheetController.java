@@ -154,6 +154,11 @@ public class OpenViewsheetController {
             commandDispatcher.sendCommand(
                EmbedErrorCommand.builder().message(e.getMessage()).build());
          }
+         else if(event.isEmbed()) {
+            commandDispatcher.sendCommand(
+               EmbedErrorCommand.builder().message(e.getMessage()).build());
+            return;
+         }
 
          throw e;
       }
