@@ -845,7 +845,7 @@ public class ScheduleTaskService {
                for(int j = 0; bookmarkTypes != null && j < bookmarkTypes.length; j++) {
                   if(bookmarkTypes[j] == VSBookmarkInfo.ALLSHARE ||
                      (bookmarkTypes[j] == VSBookmarkInfo.GROUPSHARE && groupShare) ||
-                     Tool.equals(identityID, bookmarkUsers[j]))
+                     Tool.equals(modelID, bookmarkUsers[j]))
                   {
                      bookmarkList.add(bookmarks[j]);
                      bookmarkUserList.add(bookmarkUsers[j]);
