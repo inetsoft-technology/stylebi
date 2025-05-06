@@ -1241,7 +1241,7 @@ public class IdentityService {
       EnumSet<ResourceAction> actions = EnumSet.of(ResourceAction.ADMIN);
 
       AuthorizationProvider authz = this.securityProvider.getAuthorizationProvider();
-      Permission resourcePerm = authz.getPermission(resourceType, resourceID);
+      Permission resourcePerm = authz.getPermission(resourceType, resourceID, orgID);
       Set<IdentityModel> grants = new HashSet<>();
       grants.addAll(getIdentityGrants(resourcePerm, action, Identity.USER, orgID));
       grants.addAll(getIdentityGrants(resourcePerm, action, Identity.ROLE, orgID));
