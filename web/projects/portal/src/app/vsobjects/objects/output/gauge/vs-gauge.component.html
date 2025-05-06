@@ -53,7 +53,7 @@
       <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
     </div>
   </div>
-  <vs-loading-display *ngIf="(sourceType != -1) && loading"
+  <vs-loading-display *ngIf="(sourceType != -1) && loading && !globalLoadingIndicator"
                       [allowInteraction]="true"
                       [assemblyLoading]="true"></vs-loading-display>
   <ng-container *ngIf="viewer">

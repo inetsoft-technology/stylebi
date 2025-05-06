@@ -37,7 +37,11 @@ import { ScaleService } from "../../../widget/services/scale/scale-service";
 import { DialogService } from "../../../widget/slide-out/dialog-service.service";
 import { CrosstabActions } from "../../action/crosstab-actions";
 import {
-   ComposerContextProviderFactory, ComposerToken, ContextProvider, ViewerContextProviderFactory
+   ComposerContextProviderFactory,
+   ComposerToken,
+   ContextProvider,
+   EmbedToken,
+   ViewerContextProviderFactory
 } from "../../context-provider.service";
 import { RichTextService } from "../../dialog/rich-text-dialog/rich-text.service";
 import { ShowHyperlinkService } from "../../show-hyperlink.service";
@@ -140,7 +144,7 @@ describe("VSCrosstab", () => {
             {
                provide: ContextProvider,
                useFactory: ViewerContextProviderFactory,
-               deps: [[new Optional(), ComposerToken]]
+               deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
             },
             { provide: DebounceService, useValue: debounceService },
             { provide: ScaleService, useClass: DefaultScaleService},

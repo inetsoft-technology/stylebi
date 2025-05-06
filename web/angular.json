@@ -300,7 +300,7 @@
             "development": {
               "buildOptimizer": false,
               "optimization": false,
-              "vendorChunk": true,
+              "vendorChunk": false,
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true
@@ -324,6 +324,98 @@
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
             "browserTarget": "elements:build"
+          }
+        }
+      }
+    },
+    "viewer-element": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss"
+        }
+      },
+      "root": "projects/portal",
+      "sourceRoot": "projects/portal/src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:browser",
+          "options": {
+            "outputPath": "target/generated-resources/ng/inetsoft/web/resources/viewer-element",
+            "index": "projects/portal/src/index.html",
+            "main": "projects/portal/src/main-viewer-element.ts",
+            "allowedCommonJsDependencies": [
+              "codemirror",
+              "lodash",
+              "dayjs"
+            ],
+            "polyfills": [
+              "zone.js",
+              "projects/portal/src/polyfills.ts"
+            ],
+            "tsConfig": "projects/portal/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "projects/portal/src/favicon.ico",
+              "projects/portal/src/assets"
+            ],
+            "styles": [
+              "projects/portal/src/styles.scss"
+            ],
+            "scripts": [
+              "node_modules/stompjs/lib/stomp.js",
+              "node_modules/acorn/dist/acorn.js",
+              "node_modules/acorn-loose/dist/acorn-loose.js",
+              "node_modules/acorn-walk/dist/walk.js",
+              "node_modules/tern/lib/signal.js",
+              "node_modules/tern/lib/tern.js",
+              "node_modules/tern/lib/def.js",
+              "node_modules/tern/lib/comment.js",
+              "node_modules/tern/lib/infer.js"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning" : "6kb"
+                }
+              ],
+              "optimization": true,
+              "outputHashing": "bundles",
+              "sourceMap": false,
+              "namedChunks" : false,
+              "vendorChunk" : false
+            },
+            "development": {
+              "buildOptimizer": false,
+              "optimization": false,
+              "vendorChunk": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "configurations": {
+            "production": {
+              "browserTarget": "viewer-element:build:production"
+            },
+            "development": {
+              "browserTarget": "viewer-element:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "options": {
+            "browserTarget": "viewer-element:build"
           }
         }
       }

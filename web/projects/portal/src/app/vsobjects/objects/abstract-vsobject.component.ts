@@ -46,8 +46,10 @@ export abstract class AbstractVSObject<T extends VSObjectModel> extends CommandP
    @Input() embeddedVS: boolean = false;
    @Input() embeddedVSBounds: Rectangular;
    @Input() popupShowing: boolean = false;
+   @Input() globalLoadingIndicator: boolean = false;
    @Output() removeAnnotations = new EventEmitter<void>();
    @Output() public onOpenWizardPane = new EventEmitter<VsWizardModel>();
+   @Output() onLoadingStateChanged = new EventEmitter<{ name: string, loading: boolean }>();
    protected _model: T;
    mobileDevice: boolean = GuiTool.isMobileDevice();
    @ViewChild("objectContainer") objectContainer: ElementRef;
@@ -91,7 +93,7 @@ export abstract class AbstractVSObject<T extends VSObjectModel> extends CommandP
    }
 
    getVisible(): boolean {
-      if(this.context.embed) {
+      if(this.context.embedAssembly) {
          return true;
       }
 
@@ -234,11 +236,13 @@ export abstract class AbstractVSObject<T extends VSObjectModel> extends CommandP
 
    protected processAssemblyLoadingCommand(command: AssemblyLoadingCommand) {
       this.loadingCount += (command ? command.count : 1);
+      this.loadingStateChanged(this.isLoading);
       this.detectChanges();
    }
 
    protected processClearAssemblyLoadingCommand(command: ClearAssemblyLoadingCommand) {
       this.loadingCount = Math.max(0, this.loadingCount - (command ? command.count : 1));
+      this.loadingStateChanged(this.isLoading);
       this.detectChanges();
    }
 
@@ -275,5 +279,12 @@ export abstract class AbstractVSObject<T extends VSObjectModel> extends CommandP
       }
 
       return this.viewer ? this.model.objectFormat.zIndex : null;
+   }
+
+   protected loadingStateChanged(loading: boolean) {
+      if(this.globalLoadingIndicator) {
+         this.onLoadingStateChanged.emit(
+            {name: this.model.absoluteName, loading: loading});
+      }
    }
 }

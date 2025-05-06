@@ -31,7 +31,7 @@ export class BaseUrlInterceptor implements HttpInterceptor {
    }
 
    intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-      if(this.baseUrl) {
+      if(this.baseUrl && !/^https?:/.test(req.url)) {
          req = req.clone({url: `${this.baseUrl}/${req.url}`});
       }
 

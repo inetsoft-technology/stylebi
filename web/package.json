@@ -4,8 +4,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "gulp && ng build portal --configuration development && ng build elements --configuration development && ng build em --configuration development && gulp elements:scripts elements:css",
-    "build:prod": "gulp && ng build portal --configuration production && ng build elements --configuration production && ng build em --configuration production && gulp elements:scripts elements:css",
+    "build": "gulp && ng build portal --configuration development && ng build elements --configuration development && ng build viewer-element --configuration development && ng build em --configuration development",
+    "build:prod": "gulp && ng build portal --configuration production && ng build elements --configuration production && ng build viewer-element --configuration production && ng build em --configuration production && gulp elements:scripts elements:css && gulp viewer-element:scripts viewer-element:css",
     "build:watch": "concurrently -r \"gulp watch\" \"ng build portal --configuration development --watch\" \"ng build em --configuration development --watch\"",
     "build:font": "gulp fonts:generate",
     "test": "ng test",

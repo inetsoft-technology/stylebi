@@ -271,7 +271,7 @@ export class TableActions extends BaseTableActions<VSTableModel> {
             id: () => "table edit",
             label: () => "_#(js:Edit)",
             icon: () => "edit-icon",
-            visible: () => !this.vsWizardPreview && !this.isPopComponent() &&
+            visible: () => !this.vsWizardPreview && !this.isPopComponent() && !this.embed &&
                (!this.preview && !this.composer && !this.mobileDevice &&
                 !this.binding && this.model.enableAdhoc && this.isActionVisibleInViewer("Edit")
                 || this.composer && !this.annotationsSelected),

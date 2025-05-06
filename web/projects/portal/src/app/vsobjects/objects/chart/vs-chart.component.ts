@@ -983,6 +983,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       if(!this.chartLoading) {
          this.chartLoading = true;
+         this.loadingStateChanged(this.chartLoading);
          this.detectChanges();
       }
    }
@@ -991,6 +992,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       if(this.chartLoading) {
          this.noChartData = this.emptyChart || this.model.noData;
          this.chartLoading = false;
+         this.loadingStateChanged(this.chartLoading);
          this.detectChanges();
       }
    }

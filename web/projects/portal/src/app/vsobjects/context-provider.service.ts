@@ -18,15 +18,16 @@
 import { InjectionToken } from "@angular/core";
 
 export const ComposerToken = new InjectionToken<boolean>("ComposerToken");
+export const EmbedToken = new InjectionToken<boolean>("EmbedToken");
 
-export function ViewerContextProviderFactory(composer: boolean): ContextProvider {
+export function ViewerContextProviderFactory(composer: boolean, embed: boolean = false): ContextProvider {
    // If the composer token is defined then this is a preview,
    // otherwise this is the viewer
    if(composer) {
-      return new ContextProvider(false, false, true, false, false, false, false, false, false, false, false);
+      return new ContextProvider(false, false, true, false, false, false, false, false, false, false, embed);
    }
 
-   return new ContextProvider(true, false, false, false, false, false, false, false, false, false, false);
+   return new ContextProvider(true, false, false, false, false, false, false, false, false, false, embed);
 }
 
 export function ComposerContextProviderFactory(): ContextProvider {
@@ -50,8 +51,8 @@ export function BindingContextProviderFactory(composer: boolean): ContextProvide
    return new ContextProvider(true, false, false, true, false, false, false, false, false, false, false);
 }
 
-export function EmbedContextProviderFactory(): ContextProvider {
-   return new ContextProvider(true, false, false, false, false, false, false, false, false, false, true);
+export function EmbedAssemblyContextProviderFactory(): ContextProvider {
+   return new ContextProvider(true, false, false, false, false, false, false, false, false, false, true, true);
 }
 
 /**
@@ -69,11 +70,12 @@ export class ContextProvider {
    private _adhocPreviewParameter: boolean;
    private _parameterElementPreview: boolean;
    private _embed: boolean;
+   private _embedAssembly: boolean;
 
    constructor(viewer: boolean, composer: boolean, preview: boolean, binding: boolean,
                composerBinding: boolean, reportViewer: boolean, vsWizard: boolean,
                vsWizardPreview: boolean, adhocPreviewParameter: boolean,
-               parameterElementPreview: boolean, embed: boolean)
+               parameterElementPreview: boolean, embed: boolean, embedAssembly: boolean = false)
    {
       this._viewer = viewer;
       this._composer = composer;
@@ -86,6 +88,7 @@ export class ContextProvider {
       this._adhocPreviewParameter = adhocPreviewParameter;
       this._parameterElementPreview = parameterElementPreview;
       this._embed = embed;
+      this._embedAssembly = embedAssembly;
    }
 
    get vsWizardPreview(): boolean {
@@ -118,5 +121,9 @@ export class ContextProvider {
 
    get embed(): boolean {
       return this._embed;
+   }
+
+   get embedAssembly(): boolean {
+      return this._embedAssembly;
    }
 }

@@ -74,6 +74,8 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
    @Input() focusedObject: VSObjectModel;
    @Input() guideType: GuideBounds = GuideBounds.GUIDES_NONE;
    @Input() submitted: Subject<boolean>;
+   @Input() hideMiniToolbar: boolean = false;
+   @Input() globalLoadingIndicator: boolean = false;
    @Output() public openContextMenu = new EventEmitter<{
       actions: AbstractVSActions<any>,
       event: MouseEvent
@@ -92,6 +94,7 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
    @Output() maxModeChange = new EventEmitter<{assembly: string, maxMode: boolean}>();
    @Output() onSubmit = new EventEmitter<any>();
    @Output() onToggleDoubleCalendar = new EventEmitter<boolean>();
+   @Output() onLoadingStateChanged = new EventEmitter<{ name: string, loading: boolean }>();
    @ViewChild("popUpDim") popUpDim: ElementRef;
 
    @Input() set keyNavigation(obs: Observable<FocusObjectEventModel>) {

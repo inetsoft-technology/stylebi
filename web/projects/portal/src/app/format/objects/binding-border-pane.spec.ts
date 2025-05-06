@@ -46,7 +46,11 @@ describe("Binding Border Pane Test", () => {
    let bindingBorderPane: BindingBorderPane;
 
    beforeEach(() => {
-      bindingBorderPane = new BindingBorderPane();
+      let baseHrefService = <any> {
+         getBaseHref: jest.fn(),
+         getTokenBaseHref: jest.fn()
+      };
+      bindingBorderPane = new BindingBorderPane(baseHrefService);
       bindingBorderPane.formatModel = createModel();
    });
 

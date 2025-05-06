@@ -98,7 +98,7 @@
                    (mouseSelect)="selectAnnotation($event)">
     </vs-annotation>
   </ng-container>
-  <vs-loading-display *ngIf="model && (!model.emptyBinding || model?.expressionText) && isLoading"
+  <vs-loading-display *ngIf="model && (!model.emptyBinding || model?.expressionText) && isLoading && !globalLoadingIndicator"
                       [justShowIcon]="true"
                       [allowInteraction]="true"
                       [assemblyLoading]="true"></vs-loading-display>

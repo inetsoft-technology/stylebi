@@ -56,11 +56,13 @@
                     [popupShowing]="popupShowing"
                     [atBottom]="isAtBottom(i, false)"
                     [guideType]="guideType"
+                    [globalLoadingIndicator]="globalLoadingIndicator"
                     (maxModeChange)="onMaxModeChange($event)"
                     (onOpenEditPane)="onEditTable.emit($event)"
                     (removeAnnotations)="removeAnnotations.emit()"
                     (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
-                    (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)">
+                    (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
+                    (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
       </vs-calctable>
 
       <vs-calendar *ngIf="vsObject.objectType == 'VSCalendar'"
@@ -82,12 +84,14 @@
                 [variableValues]="variableValues"
                 [container]="containerRef"
                 [popupShowing]="popupShowing"
+                [globalLoadingIndicator]="globalLoadingIndicator"
                 (removeAnnotations)="removeAnnotations.emit()"
                 (onOpenEditPane)="onEditChart.emit($event)"
                 (onOpenWizardPane)="openWizardPane($event)"
                 (onOpenFormatPane)="onOpenChartFormatPane.emit($event)"
                 (maxModeChange)="onMaxModeChange($event)"
-                (onLoadFormatModel)="onLoadFormatModel.emit($event)">
+                (onLoadFormatModel)="onLoadFormatModel.emit($event)"
+                (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
       </vs-chart>
 
       <vs-check-box *ngIf="vsObject.objectType == 'VSCheckBox'"
@@ -112,11 +116,13 @@
                    [atBottom]="isAtBottom(i, false)"
                    [container]="containerRef"
                    [guideType]="guideType"
+                   [globalLoadingIndicator]="globalLoadingIndicator"
                    (maxModeChange)="onMaxModeChange($event)"
                    (onOpenEditPane)="onEditTable.emit(vsObject)"
                    (removeAnnotations)="removeAnnotations.emit()"
                    (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
-                   (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)">
+                   (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
+                   (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
       </vs-crosstab>
 
       <vs-cylinder *ngIf="vsObject.objectType == 'VSCylinder'"
@@ -129,7 +135,9 @@
                 (removeAnnotations)="removeAnnotations.emit()"
                 [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
                 [alwaysAllowClickPropagation]="true"
-                [model]="vsObject" [actions]="vsObjectActions[i]">
+                [model]="vsObject" [actions]="vsObjectActions[i]"
+                [globalLoadingIndicator]="globalLoadingIndicator"
+                (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
       </vs-gauge>
 
       <vs-group-container *ngIf="vsObject.objectType == 'VSGroupContainer'"
@@ -142,7 +150,9 @@
                 [vsInfo]="vsInfo" [embeddedVS]="embeddedVS"
                 (removeAnnotations)="removeAnnotations.emit()"
                 [alwaysAllowClickPropagation]="true"
-                [model]="vsObject" [actions]="vsObjectActions[i]">
+                [model]="vsObject" [actions]="vsObjectActions[i]"
+                [globalLoadingIndicator]="globalLoadingIndicator"
+                (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
       </vs-image>
 
       <vs-line *ngIf="vsObject.objectType == 'VSLine'"
@@ -238,11 +248,13 @@
                 [popupShowing]="popupShowing"
                 [atBottom]="isAtBottom(i, false)"
                 [guideType]="guideType"
+                [globalLoadingIndicator]="globalLoadingIndicator"
                 (removeAnnotations)="removeAnnotations.emit()"
                 (maxModeChange)="onMaxModeChange($event)"
                 (onOpenEditPane)="onEditTable.emit(vsObject)"
                 (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
-                (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)">
+                (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
+                (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
       </vs-table>
 
       <vs-text *ngIf="vsObject.objectType == 'VSText'"
@@ -250,7 +262,9 @@
                [selected]="isSelected(i)"
                (removeAnnotations)="removeAnnotations.emit()"
                [alwaysAllowClickPropagation]="true"
-               [model]="vsObject" [actions]="vsObjectActions[i]">
+               [model]="vsObject" [actions]="vsObjectActions[i]"
+               [globalLoadingIndicator]="globalLoadingIndicator"
+               (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
       </vs-text>
 
       <vs-text-input *ngIf="vsObject.objectType == 'VSTextInput'"
@@ -285,10 +299,12 @@
                     (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
                     (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
                     (onOpenAnnotationDialog)="onOpenAnnotationDialog.emit($event)"
-                    [keyNavigation]="keyNavigation">
+                    [keyNavigation]="keyNavigation"
+                    [globalLoadingIndicator]="globalLoadingIndicator"
+                    (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
       </vs-viewsheet>
     </div>
-    <mini-toolbar *ngIf="isMiniToolbarVisible(vsObject) && vsObject.enabled"
+    <mini-toolbar *ngIf="!hideMiniToolbar && isMiniToolbarVisible(vsObject) && vsObject.enabled"
                   VSDataTip [dataTipName]="vsObject.absoluteName" [miniToolbar]="true"
                   VSPopComponent [popComponentName]="vsObject.absoluteName"
                   [popContainerName]="vsObject.container"

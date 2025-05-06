@@ -438,6 +438,14 @@ public class OpenViewsheetEvent {
       return AssetEntry.createAssetEntry(entryId).getOrgID();
    }
 
+   public boolean isEmbed() {
+      return embed;
+   }
+
+   public void setEmbed(boolean embed) {
+      this.embed = embed;
+   }
+
    @Override
    public String toString() {
       return "OpenViewsheetEvent{" +
@@ -490,4 +498,5 @@ public class OpenViewsheetEvent {
    private String layoutName;
    private String embedAssemblyName;
    private Dimension embedAssemblySize;
+   private boolean embed;
 }

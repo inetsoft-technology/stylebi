@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,14 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { platformBrowserDynamic } from "@angular/platform-browser-dynamic";
-import { AppElementsModule } from "./app/embed/app-elements.module";
-import "./main-base-element.ts";
 
-platformBrowserDynamic().bootstrapModule(AppElementsModule);
+import { ApplicationRef, DoBootstrap, NgModule } from "@angular/core";
+import { AppBaseElementModule } from "./app-base-element.module";
+import { EmbedViewerModule } from "./viewer/embed-viewer.module";
 
-/**
- * Check if inetsoft is connected on app load in case there is no need to log in such as when
- * security is disabled or there is an active session
- */
-(window as any).checkInetsoftConnection(null, false);
+@NgModule({
+   imports: [
+      AppBaseElementModule,
+      EmbedViewerModule
+   ],
+   providers: [],
+})
+export class AppViewerElementModule implements DoBootstrap {
+   ngDoBootstrap(appRef: ApplicationRef): void {
+   }
+}
