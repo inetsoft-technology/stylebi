@@ -27,6 +27,10 @@ import java.util.*;
 /**
  * Assembly comparator compares two assembly dependency.
  *
+ * <b>WARNING</b> this implementation violates the transitive constraint, so the default JDK sort
+ * methods cannot be used. A merge sort implementation such as
+ * {@link inetsoft.util.Tool#mergeSort(Object[], Comparator)} must be used with this comparator.
+ *
  * @version 8.5
  * @author InetSoft Technology Corp
  */

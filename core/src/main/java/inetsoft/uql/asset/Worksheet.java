@@ -338,7 +338,7 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
       List<WSAssembly> assemblies = sort ? new ArrayList<>(this.assemblies) : this.assemblies;
 
       if(sort) {
-         assemblies.sort(new DependencyComparator(this, true));
+         Tool.mergeSort(assemblies, new DependencyComparator(this, true));
       }
 
       return assemblies.toArray(new Assembly[assemblies.size()]);
@@ -875,7 +875,7 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
       // sort the assemblies base on dependency association so the autoLayout0
       // can assume the assemblies are already in the correct order.
       List<WSAssembly> as = new ArrayList<>(assemblies);
-      as.sort(new DependencyComparator(this));
+      Tool.mergeSort(as, new DependencyComparator(this));
 
       autoLayout0(as);
    }

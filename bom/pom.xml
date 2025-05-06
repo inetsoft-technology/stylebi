@@ -849,10 +849,9 @@
       </dependency>
 
       <dependency>
-        <groupId>org.iq80.snappy</groupId>
-        <artifactId>snappy</artifactId>
-        <!-- CVE-2024-36124 -->
-        <version>[0.5,)</version>
+        <groupId>org.xerial.snappy</groupId>
+        <artifactId>snappy-java</artifactId>
+        <version>1.1.10.7</version>
       </dependency>
 
       <dependency>

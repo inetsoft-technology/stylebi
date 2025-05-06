@@ -1940,7 +1940,7 @@ public class AssetUtil {
       assemblies = getDependedAssemblies(assembly.getSheet(), assembly, true);
 
       // sort assemblies according to dependencies
-      Arrays.sort(assemblies, new DependencyComparator(assembly.getSheet(), true));
+      Tool.mergeSort(assemblies, new DependencyComparator(assembly.getSheet(), true));
 
       // key = new name, value = old name
       Map<String, String> nameChangeMap = new HashMap<>();

@@ -74,7 +74,6 @@ import java.util.stream.Collectors;
  */
 @Service
 public class CoreLifecycleService {
-   @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
    @Autowired
    public CoreLifecycleService(
       VSObjectModelFactoryService objectModelService, ViewsheetService viewsheetService,
@@ -1013,6 +1012,16 @@ public class CoreLifecycleService {
                rvs.refreshAllTipViewOrPopComponentTable();
             }
 
+            if(!box.getDelayedVisibilityAssemblies().isEmpty()) {
+               for(Map.Entry<Integer, Set<String>> e :
+                  box.getDelayedVisibilityAssemblies().entrySet())
+               {
+                  DelayVisibilityCommand cmd =
+                     new DelayVisibilityCommand(e.getKey(), new ArrayList<>(e.getValue()));
+                  dispatcher.sendCommand(cmd);
+               }
+            }
+
             if(initing) {
                sheet = rvs.getViewsheet();
 
@@ -1096,6 +1105,7 @@ public class CoreLifecycleService {
          }
       }
       finally {
+         box.clearDelayedVisibilityAssemblies();
          viewsheetService.removeExecution(id);
          box.unlockWrite();
       }
@@ -1481,6 +1491,26 @@ public class CoreLifecycleService {
                   fmtInfo.getFormat(VSAssemblyInfo.TITLEPATH);
                ofmt.getDefaultFormat().setBackgroundValue(Color.WHITE.getRGB() + "");
                tfmt.getDefaultFormat().setBackgroundValue(Color.WHITE.getRGB() + "");
+            }
+
+            if(info instanceof GroupContainerVSAssemblyInfo) {
+               String groupName = info.getAbsoluteName();
+               int prefixIndex = groupName.lastIndexOf('.');
+               String prefix = prefixIndex < 0 ? null : groupName.substring(0, prefixIndex + 1);
+
+               // when a group container's visibility is changed at runtime (e.g. in a script),
+               // the children have not been added in the client. need to call addDeleteVSObject
+               // to make sure they are added to the client app if necessary.
+               for(String childName : ((GroupContainerVSAssemblyInfo) info).getAssemblies()) {
+                  if(prefix != null && !childName.startsWith(prefix)) {
+                     childName = prefix + childName;
+                  }
+
+                  VSAssembly child = rvs.getViewsheet().getAssembly(childName);
+                  VSAssemblyInfo childInfo = VSEventUtil.getAssemblyInfo(rvs, child);
+                  child.setVSAssemblyInfo(childInfo);
+                  addDeleteVSObject(rvs, child, dispatcher);
+               }
             }
          }
          finally {
@@ -2364,7 +2394,7 @@ public class CoreLifecycleService {
          }
       }
 
-      viewList.sort(new DependencyComparator(vs, true));
+      Tool.mergeSort(viewList, new DependencyComparator(vs, true));
 
       for(AssemblyEntry entry : viewList) {
          // already processed? ignore it
