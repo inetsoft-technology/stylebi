@@ -11,7 +11,7 @@
   },
   "files": [
     "src/main.ts",
-    "main-base-element.ts",
+    "src/main-base-element.ts",
     "src/main-elements.ts",
     "src/main-viewer-element.ts",
     "src/polyfills.ts"
