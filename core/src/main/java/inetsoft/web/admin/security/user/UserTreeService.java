@@ -965,7 +965,6 @@ public class UserTreeService {
       }
 
       Organization organization = currentProvider.getOrganization(orgID.orgID);
-      String[] propertyNames = {"max.row.count", "max.col.count", "max.cell.size", "max.user.count"};
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       Set<Object> keyset = SreeEnv.getProperties().keySet();
@@ -1015,7 +1014,7 @@ public class UserTreeService {
          .members(members)
          .roles(new ArrayList<>())
          .permittedIdentities(filterOtherOrgs(grantedOrganizations))
-         .properties(properties)
+         .properties(sortProperties(properties))
          .editable(organization.isEditable() && currentProvider instanceof EditableAuthenticationProvider)
          .currentUser(orgID.name.equals(pId.name))
          .localesList(localesList)
@@ -1770,6 +1769,31 @@ public class UserTreeService {
       return orgMembers;
    }
 
+   private List<PropertyModel> sortProperties(List<PropertyModel> properties) {
+      if(properties == null || properties.isEmpty()) {
+         return properties;
+      }
+
+      properties.sort(new Comparator<PropertyModel>() {
+         @Override
+         public int compare(PropertyModel o1, PropertyModel o2) {
+            boolean foundO1 = propertyNames.contains(o1.name());
+            boolean foundO2 = propertyNames.contains(o2.name());
+
+            if(foundO1 && !foundO2) {
+               return -1;
+            }
+            else if(!foundO1 && foundO2) {
+               return 1;
+            }
+
+            return o1.name().compareTo(o2.name());
+         }
+      });
+
+      return properties;
+   }
+
    @SubscribeMapping("/create-org-status-changed")
    public void subscribeToTopic() {
    }
@@ -1792,4 +1816,5 @@ public class UserTreeService {
    private final IdentityThemeService themeService;
    private final SimpMessagingTemplate messagingTemplate;
    private final EditOrganizationListener editOrganizationListener;
+   private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
 }
