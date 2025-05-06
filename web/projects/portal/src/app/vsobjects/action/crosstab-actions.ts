@@ -332,7 +332,7 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
    }
 
    private editVisibility(): boolean {
-      return !this.vsWizardPreview && !this.isPopComponent() &&
+      return !this.vsWizardPreview && !this.isPopComponent() && !this.embed &&
       (this.viewer && this.isActionVisible("Edit") && !this.mobileDevice &&
          !this.binding && this.model.enableAdhoc && this.model.visible &&
          !this.isDataTip() || this.composer && !this.annotationsSelected);

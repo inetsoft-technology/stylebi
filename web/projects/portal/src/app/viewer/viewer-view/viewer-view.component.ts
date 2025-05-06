@@ -36,7 +36,12 @@ import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { HideNavService } from "../../portal/services/hide-nav.service";
 import { SetPrincipalCommand } from "../../vsobjects/command/set-principal-command";
-import { ComposerToken, ContextProvider, ViewerContextProviderFactory } from "../../vsobjects/context-provider.service";
+import {
+   ComposerToken,
+   ContextProvider,
+   EmbedToken,
+   ViewerContextProviderFactory
+} from "../../vsobjects/context-provider.service";
 import { BaseTableModel } from "../../vsobjects/model/base-table-model";
 import { VSChartModel } from "../../vsobjects/model/vs-chart-model";
 import { VSUtil } from "../../vsobjects/util/vs-util";
@@ -55,7 +60,7 @@ import { ModelService } from "../../widget/services/model.service";
    providers: [{
       provide: ContextProvider,
       useFactory: ViewerContextProviderFactory,
-      deps: [[new Optional(), ComposerToken]]
+      deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
    }]
 })
 export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeactivate, AfterViewChecked {

@@ -47,7 +47,7 @@ export class ShadowDomService {
       }
 
       // check if there are any inetsoft-chart elements in the dom (outside of shadow doms)
-      let elems = document.querySelectorAll("inetsoft-chart");
+      let elems = document.querySelectorAll("inetsoft-chart, inetsoft-viewer");
 
       if(!this.removedDocumentHead && (!elems || elems.length == 0)) {
          injector.get(ɵDomSharedStylesHost).removeHost(document.head);

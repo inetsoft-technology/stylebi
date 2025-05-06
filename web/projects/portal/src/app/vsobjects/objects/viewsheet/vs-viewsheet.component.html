@@ -59,7 +59,9 @@
       [touchDevice]="touchDevice"
       (onOpenViewsheet)="onOpenViewsheet.emit($event)"
       (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
-      (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)">
+      (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)"
+      [globalLoadingIndicator]="globalLoadingIndicator"
+      (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
     </vs-object-container>
   </div>
 </div>
