@@ -47,13 +47,19 @@ import {
    NgbModalOptions,
    NgbTooltipConfig
 } from "@ng-bootstrap/ng-bootstrap";
-import { from, Observable, of, Subject, Subscription } from "rxjs";
+import { ResizeSensor } from "css-element-queries";
+import { from, Observable, of, Subject, Subscription, timer } from "rxjs";
 import { map, mergeMap } from "rxjs/operators";
-import { convertToKey, KEY_DELIMITER} from "../../../../em/src/app/settings/security/users/identity-id";
+import {
+   convertToKey,
+   KEY_DELIMITER
+} from "../../../../em/src/app/settings/security/users/identity-id";
 import { AssetEntry, createAssetEntry } from "../../../../shared/data/asset-entry";
 import { DownloadService } from "../../../../shared/download/download.service";
+import { FeatureFlagsService } from "../../../../shared/feature-flags/feature-flags.service";
 import { DateTypeFormatter } from "../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../shared/util/tool";
+import { AssemblyAction } from "../common/action/assembly-action";
 import { AssemblyActionGroup } from "../common/action/assembly-action-group";
 import { Dimension } from "../common/data/dimension";
 import { VariableInfo } from "../common/data/variable-info";
@@ -65,6 +71,7 @@ import { AssetLoadingService } from "../common/services/asset-loading.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { FullScreenService } from "../common/services/full-screen.service";
 import { OpenComposerService } from "../common/services/open-composer.service";
+import { PagingControlService } from "../common/services/paging-control.service";
 import { UIContextService } from "../common/services/ui-context.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
@@ -73,7 +80,9 @@ import {
    StompClientService,
    ViewsheetClientService
 } from "../common/viewsheet-client";
+import { ClearScrollCommand } from "../common/viewsheet-client/clear-scroll-command";
 import { MessageCommand } from "../common/viewsheet-client/message-command";
+import { ComposerRecentService } from "../composer/gui/composer-recent.service";
 import { OpenComposerCommand } from "../composer/gui/vs/command/open-composer-command";
 import { UpdateZIndexesCommand } from "../composer/gui/vs/command/update-zindexes-command";
 import { EditViewsheetEvent } from "../composer/gui/vs/event/edit-viewsheet-event";
@@ -87,9 +96,7 @@ import { ViewDataService } from "../viewer/services/view-data.service";
 import { VariableInputDialogModel } from "../widget/dialog/variable-input-dialog/variable-input-dialog-model";
 import { VariableInputDialog } from "../widget/dialog/variable-input-dialog/variable-input-dialog.component";
 import { ExpandStringDirective } from "../widget/expand-string/expand-string.directive";
-import {
-   ActionsContextmenuComponent
-} from "../widget/fixed-dropdown/actions-contextmenu.component";
+import { ActionsContextmenuComponent } from "../widget/fixed-dropdown/actions-contextmenu.component";
 import { DropdownOptions } from "../widget/fixed-dropdown/dropdown-options";
 import { DropdownRef } from "../widget/fixed-dropdown/fixed-dropdown-ref";
 import { FixedDropdownService } from "../widget/fixed-dropdown/fixed-dropdown.service";
@@ -113,6 +120,7 @@ import { AddVSObjectCommand } from "./command/add-vs-object-command";
 import { AnnotationChangedCommand } from "./command/annotation-changed-command";
 import { ClearLoadingCommand } from "./command/clear-loading-command";
 import { CollectParametersCommand } from "./command/collect-parameters-command";
+import { DelayVisibilityCommand } from "./command/delay-visibility-command";
 import { InitGridCommand } from "./command/init-grid-command";
 import { OpenAnnotationFormatDialogCommand } from "./command/open-annotation-format-dialog-command";
 import { RefreshVSObjectCommand } from "./command/refresh-vs-object-command";
@@ -135,18 +143,24 @@ import {
 import { ViewsheetInfo } from "./data/viewsheet-info";
 import { AnnotationFormatDialogModel } from "./dialog/annotation/annotation-format-dialog-model";
 import { AnnotationFormatDialog } from "./dialog/annotation/annotation-format-dialog.component";
+import { ProfilingDialog } from "./dialog/profiling-dialog.component";
 import { RichTextService } from "./dialog/rich-text-dialog/rich-text.service";
 import { AddAnnotationEvent } from "./event/annotation/add-annotation-event";
 import { RemoveAnnotationEvent } from "./event/annotation/remove-annotation-event";
 import { ToggleAnnotationStatusEvent } from "./event/annotation/toggle-annotation-status-event";
 import { UpdateAnnotationFormatEvent } from "./event/annotation/update-annotation-format-event";
 import { CancelViewsheetLoadingEvent } from "./event/cancel-viewsheet-loading-event";
+import { DelayVisibilityEvent } from "./event/delay-visibility-event";
 import { FormatVSObjectEvent } from "./event/format-vs-object-event";
 import { GetVSObjectFormatEvent } from "./event/get-vs-object-format-event";
 import { OpenPreviewViewsheetEvent } from "./event/open-preview-viewsheet-event";
 import { OpenViewsheetEvent } from "./event/open-viewsheet-event";
+import { VSChartFlyoverEvent } from "./event/vs-chart-event";
+import { VsDeletedMatchedBookmarksEvent } from "./event/vs-deleted-matched-bookmarks-event";
 import { VSEditBookmarkEvent } from "./event/vs-edit-bookmark-event";
 import { VSRefreshEvent } from "./event/vs-refresh-event";
+import { ViewerToolbarButtonDefinition } from "./iframe/viewer-toolbar-button-definition";
+import { ViewerToolbarMessageService } from "./iframe/viewer-toolbar-message.service";
 import { BaseTableModel } from "./model/base-table-model";
 import { EmailDialogModel } from "./model/email-dialog-model";
 import { ExportDialogModel } from "./model/export-dialog-model";
@@ -155,6 +169,9 @@ import { FocusObjectEventModel } from "./model/focus-object-event-model";
 import { GuideBounds } from "./model/layout/guide-bounds";
 import { ZoomOptions } from "./model/layout/zoom-options";
 import { MessageDialogModel } from "./model/message-dialog-model";
+import { PagingControlModel } from "./model/paging-control-model";
+import { ProfileTableDataEvent } from "./model/profile-table-data-event";
+import { RemoveAnnotationsCondition } from "./model/remove-annotations-condition";
 import { ScheduleDialogModel } from "./model/schedule/schedule-dialog-model";
 import { VSBookmarkInfoModel, VSBookmarkType } from "./model/vs-bookmark-info-model";
 import { VSChartModel } from "./model/vs-chart-model";
@@ -165,42 +182,22 @@ import { AdhocFilterService } from "./objects/data-tip/adhoc-filter.service";
 import { DataTipInLayoutCheckResult } from "./objects/data-tip/data-tip-in-layout-check-result";
 import { DataTipService } from "./objects/data-tip/data-tip.service";
 import { PopComponentService } from "./objects/data-tip/pop-component.service";
+import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
 import { NavigationKeys } from "./objects/navigation-keys";
-import {
-   SelectionContainerChildrenService
-} from "./objects/selection/services/selection-container-children.service";
+import { SelectionContainerChildrenService } from "./objects/selection/services/selection-container-children.service";
+import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
 import { ActionHandler } from "./objects/table/action-handler";
 import { CalcTableActionHandler } from "./objects/table/calc-table-action-handler";
 import { CrosstabActionHandler } from "./objects/table/crosstab-action-handler";
 import { TableActionHandler } from "./objects/table/table-action-handler";
 import { ShowHyperlinkService } from "./show-hyperlink.service";
+import { ToolbarActionsHandler } from "./toolbar-actions-handler";
 import { CheckFormDataService } from "./util/check-form-data.service";
 import { FormInputService } from "./util/form-input.service";
 import { GlobalSubmitService } from "./util/global-submit.service";
 import { ViewerResizeService } from "./util/viewer-resize.service";
 import { VSUtil } from "./util/vs-util";
-import { ViewerToolbarButtonDefinition } from "./iframe/viewer-toolbar-button-definition";
-import { ViewerToolbarMessageService } from "./iframe/viewer-toolbar-message.service";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
-import { VSChartFlyoverEvent } from "./event/vs-chart-event";
-import { ResizeSensor } from "css-element-queries";
-import { ToolbarActionsHandler } from "./toolbar-actions-handler";
-import { AssemblyAction } from "../common/action/assembly-action";
-import { ComposerRecentService } from "../composer/gui/composer-recent.service";
-import { ClearScrollCommand } from "../common/viewsheet-client/clear-scroll-command";
-import { PagingControlModel } from "./model/paging-control-model";
-import { PagingControlService } from "../common/services/paging-control.service";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../shared/feature-flags/feature-flags.service";
-import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
-import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
-import { RemoveAnnotationsCondition } from "./model/remove-annotations-condition";
-import { VsDeletedMatchedBookmarksEvent } from "./event/vs-deleted-matched-bookmarks-event";
-import { ProfilingDialogModel } from "./model/profiling-dialog-model";
-import { ProfileTableDataEvent } from "./model/profile-table-data-event";
-import { ProfilingDialog } from "./dialog/profiling-dialog.component";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
