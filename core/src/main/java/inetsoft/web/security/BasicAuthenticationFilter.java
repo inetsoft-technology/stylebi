@@ -49,31 +49,34 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
    private static boolean userCountExceed(Principal user) {
       int max = getOrganizationMaxUser();
 
-      if(max == 0) {
+      if(max == 0 || !(user instanceof SRPrincipal)) {
          return false;
       }
 
-      if(user instanceof SRPrincipal) {
-         String orgId = ((SRPrincipal) user).getOrgId();
-         List<SRPrincipal> users = SecurityEngine.getSecurity().getActivePrincipalList();
-         List<String> userNames = new ArrayList<String>();
+      String orgId = ((SRPrincipal) user).getOrgId();
+      boolean defaultOrg = Organization.getDefaultOrganizationID().equals(orgId);
+      List<SRPrincipal> users = SecurityEngine.getSecurity().getActivePrincipalList();
+      OrganizationManager instance = OrganizationManager.getInstance();
+      List<IdentityID> orgUsers = new ArrayList<>();
+      Set<IdentityID> userNames = new HashSet<>();
 
-         for(SRPrincipal principal : users) {
-            if(Tool.equals(orgId, principal.getOrgId())) {
-               IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      for(SRPrincipal principal : users) {
+         if(!Tool.equals(orgId, principal.getOrgId())) {
+            continue;
+         }
 
-               if(!userNames.contains(pId.name)) {
-                  userNames.add(pId.name);
-               }
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         userNames.add(identityID);
 
-               if(userNames.size() > max) {
-                  return true;
-               }
-            }
+         if(!orgUsers.contains(identityID) && (instance.isOrgAdmin(identityID) ||
+            defaultOrg && instance.isSiteAdmin(identityID)))
+         {
+            orgUsers.add(identityID);
          }
       }
 
-      return false;
+      max = orgUsers.isEmpty() ? max - 1 : max;
+      return userNames.size() > max;
    }
 
    private static int getOrganizationMaxUser() {
