@@ -169,6 +169,10 @@ public class BatchAction extends AbstractAction {
                      val = RepletRequest.executeParameter(((DynamicParameterValue) val), scope);
                   }
 
+                  if(val instanceof ArrayParameterValue) {
+                     val = ((ArrayParameterValue) val).getValue();
+                  }
+
                   repletRequest.setParameter(paramName, val);
                   vars.put(paramName, val);
                }
