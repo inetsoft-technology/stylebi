@@ -64,12 +64,15 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    @Input() url: string;
    @Input() hideToolbar: boolean = true;
    @Input() hideMiniToolbar: boolean = true;
+   @Input() globalLoadingIndicator: boolean = true;
    assetId: string;
    queryParams: Map<string, string[]>;
    mobileDevice: boolean = GuiTool.isMobileDevice();
    connected: boolean = false;
    errorTimeout: any;
    showError: boolean;
+   loading: boolean;
+   private loadingSet: Set<string> = new Set<string>();
    @ViewChild("embedViewer") embedViewer: ElementRef;
 
    private subscriptions: Subscription = new Subscription();
@@ -86,7 +89,8 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
                private injector: Injector,
                private shadowDomService: ShadowDomService,
                private showHyperlinkService: ShowHyperlinkService,
-               private cdRef: ChangeDetectorRef)
+               private cdRef: ChangeDetectorRef,
+               private debounceService: DebounceService)
    {
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
       showHyperlinkService.inEmbed = true;
@@ -139,7 +143,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
                   this.showError = true;
                   console.error("InetSoft client not connected. Please make sure to login first.");
                   this.cdRef.detectChanges();
-               }, 1000);
+               }, 2000);
             }
          });
       }
@@ -172,6 +176,27 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
 
       if(this.showError) {
          console.error(message);
+      }
+   }
+
+   onLoadingStateChanged(event: { name: string, loading: boolean }) {
+      if(!event.loading) {
+         this.loadingSet.delete(event.name);
+      }
+      else {
+         this.loadingSet.add(event.name);
+      }
+
+      // if not loading then immediately set the value, otherwise debounce to get a
+      // smoother loading animation and prevent loading icon from stuttering
+      if(!this.loading) {
+         this.loading = this.loadingSet.size > 0;
+      }
+      else {
+         this.debounceService.debounce("embed-viewer-loading", () => {
+            this.loading = this.loadingSet.size > 0;
+            this.cdRef.detectChanges();
+         }, 500, []);
       }
    }
 }

@@ -427,7 +427,9 @@
         [focusedObject]="focusedObject"
         [guideType]="guideType"
         [hideMiniToolbar]="hideMiniToolbar"
-        (onSubmit)="submitData()">
+        [globalLoadingIndicator]="globalLoadingIndicator"
+        (onSubmit)="submitData()"
+        (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
       </vs-object-container>
     </div>
   </div>
@@ -456,7 +458,7 @@
       </div>
     </div>
   </status-bar>
-  <vs-loading-display *ngIf="!hideLoadingDisplay && (viewsheetLoading || exporting)"
+  <vs-loading-display *ngIf="!hideLoadingDisplay && !globalLoadingIndicator && (viewsheetLoading || exporting)"
                       [preparingData]="preparingData && !exporting"
                       [runtimeId]="runtimeId"
                       [autoShowCancel]="!exporting"

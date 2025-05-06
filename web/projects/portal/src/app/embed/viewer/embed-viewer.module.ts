@@ -58,6 +58,9 @@ import {
    ViewerContextProviderFactory
 } from "../../vsobjects/context-provider.service";
 import { ChartService } from "../../graph/services/chart.service";
+import {
+   VSLoadingDisplayModule
+} from "../../vsobjects/objects/vs-loading-display/vs-loading-display.module";
 
 
 @NgModule({
@@ -68,7 +71,8 @@ import { ChartService } from "../../graph/services/chart.service";
       MiniToolbarModule,
       AngularResizeEventModule,
       InteractModule,
-      VSObjectModule
+      VSObjectModule,
+      VSLoadingDisplayModule
    ],
    declarations: [EmbedViewerComponent],
    providers: [

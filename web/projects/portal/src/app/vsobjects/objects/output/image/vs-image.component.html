@@ -81,7 +81,7 @@
                    (mouseSelect)="selectAnnotation($event)">
     </vs-annotation>
   </ng-container>
-  <vs-loading-display *ngIf="model && model?.sourceType != -1 && loading"
+  <vs-loading-display *ngIf="model && model?.sourceType != -1 && loading && !globalLoadingIndicator"
                       [allowInteraction]="true"
                       [assemblyLoading]="true"></vs-loading-display>
 </div>

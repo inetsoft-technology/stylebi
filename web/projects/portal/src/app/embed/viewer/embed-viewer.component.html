@@ -22,13 +22,20 @@
               [queryParameters]="queryParams"
               [hideToolbar]="hideToolbar"
               [hideMiniToolbar]="hideMiniToolbar"
-              (onEmbedError)="onEmbedError($event)">
+              [globalLoadingIndicator]="globalLoadingIndicator"
+              (onEmbedError)="onEmbedError($event)"
+              (onLoadingStateChanged)="onLoadingStateChanged($event)">
   </viewer-app>
   <div *ngIf="showError" class="error-viewer txt-danger">
     <span class="error-label">
       _#(viewer.viewsheet.error)
     </span>
   </div>
+
+  <vs-loading-display *ngIf="globalLoadingIndicator && loading"
+                      [allowInteraction]="true"
+                      [justShowIcon]="true">
+  </vs-loading-display>
 </div>
 
 <dl-download-target (downloadStarted)="downloadStarted($event)"></dl-download-target>

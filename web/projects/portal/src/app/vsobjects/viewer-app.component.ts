@@ -334,6 +334,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() isIframe = false;
    @Input() hideToolbar: boolean = false;
    @Input() hideMiniToolbar: boolean = false;
+   @Input() globalLoadingIndicator: boolean = false;
    @Output() onAnnotationChanged = new EventEmitter<boolean>();
    @Output() runtimeIdChange = new EventEmitter<string>();
    @Output() socket = new EventEmitter<ViewsheetClientService>();
@@ -346,6 +347,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Output() onMessageCommand = new EventEmitter<MessageCommand>();
    @Output() onOpenViewsheetOptionDialog = new EventEmitter<Dimension>();
    @Output() onEmbedError = new EventEmitter<string>();
+   @Output() onLoadingStateChanged = new EventEmitter<{ name: string, loading: boolean }>();
 
    @Input()
    get runtimeId(): string {
@@ -544,7 +546,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(this.assetId) {
          const asset: AssetEntry = createAssetEntry(this.assetId);
 
-         if(!this.preview) {
+         if(!this.preview && !this.embed) {
             this.titleService.setTitle(asset.path);
          }
 
@@ -2165,7 +2167,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.hyperlinkService.singleClick = command.singleClick;
 
       if(command.entry && command.entry.alias) {
-         this.titleService.setTitle(command.entry.alias);
+         if(!this.embed) {
+            this.titleService.setTitle(command.entry.alias);
+         }
+
          this.viewsheetName = command.entry.alias.replace(/^.+\/([^/]+)$/, "$1");
       }
 
@@ -2342,6 +2347,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                      this.viewsheetLoading = false;
                      this.assetLoadingService.setLoading(this.inDashboard ?
                         this.dashboardName : this.assetId, false);
+                     this.loadingStateChanged(false);
                   }
 
                   evt.confirmed = btn == "cancel";
@@ -2401,6 +2407,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             this.preparingData = false;
             this.assetLoadingService.setLoading(this.inDashboard ?
                this.dashboardName : this.assetId, false);
+            this.loadingStateChanged(false);
             this.changeDetectorRef.detectChanges();
          }
       }
@@ -2416,6 +2423,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.viewsheetLoading = true;
       this.assetLoadingService.setLoading(this.inDashboard ?
          this.dashboardName : this.assetId, true);
+      this.loadingStateChanged(true);
       this.changeDetectorRef.detectChanges();
    }
 
@@ -3930,5 +3938,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    // noinspection JSUnusedGlobalSymbols
    processEmbedErrorCommand(command: EmbedErrorCommand): void {
       this.onEmbedError.emit(command.message);
+   }
+
+   private loadingStateChanged(loading: boolean) {
+      if(this.globalLoadingIndicator) {
+         this.onLoadingStateChanged.emit(
+            {name: this.assetId, loading: loading});
+      }
    }
 }
