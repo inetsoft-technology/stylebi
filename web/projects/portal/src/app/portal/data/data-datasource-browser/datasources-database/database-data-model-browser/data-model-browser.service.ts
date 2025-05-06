@@ -465,7 +465,7 @@ export class DataModelBrowserService {
                create: true,
                desc: "",
                parent: parent,
-               folder: folder
+               folder: folder == null ? "" : folder
             };
 
             if(!isDefault) {
