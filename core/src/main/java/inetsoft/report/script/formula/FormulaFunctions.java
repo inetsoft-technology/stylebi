@@ -1451,6 +1451,10 @@ public class FormulaFunctions {
       Object arr2 = toArray(arr0);
       val = JavaScriptEngine.unwrap(val);
 
+      if(arr2 instanceof TableArray) {
+         arr2 = ((TableArray) arr2).getTable();
+      }
+
       if(arr2 instanceof Object[]) {
          Object[] arr = (Object[]) arr2;
 
