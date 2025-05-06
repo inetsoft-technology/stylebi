@@ -185,6 +185,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    headerBorderBottomColor: string;
    headerSeparatorBorderColor: string;
    private searchPending: boolean = false;
+   mobile: boolean = GuiTool.isMobileDevice();
 
    // Number of values displayed when the selection list is first loaded as well as the number
    // of values to show when click 'More' to show values not displayed
