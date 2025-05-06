@@ -1025,12 +1025,13 @@ export class AssetTreePane implements OnChanges, OnInit {
       }
 
       if(entries.length > 0) {
-         if(node.children && !node.leaf) {
-            node.expanded = true;
-            node.loading = true;
-         }
+         this.confirm("_#(js:em.reports.drag.confirm)", () => {
+            if(node.children && !node.leaf) {
+               node.expanded = true;
+            }
 
-         this.dispatchChangeAssetEvent(node, parent, entries);
+            this.dispatchChangeAssetEvent(node, parent, entries);
+         });
       }
    }
 }
