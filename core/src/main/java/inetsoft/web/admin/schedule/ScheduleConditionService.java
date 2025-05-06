@@ -360,6 +360,10 @@ public class ScheduleConditionService {
          }
       }
 
+      if(value instanceof ArrayParameterValue) {
+         return ((ArrayParameterValue) value).getType();
+      }
+
       if(value instanceof Boolean) {
          type = XSchema.BOOLEAN;
       }
