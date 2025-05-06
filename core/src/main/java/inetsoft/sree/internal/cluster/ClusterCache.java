@@ -144,7 +144,7 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
 
       if(lock.tryLock(10L, TimeUnit.SECONDS)) {
          try {
-            lastInstance = referenceCounter.decrementAndGet() == 0;
+            lastInstance = referenceCounter.get() == 0;
 
             if(lastInstance) {
                cluster.destroyLong(prefix + "timestamp");
