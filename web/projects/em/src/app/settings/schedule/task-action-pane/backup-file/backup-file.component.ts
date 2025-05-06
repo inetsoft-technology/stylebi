@@ -251,7 +251,11 @@ export class BackupFileComponent implements OnDestroy {
    }
 
    isSameType(entityType: number, nodeType: number): boolean {
-      return (entityType & nodeType) === entityType || (nodeType & entityType) === nodeType;
+      if((entityType & RepositoryEntryType.DATA_SOURCE) == RepositoryEntryType.DATA_SOURCE) {
+         return (nodeType & RepositoryEntryType.FOLDER) == RepositoryEntryType.FOLDER;
+      }
+
+      return entityType == nodeType;
    }
 
    getExportableLabel(node: RepositoryTreeNode): string {
