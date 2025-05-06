@@ -2270,7 +2270,7 @@ public class IdentityService {
                .forEach(identityID -> grants.add(identityID));
          }
          // sync id
-         else {
+         else if(newIdentityID != null) {
             orgScopedGrants.stream()
                .map(identityID -> Tool.equals(identityID.getName(), oldIdentityID.getName()) &&
                   Tool.equals(identityID.getOrganizationID(), oldIdentityID.getOrgID()) ?
