@@ -328,13 +328,13 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
       String oOrgID = getOldOrganization() == null ? null : getOldOrganization().getOrganizationID();
       String nOrgID = getNewOrganization() == null ? null : getNewOrganization().getOrganizationID();
 
-      if(nOrgID == null && oOrgID == null) {
+      if(Tool.equals(oOrgID, nOrgID)) {
          if(Tool.equals(getOldName(), identityID.getName())) {
             identityID.setName(getNewName());
             task.setAttribute(attrName, identityID.convertToKey());
          }
       }
-      else if(!Tool.equals(oOrgID, nOrgID)) {
+      else {
          identityID.setOrgID(nOrgID);
          task.setAttribute(attrName, identityID.convertToKey());
       }
