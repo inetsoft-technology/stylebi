@@ -56,6 +56,12 @@ public class AssetTreeRefreshController {
    public void preDestroy() throws Exception {
       assetRepository.removeAssetChangeListener(listener);
       LibManager.getManager().removeActionListener(libraryListener);
+      AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
+
+      if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
+         runtimeAssetRepository.removeAssetChangeListener(listener);
+      }
+
       this.debouncer.close();
    }
 
