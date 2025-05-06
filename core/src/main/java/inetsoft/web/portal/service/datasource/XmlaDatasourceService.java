@@ -21,7 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.lens.DefaultTableLens;
 import inetsoft.report.lens.xnode.XNodeTableLens;
-import inetsoft.sree.security.SecurityProvider;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.DependencyHandler;
@@ -51,10 +51,10 @@ import java.util.stream.Collectors;
 
 @Service
 public class XmlaDatasourceService extends DatasourcesBaseService {
-   public XmlaDatasourceService(XRepository repository, SecurityProvider securityProvider,
+   public XmlaDatasourceService(XRepository repository, SecurityEngine securityEngine,
                                 DataSourceStatusService dataSourceStatusService)
    {
-      super(repository, securityProvider, dataSourceStatusService);
+      super(repository, securityEngine, dataSourceStatusService);
    }
 
    public DataSourceXmlaDefinition getNewDataSourceModel(String parentPath) throws Exception {

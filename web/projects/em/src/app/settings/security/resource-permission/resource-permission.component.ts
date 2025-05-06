@@ -15,7 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, Output, OnInit } from "@angular/core";
+import {
+   Component,
+   EventEmitter,
+   Input,
+   Output,
+   OnInit,
+   OnChanges,
+   SimpleChanges
+} from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -31,10 +39,11 @@ import { SecurityTreeDialogData } from "../security-tree-dialog/security-tree-di
    templateUrl: "./resource-permission.component.html",
    styleUrls: ["./resource-permission.component.scss"]
 })
-export class ResourcePermissionComponent implements OnInit {
+export class ResourcePermissionComponent implements OnInit, OnChanges {
    @Input() model: ResourcePermissionModel;
    @Input() showRadioButtons = true;
    @Input() ignorePadding: boolean;
+   @Input() isTimeRange: boolean = false;
    @Output() permissionChanged = new EventEmitter<ResourcePermissionTableModel[]>();
    tableSelected: boolean = false;
    isOrgAdminOnly = true;
@@ -46,7 +55,8 @@ export class ResourcePermissionComponent implements OnInit {
       groupsEnabled: true,
       rolesEnabled: true,
       organizationsEnabled: true,
-      hideOrgAdminRole: true
+      hideOrgAdminRole: true,
+      isTimeRange: false
    };
 
    constructor(private dialog: MatDialog, private http: HttpClient, private snackBar: MatSnackBar) {
@@ -59,6 +69,12 @@ export class ResourcePermissionComponent implements OnInit {
          (isAdmin => {this.siteAdmin = isAdmin;
          })
       );
+   }
+
+   ngOnChanges(changes: SimpleChanges) {
+      if(changes.isTimeRange) {
+         this.dialogData.isTimeRange = changes.isTimeRange.currentValue;
+      }
    }
 
    addPermission(table: PermissionsTableComponent): void {

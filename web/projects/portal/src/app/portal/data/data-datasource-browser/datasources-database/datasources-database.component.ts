@@ -435,10 +435,10 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
          .subscribe((response) =>
       {
          if(!!response && !!response.datasources && response.datasources.length > 0) {
+            console.log(response.datasources.join());
             ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
-               "_#(js:common.datasource.connectionUsedByExtendedModel)"
-                  + ComponentTool.MESSAGEDIALOG_MESSAGE_CONNECTION
-                  + response.datasources.join())
+               Tool.formatCatalogString("_#(js:common.datasource.connectionUsedByExtendedModel)",
+                  [response.datasources.join()]))
                .then((result) => {
                   if(result === "ok") {
                      this.deleteAdditionals(deleteInfo);

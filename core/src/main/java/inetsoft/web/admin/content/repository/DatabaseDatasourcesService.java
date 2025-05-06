@@ -328,8 +328,14 @@ public class DatabaseDatasourcesService {
                                         Principal principal)
       throws Exception
    {
-      return saveDatabaseDefinition(path, model.dataSource(), actionName, principal,
-         () -> model.additionalDataSources());
+      try {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.set(true);
+         return saveDatabaseDefinition(path, model.dataSource(), actionName, principal,
+                                       () -> model.additionalDataSources());
+      }
+      finally {
+         DataSourceRegistry.IGNORE_GLOBAL_SHARE.remove();
+      }
    }
 
    private ConnectionStatus saveDatabaseDefinition(

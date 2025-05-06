@@ -91,6 +91,7 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
    @Input() isFlyOnClick: boolean = false;
    @Input() width: number = 0;
    @Input() height: number = 0;
+   @Input() lastStart: number = 0;
    @Input() linkUri: string;
    @Input() isRendered: boolean = true;
    @Input() selectedDataIndex;
@@ -270,7 +271,7 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
 
       //Cell will be focused on enter key if it's the first one below current selected data cell
       if(changes.selectedDataIndex && this.selectedDataIndex && this.dataCellIndex) {
-         if(this.selectedDataIndex.row + 1 == this.dataCellIndex.row &&
+         if(this.selectedDataIndex.row - this.lastStart + 1 == this.dataCellIndex.row &&
             this.selectedDataIndex.column == this.dataCellIndex.column)
          {
             this.nextCellChanged.emit(this.cell);

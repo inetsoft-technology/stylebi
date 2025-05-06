@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,25 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.web.portal.model.database.events;
+package inetsoft.web.metrics;
 
-public class CheckCycleDependenciesEvent {
-   public String getLogicalModelName() {
-      return logicalModelName;
-   }
-
-   public void setLogicalModelName(String logicalModelName) {
-      this.logicalModelName = logicalModelName;
-   }
-
-   public String[] getLinks() {
-      return links;
-   }
-
-   public void setLinks(String[] links) {
-      this.links = links;
-   }
-
-   private String logicalModelName;
-   private String[] links;
+public interface ScalingMetricPublisher {
+   void publish(ScalingMetricData data);
 }

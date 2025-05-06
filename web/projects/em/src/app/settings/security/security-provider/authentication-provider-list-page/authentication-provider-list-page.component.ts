@@ -119,7 +119,8 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
                this.authenticationProviders.splice(source, 1);
                this.authenticationProviders.splice(destination, 0, provider);
 
-               this.orgDropdownService.refresh();
+               this.orgDropdownService.setProvider(this.authenticationProviders[0].name);
+               this.orgDropdownService.refreshProviders();
             }
          });
    }

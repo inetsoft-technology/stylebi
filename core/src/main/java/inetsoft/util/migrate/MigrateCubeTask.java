@@ -32,6 +32,10 @@ public class MigrateCubeTask extends MigrateDocumentTask {
       super(entry, oname, nname);
    }
 
+   public MigrateCubeTask(AssetEntry entry, String oname, String nname, Organization currOrg) {
+      super(entry, oname, nname, currOrg);
+   }
+
    @Override
    void processAssemblies(Element elem) {
       updateDrillPaths(elem);

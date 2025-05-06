@@ -153,11 +153,11 @@ public class ImportAssetService {
       final ImportTargetFolderInfo targetFolderInfo = targetFolder == null ? null :
          new ImportTargetFolderInfo(targetFolder, dependenciesApplyTarget);
 
-      if(!background) {
+      if(importId == null) {
          return deployService.importAsset(deploymentInfo, ignoreList, overwriting,
                                           targetFolderInfo, principal);
       }
-      else {
+      else if(importCache.getIfPresent(importId) == null) {
          CompletableFuture<ImportAssetResponse> future = new CompletableFuture<>();
          importCache.put(importId, future);
          ThreadPool.addOnDemand(() -> {
@@ -175,8 +175,9 @@ public class ImportAssetService {
 
             ThreadContext.setPrincipal(oPrincipal);
          });
-         return ImportAssetResponse.builder().complete(false).build();
       }
+
+      return ImportAssetResponse.builder().complete(false).build();
    }
 
    @GetMapping("/api/em/content/repository/import/clear-cache")

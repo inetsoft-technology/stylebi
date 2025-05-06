@@ -17,11 +17,9 @@
  */
 package inetsoft.analytic.composition;
 
-import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
 
 import java.security.Principal;
 
@@ -32,7 +30,8 @@ public class SheetLibraryEngine implements SheetLibraryService {
       String prefix = catalog.getString("Untitled");
 
       synchronized(this) {
-         prefix = prefix + "-" + (counter++);
+         String joiner = type == AssetEntry.Type.SCRIPT ? "_" : "-";
+         prefix = prefix + joiner + (counter++);
       }
 
       return new AssetEntry(AssetRepository.TEMPORARY_SCOPE, type, prefix, null);

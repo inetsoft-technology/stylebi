@@ -454,7 +454,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       }
       else {
          try {
-           engine.checkAssetPermission(user, entry, ResourceAction.WRITE);
+           engine.checkAssetPermission(user, entry, ResourceAction.WRITE, true);
          }
          catch(Exception ex) {
             rs.setEditable(false);

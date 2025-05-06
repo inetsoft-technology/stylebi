@@ -84,18 +84,25 @@ export class PhysicalModelTableTreeNodeComponent {
     * @returns {boolean}   true if selected
     */
    isSelected(): boolean {
-      return this.node == this.tree.selectedNode;
+      return !!this.tree.selectedNodes && this.tree.selectedNodes.includes(this.node);
    }
 
    /**
     * Select this node.
     */
-   selectNode(): void {
+   selectNode(event: MouseEvent): void {
       if(!this.node.leaf || this.disabled) {
          return;
       }
 
-      this.tree.selectNode(this.node);
+      if(event.ctrlKey || event.shiftKey) {
+         this.tree.selectedNodes.push(this.node)
+      }
+      else {
+         this.tree.selectedNodes = [this.node];
+      }
+
+      this.tree.selectNode0(this.tree.selectedNodes);
    }
 
    /**

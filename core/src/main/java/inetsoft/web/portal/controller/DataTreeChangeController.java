@@ -17,7 +17,9 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import jakarta.annotation.PostConstruct;
@@ -61,9 +63,10 @@ public class DataTreeChangeController {
    @SubscribeMapping(CHANGE_TOPIC)
    public void subscribeToTopic(StompHeaderAccessor stompHeaders, Principal principal) {
       String user = SUtil.getUserDestination(principal);
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       if(user != null) {
-         subscriptions.put(stompHeaders.getSessionId(), user);
+         subscriptions.put(stompHeaders.getSessionId(), new IdentityID(user, orgId));
       }
    }
 
@@ -84,23 +87,39 @@ public class DataTreeChangeController {
          (event.getAssetEntry().getType() == AssetEntry.Type.WORKSHEET ||
             event.getAssetEntry().getType() == AssetEntry.Type.FOLDER))
       {
-         sendChangeMessage();
+         sendChangeMessage(event.getAssetEntry().getOrgID());
       }
    }
 
    private void dataSourceChanged(PropertyChangeEvent event) {
-      sendChangeMessage();
+      sendChangeMessage((String) event.getOldValue());
    }
 
-   private void sendChangeMessage() {
-      for(String user : subscriptions.values()) {
-         messagingTemplate.convertAndSendToUser(user, CHANGE_TOPIC, "");
+   private void sendChangeMessage(String orgId) {
+      boolean isDefaultOrg = Organization.getDefaultOrganizationID().equals(orgId);
+      boolean isDefaultOrgPublic = Boolean.parseBoolean(
+         SreeEnv.getProperty("security.exposeDefaultOrgToAll", "false"));
+
+      // Only notify organizations able to view the asset
+      for(IdentityID id : subscriptions.values()) {
+         if(orgId == null || orgId.equals(id.getOrgID())) {
+            messagingTemplate.convertAndSendToUser(id.getName(), CHANGE_TOPIC, "");
+         }
+         else if(isDefaultOrg) {
+            String orgScopedProperty = "security." + id.getOrgID() + ".exposeDefaultOrgToAll";
+
+            if(isDefaultOrgPublic || Boolean.parseBoolean(
+               SreeEnv.getProperty(orgScopedProperty)))
+            {
+               messagingTemplate.convertAndSendToUser(id.getName(), CHANGE_TOPIC, "");
+            }
+         }
       }
    }
 
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
-   private final ConcurrentMap<String, String> subscriptions = new ConcurrentHashMap<>();
+   private final ConcurrentMap<String, IdentityID> subscriptions = new ConcurrentHashMap<>();
 
    private final AssetChangeListener assetListener = this::assetChanged;
    private final PropertyChangeListener dataSourceListener = this::dataSourceChanged;

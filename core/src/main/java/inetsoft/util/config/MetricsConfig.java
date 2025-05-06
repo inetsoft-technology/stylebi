@@ -116,6 +116,14 @@ public class MetricsConfig implements Serializable {
       this.movingAverageCount = movingAverageCount;
    }
 
+   public String getPrometheusPushGateway() {
+      return prometheusPushGateway;
+   }
+
+   public void setPrometheusPushGateway(String prometheusPushGateway) {
+      this.prometheusPushGateway = prometheusPushGateway;
+   }
+
    public String getType() {
       return type;
    }
@@ -151,6 +159,8 @@ public class MetricsConfig implements Serializable {
    private int movingAveragePeriodSeconds = 15;
    @CRDProperty(description = "The number of metric values to include in the moving average")
    private int movingAverageCount = 8;
+   @CRDProperty(description = "The URL of the Prometheus push gateway. If not set, scaling metrics will not be pushed")
+   private String prometheusPushGateway;
    private String type;
    private CloudWatchMetricsConfig cloudwatch;
 }

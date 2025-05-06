@@ -1571,11 +1571,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       try {
+         Viewsheet rootVS = getRootViewsheet(this);
+
          for(Assembly assemblyItem : getAssemblies(false, false, true, false, true)) {
             VSAssembly assembly = (VSAssembly) assemblyItem;
             String assemblyName = assembly.getAbsoluteName();
-            boolean isFloat = VSUtil.isPopComponent(assemblyName, this) ||
-               VSUtil.isTipView(assemblyName, this);
+            boolean isFloat = VSUtil.isPopComponent(assemblyName, rootVS) ||
+               VSUtil.isTipView(assemblyName, rootVS);
 
             if(!includeAnnotation) {
                if(assembly instanceof AnnotationVSAssembly ||
@@ -1644,6 +1646,14 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       return bounds;
+   }
+
+   private Viewsheet getRootViewsheet(Viewsheet vs) {
+      if(vs.getViewsheet() == null) {
+         return vs;
+      }
+
+      return getRootViewsheet(vs.getViewsheet());
    }
 
    private boolean isPrimary(VSAssembly assembly) {
@@ -2882,7 +2892,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    protected boolean isLayoutVisible(Assembly assembly) {
       VSAssembly vassembly = (VSAssembly) assembly;
 
-      if(assembly instanceof FloatableVSAssembly) {
+      if(assembly instanceof FloatableVSAssembly || assembly instanceof Viewsheet) {
          return false;
       }
 

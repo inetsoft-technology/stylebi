@@ -50,7 +50,7 @@ public class VSViewsheetModel extends VSObjectModel<Viewsheet> {
       boolean embedded = info.isEmbedded() && assembly.getAbsoluteName().contains(".");
       embeddedIconVisible = isEnabled() && !embedded;
       embeddedOpenIconVisible = (info.getPrimaryCount() < info.getAssemblyCount()) &&
-         info.isActionVisible("Open");
+         isOpenActionVisible(info);
       maxMode = assembly.isMaxMode();
 
       if(info.getDescription() == null) {
@@ -59,6 +59,23 @@ public class VSViewsheetModel extends VSObjectModel<Viewsheet> {
       else {
          embeddedIconTooltip = info.getDescription();
       }
+   }
+
+   /**
+    * Check parent viewsheet assemblies if Open action is visible
+    * If any parent assembly has visibility off, apply it to the nested assemblies
+    */
+   private boolean isOpenActionVisible(ViewsheetVSAssemblyInfo info) {
+      boolean result = info.isActionVisible("Open");
+      Viewsheet vs = info.getViewsheet();
+
+      while(result && vs != null) {
+         info = (ViewsheetVSAssemblyInfo) vs.getInfo();
+         result = info.isActionVisible("Open");
+         vs = info.getViewsheet();
+      }
+
+      return result;
    }
 
    public Rectangle getBounds() {

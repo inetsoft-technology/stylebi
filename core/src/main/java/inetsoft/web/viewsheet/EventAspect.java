@@ -398,6 +398,12 @@ public class EventAspect {
             continue;
          }
 
+         int delimiterIndex = objName.indexOf(IdentityID.KEY_DELIMITER);
+
+         if(delimiterIndex != -1) {
+            objName = objName.substring(0, delimiterIndex);
+         }
+
          nameBuilder.append(objName);
 
          if(i < objectParameters.size() - 1) {

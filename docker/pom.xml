@@ -65,6 +65,10 @@
         </exclusion>
         <exclusion>
           <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-prometheus</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
           <artifactId>inetsoft-integration-aws</artifactId>
         </exclusion>
         <exclusion>

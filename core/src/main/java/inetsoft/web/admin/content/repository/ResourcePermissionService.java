@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import inetsoft.report.LibManager;
+import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
@@ -24,8 +26,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XUtil;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.admin.security.ResourcePermissionTableModel;
@@ -54,6 +55,13 @@ public class ResourcePermissionService {
                                                 EnumSet<ResourceAction> actions,
                                                 Principal principal)
    {
+      return getTableModel(path, type, actions, principal, false);
+   }
+
+   public ResourcePermissionModel getTableModel(String path, ResourceType type,
+                                                EnumSet<ResourceAction> actions,
+                                                Principal principal, boolean tableStyleFolder)
+   {
       boolean isRoot = "/".equals(path) &&
          (type == ResourceType.ASSET || type == ResourceType.REPORT || type == ResourceType.DASHBOARD) ||
          (type == ResourceType.LIBRARY && "*".equals(path) ||
@@ -61,11 +69,17 @@ public class ResourcePermissionService {
          (type == ResourceType.SCHEDULE_TASK_FOLDER && "/".equals(path)));
       boolean isDenyLabel = isRoot || type == ResourceType.SCHEDULE_CYCLE || type == ResourceType.SCHEDULE_TIME_RANGE;
       String label = isDenyLabel ? Catalog.getCatalog().getString("Deny access to all users") : null;
-      return getTableModel(path, type, actions, label, principal);
+      return getTableModel(path, type, actions, label, principal, tableStyleFolder);
    }
 
    public ResourcePermissionModel getTableModel(String path, ResourceType type, EnumSet<ResourceAction> actions,
                                                 String label, Principal principal)
+   {
+      return getTableModel(path, type, actions, label, principal, false);
+   }
+
+   public ResourcePermissionModel getTableModel(String path, ResourceType type, EnumSet<ResourceAction> actions,
+                                                String label, Principal principal, boolean tableStyleFolder)
    {
       if(label == null) {
          label = "Use Parent Permissions";
@@ -75,9 +89,9 @@ public class ResourcePermissionService {
          actions = EnumSet.of(ResourceAction.READ);
       }
 
-      List<ResourcePermissionTableModel> resourcePermissions = getResourcePermissions(path, type, principal);
+      List<ResourcePermissionTableModel> resourcePermissions = getResourcePermissions(path, type, principal, tableStyleFolder);
 
-      boolean hasOrgEdited = hasOrgEditedPerm(path, type, principal);
+      boolean hasOrgEdited = hasOrgEditedPerm(path, type, tableStyleFolder);
 
       ResourcePermissionModel.Builder builder =
          ResourcePermissionModel.builder()
@@ -162,10 +176,10 @@ public class ResourcePermissionService {
     */
    private List<ResourcePermissionTableModel> getResourcePermissions(String path,
                                                                      ResourceType resourceType,
-                                                                     Principal principal)
+                                                                     Principal principal,
+                                                                     boolean tableStyleFolder)
    {
-      String resourcePath =
-         resourceType == ResourceType.DATA_SOURCE ? getDataSourceResourceName(path) : path;
+      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder);
       Permission permission =
          securityProvider.getAuthorizationProvider().getPermission(resourceType, resourcePath);
 
@@ -174,6 +188,24 @@ public class ResourcePermissionService {
       }
 
       return getModelFromPermission(permission, principal);
+   }
+
+   public static String getPermissionResourcePath(String path, ResourceType resourceType,
+                                                  boolean tableStyleFolder)
+   {
+      if(path == null || resourceType == null) {
+         return path;
+      }
+
+      if(resourceType == ResourceType.DATA_SOURCE) {
+         return getDataSourceResourceName(path);
+      }
+      else if(!tableStyleFolder && ResourceType.TABLE_STYLE == resourceType) {
+         XTableStyle tableStyle = LibManager.getManager().getTableStyle(path);
+         return tableStyle == null ? path : tableStyle.getID();
+      }
+
+      return path;
    }
 
    /**
@@ -185,10 +217,10 @@ public class ResourcePermissionService {
     *
     * @return the set of organizations that use parent inheritance on the resource
     */
-   private boolean hasOrgEditedPerm(String path, ResourceType resourceType, Principal principal)
+   private boolean hasOrgEditedPerm(String path, ResourceType resourceType, boolean tableStyleFolder)
    {
       String resourcePath =
-         resourceType == ResourceType.DATA_SOURCE ? getDataSourceResourceName(path) : path;
+         getPermissionResourcePath(path, resourceType, tableStyleFolder);
       Permission permission =
          securityProvider.getAuthorizationProvider().getPermission(resourceType, resourcePath);
 
@@ -211,6 +243,15 @@ public class ResourcePermissionService {
       setResourcePermissions0(path, resourceType, tableModel, principal);
    }
 
+   public void setResourcePermissions(String path, ResourceType resourceType,
+                                      @SuppressWarnings("unused") @AuditObjectName String auditPath,
+                                      ResourcePermissionModel tableModel,
+                                      @AuditUser Principal principal)
+      throws IOException
+   {
+      setResourcePermissions(path, resourceType, auditPath, tableModel, principal, false);
+   }
+
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectType = ActionRecord.OBJECT_TYPE_OBJECTPERMISSION
@@ -218,11 +259,12 @@ public class ResourcePermissionService {
    public void setResourcePermissions(String path, ResourceType resourceType,
                                       @SuppressWarnings("unused") @AuditObjectName String auditPath,
                                       ResourcePermissionModel tableModel,
-                                      @AuditUser Principal principal)
+                                      @AuditUser Principal principal, boolean tableStyleFolder)
       throws IOException
    {
-      setResourcePermissions0(path, resourceType, tableModel, principal);
+      setResourcePermissions0(path, resourceType, tableModel, principal, tableStyleFolder);
    }
+
 
    /**
     * Remove the old asset permission and set it to new asset for rename asset.
@@ -249,6 +291,14 @@ public class ResourcePermissionService {
    private void setResourcePermissions0(String path, ResourceType resourceType,
                                         ResourcePermissionModel tableModel,
                                         Principal principal)
+      throws IOException
+   {
+      setResourcePermissions0(path, resourceType, tableModel, principal, false);
+   }
+
+   private void setResourcePermissions0(String path, ResourceType resourceType,
+                                        ResourcePermissionModel tableModel,
+                                        Principal principal, boolean tableStyleFolder)
       throws IOException
    {
       final AuthorizationProvider provider = securityProvider.getAuthorizationProvider();
@@ -288,8 +338,7 @@ public class ResourcePermissionService {
          }
       }
 
-      String resourcePath =
-         resourceType == ResourceType.DATA_SOURCE ? getDataSourceResourceName(path) : path;
+      String resourcePath = getPermissionResourcePath(path, resourceType, tableStyleFolder);
       SreeEnv.setProperty("permission.andCondition", String.valueOf(tableModel.requiresBoth()), true);
       SreeEnv.save();
 
@@ -570,73 +619,80 @@ public class ResourcePermissionService {
 
    boolean isIdentityAuthorized(IdentityID identity, Identity.Type type, Principal principal) {
       final ResourceType resourceType;
+      Principal oprincipal = ThreadContext.getContextPrincipal();
 
-      // Only show users from the same organization and site admins (if permission allows)
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      String org = Arrays.stream(provider.getOrganizationIDs())
-         .map(provider::getOrganization)
-         .filter((o) -> o.getOrganizationID().equals(orgID))
-         .map(Organization::getId)
-         .findFirst()
-         .orElse("");
+      try {
+         ThreadContext.setContextPrincipal(principal);
+         // Only show users from the same organization and site admins (if permission allows)
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         String org = Arrays.stream(provider.getOrganizationIDs())
+            .map(provider::getOrganization)
+            .filter((o) -> o.getOrganizationID().equals(orgID))
+            .map(Organization::getId)
+            .findFirst()
+            .orElse("");
 
-      switch(type) {
-      case USER:
-         User user = provider.getUser(identity);
+         switch(type) {
+         case USER:
+            User user = provider.getUser(identity);
 
-         if(user != null) {
-            IdentityID[] roles = user == null ? new IdentityID[0] : provider.getRoles(user.getIdentityID());
-            boolean userIsSiteAdmin = Arrays.stream(provider.getAllRoles(roles))
-               .anyMatch(provider::isSystemAdministratorRole);
+            if(user != null) {
+               IdentityID[] roles = user == null ? new IdentityID[0] : provider.getRoles(user.getIdentityID());
+               boolean userIsSiteAdmin = Arrays.stream(provider.getAllRoles(roles))
+                  .anyMatch(provider::isSystemAdministratorRole);
 
-            if(userIsSiteAdmin || org.equals(user.getOrganizationID())) {
-               resourceType = ResourceType.SECURITY_USER;
+               if(userIsSiteAdmin || org.equals(user.getOrganizationID())) {
+                  resourceType = ResourceType.SECURITY_USER;
+                  break;
+               }
+            }
+
+            return false;
+         case GROUP:
+            if(provider.getGroup(identity) != null && org.equals(provider.getGroup(identity).getOrganizationID())) {
+               resourceType = ResourceType.SECURITY_GROUP;
                break;
             }
+
+            return false;
+         case ROLE:
+            Role role = provider.getRole(identity);
+
+            if(role == null) {
+               IdentityID globalID = new IdentityID(identity.name, null);
+               role = provider.getRole(globalID);
+               identity = globalID;
+            }
+
+            boolean roleIsSiteAdmin = Arrays.stream(
+                  provider.getAllRoles(new IdentityID[]{ role.getIdentityID() }))
+               .anyMatch(provider::isSystemAdministratorRole);
+            boolean userIsAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+
+            if((!roleIsSiteAdmin || userIsAdmin) || org.equals(role.getOrganizationID())) {
+               resourceType = ResourceType.SECURITY_ROLE;
+               break;
+            }
+
+            return false;
+         case ORGANIZATION:
+            if(org.equals(identity.orgID)) {
+               resourceType = ResourceType.SECURITY_ORGANIZATION;
+               break;
+            }
+
+            return false;
+         default:
+            return false;
          }
 
-         return false;
-      case GROUP:
-         if(provider.getGroup(identity) != null && org.equals(provider.getGroup(identity).getOrganizationID())) {
-            resourceType = ResourceType.SECURITY_GROUP;
-            break;
-         }
-
-         return false;
-      case ROLE:
-         Role role = provider.getRole(identity);
-
-         if(role == null) {
-            IdentityID globalID = new IdentityID(identity.name, null);
-            role = provider.getRole(globalID);
-            identity = globalID;
-         }
-
-         boolean roleIsSiteAdmin = Arrays.stream(
-               provider.getAllRoles(new IdentityID[]{role.getIdentityID()}))
-            .anyMatch(provider::isSystemAdministratorRole);
-         boolean userIsAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
-
-         if((!roleIsSiteAdmin || userIsAdmin) || org.equals(role.getOrganizationID())) {
-            resourceType = ResourceType.SECURITY_ROLE;
-            break;
-         }
-
-         return false;
-      case ORGANIZATION:
-         if(org.equals(identity.orgID)) {
-            resourceType = ResourceType.SECURITY_ORGANIZATION;
-            break;
-         }
-
-         return false;
-      default:
-         return false;
+         return securityProvider.checkPermission(principal, resourceType, identity.convertToKey(),
+                                                 ResourceAction.ADMIN);
       }
-
-      return securityProvider.checkPermission(principal, resourceType, identity.convertToKey(),
-                                              ResourceAction.ADMIN);
+      finally {
+         ThreadContext.setContextPrincipal(oprincipal);
+      }
    }
 
    private List<ResourcePermissionTableModel> getIdentityActions(Permission perm,
@@ -808,7 +864,7 @@ public class ResourcePermissionService {
       return permissions;
    }
 
-   public String getDataSourceResourceName(String resourcePath) {
+   public static String getDataSourceResourceName(String resourcePath) {
       if(resourcePath.contains("/")) {
          // may be additional connection
          for(String ds : DataSourceRegistry.getRegistry().getDataSourceFullNames()) {

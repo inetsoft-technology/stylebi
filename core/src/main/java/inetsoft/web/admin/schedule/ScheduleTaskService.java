@@ -25,6 +25,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.*;
@@ -446,7 +447,8 @@ public class ScheduleTaskService {
       String taskName = internalTask ? oldTaskName : model.taskName();
 
       if(internalTask) {
-         task = scheduleManager.getScheduleTask(oldTaskName).clone();
+         task = scheduleManager.getScheduleTask(oldTaskName) == null ? null :
+            scheduleManager.getScheduleTask(oldTaskName).clone();
       }
       else {
          if("".equals(taskName)) {
@@ -460,7 +462,8 @@ public class ScheduleTaskService {
          }
 
          taskName = scheduleService.updateTaskName(oldTaskName, taskName, owner, principal);
-         task = scheduleManager.getScheduleTask(taskName).clone();
+         task = scheduleManager.getScheduleTask(taskName) == null ? null :
+            scheduleManager.getScheduleTask(taskName).clone();
       }
 
       if(task == null) {
@@ -819,6 +822,7 @@ public class ScheduleTaskService {
       task.setDescription(model.description());
       task.setTimeZone(model.timeZone());
       IdentityID modelID = getIdentityId(model.idName(), principal);
+      modelID = modelID == null ? task.getOwner() : modelID;
 
       //handle vs bookmark when executer has changed.
       if((modelID == null && oldIdentity != null && oldIdentityID != null
@@ -835,10 +839,13 @@ public class ScheduleTaskService {
                String[] bookmarks = action.getBookmarks();
                int[] bookmarkTypes = action.getBookmarkTypes();
                IdentityID[] bookmarkUsers = action.getBookmarkUsers();
+               Identity identity = task.getIdentity();
+               IdentityID identityID = identity == null ? null : identity.getIdentityID();
 
-               for(int j = 0; j < bookmarkTypes.length; j++) {
+               for(int j = 0; bookmarkTypes != null && j < bookmarkTypes.length; j++) {
                   if(bookmarkTypes[j] == VSBookmarkInfo.ALLSHARE ||
-                     (bookmarkTypes[j] != VSBookmarkInfo.GROUPSHARE && groupShare))
+                     (bookmarkTypes[j] == VSBookmarkInfo.GROUPSHARE && groupShare) ||
+                     Tool.equals(modelID, bookmarkUsers[j]))
                   {
                      bookmarkList.add(bookmarks[j]);
                      bookmarkUserList.add(bookmarkUsers[j]);
@@ -925,7 +932,7 @@ public class ScheduleTaskService {
          model.idType(type);
 
          if(type == Identity.Type.USER.code()) {
-            model.idAlias(((User) task.getIdentity()).getAlias());
+            model.idAlias(SUtil.getUserAlias(task.getIdentity().getIdentityID()));
          }
       }
 

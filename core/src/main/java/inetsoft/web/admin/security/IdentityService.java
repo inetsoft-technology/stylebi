@@ -240,6 +240,11 @@ public class IdentityService {
    private void logoutSession(IdentityID user) {
       SessionLicenseManager sessionLicenseManager =
          SessionLicenseService.getSessionLicenseService();
+
+      if(sessionLicenseManager == null) {
+         return;
+      }
+
       Set<SRPrincipal> principals = sessionLicenseManager.getActiveSessions();
       Iterator<SRPrincipal> iterator  = principals.iterator();
 
@@ -440,6 +445,7 @@ public class IdentityService {
                DataSourceRegistry.getRegistry().clearCache(orgID);
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
+               RepletRegistry.clearOrgCache(orgID);
             }
 
             // deleting current organization should reset curOrg
@@ -617,7 +623,8 @@ public class IdentityService {
 
    }
 
-   private void updateOrganizationMembers(Organization identity, String oldOrgID,
+   private void updateOrganizationMembers(Organization identity, List<IdentityModel> memberModels,
+                                          String oldOrgID,
                                           EditableAuthenticationProvider eprovider)
    {
       String orgID = identity.getId();
@@ -625,6 +632,20 @@ public class IdentityService {
       IdentityID[] users = Arrays.stream(eprovider.getUsers()).filter(u -> Tool.equals(oldOrgID, u.orgID)).toArray(IdentityID[]::new);
       IdentityID[] groups = Arrays.stream(eprovider.getGroups()).filter(u -> Tool.equals(oldOrgID, u.orgID)).toArray(IdentityID[]::new);
       IdentityID[] roles = Arrays.stream(eprovider.getRoles()).filter(u -> Tool.equals(oldOrgID, u.orgID)).toArray(IdentityID[]::new);
+      IdentityID[] newUsers = memberModels.stream()
+         .filter(member -> member.type() == Identity.USER)
+         .filter(newUser -> Arrays.stream(users).noneMatch(oldUser -> oldUser.getName().equals(newUser.identityID().getName())))
+         .map(IdentityModel::identityID).toArray(IdentityID[]::new);
+      IdentityID[] newGroups = memberModels.stream()
+         .filter(member -> member.type() == Identity.GROUP)
+         .filter(newGroup -> Arrays.stream(groups).noneMatch(oldGroup -> oldGroup.getName().equals(newGroup.identityID().getName())))
+         .map(IdentityModel::identityID)
+         .toArray(IdentityID[]::new);
+      IdentityID[] newRoles = memberModels.stream()
+         .filter(member -> member.type() == Identity.ROLE)
+         .filter(newRole -> Arrays.stream(roles).noneMatch(oldRole -> oldRole.getName().equals(newRole.identityID().getName())))
+         .map(IdentityModel::identityID)
+         .toArray(IdentityID[]::new);
       boolean orgIdChange = !OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId());
       boolean orgNameChanged = !Tool.equals(orgIdChange, oldOrgID);
 
@@ -649,7 +670,7 @@ public class IdentityService {
 
             if(orgIdChange || orgNameChanged) {
                //Update replet registry here.
-               RepletRegistry.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId());
+               RepletRegistry.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
                DashboardRegistry.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
             }
 
@@ -667,6 +688,11 @@ public class IdentityService {
          else if(!members.contains(user.getName())) {
             eprovider.removeUser(oldID);
          }
+      }
+
+      for(int i = 0; i < newUsers.length; i ++) {
+         FSUser user = new FSUser(newUsers[i]);
+         eprovider.setUser(user.getIdentityID(), user);
       }
 
       for(int i = 0; i < groups.length; i++) {
@@ -689,6 +715,11 @@ public class IdentityService {
          }
       }
 
+      for(int i = 0; i < newGroups.length; i ++) {
+         FSGroup group = new FSGroup(newGroups[i]);
+         eprovider.setGroup(group.getIdentityID(), group);
+      }
+
       for(int i = 0; i < roles.length; i++) {
          FSRole role = (FSRole) eprovider.getRole(roles[i]);
 
@@ -704,6 +735,11 @@ public class IdentityService {
          else if(members.contains(role.getName())) {
             updateRoleForOrg(identity, role, orgID, eprovider, authoc);
          }
+      }
+
+      for(int i = 0; i < newRoles.length; i ++) {
+         FSRole role = new FSRole(newRoles[i]);
+         eprovider.setRole(role.getIdentityID(), role);
       }
    }
 
@@ -882,20 +918,20 @@ public class IdentityService {
       removeBlobStorage("__autoSave", orgID, LibManager.Metadata.class);
    }
 
-   public void copyStorages(Organization oOrg, Organization nOrg) {
+   public void copyStorages(Organization oOrg, Organization nOrg, boolean rename) {
       try {
          DashboardManager.getManager().copyStorageData(oOrg.getId(), nOrg.getId());
          DependencyStorageService.getInstance().copyStorageData(oOrg, nOrg);
          RecycleBin.getRecycleBin().copyStorageData(oOrg.getId(), nOrg.getId());
          updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
-         IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg);
+         IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg, rename);
 
-         FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
-         //updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+         //FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
          updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          updateBlobStorageName("__pdata", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          updateBlobStorageName("__autoSave", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
-         MVManager.getManager().copyStorageData(oOrg, nOrg);
+         updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+         MVManager.getManager().migrateStorageData(oOrg, nOrg, !rename);
 
          addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
       }
@@ -984,16 +1020,17 @@ public class IdentityService {
    }
 
    public void updateRepletRegistry(String oOID, String nOID) throws Exception {
-      RepletRegistry registry = RepletRegistry.getRegistry();
-      String[] oldFolders = registry.getAllFolders(oOID);
+      RepletRegistry oldRegistry = RepletRegistry.getRegistry(oOID);
+      RepletRegistry newRegistry = RepletRegistry.getRegistry(oOID);
+      String[] oldFolders = oldRegistry.getAllFolders();
       boolean removeOrg = nOID == null;
 
       if(!Tool.equals(oOID, nOID)) {
          for(String oldFolder : oldFolders) {
-            registry.removeFolder(oldFolder, true, false, oOID, false);
+            oldRegistry.removeFolder(oldFolder, true, false, false);
 
             if(!removeOrg) {
-               registry.addFolder(oldFolder, nOID, false);
+               newRegistry.addFolder(oldFolder, false);
             }
          }
       }
@@ -1004,16 +1041,17 @@ public class IdentityService {
       OrganizationManager.getInstance().setCurrentOrgID(nOID);
 
       try {
-         RepletRegistry registry = RepletRegistry.getRegistry();
-         String[] oldFolders = registry.getAllFolders(oOID);
+         RepletRegistry oldRegistry = RepletRegistry.getRegistry(oOID);
+         RepletRegistry newRegistry = RepletRegistry.getRegistry(nOID);
+         String[] oldFolders = oldRegistry.getAllFolders();
 
          for(String oldFolder : oldFolders) {
             if(!Tool.MY_DASHBOARD.equals(oldFolder)) {
-               registry.addFolder(oldFolder, nOID, false);
+               newRegistry.addFolder(oldFolder, false);
             }
          }
 
-         registry.copyFolderContextMap(oOID, nOID);
+         RepletRegistry.copyFolderContextMap(oOID, nOID);
          IdentityID[] orgUsers = securityEngine.getOrgUsers(oOID);
 
          if(orgUsers != null) {
@@ -1023,7 +1061,7 @@ public class IdentityService {
             }
          }
 
-         registry.save();
+         newRegistry.save();
       }
       catch(Exception e) {
          LOG.warn("Could not copy registry from {} to {}", oOID, nOID, e);
@@ -1535,7 +1573,7 @@ public class IdentityService {
       user.setRoles(model.roles().toArray(new IdentityID[0]));
       user.setGroups(memberNames.toArray(new String[0]));
       user.setEmails(emails);
-      user.setAlias(model.alias());
+      user.setAlias(!Tool.isEmptyString(model.alias()) ? model.alias() : null);
       user.setActive(model.status());
       user.setOrganization(model.organization());
       user.setGoogleSSOId(ouser.getGoogleSSOId());
@@ -1827,11 +1865,12 @@ public class IdentityService {
             !Tool.equals(oldOrg.getMembers(), memberNames) ||
             !Tool.equals(fromOrgID, model.id()))
       {
-         updateOrganizationMembers(newOrg, oldID, eprovider);
+         updateOrganizationMembers(newOrg, members, oldID, eprovider);
       }
 
       if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
          DashboardRegistry.migrateRegistry(null, fromOrg, newOrg);
+         RepletRegistry.getRegistry(fromOrgID).shutdown();
          updateOrgScopedDataSpace(fromOrg, newOrg);
       }
 
@@ -1971,23 +2010,26 @@ public class IdentityService {
       Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
          null : provider.getOrganization(oldOrgId);
 
-      for(Tuple3<ResourceType, String, Permission> permissionSet : provider.getPermissions()) {
-         String second = permissionSet.getSecond();
-         Permission permission = permissionSet.getThird();
+      for(Tuple4<ResourceType, String, String, Permission> permissionSet : provider.getPermissions()) {
+         String resourceOrgID = permissionSet.getSecond();
+         String path = permissionSet.getThird();
+         Permission permission = permissionSet.getForth();
 
          if(permission == null) {
             continue;
          }
 
-         if(newName == null && second.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(second).orgID != null &&
-               !Tool.equals(IdentityID.getIdentityIDFromKey(second).orgID,oldName.orgID) &&
-               !Tool.equals(IdentityID.getIdentityIDFromKey(second).orgID,oldOrgId)) {
+         if(resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) && !Tool.equals(resourceOrgID, newOrgId) ||
+            newName == null && path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
+               !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldName.orgID) &&
+               !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldOrgId))
+         {
             //skip permissions not in this organization
             continue;
          }
 
-         if(containsOrgID(second, oldName.getOrgID()) && newName == null) {
-            provider.removePermission(permissionSet.getFirst(), second);
+         if(containsOrgID(path, oldName.getOrgID()) && newName == null) {
+            provider.removePermission(permissionSet.getFirst(), path, resourceOrgID);
          }
 
          for(ResourceAction action : ResourceAction.values()) {
@@ -1996,7 +2038,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedUserGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), second, doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
@@ -2004,7 +2046,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedGroupGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), second, doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
@@ -2012,12 +2054,12 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedRoleGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), second, doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
                else if(type == Identity.ORGANIZATION) {
-                  updateOrgIdentitiesPermission(newName, oldName, oldOrganization, newOrgId, permission, action, doReplace);
+                  updateOrgIdentitiesPermission(newName, oldName, oldOrganization, newOrgId, permission, action);
                }
             }
          }
@@ -2042,32 +2084,33 @@ public class IdentityService {
    }
 
    private void updatePermission(SecurityProvider provider,
-                                 Tuple3<ResourceType, String, Permission> permissionSet,
+                                 Tuple4<ResourceType, String, String, Permission> permissionSet,
                                  String oIdentityName, String nIdentityName, String oorgId,
                                  String norgId, boolean doReplace, int changeIdentityType)
    {
       ResourceType type = permissionSet.getFirst();
-      String second = permissionSet.getSecond();
-      Permission permission = permissionSet.getThird();
+      String resourceOrgID = permissionSet.getSecond();
+      String path = permissionSet.getThird();
+      Permission permission = permissionSet.getForth();
       updateOrgEditedGrantAll(permission, oorgId, norgId);
-      String newPath = getNewPermissionPath(permissionSet.getFirst(), second, oorgId, norgId,
+      String newPath = getNewPermissionPath(permissionSet.getFirst(), path, oorgId, norgId,
          oIdentityName, nIdentityName, changeIdentityType);
 
       if(newPath != null) {
-         provider.setPermission(type, newPath, permission);
+         provider.setPermission(type, newPath, permission, norgId);
       }
       else {
-         provider.setPermission(type, second, permission);
+         provider.setPermission(type, path, permission, norgId);
       }
 
-      if(doReplace && !Tool.equals(oorgId, norgId) && !Tool.equals(newPath, second)) {
-         provider.removePermission(type, second);
+      if(doReplace && (!Tool.equals(oorgId, norgId) || !Tool.equals(newPath, path))) {
+         provider.removePermission(type, path, oorgId);
       }
    }
 
-   private boolean containsOrgID(String secondPath, String oorgID) {
-      if(secondPath != null && secondPath.contains(IdentityID.KEY_DELIMITER)) {
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(secondPath);
+   private boolean containsOrgID(String path, String oorgID) {
+      if(path != null && path.contains(IdentityID.KEY_DELIMITER)) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(path);
 
          return Tool.equals(oorgID, identityID.getOrgID());
       }
@@ -2075,12 +2118,12 @@ public class IdentityService {
       return false;
    }
 
-   private String getNewPermissionPath(ResourceType type, String secondPath,
+   private String getNewPermissionPath(ResourceType type, String path,
                                        String oorgID, String norgID, String oIdentityName,
                                        String nIdentityName, int changeIdentityType)
    {
       if(type == ResourceType.SECURITY_ORGANIZATION &&
-         Tool.equals(secondPath, new IdentityID(oIdentityName, oorgID).convertToKey()))
+         Tool.equals(path, new IdentityID(oIdentityName, oorgID).convertToKey()))
       {
          return new IdentityID(nIdentityName, norgID).convertToKey();
       }
@@ -2089,7 +2132,7 @@ public class IdentityService {
          if(changeIdentityType == Identity.USER) {
             IdentityID oldIdentityID = new IdentityID(oIdentityName, oorgID);
             IdentityID newIdentityID = new IdentityID(nIdentityName, norgID);
-            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(secondPath);
+            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(path);
 
             if(Tool.equals(taskMetaData.getTaskOwnerId(), oldIdentityID.convertToKey())) {
                taskMetaData.setTaskOwnerId(newIdentityID.convertToKey());
@@ -2098,7 +2141,7 @@ public class IdentityService {
             }
          }
          else if(changeIdentityType == Identity.ORGANIZATION) {
-            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(secondPath);
+            ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(path);
             IdentityID ownerIdentityID = IdentityID.getIdentityIDFromKey(taskMetaData.getTaskOwnerId());
 
             if(ownerIdentityID != null && Tool.equals(ownerIdentityID.getOrgID(), oorgID)) {
@@ -2110,10 +2153,10 @@ public class IdentityService {
          }
       }
 
-      String newPath = secondPath;
+      String newPath = path;
 
-      if(containsOrgID(secondPath, oorgID) && !Tool.equals(oorgID, norgID)) {
-         IdentityID identityID = IdentityID.getIdentityIDFromKey(secondPath);
+      if(containsOrgID(path, oorgID) && !Tool.equals(oorgID, norgID)) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(path);
          identityID.setOrgID(norgID);
          newPath = identityID.convertToKey();
       }
@@ -2123,7 +2166,7 @@ public class IdentityService {
 
    private void updateOrgIdentitiesPermission(IdentityID newName, IdentityID oldName,
                                               Organization oldOrg, String newOrgId, Permission permission,
-                                              ResourceAction action, boolean doReplace)
+                                              ResourceAction action)
    {
       Set<String> userGrants = new HashSet<>();
       Set<String> groupGrants = new HashSet<>();
@@ -2163,7 +2206,7 @@ public class IdentityService {
       }
 
       if(oldOrg != null) {
-         String oldOrgId = doReplace ? oldOrg.getOrganizationID() : null;
+         String oldOrgId = oldOrg == null ? null : oldOrg.getOrganizationID();
 
          if(!userGrants.isEmpty()) {
             permission.setUserGrantsForOrg(action, userGrants, oldOrgId, newOrgId);
@@ -2184,70 +2227,59 @@ public class IdentityService {
          if(permission.isOrgInPerm(action, newOrgId)) {
             permission.updateGrantAllByOrg(newOrgId, true);
 
-            if(doReplace && !Tool.equals(oldOrgId, newOrgId)) {
+            if(!Tool.equals(oldOrgId, newOrgId)) {
                permission.removeGrantAllByOrg(oldOrgId);
             }
          }
       }
    }
 
-   private void updateIdentityPermission(int type, IdentityID newIdentityID, IdentityID oldIdentityID, Organization oldOrg, String newOrgId, Permission permission,
-                                         ResourceAction action, ResourceType rType, String rpath, boolean doReplace) {
-      Set<String> identityGrants = new HashSet<>();
+   private void updateIdentityPermission(int type, IdentityID newIdentityID, IdentityID oldIdentityID,
+                                         Organization oldOrg, String newOrgId, Permission permission,
+                                         ResourceAction action)
+   {
+      Set<Permission.PermissionIdentity> orgScopedGrants = new HashSet<>();
 
       if(permission != null) {
-         if(doReplace || newIdentityID == null) {
-            Set<IdentityID> orgScopedGrants = null;
-
-            switch(type) {
-            case Identity.USER:
-               orgScopedGrants = permission.getOrgScopedUserGrants(action, oldOrg);
-               permission.setUserGrantsForOrg(action, new HashSet<>(), oldOrg.getId());
-               break;
-            case Identity.GROUP:
-               orgScopedGrants = permission.getOrgScopedGroupGrants(action, oldOrg);
-               permission.setGroupGrantsForOrg(action, new HashSet<>(), oldOrg.getId());
-               break;
-            case Identity.ROLE:
-               orgScopedGrants = permission.getOrgScopedRoleGrants(action, oldOrg);
-               permission.setRoleGrantsForOrg(action, new HashSet<>(), oldOrg.getId());
-               break;
-            case Identity.ORGANIZATION:
-               orgScopedGrants = permission.getOrgScopedOrganizationGrants(action, oldOrg);
-               permission.setOrganizationGrantsForOrg(action, new HashSet<>(), oldOrg.getId());
-               break;
-            }
-
-            if(orgScopedGrants != null) {
-               orgScopedGrants.stream()
-                  .map(id -> id.name)
-                  .filter(u -> !u.equals(oldIdentityID.name))
-                  .forEach(identityGrants::add);
-            }
+         switch(type) {
+         case Identity.USER:
+            orgScopedGrants = permission.getAllUserGrants(action);
+            break;
+         case Identity.GROUP:
+            orgScopedGrants = permission.getAllGroupGrants(action);
+            break;
+         case Identity.ROLE:
+            orgScopedGrants = permission.getAllRoleGrants(action);
+            break;
+         case Identity.ORGANIZATION:
+            orgScopedGrants = permission.getOrganizationGrants(action);
+            break;
          }
       }
       else {
          permission = new Permission();
       }
 
-      if(newIdentityID != null && !newIdentityID.name.isEmpty()) {
-         identityGrants.add(newIdentityID.name);
+      Set<Permission.PermissionIdentity> grants = new HashSet<>();
+
+      if(orgScopedGrants != null) {
+         // remove identity
+         if(newIdentityID == null && orgScopedGrants.contains(oldIdentityID)) {
+            orgScopedGrants.stream()
+               .filter(identityID -> !Tool.equals(identityID, oldIdentityID))
+               .forEach(identityID -> grants.add(identityID));
+         }
+         // sync id
+         else if(newIdentityID != null) {
+            orgScopedGrants.stream()
+               .map(identityID -> Tool.equals(identityID.getName(), oldIdentityID.getName()) &&
+                  Tool.equals(identityID.getOrganizationID(), oldIdentityID.getOrgID()) ?
+                  new Permission.PermissionIdentity(newIdentityID) : identityID)
+               .forEach(identityID -> grants.add(identityID));
+         }
       }
 
-      switch(type) {
-      case Identity.USER:
-         permission.setUserGrantsForOrg(action, identityGrants, newOrgId);
-         break;
-      case Identity.GROUP:
-         permission.setGroupGrantsForOrg(action, identityGrants, newOrgId);
-         break;
-      case Identity.ROLE:
-         permission.setRoleGrantsForOrg(action, identityGrants, newOrgId);
-         break;
-      case Identity.ORGANIZATION:
-         permission.setOrganizationGrantsForOrg(action, identityGrants, newOrgId);
-         break;
-      }
+      permission.setGrants(action, type, grants);
 
       if(permission.isOrgInPerm(action, newOrgId)) {
          permission.updateGrantAllByOrg(newOrgId, true);
@@ -2272,38 +2304,7 @@ public class IdentityService {
    }
 
    public void updateAutoSaveFiles(Organization oorg, Organization norg, Principal principal) {
-      if(oorg.getId().equals(norg.getId())) {
-         return;
-      }
-
-      List<String> list = AutoSaveUtils.getAutoSavedFiles(principal, true);
-
-      if(list.isEmpty()) {
-         return;
-      }
-
-      for(String file : list) {
-         String asset = AutoSaveUtils.getName(file);
-         String[] attrs = Tool.split(asset, '^');
-
-         if(attrs.length > 3) {
-            String user = attrs[2];
-            user = "anonymous".equals(user) ? "_NULL_" : user;
-
-            if(user == null || Tool.equals(user, "_NULL_")) {
-               continue;
-            }
-
-            IdentityID userID = IdentityID.getIdentityIDFromKey(user);
-
-            if(oorg.getId().equals(userID.getOrgID())) {
-               userID.setOrgID(norg.getId());
-               attrs[2] = userID.convertToKey();
-               String newFilePath = AutoSaveUtils.RECYCLE_PREFIX + String.join("^", attrs);
-               AutoSaveUtils.renameAutoSaveFile(file, newFilePath, principal);
-            }
-         }
-      }
+      AutoSaveUtils.migrateAutoSaveFiles(oorg, norg, principal);
    }
 
    public void updateTaskSaveFiles(Organization oorganization, Organization norganization) {

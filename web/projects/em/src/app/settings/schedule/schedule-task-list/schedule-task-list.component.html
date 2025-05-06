@@ -114,7 +114,7 @@
 
           <ng-container matColumnDef="nextRunStart">
             <th mat-header-cell *matHeaderCellDef mat-sort-header> _#(Next Run Starting) </th>
-            <td mat-cell *matCellDef="let element"  [title]="element.status ? getDateLabel(element.status.nextRunStart) : ''">
+            <td mat-cell *matCellDef="let element"  [title]="element.status?.nextRunStart && element.enabled ? getDateLabel(element.status.nextRunStart) : ''">
               {{element.status && element.enabled ? getDateLabel(element.status.nextRunStart) : ""}}
             </td>
           </ng-container>

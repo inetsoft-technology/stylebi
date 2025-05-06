@@ -20,6 +20,7 @@ package inetsoft.uql.asset.internal;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.*;
 import inetsoft.util.Tool;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -411,15 +412,15 @@ public class MirrorAssemblyImpl implements MirrorAssembly {
 
    public String handleWSOrgMismatch(String identifier){
       String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
-      int orgIdx = identifier.lastIndexOf("^");
+      int numCarets = StringUtils.countMatches(identifier, '^');
 
-      if(orgIdx > 0) {
-         String updatedID = identifier.substring(0, orgIdx + 1) + curOrgId;
-
-         return updatedID;
+      if(numCarets >= 4) {
+         int orgIdx = identifier.lastIndexOf("^");
+         return identifier.substring(0, orgIdx + 1) + curOrgId;
       }
-
-      return identifier;
+      else {
+         return identifier + "^" + curOrgId;
+      }
    }
 
    private static ThreadLocal local = new ThreadLocal(); // thread local

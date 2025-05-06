@@ -21,7 +21,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -48,6 +48,12 @@ public class RepositoryWorksheetController {
       Principal principal
    ) throws Exception
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       final int scope = treeService.getAssetScope(path);
       path = treeService.getUnscopedPath(path);
 

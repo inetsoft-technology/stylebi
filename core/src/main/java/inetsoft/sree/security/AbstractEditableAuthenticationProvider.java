@@ -19,6 +19,7 @@ package inetsoft.sree.security;
 
 import inetsoft.mv.fs.FSService;
 import inetsoft.mv.mr.XJobPool;
+import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.*;
@@ -225,8 +226,21 @@ public abstract class AbstractEditableAuthenticationProvider
 
       addOrganization(newOrg);
 
-      identityService.copyStorages(fromOrganization, newOrg);
+      identityService.copyStorages(fromOrganization, newOrg, replace);
       identityService.copyRepletRegistry(fromOrgId, newOrgID);
+
+      if(!replace) {
+         try {
+            OrganizationManager.runInOrgScope(newOrgID, () -> {
+               identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
+
+               return null;
+            });
+         }
+         catch(Exception e) {
+            LOG.warn("Unable to migrate Auto Save Files: "+ e);
+         }
+      }
 
       try {
          DataCycleManager.getDataCycleManager().migrateDataCycles(fromOrganization, newOrg, replace);
@@ -244,6 +258,7 @@ public abstract class AbstractEditableAuthenticationProvider
          XJobPool.resetOrgCache(fromOrgId);
          manager.removeCSSEntry(fromOrgId);
          manager.save();
+         RepletRegistry.clearOrgCache(fromOrgId);
 
          try{
             identityService.updateRepletRegistry(fromOrgId, null);

@@ -24,8 +24,7 @@ import inetsoft.sree.security.IdentityIDWithLabel;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Value.Immutable
 @JsonSerialize(as = ImmutableUsersModel.class)

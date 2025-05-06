@@ -40,6 +40,7 @@ import inetsoft.web.portal.GlobalParameterProvider;
 import inetsoft.web.portal.model.*;
 import inetsoft.web.reportviewer.model.ParameterPageModel;
 import inetsoft.web.viewsheet.controller.ComposerClientController;
+import inetsoft.web.viewsheet.controller.dialog.EmailDialogController;
 import inetsoft.web.viewsheet.service.ComposerClientService;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.HttpServletRequest;

@@ -35,6 +35,10 @@
         display: flex;
         align-items: center;
 
+        .mobile-max-mode-icon {
+          font-size: 24px !important;
+        }
+
         .selection-list-icon-layout {
           z-index: 5;
           opacity: 1;

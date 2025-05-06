@@ -224,13 +224,30 @@ public class ScheduleConditionService {
                   formatParameterValue(repRequest, type, ((DynamicValueModel) value).getValue(), paramName));
             }
          }
+         else if(value instanceof ArrayParameterValue) {
+            array = true;
+            vals = ((ArrayParameterValue) value).getValue();
+            type = ((ArrayParameterValue) value).getType();
+
+            AddParameterDialogModel paramModel = AddParameterDialogModel.builder()
+               .name(paramName)
+               .type(type)
+               .array(array)
+               .value(new DynamicValueModel(formatParameterValue(
+                  repRequest, "array", vals, paramName), DynamicValueModel.VALUE, type, array))
+               .build();
+
+            paramModels.add(paramModel);
+            continue;
+         }
          else {
             vals = array ? (Object[]) value : null;
             value = formatParameterValue(repRequest, type, value, paramName);
          }
 
          if(array) {
-            type = getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
+            type = vals.length > 0 ? Tool.getDataType(vals[0]) :
+               getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
          }
 
          AddParameterDialogModel paramModel = AddParameterDialogModel.builder()
@@ -264,7 +281,8 @@ public class ScheduleConditionService {
       }
       else if("array".equals(type)) {
          Object[] vals = (Object[]) value;
-         type = getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
+         type = vals.length > 0 ? Tool.getDataType(vals[0]) :
+            getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
          StringBuilder builder = new StringBuilder();
 
          for(int i = 0; i < vals.length; i++) {
@@ -340,6 +358,10 @@ public class ScheduleConditionService {
          if(value instanceof Date) {
             return parameterValue.getDataType();
          }
+      }
+
+      if(value instanceof ArrayParameterValue) {
+         return ((ArrayParameterValue) value).getType();
       }
 
       if(value instanceof Boolean) {
@@ -465,7 +487,8 @@ public class ScheduleConditionService {
 
    public Object[] getParamValueAsArray(String type, String initialValue) {
       initialValue = initialValue.replace("\\,", "\n");
-      String[] initialArray = initialValue.split(",");
+      initialValue = initialValue.replaceAll("[\\[\\]]", "");
+      String[] initialArray = initialValue.split(",\\s*");
       Object[] valuesArray = new Object[initialArray.length];
       SimpleDateFormat formatter;
 

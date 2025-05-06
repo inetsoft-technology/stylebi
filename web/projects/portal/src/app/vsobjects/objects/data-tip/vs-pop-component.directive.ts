@@ -255,6 +255,11 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
          selfHeight = !!cssHeightString && cssHeightString.endsWith("px") ?
             parseInt(cssHeightString.substring(0, cssHeightString.length - 2), 10) : selfHeight;
 
+         if(selfHeight === 0 && popInfo.height > 0) {
+            // Bug #70767, CSS may return 0px, in this case use the popInfo height
+            selfHeight = popInfo.height;
+         }
+
          if(selfHeight < top + topOffset) {
             topOffset -= selfHeight;
          }

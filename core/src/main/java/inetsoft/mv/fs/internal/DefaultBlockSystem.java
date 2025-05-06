@@ -142,7 +142,12 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
    @Override
    public NBlock rename(XBlock from, XBlock to) {
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
-      return copy0(from, currentOrgID, to, currentOrgID,true);
+      return copy0(from, currentOrgID, to, currentOrgID, true);
+   }
+
+   @Override
+   public NBlock rename(XBlock from, XBlock to, String fromOrgId, String toOrgId) {
+      return copy0(from, fromOrgId, to, toOrgId, true);
    }
 
    /**
@@ -172,7 +177,7 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
             nblock.setPhysicalLen(oldFile.length(fromOrgId));
 
             if(rename) {
-               BlockFileStorage.getInstance().rename(oldFile, newFile);
+               BlockFileStorage.getInstance().rename(orgId, oldFile, newFile);
             }
             else {
                BlockFileStorage.getInstance().copy(oldFile, fromOrgId, newFile, toOrgId);
@@ -555,6 +560,7 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
    public void dispose() {
       try {
          blocks.close();
+         lastLoad.set(0L);
       }
       catch(Exception e) {
          LOG.warn("Failed to close distributed map", e);

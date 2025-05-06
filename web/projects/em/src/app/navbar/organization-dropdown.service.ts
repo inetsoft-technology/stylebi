@@ -15,8 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Injectable, OnDestroy } from "@angular/core";
-import { Subject } from "rxjs";
+import { Subject, Subscription } from "rxjs";
+import { map } from "rxjs/operators";
+import { CurrentUser } from "../../../../portal/src/app/portal/current-user";
+import { StompClientConnection } from "../../../../shared/stomp/stomp-client-connection";
+import { StompClientService } from "../../../../shared/stomp/stomp-client.service";
+import {
+   SecurityProviderStatus,
+   SecurityProviderStatusList
+} from "../settings/security/security-provider/security-provider-model/security-provider-status-list";
 
 @Injectable({
    providedIn: "root"
@@ -24,13 +33,88 @@ import { Subject } from "rxjs";
 export class OrganizationDropdownService implements OnDestroy  {
    private provider: string;
    private refreshSubject: Subject<any>;
+   private connection: StompClientConnection;
+   private subscription = new Subscription();
+   public authenticationProviders: string[];
+   currentUser: CurrentUser;
 
-   constructor() {
+   constructor(private http: HttpClient, private stompClient: StompClientService) {
       this.refreshSubject = new Subject<any>();
+
+      this.stompClient.connect("../vs-events", true).subscribe(connection => {
+         this.connection = connection;
+
+         this.subscription.add(connection.subscribe("/user/security/providers-change",
+            (message) => this.loadAuthenticationProviders()));
+      });
+
+      this.http.get<CurrentUser>("../api/em/security/get-current-user").subscribe(userModel => {
+         this.currentUser = userModel;
+         this.loadAuthenticationProviders();
+      });
+   }
+
+   get loginUserName(): string {
+      return this.currentUser?.name?.name;
+   }
+
+   get loginUserOrgID(): string {
+      return this.currentUser?.name?.orgID;
+   }
+
+   get loginUserOrgName(): string {
+      return this.currentUser?.org;
+   }
+
+   isSystemAdmin(): boolean {
+      return this.currentUser?.isSysAdmin;
+   }
+
+   private loadAuthenticationProviders(): void {
+      this.http.get<SecurityProviderStatusList>("../api/em/security/configured-authentication-providers")
+         .pipe(
+            map((list: SecurityProviderStatusList) => list.providers.map(p => p.name))
+         )
+         .subscribe((providers: string[]) => {
+            this.authenticationProviders = providers;
+
+            if(providers && providers.length > 0) {
+               const provider = this.provider;
+
+               if(provider == null && !this.isSystemAdmin()) {
+                  this.http.get<SecurityProviderStatus>("../api/em/security/get-current-authentication-provider")
+                     .subscribe(securityProvider => {
+                        let currprovider = securityProvider != null ? securityProvider.name : "";
+
+                        if(providers.includes(currprovider)) {
+                           this.refresh(currprovider, false);
+                        }
+                        else {
+                           this.refresh(providers[0], false);
+                        }
+                     });
+               }
+               else {
+                  if(!provider) {
+                     this.refresh(providers[0], false);
+                  }
+                  else if(providers.includes(provider)) {
+                     this.refresh(provider, false);
+                  }
+                  else {
+                     this.refresh(providers[0], true);
+                  }
+               }
+            }
+         });
    }
 
    public get onRefresh(): Subject<any> {
       return this.refreshSubject;
+   }
+
+   refreshProviders(): void {
+      this.loadAuthenticationProviders();
    }
 
    public refresh(provider?: string, providerChanged?: boolean) {

@@ -23,6 +23,7 @@ import inetsoft.util.Tool;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -48,17 +49,23 @@ public class AssetHyperlinkDependencyTransformer extends AssetDependencyTransfor
 
       for(int i = 0; i < list.getLength(); i++) {
          replaceAttribute((Element) list.item(i), "Link", oname, nname, true);
+         replaceAttribute((Element) list.item(i), "BookmarkName", oname, nname, true);
       }
    }
 
-   protected void renameAutoDrills(Element relem, List<RenameInfo> rinfos) {
+   protected RenameDependencyInfo renameAutoDrills(Element relem, List<RenameInfo> rinfos) {
+      boolean autoDrillChanged = false;
+
       for(RenameInfo rinfo : rinfos) {
-         renameAutoDrill(relem, rinfo);
+         autoDrillChanged |= renameAutoDrill(relem, rinfo);
       }
+
+      return autoDrillChanged ? createRenameDependency(asset.toIdentifier(), new ArrayList<>()) : null;
    }
 
-   protected void renameAutoDrill(Element relem, RenameInfo rinfo) {
+   protected boolean renameAutoDrill(Element relem, RenameInfo rinfo) {
       NodeList list = getChildNodes(relem, ".//XDrillInfo/drillPath");
+      boolean autoDrillChanged = false;
 
       for(int i = 0; i < list.getLength(); i++) {
          Element elem = (Element) list.item(i);
@@ -67,8 +74,10 @@ public class AssetHyperlinkDependencyTransformer extends AssetDependencyTransfor
          String nname = rinfo.getNewName();
 
          if((Hyperlink.VIEWSHEET_LINK + "").equals(Tool.getAttribute(elem, "linkType"))) {
-            replaceAttribute(elem, "link", oname, nname, true);
+            autoDrillChanged |= replaceAttribute(elem, "link", oname, nname, true);
          }
       }
+
+      return autoDrillChanged;
    }
 }

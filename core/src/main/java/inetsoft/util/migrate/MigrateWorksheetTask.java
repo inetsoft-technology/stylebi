@@ -18,6 +18,7 @@
 
 package inetsoft.util.migrate;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.util.AbstractIdentity;
@@ -29,8 +30,18 @@ public class MigrateWorksheetTask extends MigrateDocumentTask {
       super(entry, oOrg, nOrg);
    }
 
+   public MigrateWorksheetTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg,
+                               Document document)
+   {
+      super(entry, oOrg, nOrg, document);
+   }
+
    public MigrateWorksheetTask(AssetEntry entry, String oname, String nname) {
       super(entry, oname, nname);
+   }
+
+   public MigrateWorksheetTask(AssetEntry entry, String oname, String nname, Organization currOrg) {
+      super(entry, oname, nname, currOrg);
    }
 
    @Override
@@ -46,8 +57,19 @@ public class MigrateWorksheetTask extends MigrateDocumentTask {
             continue;
          }
 
-         String newSource = source == null ? null : AssetEntry.createAssetEntry(source)
-            .cloneAssetEntry((Organization) getNewOrganization()).toIdentifier(true);
+         String newSource = null;
+
+         if(source != null) {
+            if(getNewOrganization() instanceof Organization &&
+               !Tool.equals(getOldOrganization(), getNewOrganization()))
+            {
+               newSource = AssetEntry.createAssetEntry(source)
+                  .cloneAssetEntry((Organization) getNewOrganization()).toIdentifier(true);
+            }
+            else if(Tool.equals(getOldOrganization(), getNewOrganization())) {
+               newSource = getNewSource(source);
+            }
+         }
 
          mirror.setAttribute("source", newSource);
          updateAssetDependency(mirror);
@@ -99,11 +121,36 @@ public class MigrateWorksheetTask extends MigrateDocumentTask {
       for(int i = 0; i < list.getLength(); i++) {
          Element dependency = (Element) list.item(i);
          String value = Tool.getValue(dependency);
+         AbstractIdentity newOrg = getNewOrganization();
+         AbstractIdentity oldOrg = getOldOrganization();
 
-         if(getNewOrganization() instanceof Organization) {
+         if(newOrg instanceof Organization && !Tool.equals(newOrg, oldOrg)) {
             replaceElementCDATANode(dependency, AssetEntry.createAssetEntry(value)
-               .cloneAssetEntry((Organization) getNewOrganization()).toIdentifier(true));
+               .cloneAssetEntry((Organization) newOrg).toIdentifier(true));
+         }
+         else if(Tool.equals(newOrg, oldOrg)) {
+            replaceElementCDATANode(dependency, getNewSource(value));
          }
       }
+   }
+
+   private String getNewSource(String oldSource) {
+      if(Tool.isEmptyString(oldSource)) {
+         return oldSource;
+      }
+
+      AssetEntry assetEntry = AssetEntry.createAssetEntry(oldSource);
+
+      if(assetEntry == null) {
+         return oldSource;
+      }
+
+      IdentityID user = assetEntry.getUser();
+
+      if(user != null && Tool.equals(user.getName(), getOldName())) {
+         user.setName(getNewName());
+      }
+
+      return assetEntry.toIdentifier(true);
    }
 }

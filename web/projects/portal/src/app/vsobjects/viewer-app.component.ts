@@ -1399,7 +1399,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                         }
 
                         if(csvConfig.quote) {
-                           url += "&quote=" + csvConfig.quote;
+                           const quote = encodeURIComponent(csvConfig.quote);
+                           url += "&quote=" + quote;
                         }
 
                         if(csvConfig.selectedAssemblies &&
@@ -1750,6 +1751,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          .then((buttonClicked) => {
             if(buttonClicked === "yes") {
                this.sendBookmarkEvent("delete", bookmark);
+
+               if(bookmark.currentBookmark) {
+                  let home = this.vsBookmarkList
+                     .find(bk => this.isBookmarkHome(bk.name));
+
+                  if(home != null) {
+                     this.gotoBookmark(home);
+                  }
+               }
             }
          });
    }

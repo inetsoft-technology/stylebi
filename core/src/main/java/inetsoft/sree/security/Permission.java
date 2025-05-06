@@ -145,6 +145,10 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       return getGrants(action, Identity.ROLE);
    }
 
+   public Set<PermissionIdentity> getRoleGrants(ResourceAction action, String orgID) {
+      return getGrants(action, Identity.ROLE, orgID);
+   }
+
    public Set<PermissionIdentity> getAllRoleGrants(ResourceAction action) {
       return getGrants(action, Identity.ROLE, null);
    }
@@ -719,35 +723,31 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    }
 
    /**
-    * Check if a permission setting is blank.
+    * Check if a permission setting is blank. This is system wide
     */
    public boolean isBlank() {
-      for(Set<PermissionIdentity> identities : userGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : roleGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : groupGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      for(Set<PermissionIdentity> identities : organizationGrants.values()) {
-         if(!identities.isEmpty()) {
-            return false;
-         }
-      }
-
-      return true;
+      return isBlank(userGrants) && isBlank(roleGrants) &&
+             isBlank(groupGrants) && isBlank(organizationGrants);
    }
+
+   private boolean isBlank(Map<ResourceAction, Set<PermissionIdentity>> grants) {
+      return grants.values().stream().allMatch(Set::isEmpty);
+   }
+
+   /**
+    * Check if a permission setting is blank for a specific organization.
+    */
+   public boolean isBlank(String orgId) {
+      return isBlank(userGrants, orgId) && isBlank(roleGrants, orgId) &&
+             isBlank(groupGrants, orgId) && isBlank(organizationGrants, orgId);
+   }
+
+   private boolean isBlank(Map<ResourceAction, Set<PermissionIdentity>> grants, String orgId) {
+      return grants.values().stream()
+         .flatMap(Set::stream)
+         .noneMatch(identity -> orgId.equals(identity.getOrganizationID()));
+   }
+
 
    /**
     * Return true if any grants in this permission are under the given organization
@@ -756,16 +756,16 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     * @return boolean value, true if any grant under the given orgId exists
     */
    public boolean isOrgInPerm(ResourceAction action, String orgId) {
-      return getUserGrants(action).stream()
+      return getAllUserGrants(action).stream()
                .map(pid -> pid.organizationID)
                .anyMatch(o -> o.equals(orgId)) ||
-             getGroupGrants(action).stream()
+             getAllGroupGrants(action).stream()
                 .map(pid -> pid.organizationID)
                 .anyMatch(o -> o.equals(orgId)) ||
-             getRoleGrants(action).stream()
+             getAllRoleGrants(action).stream()
                 .map(pid -> pid.organizationID)
                 .anyMatch(o -> o != null && o.equals(orgId)) ||
-             getOrganizationGrants(action).stream()
+             getAllOrganizationGrants(action).stream()
                 .map(pid -> pid.organizationID)
                 .anyMatch(o -> o.equals(orgId));
    }
@@ -1035,6 +1035,62 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       return Objects.hash(userGrants, roleGrants, groupGrants, organizationGrants);
    }
 
+   /**
+    * Isolate permission by organization id for old storage.
+    */
+   public Map<String, Permission> splitPermissionForOrg() {
+      Map<String, Permission> permissionMap = new HashMap<>();
+      splitPermissionForOrg(permissionMap, Identity.USER, userGrants);
+      splitPermissionForOrg(permissionMap, Identity.ROLE, roleGrants);
+      splitPermissionForOrg(permissionMap, Identity.GROUP, groupGrants);
+      splitPermissionForOrg(permissionMap, Identity.ORGANIZATION, organizationGrants);
+      return permissionMap;
+   }
+
+   private void splitPermissionForOrg(Map<String, Permission> permissionMap, int identityType,
+                                      Map<ResourceAction, Set<PermissionIdentity>> grants)
+   {
+      Map<String, Map<ResourceAction, Set<PermissionIdentity>>> userMap = splitByOrganizationId(grants);
+
+      for(Map.Entry<String, Map<ResourceAction, Set<PermissionIdentity>>> entry : userMap.entrySet()) {
+         String orgID = entry.getKey();
+         Permission permission = permissionMap.computeIfAbsent(orgID, p -> new Permission());
+
+         switch(identityType) {
+            case Identity.USER -> permission.userGrants = entry.getValue();
+            case Identity.ROLE -> permission.roleGrants = entry.getValue();
+            case Identity.GROUP -> permission.groupGrants = entry.getValue();
+            case Identity.ORGANIZATION -> permission.organizationGrants = entry.getValue();
+         };
+      }
+   }
+
+   private Map<String, Map<ResourceAction, Set<PermissionIdentity>>> splitByOrganizationId(
+      Map<ResourceAction, Set<PermissionIdentity>> grants)
+   {
+      Map<String, Map<ResourceAction, Set<PermissionIdentity>>> result = new HashMap<>();
+
+      for(Map.Entry<ResourceAction, Set<PermissionIdentity>> entry : grants.entrySet()) {
+         ResourceAction action = entry.getKey();
+         Set<PermissionIdentity> identities = entry.getValue();
+
+         Map<String, Set<PermissionIdentity>> groupedById = identities.stream()
+            .collect(Collectors.groupingBy(
+               identity -> identity.getOrganizationID() == null ? "null" : identity.getOrganizationID(),
+               Collectors.toSet()
+            ));
+
+         for(Map.Entry<String, Set<PermissionIdentity>> groupEntry : groupedById.entrySet()) {
+            String orgId = groupEntry.getKey();
+            Set<PermissionIdentity> orgIdentities = groupEntry.getValue();
+            result.computeIfAbsent(orgId, k -> new EnumMap<>(ResourceAction.class))
+               .put(action, orgIdentities);
+         }
+      }
+
+      return result;
+   }
+
    private Map<ResourceAction, Set<PermissionIdentity>> userGrants = new EnumMap<>(ResourceAction.class);
    private Map<ResourceAction, Set<PermissionIdentity>> roleGrants = new EnumMap<>(ResourceAction.class);
    private Map<ResourceAction, Set<PermissionIdentity>> groupGrants = new EnumMap<>(ResourceAction.class);
@@ -1046,6 +1102,11 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    public static class PermissionIdentity implements Serializable {
       private final String name;
       private final String organizationID;
+
+      public PermissionIdentity(IdentityID identityID) {
+         this.name = identityID == null ? null : identityID.getName();
+         this.organizationID = identityID == null ? null : identityID.getOrgID();
+      }
 
       public PermissionIdentity(String name, String organization) {
          this.name = name;

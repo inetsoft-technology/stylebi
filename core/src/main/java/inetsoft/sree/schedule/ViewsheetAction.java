@@ -40,8 +40,10 @@ import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.Mailer;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
@@ -735,8 +737,9 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          bookmarks = Arrays.stream(bookmarks).filter(b -> {
             for(int i = 0; i < bookmarkNames.length; i++) {
                if(Tool.equals(bookmarkNames[i], b.getName()) &&
-                  Tool.equals(bookmarkUsers[i], b.getOwner()) &&
-                  Tool.equals(bookmarkTypes[i], b.getType()))
+                  Tool.equals(bookmarkTypes[i], b.getType()) &&
+                  (Tool.equals(bookmarkUsers[i], b.getOwner()) ||
+                     VSBookmark.HOME_BOOKMARK.equals(b.getName())))
                {
                   return true;
                }
@@ -1268,6 +1271,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
 
       for(int i = 0; i < bookmarks.length; i ++) {
          String bookmarkName = bookmarks[i].getName();
+         String orgID = null;
 
          // ignore bookmarks that didn't pass the highlight condition
          if(alertTriggeredBookmarks != null && !alertTriggeredBookmarks.contains(bookmarkName)) {
@@ -1278,9 +1282,13 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             bookmarkName += "(" + bookmarks[i].getOwner().getName() + ")";
          }
 
+         if(bookmarks[i].getOwner() != null) {
+            orgID = bookmarks[i].getOwner().getOrgID();
+         }
+
          setScheduleParameters(variableTable);
          ViewsheetSandbox box = new ViewsheetSandbox(
-            rvs.getOriginalBookmark(bookmarkName), vmode, principal, false,
+            rvs.getOriginalBookmark(bookmarkName, orgID), vmode, principal, false,
             rvs.getEntry());
          AssetQuerySandbox assetQuerySandbox = box.getAssetQuerySandbox();
 
@@ -1374,6 +1382,11 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       }
 
       url.append(entry.getPath());
+
+      //append organization
+      if(SUtil.isMultiTenant()) {
+         url.append("^" + OrganizationManager.getInstance().getCurrentOrgID(principal));
+      }
 
       return url.toString();
    }

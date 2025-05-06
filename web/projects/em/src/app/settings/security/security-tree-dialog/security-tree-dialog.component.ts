@@ -60,6 +60,10 @@ export class SecurityTreeDialogComponent implements OnInit {
          params = params.set("hideOrgAdminRole", this.dialogData.hideOrgAdminRole);
       }
 
+      if(this.dialogData && this.dialogData.isTimeRange) {
+         params = params.set("isTimeRange", this.dialogData.isTimeRange);
+      }
+
       return this.http.get<SecurityTreeRootModel>("../api/em/settings/content/resource-tree",
          { params: params })
          .pipe(

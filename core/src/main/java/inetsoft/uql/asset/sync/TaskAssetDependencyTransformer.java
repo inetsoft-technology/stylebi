@@ -223,7 +223,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
 
          Element user = getChildNode(item, "user");
 
-         if(!Tool.equals(ouser, Tool.getValue(user))) {
+         if(!Tool.equals(ouser == null ? null : ouser.convertToKey(), Tool.getValue(user))) {
             continue;
          }
 
@@ -238,7 +238,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
    }
 
    private void renameBatchUpQueryParameters(Element doc, RenameInfo info) {
-      if(info.isWorksheet()) {
+      if(info.isWorksheet() && !info.isTable() && !info.isColumn()) {
          NodeList actions = getChildNodes(doc, "//Task/Action");
 
          for(int i = 0; i < actions.getLength(); i++) {
@@ -353,7 +353,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
                replaceCDATANode(item, value.replace(info.getOldName(), info.getNewName()));
             }
             else if(Tool.equals(value, info.getOldName())) {
-               replaceCDATANode(item, info.alias ? info.getNewName() : newColName2);
+               replaceCDATANode(item, info.alias || newColName2 == null ? info.getNewName() : newColName2);
             }
             else if(Tool.equals(value, oldColName2)) {
                replaceCDATANode(item, newColName2);
@@ -390,7 +390,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       else if(info.isQuery()) {
          type = XQueryAsset.XQUERY;
       }
-      else if(info.isDataSource()) {
+      else if(info.isDataSource() || info.isDataSourceFolder()) {
          type = XDataSourceAsset.XDATASOURCE;
       }
       else if(info.isWorksheet()) {
@@ -467,6 +467,10 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
             newPath = newPath.substring(Assembly.CUBE_VS.length());
          }
       }
+      else if(info.isDataSourceFolder()) {
+         path = info.getOldName();
+         newPath = info.getNewName();
+      }
       else {
          try {
             AssetEntry oldEntry = AssetEntry.createAssetEntry(info.getOldName());
@@ -480,19 +484,20 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          }
       }
 
-      String assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s' and @user='%s']";
-      assetExpression = String.format(assetExpression, type, Tool.byteEncode2(path),
-         user == null ? "" : user.convertToKey());
-
-      if(info.isTask()) {
-         assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s']";
-         assetExpression = String.format(assetExpression, type, Tool.byteEncode2(path));
-      }
+      String assetExpression = getAssetExpression(path, type, user, info);
 
       NodeList dependings = getChildNodes(doc, assetExpression);
 
       if(dependings == null) {
          return;
+      }
+
+      //newly created logical model might not contain splitter, try without
+      if(dependings.getLength() == 0 && info.isLogicalModel() && path.contains(XUtil.DATAMODEL_FOLDER_SPLITER)) {
+         path = path.replace(XUtil.DATAMODEL_FOLDER_SPLITER, "^");
+
+         assetExpression = getAssetExpression(path, type, user, info);
+         dependings = getChildNodes(doc, assetExpression);
       }
 
       for(int i = 0; i < dependings.getLength(); i++) {
@@ -508,6 +513,19 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
             item.setAttribute("user", newUser == null ? "" : newUser.convertToKey());
          }
       }
+   }
+
+   private String getAssetExpression(String path, String type, IdentityID user, RenameInfo info) {
+      String assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s' and @user='%s']";
+      assetExpression = String.format(assetExpression, type, Tool.byteEncode2(path),
+                                      user == null ? "" : user.convertToKey());
+
+      if(info.isTask()) {
+         assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s']";
+         assetExpression = String.format(assetExpression, type, Tool.byteEncode2(path));
+      }
+
+      return assetExpression;
    }
 
    private String convertVpmPathToAssetPath(String path) {

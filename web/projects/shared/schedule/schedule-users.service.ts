@@ -69,6 +69,7 @@ export class ScheduleUsersService implements OnDestroy {
                this.groups.next(usersModel.groups);
                this.emailGroups.next(usersModel.emailGroups);
                this.emailUsers.next(usersModel.emailUsers);
+
                this.adminName.next((usersModel.adminName));
             },
             () => {},

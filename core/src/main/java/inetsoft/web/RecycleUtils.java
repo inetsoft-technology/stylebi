@@ -680,7 +680,7 @@ public final class RecycleUtils {
          repository.addFolder(parent, principal);
 
          if(parent.isRepositoryFolder()) {
-            registry.addFolder(parent.getPath(), null);
+            registry.addFolder(parent.getPath());
          }
 
          parent = parent.getParent();

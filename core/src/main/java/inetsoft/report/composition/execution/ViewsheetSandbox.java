@@ -742,7 +742,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @return the sandbox of the specified sub viewsheet.
     */
    public ViewsheetSandbox getSandbox(String name) {
-      if(root != this) {
+      if(root != this && root.getViewsheet().getAssembly(name) != null) {
          return root.getSandbox(name);
       }
 
@@ -1546,7 +1546,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
                //  If the assembly script was executed earlier before the viewsheet's onInit
                //  do not execute it again
-               if(!(info.isScriptEnabled() && info.getScript() != null &&
+               if(!(info instanceof ViewsheetVSAssemblyInfo) || !(info.isScriptEnabled() && info.getScript() != null &&
                   info.getScript().contains("thisParameter")))
                {
                   executeView(entry.getName(), false, initing);
@@ -6202,7 +6202,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
          }
 
-         if(pair == null || !pair.isCompleted() && pair.isCancelled()) {
+         Principal principal = ThreadContext.getContextPrincipal();
+         XPrincipal xprincipal = principal == null ? null : (XPrincipal) principal;
+
+         if(pair == null || !pair.isCompleted() && pair.isCancelled() ||
+            // init to throw CheckMissingMVEvent to make sure client display progress bar to
+            // wait for mv insteadof always loading becauseof an empty graph.
+            init && MVManager.getManager().isPending(getAssetEntry(), xprincipal))
+         {
             pair = new VGraphPair();
             needInit = true;
             pairs.put(name, pair);

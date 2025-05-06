@@ -2033,6 +2033,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          nstorage.putXMLSerializable(npidentifier, npfolder);
       }
 
+      updatePermission(oentry, nentry);
       changed.put(oentry, nentry);
 
       AssetEntry[] entries = ofolder.getEntries();
@@ -2100,6 +2101,23 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       fireEvent(oentry.getType().id(), AssetChangeEvent.ASSET_RENAMED, nentry,
          oentry.toIdentifier(), root, null, "changeFolder: " + oentry + ", " + nentry);
+   }
+
+   private void updatePermission(AssetEntry oentry, AssetEntry nentry) {
+      if(oentry == null || nentry == null) {
+         return;
+      }
+
+      SecurityEngine securityEngine = SecurityEngine.getSecurity();
+      ResourceType type = getAssetResourceType(oentry);
+      Permission oldPermission = securityEngine.getPermission(type, oentry.getPath());
+
+      if(oldPermission == null) {
+         return;
+      }
+
+      securityEngine.removePermission(type, oentry.getPath());
+      securityEngine.setPermission(type, nentry.getPath(), oldPermission);
    }
 
    /**
@@ -2358,7 +2376,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       try {
          if(permission && !"true".equals(entry.getProperty("openAutoSaved"))) {
-            checkAssetPermission(user, entry, ResourceAction.READ);
+            checkAssetPermission(user, entry, ResourceAction.READ, true);
          }
 
          long modified = istore.lastModified();
@@ -3114,12 +3132,17 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       changeSheetDependents(sheet, oentry, nentry);
 
-      clearCache(oentry);
-      clearCache(nentry);
-
       if(oentry.getType() == AssetEntry.Type.VIEWSHEET) {
          renameVSBookmark(oentry, nentry);
       }
+
+      //remove oidentifier last, otherwise dependencies might rewrite it
+      if(!Objects.equals(oidentifier, nidentifier)) {
+         ostorage.remove(oidentifier);
+      }
+
+      clearCache(oentry);
+      clearCache(nentry);
 
       if(callFireEvent) {
          fireEvent(sheet.getType(), AssetChangeEvent.ASSET_RENAMED, nentry,
@@ -3368,19 +3391,27 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       return new AssetFolder();
    }
 
+   @Override
+   public void checkAssetPermission(Principal principal, AssetEntry entry, ResourceAction action)
+      throws Exception
+   {
+      checkAssetPermission(principal, entry, action, false);
+   }
+
    /**
     * {@inheritDoc}
     */
    @Override
    public void checkAssetPermission(Principal principal,
-                                    AssetEntry entry, ResourceAction permission)
+                                    AssetEntry entry, ResourceAction permission,
+                                    boolean checkUserAsset)
       throws Exception
    {
       if(IGNORE_PERM.get() != null && IGNORE_PERM.get()) {
          return;
       }
 
-      if(!checkAssetPermission0(principal, entry, permission)) {
+      if(!checkAssetPermission0(principal, entry, permission, checkUserAsset)) {
          switch(permission) {
          case READ:
             throw new MessageException(catalog.getString(
@@ -3453,6 +3484,22 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    private boolean checkAssetPermission0(Principal user, AssetEntry entry,
                                          ResourceAction permission) throws Exception
    {
+      return checkAssetPermission0(user, entry, permission, false);
+   }
+
+   /**
+    * Check asset permission internally.
+    *
+    * @param user       the specified user.
+    * @param entry      the specified asset entry.
+    * @param permission the specified permission.
+    * @param checkUserAsset if check user private asset permission.
+    * @return <tt>true</tt> if passed, <tt>false</tt> otherwise.
+    */
+   private boolean checkAssetPermission0(Principal user, AssetEntry entry,
+                                         ResourceAction permission, boolean checkUserAsset)
+      throws Exception
+   {
       if(IGNORE_PERM.get() != null && IGNORE_PERM.get()) {
          return true;
       }
@@ -3471,7 +3518,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       //reject if non site admin accessing another's private repo
-      if(!OrganizationManager.getInstance().isSiteAdmin(user) && user != null &&
+      if(checkUserAsset && !OrganizationManager.getInstance().isSiteAdmin(user) && user != null &&
          entry.getScope() == AssetRepository.USER_SCOPE &&
          !(user.getName().equals(entry.getUser().convertToKey())) )
       {

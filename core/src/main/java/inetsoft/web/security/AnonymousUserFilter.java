@@ -21,10 +21,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.ClientInfo;
-import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.web.portal.controller.SessionErrorController;
 import jakarta.servlet.*;
@@ -49,7 +47,11 @@ public class AnonymousUserFilter extends AbstractSecurityFilter {
       if(!isPublicResource(httpRequest) && !isPublicApi(httpRequest)) {
          Principal reqPrincipal = SUtil.getPrincipal(httpRequest, true);
 
-         if(reqPrincipal == null && !isPageRequested("/vs-events/**", httpRequest)) {
+         if(reqPrincipal == null) {
+            if(isPageRequested("/vs-events/**", httpRequest)) {
+               return;
+            }
+
             try {
                SRPrincipal principal = authenticateAnonymous(request);
 

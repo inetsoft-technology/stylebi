@@ -3703,7 +3703,7 @@ public final class VSUtil {
       String name = ref.getName();
 
       // added for donut/histogram chart which created in vs wizard.
-      return ref instanceof CalculateRef && name != null &&
+      return (ref instanceof CalculateRef || ref instanceof AttributeRef) && name != null &&
          (name.startsWith("Total@") || name.startsWith("Range@"));
    }
 
@@ -4470,7 +4470,7 @@ public final class VSUtil {
    /**
     * Add data ref from condition list.
     */
-   public static void addConditionListRef(ConditionList conlist,
+   public static void addConditionListRef(ConditionListWrapper conlist,
                                           List<DataRef> datarefs)
    {
       if(conlist != null) {
@@ -8669,9 +8669,11 @@ public final class VSUtil {
       ViewsheetService service = SingletonManager.getInstance(ViewsheetService.class);
 
       try {
-         RuntimeViewsheet runtimeSheet = service.getViewsheet(sheetRuntimeId, principal);
+         RuntimeSheet runtimeSheet = service.getSheet(sheetRuntimeId, principal);
 
-         if(runtimeSheet == null || runtimeSheet.getEntry() == null) {
+         if(runtimeSheet == null || runtimeSheet.getEntry() == null ||
+            !(runtimeSheet instanceof RuntimeViewsheet))
+         {
             return false;
          }
 
@@ -8683,6 +8685,9 @@ public final class VSUtil {
          {
             return true;
          }
+      }
+      catch(ExpiredSheetException ignored) {
+         // no-op
       }
       catch(Exception ignored) {
          LOG.warn("Can't get runtime viewsheet by id: " + sheetRuntimeId);

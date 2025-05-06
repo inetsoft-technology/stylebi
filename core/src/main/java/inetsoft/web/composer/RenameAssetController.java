@@ -22,19 +22,17 @@ import inetsoft.report.LibManager;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.StyleTreeModel;
-import inetsoft.report.internal.Util;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.composer.model.RenameAssetEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -142,7 +140,7 @@ public class RenameAssetController {
                  AssetUtil.getLibraryAssetType(entry) : ResourceType.ASSET;
          String oldPath = AssetUtil.isLibraryType(entry) ?
                  AssetUtil.getLibraryPermissionPath(entry, resourceType) : entry.getPath();
-
+         oldPath = ResourcePermissionService.getPermissionResourcePath(oldPath, resourceType, entry.isTableStyleFolder());
          Permission oldPermission = securityProvider.getPermission(resourceType, oldPath);
 
          if(reAlias) {
@@ -168,7 +166,6 @@ public class RenameAssetController {
             String folder = entry.getProperty("folder");
             String newName = Tool.isEmptyString(folder) ? name : folder + LibManager.SEPARATOR + name;
             String oid = entry.getProperty("styleID");
-            updatePermission(resourceType, oldPath, newName, oldPermission);
             manager.renameTableStyle(oname, newName, oid);
             manager.save();
          }
@@ -176,7 +173,6 @@ public class RenameAssetController {
             String oname = entry.getProperty("folder");
             String pname = StyleTreeModel.getParentPath(oname);
             String newPath = pname == null ? nentry.getName() : pname + StyleTreeModel.SEPARATOR + nentry.getName();
-            updatePermission(resourceType, oldPath, newPath, oldPermission);
             renameTableStyleFolder(oname, newPath, manager);
             manager.save();
          }

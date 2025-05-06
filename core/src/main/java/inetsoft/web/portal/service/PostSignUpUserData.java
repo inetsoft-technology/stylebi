@@ -20,8 +20,11 @@ package inetsoft.web.portal.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
+import jakarta.servlet.http.Cookie;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
@@ -29,10 +32,11 @@ import java.util.*;
 
 public class PostSignUpUserData {
 
-   public PostSignUpUserData(String email, String firstName, String lastName) {
+   public PostSignUpUserData(String email, String firstName, String lastName, String cookies) {
       this.email = email;
       this.firstName = firstName;
       this.lastName = lastName;
+      this.cookies = cookies;
    }
 
    public void sendUserData() {
@@ -91,11 +95,20 @@ public class PostSignUpUserData {
 
    private String parseUserData() {
       ObjectMapper objectMapper = new ObjectMapper();
-      Map<String, String> userData = new HashMap<>();
+      Map<String, Object> userData = new HashMap<>();
 
       userData.put("email", getEmail());
       userData.put("firstName", getFirstName());
       userData.put("lastName", getLastName());
+
+      if(getCookies() != null) {
+         try {
+            userData.put("cookies", objectMapper.readTree(getCookies()));
+         }
+         catch (IOException e) {
+            // Ignore cookies
+         }
+      }
 
       try {
          return objectMapper.writeValueAsString(userData);
@@ -129,9 +142,18 @@ public class PostSignUpUserData {
       this.lastName = lastName;
    }
 
+   public String getCookies() {
+      return cookies;
+   }
+
+   public void setCookies(String cookies) {
+      this.cookies = cookies;
+   }
+
    private String email = "";
    private String firstName = "";
    private String lastName = "";
+   private String cookies = null;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(PostSignUpUserData.class);

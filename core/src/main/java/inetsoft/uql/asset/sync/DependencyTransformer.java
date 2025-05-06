@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.asset.sync;
 
+import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
@@ -269,7 +270,7 @@ public abstract class DependencyTransformer {
    public static RenameDependencyInfo createCubeDependencyInfo(String oldSourceName,
                                                                String newSourceName)
    {
-      String id = getAssetId(oldSourceName, AssetEntry.Type.DATA_SOURCE);
+      String id = getAssetId(oldSourceName, AssetEntry.Type.DATA_SOURCE, null);
       oldSourceName = Assembly.CUBE_VS + oldSourceName;
       newSourceName = Assembly.CUBE_VS + newSourceName;
       List<RenameInfo> tinfos = new ArrayList<>();
@@ -707,8 +708,8 @@ public abstract class DependencyTransformer {
 
    // For dependency storage should using asset entry's idenfifier as key, so create one key
    // for query and model name.
-   public static String getAssetId(String name, AssetEntry.Type type) {
-      return DependencyHandler.getAssetId(name, type);
+   public static String getAssetId(String name, AssetEntry.Type type, String organizationId) {
+      return DependencyHandler.getAssetId(name, type, AssetRepository.GLOBAL_SCOPE, organizationId);
    }
 
    public static String getTabularAssetId(String name) {
@@ -851,11 +852,12 @@ public abstract class DependencyTransformer {
 
    protected static String getKey(RenameInfo info, boolean old) {
       String name = old ? info.getOldName() : info.getNewName();
+      String organizationId = info.getOrganizationId();
 
       if(info.isCube() && name != null && name.startsWith(Assembly.CUBE_VS)) {
          name = name.substring(Assembly.CUBE_VS.length());
 
-         return getAssetId(name, AssetEntry.Type.DATA_SOURCE);
+         return getAssetId(name, AssetEntry.Type.DATA_SOURCE, organizationId);
       }
 
       if(info.isWorksheet()) {
@@ -863,11 +865,11 @@ public abstract class DependencyTransformer {
       }
 
       if(info.isTask()) {
-         return getAssetId("/" + name, AssetEntry.Type.SCHEDULE_TASK);
+         return getAssetId("/" + name, AssetEntry.Type.SCHEDULE_TASK, organizationId);
       }
 
       if(info.isQuery() && info.isFolder()) {
-         return getAssetId(info.getSource(), AssetEntry.Type.QUERY);
+         return getAssetId(info.getSource(), AssetEntry.Type.QUERY, organizationId);
       }
 
       if(info.isTabularSource()) {
@@ -876,37 +878,38 @@ public abstract class DependencyTransformer {
 
       if(info.isLogicalModel()) {
          if(info.isSource()) {
-            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.LOGIC_MODEL);
+            name = name.replace("^", "/");
+            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.LOGIC_MODEL, organizationId);
          }
          else if(info.isDataSource() || info.isDataSourceFolder()) {
-            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.LOGIC_MODEL);
+            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.LOGIC_MODEL, organizationId);
          }
       }
 
       if(info.isPhysicalTable()) {
          if(info.isSource()) {
-            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.DATA_SOURCE);
+            return getAssetId(getSourceUnique(info.getPrefix(), name), AssetEntry.Type.DATA_SOURCE, organizationId);
          }
          else if(info.isDataSource() || info.isDataSourceFolder()) {
-            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.DATA_SOURCE);
+            return getAssetId(getSourceUnique(name, info.getSource()), AssetEntry.Type.DATA_SOURCE, organizationId);
          }
       }
 
       if(info.isScriptFunction()) {
-         return getAssetId(name, AssetEntry.Type.SCRIPT);
+         return getAssetId(name, AssetEntry.Type.SCRIPT, organizationId);
       }
 
       if(info.isVPM()) {
-         return getAssetId(name, AssetEntry.Type.VPM);
+         return getAssetId(name, AssetEntry.Type.VPM, organizationId);
       }
 
       if(info.isSqlTable()) {
-         return getAssetId(name, AssetEntry.Type.DATA_SOURCE);
+         return getAssetId(name, AssetEntry.Type.DATA_SOURCE, organizationId);
       }
 
       if(info.isHyperlink()) {
          if(info.isReportLink()) {
-            return getAssetId(name, AssetEntry.Type.REPLET);
+            return getAssetId(name, AssetEntry.Type.REPLET, organizationId);
          }
          else {
             return name;
@@ -922,20 +925,20 @@ public abstract class DependencyTransformer {
       }
 
       if(info.isTableStyle()) {
-         return getAssetId(name, AssetEntry.Type.TABLE_STYLE);
+         return getAssetId(name, AssetEntry.Type.TABLE_STYLE, organizationId);
       }
 
       if(info.isPartition()) {
          if(Tool.isEmptyString(info.getSource()) && name != null) {
             name = name.replace("^", "/");
-            return getAssetId(name , AssetEntry.Type.PARTITION);
+            return getAssetId(name , AssetEntry.Type.PARTITION, organizationId);
          }
          else {
-            return getAssetId(name + "/" + info.getSource(), AssetEntry.Type.PARTITION);
+            return getAssetId(name + "/" + info.getSource(), AssetEntry.Type.PARTITION, organizationId);
          }
       }
 
-      return getAssetId(name, info.isQuery() ? AssetEntry.Type.QUERY : AssetEntry.Type.LOGIC_MODEL);
+      return getAssetId(name, info.isQuery() ? AssetEntry.Type.QUERY : AssetEntry.Type.LOGIC_MODEL, organizationId);
    }
 
    protected static String getOldKey(RenameInfo info) {
@@ -989,7 +992,7 @@ public abstract class DependencyTransformer {
          return true;
       }
 
-      if(info.isPartition() && info.isDataSourceFolder()) {
+      if(info.isPartition() && (info.isSource() || info.isDataSourceFolder())) {
          return true;
       }
 
@@ -1371,11 +1374,244 @@ public abstract class DependencyTransformer {
    protected Document getAssetFileDoc() throws Exception {
       try(InputStream input = new FileInputStream(getAssetFile())) {
          if(input.available() > 0) {
-            return Tool.parseXML(input, "UTF-8", false, false);
+            Document document = Tool.parseXML(input, "UTF-8", false, false);
+            Element root = getChildNode(document.getDocumentElement(), "./assembly");
+
+            if(root != null) {
+               NodeList linkList = getChildNodes(root, ".//Hyperlink");
+
+               for(int i = 0; i < linkList.getLength(); i++) {
+                  String link = Tool.getAttribute((Element) linkList.item(i), "Link");
+
+                  if(link != null) {
+                     ((Element) linkList.item(i)).setAttribute("Link",
+                        Hyperlink.handleAssetLinkOrgMismatch(link));
+                  }
+               }
+            }
+
+            NodeList dirllList = getChildNodes(document.getDocumentElement(),
+               ".//XDrillInfo/drillPath");
+
+            for(int i = 0; i < dirllList.getLength(); i++) {
+               String link = Tool.getAttribute((Element) dirllList.item(i), "link");
+               String linkType = Tool.getAttribute((Element) dirllList.item(i), "linkType");
+
+               if(link != null && (Hyperlink.VIEWSHEET_LINK + "").equals(linkType)) {
+                  ((Element) dirllList.item(i)).setAttribute("link",
+                     Hyperlink.handleAssetLinkOrgMismatch(link));
+               }
+            }
+
+            return document;
          }
       }
 
       return null;
+   }
+
+   /**
+    * Get RenameDependencyInfo for the extend models when the base model name is changed.
+    * @param model base model.
+    * @param oldBaseModelName old name of the base model.
+    * @param newBaseModelName new name of the base model.
+    *
+    * @return extend Model DependencyInfo
+    */
+   public static RenameDependencyInfo createExtendModelDependencyInfo(XLogicalModel model,
+                                                                      String oldBaseModelName,
+                                                                      String newBaseModelName,
+                                                                      RenameInfo binfo)
+   {
+      if(model == null) {
+         return null;
+      }
+
+      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
+      List<RenameInfo> rinfos = new ArrayList<>();
+      rinfos.add(binfo);
+      List<AssetObject> baseDependencies =
+         getModelDependencies(Tool.buildString(model.getDataSource(), "/", oldBaseModelName));
+
+      if(baseDependencies != null) {
+         for(AssetObject baseDependency : baseDependencies) {
+            renameDependencyInfo.addRenameInfo(baseDependency, binfo);
+         }
+      }
+
+      String[] extendModelNames = model.getLogicalModelNames();
+
+      if(extendModelNames == null) {
+         return null;
+      }
+
+      String datasource = model.getDataSource();
+
+      for(String extendModelName : extendModelNames) {
+         List<AssetObject> modelDependencies =
+            getModelDependencies(Tool.buildString(
+               model.getDataSource(), "/", oldBaseModelName, "/", extendModelName));
+
+         if(modelDependencies == null) {
+            continue;
+         }
+
+         int type = RenameInfo.LOGIC_MODEL | RenameInfo.SOURCE;
+         RenameInfo rinfo = new RenameInfo(
+            Tool.buildString(oldBaseModelName, XUtil.DATAMODEL_PATH_SPLITER, extendModelName),
+            Tool.buildString(newBaseModelName, XUtil.DATAMODEL_PATH_SPLITER, extendModelName),
+            type);
+         rinfo.setPrefix(datasource);
+         rinfo.setModelFolder(model.getFolder());
+         rinfos.add(rinfo);
+
+         for(AssetObject modelDependency : modelDependencies) {
+            renameDependencyInfo.addRenameInfo(modelDependency, rinfo);
+         }
+      }
+
+      renameDependencyInfo.setRenameInfos(rinfos);
+
+      return renameDependencyInfo;
+   }
+
+   public static RenameDependencyInfo createExtendPartitionsDependencyInfo(XPartition model,
+                                                                           RenameInfo binfo)
+   {
+      if(model == null) {
+         return null;
+      }
+
+      RenameDependencyInfo renameDependencyInfo = new RenameDependencyInfo();
+      List<RenameInfo> rinfos = new ArrayList<>();
+      rinfos.add(binfo);
+      List<AssetObject> baseDependencies =
+         getPartitionDependencies(binfo.getOldName());
+
+      if(baseDependencies != null) {
+         for(AssetObject baseDependency : baseDependencies) {
+            renameDependencyInfo.addRenameInfo(baseDependency, binfo);
+         }
+      }
+
+      String[] extendModelNames = model.getPartitionNames();
+
+      if(extendModelNames == null) {
+         return null;
+      }
+
+      for(String extendModelName : extendModelNames) {
+         List<AssetObject> modelDependencies =
+            getPartitionDependencies(Tool.buildString(binfo.getOldName(), "/", extendModelName));
+
+         if(modelDependencies == null) {
+            continue;
+         }
+
+         String nChildPath = Tool.buildString(binfo.getNewName(), XUtil.DATAMODEL_PATH_SPLITER,
+            extendModelName);
+         String oChildPath = Tool.buildString(binfo.getOldName(), XUtil.DATAMODEL_PATH_SPLITER,
+             extendModelName);
+         RenameInfo rinfo = new RenameInfo(oChildPath, nChildPath, binfo.type);
+         rinfo.setModelFolder(model.getFolder());
+         rinfos.add(rinfo);
+
+         for(AssetObject modelDependency : modelDependencies) {
+            renameDependencyInfo.addRenameInfo(modelDependency, rinfo);
+         }
+      }
+
+      renameDependencyInfo.setRenameInfos(rinfos);
+
+      return renameDependencyInfo;
+   }
+
+   /**
+    * Get RenameDependencyInfo for the extend models when the base model folder is changed.
+    * @param model base model.
+    * @param oldFolderName old folder of the base model.
+    * @param newFolderName new folder of the base model.
+    *
+    * @return extend Model DependencyInfo
+    */
+   public static RenameDependencyInfo createExtendModelDepInfoForFolderChanged(
+      RenameDependencyInfo renameDependencyInfo, XLogicalModel model, String oldFolderName,
+      String newFolderName)
+   {
+      if(model == null) {
+         return null;
+      }
+
+      String[] extendModelNames = model.getLogicalModelNames();
+
+      if(extendModelNames == null) {
+         return null;
+      }
+
+      String datasource = model.getDataSource();
+      String baseModelName = model.getName();
+      String pathSpliter = XUtil.DATAMODEL_PATH_SPLITER;
+      String folderSpliter = XUtil.DATAMODEL_FOLDER_SPLITER;
+
+      for(String extendModelName : extendModelNames) {
+         List<AssetObject> modelDependencies = getModelDependencies(
+            Tool.buildString(model.getDataSource(), "/", baseModelName, "/", extendModelName));
+
+         if(modelDependencies == null) {
+            continue;
+         }
+
+         int type = RenameInfo.LOGIC_MODEL | RenameInfo.FOLDER;
+         RenameInfo rinfo = new RenameInfo(baseModelName, baseModelName, type);
+         String oldBasePath = Tool.isEmptyString(oldFolderName) || "/".equals(oldFolderName)
+            ? Tool.buildString(pathSpliter, baseModelName)
+            : Tool.buildString(folderSpliter, oldFolderName, pathSpliter, baseModelName);
+         String newBasePath = Tool.isEmptyString(newFolderName) || "/".equals(newFolderName)
+            ? Tool.buildString(pathSpliter, baseModelName)
+            : Tool.buildString(folderSpliter, newFolderName, pathSpliter, baseModelName);
+         rinfo.setOldPath(Tool.buildString(datasource, oldBasePath, pathSpliter, extendModelName));
+         rinfo.setNewPath(Tool.buildString(datasource, newBasePath, pathSpliter, extendModelName));
+
+         for(AssetObject modelDependency : modelDependencies) {
+            renameDependencyInfo.addRenameInfo(modelDependency, rinfo);
+         }
+      }
+
+      return renameDependencyInfo;
+   }
+
+   public static void createExtendViewDepInfoForFolderChanged(
+      RenameDependencyInfo renameDependencyInfo, XPartition partition, String opath,
+      String npath, RenameInfo rinfo, String storagePath)
+   {
+      if(partition == null) {
+         return;
+      }
+
+      String[] extendViewNames = partition.getPartitionNames();
+
+      if(extendViewNames == null) {
+         return;
+      }
+
+      for(String extendViewName : extendViewNames) {
+         String nChildPath = Tool.buildString(npath, "^", extendViewName);
+         String oChildPath = Tool.buildString(opath, "^", extendViewName);
+         RenameInfo childInfo = new RenameInfo(rinfo.getOldName(), rinfo.getNewName(),
+                                               RenameInfo.PARTITION | RenameInfo.FOLDER);
+         childInfo.setNewPath(nChildPath);
+         childInfo.setOldPath(oChildPath);
+         List<AssetObject> viewDependencies =
+            getPartitionDependencies(Tool.buildString(storagePath, "/", extendViewName));
+
+         if(viewDependencies == null) {
+            continue;
+         }
+
+         for(AssetObject modelDependency : viewDependencies) {
+            renameDependencyInfo.addRenameInfo(modelDependency, childInfo);
+         }
+      }
    }
 
    private File assetFile;

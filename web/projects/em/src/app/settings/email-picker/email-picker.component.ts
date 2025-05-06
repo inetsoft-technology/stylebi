@@ -37,12 +37,12 @@ import {
 } from "@angular/forms";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
+import { ScheduleUsersService } from "../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { CheckMailInfo } from "../schedule/schedule-configuration-view/check-mail-info";
 import { IdentityId } from "../security/users/identity-id";
 import { EmailListDialogComponent } from "./email-list-dialog/email-list-dialog.component";
 import { Tool } from "../../../../../shared/util/tool";
-import { EmailListService } from "../schedule/task-action-pane/email-list.service";
 import { GuiTool } from "../../../../../portal/src/app/common/util/gui-tool";
 
 const SCHEDULE_CHECK_MAIL_URL = "../api/em/settings/schedule/check-mail";
@@ -127,8 +127,7 @@ export class EmailPickerComponent implements ControlValueAccessor, Validator, On
       return this.emailsControl.errors;
    }
 
-   constructor(private emailListService: EmailListService,
-               private dialog: MatDialog,
+   constructor(private dialog: MatDialog,
                private snackBar: MatSnackBar,
                private http: HttpClient)
    {

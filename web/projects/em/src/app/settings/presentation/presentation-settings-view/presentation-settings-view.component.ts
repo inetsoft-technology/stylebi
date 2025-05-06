@@ -17,10 +17,10 @@
  */
 import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
 import { Component, Input, ElementRef, OnDestroy, OnInit } from "@angular/core";
-import { MatDialog } from "@angular/material/dialog";
+import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
 import { ActivatedRoute } from "@angular/router";
-import { Observable, Subject, throwError } from "rxjs";
+import { Observable, of, Subject, throwError } from "rxjs";
 import { catchError, filter, map, takeUntil } from "rxjs/operators";
 import { CommonKVModel } from "../../../../../../portal/src/app/common/data/common-kv-model";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -104,7 +104,24 @@ export class PresentationSettingsViewComponent implements OnInit, OnDestroy {
          this.orgId = model.key;
          const params = new HttpParams().set("orgSettings", !this.isSysAdmin);
 
-         this.http.get<PresentationSettingsModel>("../api/em/settings/presentation/model", {params})
+         this.http.get<PresentationSettingsModel>("../api/em/settings/presentation/model", {params}).pipe(
+               catchError(error => {
+                  const orgInvalid = error.error.type === "InvalidOrgException";
+
+                  if(orgInvalid) {
+                     this.dialog.open(MessageDialog, <MatDialogConfig>{
+                        width: "350px",
+                        data: {
+                           title: "_#(js:Error)",
+                           content: error.error.message,
+                           type: MessageDialogType.ERROR
+                        }
+                     });
+                  }
+
+                  return of(null);
+               })
+            )
             .subscribe((model: PresentationSettingsModel) => {
                let offset = 0;
                this.isSysAdmin = !model.orgSettings;

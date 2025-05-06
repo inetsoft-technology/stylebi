@@ -28,6 +28,7 @@ import inetsoft.util.dep.*;
 import org.apache.commons.lang.StringUtils;
 import org.w3c.dom.*;
 
+import java.net.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,6 +39,10 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
 
    public MigrateScheduleTask(AssetEntry entry, String oname, String nname) {
       super(entry, oname, nname);
+   }
+
+   public MigrateScheduleTask(AssetEntry entry, String oname, String nname, Organization currOrg) {
+      super(entry, oname, nname, currOrg);
    }
 
    @Override
@@ -111,7 +116,8 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             continue;
          }
 
-         updateEmailTo(item);
+         updateEmailAttribute(item, "MailTo");
+         updateEmailAttribute(item, "Notify");
          String type = Tool.getAttribute(item, "type");
 
          if(type == null) {
@@ -124,6 +130,8 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             if(viewsheet != null && getNewOrganization() != null && getNewOrganization() instanceof Organization) {
                String newIdentifier = MigrateUtil.getNewIdentifier(viewsheet, (Organization) getNewOrganization());
                item.setAttribute("viewsheet", newIdentifier);
+               processLinkUrl(item, getOldOrganization().getOrganizationID(),
+                  getNewOrganization().getOrganizationID());
             }
 
             NodeList childNodes = getChildNodes(item, "./Bookmark ");
@@ -172,6 +180,40 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
                updateMVDef(element);
             }
          }
+      }
+   }
+
+   private void processLinkUrl(Element actionNode, String oldOrg, String newOrg) {
+      NodeList linkURI = getChildNodes(actionNode, "LinkURI");
+
+      if(linkURI == null || linkURI.getLength() == 0) {
+         return;
+      }
+
+      Element linkNode = (Element) linkURI.item(0);
+      String value = linkNode.getAttribute("uri");
+
+      if(Tool.isEmptyString(value)) {
+         return;
+      }
+
+      try {
+         URI originalUri = URI.create(value);
+         String newHost = originalUri.getHost().replace(oldOrg + ".", newOrg + ".");
+
+         URI newUri = new URI(
+            originalUri.getScheme(),
+            originalUri.getUserInfo(),
+            newHost,
+            originalUri.getPort(),
+            originalUri.getPath(),
+            originalUri.getQuery(),
+            originalUri.getFragment()
+         );
+
+         linkNode.setAttribute("uri", newUri.toString());
+      }
+      catch(Exception ignore) {
       }
    }
 
@@ -262,12 +304,23 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             this.replaceElementCDATANode(queryOrg.item(0), getNewOrganization().getOrganizationID());
          }
       }
+
+      NodeList queryUser = getChildNodes(action, "./queryEntry/assetEntry/user");
+
+      if(queryUser != null && queryUser.getLength() > 0 && queryUser.item(0) != null) {
+         IdentityID user = IdentityID.getIdentityIDFromKey(Tool.getValue(queryUser.item(0)));
+
+         if(!Tool.equals(user.orgID, getOldOrganization())) {
+            user.orgID = getNewOrganization().getOrganizationID();
+            this.replaceElementCDATANode(queryUser.item(0), user.convertToKey());
+         }
+      }
    }
 
    private void syncIdentityAttribute(Element task, String attrName) {
       String user = task.getAttribute(attrName);
 
-      if(user == null) {
+      if(Tool.isEmptyString(user)) {
          return;
       }
 
@@ -275,33 +328,33 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
       String oOrgID = getOldOrganization() == null ? null : getOldOrganization().getOrganizationID();
       String nOrgID = getNewOrganization() == null ? null : getNewOrganization().getOrganizationID();
 
-      if(nOrgID == null && oOrgID == null) {
+      if(Tool.equals(oOrgID, nOrgID)) {
          if(Tool.equals(getOldName(), identityID.getName())) {
             identityID.setName(getNewName());
             task.setAttribute(attrName, identityID.convertToKey());
          }
       }
-      else if(!Tool.equals(oOrgID, nOrgID)) {
+      else {
          identityID.setOrgID(nOrgID);
          task.setAttribute(attrName, identityID.convertToKey());
       }
    }
 
-   private void updateEmailTo(Element actionNode) {
+   private void updateEmailAttribute(Element actionNode, String childNodeName) {
       if(actionNode == null) {
          return;
       }
 
-      NodeList mailTo = getChildNodes(actionNode, "./MailTo");
+      NodeList nodes = getChildNodes(actionNode, "./" + childNodeName);
 
-      for(int i = 0; mailTo != null && i < mailTo.getLength(); i++) {
-         Element mailToItem = (Element) mailTo.item(i);
+      for(int i = 0; nodes != null && i < nodes.getLength(); i++) {
+         Element item = (Element) nodes.item(i);
 
-         if(mailToItem == null) {
+         if(item == null) {
             continue;
          }
 
-         String emails = mailToItem.getAttribute("email");
+         String emails = item.getAttribute("email");
          List<String> emailList = new ArrayList<>();
 
          for(String email : emails.split("[;,]", 0)) {
@@ -309,8 +362,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             String suffix = email.endsWith(Identity.USER_SUFFIX) ? Identity.USER_SUFFIX : Identity.GROUP_SUFFIX;
 
             if(Tool.matchEmail(email) || (!email.endsWith(Identity.USER_SUFFIX) &&
-               !email.endsWith(Identity.GROUP_SUFFIX)))
-            {
+               !email.endsWith(Identity.GROUP_SUFFIX))) {
                emailList.add(email);
                continue;
             }
@@ -325,7 +377,7 @@ public class MigrateScheduleTask extends MigrateDocumentTask {
             emailList.add(getNewName() + suffix);
          }
 
-         mailToItem.setAttribute("email", String.join(",", emailList));
+         item.setAttribute("email", String.join(",", emailList));
       }
    }
 }

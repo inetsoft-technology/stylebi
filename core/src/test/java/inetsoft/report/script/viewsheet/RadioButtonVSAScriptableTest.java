@@ -76,7 +76,7 @@ public class RadioButtonVSAScriptableTest {
    }
 
    @Test
-   void tetGet() {
+   void testGet() {
       assertNull(radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
       radioButtonVSAScriptable.setCellValue("value1");
       assertEquals("value1", radioButtonVSAScriptable.get("value", radioButtonVSAScriptable));
@@ -84,7 +84,7 @@ public class RadioButtonVSAScriptableTest {
    }
 
    @Test
-   void tetHas() {
+   void testHas() {
       assertFalse(radioButtonVSAScriptable.has("property1", radioButtonVSAScriptable));
       radioButtonVSAScriptable.setCellValue("value1");
       assertTrue(radioButtonVSAScriptable.has("value", radioButtonVSAScriptable));
@@ -126,8 +126,12 @@ public class RadioButtonVSAScriptableTest {
       radioButtonVSAScriptable.setDataType("Date");
       radioButtonVSAScriptable.setValues(new Object[] { new Date(125, 1, 20), new Date(125, 2, 20) });
       Object [] values = radioButtonVSAScriptable.getValues();
-      assertEquals("[Thu Feb 20 00:00:00 CST 2025, Thu Mar 20 00:00:00 CST 2025]",
-                   Arrays.toString(Arrays.copyOf(values, values.length)));
+
+      String[] expectedDates = { "2025-02-20", "2025-03-20" };
+      String[] actualDates = Arrays.stream(values)
+         .map(obj -> simpleDateFormat.format((Date) obj))
+         .toArray(String[]::new);
+      assertArrayEquals(expectedDates, actualDates);
    }
 
    @Test

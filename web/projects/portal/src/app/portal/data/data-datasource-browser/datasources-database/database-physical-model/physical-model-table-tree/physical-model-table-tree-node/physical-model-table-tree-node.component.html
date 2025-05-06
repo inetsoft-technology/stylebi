@@ -22,7 +22,7 @@
          [class.bg-selected]="isSelected()"
          [class.disabled]="disabled"
          [class.form-check]="node.leaf"
-         (click)="selectNode()"
+         (click)="selectNode($event)"
          (dblclick)="hasChildren() ? toggleNode() : null">
       <span *ngIf="hasChildren()"
             [class.disabled]="disabled"

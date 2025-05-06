@@ -482,10 +482,11 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
 
          VSBookmark vsBookmark = new VSBookmark();
          Node userBookmark = usersList.item(i);
-         IdentityID name = IdentityID.getIdentityIDFromKey(Tool.getChildValueByTagName(userBookmark, "name"));
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(Tool.getChildValueByTagName(userBookmark, "name"));
+         identityID.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
          Element bookmark = Tool.getChildNodeByTagName(userBookmark, "bookmarks");
          vsBookmark.parseXML(bookmark);
-         engine.setVSBookmark(entry, vsBookmark, new XPrincipal(name));
+         engine.setVSBookmark(entry, vsBookmark, new XPrincipal(identityID));
       }
    }
 

@@ -3055,6 +3055,10 @@ public class AssetUtil {
                dsName = getDataModelSource(entry);
             }
 
+            if(dsName == null) {
+               dsName = entry.getParentPath(); // Logic model path is dataSourceName + "/" + modelName
+            }
+
             String path = entry.getName() + "::" + dsName;
             path += folder == null ? "" : XUtil.DATAMODEL_FOLDER_SPLITER + folder;
             resource = new Resource(ResourceType.QUERY, path);
@@ -3292,7 +3296,6 @@ public class AssetUtil {
       }
 
       ColumnIndexMap columnIndexMap = new ColumnIndexMap(table);
-      ColumnIndexMap fuzzyColumnIndexMap = new ColumnIndexMap(table, true);
 
       for(int i = 0; i < columns.getAttributeCount(); i++) {
          ColumnRef column = (ColumnRef) columns.getAttribute(i);
@@ -3304,10 +3307,10 @@ public class AssetUtil {
          int col;
 
          if(column.getEntity() == null || column.getEntity().isEmpty()) {
-            col = Util.findColumn(fuzzyColumnIndexMap, column.getAttribute());
+            col = Util.findColumn(columnIndexMap, column.getAttribute());
          }
          else {
-            col = Util.findColumn(fuzzyColumnIndexMap,
+            col = Util.findColumn(columnIndexMap,
                column.getEntity() + "." + column.getAttribute());
          }
 

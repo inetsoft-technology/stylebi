@@ -469,6 +469,10 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    }
 
    public updateChartObject(): void {
+      if(this.chartObject && (!this.chartObject.tiles || this.chartObject.tiles.length == 0)) {
+         this.fireOnLoad();
+      }
+
       const context = this.getContext();
 
       if(context) {

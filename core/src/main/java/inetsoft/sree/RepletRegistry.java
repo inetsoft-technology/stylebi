@@ -23,11 +23,12 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
+import org.w3c.dom.*;
 import org.xml.sax.Attributes;
 import org.xml.sax.helpers.DefaultHandler;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.*;
@@ -98,12 +99,16 @@ public class RepletRegistry implements Serializable {
     * Return a replet registry instance.
     */
    public static RepletRegistry getRegistry() throws Exception {
-      return getRegistry(null);
+      return getRegistry(OrganizationManager.getInstance().getCurrentOrgID());
    }
 
-   private static String getRegistryKey(String user) {
+   private static String getRegistryKey(String user, String orgID) {
       if(user == null) {
-         return GLOBAL_REPOSITORY;
+         if(orgID == null) {
+            orgID = OrganizationManager.getInstance().getCurrentOrgID();
+         }
+
+         return GLOBAL_REPOSITORY + orgID;
       }
 
       return user;
@@ -123,9 +128,43 @@ public class RepletRegistry implements Serializable {
     * the returned registry will represent the user's "My Reports"
     * folder.
     */
+   public static RepletRegistry getRegistry(String orgID) throws Exception {
+      return getRegistry(orgID, true);
+   }
+
+   /**
+    * Return a replet registry instance. If userName is not null
+    * the returned registry will represent the user's "My Reports"
+    * folder.
+    */
+   public static RepletRegistry getRegistry(String orgID, boolean create) throws Exception {
+      try {
+         String key = getRegistryKey(null, orgID);
+         ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
+
+         // @by stephenwebster, For Bug #29146
+         // During shutdown, do not re-initialize the replet registry.
+         if(!create && !registryCache.contains(key)) {
+            return null;
+         }
+
+         return SingletonManager.getInstance(RepletRegistry.class, key);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to get registry", ex);
+         throw ex;
+      }
+   }
+
+
+   /**
+    * Return a replet registry instance. If userName is not null
+    * the returned registry will represent the user's "My Reports"
+    * folder.
+    */
    public static RepletRegistry getRegistry(IdentityID userName, boolean create) throws Exception {
       try {
-         String key = getRegistryKey( userName == null ? null : userName.convertToKey());
+         String key = getRegistryKey(userName == null ? null : userName.convertToKey(), null);
          ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
 
          // @by stephenwebster, For Bug #29146
@@ -224,7 +263,7 @@ public class RepletRegistry implements Serializable {
          space.copy(oapath, napath);
       }
 
-      RepletRegistry.changeOrgID(nID, oID.getOrgID(), nID.getOrgID());
+      RepletRegistry.changeOrgID(oID, oID.getOrgID(), nID.getOrgID(), true);
    }
 
    /**
@@ -234,14 +273,39 @@ public class RepletRegistry implements Serializable {
     * @param oOrgID the orgID to change from.
     * @param nOrgID the orgID to change to.
     */
-   public static synchronized void changeOrgID(IdentityID id, String oOrgID, String nOrgID) {
+   public static synchronized void changeOrgID(IdentityID id, String oOrgID, String nOrgID, boolean clone) {
       try {
-         String registryKey = getRegistryKey(id == null ? null : id.convertToKey());
-         RepletRegistry registry = getRegistryCache().get(registryKey);
+         RepletRegistry oldRegistry;
+         RepletRegistry newRegistry;
 
-         if(registry.hasFolders(oOrgID)) {
-            registry.moveFolderMap(oOrgID, nOrgID);
-            registry.save();
+         if(id != null) {
+            oldRegistry = getRegistryCache().get(getRegistryKey(id.convertToKey(), null));
+            newRegistry = getRegistryCache().get(
+               getRegistryKey(new IdentityID(id.getName(), nOrgID).convertToKey(), null));
+         }
+         else {
+            oldRegistry = getRegistryCache().get(getRegistryKey(null, oOrgID));
+            newRegistry = getRegistryCache().get(getRegistryKey(null, nOrgID));
+         }
+
+         //Bug #70909, in the case of matching orgID, old and new are same object, updating is extraneous
+         //clearing will lose newRegistry too, so only put and clear if different objects to prevent loss of data
+         if(oldRegistry != newRegistry) {
+            Hashtable<String, String> oldFolderMap = oldRegistry.getFolderMap();
+            Hashtable<String, String> newFolderMap = newRegistry.getFolderMap();
+            newFolderMap.putAll(oldFolderMap);
+
+            Hashtable<String, FolderContext> oldFolderContextMap = oldRegistry.getFolderContextmap();
+            Hashtable<String, FolderContext> newFolderContextMap = newRegistry.getFolderContextmap();
+            newFolderContextMap.putAll(oldFolderContextMap);
+
+            if(!clone) {
+               oldFolderMap.clear();
+               oldFolderContextMap.clear();
+            }
+
+            oldRegistry.save();
+            newRegistry.save();
          }
       }
       catch(Exception ex) {
@@ -264,24 +328,118 @@ public class RepletRegistry implements Serializable {
     * admin, otherwise it may cause a synchronization problem.
     */
    public static synchronized void clear(String user) {
-      String key = getRegistryKey(user);
+      clearCacheByKey(getRegistryKey(user, null));
+   }
 
+   public static synchronized void clearOrgCache(String orgID) {
+      clearCacheByKey(getRegistryKey(null, orgID));
+   }
+
+   private static void clearCacheByKey(String cacheKey) {
       try {
-         RepletRegistry registry = getRegistryCache().remove(key);
+         RepletRegistry registry = getRegistryCache().remove(cacheKey);
 
          if(registry != null) {
             registry.dmgr.clear();
          }
       }
       catch(Exception ex) {
-         LOG.error("Failed to clear registry cache for user: " + user, ex);
+         LOG.error("Failed to clear registry cache for: " + cacheKey, ex);
       }
+   }
+
+   /**
+    * Convert the old storage file to new.
+    */
+   private static void isolateOrgRegistryFiles() {
+      if(RepletRegistry.converted) {
+         return;
+      }
+
+      synchronized(RepletRegistry.CONVERT_LOCK) {
+         if(RepletRegistry.converted) {
+            return;
+         }
+
+         String configRegistryPath = getConfigRegistryPath();
+         DataSpace space = DataSpace.getDataSpace();
+
+         if(!space.exists(null, configRegistryPath)) {
+            converted = true;
+            return;
+         }
+
+         Map<String, Document> orgDocMap = new HashMap<>();
+         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+
+         try {
+            DocumentBuilder docBuilder = factory.newDocumentBuilder();
+            Document document;
+
+            try(InputStream inputStream = space.getInputStream(null, configRegistryPath)) {
+               document = Tool.parseXML(inputStream);
+            }
+
+            if(document == null) {
+               RepletRegistry.converted = true;
+               return;
+            }
+
+            Element documentElement = document.getDocumentElement();
+            NodeList childNodes = Tool.getChildNodesByTagName(documentElement, "Replet");
+
+            for(int i = 0; i < childNodes.getLength(); i++) {
+               Node childNode = childNodes.item(i);
+
+               if(childNode instanceof Element element) {
+                  String orgID = element.getAttribute("orgID");
+
+                  if(Tool.isEmptyString(orgID)) {
+                     orgID = Organization.getDefaultOrganizationID();
+                  }
+
+                  Document orgDoc =
+                     orgDocMap.computeIfAbsent(orgID, (key) -> {
+                        Document doc = docBuilder.newDocument();
+                        Element registryDoc = doc.createElement("Registry");
+                        Element versionDoc = doc.createElement("Version");
+                        versionDoc.setTextContent(FileVersions.REPOSITORY);
+                        registryDoc.appendChild(versionDoc);
+                        doc.appendChild(registryDoc);
+
+                        return doc;
+                     });
+
+                  childNode = orgDoc.importNode(childNode, true);
+                  orgDoc.getDocumentElement().appendChild(childNode);
+               }
+            }
+
+            for(String org : orgDocMap.keySet()) {
+               Document orgDoc = orgDocMap.get(org);
+               space.withOutputStream(org, configRegistryPath,
+                                      out -> XMLTool.write(orgDoc, out));
+            }
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Can not isolate RepletRegistry", e);
+         }
+
+         RepletRegistry.converted = true;
+      }
+   }
+
+   private static String getConfigRegistryPath() {
+      String path = SreeEnv.getProperty("replet.repository.file");
+      int index = path.lastIndexOf(';');
+      return index >= 0 ? path.substring(index + 1) : path;
    }
 
    /**
     * Create a new registry.
     */
-   public RepletRegistry() throws Exception {
+   public RepletRegistry(String orgID) throws Exception {
+      this.orgID = orgID;
       init();
    }
 
@@ -402,7 +560,7 @@ public class RepletRegistry implements Serializable {
 
       try {
          while(tokens.hasMoreTokens()) {
-            String repfile = Tool.convertUserFileName(tokens.nextToken());
+            String repfile = getRegistryPath(Tool.convertUserFileName(tokens.nextToken()));
 
             if(uptodate()) {
                addChangeListener(space, null, repfile);
@@ -410,7 +568,7 @@ public class RepletRegistry implements Serializable {
 
             try(InputStream repository = space.getInputStream(null, repfile)) {
                if(repository == null) {
-                  LOG.warn("Repository XML file not found: {}", repfile);
+                  LOG.debug("Repository XML file not found: {}", repfile);
                   continue;
                }
 
@@ -431,6 +589,14 @@ public class RepletRegistry implements Serializable {
          getFolderMap().put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
          getFolderContextmap().put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
       }
+   }
+
+   private String getRegistryPath(String originPath) {
+      if(!Tool.isEmptyString(orgID)) {
+         return orgID + "/" + originPath;
+      }
+
+      return originPath;
    }
 
    protected void addChangeListener(DataSpace space, String dir, String file) {
@@ -457,12 +623,8 @@ public class RepletRegistry implements Serializable {
     *
     * @return all folder names.
     */
-   public String[] getAllFolders(String orgID) {
-      return getAllFolders(noMyreports, orgID);
-   }
-
    public String[] getAllFolders() {
-      return getAllFolders(noMyreports, null);
+      return getAllFolders(noMyreports);
    }
 
    /**
@@ -471,11 +633,11 @@ public class RepletRegistry implements Serializable {
     * @param publicOnly <tt>true</tt> if only include pulic folder.
     * @return all folder names.
     */
-   public synchronized String[] getAllFolders(boolean publicOnly, String orgID) {
+   public synchronized String[] getAllFolders(boolean publicOnly) {
       List<String> fns = new ArrayList<>();
-      Iterator<String> it = getFolderMap(orgID).keySet().iterator();
+      Iterator<String> it = getFolderMap().keySet().iterator();
 
-      for(int i = 0; i < getFolderMap(orgID).size() && it.hasNext(); i++) {
+      for(int i = 0; i < getFolderMap().size() && it.hasNext(); i++) {
          fns.add(it.next());
       }
 
@@ -486,50 +648,33 @@ public class RepletRegistry implements Serializable {
       return fns.toArray(new String[0]);
    }
 
-   public synchronized String[] getAllFolders(boolean publicOnly) {
-      return getAllFolders(publicOnly, null);
-   }
-
    /**
     * Remove the folder and all the replets inside it.
     *
     * @param folderName folder.
     * @return true if remove successfully.
     */
-   public boolean removeFolder(String folderName, String orgID) {
-      return removeFolder(folderName, true, false, orgID);
-   }
-
    public boolean removeFolder(String folderName) {
-      return removeFolder(folderName, true, false, null);
+      return removeFolder(folderName, true, false);
    }
 
    /**
     * Remove the folder and all the replets inside it.
     */
    public synchronized boolean removeFolder(String folderName, boolean transaction,
-                                            boolean saveBeforeEvent, String orgID)
-   {
-      return removeFolder(folderName, transaction, saveBeforeEvent, orgID, true);
-   }
-
-   /**
-    * Remove the folder and all the replets inside it.
-    */
-   public synchronized boolean removeFolder(String folderName, boolean transaction,
-                                            boolean saveBeforeEvent, String orgID, boolean fireEvent)
+                                            boolean saveBeforeEvent, boolean fireEvent)
    {
       if("/".equals(folderName) || Tool.MY_DASHBOARD.equals(folderName)) {
          return false;
       }
 
       String prefix = folderName + "/";
-      List<String> list = new ArrayList<>(getFolderMap(orgID).keySet());
+      List<String> list = new ArrayList<>(getFolderMap().keySet());
       boolean changed = false;
 
       for(String folder : list) {
          if(folder.equals(folderName) || folder.startsWith(prefix)) {
-            getFolderMap(orgID).remove(folder);
+            getFolderMap().remove(folder);
             changed = true;
 
             if(fireEvent) {
@@ -562,7 +707,7 @@ public class RepletRegistry implements Serializable {
    public synchronized boolean removeFolder(String folderName, boolean transaction,
                                             boolean saveBeforeEvent)
    {
-      return removeFolder(folderName, transaction, saveBeforeEvent, null);
+      return removeFolder(folderName, transaction, saveBeforeEvent, true);
    }
 
    /**
@@ -571,12 +716,8 @@ public class RepletRegistry implements Serializable {
     * @param folder the folder.
     * @return true if add successfully.
     */
-   public boolean addFolder(String folder, String orgID) {
-      return addFolder(folder, orgID, true);
-   }
-
    public boolean addFolder(String folder) {
-      return addFolder(folder, null);
+      return addFolder(folder, true);
    }
 
    /**
@@ -585,15 +726,14 @@ public class RepletRegistry implements Serializable {
     * @param folder the folder.
     * @return true if add successfully.
     */
-   public boolean addFolder(String folder, String orgID, boolean fireEvent) {
-      return addFolder(folder, true, orgID, fireEvent);
+   public boolean addFolder(String folder, boolean fireEvent) {
+      return addFolder(folder, true, fireEvent);
    }
 
    /**
     * Add a new folder.
     */
-   private synchronized boolean addFolder(String folder, boolean transaction, String orgID,
-                                          boolean fireEvent)
+   private synchronized boolean addFolder(String folder, boolean transaction, boolean fireEvent)
    {
       if(folder == null || folder.equals("")) {
          return false;
@@ -605,13 +745,13 @@ public class RepletRegistry implements Serializable {
       // if the folder is not an exact duplicate, set boolean to false
       boolean exactDuplicate = false;
 
-      if(getFolderMap(orgID).containsKey(folder)) {
+      if(getFolderMap().containsKey(folder)) {
          // @by stevenkuo bug1418949929088 2015-1-9
          // added a conditional that checks the current folder path
          // with the pre-existing folder in the system.
          // if they're the same folder name + content, it means it does not have to be
          // recreated and should continue up the folderpath until the it reaches the root
-         String f = getFolderMap(orgID).get(folder);
+         String f = getFolderMap().get(folder);
 
          if(Arrays.equals(getFolders(folder), (getFolders(f)))) {
             exactDuplicate = true;
@@ -622,7 +762,7 @@ public class RepletRegistry implements Serializable {
       }
 
       if(!exactDuplicate) {
-         getFolderMap(orgID).put(folder, folder);
+         getFolderMap().put(folder, folder);
 
          if(fireEvent) {
             fireEvent("registry_" + transaction, ADD_FOLDER_EVENT, folder, folder);
@@ -644,10 +784,6 @@ public class RepletRegistry implements Serializable {
       return true;
    }
 
-   private synchronized boolean addFolder(String folder, boolean transaction) {
-      return addFolder(folder, transaction, null, true);
-   }
-
    /**
     * Get sub folders of a folder.
     */
@@ -658,18 +794,9 @@ public class RepletRegistry implements Serializable {
    /**
     * Get sub folders of a folder.
     */
-   public String[] getFolders(String folder, boolean publicOnly) { return getFolders(folder, publicOnly, null); }
-
-   public synchronized String[] getFolders(String folder, String orgID) {
-      return getFolders(folder, noMyreports, orgID);
-   }
-
-   /**
-    * Get sub folders of a folder.
-    */
-   public synchronized String[] getFolders(String folder, boolean publicOnly, String orgID) {
+   public synchronized String[] getFolders(String folder, boolean publicOnly) {
       boolean root = folder == null || folder.equals("/");
-      Iterator<String> iterator = getFolderMap(orgID).keySet().iterator();
+      Iterator<String> iterator = getFolderMap().keySet().iterator();
       List<String> result = new ArrayList<>();
 
       while(iterator.hasNext()) {
@@ -729,10 +856,11 @@ public class RepletRegistry implements Serializable {
          return catalog.getString("common.repletRegistry.folderExist", newFolderName);
       }
 
+      //todo
       if(SUtil.isDefaultVSGloballyVisible(principal) && principal != null && principal != null &&
          !Tool.equals(((XPrincipal) principal).getOrgId(), Organization.getDefaultOrganizationID()) &&
-         !getFolderMap(((XPrincipal) principal).getOrgId()).contains(oldFolderName) &&
-         getFolderMap(Organization.getDefaultOrganizationID()).contains(oldFolderName)) {
+         !getFolderMap().contains(oldFolderName) &&
+         getFolderMap().contains(oldFolderName)) {
          return catalog.getString("common.writeAuthority", Organization.getDefaultOrganizationID());
       }
 
@@ -785,10 +913,6 @@ public class RepletRegistry implements Serializable {
       return getFolderContextmap().get(name);
    }
 
-   protected FolderContext getFolderContext(String name, String orgID) {
-      return getFolderContextmap(orgID).get(name);
-   }
-
    /**
     * Set the folder alias.
     *
@@ -828,16 +952,6 @@ public class RepletRegistry implements Serializable {
     */
    public String getFolderAlias(String name) {
       FolderContext context = getFolderContext(name);
-
-      if(context != null) {
-         return context.getAlias();
-      }
-
-      return null;
-   }
-
-   public String getFolderAlias(String name, String orgID) {
-      FolderContext context = getFolderContext(name, orgID);
 
       if(context != null) {
          return context.getAlias();
@@ -887,6 +1001,11 @@ public class RepletRegistry implements Serializable {
    public void addFolderFavoritesUser(String name, String principal) {
       FolderContext context = getFolderContext(name);
 
+      if(context == null) {
+         context = new FolderContext(name);
+         getFolderContextmap().put(name, context);
+      }
+
       if(context != null) {
          context.addFavoritesUser(principal);
       }
@@ -923,17 +1042,13 @@ public class RepletRegistry implements Serializable {
       return getFolderMap().containsKey(folder);
    }
 
-   public boolean isFolder(String folder, String orgID) {
-      return getFolderMap(orgID).containsKey(folder);
-   }
-
    /**
     * Get registry path to save.
     */
    protected String getRegistryPath() {
       String path = SreeEnv.getProperty("replet.repository.file");
       int index = path.lastIndexOf(';');
-      return index >= 0 ? path.substring(index + 1) : path;
+      return index >= 0 ? getRegistryPath(path.substring(index + 1)) : getRegistryPath(path);
    }
 
    /**
@@ -981,6 +1096,11 @@ public class RepletRegistry implements Serializable {
       }
    }
 
+   public synchronized void shutdown() {
+      DataSpace space = DataSpace.getDataSpace();
+      dmgr.removeChangeListener(space, getRegistryDir(), getRegistryFileName(), changeListener);
+   }
+
    protected String getRegistryDir() {
       return null;
    }
@@ -988,7 +1108,7 @@ public class RepletRegistry implements Serializable {
    protected String getRegistryFileName() {
       String path = SreeEnv.getProperty("replet.repository.file");
       int index = path.lastIndexOf(';');
-      return index >= 0 ? path.substring(index + 1) : path;
+      return index >= 0 ? getRegistryPath(path.substring(index + 1)) : getRegistryPath(path);
    }
 
    /**
@@ -1031,86 +1151,57 @@ public class RepletRegistry implements Serializable {
     * Write folder.
     */
    protected synchronized void writeFoldersAndProtos(PrintWriter writer) {
-      for(String orgID : folders.keySet()) {
-         for(String folder : folders.get(orgID).keySet()) {
-            if(folder.isEmpty()) {
-               continue;
-            }
-
-            String alias = getFolderAlias(folder);
-            writer.print("<Replet name=\"" + Tool.escape(folder) + "\"" +
-                            (alias == null ? "" : " alias=\"" + Tool.escape(alias) + "\"") +
-                            " orgID=\"" + orgID + "\" folder=\"true\"" +
-                            " favoritesUser=\"" + getFolderFavoritesUser(Tool.escape(folder)) + "\"" + ">");
-
-            if(getFolderDescription(folder) != null) {
-               writer.print("<![CDATA[" + getFolderDescription(folder) + "]]>");
-            }
-
-            writer.println("</Replet>");
+      for(String folder : folders.keySet()) {
+         if(folder.isEmpty()) {
+            continue;
          }
+
+         String alias = getFolderAlias(folder);
+         writer.print("<Replet name=\"" + Tool.escape(folder) + "\"" +
+                         (alias == null ? "" : " alias=\"" + Tool.escape(alias) + "\"") +
+                         " orgID=\"" + orgID + "\" folder=\"true\"" +
+                         " favoritesUser=\"" + getFolderFavoritesUser(Tool.escape(folder)) + "\"" + ">");
+
+         if(getFolderDescription(folder) != null) {
+            writer.print("<![CDATA[" + getFolderDescription(folder) + "]]>");
+         }
+
+         writer.println("</Replet>");
       }
    }
 
    private synchronized Hashtable<String, String> getFolderMap() {
-      return getFolderMap(null);
-   }
-
-   private synchronized Hashtable<String, String> getFolderMap(String orgID) {
-      if(orgID == null) {
-         orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      }
-      else {
-         orgID = orgID;
-      }
-      return folders.computeIfAbsent(orgID, k -> {
-         Hashtable<String, String> orgFolders = new Hashtable<>();
-         orgFolders.put("/", "/");
-         orgFolders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
-         return orgFolders;
-      });
-   }
-
-   private synchronized void moveFolderMap(String oOrgID, String nOrgID) {
-      if(folders.containsKey(oOrgID)) {
-         Hashtable<String, String> orgFolders = folders.remove(oOrgID);
-         folders.put(nOrgID, orgFolders);
+      if(!folders.containsKey(Tool.MY_DASHBOARD)) {
+         folders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
       }
 
-      if(foldercontextmap.containsKey(oOrgID)) {
-         Hashtable<String, FolderContext> orgFolderContext = foldercontextmap.remove(oOrgID);
-         foldercontextmap.put(nOrgID, orgFolderContext);
+      if(!folders.containsKey("/")) {
+         folders.put("/", "/");
       }
-   }
 
-   public synchronized boolean hasFolders(String orgID) {
-      return folders.containsKey(orgID) || foldercontextmap.containsKey(orgID);
+      return folders;
    }
 
    private synchronized Hashtable<String, FolderContext> getFolderContextmap() {
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      return getFolderContextmap(orgID);
+     if(!foldercontextmap.containsKey(Tool.MY_DASHBOARD)) {
+        foldercontextmap.put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
+     }
+
+      return foldercontextmap;
    }
 
-   private synchronized Hashtable<String, FolderContext> getFolderContextmap(String orgID) {
-      return foldercontextmap.computeIfAbsent(orgID, k -> {
-         Hashtable<String, FolderContext> orgContextMap = new Hashtable<>();
-         orgContextMap.put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
-         return orgContextMap;
-      });
-   }
-
-   public void copyFolderContextMap(String oOID, String nOID) {
-      Hashtable<String, FolderContext> otable = getFolderContextmap(oOID);
-      Hashtable<String, FolderContext> ntable = new Hashtable<>();
+   //Todo
+   public static void copyFolderContextMap(String oOID, String nOID) throws Exception {
+      RepletRegistry oldRegistry = getRegistry(oOID);
+      RepletRegistry newRegistry = getRegistry(nOID);
+      Hashtable<String, FolderContext> otable = oldRegistry.getFolderContextmap();
+      Hashtable<String, FolderContext> ntable = newRegistry.getFolderContextmap();
 
       otable.forEach((key, value) -> {
          FolderContext ncontext = new FolderContext(value.getName(), value.getDescription(),
             value.getAlias());
          ntable.put(key, ncontext);
       });
-
-      foldercontextmap.put(nOID, ntable);
    }
 
    private static ResourceCache<String, RepletRegistry> getRegistryCache() {
@@ -1210,6 +1301,7 @@ public class RepletRegistry implements Serializable {
     */
    private final static class UserRepletRegistry extends RepletRegistry {
       UserRepletRegistry(String user) throws Exception {
+         super(null);
          this.user = user;
          init0();
       }
@@ -1237,17 +1329,13 @@ public class RepletRegistry implements Serializable {
 
          load();
 
-         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
-         Hashtable<String, String> orgFolder = folders.computeIfAbsent(orgID, k -> {
-            Hashtable<String, String> orgFolders = new Hashtable<>();
-            orgFolders.put("/", "/");
-            orgFolders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
-            return orgFolders;
-         });
-
          // always add My Reports folder
-         if(orgFolder.containsKey(Tool.MY_DASHBOARD)) {
-            orgFolder.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+         if(!folders.containsKey(Tool.MY_DASHBOARD)) {
+            folders.put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+         }
+
+         if(!folders.containsKey("/")) {
+            folders.put("/", "/");
          }
 
          if(uptodate()) {
@@ -1376,8 +1464,8 @@ public class RepletRegistry implements Serializable {
       public RepletRegistry create(String key) throws Exception {
          RepletRegistry registry;
 
-         if(GLOBAL_REPOSITORY.equals(key)) {
-            registry = new RepletRegistry();
+         if(key.startsWith(GLOBAL_REPOSITORY)) {
+            registry = new RepletRegistry(key.substring(GLOBAL_REPOSITORY.length()));
          }
          else {
             registry = new UserRepletRegistry(key);
@@ -1421,35 +1509,32 @@ public class RepletRegistry implements Serializable {
 
             String name = attrs.getValue("name");
             String alias = attrs.getValue("alias");
-            String orgID = attrs.getValue("orgID");
             String favoritesUser = attrs.getValue("favoritesUser");
 
-            orgID = orgID == null ? Organization.getDefaultOrganizationID() : orgID;
-
             if(SUtil.isMyReport(name)) {
-               if(!getFolderMap(orgID).containsKey(Tool.MY_DASHBOARD)) {
-                  getFolderMap(orgID).put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
+               if(!getFolderMap().containsKey(Tool.MY_DASHBOARD)) {
+                  getFolderMap().put(Tool.MY_DASHBOARD, Tool.MY_DASHBOARD);
                }
             }
 
             String fstr = attrs.getValue("folder");
 
             if("true".equals(fstr)) {
-               if(!getFolderMap(orgID).containsKey(name)) {
-                  getFolderMap(orgID).put(name, name);
+               if(!getFolderMap().containsKey(name)) {
+                  getFolderMap().put(name, name);
                }
 
                this.context = new FolderContext(name, "", alias);
                this.context.addFavoritesUser(favoritesUser);
-               getFolderContextmap(orgID).put(name, (FolderContext) this.context);
+               getFolderContextmap().put(name, (FolderContext) this.context);
                return;
             }
 
             // process replet
             String pfolder = SUtil.getFolder(name);
 
-            if(!getFolderMap(orgID).containsKey(pfolder)) {
-               getFolderMap(orgID).put(pfolder, pfolder);
+            if(!getFolderMap().containsKey(pfolder)) {
+               getFolderMap().put(pfolder, pfolder);
             }
          }
          else if("Request".equals(ename) || buffer.length() != 0) {
@@ -1512,6 +1597,7 @@ public class RepletRegistry implements Serializable {
    public static final class Reference extends SingletonManager.Reference<RepletRegistry> {
       @Override
       public RepletRegistry get(Object ... parameters) {
+         isolateOrgRegistryFiles();
          ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
          try {
             return registryCache.get((String) parameters[0]);
@@ -1528,20 +1614,23 @@ public class RepletRegistry implements Serializable {
    }
 
    private boolean noMyreports = false; // true to disable My Reports
+   private String orgID;
    // folder names -> folder name
-   protected Hashtable<String, Hashtable<String, String>> folders = new Hashtable<>();
+   protected Hashtable<String, String> folders = new Hashtable<>();
    // folder name -> a context of a folder
-   private final Hashtable<String, Hashtable<String, FolderContext>> foldercontextmap = new Hashtable<>();
+   private final Hashtable<String, FolderContext> foldercontextmap = new Hashtable<>();
    protected final Vector<WeakReference<PropertyChangeListener>> listeners = new Vector<>();
    protected DataChangeListenerManager dmgr = new DataChangeListenerManager();
    protected long date = -2L; // last modified
    protected boolean loaded;
+   private static boolean converted = false;
 
    private static final String GLOBAL_REPOSITORY = "__ADMIN__";
 
    private static final Logger LOG = LoggerFactory.getLogger(RepletRegistry.class);
 
    private static final ReadWriteLock REGISTRY_CACHE_LOCK = new ReentrantReadWriteLock();
+   private static final Object CONVERT_LOCK = new Object();
    private static final String REGISTRY_CACHE_KEY =
       RepletRegistry.class.getName() + ".registryCache";
    private static Vector<WeakReference<PropertyChangeListener>> globalListeners = new Vector<>();

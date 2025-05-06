@@ -392,21 +392,33 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
          });
 
+      // collect all data refs used in pre condition list
+      List<DataRef> preCondDataRefs = new ArrayList<>();
+      VSUtil.addConditionListRef(noaggr.getPreRuntimeConditionList(), preCondDataRefs);
+
       // if aggregate info contains date range, and it's not grouped, we should
       // change the name of the column back to the detail column,
       // (e.g. Year(Date) -> Date). otherwise the DateReangeRef in mirror won't
       // find the column.
-      List<DataRef> cols2 = noaggr.getColumnSelection(false).stream()
+      List<DataRef> cols2 = new ArrayList<>();
+      noaggr.getColumnSelection(false).stream()
          // aggregate expression not supported in mv query. (50240)
          .filter(c -> !MVTransformer.isAggregateExpression(c))
-         .map(c -> {
+         .forEach(c -> {
             ColumnRef col = (ColumnRef) c;
-            if(col.getDataRef() instanceof DateRangeRef) {
-               return new ColumnRef(((DateRangeRef) col.getDataRef()).getDataRef());
-            }
 
-            return c;
-         }).collect(Collectors.toList());
+            if(col.getDataRef() instanceof DateRangeRef) {
+               cols2.add(new ColumnRef(((DateRangeRef) col.getDataRef()).getDataRef()));
+
+               // if date range col is used in pre-condition then add it too
+               if(preCondDataRefs.contains(col)) {
+                  cols2.add(col);
+               }
+            }
+            else {
+               cols2.add(col);
+            }
+         });
       noaggr.setColumnSelection(new ColumnSelection(cols2));
 
       mvtable.setColumnSelection(mvcols);

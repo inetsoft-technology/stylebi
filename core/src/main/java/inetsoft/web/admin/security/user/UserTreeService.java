@@ -20,6 +20,7 @@ package inetsoft.web.admin.security.user;
 import inetsoft.mv.MVManager;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.security.*;
@@ -439,6 +440,10 @@ public class UserTreeService {
 
          String currOrgID =  OrganizationManager.getInstance().getCurrentOrgID();
 
+         if(provider.getOrganization(currOrgID) == null) {
+            throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+         }
+
          FSGroup identity = null;
 
          for(int i = 0; identity == null; i++) {
@@ -495,6 +500,10 @@ public class UserTreeService {
 
       final AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(selectedProvider);
+
+      if(currentProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       if((!SUtil.isMultiTenant() || !securityEngine.isSecurityEnabled()) && isGroupRoot(groupID, principal) &&
          (getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP,
@@ -594,6 +603,12 @@ public class UserTreeService {
       IdentityID newID = new IdentityID(model.name(), model.organization());
       IdentityID root = new IdentityID("Groups", model.organization());
 
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       if(isGroupRoot(new IdentityID(model.name(), group.orgID), principal)) {
          if(getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, root.convertToKey(), ResourceAction.ADMIN) ||
             getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, new IdentityID(model.name(), model.organization()).convertToKey(), ResourceAction.ADMIN))
@@ -632,7 +647,9 @@ public class UserTreeService {
       identityService.setIdentityPermissions(oldID, newID, ResourceType.SECURITY_GROUP,
                                              principal, permittedIdentities, "");
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
       storage.migrateStorageData(oldID.getName(), newID.getName());
+      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), false);
    }
 
    /**
@@ -647,6 +664,11 @@ public class UserTreeService {
          authenticationProviderService.getProviderByName(providerName);
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
       ThreadContext.setContextPrincipal(principal);
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       try {
          if(!(provider instanceof EditableAuthenticationProvider)) {
@@ -654,7 +676,6 @@ public class UserTreeService {
          }
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
-         String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
          String prefix = "user";
          FSUser identity;
 
@@ -734,6 +755,11 @@ public class UserTreeService {
       AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(provider);
       String rootUser = "Users";
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
 
       if(rootUser.equals(userName.name) &&
          (getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER, new IdentityID(rootUser, OrganizationManager.getInstance().getCurrentOrgID()).convertToKey(), ResourceAction.ADMIN) ||
@@ -744,7 +770,6 @@ public class UserTreeService {
 
       User user = currentProvider.getUser(userName);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(SUtil.isMultiTenant()) {
          if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
@@ -886,10 +911,6 @@ public class UserTreeService {
          List<String> localesList = localizationSettingsService.getModel().locales()
             .stream().map(LocalizationModel::label).collect(Collectors.toList());
 
-         //update to this organization
-         String newOrgID = identity.getId();
-         OrganizationManager.getInstance().setCurrentOrgID(newOrgID);
-
          return EditOrganizationPaneModel.builder()
             .name(identity.getName())
             .id(identity.getId())
@@ -905,6 +926,7 @@ public class UserTreeService {
       catch(Exception e) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
          actionRecord.setActionError(e.getMessage());
+         newOrgId = null;
          throw e;
       }
       finally {
@@ -913,6 +935,11 @@ public class UserTreeService {
 
          if(identityInfoRecord != null) {
             Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
+         }
+
+         //update to new organization
+         if(newOrgId != null) {
+            OrganizationManager.getInstance().setCurrentOrgID(newOrgId);
          }
       }
    }
@@ -926,6 +953,10 @@ public class UserTreeService {
       AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(provider);
 
+      if(currentProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       if(Catalog.getCatalog(principal).getString("Organizations").equals(orgID.name) &&
          getSecurityProvider().checkPermission(
             principal, ResourceType.SECURITY_ORGANIZATION, "*", ResourceAction.ADMIN))
@@ -934,13 +965,22 @@ public class UserTreeService {
       }
 
       Organization organization = currentProvider.getOrganization(orgID.orgID);
-      String[] propertyNames = {"max.row.count", "max.col.count", "max.cell.size", "max.user.count"};
       List<PropertyModel> properties = new ArrayList<>();
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      Set<Object> keyset = SreeEnv.getProperties().keySet();
+      String orgPrefix = "inetsoft.org." + orgID.getOrgID().toLowerCase() + ".";
 
-      for(String key : propertyNames) {
-         if(SreeEnv.getProperty(key, false, true) != null) {
-            properties.add(PropertyModel.builder().name(key).value(SreeEnv.getProperty(key, false, true)).build());
+      for(Object key : keyset) {
+         String propName = (String) key;
+
+         if(!(propName).startsWith(orgPrefix)) {
+            continue;
+         }
+
+         propName = propName.substring(orgPrefix.length());
+
+         if(SreeEnv.getProperty(propName, false, true) != null) {
+            properties.add(PropertyModel.builder().name(propName).value(SreeEnv.getProperty(propName, false, true)).build());
          }
       }
 
@@ -974,7 +1014,7 @@ public class UserTreeService {
          .members(members)
          .roles(new ArrayList<>())
          .permittedIdentities(filterOtherOrgs(grantedOrganizations))
-         .properties(properties)
+         .properties(sortProperties(properties))
          .editable(organization.isEditable() && currentProvider instanceof EditableAuthenticationProvider)
          .currentUser(orgID.name.equals(pId.name))
          .localesList(localesList)
@@ -1119,8 +1159,11 @@ public class UserTreeService {
          checkDuplicateOrgIDs(model, oldOrg);
       }
 
+      boolean saveProperties = false;
+
       for(PropertyModel property: model.properties()) {
          SreeEnv.setProperty(property.name(), property.value(), true);
+         saveProperties = true;
       }
 
       String[] propertyNames = {"max.row.count", "max.col.count", "max.cell.size", "max.user.count"};
@@ -1129,7 +1172,12 @@ public class UserTreeService {
       for(String key : propertyNames) {
          if(SreeEnv.getProperty(key, false, true) != null && !properties.contains(key)) {
             SreeEnv.setProperty(key, null, true);
+            saveProperties = true;
          }
+      }
+
+      if(saveProperties) {
+         SreeEnv.save();
       }
 
       if(provider instanceof EditableAuthenticationProvider) {
@@ -1624,6 +1672,11 @@ public class UserTreeService {
 
       for(String dataSource : dataSources) {
          XDataModel dataModel = repository.getDataModel(dataSource);
+
+         if(dataModel == null) {
+            continue;
+         }
+
          String[] vpms = dataModel.getVirtualPrivateModelNames();
 
          for(String vpm : vpms) {
@@ -1658,6 +1711,7 @@ public class UserTreeService {
 
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
       MVManager mvManager = MVManager.getManager();
+      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
       KeyValueStorage<FavoriteList> favorites =
          SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
 
@@ -1671,6 +1725,7 @@ public class UserTreeService {
       storage.migrateStorageData(oldID.getName(), newID.getName());
       mvManager.migrateUserAssetsMV(oldID, newID);
       mvManager.updateMVUser(oldID, newID);
+      cycleManager.updateCycleInfoNotify(oldID.getName(), newID.getName(), true);
       DependencyStorageService.getInstance().migrateStorageData(oldID, newID);
    }
 
@@ -1714,6 +1769,31 @@ public class UserTreeService {
       return orgMembers;
    }
 
+   private List<PropertyModel> sortProperties(List<PropertyModel> properties) {
+      if(properties == null || properties.isEmpty()) {
+         return properties;
+      }
+
+      properties.sort(new Comparator<PropertyModel>() {
+         @Override
+         public int compare(PropertyModel o1, PropertyModel o2) {
+            boolean foundO1 = propertyNames.contains(o1.name());
+            boolean foundO2 = propertyNames.contains(o2.name());
+
+            if(foundO1 && !foundO2) {
+               return -1;
+            }
+            else if(!foundO1 && foundO2) {
+               return 1;
+            }
+
+            return o1.name().compareTo(o2.name());
+         }
+      });
+
+      return properties;
+   }
+
    @SubscribeMapping("/create-org-status-changed")
    public void subscribeToTopic() {
    }
@@ -1736,4 +1816,5 @@ public class UserTreeService {
    private final IdentityThemeService themeService;
    private final SimpMessagingTemplate messagingTemplate;
    private final EditOrganizationListener editOrganizationListener;
+   private final Set<String> propertyNames = Set.of("max.row.count", "max.col.count", "max.cell.size", "max.user.count");
 }

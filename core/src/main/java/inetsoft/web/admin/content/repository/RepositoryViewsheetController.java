@@ -17,9 +17,9 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.util.*;
 import inetsoft.web.adhoc.DecodeParam;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -46,6 +46,12 @@ public class RepositoryViewsheetController {
       Principal principal
    ) throws Exception
    {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+      }
+
       int scope = treeService.getAssetScope(path);
       path = treeService.getUnscopedPath(path);
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);

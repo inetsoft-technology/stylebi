@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,7 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-export class CheckCycleDependenciesEvent {
-   logicalModelName: string;
-   links: string[];
+package inetsoft.web.metrics;
+
+public record ScalingMetricData(double jvmCpu, double jvmCpuDetail,
+                                double jvmMemory, double jvmMemoryDetail,
+                                double systemCpu, double systemCpuDetail,
+                                double systemMemory, double systemMemoryDetail,
+                                double scheduler, double schedulerDetail,
+                                double cacheSwapMemory, double cacheSwapMemoryDetail,
+                                double cacheSwapWait, double cacheSwapWaitDetail,
+                                double serverUtilization)
+{
 }

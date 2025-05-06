@@ -19,11 +19,9 @@
 package inetsoft.util.migrate;
 
 import inetsoft.report.Hyperlink;
-import inetsoft.sree.schedule.ScheduleTask;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.Organization;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.Worksheet;
+import inetsoft.sree.schedule.*;
+import inetsoft.sree.security.*;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.asset.sync.DependencyTransformer;
 import inetsoft.uql.erm.XLogicalModel;
@@ -39,14 +37,20 @@ import org.w3c.dom.*;
 
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathFactory;
+import java.rmi.RemoteException;
 
 public abstract class MigrateDocumentTask implements MigrateTask {
    public MigrateDocumentTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg) {
+      this(entry, oOrg, nOrg, null);
+   }
+
+   public MigrateDocumentTask(AssetEntry entry, AbstractIdentity oOrg, AbstractIdentity nOrg, Document document) {
       super();
 
       this.entry = entry;
       this.oldOrganization = oOrg;
       this.newOrganization = nOrg;
+      this.document = document;
    }
 
    public MigrateDocumentTask(AssetEntry entry, String oname, String nname) {
@@ -55,6 +59,17 @@ public abstract class MigrateDocumentTask implements MigrateTask {
       this.entry = entry;
       this.oname = oname;
       this.nname = nname;
+   }
+
+   public MigrateDocumentTask(AssetEntry entry, String oname, String nname, Organization currOrg) {
+      super();
+
+      this.entry = entry;
+      this.oname = oname;
+      this.nname = nname;
+
+      this.oldOrganization = currOrg;
+      this.newOrganization = currOrg;
    }
 
    @Override
@@ -66,8 +81,7 @@ public abstract class MigrateDocumentTask implements MigrateTask {
          if(getOldOrganization() instanceof Organization &&
             getNewOrganization() instanceof Organization)
          {
-            Document document = getIndexStorage().getDocument(oldKey,
-               ((Organization)getOldOrganization()).getId());
+            Document document = getDocument(((Organization)getOldOrganization()).getId(), oldKey);
 
             if(Tool.equals(((Organization) oldOrganization).getId(),
                            ((Organization) newOrganization).getId()) && document != null)
@@ -78,13 +92,53 @@ public abstract class MigrateDocumentTask implements MigrateTask {
             processAssemblies(document.getDocumentElement());
             AssetEntry newEntry = entry.cloneAssetEntry((Organization) getNewOrganization());
             String newKey = newEntry.toIdentifier(true);
-            getIndexStorage().putDocument(newKey, document, getAssetClassName(entry),
-                                          ((Organization) getNewOrganization()).getId());
+
+            if(document.getChildNodes().getLength() == 2 &&
+               document.getFirstChild().getNodeValue().indexOf(oldKey) > 0)
+            {
+               document.removeChild(document.getFirstChild());
+            }
+
+            setDocument(((Organization) getNewOrganization()).getId(), newKey, document);
          }
       }
       catch(Exception e) {
          LOG.error("failed to migrate entry:{}", entry.toIdentifier(), e);
       }
+   }
+
+   private void updateScheduleServerTask(String task, String orgId) {
+      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
+
+      if(scheduleManager == null) {
+         return;
+      }
+
+      ScheduleTask scheduleTask = scheduleManager.getScheduleTask(task, orgId);
+
+      if(scheduleTask == null) {
+         return;
+      }
+
+      try {
+         ScheduleClient.getScheduleClient().taskAdded(scheduleTask);
+      }
+      catch(RemoteException e) {
+         LOG.error("Failed to update scheduler with extension task: " +
+                      scheduleTask.getTaskId(), e);
+      }
+   }
+
+   protected Document getDocument(String orgId, String key) {
+      return document != null ? document : getIndexStorage().getDocument(key, orgId);
+   }
+
+   protected void setDocument(String orgId, String key, Document document) {
+      if(this.document != null) {
+         return;
+      }
+
+      getIndexStorage().putDocument(key, document, getAssetClassName(entry), orgId);
    }
 
    @Override
@@ -124,6 +178,15 @@ public abstract class MigrateDocumentTask implements MigrateTask {
       if(!Tool.equals(key, newKey)) {
          getIndexStorage().remove(key);
       }
+
+      if(entry.isScheduleTask()) {
+         String newTaskName =
+            MigrateUtil.getNewUserTaskName(entry.getName(), getOldName(), getNewName());
+         updateScheduleServerTask(newTaskName, entry.getOrgID());
+      }
+
+      //any private assets user created must be updated, and all dependent assets as well
+      DependencyHandler.getInstance().renameDependencies(entry, newEntry);
    }
 
    abstract void processAssemblies(Element elem);
@@ -400,13 +463,13 @@ public abstract class MigrateDocumentTask implements MigrateTask {
          String userKey = arr[2];
          IdentityID id = IdentityID.getIdentityIDFromKey(userKey);
 
-         if(id != null) {
+         if(id != null && org != null) {
             id.setOrgID(org.getOrganizationID());
             arr[2] = id.convertToKey();
          }
       }
 
-      if(arr.length > 4) {
+      if(arr.length > 4 && org != null) {
          arr[arr.length - 1] = ((Organization) org).getId();
       }
 
@@ -455,6 +518,7 @@ public abstract class MigrateDocumentTask implements MigrateTask {
    private AbstractIdentity newOrganization;
    private String oname;
    private String nname;
+   private Document document;
    protected static final XPath xpath = XPathFactory.newInstance().newXPath();
    private static final Logger LOG = LoggerFactory.getLogger(MigrateDocumentTask.class);
 }

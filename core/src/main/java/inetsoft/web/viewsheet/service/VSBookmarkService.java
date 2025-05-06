@@ -401,7 +401,7 @@ public class VSBookmarkService {
 
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
       boolean bookmarkRenamedInSchedule = !Tool.equals(name, oldName) &&
-         isBookmarkUsedInSchedule(oldName, user);
+         isBookmarkUsedInSchedule(rvs.getEntry(), oldName, user);
 
       if(bookmarkRenamedInSchedule) {
          if(!value.confirmed()) {
@@ -613,7 +613,7 @@ public class VSBookmarkService {
          return messageCommand;
       }
 
-      vs.getRuntimeEntry().setProperty("keepAnnonVis", "true");
+      vs.getRuntimeEntry().setProperty("keepAnnoVis", "true");
       rvs.addBookmark(bookmarkName, type,
                       principal.getName() == null ? new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()) :
                       IdentityID.getIdentityIDFromKey(principal.getName()), readOnly);
@@ -632,8 +632,8 @@ public class VSBookmarkService {
                                      !Tool.equals(rvs.getEntry() == null ? "" :
                                      rvs.getEntry().getOrgID(),((XPrincipal)principal).getOrgId());
 
-      if(!engine.checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
-         "AddBookmark", ResourceAction.READ))
+      if(!engine.checkPermission(principal, ResourceType.VIEWSHEET_ACTION, "Bookmark",
+                                 ResourceAction.READ))
       {
          messageCommand.setMessage(catalog.getString("viewer.viewsheet.security.addbookmark"));
          messageCommand.setType(MessageCommand.Type.WARNING);
@@ -882,8 +882,11 @@ public class VSBookmarkService {
    /**
     * Check whether the bookmark is used in schedule.
     */
-   private boolean isBookmarkUsedInSchedule(String bookmark, IdentityID user)
-   {
+   private boolean isBookmarkUsedInSchedule(AssetEntry vs, String bookmark, IdentityID user) {
+      if(vs == null) {
+         return false;
+      }
+
       ScheduleManager manager = ScheduleManager.getScheduleManager();
       Vector<ScheduleTask> tasks = manager.getScheduleTasks();
 
@@ -893,6 +896,7 @@ public class VSBookmarkService {
          for(int j = 0; j < currtask.getActionCount(); j++) {
             if(currtask.getAction(j) instanceof ViewsheetAction) {
                ViewsheetAction vact = (ViewsheetAction) currtask.getAction(j);
+               String actionVs = vact.getViewsheet();
                String[] names = vact.getBookmarks();
                IdentityID[] userNames = vact.getBookmarkUsers();
 
@@ -900,7 +904,9 @@ public class VSBookmarkService {
                   String name = names[k];
                   IdentityID userName = userNames[k];
 
-                  if(Tool.equals(name, bookmark) && Tool.equals(user, userName)) {
+                  if(Tool.equals(actionVs, vs.toIdentifier()) && Tool.equals(name, bookmark) &&
+                     Tool.equals(user, userName))
+                  {
                      return true;
                   }
                }

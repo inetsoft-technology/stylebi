@@ -887,7 +887,14 @@ public class DeployManagerService {
             physicalTableOrQueryChange = (AssetEntry) changeAssetMap.get(physicalTableOrQuery);
          }
 
-         AssetObject changedNewEntry = changeAssetMap.get(dependency);
+         AssetObject originDependency = dependency;
+
+         if(originDependency instanceof AssetEntry entry) {
+            originDependency = entry.cloneAssetEntry(
+               new Organization(OrganizationManager.getInstance().getCurrentOrgID()));
+         }
+
+         AssetObject changedNewEntry = changeAssetMap.get(originDependency);
 
          boolean isTaskAsset = supportEntry instanceof AssetEntry && ((AssetEntry) supportEntry).isScheduleTask();
          boolean taskDependencyExtend = false;

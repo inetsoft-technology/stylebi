@@ -18,36 +18,36 @@
 <ng-container [ngSwitch]="condition.type">
   <em-daily-condition-editor
     *ngSwitchCase="TimeConditionType.EVERY_DAY"
+    [timeRangeEnabled]="timeRangeEnabled"
     [condition]="condition"
     [timeZone]="timeZone"
     [timeZoneOptions]="timeZoneOptions"
     [timeRanges]="timeRanges"
     [startTimeEnabled]="startTimeEnabled"
-    [timeRangeEnabled]="timeRangeEnabled"
     [showMeridian]="showMeridian"
     (modelChanged)="onModelChanged($event)"
   >
   </em-daily-condition-editor>
   <em-weekly-condition-editor
     *ngSwitchCase="TimeConditionType.EVERY_WEEK"
+    [timeRangeEnabled]="timeRangeEnabled"
     [condition]="condition"
     [timeZone]="timeZone"
     [timeZoneOptions]="timeZoneOptions"
     [timeRanges]="timeRanges"
     [showMeridian]="showMeridian"
     [startTimeEnabled]="startTimeEnabled"
-    [timeRangeEnabled]="timeRangeEnabled"
     (modelChanged)="onModelChanged($event)"
   >
   </em-weekly-condition-editor>
   <em-monthly-condition-editor
     *ngSwitchCase="TimeConditionType.EVERY_MONTH"
+    [timeRangeEnabled]="timeRangeEnabled"
     [condition]="condition"
     [timeZone]="timeZone"
     [timeZoneOptions]="timeZoneOptions"
     [timeRanges]="timeRanges"
     [startTimeEnabled]="startTimeEnabled"
-    [timeRangeEnabled]="timeRangeEnabled"
     [showMeridian]="showMeridian"
     (modelChanged)="onModelChanged($event)"
   >

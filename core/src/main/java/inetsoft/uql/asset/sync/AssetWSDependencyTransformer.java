@@ -254,11 +254,8 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
    }
 
    @Override
-   protected void renameAutoDrill(Element doc, RenameInfo rinfo) {
-      if(rinfo.isTable()) {
-         return;
-      }
-
+   protected boolean renameAutoDrill(Element doc, RenameInfo rinfo) {
+      boolean autoDrillChanged = false;
       NodeList list = getChildNodes(doc, ".//XDrillInfo/drillPath");
 
       for(int i = 0; i < list.getLength(); i++) {
@@ -266,29 +263,54 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
          String oname = rinfo.getOldName();
          String nname = rinfo.getNewName();
-         AssetEntry oentry = AssetEntry.createAssetEntry(oname);
-         AssetEntry nentry = AssetEntry.createAssetEntry(nname);
 
-         if((Hyperlink.VIEWSHEET_LINK + "").equals(Tool.getAttribute(elem, "linkType"))) {
-            replaceAttribute(elem, "link", oname, nname, true);
+         if(rinfo.isViewsheet() && (Hyperlink.VIEWSHEET_LINK + "")
+            .equals(Tool.getAttribute(elem, "linkType")))
+         {
+            autoDrillChanged |= replaceAttribute(elem, "link", oname, nname, true);
          }
 
-         NodeList assets = getChildNodes(elem, "./subquery/worksheetEntry/assetEntry");
+         if(rinfo.isWorksheet() && !rinfo.isTable()) {
+            AssetEntry oentry = AssetEntry.createAssetEntry(oname);
+            AssetEntry nentry = AssetEntry.createAssetEntry(nname);
+            NodeList assets = getChildNodes(elem, "./subquery/worksheetEntry/assetEntry");
 
-         for(int j = 0; j < assets.getLength(); j++) {
-            Element assetElem = (Element) assets.item(j);
-            Element path = Tool.getChildNodeByTagName(assetElem, "path");
-            String pathVal = Tool.getValue(path);
+            for(int j = 0; j < assets.getLength(); j++) {
+               Element assetElem = (Element) assets.item(j);
+               Element path = Tool.getChildNodeByTagName(assetElem, "path");
+               Element user = Tool.getChildNodeByTagName(assetElem, "user");
+               String pathVal = Tool.getValue(path);
 
-            if(!rinfo .isColumn() && Tool.equals(pathVal, oentry.getPath())) {
-               XMLTool.replaceValue(path, nentry.getPath());
+               if(!rinfo.isColumn() && Tool.equals(pathVal, oentry.getPath())) {
+                  XMLTool.replaceValue(path, nentry.getPath());
+                  assetElem.setAttribute("scope", String.valueOf(nentry.getScope()));
+
+                  if(nentry.getUser() != null) {
+                     String userKey = nentry.getUser().convertToKey();
+
+                     if(user != null) {
+                        XMLTool.replaceValue(user, userKey);
+                     }
+                     else {
+                        Document document = assetElem.getOwnerDocument();
+                        Element userElem = document.createElement("user");
+                        XMLTool.addCDATAValue(userElem, userKey);
+                        assetElem.appendChild(userElem);
+                     }
+                  }
+                  else if(user != null) {
+                     assetElem.removeChild(user);
+                  }
+
+                  autoDrillChanged = true;
+               }
             }
          }
 
          NodeList fieldNodes = getChildNodes(elem, "./parameterField");
 
          if(fieldNodes == null || fieldNodes.getLength() == 0 && !rinfo .isColumn()) {
-            return;
+            return autoDrillChanged;
          }
 
          for(int j = 0; j < fieldNodes.getLength(); j++) {
@@ -296,10 +318,12 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
             String field = Tool.getAttribute(fieldNode, "field");
 
             if(Tool.equals(oname, field)) {
-               replaceAttribute(fieldNode, "field", oname, nname, true);
+               autoDrillChanged |= replaceAttribute(fieldNode, "field", oname, nname, true);
             }
          }
       }
+
+      return autoDrillChanged;
    }
 
    private void renameVSAndAssemblyScript(Element doc, RenameInfo info) {

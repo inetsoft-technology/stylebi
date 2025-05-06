@@ -20,7 +20,7 @@ package inetsoft.web.admin.user;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.report.internal.Util;
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.*;
 import org.immutables.value.Value;
 
 import java.util.Date;
@@ -39,6 +39,8 @@ public interface TopUsersMonitoringTableModel {
 
    String age();
 
+   String organization();
+
    static TopUsersMonitoringTableModel.Builder builder() {
       return new TopUsersMonitoringTableModel.Builder();
    }
@@ -51,11 +53,13 @@ public interface TopUsersMonitoringTableModel {
             topUser.activeReports() + "(" + topUser.executingReports() + ")";
          reportCount(reportString);
          viewsheetCount(topUser.activeViewsheets());
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
          String ageString = topUser.age() == 0 ? "Logout" :
             Util.formatAge(new Date(topUser.age()), false);
          age(ageString);
          userName(topUser.name().name);
+         organization(provider.getOrgNameFromID(topUser.name().orgID));
 
          return this;
       }

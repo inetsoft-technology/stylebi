@@ -409,14 +409,14 @@ public class ScheduleService {
          if(!(action instanceof IndividualAssetBackupAction)) {
             continue;
          }
-         
+
          IndividualAssetBackupAction bAction = (IndividualAssetBackupAction) action;
 
          for(XAsset asset : bAction.getAssets()) {
             if(!(asset instanceof ScheduleTaskAsset)) {
                continue;
             }
-               
+
             ScheduleTaskAsset taskAsset = (ScheduleTaskAsset) asset;
 
             if(Tool.equals(currentOldTask, taskAsset.getTask())) {
@@ -691,8 +691,10 @@ public class ScheduleService {
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(Organization.getSelfOrganizationID().equals(((XPrincipal) principal).getOrgId())) {
+         String alias = ((XPrincipal) principal).getAlias();
+         alias = !Tool.isEmptyString(alias) ? alias : null;
          allowedUsers = new IdentityIDWithLabel[] {
-            new IdentityIDWithLabel(IdentityID.getIdentityIDFromKey(principal.getName()), ((XPrincipal) principal).getAlias()) };
+            new IdentityIDWithLabel(IdentityID.getIdentityIDFromKey(principal.getName()), alias) };
       }
       else {
          Arrays.stream(securityProvider.getUsers())
@@ -700,7 +702,8 @@ public class ScheduleService {
             .forEach(u -> allUsers.put(u, securityProvider.getUser(u)));
 
          allowedUsers = allUsers.values().stream()
-            .map(u -> new IdentityIDWithLabel(u.getIdentityID(), u.getAlias()))
+            .map(u -> new IdentityIDWithLabel(
+               u.getIdentityID(), !Tool.isEmptyString(u.getAlias()) ? u.getAlias() : null))
             .filter(u -> securityProvider.checkPermission(
                principal, ResourceType.SECURITY_USER, u.getIdentityID().convertToKey(), ResourceAction.ADMIN))
             .sorted()
@@ -1021,34 +1024,7 @@ public class ScheduleService {
          List<SelectedAssetModel> assetModels = backupAction.getAssets()
             .stream()
             .filter(XAsset::exists)
-            .map((xAsset) -> {
-
-               if(xAsset instanceof XDataSourceAsset) {
-                  String ds = ((XDataSourceAsset) xAsset).getDatasource();
-                  XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(ds);
-
-                  if(dataSource != null) {
-                     return SelectedAssetModel.builder()
-                        .label(getAssetLabel(xAsset))
-                        .path(xAsset.getPath())
-                        .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
-                        .typeName(xAsset.getType())
-                        .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
-                        .user(xAsset.getUser())
-                        .icon(ContentRepositoryTreeService.getDataSourceIconClass(dataSource.getType()))
-                        .build();
-                  }
-               }
-
-                return SelectedAssetModel.builder()
-                  .label(getAssetLabel(xAsset))
-                  .path(xAsset.getPath())
-                  .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
-                  .typeName(xAsset.getType())
-                  .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
-                  .user(xAsset.getUser())
-                  .build();
-            })
+            .map(a -> createSelectedAssetModel(a, catalog))
             .collect(Collectors.toList());
 
          model = BackupActionModel.builder()
@@ -1104,6 +1080,34 @@ public class ScheduleService {
       }
 
       return model;
+   }
+
+   private SelectedAssetModel createSelectedAssetModel(XAsset xAsset, Catalog catalog) {
+      if(xAsset instanceof XDataSourceAsset) {
+         String ds = ((XDataSourceAsset) xAsset).getDatasource();
+         XDataSource dataSource = DataSourceRegistry.getRegistry().getDataSource(ds);
+
+         if(dataSource != null) {
+            return SelectedAssetModel.builder()
+               .label(getAssetLabel(xAsset))
+               .path(xAsset.getPath())
+               .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
+               .typeName(xAsset.getType())
+               .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
+               .user(xAsset.getUser())
+               .icon(ContentRepositoryTreeService.getDataSourceIconClass(dataSource.getType()))
+               .build();
+         }
+      }
+
+      return SelectedAssetModel.builder()
+         .label(getAssetLabel(xAsset))
+         .path(xAsset.getPath())
+         .type(DeployUtil.toRepositoryEntryType(xAsset.getType()))
+         .typeName(xAsset.getType())
+         .typeLabel(getAssetTypeLabel(xAsset.getType(), catalog))
+         .user(xAsset.getUser())
+         .build();
    }
 
    private String getAssetLabel(XAsset xAsset) {
@@ -1426,15 +1430,24 @@ public class ScheduleService {
                         Object value = parameter.value();
 
                         if(parameter.array()) {
-                           value = scheduleConditionService
+                           Object[] val = scheduleConditionService
                               .getParamValueAsArray(parameter.type(), parameter.value().getValue().toString());
+
+                           ArrayParameterValue arrayParameterValue = new ArrayParameterValue();
+                           arrayParameterValue.setValue(val);
+                           arrayParameterValue.setType(parameter.type());
+                           value = arrayParameterValue.convertModel();
                         }
                         else if(value instanceof DynamicValueModel) {
                            value = ((DynamicValueModel) value).convertParameterValue();
 
                            if(DynamicValueModel.VALUE.equals(parameter.value().getType())) {
-                              value = scheduleConditionService
+                              Object val = scheduleConditionService
                                       .getParamValueAsType(parameter.type(), parameter.value());
+
+                              if(value instanceof DynamicParameterValue) {
+                                 ((DynamicParameterValue) value).setValue(val);
+                              }
                            }
                         }
 
@@ -1532,10 +1545,40 @@ public class ScheduleService {
    public String getTaskActionLabel(ScheduleAction action, Catalog catalog, Principal principal) {
       String label = action.toString();
 
-      if(action instanceof ViewsheetAction || action instanceof BatchAction) {
+      if(action instanceof BatchAction) {
          int idx = label.indexOf(":") + 2; // remove the prefix
          label = catalog.getString(label.substring(0, idx)) +
             SUtil.localize(label.substring(idx), principal);
+      }
+      else if(action instanceof ViewsheetAction) {
+         int idx = label.indexOf(":") + 2; // remove the prefix
+         String prefix = catalog.getString(label.substring(0, idx));
+         String folder = null;
+         String vsName = null;
+         String fullName = label.substring(idx);
+
+         if(fullName.contains("/")) {
+            folder = fullName.substring(0, fullName.lastIndexOf("/"));
+            vsName = fullName.substring(fullName.lastIndexOf("/") + 1);
+         }
+         else {
+            vsName = fullName;
+         }
+
+         AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
+         String vsId = ((ViewsheetAction) action).getViewsheet();
+
+         if(vsId != null) {
+            try {
+               AssetEntry vs = assetRepository.getAssetEntry(AssetEntry.createAssetEntry(vsId));
+               vsName = Tool.isEmptyString(vs.getAlias()) ? vsName : vs.getAlias();
+            }
+            catch(Exception ignore) {
+            }
+         }
+
+         folder = folder != null ? SUtil.localize(folder, principal) : "";
+         label = Tool.buildString(prefix, Tool.isEmptyString(folder) ? "" : folder + "/", vsName);
       }
       else if(action instanceof IndividualAssetBackupAction) {
          label = catalog.getString(label);

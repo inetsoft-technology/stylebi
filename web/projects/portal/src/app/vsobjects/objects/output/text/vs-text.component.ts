@@ -117,6 +117,7 @@ export class VSText extends AbstractVSObject<VSTextModel>
    private _clientWidth: number = 0;
    private _clientHeight: number = 0;
    private messageListener: (event: any) => void;
+   private dataChanged: boolean = false;
 
    @Input()
    set actions(actions: TextActions) {
@@ -167,6 +168,7 @@ export class VSText extends AbstractVSObject<VSTextModel>
       }
 
       this._model = m;
+      this.dataChanged = true;
    }
 
    get model(): VSTextModel {
@@ -207,10 +209,12 @@ export class VSText extends AbstractVSObject<VSTextModel>
    }
 
    ngOnChanges(changes: SimpleChanges) {
-      this.textChanged();
-      // wait the html render to complete, because the calculate dependency dom size.
-      setTimeout(() => this.changeHeightOfTextarea());
       const modelChanges = changes["model"];
+
+      if(modelChanges) {
+         this.textChanged();
+         this.changeHeightOfTextarea();
+      }
 
       if(this.model.url && modelChanges != null) {
          const prevModel = modelChanges.previousValue as VSTextModel | null;
@@ -461,11 +465,11 @@ export class VSText extends AbstractVSObject<VSTextModel>
 
    ngAfterViewChecked() {
       this.modelChanged();
-      this.textChanged();
 
       // check height on visibility change since height is returned as 0 when div is not visible
-      if(this.textHeight == 0 || this.model.containerType == "VSTab") {
+      if(this.dataChanged || this.textHeight == 0 || this.model.containerType == "VSTab") {
          if(this.changeHeightOfTextarea()) {
+            this.dataChanged = false;
             this.changeDetectionRef.detectChanges();
          }
       }

@@ -113,6 +113,7 @@ import { NotificationsComponent } from "../../../../widget/notifications/notific
 import { PlaceholderDragElementModel } from "../../../../widget/placeholder-drag-element/placeholder-drag-element-model";
 import { DebounceService } from "../../../../widget/services/debounce.service";
 import { DragService } from "../../../../widget/services/drag.service";
+import { FontService } from "../../../../widget/services/font.service";
 import { ModelService } from "../../../../widget/services/model.service";
 import { ScaleService } from "../../../../widget/services/scale/scale-service";
 import {
@@ -446,7 +447,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
                private chatService: ChatService,
                private resizeHandlerService: ResizeHandlerService,
                private composerVsSearchService: ComposerVsSearchService,
-               private appInfoService: AppInfoService)
+               private appInfoService: AppInfoService,
+               private fontService: FontService)
    {
       super(viewsheetClient, zone, true);
       actionFactory.stateProvider = {
@@ -957,9 +959,10 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          this.heartbeatSubscription.unsubscribe();
          this.renameTransformSubscription.unsubscribe();
 
-         const message: string = "_#(js:common.expiredSheets)" +
-            ComponentTool.MESSAGEDIALOG_MESSAGE_CONNECTION +
-            (!!this.vs && !!this.vs.label ? "Viewsheet " + this.vs.label : "viewsheet");
+         const sheetName: string =
+            !!this.vs && !!this.vs.label ? "Viewsheet " + this.vs.label : "viewsheet";
+         const message: string =
+            Tool.formatCatalogString("_#(js:common.expiredSheets)", [sheetName]);
          this.confirm(message).then((ok) => {
             this.confirmExpiredDisplayed = false;
 
@@ -985,12 +988,12 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       {
          const region = this.vs.currentLayout.currentPrintSection;
          const guideType = this.vs.currentLayout.guideType;
-         this.vs.currentLayout = new VSLayoutModel(command.layout);
+         this.vs.currentLayout = new VSLayoutModel(this.fontService, command.layout);
          this.vs.currentLayout.currentPrintSection = region;
          this.vs.currentLayout.guideType = guideType;
       }
       else {
-         this.vs.currentLayout = new VSLayoutModel(command.layout);
+         this.vs.currentLayout = new VSLayoutModel(this.fontService, command.layout);
          this.vs.currentLayout.guideType = this.vs.currentLayoutGuides;
       }
 
@@ -2671,6 +2674,6 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
    isDefaultOrgAsset() {
       let assetEntry: AssetEntry = createAssetEntry(this.vs.id);
-      return assetEntry?.organization != this.orgInfo.key;
+      return assetEntry?.organization != this.orgInfo?.key;
    }
 }

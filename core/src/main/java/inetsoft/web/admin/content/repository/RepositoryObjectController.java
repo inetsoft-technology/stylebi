@@ -18,6 +18,7 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
+import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Resource;
 import inetsoft.uql.asset.*;
@@ -60,15 +61,18 @@ public class RepositoryObjectController {
                                      Principal principal)
       throws Exception
    {
-      Resource resource = permissionService.getRepositoryResourceType(Integer.parseInt(type), path);
-      String fullPath = Util.getObjectFullPath(Integer.parseInt(type), path, principal);
+      int resourceType = Integer.parseInt(type);
+      Resource resource = permissionService.getRepositoryResourceType(resourceType, path);
+      String fullPath = Util.getObjectFullPath(resourceType, path, principal);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry entry = new AssetEntry(
          AssetRepository.COMPONENT_SCOPE, Integer.parseInt(type), path, pId);
       AssetRepository repository = AssetUtil.getAssetRepository(false);
       ((AbstractAssetEngine)repository).fireLibraryEvent(entry);
+
+      boolean tableStyleFolder = resourceType == (RepositoryEntry.FOLDER | RepositoryEntry.TABLE_STYLE);
       this.permissionService.setResourcePermissions(
-         resource.getPath(), resource.getType(), fullPath, model, principal);
+         resource.getPath(), resource.getType(), fullPath, model, principal, tableStyleFolder);
    }
 
    @PostMapping("/api/em/settings/content/repository/folder/add/")

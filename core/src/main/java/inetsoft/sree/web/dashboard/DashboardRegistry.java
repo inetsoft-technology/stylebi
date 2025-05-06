@@ -810,8 +810,8 @@ public class DashboardRegistry implements SessionListener {
       private Identity getIdentity(IdentityID user) {
          boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
 
-         return securityEnabled ? new DefaultIdentity(user, Identity.USER) :
-            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+         return securityEnabled || (!securityEnabled && Tool.equals(user.name, "admin")) ? new DefaultIdentity(user, Identity.USER) :
+            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
 
       /**

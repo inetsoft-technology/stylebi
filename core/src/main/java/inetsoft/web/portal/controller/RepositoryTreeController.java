@@ -201,7 +201,7 @@ public class RepositoryTreeController {
             continue;
          }
 
-         entry.setFavoritesUser(repositoryTreeService.hasFavoritesUser(entry, principal));
+         entry.setFavoritesUser(!isDefaultOrgAsset && repositoryTreeService.hasFavoritesUser(entry, principal));
          RepositoryEntryModel entryModel = repositoryEntryModelFactoryService
             .createModel(entry);
          entryModel.setOp(repositoryTreeService.getSupportedOperations(entry, principal));
@@ -348,7 +348,7 @@ public class RepositoryTreeController {
    {
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       RepletRegistry registry = SUtil.isMyReport(entry.getPath()) ?
-              RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry(null);
+              RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry();
       Catalog catalog = Catalog.getCatalog(principal);
       String oldName = entry.getPath();
       newName = SUtil.removeControlChars(newName);
@@ -394,7 +394,7 @@ public class RepositoryTreeController {
             analyticRepository.renameRepositoryEntry(entry, newPath, principal);
          }
          else {
-            boolean reAlias = assetEntry.getAlias() != null || containsSpecialChars(newName);
+            boolean reAlias = !Tool.isEmptyString(assetEntry.getAlias()) || containsSpecialChars(newName);
             String name = assetEntry.getScope() == AssetRepository.USER_SCOPE ?
                newPath.substring(Tool.MY_DASHBOARD.length() + 1) : newPath;
             AssetEntry nentry = new AssetEntry(assetEntry.getScope(),
@@ -622,7 +622,7 @@ public class RepositoryTreeController {
          }
 
          RepletRegistry registry = SUtil.isMyReport(entry.getPath()) ?
-            RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry(null);
+            RepletRegistry.getRegistry(pId) : RepletRegistry.getRegistry();
 
          // don't rename if the name did not change
          if(!entry.getName().equals(name)) {

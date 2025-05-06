@@ -19,8 +19,7 @@ package inetsoft.uql.erm;
 
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.sync.RenameInfo;
-import inetsoft.uql.asset.sync.RenameTransformHandler;
+import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.vpm.VpmCondition;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -28,6 +27,7 @@ import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.util.*;
 import inetsoft.util.xml.XMLStorage.Filter;
 import inetsoft.util.xml.XMLStorage.XMLFragment;
+import org.apache.commons.lang.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -172,7 +172,10 @@ public class XDataModel implements Cloneable, Serializable,
          RenameInfo rinfo = new RenameInfo(oldName, newName, type);
          rinfo.setPrefix(getDataSource());
          rinfo.setModelFolder(model.getFolder());
-         RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
+         RenameDependencyInfo extendModelDependencyInfo =
+            DependencyTransformer.createExtendModelDependencyInfo(getLogicalModel(newName),
+               oldName, newName, rinfo);
+         RenameTransformHandler.getTransformHandler().addTransformTask(extendModelDependencyInfo);
       }
    }
 

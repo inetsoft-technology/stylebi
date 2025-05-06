@@ -378,18 +378,17 @@ export class BackupFileComponent implements OnDestroy {
          }
 
          if(!this.selectedEntities.some((entity) => entity.path == path)) {
-            //additional datasource connection should not be exported
-            if(type == RepositoryEntryType.DATA_SOURCE) {
+            // additional datasource connection should not be exported
+            // cube models should not be exported, they are implicitly dependencies of the XMLA data source
+            if(type == RepositoryEntryType.DATA_SOURCE || type == RepositoryEntryType.CUBE) {
                continue;
             }
 
             if(node.label !== "_#(js:Data Model)" &&
                ((type & RepositoryEntryType.FOLDER) != RepositoryEntryType.FOLDER ||
                   (type & RepositoryEntryType.DATA_SOURCE) == RepositoryEntryType.DATA_SOURCE ||
-                  ((type & RepositoryEntryType.LOGIC_MODEL) == RepositoryEntryType.LOGIC_MODEL &&
-                     node.children.length === 0) ||
-                  ((type & RepositoryEntryType.PARTITION) == RepositoryEntryType.PARTITION &&
-                     node.children.length === 0))) {
+                  (type & RepositoryEntryType.LOGIC_MODEL) == RepositoryEntryType.LOGIC_MODEL ||
+                  (type & RepositoryEntryType.PARTITION) == RepositoryEntryType.PARTITION)) {
                assets.push(<SelectedAssetModel>{
                   label: label,
                   path: path,

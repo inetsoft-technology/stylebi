@@ -38,6 +38,7 @@ import org.jnumbers.NumberParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Time;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -425,6 +426,16 @@ public class MVCreatorUtil {
             // not match the condition dates (where the times will be 0). (56535)
             date = new Date(date.getYear(), date.getMonth(), date.getDate());
             mval = date.getTime();
+         }
+         else if(obj instanceof Time time) {
+            // clear out the date component so that aggregations like min and max are
+            // computed correctly
+            Calendar cal = new GregorianCalendar();
+            cal.setTime(time);
+            cal.set(Calendar.YEAR, 1970);
+            cal.set(Calendar.MONTH, Calendar.JANUARY);
+            cal.set(Calendar.DAY_OF_MONTH, 1);
+            mval = cal.getTimeInMillis();
          }
          else if(obj instanceof Date) {
             mval = ((Date) obj).getTime();

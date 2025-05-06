@@ -49,13 +49,13 @@ import net.jpountz.lz4.LZ4BlockOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.SystemUtils;
-import org.iq80.snappy.SnappyFramedInputStream;
-import org.iq80.snappy.SnappyFramedOutputStream;
 import org.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.util.UriUtils;
 import org.w3c.dom.*;
+import org.xerial.snappy.SnappyFramedInputStream;
+import org.xerial.snappy.SnappyFramedOutputStream;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -95,7 +95,7 @@ import java.util.zip.ZipOutputStream;
  */
 public final class Tool extends CoreTool {
    static {
-      PropertiesEngine.getInstance().addPropertyChangeListener("string.compare.caseSensitive", evt -> invalidateCaseSensitive());
+      PropertiesEngine.getInstance().addPropertyChangeListener("string.compare.casesensitive", evt -> invalidateCaseSensitive());
    }
    /**
     * User defined type.
@@ -260,6 +260,10 @@ public final class Tool extends CoreTool {
     * Normalize a file name.
     */
    public static String normalizeFileName(String key) {
+      return normalizeFileName(key, false);
+   }
+
+   public static String normalizeFileName(String key, boolean comma) {
       if(key == null) {
          return null;
       }
@@ -270,7 +274,7 @@ public final class Tool extends CoreTool {
          char c = key.charAt(i);
 
          if(c == '\\' || c == '/' || c == ':' || c =='*' || c == '?' ||
-            c == '"' || c =='<' || c == '>' || c == '|' || c == ';')
+            c == '"' || c == '<' || c == '>' || c == '|' || c == ';' || comma && c == ',')
          {
             sb.append('_');
             sb.append(Integer.toString(c));
@@ -2230,7 +2234,7 @@ public final class Tool extends CoreTool {
     * @return Style Report version.
     */
    public static String getReportVersion() {
-      return "2023";
+      return "1.0.0";
    }
 
    /**
@@ -2817,7 +2821,7 @@ public final class Tool extends CoreTool {
       if(!sinited) {
          synchronized(Tool.class) {
             if(!sinited) {
-               String cs = SreeEnv.getProperty("string.compare.caseSensitive");
+               String cs = SreeEnv.getProperty("string.compare.casesensitive");
                sensitive = "true".equals(cs);
                sinited = true;
             }

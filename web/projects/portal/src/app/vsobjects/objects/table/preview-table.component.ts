@@ -38,6 +38,7 @@ import {
    FeatureFlagsService,
    FeatureFlagValue
 } from "../../../../../../shared/feature-flags/feature-flags.service";
+import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
 import { BinarySearch } from "../../../common/data/binary-search";
@@ -70,6 +71,7 @@ const INITIAL_COLUMN_WIDTH: number = 80;
 })
 export class PreviewTableComponent implements OnDestroy, AfterViewChecked, AfterContentChecked {
    @Input() sortEnabled: boolean = false;
+   @Input() checkHeaderValid: boolean = false;
    @Input() sortInfo: SortInfo;
    @Input() linkUri: string;
    @Input() runtimeId: string;
@@ -220,6 +222,20 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
 
    get tableData(): BaseTableCellModel[][] {
       return this._tableData;
+   }
+
+   isHeaderValid(cell: BaseTableCellModel) {
+      if(!this.checkHeaderValid) {
+         return true;
+      }
+
+      let label = this.getCellLabel(cell);
+
+      if(FormValidators.matchCalcSpecialCharacters(label)) {
+         return false;
+      }
+
+      return true;
    }
 
    @Input()

@@ -189,6 +189,7 @@ public final class UpdateDependencyHandler {
          String prefix = null;
          String entryPaths = null;
          boolean physicalTable = false;
+         boolean worksheetType = false;
 
          for(int j = 0; j < propertyList.getLength(); j++) {
             Element property = (Element) propertyList.item(j);
@@ -214,9 +215,12 @@ public final class UpdateDependencyHandler {
                Element valE = Tool.getChildNodeByTagName(property, "value");
                entryPaths = Tool.getValue(valE);
             }
+            else if(AssetEntry.WORKSHEET_TYPE.equals(key)) {
+               worksheetType = true;
+            }
          }
 
-         if("worksheet".equals(type)) {
+         if("worksheet".equals(type) || type == null && worksheetType) {
             int scope = AssetRepository.GLOBAL_SCOPE;
 
             try {
@@ -313,6 +317,7 @@ public final class UpdateDependencyHandler {
          try {
             AssetEntry vs = new AssetEntry();
             vs.parseXML(ele);
+            vs.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
 
             if(entry != null) {
                addDependencyToFile(vs.toIdentifier(), entry);
@@ -711,7 +716,7 @@ public final class UpdateDependencyHandler {
       }
 
       identifier = Tool.byteDecode(identifier);
-      dependencies.add(AssetEntry.createAssetEntry(identifier));
+      dependencies.add(AssetEntry.createAssetEntryForCurrentOrg(identifier));
    }
 
    private static void getTaskSupportTargetDependencies(Element doc,
@@ -769,7 +774,9 @@ public final class UpdateDependencyHandler {
 
                   String assetType = assetEle.getAttribute("type");
                   String assetPath = Tool.byteDecode(assetEle.getAttribute("path"));
-                  IdentityID assetUser = IdentityID.getIdentityIDFromKey(assetEle.getAttribute("user"));
+                  String userStr = assetEle.getAttribute("user");
+                  IdentityID assetUser =
+                     Tool.isEmptyString(userStr) ? null : IdentityID.getIdentityIDFromKey(userStr);
                   XAsset xAsset = SUtil.getXAsset(assetType, assetPath, assetUser);
                   AssetObject assetObject = DeployHelper.getAssetObjectByAsset(xAsset);
 
@@ -889,8 +896,8 @@ public final class UpdateDependencyHandler {
             continue;
          }
 
-         if(linkType == Hyperlink.VIEWSHEET_LINK){
-            dependencies.add(AssetEntry.createAssetEntry(linkName));
+         if(linkType == Hyperlink.VIEWSHEET_LINK) {
+            dependencies.add(AssetEntry.createAssetEntry(Hyperlink.handleAssetLinkOrgMismatch(linkName)));
          }
       }
    }

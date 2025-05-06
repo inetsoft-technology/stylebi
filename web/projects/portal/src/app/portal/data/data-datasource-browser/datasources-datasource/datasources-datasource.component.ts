@@ -51,6 +51,7 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
    @ViewChild("dataNotifications") dataNotifications: DataNotificationsComponent;
    defaultDataSource: DataSourceDefinitionModel = {
       name: "",
+      oldName: null,
       parentPath: "",
       type: null,
       deletable: true,

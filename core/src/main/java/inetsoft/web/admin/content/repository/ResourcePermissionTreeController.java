@@ -34,9 +34,10 @@ public class ResourcePermissionTreeController {
    public SecurityTreeRootModel getResourceTree(
       @RequestParam(value = "provider", required = false) String provider,
       @RequestParam(value = "hideOrgAdminRole", required = false) boolean hideOrgAdminRole,
+      @RequestParam(value = "isTimeRange", required = false) boolean isTimeRange,
       Principal principal)
    {
-      return securityTreeServer.getSecurityTree(provider, principal, true, false, hideOrgAdminRole);
+      return securityTreeServer.getSecurityTree(provider, principal, true, false, hideOrgAdminRole, isTimeRange);
    }
 
    private final SecurityTreeServer securityTreeServer;

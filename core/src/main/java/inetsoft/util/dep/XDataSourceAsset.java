@@ -177,7 +177,7 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
                XCubeMember member = dim.getLevelAt(i);
                XMetaInfo metaInfo = member.getXMetaInfo();
                getAutoDrillDependency(metaInfo, list,
-                                      catalog.getString("common.xasset.dataSource.drill", dim.getName(), ds));
+                                      catalog.getString("common.xasset.dataSource.drill", dim.getName(), ds), null);
             }
          }
       }

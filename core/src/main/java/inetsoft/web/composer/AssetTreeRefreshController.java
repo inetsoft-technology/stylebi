@@ -56,6 +56,12 @@ public class AssetTreeRefreshController {
    public void preDestroy() throws Exception {
       assetRepository.removeAssetChangeListener(listener);
       LibManager.getManager().removeActionListener(libraryListener);
+      AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
+
+      if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
+         runtimeAssetRepository.removeAssetChangeListener(listener);
+      }
+
       this.debouncer.close();
    }
 
@@ -71,9 +77,10 @@ public class AssetTreeRefreshController {
       }
 
       DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+      final String orgId = ((XPrincipal) principal).getOrgId();
       registry.addRefreshedListener(event -> {
          // Data Source Entry
-         AssetEntry entry = AssetEntry.createAssetEntry("0^65605^__NULL__^/^" + ((XPrincipal) principal).getOrgId());
+         AssetEntry entry = AssetEntry.createAssetEntry("0^65605^__NULL__^/^" + orgId);
          AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
             .parentEntry(entry)
             .oldIdentifier(null)
@@ -153,7 +160,7 @@ public class AssetTreeRefreshController {
       }
    };
 
-   final private Debouncer debouncer = new DefaultDebouncer<>(false);
+   final private Debouncer<String> debouncer = new DefaultDebouncer<>(false);
    private static final String TABLE_STYLE = "Table Style";
    private static final String SCRIPT = "Script Function";
 }

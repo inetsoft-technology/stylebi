@@ -29,7 +29,12 @@ import {
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
-import { KEY_DELIMITER, IdentityId } from "../../../../../../em/src/app/settings/security/users/identity-id";
+import { SecurityEnabledEvent } from "../../../../../../em/src/app/settings/security/security-settings-page/security-enabled-event";
+import {
+   KEY_DELIMITER,
+   IdentityId,
+   convertToKey
+} from "../../../../../../em/src/app/settings/security/users/identity-id";
 import { ScheduleConditionModel } from "../../../../../../shared/schedule/model/schedule-condition-model";
 import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
@@ -111,6 +116,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    loading = false;
    noRootPermission: boolean = false;
    dateFormat: string = "YYYY-MM-DD HH:mm:ss";
+   securityEnabled: boolean;
 
    private subscriptions: Subscription;
 
@@ -126,6 +132,8 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
                private domService: DomService,
                private zone: NgZone)
    {
+      this.http.get("../api/em/security/get-enable-security")
+         .subscribe((event: SecurityEnabledEvent) => this.securityEnabled = event.enable);
    }
 
    ngOnInit(): void {
@@ -184,10 +192,18 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
 
    private mergeChange(change: ScheduleTaskChange): void {
       const list = this.tasks.slice();
-      const index = list.findIndex(t => t.name === change.name);
+      const index = list.findIndex(t => {
+         if(this.securityEnabled) {
+            return t.name === change.name;
+         }
+         else {
+            let taskFullName = convertToKey(t.owner) + ":" + t.name;
+            return taskFullName === change.name;
+         }
+      });
 
       if(index >= 0) {
-         if(change.type === "REMOVED") {
+         if(change.type === "REMOVED" || change.task.hideInPortal) {
             list.splice(index, 1);
          }
          else {

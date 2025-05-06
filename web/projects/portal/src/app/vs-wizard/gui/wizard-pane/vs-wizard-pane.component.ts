@@ -61,6 +61,7 @@ import { VSObjectModel } from "../../../vsobjects/model/vs-object-model";
 import { PopComponentService } from "../../../vsobjects/objects/data-tip/pop-component.service";
 import { VSUtil } from "../../../vsobjects/util/vs-util";
 import { SelectionBoxEvent } from "../../../widget/directive/selection-box.directive";
+import { FontService } from "../../../widget/services/font.service";
 import { ModelService } from "../../../widget/services/model.service";
 import { SetWizardGridCommand } from "../../model/command/set-wizard-grid-command";
 import { UploadImageCommand } from "../../model/command/upload-image-command";
@@ -104,7 +105,7 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
    @ViewChild("uploadInput") uploadInput: ElementRef;
    @ViewChild("paneContainer") paneContainer: ElementRef;
    @ViewChild("scrollContainer") scrollContainer: ElementRef;
-   viewsheet: Viewsheet = new Viewsheet();
+   viewsheet: Viewsheet = new Viewsheet(this.fontService);
    autoLayoutHorizontal: boolean = true;
    gridCellWidth: number = VSWizardConstants.GRID_CELL_WIDTH;
    gridCellHeight: number = VSWizardConstants.GRID_CELL_HEIGHT;
@@ -202,7 +203,8 @@ export class VsWizardPane extends CommandProcessor implements OnInit, AfterViewI
                private renderer: Renderer2,
                private eventQueueService: EventQueueService,
                private changeRef: ChangeDetectorRef,
-               public viewsheetClient: ViewsheetClientService)
+               public viewsheetClient: ViewsheetClientService,
+               private fontService: FontService)
    {
       super(viewsheetClient, zone, true);
       this.viewsheet.socketConnection = viewsheetClient;

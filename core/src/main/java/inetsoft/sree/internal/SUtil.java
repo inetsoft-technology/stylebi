@@ -17,6 +17,8 @@
  */
 package inetsoft.sree.internal;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.mv.fs.*;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.internal.Util;
@@ -2126,7 +2128,13 @@ public class SUtil {
          LOG.warn("Unsupported asset type: " + type);
       }
       else {
-         asset.parseIdentifier(path, user);
+         try {
+            asset.parseIdentifier(path, user);
+         }
+         catch(ResourceNotFoundException ex) {
+            LOG.warn(String.format("Ignore the not exist resource %s with path %s", type, path), ex);
+            asset = null;
+         }
       }
 
       return asset;
@@ -2903,7 +2911,9 @@ public class SUtil {
       }
 
       String orgID = entry.getOrgID();
-      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      XPrincipal principal = (XPrincipal) ThreadContext.getContextPrincipal();
+      String currOrgID = principal != null ?
+         principal.getOrgId() : OrganizationManager.getInstance().getCurrentOrgID();
       return !Tool.equals(orgID, currOrgID) && SUtil.isDefaultVSGloballyVisible() &&
          Organization.getDefaultOrganizationID().equals(orgID);
    }
@@ -3209,6 +3219,26 @@ public class SUtil {
       binaryTypeConfigurations.add(typeCfg);
 
       return binaryTypeConfigurations;
+   }
+
+   public static String writeCookiesString(Cookie[] cookies) {
+      if(cookies != null) {
+         ObjectMapper objectMapper = new ObjectMapper();
+         Map<String, String> cookieData = new HashMap<>();
+
+         for(Cookie cookie : cookies) {
+            cookieData.put(cookie.getName(), cookie.getValue());
+         }
+
+         try {
+            return objectMapper.writeValueAsString(cookieData);
+         }
+         catch (Exception e) {
+            throw new RuntimeException("Error parsing cookie data to JSON", e);
+         }
+      }
+
+      return null;
    }
 
    public static String[] parseSignUpUserNames(IdentityID userID, SRPrincipal principal) {

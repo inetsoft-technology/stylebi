@@ -17,10 +17,10 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.TimeRange;
 import inetsoft.storage.*;
-import inetsoft.util.SingletonManager;
-import inetsoft.util.Tuple3;
+import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,42 +47,107 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       storage = SingletonManager.getInstance(KeyValueStorage.class,
                                    "defaultSecurityPermissions",
                                    (Supplier<LoadPermissionsTask>) LoadPermissionsTask::new);
+
+      isolatePermissionForOrg();
+   }
+
+   /**
+    * Permission was isolated by organiztion to fix bugs like Bug #7091, this function is to
+    * isolate permissions by organization for old storage.
+    */
+   private void isolatePermissionForOrg() {
+      if(!needIsolate()) {
+         return;
+      }
+
+      Map<String, Permission> map = new HashMap<>();
+      storage.stream().forEach(pair -> map.put(pair.getKey(), pair.getValue()));
+      storage.removeAll(storage.keys().collect(Collectors.toSet()));
+
+      for(Map.Entry<String, Permission> entry : map.entrySet()) {
+         String key = entry.getKey();
+         int delimiter = key.indexOf(":");
+         ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
+         String path = key.substring(delimiter + 1);
+         Permission permission = entry.getValue();
+
+         if(permission == null) {
+            continue;
+         }
+
+         Map<String, Permission> permissionMap = permission.splitPermissionForOrg();
+
+         permissionMap.forEach((orgId, orgPermission) -> {
+            // no meaningful scenario for setting permissions on a global role.
+            if("null".equals(orgId)) {
+               return;
+            }
+
+            setPermission(type, path, orgPermission, orgId);
+         });
+      }
+   }
+
+   private boolean needIsolate() {
+      String key = storage.keys().findFirst().orElse(null);
+
+      if(key == null) {
+         return false;
+      }
+
+      String[] arr = key.split(":");
+
+      if(arr.length < 3) {
+         return true;
+      }
+
+      String orgID = arr[1];
+
+      return SecurityEngine.getSecurity().getSecurityProvider().getOrganization(orgID) == null;
    }
 
    /**
     * {@inheritDoc}
     */
    @Override
-   public Permission getPermission(ResourceType type, String resource) {
+   public Permission getPermission(ResourceType type, String resource, String orgID) {
       init();
-      return storage.get(getResourceKey(type, resource));
+      return storage.get(getResourceKey(type, resource, orgID));
    }
 
    /**
     * {@inheritDoc}
     */
    @Override
-   public Permission getPermission(ResourceType type, IdentityID resource) {
+   public Permission getPermission(ResourceType type, IdentityID resource, String orgID) {
       init();
-      return storage.get(getResourceKey(type, resource.convertToKey()));
+      return storage.get(getResourceKey(type, resource.convertToKey(), getResourceOrgID(orgID)));
    }
+
 
    /**
     * {@inheritDoc}
     */
    @Override
-   public List<Tuple3<ResourceType, String, Permission>> getPermissions() {
+   public List<Tuple4<ResourceType, String, String, Permission>> getPermissions() {
       init();
 
-      Function<KeyValuePair<Permission>, Tuple3<ResourceType, String, Permission>> mapper =
+      Function<KeyValuePair<Permission>, Tuple4<ResourceType, String, String, Permission>> mapper =
          pair -> {
             String key = pair.getKey();
             int delimiter = key.indexOf(":");
 
             ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
             String path = key.substring(delimiter + 1);
+            delimiter = path.indexOf(":");
+            String orgID = null;
 
-            return new Tuple3<>(type, path, pair.getValue());
+            if(delimiter != -1) {
+               orgID = path.substring(0, delimiter);
+               path = path.substring(delimiter + 1);
+            }
+
+            return new Tuple4<>(type, orgID, path, pair.getValue());
          };
 
       return storage.stream().map(mapper).collect(Collectors.toList());
@@ -92,15 +157,16 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
     * {@inheritDoc}
     */
    @Override
-   public void setPermission(ResourceType type, String resource, Permission perm) {
+   public void setPermission(ResourceType type, String resource, Permission perm, String orgID) {
       init();
+      orgID = getResourceOrgID(orgID);
 
       if(perm == null) {
-         removePermission(type, resource);
+         removePermission(type, resource, orgID);
       }
       else {
          try {
-            storage.put(getResourceKey(type, resource), perm).get();
+            storage.put(getResourceKey(type, resource, orgID), perm).get();
          }
          catch(Exception e) {
             LOG.error("Failed to set permission on {} {}", type, resource, e);
@@ -112,15 +178,16 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
     * {@inheritDoc}
     */
    @Override
-   public void setPermission(ResourceType type, IdentityID identityID, Permission perm) {
+   public void setPermission(ResourceType type, IdentityID identityID, Permission perm, String orgID) {
       init();
+      orgID = getResourceOrgID(orgID);
 
       if(perm == null) {
-         removePermission(type, identityID);
+         removePermission(type, identityID, orgID);
       }
       else {
          try {
-            storage.put(getResourceKey(type, identityID.convertToKey()), perm).get();
+            storage.put(getResourceKey(type, identityID.convertToKey(), orgID), perm).get();
          }
          catch(Exception e) {
             LOG.error("Failed to set permission on {} {}", type, identityID, e);
@@ -128,15 +195,13 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       }
    }
 
-   /**
-    * {@inheritDoc}
-    */
    @Override
-   public void removePermission(ResourceType type, String resource) {
+   public void removePermission(ResourceType type, String resource, String orgID) {
       init();
+      orgID = getResourceOrgID(orgID);
 
       try {
-         storage.remove(getResourceKey(type, resource)).get();
+         storage.remove(getResourceKey(type, resource, orgID)).get();
       }
       catch(Exception e) {
          LOG.error("Failed to remove permission from {} {}", type, resource, e);
@@ -144,15 +209,17 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    }
 
    public void cleanOrganizationFromPermissions(String orgId) {
-      for(Tuple3<ResourceType, String, Permission> permissionSet : getPermissions()) {
-         for (ResourceAction action : ResourceAction.values()) {
-            Permission permission = permissionSet.getThird();
-            if(permission.isOrgInPerm(action, orgId)) {
-               permission.cleanOrganizationFromPermission(action, orgId);
-               permission.removeGrantAllByOrg(orgId);
-               setPermission(permissionSet.getFirst(),permissionSet.getSecond(), permission);
-            }
+      for(Tuple4<ResourceType, String, String, Permission> permissionSet : getPermissions()) {
+         String resourceOrgID = permissionSet.getSecond();
+
+         if(resourceOrgID != null && !Tool.equals(resourceOrgID, orgId)) {
+            continue;
          }
+
+         ResourceType type = permissionSet.getFirst();
+         String path = permissionSet.getThird();
+
+         removePermission(type, path, resourceOrgID);
       }
    }
 
@@ -186,6 +253,8 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       IdentityID oldID = event.getOldID();
       IdentityID newID = event.getNewID();
 
+      // to-do, org changed ?
+
       List<KeyValuePair<Permission>> list = storage.stream().collect(Collectors.toList());
 
       try {
@@ -214,7 +283,13 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
    }
 
    private static String getResourceKey(ResourceType type, String path) {
-         return type + ":" + path;
+      return getResourceKey(type, path, null);
+   }
+
+   private static String getResourceKey(ResourceType type, String path, String orgID) {
+      orgID = orgID != null ? orgID : SUtil.isMultiTenant() ?
+         OrganizationManager.getInstance().getCurrentOrgID() : Organization.getDefaultOrganizationID();
+      return type + ":" + orgID + ":" + path;
    }
 
    private KeyValueStorage<Permission> storage;
@@ -230,7 +305,9 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          addDefaultAdminPermissions(Organization.getDefaultOrganizationID(), map);
          addDefaultAdminPermissions(Organization.getSelfOrganizationID(), map);
 
-         addDefaultRoleGrants(map);
+         addDefaultRoleGrants(Organization.getDefaultOrganizationID(), map);
+         addDefaultRoleGrants(Organization.getSelfOrganizationID(), map);
+
          addDefaultPermissionForSelfOrg(map);
 
          return Permission.class;
@@ -244,67 +321,62 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             perm.setRoleGrantsForOrg(action, roles, orgId);
          }
 
-         map.put(getResourceKey(ResourceType.REPORT, "Built-in Admin Reports"), perm);
+         map.put(getResourceKey(ResourceType.REPORT, "Built-in Admin Reports", orgId), perm);
       }
 
-      public static void addDefaultRoleGrants(Map<String, Permission> map) {
-         Permission perm = new Permission();
-
-         String defaultorgName = Organization.getDefaultOrganizationName();
-         String defaultorgId = Organization.getDefaultOrganizationID();
-
+      public static void addDefaultRoleGrants(String orgID, Map<String, Permission> map) {
          String selforgName = Organization.getSelfOrganizationName();
-         String selforgId = Organization.getSelfOrganizationID();
+         Permission perm = null;
 
-         perm = new Permission();
-         Map<String, Boolean> defedited = new HashMap<>();
-         defedited.put(defaultorgId, true);
-
-         String name = "Advanced";
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), defaultorgId);
-         perm.setOrgEditedGrantAll(defedited);
-
-         map.put(getResourceKey(ResourceType.SCHEDULER, "*"), perm);
-
-         //self org permissions for remaining
-         Map<String, Boolean> edited = new HashMap<>();
-         edited.put(defaultorgId, true);
-         edited.put(selforgId, true);
-
-         perm = new Permission();
-
-         name = "Designer";
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), defaultorgId);
-         perm.setOrganizationGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(selforgName), selforgId);
-         perm.setOrgEditedGrantAll(edited);
-
-         map.put(getResourceKey(ResourceType.COMPOSER, "*"), perm);
-         map.put(getResourceKey(ResourceType.WORKSHEET, "*"), perm);
-         map.put(getResourceKey(ResourceType.VIEWSHEET, "*"), perm);
-
-         perm = new Permission();
-
-         name = "Designer";
-         perm.setRoleGrantsForOrg(ResourceAction.READ, Collections.singleton(name), defaultorgId);
-         perm.setRoleGrantsForOrg(ResourceAction.WRITE, Collections.singleton(name), defaultorgId);
-         perm.setOrganizationGrantsForOrg(ResourceAction.READ, Collections.singleton(selforgName), selforgId);
-         perm.setOrganizationGrantsForOrg(ResourceAction.WRITE, Collections.singleton(selforgName), selforgId);
-         perm.setOrgEditedGrantAll(edited);
-
-         map.put(getResourceKey(ResourceType.DASHBOARD, "*"), perm);
-
-         for(TimeRange range : TimeRange.getTimeRanges()) {
-            map.put(getResourceKey(ResourceType.SCHEDULE_TIME_RANGE, range.getName()), perm);
+         if(Organization.getDefaultOrganizationID().equals(orgID)) {
+            perm = new Permission();
+            Map<String, Boolean> defedited = new HashMap<>();
+            defedited.put(orgID, true);
+            perm.setOrgEditedGrantAll(defedited);
+            perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton("Advanced"), orgID);
+            map.put(getResourceKey(ResourceType.SCHEDULER, "*", orgID), perm);
          }
 
-         perm = new Permission();
+         Map<String, Boolean> edited = new HashMap<>();
+         edited.put(orgID, true);
 
-         name = "Advanced";
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), defaultorgId);
+         perm = new Permission();
          perm.setOrgEditedGrantAll(edited);
 
+         if(Organization.getDefaultOrganizationID().equals(orgID)) {
+            perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton("Designer"), orgID);
+         }
+         else if(Organization.getSelfOrganizationID().equals(orgID)) {
+            perm.setOrganizationGrantsForOrg(ResourceAction.ACCESS,
+                                             Collections.singleton(selforgName), orgID);
+         }
+
+         map.put(getResourceKey(ResourceType.COMPOSER, "*", orgID), perm);
+         map.put(getResourceKey(ResourceType.WORKSHEET, "*", orgID), perm);
+         map.put(getResourceKey(ResourceType.VIEWSHEET, "*", orgID), perm);
+
+
+         perm = new Permission();
+         perm.setOrgEditedGrantAll(edited);
+
+         if(Organization.getDefaultOrganizationID().equals(orgID)) {
+            String name = "Designer";
+            perm.setRoleGrantsForOrg(ResourceAction.READ, Collections.singleton(name), orgID);
+            perm.setRoleGrantsForOrg(ResourceAction.WRITE, Collections.singleton(name), orgID);
+         }
+         else if(Organization.getSelfOrganizationID().equals(orgID)) {
+            perm.setOrganizationGrantsForOrg(ResourceAction.READ, Collections.singleton(selforgName), orgID);
+            perm.setOrganizationGrantsForOrg(ResourceAction.WRITE, Collections.singleton(selforgName), orgID);
+         }
+
+         map.put(getResourceKey(ResourceType.DASHBOARD, "*", orgID), perm);
+
+         if(Organization.getDefaultOrganizationID().equals(orgID)) {
+            perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton("Advanced"), orgID);
+         }
+
          for(TimeRange range : TimeRange.getTimeRanges()) {
-            map.put(getResourceKey(ResourceType.SCHEDULE_TIME_RANGE, range.getName()), perm);
+            map.put(getResourceKey(ResourceType.SCHEDULE_TIME_RANGE, range.getName(), orgID), perm);
          }
       }
 
@@ -319,19 +391,19 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             Collections.singleton(selfOrganizationName), selfOrgId);
          perm.updateGrantAllByOrg(selfOrgId, true);
 
-         map.put(getResourceKey(ResourceType.CREATE_DATA_SOURCE, "*"), perm);
-         map.put(getResourceKey(ResourceType.PORTAL_TAB, "Data"), perm);
-         map.put(getResourceKey(ResourceType.PHYSICAL_TABLE, "*"), perm);
-         map.put(getResourceKey(ResourceType.CROSS_JOIN, "*"), perm);
-         map.put(getResourceKey(ResourceType.FREE_FORM_SQL, "*"), perm);
+         map.put(getResourceKey(ResourceType.CREATE_DATA_SOURCE, "*", selfOrgId), perm);
+         map.put(getResourceKey(ResourceType.PORTAL_TAB, "Data", selfOrgId), perm);
+         map.put(getResourceKey(ResourceType.PHYSICAL_TABLE, "*", selfOrgId), perm);
+         map.put(getResourceKey(ResourceType.CROSS_JOIN, "*", selfOrgId), perm);
+         map.put(getResourceKey(ResourceType.FREE_FORM_SQL, "*", selfOrgId), perm);
 
          perm = new Permission();
          perm.setOrganizationGrantsForOrg(ResourceAction.READ,
             Collections.singleton(selfOrganizationName), selfOrgId);
          perm.updateGrantAllByOrg(selfOrgId, true);
 
-         map.put(getResourceKey(ResourceType.REPORT, "/"), perm);
-         map.put(getResourceKey(ResourceType.ASSET, "/"), perm);
+         map.put(getResourceKey(ResourceType.REPORT, "/", selfOrgId), perm);
+         map.put(getResourceKey(ResourceType.ASSET, "/", selfOrgId), perm);
       }
    }
 }

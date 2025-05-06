@@ -828,7 +828,16 @@ public final class MVManager {
       Set<String> sheetNames = new LinkedHashSet<>();
 
       for(MVDef mvDef : list) {
-         sheetNames.addAll(Arrays.asList(mvDef.getMetaData().getRegisteredSheets()));
+         if(mvDef.getMetaData() == null) {
+            continue;
+         }
+
+         String[] sheets = mvDef.getMetaData().getRegisteredSheets();
+
+         for(String sheet : sheets) {
+            AssetEntry assetEntry = AssetEntry.createAssetEntry(sheet);
+            sheetNames.add(assetEntry.getName());
+         }
       }
 
       return sheetNames.toArray(new String[0]);
@@ -1092,7 +1101,7 @@ public final class MVManager {
       migrateStorageData(oorg, norg, true);
    }
 
-   private void migrateStorageData(Organization oorg, Organization norg, boolean copy)
+   public void migrateStorageData(Organization oorg, Organization norg, boolean copy)
       throws Exception
    {
       mvs.initRoot(norg.getOrganizationID());
@@ -1150,7 +1159,7 @@ public final class MVManager {
             defName = def.getName();
             mv.setDef(def);
             mv.save(MVStorage.getFile(def.getName()), storeId, false);
-            fsys.rename(oldDefName, oorgId, defName, norgId, copy);
+            fsys.rename(oldDefName, oorgId, defName, norgId);
          }
          catch(IOException e) {
             throw new RuntimeException(e);
@@ -1204,8 +1213,10 @@ public final class MVManager {
          String metaWsId = metaData.getWsId();
 
          if(metaWsId != null) {
-            metaData.setWsId(AssetEntry.createAssetEntry(metaWsId).cloneAssetEntry(norg)
-               .toIdentifier(true));
+            String nMetaWsId = AssetEntry.createAssetEntry(metaWsId).cloneAssetEntry(norg)
+               .toIdentifier(true);
+            metaData.setWsId(nMetaWsId);
+            metaData.updatePlan(metaWsId, nMetaWsId);
          }
 
          String[] registeredSheets = metaData.getRegisteredSheets();
@@ -1452,9 +1463,62 @@ public final class MVManager {
    }
 
    public boolean isMaterialized(String id, boolean ws, Principal user) {
-      MVDef[] defs = list(true, def -> def.isWSMV() == ws, user);
+      MVDef[] defs = list(true, getIsMaterializedFilter(id, ws, user), user);
       return Arrays.stream(defs)
          .anyMatch(def -> def.isSuccess() && def.getMetaData().isRegistered(id));
+   }
+
+   private MVFilter getIsMaterializedFilter(String assetIdentifier, boolean ws, Principal user) {
+      return def -> {
+         if(def.isWSMV() != ws) {
+            return false;
+         }
+
+         if(user == null) {
+            return true;
+         }
+
+         Identity id = user == null ? null : new DefaultIdentity(IdentityID.getIdentityIDFromKey(user.getName()), Identity.USER);
+         AssetEntry entry = AssetEntry.createAssetEntry(assetIdentifier);
+         String userOrgId = user instanceof XPrincipal ? ((XPrincipal) user).getOrgId() : OrganizationManager.getInstance().getCurrentOrgID();
+         Identity systemAdmin = new DefaultIdentity(IdentityID.getIdentityIDFromKey(XPrincipal.SYSTEM), Identity.USER);
+
+         // don't need to show Materialized icon for global shared dashbaord.
+         if(SUtil.isDefaultVSGloballyVisible(user) &&
+            !Tool.equals(userOrgId, entry.getOrgID()) &&
+            Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
+         {
+            return false;
+         }
+
+         if(def.containsUser(id) || def.containsUser(systemAdmin)) {
+            return true;
+         }
+
+         // try hitting mv for group
+         String[] groups = user == null ? null : XUtil.getUserGroups(user, true);
+
+         for(int i = 0; groups != null && i < groups.length; i++) {
+            id = new DefaultIdentity(groups[i], Identity.GROUP);
+
+            if(def.containsUser(id)) {
+               return true;
+            }
+         }
+
+         // try hitting mv for role
+         IdentityID[] roles = user == null ? null : XUtil.getUserRoles(user, true);
+
+         for(int i = 0; roles != null && i < roles.length; i++) {
+            id = new DefaultIdentity(roles[i], Identity.ROLE);
+
+            if(def.containsUser(id)) {
+               return true;
+            }
+         }
+
+         return false;
+      };
    }
 
    public void initMVDefMap() {

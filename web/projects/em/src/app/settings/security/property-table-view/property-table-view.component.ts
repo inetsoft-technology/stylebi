@@ -34,16 +34,27 @@ import { PropertyModel } from "./property-model";
    styleUrls: ["./property-table-view.component.scss"]
 })
 export class PropertyTableViewComponent implements OnChanges, AfterViewInit {
+   @Input() get dataSource(): PropertyModel[] {
+      return this._dataSource;
+   }
+
+   set dataSource(value: PropertyModel[]) {
+      this._dataSource = value;
+      this.editableProperties = value.filter(prop => this.isEditableProperty(prop.name));
+   }
+
+   _dataSource: PropertyModel[] = [];
+   editableProperties = [];
    @Input() name: string;
    @Input() type: number;
    @Input() label: string;
-   @Input() dataSource: PropertyModel[] = [];
    @Input() editable: boolean = true;
    @Output() addProperties = new EventEmitter<PropertyModel[]>();
    @Output() removeProperties = new EventEmitter<PropertyModel[]>();
    @ViewChild(MatPaginator, { static: true }) paginator: MatPaginator;
    matTableDataSource: MatTableDataSource<PropertyModel>;
    displayColumns: string[] = ["selected", "name", "value"];
+   orgProperties: string[] = ["max.row.count", "max.col.count", "max.cell.size", "max.user.count"];
    selection = new SelectionModel<PropertyModel>(true, []);
 
    constructor(private dialog: MatDialog) { }
@@ -118,7 +129,7 @@ export class PropertyTableViewComponent implements OnChanges, AfterViewInit {
    }
 
    isAllSelected(): boolean {
-      return this.selection.selected.length === this.matTableDataSource.data.length;
+      return this.selection.selected.length === this.editableProperties.length;
    }
 
    toggleRow(row) {
@@ -128,6 +139,18 @@ export class PropertyTableViewComponent implements OnChanges, AfterViewInit {
    masterToggle() {
       this.isAllSelected() ?
          this.selection.clear() :
-         this.matTableDataSource.data.forEach(row => this.selection.select(row));
+         this.matTableDataSource.data
+            .filter(prop => this.isEditableProperty(prop.name))
+            .forEach(row => this.selection.select(row));
+   }
+
+   toggleSelection(row :PropertyModel) {
+      if(this.isEditableProperty(row.name)) {
+         this.selection.toggle(row);
+      }
+   }
+
+   isEditableProperty(property: string): boolean {
+      return this.orgProperties.indexOf(property) != -1;
    }
 }

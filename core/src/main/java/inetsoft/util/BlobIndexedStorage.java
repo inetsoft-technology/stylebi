@@ -23,6 +23,7 @@ import inetsoft.storage.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.migrate.*;
@@ -433,33 +434,36 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    public void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg) throws Exception  {
-      migrateStorageData(oorg, norg, true);
+      migrateStorageData(oorg, norg, true, true);
    }
 
    @Override
    public void migrateStorageData(String oname, String nname) throws Exception {
       int numThreads = Runtime.getRuntime().availableProcessors();
       ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+      Organization currOrg = SecurityEngine.getSecurity().getSecurityProvider()
+                              .getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
 
       for(String key : getKeys(null)) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
 
          if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
-            executor.submit(() -> new MigrateScheduleTask(entry, oname, nname).updateNameProcess());
+            executor.submit(() -> new MigrateScheduleTask(entry, oname, nname, currOrg).updateNameProcess());
          }
 
          if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
             if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
-               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
+               updateDependencySheet(oname, nname, key, executor);
+               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname, currOrg).updateNameProcess());
             }
             else if(entry.isWorksheet()) {
-               executor.submit(() -> new MigrateWorksheetTask(entry, oname, nname).updateNameProcess());
+               executor.submit(() -> new MigrateWorksheetTask(entry, oname, nname, currOrg).updateNameProcess());
             }
             else if(entry.isLogicModel()) {
-               executor.submit(() -> new MigrateLogicalModelTask(entry, oname, nname).updateNameProcess());
+               executor.submit(() -> new MigrateLogicalModelTask(entry, oname, nname, currOrg).updateNameProcess());
             }
             else if(entry.isDomain()) {
-               executor.submit(() -> new MigrateCubeTask(entry, oname, nname).updateNameProcess());
+               executor.submit(() -> new MigrateCubeTask(entry, oname, nname, currOrg).updateNameProcess());
             }
             else if(entry.getType() == AssetEntry.Type.MV_DEF) {
                // done by mv manager.
@@ -520,6 +524,36 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
    }
 
+   private void updateDependencySheet(String oname, String nname, String key,
+                                      ExecutorService executor)
+   {
+      DependencyStorageService service = DependencyStorageService.getInstance();
+
+      try {
+         RenameTransformObject obj = service.get(key);
+
+         if(obj == null) {
+            return;
+         }
+
+         DependenciesInfo info = (DependenciesInfo) obj;
+         List<AssetObject> infos = info.getDependencies();
+
+         for(AssetObject asset : infos) {
+            if(!(asset instanceof AssetEntry entry)) {
+               continue;
+            }
+
+            if(entry.isViewsheet()) {
+               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to update the dependencies to file.", e);
+      }
+   }
+
    private void fixRightUser(String oname, String nname, AssetEntry entry) {
       if(Tool.equals(oname, entry.getCreatedUsername())) {
          entry.setCreatedUsername(nname);
@@ -530,7 +564,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
    }
 
-   private void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg, boolean removeOld)
+   private void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg, boolean removeOld,
+                                   boolean rename)
       throws Exception
    {
       String oId = oorg instanceof Organization ? ((Organization) oorg).getId() :
@@ -543,8 +578,11 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       for(String key : getKeys(null, oId)) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
 
-         if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+         if(entry.isViewsheet()) {
             executor.submit(() -> new MigrateViewsheetTask(entry, oorg, norg).process());
+         }
+         else if(entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+            executor.submit(() -> new MigrateBookmarkTask(entry, oorg, norg).process());
          }
          else if(entry.isWorksheet()) {
             executor.submit(() -> new MigrateWorksheetTask(entry, oorg, norg).process());
@@ -588,6 +626,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
                }
 
                for(AssetEntry newEntry : newEntries) {
+                  if(!rename) {
+                     newEntry.clearFavoritesUser();
+                  }
+
                   folder.addEntry(newEntry);
                }
             }
@@ -614,8 +656,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
-   public void copyStorageData(Organization oOrg, Organization nOrg) throws Exception {
-      migrateStorageData(oOrg, nOrg, false);
+   public void copyStorageData(Organization oOrg, Organization nOrg, boolean rename) throws Exception {
+      migrateStorageData(oOrg, nOrg, false, rename);
    }
 
    @Override

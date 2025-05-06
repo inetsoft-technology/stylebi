@@ -82,7 +82,7 @@ public class PropertiesController {
          TableFormat.invalidateTableFormatCache();
       }
 
-      if(Tool.equals(propertyName,"string.compare.caseSensitive")) {
+      if(Tool.equals(propertyName,"string.compare.casesensitive")) {
          Tool.invalidateCaseSensitive();
       }
    }

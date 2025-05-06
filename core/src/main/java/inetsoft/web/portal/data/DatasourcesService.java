@@ -17,7 +17,7 @@
  */
 package inetsoft.web.portal.data;
 
-import inetsoft.sree.security.SecurityProvider;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.tabular.TabularUtil;
@@ -32,10 +32,10 @@ import org.springframework.stereotype.Service;
 public class DatasourcesService extends DatasourcesBaseService {
    @Autowired
    public DatasourcesService(XRepository repository,
-                             SecurityProvider securityProvider,
+                             SecurityEngine SecurityEngine,
                              DataSourceStatusService dataSourceStatusService)
    {
-      super(repository, securityProvider, dataSourceStatusService);
+      super(repository, SecurityEngine, dataSourceStatusService);
    }
 
    /**

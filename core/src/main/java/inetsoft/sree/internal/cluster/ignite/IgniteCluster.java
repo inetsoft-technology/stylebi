@@ -225,9 +225,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 //         config.setMetricExporterSpi(new LogExporterSpi());
       }
 
+      ExecutorConfiguration[] executePools = new ExecutorConfiguration[IGNITE_EXECUTE_POOL_COUNT];
+
+      for(int i = 0; i < IGNITE_EXECUTE_POOL_COUNT; i++) {
+         executePools[i] = new ExecutorConfiguration();
+         executePools[i].setName(getIgniteExecutePoolName(i));
+      }
+
+      config.setExecutorConfiguration(executePools);
       SUtil.configBinaryTypes(config);
 
       return config;
+   }
+
+   private static String getIgniteExecutePoolName(int level) {
+      return IGNITE_EXECUTE_POOL + level;
    }
 
    private static TcpDiscoveryIpFinder getIpFinder(String type) {
@@ -1009,7 +1021,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <T> Future<Collection<T>> submitAll(Callable<T> task) {
-      IgniteFuture<Collection<T>> future = ignite.compute()
+      IgniteFuture<Collection<T>> future = getIgniteCompute(ignite, null, getNextTaskLevel())
          .broadcastAsync(new IgniteTaskCallable<>(task));
       CompletableFuture<Collection<T>> cf = new CompletableFuture<>();
 
@@ -1347,6 +1359,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }).toList();
    }
 
+   private static IgniteCompute getIgniteCompute(Ignite igniteInstance, ClusterGroup clusterGroup, int level) {
+      int poolLevel = level % IGNITE_EXECUTE_POOL_COUNT;
+
+      if(poolLevel == 0) {
+         return clusterGroup != null ? igniteInstance.compute(clusterGroup) : igniteInstance.compute();
+      }
+      else {
+         poolLevel -= 1;
+
+         return clusterGroup != null ?
+            igniteInstance.compute(clusterGroup).withExecutor(getIgniteExecutePoolName(poolLevel)) :
+            igniteInstance.compute().withExecutor(getIgniteExecutePoolName(poolLevel));
+      }
+   }
+
    private final Ignite ignite;
    private final Set<inetsoft.sree.internal.cluster.MessageListener> messageListeners = new CopyOnWriteArraySet<>();
    private final Set<inetsoft.sree.internal.cluster.MembershipListener> membershipListeners = new CopyOnWriteArraySet<>();
@@ -1374,6 +1401,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       return Boolean.TRUE.equals(node.attribute("scheduler"));
    };
    private static final ThreadLocal<Integer> TASK_EXECUTE_LEVEL = new ThreadLocal<>();
+   private static final String IGNITE_EXECUTE_POOL = "IGNITE_EXECUTE_POOL";
+   private static final int IGNITE_EXECUTE_POOL_COUNT = 2;
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
@@ -1597,7 +1626,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       @Override
       public T get() {
-         return igniteInstance.compute(clusterGroup).call(task);
+         return getIgniteCompute(igniteInstance, clusterGroup, task.level).call(task);
       }
 
       private final Ignite igniteInstance;
@@ -1690,7 +1719,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       private final int level;
    }
 
-   private static class  SingletonRunnableTaskProxy implements SingletonRunnableTask {
+   private static class SingletonRunnableTaskProxy implements SingletonRunnableTask {
       private SingletonRunnableTaskProxy(SingletonRunnableTask task, int level) {
          this.task = task;
          this.level = level;

@@ -47,7 +47,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
@@ -825,7 +824,7 @@ public class ContentRepositoryTreeService {
    {
       String description = "";
       String icon = null;
-      String label = entry.getLabel();
+      String label = shouldShowEntryAlias(entry) ? entry.getLabel() : entry.getName();
       long lastModifiedTime = 0;
 
       if(entry.getType() == RepositoryEntry.WORKSHEET) {
@@ -1180,7 +1179,7 @@ public class ContentRepositoryTreeService {
       List<String> dashboardNames = Arrays.asList(registry.getDashboardNames());
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
       List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
-      Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+      Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
 
       if(SecurityEngine.getSecurity().isSecurityEnabled()) {
          if(OrganizationManager.getInstance().isSiteAdmin(principal) &&
@@ -1940,7 +1939,7 @@ public class ContentRepositoryTreeService {
       else {
          identity = securityEnabled || !XPrincipal.ANONYMOUS.equals(userID.name) ?
             new DefaultIdentity(userID, Identity.USER) :
-            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
 
       return identity;
@@ -2002,6 +2001,12 @@ public class ContentRepositoryTreeService {
 
       return securityProvider.checkPermission(
          principal, ResourceType.SECURITY_USER, user.convertToKey(), ResourceAction.ADMIN);
+   }
+
+   private boolean shouldShowEntryAlias(RepositoryEntry entry) {
+      String name = entry.getName();
+      return SUtil.MY_DASHBOARD.equals(name) || Tool.MY_DASHBOARD.equals(name) ||
+         RepositoryEntry.USERS_FOLDER.equals(name) || RepositoryEntry.WORKSHEETS_FOLDER.equals(name);
    }
 
 //   private boolean checkOrgID(String user, String orgID) {
