@@ -210,7 +210,7 @@ public class WorksheetEventUtil {
             }
 
             // sort assemblies according to dependencies
-            Arrays.sort(assemblies, new DependencyComparator(ws, true));
+            Tool.mergeSort(assemblies, new DependencyComparator(ws, true));
 
             for(WSAssembly sub : assemblies) {
                sub.update();
@@ -372,7 +372,7 @@ public class WorksheetEventUtil {
          }
 
          // sort assemblies according to dependencies
-         Arrays.sort(assemblies, new DependencyComparator(ws, true));
+         Tool.mergeSort(assemblies, new DependencyComparator(ws, true));
 
          if(assemblyDeps == null) {
             assemblyDeps = new HashMap<>();

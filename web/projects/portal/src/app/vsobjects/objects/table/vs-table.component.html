@@ -346,7 +346,7 @@
   <div #rowResize class="row-resize-handle">
     <div class="resize-label">{{rowResizeLabel}}</div>
   </div>
-  <vs-loading-display *ngIf="model && model?.sourceType != -1 && isLoading"
+  <vs-loading-display *ngIf="model && model?.sourceType != -1 && isLoading && !globalLoadingIndicator"
                       [allowInteraction]="true"
                       [assemblyLoading]="true"></vs-loading-display>
 </div>

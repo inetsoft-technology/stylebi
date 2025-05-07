@@ -461,7 +461,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
             label: () => "_#(js:Edit)",
             icon: () => "edit-icon",
             enabled: () => true,
-            visible: () => !this.vsWizardPreview && !this.binding &&
+            visible: () => !this.vsWizardPreview && !this.binding && !this.embed &&
                (this.viewer && this.model.enableAdhoc && !this.mobileDevice &&
                this.isActionVisibleInViewer("Edit") && !this.isDataTip() && !this.isPopComponent()
                || this.composer && !this.annotationsSelected && !this.isPopComponent())

@@ -78,7 +78,7 @@ export class TabularGooglePickerEditor implements OnInit, OnChanges {
    }
 
    openPicker() {
-      this.googlePickerService.openPicker(this.value.oauthToken, (result) => {
+      this.googlePickerService.openPicker(this.value.oauthToken).subscribe((result) => {
          this.value.selectedFile = result;
          this.valueChanged();
       });

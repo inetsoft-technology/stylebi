@@ -32,6 +32,7 @@ import inetsoft.uql.script.VariableScriptable;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.script.*;
@@ -43,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Array;
 import java.security.Principal;
 import java.util.*;
 import java.util.function.Consumer;
@@ -117,6 +119,9 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
          func = new FunctionObject("saveWorksheet",
             getClass().getMethod("saveWorksheet"), this);
          propmap.put("saveWorksheet", func);
+
+         func = new FunctionObject2(this, getClass(), "delayVisibility", int.class, Object.class);
+         propmap.put("delayVisibility", func);
       }
       catch(Exception ex) {
          LOG.error("Failed to register viewsheet functions", ex);
@@ -337,6 +342,35 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
     */
    public void setMode(int mode) {
       this.mode = mode;
+   }
+
+   public void delayVisibility(int time, Object arrayObject) {
+      if(!box.isRuntime()) {
+         return;
+      }
+
+      if(time > 0 && arrayObject != null && JavaScriptEngine.unwrap(arrayObject).getClass().isArray()) {
+         Set<String> names = new HashSet<>();
+         Object array = JavaScriptEngine.unwrap(arrayObject);
+         int len = Array.getLength(array);
+
+         for(int i = 0; i < len; i++) {
+            Object item = Array.get(array, i);
+
+            if(item instanceof VSAScriptable) {
+               String assemblyName = ((VSAScriptable) item).getAssembly();
+               VSAssemblyInfo info =
+                  box.getViewsheet().getAssembly(assemblyName).getVSAssemblyInfo();
+               info.setVisible(false);
+               info.setControlByScript(true);
+               names.add(info.getAbsoluteName());
+            }
+         }
+
+         if(!names.isEmpty()) {
+            box.addDelayedVisibilityAssemblies(time, names);
+         }
+      }
    }
 
    /**

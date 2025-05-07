@@ -20,7 +20,7 @@ import { TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { TestUtils } from "../../../common/test/test-utils";
 import {
-   ComposerToken, ContextProvider,
+   ComposerToken, ContextProvider, EmbedToken,
    ViewerContextProviderFactory
 } from "../../context-provider.service";
 import { VSTitle } from "./vs-title.component";
@@ -45,7 +45,7 @@ describe("VSTitle", () => {
             {
                provide: ContextProvider,
                useFactory: ViewerContextProviderFactory,
-               deps: [[new Optional(), ComposerToken]]
+               deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
             }
          ],
          schemas: [NO_ERRORS_SCHEMA]

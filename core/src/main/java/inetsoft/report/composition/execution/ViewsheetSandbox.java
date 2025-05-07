@@ -19,7 +19,6 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.mv.*;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
@@ -60,8 +59,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.lang.reflect.Array;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1238,7 +1237,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          vname = getSheetName();
       }
 
-      Arrays.sort(arr, new SelectionComparator(scopied));
+      Tool.mergeSort(arr, new SelectionComparator(getViewsheet(), scopied));
       List<Assembly> roots = new ArrayList<>();
 
       for(int i = 0; i < arr.length; i++) {
@@ -1282,7 +1281,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       // sort by dependency so value (e.g. input assembly selectedObject) used by
       // another assembly is available. (60791)
-      Collections.sort(roots, new DependencyComparator(vs, true));
+      Tool.mergeSort(roots, new DependencyComparator(vs, true));
       Assembly[] rarr = roots.toArray(new Assembly[0]);
 
       // 1. update root assembly, so that we can shrink worksheet
@@ -1320,9 +1319,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
       }
 
+      Map<AssemblyEntry, Set<AssemblyRef>> scriptDependencies = vs.getScriptDependings();
+
       // 2. reset root assembly
       for(int i = 0; i < rarr.length; i++) {
-         resetAssembly(rarr[i], clist, initing, true, toggleMaxMode);
+         resetAssembly(rarr[i], clist, initing, true, toggleMaxMode, scriptDependencies);
       }
 
       // 3. reset the others
@@ -1335,7 +1336,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             // executed after processSelections() so the filter conditions
             // will be set
             boolean execOutput = false;
-            resetAssembly(arr[i], clist, initing, execOutput, toggleMaxMode);
+            resetAssembly(arr[i], clist, initing, execOutput, toggleMaxMode, scriptDependencies);
          }
       }
 
@@ -1667,7 +1668,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @param execOutput true to execute output query.
     */
    private void resetAssembly(Assembly assembly, ChangedAssemblyList clist,
-                              boolean initing, boolean execOutput, boolean toggleMaxMode)
+                              boolean initing, boolean execOutput, boolean toggleMaxMode,
+                              Map<AssemblyEntry, Set<AssemblyRef>> scriptDependencies)
    {
       AssemblyEntry entry = assembly.getAssemblyEntry();
 
@@ -1685,22 +1687,45 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             }
 
             ViewsheetSandbox box = getSandbox(assembly.getAbsoluteName());
-            box.processOnInit();
-            box.processOnLoad(new ChangedAssemblyList(), true);
+
+            try {
+               box.processOnInit();
+               box.processOnLoad(new ChangedAssemblyList(), true);
+
+               // if the parent embedded viewsheet is also delayed, need to add its delay to the
+               // child assemblies
+               int nestedDelay = delayedVisibilityAssemblies.entrySet().stream()
+                  .filter(e -> e.getValue().contains(assembly.getAbsoluteName()))
+                  .map(Map.Entry::getKey)
+                  .max(Integer::compare)
+                  .orElse(0);
+
+               if(!box.getDelayedVisibilityAssemblies().isEmpty()) {
+                  for(Map.Entry<Integer, Set<String>> e : box.getDelayedVisibilityAssemblies().entrySet()) {
+                     addDelayedVisibilityAssemblies(e.getKey() + nestedDelay, e.getValue());
+                  }
+
+               }
+            }
+            finally {
+               box.clearDelayedVisibilityAssemblies();
+            }
          }
          catch(Exception ex) {
-            LOG.warn("Failed to process onInit() and onLoad() " +
-               "scripts when resetting assembly: " + entry, ex);
+            LOG.warn(
+               "Failed to process onInit() and onLoad() scripts when resetting assembly: {}",
+               entry, ex);
          }
       }
 
       try {
-         inputDataChanged(entry, clist, false, initing, execOutput, toggleMaxMode);
+         inputDataChanged(
+            entry, clist, false, initing, execOutput, toggleMaxMode, scriptDependencies);
       }
       catch(Exception ex) {
          if(!(ex instanceof ConfirmException)) {
-            LOG.warn("Failed to process input data changed " +
-               "event when resetting assembly: " + entry, ex);
+            LOG.warn(
+               "Failed to process input data changed event when resetting assembly: {}", entry, ex);
          }
 
          List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
@@ -1720,12 +1745,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          (assembly instanceof ChartVSAssembly))
       {
          try {
-            outputDataChanged(entry, clist, false, initing, true, new HashMap<>());
+            outputDataChanged(
+               entry, clist, false, initing, true, new HashMap<>(), scriptDependencies);
          }
          catch(Exception ex) {
             if(!(ex instanceof ConfirmException)) {
-               LOG.warn("Failed to process output data changed " +
-                  "event when resetting assembly: " + entry, ex);
+               LOG.warn(
+                  "Failed to process output data changed event when resetting assembly: {}",
+                  entry, ex);
             }
 
             List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
@@ -1889,7 +1916,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             detailInputDataChanged(entry, clist);
          }
 
-         processScriptAssociation(entry, clist);
+         processScriptAssociation(entry, clist, vs.getScriptDependings());
          processSelections(entry, clist, true, false, new HashSet<>());
       }
       catch(DependencyCycleException ex) {
@@ -1909,7 +1936,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @param entry the specified assembly entry.
     * @param clist the specified changed assembly list.
     */
-   private void processScriptAssociation(AssemblyEntry entry, ChangedAssemblyList clist) {
+   private void processScriptAssociation(AssemblyEntry entry, ChangedAssemblyList clist,
+                                         Map<AssemblyEntry, Set<AssemblyRef>> scriptDependencies)
+   {
       if(entry == null || clist.isScriptDone(entry)) {
          return;
       }
@@ -1924,15 +1953,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       addAssemblyEntries(entry, clist);
       List<AssemblyEntry> entryList = new ArrayList<>();
       List<String> processed = new ArrayList<>();
-      processScriptAssociation0(clist, entryList, processed);
+      processScriptAssociation0(clist, entryList, processed, scriptDependencies);
    }
 
    /**
     * Process the script association.
     * @param clist the specified changed assembly list.
     */
-   private void processScriptAssociation0(ChangedAssemblyList clist,
-      List<AssemblyEntry> entryList, List<String> processed)
+   private void processScriptAssociation0(ChangedAssemblyList clist, List<AssemblyEntry> entryList,
+                                          List<String> processed,
+                                          Map<AssemblyEntry, Set<AssemblyRef>> scriptDependencies)
    {
       boolean changed = copyChangedEntries(clist.getDataList(), entryList) ||
                         copyChangedEntries(clist.getViewList(), entryList);
@@ -1943,16 +1973,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          }
 
          processed.add(entry.getAbsoluteName());
-         AssemblyRef[] refs = vs.getScriptDependings(entry);
+         Set<AssemblyRef> refs = scriptDependencies.get(entry);
 
-         for(int i = 0; i < refs.length; i++) {
-            AssemblyEntry entry0 = refs[i].getEntry();
-            addAssemblyEntries(entry0, clist);
+         if(refs != null) {
+            for(AssemblyRef ref : refs) {
+               addAssemblyEntries(ref.getEntry(), clist);
+            }
          }
       }
 
       if(changed) {
-         processScriptAssociation0(clist, entryList, processed);
+         processScriptAssociation0(clist, entryList, processed, scriptDependencies);
       }
    }
 
@@ -2129,7 +2160,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(size > 0) {
          // sort these might-be-changed viewsheet assemblies to make sure that
          // the root ones can process changes first
-         assemblies.sort(new DependencyComparator(vs, true));
+         Tool.mergeSort(assemblies, new DependencyComparator(vs, true));
 
          for(int i = 0; i < size; i++) {
             VSAssembly assembly = assemblies.get(i);
@@ -2234,26 +2265,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                                  boolean rselection, boolean initing,
                                  boolean execOutput) throws Exception
    {
-      inputDataChanged(entry, clist, rselection, initing, execOutput, false);
-   }
-
-   /**
-    * Process the input data changed event.
-    * @param entry the specified assembly entry.
-    * @param clist the changed assembly list.
-    * @param rselection <tt>true</tt> to reset selection, <tt>false</tt>
-    * otherwise.
-    * @param initing <tt>true</tt> if initing the viewsheet.
-    * @param execOutput true to execute output query.
-    * @param toggleMaxMode the toggle max/normal mode status.
-    */
-   private void inputDataChanged(AssemblyEntry entry, ChangedAssemblyList clist,
-                                 boolean rselection, boolean initing,
-                                 boolean execOutput, boolean toggleMaxMode)
-      throws Exception
-   {
-      inputDataChanged(entry, clist, rselection, initing, execOutput, toggleMaxMode,
-         new HashMap<>());
+      inputDataChanged(
+         entry, clist, rselection, initing, execOutput, false, vs.getScriptDependings());
    }
 
    /**
@@ -2269,7 +2282,29 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private void inputDataChanged(AssemblyEntry entry, ChangedAssemblyList clist,
                                  boolean rselection, boolean initing,
                                  boolean execOutput, boolean toggleMaxMode,
-                                 Map<AssemblyEntry, Boolean> inputChangeMap)
+                                 Map<AssemblyEntry, Set<AssemblyRef>> scriptDependencies)
+      throws Exception
+   {
+      inputDataChanged(
+         entry, clist, rselection, initing, execOutput, toggleMaxMode, new HashMap<>(),
+         scriptDependencies);
+   }
+
+   /**
+    * Process the input data changed event.
+    * @param entry the specified assembly entry.
+    * @param clist the changed assembly list.
+    * @param rselection <tt>true</tt> to reset selection, <tt>false</tt>
+    * otherwise.
+    * @param initing <tt>true</tt> if initing the viewsheet.
+    * @param execOutput true to execute output query.
+    * @param toggleMaxMode the toggle max/normal mode status.
+    */
+   private void inputDataChanged(AssemblyEntry entry, ChangedAssemblyList clist,
+                                 boolean rselection, boolean initing,
+                                 boolean execOutput, boolean toggleMaxMode,
+                                 Map<AssemblyEntry, Boolean> inputChangeMap,
+                                 Map<AssemblyEntry, Set<AssemblyRef>> scriptDependencies)
       throws Exception
    {
       // assembly name not unique across sub-sheets. (59099)
@@ -2313,7 +2348,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       String name = entry.getName();
       boolean ready = clist.getReadyList().contains(entry) ||
          clist.getProcessedList().contains(entry);
-      processScriptAssociation(entry, clist);
+      processScriptAssociation(entry, clist, scriptDependencies);
 
       // worksheet assembly?
       if(entry.isWSAssembly()) {
@@ -2402,7 +2437,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
                      if(!clist.getDataList().contains(e)) {
                         clist.getDataList().add(e);
-                        inputDataChanged(e, clist, rselection, initing, execOutput, toggleMaxMode);
+                        inputDataChanged(
+                           e, clist, rselection, initing, execOutput, toggleMaxMode,
+                           scriptDependencies);
                      }
                   }
                }
@@ -2418,7 +2455,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
                      if(!clist.getDataList().contains(e)) {
                         clist.getDataList().add(e);
-                        inputDataChanged(e, clist, rselection, initing, execOutput, toggleMaxMode);
+                        inputDataChanged(
+                           e, clist, rselection, initing, execOutput, toggleMaxMode,
+                           scriptDependencies);
                      }
                   }
                }
@@ -2487,10 +2526,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             !refs[i].getEntry().equals(entry))
          {
             inputDataChanged(refs[i].getEntry(), clist, rselection, initing,
-                             execOutput, toggleMaxMode, inputChangeMap);
+                             execOutput, toggleMaxMode, inputChangeMap, scriptDependencies);
          }
          else if(refs[i].getType() == AssemblyRef.OUTPUT_DATA) {
-            outputDataChanged(refs[i].getEntry(), clist, rselection, initing, true, inputChangeMap);
+            outputDataChanged(
+               refs[i].getEntry(), clist, rselection, initing, true, inputChangeMap,
+               scriptDependencies);
          }
          else if(refs[i].getType() == AssemblyRef.VIEW) {
             viewChanged(refs[i].getEntry(), clist, rselection, initing,
@@ -2505,16 +2546,19 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          if(assembly instanceof SelectionVSAssembly) {
             SelectionVSAssembly sassembly = (SelectionVSAssembly) assembly;
             updateAssembly(sassembly, true);
-            outputDataChanged(entry, clist, rselection, initing, true, inputChangeMap);
+            outputDataChanged(
+               entry, clist, rselection, initing, true, inputChangeMap, scriptDependencies);
          }
          else if(assembly instanceof InputVSAssembly) {
             InputVSAssembly iassembly = (InputVSAssembly) assembly;
             new InputVSAQuery(this, iassembly.getName()).resetEmbeddedData(initing);
             updateAssembly(iassembly);
-            outputDataChanged(entry, clist, rselection, initing, true, inputChangeMap);
+            outputDataChanged(
+               entry, clist, rselection, initing, true, inputChangeMap, scriptDependencies);
          }
          else if(containsBrushSelection((VSAssembly) assembly)) {
-            outputDataChanged(entry, clist, rselection, initing, false, inputChangeMap);
+            outputDataChanged(
+               entry, clist, rselection, initing, false, inputChangeMap, scriptDependencies);
          }
       }
    }
@@ -2747,7 +2791,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // here we sort selection assemblies to apply dependency properly
       Set<String> set = new HashSet<>();
       set.add(sassembly.getName());
-      Arrays.sort(sarr, new SelectionComparator(set));
+      Tool.mergeSort(sarr, new SelectionComparator(getViewsheet(), set));
 
       // this was apparently put in to deal with some kind of selection values out of sync
       // with underlying table. but it causes each selection list to be refreshed twice.
@@ -3597,7 +3641,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                                   boolean triggerSelf)
       throws Exception
    {
-      outputDataChanged(entry, clist, rselection, initing, triggerSelf, null);
+      outputDataChanged(
+         entry, clist, rselection, initing, triggerSelf, null, vs.getScriptDependings());
    }
 
    /**
@@ -3611,7 +3656,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    private void outputDataChanged(AssemblyEntry entry, ChangedAssemblyList clist,
                                   boolean rselection, boolean initing, boolean triggerSelf,
-                                  Map<AssemblyEntry, Boolean> inputChangeMap)
+                                  Map<AssemblyEntry, Boolean> inputChangeMap,
+                                  Map<AssemblyEntry, Set<AssemblyRef>> scriptDependencies)
       throws Exception
    {
       if(disposed) {
@@ -3648,8 +3694,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          EmbeddedTableVSAssembly eassembly = (EmbeddedTableVSAssembly) assembly;
          EmbeddedTableVSAQuery query = new EmbeddedTableVSAQuery(this, eassembly.getName(), false);
          query.setEmbeddedData();
-         inputDataChanged(eassembly.getAssemblyEntry(), clist, rselection, initing,
-            true, false, inputChangeMap);
+         inputDataChanged(
+            eassembly.getAssemblyEntry(), clist, rselection, initing, true, false, inputChangeMap,
+            scriptDependencies);
       }
       // @by davyc, for container, update dynamic values of enable
       else if(assembly instanceof ContainerVSAssembly) {
@@ -3663,15 +3710,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             if(refs[i].getType() == AssemblyRef.INPUT_DATA) {
                if(triggerSelf || !refs[i].getEntry().equals(entry)) {
                   if(!clist.isInputChangeProcessed(refs[i].getEntry())) {
-                     inputDataChanged(refs[i].getEntry(), clist, rselection,
-                                      initing, true, false, inputChangeMap);
+                     inputDataChanged(
+                        refs[i].getEntry(), clist, rselection, initing, true, false,
+                        inputChangeMap, scriptDependencies);
                   }
                }
             }
             else if(refs[i].getType() == AssemblyRef.OUTPUT_DATA &&
                !refs[i].getEntry().equals(entry))
             {
-               outputDataChanged(refs[i].getEntry(), clist, rselection, initing, false, inputChangeMap);
+               outputDataChanged(
+                  refs[i].getEntry(), clist, rselection, initing, false, inputChangeMap,
+                  scriptDependencies);
             }
             else if(refs[i].getType() == AssemblyRef.VIEW) {
                if(triggerSelf || !refs[i].getEntry().equals(entry)) {
@@ -3819,7 +3869,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return;
       }
 
-      Collections.sort(list, new SelectionComparator(scopied));
+      Tool.mergeSort(list, new SelectionComparator(vs, scopied));
       Assembly assembly = entry == null ? null : vs.getAssembly(entry);
 
       if(!(assembly instanceof SelectionVSAssembly)) {
@@ -4869,7 +4919,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          for(Assembly vsobj : vs.getAssemblies()) {
             if(vsobj instanceof ChartVSAssembly) {
                // make sure EGraph is available in script
-               getVGraphPair(vsobj.getAbsoluteName());
+               try {
+                  getVGraphPair(vsobj.getAbsoluteName());
+               }
+               catch(Exception exc) {
+                  LOG.debug("Failed to produce graph object for {}", vsobj.getAbsoluteName(), exc);
+               }
             }
          }
       }
@@ -7060,9 +7115,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    /**
     * Comparator to force changed selection list to be processed first.
     */
-   private class SelectionComparator extends DependencyComparator {
-      public SelectionComparator(Set<String> changed) {
-         super(getViewsheet(), true);
+   private static final class SelectionComparator extends DependencyComparator {
+      public SelectionComparator(Viewsheet viewsheet, Set<String> changed) {
+         super(viewsheet, true);
          this.changed = changed == null ? new HashSet<>() : changed;
       }
 
@@ -7492,6 +7547,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.binding = binding;
    }
 
+   public Map<Integer, Set<String>> getDelayedVisibilityAssemblies() {
+      return Collections.unmodifiableMap(delayedVisibilityAssemblies);
+   }
+
+   public void addDelayedVisibilityAssemblies(int delay, Set<String> assemblies) {
+      delayedVisibilityAssemblies.computeIfAbsent(delay, k -> new HashSet<>()).addAll(assemblies);
+   }
+
+   public void clearDelayedVisibilityAssemblies() {
+      delayedVisibilityAssemblies.clear();
+   }
+
    private static final String NULL = "__null__";
    private static final ThreadLocal<Boolean> schanged = new ThreadLocal<>();
    private static final ThreadLocal<Boolean> execDValues = new ThreadLocal<>();
@@ -7554,4 +7621,5 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private boolean onLoadExeced = false;
    private Map<String, Boolean> normalColumns = new ConcurrentHashMap<>();
    private boolean binding; // true if in binding pane
+   private final Map<Integer, Set<String>> delayedVisibilityAssemblies = new ConcurrentHashMap<>();
 }

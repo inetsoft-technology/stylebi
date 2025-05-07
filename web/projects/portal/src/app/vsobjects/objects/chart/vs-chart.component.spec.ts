@@ -36,7 +36,12 @@ import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropd
 import { ModelService } from "../../../widget/services/model.service";
 import { ScaleService } from "../../../widget/services/scale/scale-service";
 import { DialogService } from "../../../widget/slide-out/dialog-service.service";
-import { ComposerToken, ContextProvider, ViewerContextProviderFactory } from "../../context-provider.service";
+import {
+   ComposerToken,
+   ContextProvider,
+   EmbedToken,
+   ViewerContextProviderFactory
+} from "../../context-provider.service";
 import { RichTextService } from "../../dialog/rich-text-dialog/rich-text.service";
 import { VSChartModel } from "../../model/vs-chart-model";
 import { ShowHyperlinkService } from "../../show-hyperlink.service";
@@ -128,7 +133,7 @@ describe("VSChart Tests", () => {
             {
                provide: ContextProvider,
                useFactory: ViewerContextProviderFactory,
-               deps: [[new Optional(), ComposerToken]]
+               deps: [[new Optional(), ComposerToken], [new Optional(), EmbedToken]]
             },
             { provide: ScaleService, useValue: scaleService },
             PopComponentService,

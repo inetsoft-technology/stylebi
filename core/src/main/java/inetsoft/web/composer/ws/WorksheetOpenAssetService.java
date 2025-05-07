@@ -283,7 +283,7 @@ public class WorksheetOpenAssetService extends WorksheetControllerService {
       ws.addAssembly((WSAssembly) nassembly);
 
       // sort assemblies according to dependencies
-      Arrays.sort(created, new DependencyComparator(ws, true));
+      Tool.mergeSort(created, new DependencyComparator(ws, true));
 
       for(WSAssembly aCreated : created) {
          String tname = aCreated.getName();

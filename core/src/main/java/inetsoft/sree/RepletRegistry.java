@@ -299,12 +299,10 @@ public class RepletRegistry implements Serializable {
             Hashtable<String, FolderContext> newFolderContextMap = newRegistry.getFolderContextmap();
             newFolderContextMap.putAll(oldFolderContextMap);
 
-            if(!clone) {
-               oldFolderMap.clear();
-               oldFolderContextMap.clear();
+            if(!clone && oldRegistry instanceof UserRepletRegistry) {
+               removeUser(id);
             }
 
-            oldRegistry.save();
             newRegistry.save();
          }
       }
@@ -333,6 +331,14 @@ public class RepletRegistry implements Serializable {
 
    public static synchronized void clearOrgCache(String orgID) {
       clearCacheByKey(getRegistryKey(null, orgID));
+
+      // clear user scope cache.
+      String suffix = IdentityID.KEY_DELIMITER + orgID;
+      ResourceCache cache = getRegistryCache();
+      Set<String> keys = cache.getKeys();
+      keys.stream()
+         .filter(key -> key != null && key.endsWith(suffix))
+         .forEach(key -> clear(key));
    }
 
    private static void clearCacheByKey(String cacheKey) {
@@ -1301,7 +1307,7 @@ public class RepletRegistry implements Serializable {
     */
    private final static class UserRepletRegistry extends RepletRegistry {
       UserRepletRegistry(String user) throws Exception {
-         super(null);
+         super(user == null ? null : IdentityID.getIdentityIDFromKey(user).getOrgID());
          this.user = user;
          init0();
       }

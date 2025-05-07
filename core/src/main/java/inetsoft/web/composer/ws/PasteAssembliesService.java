@@ -26,8 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.DependencyComparator;
-import inetsoft.util.Catalog;
-import inetsoft.util.OrderedMap;
+import inetsoft.util.*;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.WSFinishPasteWithCutCommand;
 import inetsoft.web.composer.ws.event.WSPasteAssembliesEvent;
@@ -348,13 +347,13 @@ public class PasteAssembliesService extends WorksheetControllerService {
       Assembly[] asses = getAssemblies(ws, names);
       // sort by dependency desc, first check child support copy/cut, then
       // check parent support copy/cut
-      Arrays.sort(asses, new DependencyComparator(ws, false));
+      Tool.mergeSort(asses, new DependencyComparator(ws, false));
       String[] nnames = getNames(asses);
       java.util.List<String> list = new ArrayList<>();
       removeUnavailableName(rws, ws, nameset, nnames, list, runtimeId, event);
       asses = getAssemblies(ws, list.toArray(new String[list.size()]));
       // sort by dependency asc, first copy/cut parent, then copy/cut child
-      Arrays.sort(asses, new DependencyComparator(ws, true));
+      Tool.mergeSort(asses, new DependencyComparator(ws, true));
       nnames = getNames(asses);
       return nnames;
    }
@@ -390,7 +389,7 @@ public class PasteAssembliesService extends WorksheetControllerService {
 
       String[] escSortedNames = list0.toArray(new String[list0.size()]);
       Assembly[] asses = getAssemblies(ws, escSortedNames);
-      Arrays.sort(asses, new DependencyComparator(ws, true));
+      Tool.mergeSort(asses, new DependencyComparator(ws, true));
       String[] ascSortedNames = getNames(asses);
       java.util.List<String> removed = new ArrayList<>();
       checkDependent(rws, ws, nameset, escSortedNames,

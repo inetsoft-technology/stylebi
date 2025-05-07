@@ -29,7 +29,7 @@ import { ChartService } from "../../graph/services/chart.service";
 import {
    ComposerToken,
    ContextProvider,
-   EmbedContextProviderFactory
+   EmbedAssemblyContextProviderFactory
 } from "../../vsobjects/context-provider.service";
 import { RichTextService } from "../../vsobjects/dialog/rich-text-dialog/rich-text.service";
 import { VSChartService } from "../../vsobjects/objects/chart/services/vs-chart.service";
@@ -98,7 +98,7 @@ import { InteractModule } from "../../widget/interact/interact.module";
       },
       {
          provide: ContextProvider,
-         useFactory: EmbedContextProviderFactory,
+         useFactory: EmbedAssemblyContextProviderFactory,
          deps: [[new Optional(), ComposerToken]]
       },
       {

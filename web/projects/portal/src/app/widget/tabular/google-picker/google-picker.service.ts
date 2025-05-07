@@ -17,6 +17,7 @@
  */
 
 import { Injectable } from "@angular/core";
+import { EMPTY, Observable, Subject } from "rxjs";
 import { GoogleFile } from "../../../common/data/tabular/google-picker";
 
 declare const gapi: any; // Google Picker API
@@ -44,35 +45,51 @@ export class GooglePickerService {
       this.loaded = true;
    }
 
-   openPicker(oauthToken: string, callback: (result: GoogleFile) => void) {
+   openPicker(oauthToken: string, mimeTypes: string = "application/vnd.google-apps.spreadsheet"): Observable<GoogleFile> {
       if(!oauthToken) {
          console.error("OAuth Token is required to open the Google Picker.");
-         return;
+         return EMPTY;
       }
 
       if(!this.loaded) {
          console.error("The Google Picker library did not finish loading yet. Please try again.");
-         return;
+         return EMPTY;
       }
 
       const view = new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS);
       view.setIncludeFolders(true);
 
+      if(!!mimeTypes) {
+         view.setMimeTypes(mimeTypes);
+      }
+
+      const subject = new Subject<GoogleFile>();
+
       const picker = new google.picker.PickerBuilder()
          .setOAuthToken(oauthToken)
          .addView(view)
          .setCallback((data) => {
-            if(!!data && data.action === google.picker.Action.PICKED) {
-               const googleFile = <GoogleFile>{
-                  name: data?.docs[0]?.name,
-                  id: data?.docs[0]?.id
-               };
-
-               callback(googleFile);
+            if(!!data) {
+               switch(data.action) {
+                  case google.picker.Action.CANCEL:
+                     subject.complete();
+                     break;
+                  case google.picker.Action.PICKED:
+                     subject.next({
+                        name: data?.docs[0]?.name,
+                        id: data?.docs[0]?.id
+                     } as GoogleFile);
+                     subject.complete();
+                     break;
+                  case google.picker.Action.ERROR:
+                     subject.error(data.error);
+                     break;
+               }
             }
          })
          .build();
 
       picker.setVisible(true);
+      return subject;
    }
 }

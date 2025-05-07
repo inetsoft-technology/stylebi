@@ -15,94 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {platformBrowserDynamic} from "@angular/platform-browser-dynamic";
-import {AppElementsModule} from "./app/app-elements.module";
-import {BehaviorSubject} from "rxjs";
-
-declare const window: any;
+import { platformBrowserDynamic } from "@angular/platform-browser-dynamic";
+import { AppElementsModule } from "./app/embed/app-elements.module";
+import "./main-base-element.ts";
 
 platformBrowserDynamic().bootstrapModule(AppElementsModule);
-
-window.inetsoftConnected = new BehaviorSubject(false);
-
-window.inetsoftLogin = function inetsoftLogin(userName: string, password: string): void {
-   fetch(getInetsoftBase(), {
-      "headers": {
-         "X-Requested-With": "XMLHttpRequest",
-         "Authorization": "Basic " + btoa(encodeURIComponent(userName) + ":" + encodeURIComponent(password)),
-      }
-   })
-      .then((res) => {
-         if(res.ok && res.status == 200) {
-            window.inetsoftConnected.next(true);
-         }
-         else if(res.status == 401) {
-            console.error("Authentication credentials are incorrect.");
-         }
-      })
-      .catch((error) => {
-         console.error(error);
-      });
-};
-
-window.inetsoftSSOLogin = async function inetsoftSSOLogin(options: RequestInit = null): Promise<Response> {
-   let response: Response;
-
-   await fetch(getInetsoftBase(), options).then((res) => {
-      response = res;
-
-      if(res.ok && res.status == 200 && !res.redirected) {
-         window.inetsoftConnected.next(true);
-      }
-      else if(res.status == 401) {
-         console.error("Authentication credentials are incorrect.");
-      }
-   });
-
-   return response;
-};
-
-/**
- * Gets inetsoft base href with the last / removed
- */
-function getInetsoftBase() {
-   let inetsoftBase = document.getElementsByTagName(
-      "inetsoft-base")?.item(0)?.attributes?.getNamedItem("href")?.value;
-
-   if(!inetsoftBase) {
-      inetsoftBase = document.getElementsByTagName(
-         "base")?.item(0)?.attributes?.getNamedItem("href")?.value;
-   }
-
-   if(inetsoftBase) {
-      inetsoftBase = inetsoftBase.replace(/\/$/, "");
-   }
-
-   inetsoftBase = inetsoftBase ? inetsoftBase : "";
-   return inetsoftBase;
-}
-
-/**
- * Check inetsoft connection
- */
-window.checkInetsoftConnection = function checkInetsoftConnection(options: RequestInit = null,
-                                                                  logError: boolean = true)
-{
-   fetch(getInetsoftBase(), options)
-      .then((res) => {
-         if(res.ok && res.status == 200 && !res.redirected) {
-            window.inetsoftConnected.next(true);
-         }
-      })
-      .catch((error) => {
-         if(logError) {
-            console.error(error);
-         }
-      });
-};
 
 /**
  * Check if inetsoft is connected on app load in case there is no need to log in such as when
  * security is disabled or there is an active session
  */
-window.checkInetsoftConnection(null, false);
+(window as any).checkInetsoftConnection(null, false);
