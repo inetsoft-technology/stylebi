@@ -338,8 +338,7 @@ public class RepletRegistry implements Serializable {
       Set<String> keys = cache.getKeys();
       keys.stream()
          .filter(key -> key != null && key.endsWith(suffix))
-         .forEach(key -> this::clear);
-      ;
+         .forEach(key -> clear(key));
    }
 
    private static void clearCacheByKey(String cacheKey) {
