@@ -396,12 +396,14 @@ public final class LocalFileSystem extends AbstractFileSystem {
                   SNBlock targetSNBlock = new SNBlock(to, blkid);
                   targetSNBlock.setLength(sourceSNBlock.getLength());
 
-                  NBlock renamedBlock = bsys.rename(sourceSNBlock, targetSNBlock, fromOrgId, toOrgId);
+                  if(!Tool.equals(sourceSNBlock.getID(), sblock.getID())) {
+                     NBlock renamedBlock = bsys.rename(sourceSNBlock, targetSNBlock, fromOrgId, toOrgId);
 
-                  if(renamedBlock == null) {
-                     LOG.warn(Tool.convertUserLogInfo(
-                        "Failed to rename block " + sourceSNBlock.getID() +
-                           " from " + from + " to " + to));
+                     if(renamedBlock == null) {
+                        LOG.warn(Tool.convertUserLogInfo(
+                           "Failed to rename block " + sourceSNBlock.getID() +
+                              " from " + from + " to " + to));
+                     }
                   }
 
                   nsblock.add(targetSNBlock);
