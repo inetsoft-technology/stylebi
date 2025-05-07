@@ -1575,7 +1575,8 @@ public abstract class StyleCore extends AbstractAssetEngine
       }
 
       String elemId = elem.getID();
-      String elemLogName = getSheetName() + "." + elemId;
+      String elemLogName = getSheetName() == null || getSheetName().equals("null") ? elemId :
+         getSheetName() + "." + elemId;
       Catalog catalog = Catalog.getCatalog();
       String warningMsg = null;
       String logMsg = null;
