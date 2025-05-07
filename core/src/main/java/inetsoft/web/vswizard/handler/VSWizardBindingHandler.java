@@ -57,6 +57,7 @@ import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.controller.chart.VSChartLegendsVisibilityController;
+import inetsoft.web.viewsheet.controller.chart.VSChartLegendsVisibilityService;
 import inetsoft.web.viewsheet.controller.table.BaseTableController;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -318,14 +319,14 @@ public class VSWizardBindingHandler {
       boolean maxMode = info.getMaxSize() != null;
       ChartDescriptor chartDescriptor = info.getChartDescriptor();
       LegendsDescriptor legendsDescriptor = chartDescriptor.getLegendsDescriptor();
-      VSChartLegendsVisibilityController.showAllDescriptorLegends(chartDescriptor, chartInfo,
-         false, maxMode);
+      VSChartLegendsVisibilityService.showAllDescriptorLegends(chartDescriptor, chartInfo,
+                                                               false, maxMode);
       ChartDescriptor runtimeChartDescriptor = info.getRTChartDescriptor();
 
       //also change the runtime values if they exist, since the values from the runtime
       //chart descriptor are usually used if it exists
       if(runtimeChartDescriptor != null) {
-         VSChartLegendsVisibilityController.showAllDescriptorLegends(runtimeChartDescriptor,
+         VSChartLegendsVisibilityService.showAllDescriptorLegends(runtimeChartDescriptor,
             chartInfo, false, maxMode);
       }
    }
