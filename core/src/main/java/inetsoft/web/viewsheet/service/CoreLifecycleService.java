@@ -2734,8 +2734,11 @@ public class CoreLifecycleService {
          }
 
          final Viewsheet vs = rvs.getViewsheet();
-         final VSAssemblyInfo vsAssemblyInfo = vs.getVSAssemblyInfo();
-         permissions.addAll(vsAssemblyInfo.getActionNames());
+
+         if(vs != null) {
+            final VSAssemblyInfo vsAssemblyInfo = vs.getVSAssemblyInfo();
+            permissions.addAll(vsAssemblyInfo.getActionNames());
+         }
       }
 
       return permissions;
