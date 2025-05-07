@@ -106,6 +106,10 @@ public abstract class ResourceCache<K, V> {
       return entry.val;
    }
 
+   public Set<K> getKeys() {
+      return map == null ? null : map.keySet();
+   }
+
    /**
     * Check if the resource already exists.
     */
