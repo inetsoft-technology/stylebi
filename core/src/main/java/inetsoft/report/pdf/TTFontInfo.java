@@ -546,15 +546,21 @@ final class TTFontInfo extends FontInfo {
       lineGap = lineGap * 1000 / unitPerEm;
       advance = advance * 1000 / unitPerEm;
       capHeight = capHeight * 1000 / unitPerEm;
-      bbox.x = bbox.x * 1000 / unitPerEm;
-      bbox.y = bbox.y * 1000 / unitPerEm;
-      bbox.width = bbox.width * 1000 / unitPerEm;
-      bbox.height = bbox.height * 1000 / unitPerEm;
+
+      if(bbox != null) {
+         bbox.x = bbox.x * 1000 / unitPerEm;
+         bbox.y = bbox.y * 1000 / unitPerEm;
+         bbox.width = bbox.width * 1000 / unitPerEm;
+         bbox.height = bbox.height * 1000 / unitPerEm;
+      }
+
       cjk = FontManager.getFontManager().getCJKInfo(getFullName());
 
       // convert units to 1/1000 of a point
-      for(int i = 0; i < widths.length; i++) {
-         widths[i] = (short) (widths[i] * 1000 / unitPerEm);
+      if(widths != null) {
+         for(int i = 0; i < widths.length; i++) {
+            widths[i] = (short) (widths[i] * 1000 / unitPerEm);
+         }
       }
 
       // cmap is retrieved from a CMap resource file in the pdf/cmap
