@@ -17,11 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.viewsheet.VSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.event.chart.VSChartEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -31,17 +26,16 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
-import java.awt.*;
 import java.security.Principal;
 
 @Controller
-public class VSChartMaxModeController extends VSChartController<VSChartEvent> {
+public class VSChartMaxModeController {
    @Autowired
    public VSChartMaxModeController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                   CoreLifecycleService coreLifecycleService,
-                                   ViewsheetService viewsheetService)
+                                   VSChartMaxModeService vsChartMaxModeService)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsChartMaxModeService = vsChartMaxModeService;
    }
 
    /**
@@ -52,65 +46,16 @@ public class VSChartMaxModeController extends VSChartController<VSChartEvent> {
     * @param principal  a principal identifying the current user.
     * @param dispatcher the command dispatcher.
     */
-   @Override
    @LoadingMask
    @MessageMapping("/vschart/toggle-max-mode")
    public void eventHandler(@Payload VSChartEvent event, @LinkUri String linkUri,
                             Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      processEvent(event, principal, linkUri, dispatcher,
-                   chartState -> toggleMaxMode(chartState, event.getMaxSize()));
+      vsChartMaxModeService.eventHandler(runtimeViewsheetRef.getRuntimeId(), event,
+                                       linkUri, principal, dispatcher);
    }
 
-   /**
-    * Sets max mode enabled or disabled on this chart
-    *
-    * @param maxSize The size of the chart in max mode or null
-    *
-    * @return the hint to reset view if this value is changed
-    */
-   private int toggleMaxMode(VSChartStateInfo chartState, Dimension maxSize) {
-      final ChartVSAssemblyInfo info = chartState.getChartAssemblyInfo();
-      info.setMaxSize(maxSize);
-      chartState.getViewsheet().setMaxMode(maxSize != null);
-
-      Viewsheet viewsheet = chartState.getViewsheet();
-      int zAdjust = maxSize == null ? -100000 : 100000;
-      boolean embeddedViewsheet = false;
-
-      while(viewsheet.getViewsheet() != null) {
-         // make sure embedded vs is on top when maximizing chart inside
-         viewsheet.setZIndex(viewsheet.getZIndex() + zAdjust);
-         viewsheet = viewsheet.getViewsheet();
-         viewsheet.setMaxMode(maxSize != null);
-         embeddedViewsheet = true;
-      }
-
-      if(maxSize != null) {
-         final Assembly[] assemblies = viewsheet.getAssemblies(true, true);
-         int parentZAdjust = embeddedViewsheet ? zAdjust : 0;
-
-         if(assemblies != null) {
-            final VSAssembly topAssembly = (VSAssembly) assemblies[assemblies.length - 1];
-            final int zIndex = topAssembly.getVSAssemblyInfo().getZIndex() + 1 + parentZAdjust;
-            info.setMaxModeZIndex(zIndex);
-         }
-      }
-
-      return VSAssembly.VIEW_CHANGED;
-   }
-
-   @Override
-   protected void complete(VSChartStateInfo chartState, int hint, String linkUri,
-                           CommandDispatcher dispatcher, VSChartEvent event, Principal principal)
-   {
-      // visibility will be changed when toggling max-mode (48432).
-      // @see VSObjectModel.visible and VSEventUtil.isVisible().
-
-      boolean changeToMax = chartState.getViewsheet() != null &&
-         chartState.getViewsheet().isMaxMode();
-      reloadVSAssemblies(chartState.getRuntimeViewsheet(), event.getChartName(), linkUri,
-         dispatcher, principal, !changeToMax);
-   }
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartMaxModeService vsChartMaxModeService;
 }
