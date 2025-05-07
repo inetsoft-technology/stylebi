@@ -235,7 +235,7 @@ export class BackupFileComponent implements OnDestroy {
       const assetEntities = this.exportableNodes
          .filter((node) =>
             !this.selectedEntities.some((entity) =>
-               entity.path == node.data.path && entity.type == node.data.type))
+               entity.path == node.data.path && this.isSameType(entity.type, node.data.type)))
          .map((node) => <SelectedAssetModel>{
             label: this.getExportableLabel(node.data),
             path: node.data.path ? node.data.path : node.data.label,
@@ -248,6 +248,17 @@ export class BackupFileComponent implements OnDestroy {
          });
 
       this.filterEntities(assetEntities);
+   }
+
+   isSameType(entityType: number, nodeType: number): boolean {
+      const isEntityDataSource = (entityType & RepositoryEntryType.DATA_SOURCE) === RepositoryEntryType.DATA_SOURCE;
+      const isNodeDataSource = (nodeType & RepositoryEntryType.DATA_SOURCE) === RepositoryEntryType.DATA_SOURCE;
+
+      if(isEntityDataSource && isNodeDataSource) {
+         return true;
+      }
+
+      return entityType === nodeType;
    }
 
    getExportableLabel(node: RepositoryTreeNode): string {
