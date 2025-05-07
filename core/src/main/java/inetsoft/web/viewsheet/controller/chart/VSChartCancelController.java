@@ -17,10 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.util.QueryManager;
 import inetsoft.web.viewsheet.event.chart.CancelEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
@@ -32,38 +28,25 @@ import org.springframework.stereotype.Controller;
 import java.security.Principal;
 
 @Controller
-public class VSChartCancelController extends VSChartController<CancelEvent> {
+public class VSChartCancelController {
    @Autowired
    public VSChartCancelController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                  CoreLifecycleService coreLifecycleService,
-                                  ViewsheetService viewsheetService)
+                                  VSChartCancelServiceProxy vsChartCancelService)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsChartCancelService = vsChartCancelService;
    }
 
-   @Override
    @MessageMapping("/vschart/cancel-query")
    public void eventHandler(@Payload CancelEvent event,
                             @LinkUri String linkUri,
                             Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
-      this.processEvent(event, principal, chartState -> {
-         cancelQuery(event, chartState, principal, dispatcher);
-      });
+      vsChartCancelService.eventHandler(runtimeViewsheetRef.getRuntimeId(), event, linkUri, principal, dispatcher);
    }
 
-   private void cancelQuery(CancelEvent event,
-                            VSChartStateInfo chartState,
-                            Principal principal,
-                            CommandDispatcher dispatcher)
-   {
-      ViewsheetSandbox box = chartState.getViewsheetSandbox();
-      String name = chartState.getChartAssemblyInfo().getAbsoluteName();
 
-      // cancel the ongoing query
-      QueryManager mgr = box.getQueryManager(name);
-      mgr.cancel();
-   }
-
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartCancelServiceProxy vsChartCancelService;
 }
