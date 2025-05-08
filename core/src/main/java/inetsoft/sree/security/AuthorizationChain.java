@@ -103,8 +103,14 @@ public class AuthorizationChain
 
    @Override
    public Permission getPermission(ResourceType type, String resource, String orgID) {
+      if(orgID == null) {
+         orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      }
+
+      final String org = orgID;
+
       return stream()
-         .map(p -> p.getPermission(type, resource, orgID))
+         .map(p -> p.getPermission(type, resource, org))
          .filter(Objects::nonNull)
          .findFirst()
          .orElse(null);
