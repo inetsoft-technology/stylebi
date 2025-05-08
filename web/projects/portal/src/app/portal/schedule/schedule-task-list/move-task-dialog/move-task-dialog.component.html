@@ -15,11 +15,8 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="modal-header">
-  <h3 class="modal-title">_#(data.datasets.moveTo)</h3>
-  <button type="button" class="btn-close" (click)="cancel()" [attr.title]="'_#(Close)'" aria-label="Close">
-  </button>
-</div>
+<modal-header [title]="'_#(data.datasets.moveTo)'" (onCancel)="cancel()">
+</modal-header>
 <div class="modal-body">
   <div class="container-fluid">
     <div class="row">
