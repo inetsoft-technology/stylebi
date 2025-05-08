@@ -905,7 +905,7 @@ public class ResourcePermissionService {
       return new Resource(type, buffer.toString());
    }
 
-   private Resource getLogicalModelResourceName(String path) {
+   public static Resource getLogicalModelResourceName(String path) {
       boolean hasFolder = path.indexOf(XUtil.DATAMODEL_FOLDER_SPLITER) != -1;
       String[] strs = Tool.split(path, '^');
 
