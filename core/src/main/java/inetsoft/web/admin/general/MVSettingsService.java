@@ -24,9 +24,7 @@ import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.util.audit.ActionRecord;
-import inetsoft.web.admin.content.repository.MVSupportService;
 import inetsoft.web.admin.general.model.MVSettingsModel;
-import inetsoft.web.admin.general.model.MVType;
 import inetsoft.web.viewsheet.AuditUser;
 import inetsoft.web.viewsheet.Audited;
 import org.slf4j.Logger;
@@ -40,8 +38,7 @@ import static inetsoft.web.admin.schedule.ScheduleCycleService.getCyclePermissio
 
 @Service
 public class MVSettingsService {
-   public MVSettingsService(MVSupportService mvSupport, SecurityEngine securityEngine) {
-      this.mvSupport = mvSupport;
+   public MVSettingsService(SecurityEngine securityEngine) {
       this.securityEngine = securityEngine;
    }
 
@@ -97,7 +94,6 @@ public class MVSettingsService {
       SreeEnv.save();
    }
 
-   private final MVSupportService mvSupport;
    private final SecurityEngine securityEngine;
    private static final Logger LOG = LoggerFactory.getLogger(MVSettingsService.class);
 }

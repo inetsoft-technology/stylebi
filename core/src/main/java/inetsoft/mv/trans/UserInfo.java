@@ -19,6 +19,8 @@ package inetsoft.mv.trans;
 
 import inetsoft.util.Tool;
 
+import java.io.Serializable;
+
 /**
  * This class is used to record the transformation information that are shown
  * for user.
@@ -26,7 +28,7 @@ import inetsoft.util.Tool;
  * @author InetSoft Technology Corp
  * @version 12.0
  */
-public final class UserInfo {
+public final class UserInfo implements Serializable {
    public UserInfo(String sheetName, String boundTable, String msg) {
       this.sheetName = sheetName;
       this.boundTable = boundTable;

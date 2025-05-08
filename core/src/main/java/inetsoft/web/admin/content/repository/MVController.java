@@ -35,7 +35,6 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -120,6 +119,7 @@ public class MVController {
       return info.toString();
    }
 
+   @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/create")
    public void create(HttpServletRequest req,
                       @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
@@ -173,6 +173,7 @@ public class MVController {
       }
    }
 
+   @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/set-cycle")
    public void setCycle(HttpServletRequest req,
                         @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
