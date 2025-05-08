@@ -188,6 +188,14 @@
 
     <dependency>
       <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-derby-client</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
       <artifactId>jdbc-h2</artifactId>
       <version>${project.version}</version>
       <type>zip</type>
