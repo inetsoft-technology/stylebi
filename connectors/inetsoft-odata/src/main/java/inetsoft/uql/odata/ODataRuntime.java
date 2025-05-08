@@ -389,7 +389,14 @@ public class ODataRuntime extends TabularRuntime {
          }
 
          try(CloseableHttpResponse httpResponse = httpClient.execute(getRequest)) {
-            return Tool.parseXML(httpResponse.getEntity().getContent());
+            if(httpResponse.getStatusLine().getStatusCode() >= 200 &&
+               httpResponse.getStatusLine().getStatusCode() < 300)
+            {
+               return Tool.parseXML(httpResponse.getEntity().getContent());
+            }
+            else {
+               LOG.warn("could not get metadata for datasource: " + ds.getName());
+            }
          }
       }
       catch(Exception ex) {
