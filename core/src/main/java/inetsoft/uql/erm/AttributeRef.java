@@ -88,6 +88,10 @@ public class AttributeRef extends AbstractDataRef {
     * @param rtype the type of the ref, NONE, DIMENSION or MEASURE.
     */
    public void setRefType(int rtype) {
+      if(rtype < Byte.MIN_VALUE || rtype > Byte.MAX_VALUE) {
+         throw new IllegalArgumentException("Value out of byte range: " + rtype);
+      }
+
       this.refType = (byte) rtype;
    }
 

@@ -421,6 +421,10 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
     * @param width the specified width.
     */
    public void setWidth(int width) {
+      if(width < Byte.MIN_VALUE || width > Byte.MAX_VALUE) {
+         throw new IllegalArgumentException("Value out of byte range: " + width);
+      }
+
       if(width >= 1) {
          this.width = (byte) width;
       }

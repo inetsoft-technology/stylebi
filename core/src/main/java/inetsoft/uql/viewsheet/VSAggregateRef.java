@@ -80,6 +80,10 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
     * @param refType the type of the field.
     */
    public void setRefType(int refType) {
+      if(refType < Byte.MIN_VALUE || refType > Byte.MAX_VALUE) {
+         throw new IllegalArgumentException("Value out of byte range: " + refType);
+      }
+
       this.refType = (byte) refType;
    }
 
@@ -1246,6 +1250,10 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
     * Set runtime id.
     */
    public void setRuntimeID(int rid) {
+      if(rid < Byte.MIN_VALUE || rid > Byte.MAX_VALUE) {
+         throw new IllegalArgumentException("Value out of byte range: " + rid);
+      }
+
       this.runtimeID = (byte) rid;
    }
 
