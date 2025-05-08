@@ -30,9 +30,8 @@ import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.web.binding.event.ModifyAggregateFieldEvent;
-import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -48,7 +47,7 @@ public class ModifyAggregateFieldService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void modifyAggregateField(@ClusterProxyKey String id, ModifyAggregateFieldEvent event,
-                                    Principal principal, CommandDispatcher dispatcher) throws Exception
+                                    Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Viewsheet vs = rvs.getViewsheet();
@@ -64,74 +63,78 @@ public class ModifyAggregateFieldService {
 
       fixAggregateDataType(vs, tname, nref);
 
-      try {
-         // create?
-         if(oref == null) {
+      // create?
+      if(oref == null) {
+         vs.addAggrField(tname, nref);
+      }
+      else {
+         removeAggregate(vs, tname, oref, event.isConfirmed());
+
+         // edit? nref is null means remove
+         if(nref != null) {
             vs.addAggrField(tname, nref);
          }
-         else {
-            CalculateRef[] calcs = vs.getCalcFields(tname);
-
-            if(calcs == null) {
-               vs.removeAggrField(tname, oref);
-
-               // edit? nref is null means remove
-               if(nref != null) {
-                  vs.addAggrField(tname, nref);
-               }
-
-               return null;
-            }
-
-            AggregateRef[] allagg = new AggregateRef[] {oref};
-            List<String> usingCalcs = new ArrayList<>();
-
-            for(int i = 0; i < calcs.length; i++) {
-               CalculateRef calc = calcs[i];
-
-               if(!calc.isBaseOnDetail()) {
-                  List<String> matchNames = new ArrayList<>();
-                  ExpressionRef eref = (ExpressionRef) calc.getDataRef();
-                  String expression = eref.getExpression();
-                  List<AggregateRef> aggs =
-                     VSUtil.findAggregate(allagg, matchNames, expression);
-
-                  if(aggs.size() > 0) {
-                     usingCalcs.add(calc.getName());
-                  }
-               }
-            }
-
-            if(usingCalcs.size() > 0) {
-               if(!event.isConfirmed()) {
-                  Catalog catalog = Catalog.getCatalog();
-                  ConfirmException cevent = new ConfirmException(
-                     catalog.getString("aggregate.vsused.warning") + usingCalcs,
-                     ConfirmException.CONFIRM);
-                  //cevent.setEvent(this);
-                  throw cevent;
-               }
-            }
-
-            vs.removeAggrField(tname, oref);
-
-            // edit? nref is null means remove
-            if(nref != null) {
-               vs.addAggrField(tname, nref);
-            }
-         }
-      }
-      catch(ConfirmException ex) {
-         throw ex;
-      }
-      catch(Exception e) {
-         MessageCommand command = new MessageCommand();
-         command.setMessage(e.getMessage());
-         dispatcher.sendCommand(command);
-         return null;
       }
 
       return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void removeAggregateField(@ClusterProxyKey String id, ModifyAggregateFieldEvent event, Principal principal) throws Exception {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
+      Viewsheet vs = rvs.getViewsheet();
+      String tname = event.getTableName();
+      AggregateRef oref = event.getOldRef() == null ?
+         null : (AggregateRef) event.getOldRef().createDataRef();
+
+      if(vs == null || oref == null) {
+         return null;
+      }
+
+      fixAggregateDataType(vs, tname, oref);
+      removeAggregate(vs, tname, oref, event.isConfirmed());
+      return null;
+   }
+
+   private void removeAggregate(Viewsheet vs, String tname, AggregateRef ref, boolean confirmed) {
+      CalculateRef[] calcs = vs.getCalcFields(tname);
+
+      if(calcs == null) {
+         vs.removeAggrField(tname, ref);
+
+         return;
+      }
+
+      AggregateRef[] allagg = new AggregateRef[] {ref};
+      List<String> usingCalcs = new ArrayList<>();
+
+      for(int i = 0; i < calcs.length; i++) {
+         CalculateRef calc = calcs[i];
+
+         if(!calc.isBaseOnDetail()) {
+            List<String> matchNames = new ArrayList<>();
+            ExpressionRef eref = (ExpressionRef) calc.getDataRef();
+            String expression = eref.getExpression();
+            List<AggregateRef> aggs =
+               VSUtil.findAggregate(allagg, matchNames, expression);
+
+            if(!aggs.isEmpty()) {
+               usingCalcs.add(calc.getName());
+            }
+         }
+      }
+
+      if(!usingCalcs.isEmpty()) {
+         if(!confirmed) {
+            Catalog catalog = Catalog.getCatalog();
+            MessageException cevent = new MessageException(
+               catalog.getString("aggregate.vsused.warning") + usingCalcs);
+
+            throw cevent;
+         }
+      }
+
+      vs.removeAggrField(tname, ref);
    }
 
    /**

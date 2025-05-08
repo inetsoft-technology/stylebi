@@ -17,13 +17,12 @@
  */
 package inetsoft.web.binding.controller;
 
+import inetsoft.util.Tool;
+import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.binding.event.ModifyAggregateFieldEvent;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 
@@ -31,32 +30,41 @@ import java.security.Principal;
 public class ModifyAggregateFieldController {
    /**
     * Creates a new instance of <tt>ModifyAggregateFieldController</tt>.
-    *
-    * @param runtimeViewsheetRef reference to the runtime viewsheet associated with the
-    *                            WebSocket session.
     */
    @Autowired
-   public ModifyAggregateFieldController(
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      ModifyAggregateFieldServiceProxy modifyAggregateFieldService) {
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
+   public ModifyAggregateFieldController(ModifyAggregateFieldServiceProxy modifyAggregateFieldService) {
       this.modifyAggregateFieldService = modifyAggregateFieldService;
    }
 
-   @MessageMapping("/vs/calculate/modifyAggregateField")
-   public void modifyAggregateField(@Payload ModifyAggregateFieldEvent event,
-      Principal principal, CommandDispatcher dispatcher) throws Exception
+   @PostMapping("/api/vs/calculate/modifyAggregateField")
+   @ResponseBody
+   public void modifyAggregateField(@DecodeParam("vsId") String id,
+                                    @RequestBody ModifyAggregateFieldEvent event,
+                                    Principal principal) throws Exception
+   {
+      if(id == null) {
+         return;
+      }
+
+      modifyAggregateFieldService.modifyAggregateField(id, event, principal);
+   }
+
+   @PostMapping("/api/vs/calculate/removeAggregateField")
+   @ResponseBody
+   public void removeAggregateField(@DecodeParam("vsId") String vsId,
+                                    @RequestBody ModifyAggregateFieldEvent event,
+                                    Principal principal)
+      throws Exception
    {
 
-      String id = runtimeViewsheetRef.getRuntimeId();
+     String id = Tool.byteDecode(vsId);
 
       if(id == null) {
          return;
       }
 
-      modifyAggregateFieldService.modifyAggregateField(id, event, principal, dispatcher);
+      modifyAggregateFieldService.removeAggregateField(id, event, principal);
    }
 
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ModifyAggregateFieldServiceProxy modifyAggregateFieldService;
 }

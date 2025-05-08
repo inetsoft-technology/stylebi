@@ -256,7 +256,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          VSBookmark bookmark = getVSBookmark(getUserName());
          List<VSBookmarkInfo> visibleBookmarks = getUserVisibleBookmarks(pId);
 
-         if(bookmark != null && !containsHomeBookmark(visibleBookmarks)) {
+         if(bookmark != null && !containsHomeBookmark(visibleBookmarks) && updateHome) {
             bookmark.addHomeBookmark(vs, true);
          }
          // fix Bug #24338, should update the home bookmark when preview the viewsheet.
@@ -1970,6 +1970,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * Refresh the tip views or pop components of the runtime viewsheet.
     */
    public void refreshAllTipViewOrPopComponentTable() {
+      if(vs == null) {
+         return;
+      }
+
       Assembly[] arr = vs.getAssemblies();
 
       if(mode != VIEWSHEET_RUNTIME_MODE) {

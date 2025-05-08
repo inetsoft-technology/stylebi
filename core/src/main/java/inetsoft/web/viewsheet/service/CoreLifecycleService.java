@@ -30,6 +30,7 @@ import inetsoft.report.script.viewsheet.ScriptEvent;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
@@ -2621,6 +2622,10 @@ public class CoreLifecycleService {
       if(rvs.isRuntime()) {
          final SecurityEngine engine = SecurityEngine.getSecurity();
          boolean isSelfOrg = user instanceof SRPrincipal && ((SRPrincipal) user).isSelfOrganization();
+         String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+         String orgID = user instanceof XPrincipal ? ((XPrincipal) user).getOrgId() : null;
+         boolean isShareAsset = SUtil.isDefaultVSGloballyVisible(user) &&
+            !Tool.equals(orgID, currOrgID) && Organization.getDefaultOrganizationID().equals(currOrgID);
 
          if(Boolean.parseBoolean(SreeEnv.getProperty("Viewsheet Toolbar Hidden"))) {
             permissions.add("Toolbar");
@@ -2651,7 +2656,7 @@ public class CoreLifecycleService {
          }
 
          if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Edit", ResourceAction.READ) ||
-            !engine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
+            !isShareAsset && !engine.checkPermission(user, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
          {
             permissions.add("Edit");
          }
@@ -2734,8 +2739,11 @@ public class CoreLifecycleService {
          }
 
          final Viewsheet vs = rvs.getViewsheet();
-         final VSAssemblyInfo vsAssemblyInfo = vs.getVSAssemblyInfo();
-         permissions.addAll(vsAssemblyInfo.getActionNames());
+
+         if(vs != null) {
+            final VSAssemblyInfo vsAssemblyInfo = vs.getVSAssemblyInfo();
+            permissions.addAll(vsAssemblyInfo.getActionNames());
+         }
       }
 
       return permissions;

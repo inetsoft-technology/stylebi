@@ -413,7 +413,7 @@ public class VsToReportConverter {
          }
 
          if(assembly != null) {
-            convertVSAssembly(assembly, sectionID);
+            convertVSAssembly(assembly, sectionID, false);
          }
       }
    }
@@ -559,10 +559,14 @@ public class VsToReportConverter {
       return false;
    }
 
+   private void convertVSAssembly(VSAssembly assembly, String sectionName) {
+      convertVSAssembly(assembly, sectionName, true);
+   }
+
    /**
     * Convert the vsassembly to report element.
     */
-   private void convertVSAssembly(VSAssembly assembly, String sectionName) {
+   private void convertVSAssembly(VSAssembly assembly, String sectionName, boolean updateZIndex) {
       if(!isVisibleInPrintLayout(assembly, false) ||
          isAnnotationComponent(assembly) || sectionName == null ||
          !refreshAssemblySize(assembly))
@@ -570,7 +574,10 @@ public class VsToReportConverter {
          return;
       }
 
-      assembly.setZIndex(zindex++);
+      if(updateZIndex) {
+         assembly.setZIndex(zindex++);
+      }
+
       int type = assembly.getAssemblyType();
       String name = assembly.getAbsoluteName();
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();

@@ -1807,6 +1807,10 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
     * Set runtime id.
     */
    public void setRuntimeID(int rid) {
+      if(rid < Byte.MIN_VALUE || rid > Byte.MAX_VALUE) {
+         throw new IllegalArgumentException("Value out of byte range: " + rid);
+      }
+
       this.runtimeID = (byte) rid;
    }
 

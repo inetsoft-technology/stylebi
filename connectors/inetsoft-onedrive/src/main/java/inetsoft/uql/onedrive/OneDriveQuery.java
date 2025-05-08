@@ -86,6 +86,12 @@ public class OneDriveQuery extends SelectableTabularQuery  {
     */
    public void setExcelSheet(String excelSheet) {
       this.excelSheet = excelSheet;
+
+      try {
+         this.loadColumns();
+      }
+      catch(Exception e) {
+      }
    }
 
    /**

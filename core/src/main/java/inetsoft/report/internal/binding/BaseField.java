@@ -189,6 +189,10 @@ public class BaseField extends AttributeRef implements Field, SourceField {
     */
    @Override
    public void setOrder(int order) {
+      if(order < Byte.MIN_VALUE || order > Byte.MAX_VALUE) {
+         throw new IllegalArgumentException("Value out of byte range: " + order);
+      }
+
       this.order = (byte) order;
    }
 
