@@ -39,8 +39,22 @@ export class PropertyTableViewComponent implements OnChanges, AfterViewInit {
    }
 
    set dataSource(value: PropertyModel[]) {
-      this._dataSource = value;
-      this.editableProperties = value.filter(prop => this.isEditableProperty(prop.name));
+      const editable: PropertyModel[] = [];
+      const uneditable: PropertyModel[] = [];
+
+      for(let i = 0; i < value.length; i++) {
+         if(this.isEditableProperty(value[i].name)) {
+            editable.push(value[i]);
+         }
+         else {
+            uneditable.push(value[i]);
+         }
+      }
+
+      editable.sort((p1, p2) => p1.name.localeCompare(p2.name));
+      uneditable.sort((p1, p2) => p1.name.localeCompare(p2.name));
+      this.editableProperties = editable;
+      this._dataSource = [...editable, ...uneditable];
    }
 
    _dataSource: PropertyModel[] = [];
