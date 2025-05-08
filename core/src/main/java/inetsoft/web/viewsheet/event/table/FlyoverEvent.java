@@ -18,11 +18,13 @@
 package inetsoft.web.viewsheet.event.table;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import java.util.Map;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(builder = FlyoverEvent.Builder.class)
 public abstract class FlyoverEvent implements BaseTableEvent {
    public abstract Map<Integer, int[]> getSelectedCells();

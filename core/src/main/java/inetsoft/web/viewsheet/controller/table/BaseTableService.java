@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,17 +15,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 package inetsoft.web.viewsheet.controller.table;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
-import inetsoft.report.composition.execution.*;
+import inetsoft.report.composition.execution.BoundTableNotFoundException;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.*;
-import inetsoft.report.internal.table.TableHighlightAttr.HighlightTableLens;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.VariableTable;
@@ -58,23 +59,19 @@ import java.security.Principal;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.function.Supplier;
 
-// TODO Delete this class once it has no more child classes
-public abstract class BaseTableController<T extends BaseTableEvent> {
+public abstract class BaseTableService<T extends BaseTableEvent> {
+
    /**
     * Creates a new instance of <tt>BaseTableController</tt>.
     *
-    * @param runtimeViewsheetRef reference to the runtime viewsheet associated with the
-    *                            WebSocket session.
     */
-   protected BaseTableController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                 CoreLifecycleService coreLifecycleService,
-                                 ViewsheetService viewsheetService)
+   protected BaseTableService(CoreLifecycleService coreLifecycleService,
+                              ViewsheetService viewsheetService)
    {
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
    }
@@ -87,9 +84,9 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
     * @param dispatcher command dispatcher
     * @param linkUri    the base link URI for the application.
     */
-   public abstract void eventHandler(@Payload T event, Principal principal,
+   public abstract Void eventHandler(String runtimeId, T event, Principal principal,
                                      CommandDispatcher dispatcher,
-                                     @LinkUri String linkUri) throws Exception;
+                                     String linkUri) throws Exception;
 
    public static void loadTableData(RuntimeViewsheet rvs, String name, int mode,
                                     int start, int rowCount, String linkUri,
@@ -120,7 +117,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
       // for Feature #26586, add ui processing time record.
 
       ProfileUtils.addExecutionBreakDownRecord(rvs.getViewsheetSandbox().getID(),
-         ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
+                                               ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
             loadTableData0(rvs, name, mode, start, rowCount, linkUri, dispatcher, refreshData);
          }
       );
@@ -301,14 +298,14 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
 
          if(refreshData) {
             BaseTableCellModel[][] tableCells = getTableCells(vsassembly.getVSAssemblyInfo(), lens,
-               start, end, formLens, rvs.isRuntime());
+                                                              start, end, formLens, rvs.isRuntime());
             BaseTableCellModel[][] tableHeaderCells = null;
 
             //if assembly is Table, and start != 0, then should send table header to web when load
             //table data. Because the order of the title may change.
             if(start != 0 && vsassembly instanceof TableDataVSAssembly) {
                tableHeaderCells = getTableCells(vsassembly.getVSAssemblyInfo(), lens,
-                  0, lens.getHeaderRowCount(), formLens, rvs.isRuntime());
+                                                0, lens.getHeaderRowCount(), formLens, rvs.isRuntime());
             }
 
             HyperlinkModel[] rowHyperlinks = null;
@@ -338,7 +335,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
          DateComparisonUtil.checkGraphValidity(vsassembly.getVSAssemblyInfo(), lens);
       }
       catch(ColumnNotFoundException | ExpiredSheetException | CancelledException |
-         MessageException | ConfirmException e)
+            MessageException | ConfirmException e)
       {
          throw e;
       }
@@ -382,14 +379,14 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
 
    public static int getHeaderRowCount(TableDataVSAssembly assembly, VSTableLens lens) {
       return getHeaderCount(assembly,
-         () -> ((CalcTableVSAssemblyInfo) assembly.getInfo()).getHeaderRowCount(),
-         () -> lens.getHeaderRowCount());
+                            () -> ((CalcTableVSAssemblyInfo) assembly.getInfo()).getHeaderRowCount(),
+                            () -> lens.getHeaderRowCount());
    }
 
    public static int getHeaderColCount(TableDataVSAssembly assembly, VSTableLens lens) {
       int hcol = getHeaderCount(assembly,
-         () -> ((CalcTableVSAssemblyInfo) assembly.getInfo()).getHeaderColCount(),
-         () -> lens.getHeaderColCount());
+                                () -> ((CalcTableVSAssemblyInfo) assembly.getInfo()).getHeaderColCount(),
+                                () -> lens.getHeaderColCount());
 
       for(int i = 0; i < lens.getHeaderRowCount() && lens.moreRows(i); i++) {
          for(int j = 0; j < hcol; j++) {
@@ -409,7 +406,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
    }
 
    private static int getHeaderCount(TableDataVSAssembly assembly,
-      Supplier<Integer> calcTableSupplier, Supplier<Integer> otherSupplier)
+                                     Supplier<Integer> calcTableSupplier, Supplier<Integer> otherSupplier)
    {
       int headerCount;
 
@@ -573,7 +570,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
    }
 
    public static int[] getHeaderRowPositions(VSTableLens lens, boolean isWrapped,
-      int headerRowCount)
+                                             int headerRowCount)
    {
       int[] headerRowPositions = new int[headerRowCount + 1];
 
@@ -596,7 +593,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
    }
 
    public static int[] getDataRowPositions(VSTableLens lens, boolean isWrapped,
-                                            int headerRowCount, int dataRowCount)
+                                           int headerRowCount, int dataRowCount)
    {
       int[] dataRowPositions = new int[dataRowCount + 1];
 
@@ -675,15 +672,15 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
     * Use for both flyovers and showdetails
     */
    public static ConditionList createCalcTableConditions(
-                                          CalcTableVSAssembly assembly,
-                                          ViewsheetSandbox box,
-                                          String name,
-                                          Map<Integer, int[]> selectedCells,
-                                          String tipMsg,
-                                          CommandDispatcher dispatcher)
+      CalcTableVSAssembly assembly,
+      ViewsheetSandbox box,
+      String name,
+      Map<Integer, int[]> selectedCells,
+      String tipMsg,
+      CommandDispatcher dispatcher)
       throws Exception
    {
-      List<int[]> rowcols = new ArrayList<>();
+      java.util.List<int[]> rowcols = new ArrayList<>();
 
       for(Integer row : selectedCells.keySet()) {
          int[] cols = selectedCells.get(row);
@@ -1090,8 +1087,8 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
                                       VSAssembly vsassembly,
                                       ViewsheetSandbox vsbox)
    {
-      HighlightTableLens table = (HighlightTableLens) Util.getNestedTable(
-         lens, HighlightTableLens.class);
+      TableHighlightAttr.HighlightTableLens table = (TableHighlightAttr.HighlightTableLens) Util.getNestedTable(
+         lens, TableHighlightAttr.HighlightTableLens.class);
 
       if(table == null || vsassembly == null) {
          return;
@@ -1109,8 +1106,8 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
     * @param  model     the BaseTableModel to add properties.
     */
    public static void loadTableModelProperties(RuntimeViewsheet rvs,
-                                          TableDataVSAssembly assembly,
-                                          BaseTableModel model)
+                                               TableDataVSAssembly assembly,
+                                               BaseTableModel model)
       throws Exception
    {
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
@@ -1183,8 +1180,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
       return colWidths;
    }
 
-   protected final RuntimeViewsheetRef runtimeViewsheetRef;
    protected final CoreLifecycleService coreLifecycleService;
    protected final ViewsheetService viewsheetService;
-   private static final Logger LOG = LoggerFactory.getLogger(BaseTableController.class);
+   private static final Logger LOG = LoggerFactory.getLogger(BaseTableService.class);
 }
