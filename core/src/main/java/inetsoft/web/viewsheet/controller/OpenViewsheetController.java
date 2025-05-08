@@ -17,21 +17,11 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.LicenseException;
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.ViewsheetInfo;
-import inetsoft.util.MessageException;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.AutoSaveUtils;
-import inetsoft.web.composer.vs.VSObjectTreeNode;
-import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.ws.event.OpenSheetEventValidator;
 import inetsoft.web.embed.EmbedErrorCommand;
 import inetsoft.web.service.LicenseService;
@@ -60,17 +50,15 @@ public class OpenViewsheetController {
    @Autowired
    public OpenViewsheetController(RuntimeViewsheetRef runtimeViewsheetRef,
                                   RuntimeViewsheetManager runtimeViewsheetManager,
-                                  VSObjectTreeService vsObjectTreeService,
-                                  ViewsheetService viewsheetService,
                                   VSLifecycleService vsLifecycleService,
-                                  LicenseService licenseService)
+                                  LicenseService licenseService,
+                                  OpenViewsheetServiceProxy serviceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.runtimeViewsheetManager = runtimeViewsheetManager;
-      this.vsObjectTreeService = vsObjectTreeService;
-      this.viewsheetService = viewsheetService;
       this.vsLifecycleService = vsLifecycleService;
       this.licenseService = licenseService;
+      this.serviceProxy = serviceProxy;
    }
 
    @GetMapping("api/vs/route-data")
@@ -78,22 +66,7 @@ public class OpenViewsheetController {
    public ViewsheetRouteDataModel getRouteData(@RequestParam("id") String identifier,
                                                Principal principal) throws Exception
    {
-      boolean scaleToScreen = false;
-      boolean fitToWidth = false;
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      Viewsheet vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
-         entry, principal, false, AssetContent.CONTEXT);
-
-      if(vs != null) {
-         ViewsheetInfo info = vs.getViewsheetInfo();
-         scaleToScreen = info.isScaleToScreen();
-         fitToWidth = info.isFitToWidth();
-      }
-
-      return ViewsheetRouteDataModel.builder()
-         .scaleToScreen(scaleToScreen)
-         .fitToWidth(fitToWidth)
-         .build();
+      return serviceProxy.getRouteData(identifier, principal);
    }
 
    /**
@@ -164,18 +137,7 @@ public class OpenViewsheetController {
       }
 
       if(!existing && !event.isViewer()) {
-         AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());
-
-         if(entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
-            VSEventUtil.deleteAutoSavedFile(entry, principal);
-         }
-
-         if(commandDispatcher.stream().noneMatch(c -> "CollectParametersCommand".equals(c.getType()))) {
-            RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-            VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
-            PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
-            commandDispatcher.sendCommand(treeCommand);
-         }
+         serviceProxy.sendPopulateObjectTreeCommand(id, event.getEntryId(), commandDispatcher, principal);
       }
 
       // if viewsheet is create by wizard, it must have source, so if new sheet from wizard and
@@ -187,8 +149,7 @@ public class OpenViewsheetController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final RuntimeViewsheetManager runtimeViewsheetManager;
-   private final VSObjectTreeService vsObjectTreeService;
-   private final ViewsheetService viewsheetService;
    private final VSLifecycleService vsLifecycleService;
    private final LicenseService licenseService;
+   private final OpenViewsheetServiceProxy serviceProxy;
 }

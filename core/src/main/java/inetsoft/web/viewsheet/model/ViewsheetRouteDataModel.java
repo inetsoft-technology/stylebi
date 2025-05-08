@@ -19,9 +19,11 @@ package inetsoft.web.viewsheet.model;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableViewsheetRouteDataModel.class)
 @JsonDeserialize(as = ImmutableViewsheetRouteDataModel.class)
 public interface ViewsheetRouteDataModel {
