@@ -51,6 +51,8 @@ const LINT_MARKERS = "CodeMirror-lint-markers";
 })
 export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDestroy, OnChanges {
    @Input() columnTreeRoot: TreeNodeModel;
+   @Input() columnTreeShowMenu: boolean;
+   @Input() columnTreeHasMenuFun: (node: TreeNodeModel) => boolean;
    @Input() columnTreeEnabled: boolean = true;
    @Input() functionOperatorShowRoot: boolean = false;
    @Input() functionTreeEnabled: boolean = true;
@@ -65,6 +67,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    @Input() propertyDefinitions: any;
    @Output() expressionChange: EventEmitter<any> = new EventEmitter<any>();
    @Output() analysisResultsChange = new EventEmitter<AnalysisResult[]>();
+   @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();
    @ViewChild("scriptEditor") scriptEditor: ElementRef;
    @ViewChild("scriptEditorContainer") scriptEditorContainer: ElementRef;
 
