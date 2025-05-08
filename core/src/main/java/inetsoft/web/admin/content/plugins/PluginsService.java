@@ -24,6 +24,7 @@ import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.jdbc.drivers.DriverPluginGenerator;
 import inetsoft.uql.jdbc.drivers.DriverScanner;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Config;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -134,6 +135,7 @@ public class PluginsService {
 
       if(installedPlugins > 0) {
          plugins.validatePlugins();
+         DataSourceRegistry.getRegistry().clearCache();
       }
 
       if(installedPlugins < pluginFiles.size()) {
@@ -231,6 +233,7 @@ public class PluginsService {
             try(InputStream input = Files.newInputStream(pluginFile.toPath())) {
                plugins.installPlugin(input, request.pluginId() + "-" +
                   request.pluginVersion() + ".zip", false);
+               DataSourceRegistry.getRegistry().clearCache();
             }
          }
          finally {
