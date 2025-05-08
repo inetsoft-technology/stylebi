@@ -17,23 +17,10 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.uql.*;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.MirrorVariableAssemblyInfo;
-import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.schema.UserVariable;
-import inetsoft.util.Catalog;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSChangeDependencyEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
