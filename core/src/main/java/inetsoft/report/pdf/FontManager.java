@@ -443,6 +443,10 @@ public class FontManager {
     * element is the font encoding.
     */
    String[] getCJKInfo(String fontname) {
+      if(fontname == null) {
+         return null;
+      }
+
       // cache the lowercase font for performance
       String font = fontlowercasemap.computeIfAbsent(fontname, String::toLowerCase);
       return cjkmap.get(font);
