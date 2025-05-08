@@ -29,7 +29,7 @@
                 [grayedOutFields]="grayedOutFields" [showTooltip]="showTooltip"
                 [showRoot]="columnShowRoot" [iconFunction]="getCSSIcon"
                 [isGrayFunction]="isGrayedOutField"
-                [fillHeight]="true"
+                [fillHeight]="true" [selectOnClick]="columnTreeShowMenu"
                 [useVirtualScroll]="needUseVirtualScroll"
                 [showOriginalName]="showOriginalName"
                 (nodesSelected)="itemClicked($event[0], 'columnTree')" (onContextmenu)="onContextmenu.emit($event)">
