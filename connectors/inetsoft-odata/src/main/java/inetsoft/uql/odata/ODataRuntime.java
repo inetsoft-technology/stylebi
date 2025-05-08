@@ -25,10 +25,12 @@ import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.Tool;
 import inetsoft.util.Tuple;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.apache.olingo.client.api.ODataClient;
 import org.apache.olingo.client.api.ODataClientBuilder;
 import org.apache.olingo.client.api.communication.request.ODataBasicRequest;
@@ -395,7 +397,17 @@ public class ODataRuntime extends TabularRuntime {
                return Tool.parseXML(httpResponse.getEntity().getContent());
             }
             else {
-               LOG.warn("could not get metadata for datasource: " + ds.getName());
+               int statusCode = httpResponse.getStatusLine().getStatusCode();
+               HttpEntity entity = httpResponse.getEntity();
+               String errorResponse = null;
+
+               if(entity != null) {
+                  errorResponse = EntityUtils.toString(entity);
+               }
+
+               LOG.warn("Failed to get metadata for datasource: {}, HTTP status: {}, Response: {}",
+                        ds.getName(), statusCode, errorResponse);
+               throw new RuntimeException("HTTP request failed with status " + statusCode);
             }
          }
       }
