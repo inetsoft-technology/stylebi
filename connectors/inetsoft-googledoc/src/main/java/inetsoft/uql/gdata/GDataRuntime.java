@@ -38,8 +38,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.sql.*;
 import java.sql.Date;
-import java.sql.Timestamp;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -145,6 +145,14 @@ public class GDataRuntime extends TabularRuntime {
                            .minusSeconds(OffsetDateTime.now().getOffset().getTotalSeconds())
                            .toInstant();
                         data[c] = new Timestamp(instant.toEpochMilli());
+                     }
+                     else if("TIME".equals(format.getType())) {
+                        long time = (long) (value * 24 * 60 * 60 * 1e3 + 0.5);
+                        Instant instant = BASE_DATE
+                           .plus(time, ChronoUnit.MILLIS)
+                           .minusSeconds(OffsetDateTime.now().getOffset().getTotalSeconds())
+                           .toInstant();
+                        data[c] = new Time(instant.toEpochMilli());
                      }
                      else {
                         data[c] = value;
