@@ -25,14 +25,15 @@
              [class.disable-actions]="!columnTreeEnabled">
           <virtual-scroll-tree [disabled]="disabled"
                 [root]="columnTreeRoot"
-                [searchEnabled]="true"
+                [searchEnabled]="true" [hasMenuFunction]="columnTreeHasMenuFun" [contextmenu]="columnTreeShowMenu"
                 [grayedOutFields]="grayedOutFields" [showTooltip]="showTooltip"
                 [showRoot]="columnShowRoot" [iconFunction]="getCSSIcon"
                 [isGrayFunction]="isGrayedOutField"
-                [fillHeight]="true"
+                [fillHeight]="true" [selectOnClick]="columnTreeShowMenu"
                 [useVirtualScroll]="needUseVirtualScroll"
                 [showOriginalName]="showOriginalName"
-                (nodesSelected)="itemClicked($event[0], 'columnTree')"></virtual-scroll-tree>
+                (nodesSelected)="itemClicked($event[0], 'columnTree')" (onContextmenu)="onContextmenu.emit($event)">
+          </virtual-scroll-tree>
         </div>
       </div>
       <div class="col ps-1 pe-0" *ngIf="functionOperatorTreeRoot"
