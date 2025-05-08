@@ -105,8 +105,8 @@ public class ChangeDependencyService extends WorksheetControllerService{
 
          if(ctbl instanceof CompositeTableAssembly) {
             if(ctbl instanceof ConcatenatedTableAssembly) {
-               ConcatenateTablesController.ConcatenationCompatibility compatibility =
-                  ConcatenateTablesController.getTableColumnCompatibility(
+               ConcatenateTablesService.ConcatenationCompatibility compatibility =
+                  ConcatenateTablesService.getTableColumnCompatibility(
                      oldDependedTable, newDependedTable);
 
                if(!compatibility.isCompatible()) {
