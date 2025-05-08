@@ -17,11 +17,6 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.graph.GraphUtil;
-import inetsoft.uql.viewsheet.VSAssembly;
-import inetsoft.uql.viewsheet.graph.LegendDescriptor;
-import inetsoft.uql.viewsheet.graph.LegendsDescriptor;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.chart.VSChartLegendRelocateEvent;
@@ -32,18 +27,16 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
-import java.awt.geom.Point2D;
 import java.security.Principal;
 
 @Controller
-public class VSChartMoveLegendController
-   extends VSChartController<VSChartLegendRelocateEvent> {
+public class VSChartMoveLegendController {
    @Autowired
    public VSChartMoveLegendController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                      CoreLifecycleService coreLifecycleService,
-                                      ViewsheetService viewsheetService)
+                                 VSChartMoveLegendService vsChartMoveLegendService)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsChartMoveLegendService = vsChartMoveLegendService;
    }
 
    /**
@@ -55,7 +48,6 @@ public class VSChartMoveLegendController
     *
     * @throws Exception if the plot spacing could not be resized.
     */
-   @Override
    @Undoable
    @LoadingMask
    @MessageMapping("/vschart/move-legend")
@@ -64,31 +56,10 @@ public class VSChartMoveLegendController
                             Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
-      processEvent(event, principal, linkUri, dispatcher, chartState -> {
-         return moveLegend(event, chartState);
-      });
+      vsChartMoveLegendService.eventHandler(runtimeViewsheetRef.getRuntimeId(), event,
+                                       linkUri, principal, dispatcher);
    }
 
-   private int moveLegend(@Payload VSChartLegendRelocateEvent event, VSChartStateInfo chartState) {
-      final LegendsDescriptor legendsDes = chartState.getLegendsDes();
-      final int layout = legendsDes.getLayout();
-      final int newLayout = event.getLegendPosition();
-      final int hint = layout != newLayout ? VSAssembly.VIEW_CHANGED : -1;
-      legendsDes.setLayout(newLayout);
-      chartState.getChartAssemblyInfo().setRTChartDescriptor(null);
-
-      // only setPosition() if the legend is located in the "center"
-      if(newLayout == LegendsDescriptor.IN_PLACE) {
-         LegendDescriptor ldesc = GraphUtil.getLegendDescriptor(
-            chartState.getChartInfo(), legendsDes, event.getField(),
-            event.getTargetFields(), event.getLegendType(), event.isNodeAesthetic());
-
-         if(ldesc != null) {
-            Point2D.Double pos = new Point2D.Double(event.getLegendX(), event.getLegendY());
-            ldesc.setPosition(pos);
-         }
-      }
-
-      return hint;
-   }
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartMoveLegendService vsChartMoveLegendService;
 }
