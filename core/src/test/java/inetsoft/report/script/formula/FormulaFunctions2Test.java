@@ -41,7 +41,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @SreeHome(importResources = "FormulaFunctionsTest.vso")
-public class FormulaFunctionsTest2 {
+public class FormulaFunctions2Test {
    /**
     * test rowList will throw exception when not tablelens
     */
