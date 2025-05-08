@@ -162,10 +162,25 @@ public class LibManager implements AutoCloseable {
    /**
     * Initialize this library manager.
     *
-    * @param event true if should fire event when resource changes.
+    * @param orgID reload lib org id.
     */
-   protected synchronized void init(boolean event) {
+   protected synchronized void init(String orgID) {
       try {
+         if(orgID == null) {
+            orgID = OrganizationManager.getInstance().getCurrentOrgID();
+         }
+
+         final String currentOrg = orgID;
+         OrganizationManager.runInOrgScope(orgID, () -> {
+            BlobStorage<Metadata> orgStorage = storages.get(currentOrg);
+
+            if(orgStorage != null) {
+               loadLibrary(storages.get(currentOrg));
+            }
+
+            return null;
+         });
+
          setInitializing(true);
       }
       catch(Exception e) {
@@ -725,25 +740,33 @@ public class LibManager implements AutoCloseable {
    private final BlobStorage.Listener<Metadata> changeListener = new BlobStorage.Listener<Metadata>() {
       @Override
       public void blobAdded(BlobStorage.Event<Metadata> event) {
-         fireEvent(event.getNewValue().getLastModified().toEpochMilli());
+         fireEvent(event.getMapName(), event.getNewValue().getLastModified().toEpochMilli());
       }
 
       @Override
       public void blobUpdated(BlobStorage.Event<Metadata> event) {
-         fireEvent(event.getNewValue().getLastModified().toEpochMilli());
+         fireEvent(event.getMapName(), event.getNewValue().getLastModified().toEpochMilli());
       }
 
       @Override
       public void blobRemoved(BlobStorage.Event<Metadata> event) {
-         fireEvent(System.currentTimeMillis());
+         fireEvent(event.getMapName(), System.currentTimeMillis());
       }
 
-      private void fireEvent(long timestamp) {
-         debouncer.debounce("change", 1L, TimeUnit.SECONDS, () -> {
+      private void fireEvent(String mapName, long timestamp) {
+         debouncer.debounce(mapName + "change", 1L, TimeUnit.SECONDS, () -> {
             try {
-               init(true);
-               fireActionEvent("", SCRIPT_RELOADED);
-               LibManager.this.fireEvent(timestamp);
+               if(mapName != null && mapName.startsWith("inetsoft.storage.kv.") && mapName.endsWith("__library")) {
+                  String storageName = mapName.substring("inetsoft.storage.kv.".length());
+                  String orgID = storageName.substring(0, storageName.length() - "__library".length());
+
+                  if(!Tool.isEmptyString(orgID)) {
+                     init(orgID);
+                     fireActionEvent("", SCRIPT_RELOADED);
+                     LibManager.this.fireEvent(timestamp);
+                  }
+               }
+
             }
             catch(Exception e) {
                LOG.error("Failed to reload library file", e);
@@ -851,7 +874,7 @@ public class LibManager implements AutoCloseable {
          }
 
          if(doInit) {
-            manager.init(true);
+            manager.init(null);
          }
 
          return manager;
