@@ -146,6 +146,14 @@ public class ComposerVSTableController {
                   dispatcher.sendCommand(command);
                   return;
                }
+
+               if(ref.getAlias() == null && ref.getName().equals(event.getText())) {
+                  MessageCommand command = new MessageCommand();
+                  command.setType(MessageCommand.Type.ERROR);
+                  command.setMessage(Catalog.getCatalog().getString("common.conflictingColumnAttribute", ref.getName()));
+                  dispatcher.sendCommand(command);
+                  return;
+               }
             }
 
             ColumnRef column = (ColumnRef) columns.getAttribute(getActualColIndex(columns, col));
