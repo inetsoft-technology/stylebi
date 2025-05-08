@@ -122,7 +122,7 @@ export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
    }
 
    updateDatasourceName(value: string): void {
-      if(!this.datasource.oldName) {
+      if(!this.datasource.oldName && this.datasource.name != value) {
          this.datasource.oldName = this.datasource.name;
       }
 
