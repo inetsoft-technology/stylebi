@@ -273,8 +273,14 @@ public abstract class AbstractTransformer {
     */
    public static final ColumnRef[] getChildColumn(ColumnSelection pcols,
                                                   ColumnSelection cols,
-                                                  String cname, DataRef pref) {
+                                                  String cname, DataRef pref)
+   {
       ColumnRef pcol = (ColumnRef) pcols.findAttribute(pref);
+
+      if(pcol == null && pref.getEntity() == null) {
+         pref = getParentColumn(pcols, cname, pref);
+         pcol = (ColumnRef) pcols.findAttribute(pref);
+      }
 
       if(pcol == null) {
          throw new RuntimeException("Column " + pref + " not found in: " + pcols + "!");
