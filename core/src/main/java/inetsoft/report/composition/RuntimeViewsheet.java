@@ -1897,6 +1897,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * Refresh the tip views or pop components of the runtime viewsheet.
     */
    public void refreshAllTipViewOrPopComponentTable() {
+      if(vs == null) {
+         return;
+      }
+
       Assembly[] arr = vs.getAssemblies();
 
       if(mode != VIEWSHEET_RUNTIME_MODE) {
