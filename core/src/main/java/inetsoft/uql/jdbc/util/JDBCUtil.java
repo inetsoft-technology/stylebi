@@ -965,11 +965,6 @@ public class JDBCUtil {
       String testQuery = SreeEnv.getProperty(
          "inetsoft.uql.jdbc.pool." + jdbcDataSource.getFullName() + ".connectionTestQuery");
 
-      if(jdbcDataSource.isCloudHosted()) {
-         String cloudErrorMessage = SreeEnv.getProperty("datasource.cloudError", "");
-         result.setCloudError(cloudErrorMessage);
-      }
-
       if(type.getType().equals(CustomDatabaseType.TYPE)) {
          CustomDatabaseType.CustomDatabaseInfo customInfo =
             (CustomDatabaseType.CustomDatabaseInfo) result.getInfo();
