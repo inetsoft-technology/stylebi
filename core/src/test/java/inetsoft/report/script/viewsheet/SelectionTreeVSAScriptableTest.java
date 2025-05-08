@@ -18,7 +18,10 @@
 
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.test.*;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
@@ -26,23 +29,27 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.mockito.Mock;
 
-import java.awt.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.openMocks;
 
+@SreeHome(importResources = "SelectionTreeVSAScriptableTest.vso")
 public class SelectionTreeVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private SelectionTreeVSAScriptable selectionTreeVSAScriptable;
    private SelectionTreeVSAssemblyInfo selectionTreeVSAssemblyInfo;
    private SelectionTreeVSAssembly selectionTreeVSAssembly;
    private VSAScriptable vsaScriptable;
+
+   @Mock
+   ViewsheetService viewsheetService;
 
    @BeforeEach
    void setUp() {
@@ -145,4 +152,72 @@ public class SelectionTreeVSAScriptableTest {
       selectionTreeVSAScriptable.setFields(new String[] {"attribute", "field2"});
       assertArrayEquals(new String[] {"attribute", "field2"}, selectionTreeVSAScriptable.getFields());
    }
+
+   /**
+    * import snapshot to test set single selection levels for selection tree
+    */
+   @Test
+   void testGetSetSingleSelectionLevels() throws Exception {
+      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      Principal principal = mock(Principal.class);
+      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
+         .thenReturn(viewsheetResource.getRuntimeViewsheet());
+
+      final SelectionTreeVSAssembly tree1 = (SelectionTreeVSAssembly) viewsheetResource
+         .getRuntimeViewsheet().getViewsheet().getAssembly("SelectionTree1");
+      SelectionTreeVSAScriptable selectionTreeVSAScriptable1 = new SelectionTreeVSAScriptable(sandbox);
+      selectionTreeVSAScriptable1.setAssembly(tree1.getName());
+
+      //null levels
+      selectionTreeVSAScriptable.setSingleSelectionLevels(null);
+      assertNull(selectionTreeVSAScriptable.getSingleSelectionLevels());
+
+      //one single level and multiple single levels
+      selectionTreeVSAScriptable1.setSingleSelection(true);
+      selectionTreeVSAScriptable1.setSingleSelectionLevels(new String[] {"STATE"});
+      assertArrayEquals(new String[] {"STATE"}, selectionTreeVSAScriptable1.getSingleSelectionLevels());
+      selectionTreeVSAScriptable1.setSingleSelectionLevels(new String[] {"STATE", "CITY"});
+      assertArrayEquals(new String[] {"STATE", "CITY"}, selectionTreeVSAScriptable1.getSingleSelectionLevels());
+   }
+
+   /**
+    * import snapshot to test set single selection for parent-child selection tree
+    */
+   @Test
+   void testGetSetSingleSelection() throws Exception {
+      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      Principal principal = mock(Principal.class);
+      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
+         .thenReturn(viewsheetResource.getRuntimeViewsheet());
+
+      final SelectionTreeVSAssembly tree1 = (SelectionTreeVSAssembly) viewsheetResource
+         .getRuntimeViewsheet().getViewsheet().getAssembly("SelectionTree2");
+      SelectionTreeVSAScriptable selectionTreeVSAScriptable1 = new SelectionTreeVSAScriptable(sandbox);
+      selectionTreeVSAScriptable1.setAssembly(tree1.getName());
+
+      assertNull(selectionTreeVSAScriptable.getSingleSelectionLevels());
+      selectionTreeVSAScriptable1.setSingleSelection(true);
+      assertArrayEquals(new String[] {"parent_id", "child_id", "label_string"},
+                        selectionTreeVSAScriptable1.getSingleSelectionLevels());
+   }
+
+   private static OpenViewsheetEvent createOpenViewsheetEvent() {
+      OpenViewsheetEvent event = new OpenViewsheetEvent();
+      event.setEntryId(ASSET_ID);
+      event.setViewer(true);
+
+      return event;
+   }
+   public static final String ASSET_ID = "1^128^__NULL__^SelectionTreeVSAScriptableTest";
+
+   @RegisterExtension
+   @Order(1)
+   ControllersExtension controllers = new ControllersExtension();
+
+   @RegisterExtension
+   @Order(2)
+   RuntimeViewsheetExtension viewsheetResource =
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent(), controllers);
 }
