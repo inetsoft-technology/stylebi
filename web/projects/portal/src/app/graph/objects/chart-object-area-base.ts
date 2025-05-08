@@ -97,10 +97,11 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
 
    @Input()
    public set chartObject(value: T) {
+      let oldObj = this._chartObject;
       this._chartObject = value;
 
       this.updateRegionTree();
-      this.updateChartObject();
+      this.updateChartObject(oldObj);
       this.drawSelectedRegions();
    }
 
@@ -292,7 +293,7 @@ export abstract class ChartObjectAreaBase<T extends ChartObject>
    /**
     * Update chart object property. Implemented by sub class.
     */
-   public abstract updateChartObject(): void;
+   public abstract updateChartObject(oldObjectModel?: T): void;
 
    /**
     * Cleanup method called from ngOnDestroy

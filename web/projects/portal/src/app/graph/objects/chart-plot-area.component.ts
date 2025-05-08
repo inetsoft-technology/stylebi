@@ -468,7 +468,15 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       }
    }
 
-   public updateChartObject(): void {
+   public updateChartObject(oldObj?: Plot): void {
+      if(this.titlesSrcIsSame(oldObj, this.chartObject)) {
+         for(let i = 0; i < oldObj.tiles.length; i++) {
+            if(oldObj.tiles[i]?.loaded) {
+               this.chartObject.tiles[i].loaded = true;
+            }
+         }
+      }
+
       if(this.chartObject && (!this.chartObject.tiles || this.chartObject.tiles.length == 0)) {
          this.fireOnLoad();
       }
@@ -486,6 +494,22 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                                   this.canvasX, this.canvasY, this.viewsheetScale);
          }
       }
+   }
+
+   private titlesSrcIsSame(plot1: Plot, plot2: Plot): boolean {
+      if(!plot1 || !plot2 || plot1.tiles?.length != plot2.tiles?.length) {
+         return false;
+      }
+
+      for(let i = 0; i < plot1.tiles.length; i++) {
+         if(this.getSrc(plot1.tiles[i], this.container, true) !==
+            this.getSrc(plot2.tiles[i], this.container, true))
+         {
+            return false;
+         }
+      }
+
+      return true;
    }
 
    /**
@@ -519,26 +543,29 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       return (src + "").replace("/plot_area/", "/plot_background/");
    }
 
-   public getSrc(tile: ChartTile, container: any = null): SafeStyle {
+   public getSrc(tile: ChartTile, container: any = null, ignoreLoadEvent: boolean = false): SafeStyle {
       const src = super.getSrc(tile, container);
-      let loading = false;
 
-      if(tile.row == 0 && tile.col == 0) {
-         if(this.oSrc != src + "") {
-            this.oSrc = src + "";
+      if(!ignoreLoadEvent) {
+         let loading = false;
 
-            if(this.isTileVisible(tile)) {
-               loading = true;
-               tile.loaded = false;
-               this.fireOnLoading();
+         if(tile.row == 0 && tile.col == 0) {
+            if(this.oSrc != src + "") {
+               this.oSrc = src + "";
+
+               if(this.isTileVisible(tile)) {
+                  loading = true;
+                  tile.loaded = false;
+                  this.fireOnLoading();
+               }
             }
          }
-      }
 
-      // if src is same, (load) event won't be called so we need to explicitly fire it
-      // to clear the loading icon.
-      if(!loading) {
-         this.fireOnLoad();
+         // if src is same, (load) event won't be called so we need to explicitly fire it
+         // to clear the loading icon.
+         if(!loading) {
+            this.fireOnLoad();
+         }
       }
 
       return src;
