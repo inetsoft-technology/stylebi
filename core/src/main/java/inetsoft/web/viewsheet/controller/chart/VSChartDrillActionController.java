@@ -17,23 +17,9 @@
  */
 package inetsoft.web.viewsheet.controller.chart;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.graph.VGraph;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.report.composition.graph.VGraphPair;
-import inetsoft.report.composition.graph.VSDataSet;
-import inetsoft.report.internal.graph.ChangeChartProcessor;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.web.binding.handler.VSChartDataHandler;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.chart.VSChartDrillActionEvent;
-import inetsoft.web.viewsheet.handler.VSDrillHandler;
-import inetsoft.web.viewsheet.handler.chart.VSChartDrillHandler;
-import inetsoft.web.viewsheet.model.ChartDrillFilterAction;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,24 +28,15 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
 
 @Controller
-public class VSChartDrillActionController extends VSChartController<VSChartDrillActionEvent> {
+public class VSChartDrillActionController {
    @Autowired
    public VSChartDrillActionController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                       CoreLifecycleService coreLifecycleService,
-                                       ViewsheetService viewsheetService,
-                                       VSChartDataHandler dataHandler,
-                                       VSChartDrillHandler chartDrillHandler,
-                                       VSDrillHandler vsDrillHandler)
+                                       VSChartDrillActionServiceProxy vsChartDrillActionService)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
-
-      this.chartDrillHandler = chartDrillHandler;
-      this.vsDrillHandler = vsDrillHandler;
-      this.dataHandler = dataHandler;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.vsChartDrillActionService = vsChartDrillActionService;
    }
 
    @Undoable
@@ -69,106 +46,10 @@ public class VSChartDrillActionController extends VSChartController<VSChartDrill
                             Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      processEvent(event, principal, linkUri, dispatcher, chartState -> {
-         try {
-            return drillAction(event, chartState, dispatcher, linkUri, principal);
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-      });
+      vsChartDrillActionService.eventHandler(runtimeViewsheetRef.getRuntimeId(),
+                                             event, linkUri, principal, dispatcher);
    }
 
-   public int drillAction(VSChartDrillActionEvent event, VSChartStateInfo chartState,
-                          CommandDispatcher dispatcher, String linkUri, Principal principal)
-      throws Exception
-   {
-      if(chartState == null) {
-         return VSAssembly.NONE_CHANGED;
-      }
-
-      String name = event.getChartName();
-      String selected = event.getSelected();
-      boolean rangeSelection = event.getRangeSelection();
-      final ViewsheetSandbox box = chartState.getViewsheetSandbox();
-      RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
-      Viewsheet vs = rvs.getViewsheet();
-      ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
-      ChartVSAssemblyInfo oinfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo().clone();
-      VGraphPair pair = box.getVGraphPair(name, true);
-
-      if(pair == null) {
-         return VSAssembly.NONE_CHANGED;
-      }
-
-      VGraph vgraph = pair.getRealSizeVGraph();
-      VSDataSet lens = (VSDataSet) box.getData(name);
-      ChartVSAssembly chart = chartState.getAssembly();
-
-      if(lens == null && pair.isChangedByScript0() || vgraph == null) {
-         //command.addCommand(new MessageCommand(Catalog.getCatalog().getString(
-         //   "action.script.graph"), MessageCommand.INFO));
-         return VSAssembly.NONE_CHANGED;
-      }
-
-      VSSelection selection = chartDrillHandler.getVSSelection(rvs, chart, vgraph,
-                                                               selected, rangeSelection);
-
-      List<String> fields = getSelectedFieldName(selection, chart);
-
-      if(fields.size() == 0) {
-         return 0;
-      }
-
-      ChartDrillFilterAction filterInfo  = new ChartDrillFilterAction();
-      filterInfo.setSelected(selected);
-      filterInfo.setRangeSelection(rangeSelection);
-      filterInfo.setFields(fields)
-                .setAssemblyName(name)
-                .setDrillUp(event.isDrillUp());
-      vsDrillHandler.processDrillAction(filterInfo, dispatcher, linkUri, principal);
-
-      // runtime info may be used during processing, delay clearing it until after all
-      // processing has completed.
-      chart.getVSChartInfo().clearRuntime();
-      ChartVSAssemblyInfo ninfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
-      ChangeChartProcessor pro = new ChangeChartProcessor();
-      pro.fixAggregateRefs(ninfo.getVSChartInfo(), oinfo.getVSChartInfo());
-      dataHandler.changeChartAesthetic(rvs, ninfo);
-
-      return VSAssembly.INPUT_DATA_CHANGED;
-   }
-
-   private List<String> getSelectedFieldName(VSSelection selection, ChartVSAssembly chartAssembly) {
-      List<String> fieldNames = new ArrayList<>();
-
-      if(selection == null) {
-         return fieldNames;
-      }
-
-      VSChartInfo chartInfo = chartAssembly.getVSChartInfo();
-
-      for(int i = 0; i < selection.getPointCount(); i++) {
-         VSPoint point = selection.getPoint(i);
-
-         for(int j = point.getValueCount() - 1; j >= 0; j--) {
-            VSFieldValue value = point.getValue(j);
-            ChartRef ref = chartDrillHandler.getFieldByName(chartInfo, value.getFieldName());
-
-            if(!(ref instanceof VSDimensionRef) || fieldNames.contains(value.getFieldName())
-               || ((VSDimensionRef) ref).isDynamic())
-            {
-               continue;
-            }
-
-            fieldNames.add(ref.getFullName());
-         }
-      }
-
-      return fieldNames;
-   }
-
-   private final VSChartDrillHandler chartDrillHandler;
-   private final VSDrillHandler vsDrillHandler;
-   private final VSChartDataHandler dataHandler;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final VSChartDrillActionServiceProxy vsChartDrillActionService;
 }
