@@ -95,7 +95,7 @@
       </ng-container>
     </div>
     <div class="row" [class.stretch-empty]="canResize">
-      <script-pane class="col" [expression]="expression" [sql]="isSqlType()"
+      <script-pane class="col" [expression]="expression" [sql]="isSqlType()" [columnTreeShowMenu]="true" [columnTreeHasMenuFun]="hasMenu()"
                    [columnTreeRoot]="columnTreeRoot" [showTooltip]="true"
                    [columnShowRoot]="isVSContext && !columnTreeRoot"
                    [functionTreeRoot]="validFunctionRoot" [operatorTreeRoot]="operatorTreeRoot"
@@ -106,7 +106,7 @@
                    [grayedOutFields]="grayedOutFields" [scriptDefinitions]="scriptDefinitions"
                    [functionOperatorShowRoot]="isCube"
                    [preventEscape]="true" [fullContainer]="resized"
-                   [showOriginalName]="showOriginalName">
+                   [showOriginalName]="showOriginalName" (onContextmenu)="showContextMenu($event)">
       </script-pane>
     </div>
   </form>

@@ -26,15 +26,12 @@ import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.CalculateRef;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.Catalog;
+import inetsoft.util.*;
+import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.binding.event.ModifyAggregateFieldEvent;
-import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.ArrayList;
@@ -45,25 +42,20 @@ public class ModifyAggregateFieldController {
    /**
     * Creates a new instance of <tt>ModifyAggregateFieldController</tt>.
     *
-    * @param runtimeViewsheetRef reference to the runtime viewsheet associated with the
-    *                            WebSocket session.
     * @param viewsheetService
     */
    @Autowired
    public ModifyAggregateFieldController(
-      RuntimeViewsheetRef runtimeViewsheetRef,
       ViewsheetService viewsheetService) {
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
    }
 
-   @MessageMapping("/vs/calculate/modifyAggregateField")
-   public void modifyAggregateField(@Payload ModifyAggregateFieldEvent event,
-      Principal principal, CommandDispatcher dispatcher) throws Exception
+   @PostMapping("/api/vs/calculate/modifyAggregateField")
+   @ResponseBody
+   public void modifyAggregateField(@DecodeParam("vsId") String id,
+                                    @RequestBody ModifyAggregateFieldEvent event,
+                                    Principal principal) throws Exception
    {
-
-      String id = runtimeViewsheetRef.getRuntimeId();
-
       if(id == null) {
          return;
       }
@@ -88,50 +80,7 @@ public class ModifyAggregateFieldController {
             vs.addAggrField(tname, nref);
          }
          else {
-            CalculateRef[] calcs = vs.getCalcFields(tname);
-
-            if(calcs == null) {
-               vs.removeAggrField(tname, oref);
-
-               // edit? nref is null means remove
-               if(nref != null) {
-                  vs.addAggrField(tname, nref);
-               }
-
-               return;
-            }
-
-            AggregateRef[] allagg = new AggregateRef[] {oref};
-            List<String> usingCalcs = new ArrayList<>();
-
-            for(int i = 0; i < calcs.length; i++) {
-               CalculateRef calc = calcs[i];
-
-               if(!calc.isBaseOnDetail()) {
-                  List<String> matchNames = new ArrayList<>();
-                  ExpressionRef eref = (ExpressionRef) calc.getDataRef();
-                  String expression = eref.getExpression();
-                  List<AggregateRef> aggs =
-                     VSUtil.findAggregate(allagg, matchNames, expression);
-
-                  if(aggs.size() > 0) {
-                     usingCalcs.add(calc.getName());
-                  }
-               }
-            }
-
-            if(usingCalcs.size() > 0) {
-               if(!event.isConfirmed()) {
-                  Catalog catalog = Catalog.getCatalog();
-                  ConfirmException cevent = new ConfirmException(
-                     catalog.getString("aggregate.vsused.warning") + usingCalcs,
-                     ConfirmException.CONFIRM);
-                  //cevent.setEvent(this);
-                  throw cevent;
-               }
-            }
-
-            vs.removeAggrField(tname, oref);
+            removeAggregate(vs, tname, oref, event.isConfirmed());
 
             // edit? nref is null means remove
             if(nref != null) {
@@ -139,17 +88,79 @@ public class ModifyAggregateFieldController {
             }
          }
       }
-      catch(ConfirmException ex) {
+      catch(Exception ex) {
          throw ex;
-      }
-      catch(Exception e) {
-         MessageCommand command = new MessageCommand();
-         command.setMessage(e.getMessage());
-         dispatcher.sendCommand(command);
-         return;
       }
    }
 
+   @PostMapping("/api/vs/calculate/removeAggregateField")
+   @ResponseBody
+   public void removeAggregateField(@DecodeParam("vsId") String vsId,
+                                    @RequestBody ModifyAggregateFieldEvent event,
+                                    Principal principal)
+      throws Exception
+   {
+
+     String id = Tool.byteDecode(vsId);
+
+      if(id == null) {
+         return;
+      }
+
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
+      Viewsheet vs = rvs.getViewsheet();
+      String tname = event.getTableName();
+      AggregateRef oref = event.getOldRef() == null ?
+         null : (AggregateRef) event.getOldRef().createDataRef();
+
+      if(vs == null || oref == null) {
+         return;
+      }
+
+      fixAggregateDataType(vs, tname, oref);
+      removeAggregate(vs, tname, oref, event.isConfirmed());
+   }
+
+   private void removeAggregate(Viewsheet vs, String tname, AggregateRef ref, boolean confirmed) {
+      CalculateRef[] calcs = vs.getCalcFields(tname);
+
+      if(calcs == null) {
+         vs.removeAggrField(tname, ref);
+
+         return;
+      }
+
+      AggregateRef[] allagg = new AggregateRef[] {ref};
+      List<String> usingCalcs = new ArrayList<>();
+
+      for(int i = 0; i < calcs.length; i++) {
+         CalculateRef calc = calcs[i];
+
+         if(!calc.isBaseOnDetail()) {
+            List<String> matchNames = new ArrayList<>();
+            ExpressionRef eref = (ExpressionRef) calc.getDataRef();
+            String expression = eref.getExpression();
+            List<AggregateRef> aggs =
+               VSUtil.findAggregate(allagg, matchNames, expression);
+
+            if(!aggs.isEmpty()) {
+               usingCalcs.add(calc.getName());
+            }
+         }
+      }
+
+      if(!usingCalcs.isEmpty()) {
+         if(!confirmed) {
+            Catalog catalog = Catalog.getCatalog();
+            MessageException cevent = new MessageException(
+               catalog.getString("aggregate.vsused.warning") + usingCalcs);
+
+            throw cevent;
+         }
+      }
+
+      vs.removeAggrField(tname, ref);
+   }
    /**
     * fix data type for the viewsheet aggregate field.
     */
@@ -183,6 +194,5 @@ public class ModifyAggregateFieldController {
       aref.setDataRef(column);
    }
 
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
 }

@@ -29,6 +29,7 @@ import {
 } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { AggregateRef } from "../../common/data/aggregate-ref";
 import { AttributeRef } from "../../common/data/attribute-ref";
 import { ExpressionType } from "../../common/data/condition/expression-type";
@@ -36,10 +37,14 @@ import { DataRef } from "../../common/data/data-ref";
 import { FormulaType } from "../../common/data/formula-type";
 import { XSchema } from "../../common/data/xschema";
 import { Tool } from "../../../../../shared/util/tool";
+import { GuiTool } from "../../common/util/gui-tool";
 import { AnalysisResult } from "../dialog/script-pane/analysis-result";
 import { NewAggrDialogModel } from "../dialog/new-aggr-dialog/new-aggr-dialog-model";
 import { ScriptPane } from "../dialog/script-pane/script-pane.component";
 import { FormValidators } from "../../../../../shared/util/form-validators";
+import { ActionsContextmenuComponent } from "../fixed-dropdown/actions-contextmenu.component";
+import { DropdownOptions } from "../fixed-dropdown/dropdown-options";
+import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { FormulaEditorDialogModel } from "./formula-editor-dialog-model";
 import { FormulaEditorService } from "./formula-editor.service";
@@ -110,7 +115,6 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Input() availableFields: DataRef[];
    @Input() availableCells: string[];
    @Input() columns: DataRef[] = [];
-   @Input() aggregates: DataRef[] = [];
    @Input() sqlMergeable: boolean = true;
 
    @Input() submitCallback: (_?: FormulaEditorDialogModel) => Promise<boolean> =
@@ -158,10 +162,13 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       new EventEmitter<FormulaEditorDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    @Output() aggregateModify: EventEmitter<any> = new EventEmitter<any>();
+   @Output() aggregateDelete: EventEmitter<any> = new EventEmitter<any>();
    @ViewChild("newAggrDialog") newAggrDialog: TemplateRef<any>;
    private _scriptDefinitions: any = null;
+   _aggregates: DataRef[] = [];
    public static DATE_PART_COLUMN: string = "date_part_column";
    subscriptions: Subscription = new Subscription();
+   private init: boolean = false;
 
    get title(): string {
       return this.isCube ? "_#(js:Create Measure)" : this.isCalc ? "_#(js:Edit Calculated Field)" :
@@ -170,6 +177,19 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
 
    get aggregateOnly(): boolean {
       return this.calcType == "aggregate";
+   }
+
+   @Input()
+   set aggregates(value: DataRef[]) {
+      this._aggregates = value;
+
+      if(this.init) {
+         this.populateColumnTree();
+      }
+   }
+
+   get aggregates() {
+      return this._aggregates;
    }
 
    @Input()
@@ -185,7 +205,8 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                private modalService: NgbModal,
                protected renderer: Renderer2,
                protected element: ElementRef,
-               private featureFlagsService: FeatureFlagsService)
+               private featureFlagsService: FeatureFlagsService,
+               private dropdownService: FixedDropdownService)
    {
       super(renderer, element);
    }
@@ -195,6 +216,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       this.populateTrees();
       this.oname = this.formulaName;
       this.returnTypes = FormulaEditorService.returnTypes;
+      this.init = true;
    }
 
    ngOnDestroy(): void {
@@ -705,30 +727,69 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    }
 
    private populateColumnTree(): void {
+      let oldRoot = Tool.clone(this._columnTreeRoot);
+
       if(!this.isCube && this.vsId) {
          this.editorService.getColumnTreeNode(this.vsId, this.assemblyName,
             this.isCondition).subscribe((data: TreeNodeModel) => {
                this._columnTreeRoot = this.getColumnTree(data);
+               this.keepNodeExpands(oldRoot, this._columnTreeRoot);
             });
       }
-      else if(this.columnTreeRoot != null && this.columnTreeRoot.children.length == 3 &&
-         this.columnTreeRoot.children[2].data.data == "table")
-      {
-         this._columnTreeRoot.children.splice(2);
-      }
       else {
-         this._columnTreeRoot = Tool.clone(this.originalColumnTreeRoot);
-
-         if(this.isSqlType() && this._columnTreeRoot != null) {
-            this.removeDateParts(this._columnTreeRoot);
+         if(this.columnTreeRoot != null && this.columnTreeRoot.children.length == 3 &&
+            this.columnTreeRoot.children[2].data.data == "table")
+         {
+            this._columnTreeRoot.children.splice(2);
          }
+         else {
+            this._columnTreeRoot = Tool.clone(this.originalColumnTreeRoot);
+
+            if(this.isSqlType() && this._columnTreeRoot != null) {
+               this.removeDateParts(this._columnTreeRoot);
+            }
+         }
+
+         if(this._columnTreeRoot != null && this._columnTreeRoot.children.length == 1 &&
+            this.isCube && !this.selfVisible)
+         {
+            this._columnTreeRoot.children[0].children = this._columnTreeRoot.children[0].children
+               .filter((node) => node.label != this.formulaName);
+         }
+
+         this.keepNodeExpands(oldRoot, this._columnTreeRoot);
+      }
+   }
+
+   private keepNodeExpands(sourceNode: TreeNodeModel, targetNode: TreeNodeModel) {
+      if(!sourceNode || !targetNode) {
+         return;
       }
 
-      if(this._columnTreeRoot != null && this._columnTreeRoot.children.length == 1 &&
-         this.isCube && !this.selfVisible)
-      {
-         this._columnTreeRoot.children[0].children = this._columnTreeRoot.children[0].children
-            .filter((node) => node.label != this.formulaName);
+      let expandNodes: TreeNodeModel[] = [];
+      this.getExpandNodes(sourceNode, expandNodes);
+
+      expandNodes.forEach(expandNode => {
+         let findNode =
+            GuiTool.findNode(targetNode, n => Tool.isEquals(expandNode.data, n.data));
+
+         if(findNode) {
+            findNode.expanded = true;
+         }
+      });
+   }
+
+   private getExpandNodes(node: TreeNodeModel, expandNodes: TreeNodeModel[]) {
+      if(!node?.expanded) {
+         return;
+      }
+
+      expandNodes.push(node);
+
+      if(node.children) {
+         node.children.forEach(n => {
+            this.getExpandNodes(n, expandNodes);
+         });
       }
    }
 
@@ -1161,6 +1222,59 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                                          {"ok": "_#(js:OK)"}, {
             backdrop: false,
          }).then(() => false);
+      }
+   }
+
+   hasMenu(): any {
+      return (node) => {
+         return "true" == node?.data?.useragg;
+      };
+   }
+
+   showContextMenu(event: [MouseEvent, TreeNodeModel, TreeNodeModel[]]) {
+      let options: DropdownOptions = {
+         position: {x: event[0].clientX + 2, y: event[0].clientY + 2},
+         contextmenu: true,
+      };
+
+      let contextmenu: ActionsContextmenuComponent = this.dropdownService
+         .open(ActionsContextmenuComponent, options).componentInstance;
+      contextmenu.sourceEvent = event[0];
+      contextmenu.actions = this.createActions(event[1])
+   }
+
+   private createActions(node: TreeNodeModel): AssemblyActionGroup[] {
+      return [
+         new AssemblyActionGroup([
+            {
+               id: () => "delete user aggregate",
+               label: () => "_#(js:Delete)",
+               icon: () => null,
+               enabled: () => true,
+               visible: () => node?.data?.useragg,
+               action: () => this.deleteAggregate(node)
+            }
+         ])
+      ];
+   }
+
+   private deleteAggregate(node: TreeNodeModel) {
+      if(!this.aggregates) {
+         return;
+      }
+
+      let index = this.aggregates.findIndex((agg) => {
+         return this.getFullName(agg) == node.label;
+      });
+
+      let currentAgg = this.aggregates[index];
+
+      if(currentAgg) {
+         if(!currentAgg.classType) {
+            currentAgg.classType = "AggregateRef";
+         }
+
+         this.aggregateDelete.emit({nref: null, oref: currentAgg});
       }
    }
 }

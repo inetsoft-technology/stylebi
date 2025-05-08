@@ -280,7 +280,10 @@ export class VSBindingTreeActions extends ContextMenuActions {
          calcDialog.grayedOutFields = <DataRef[]> fieldsInfo.grayedOutFields;
          calcDialog.dataType = "string";
          calcDialog.aggregateModify.subscribe((result: any) => {
-            this.modifyAggreagteField(tableName, result.nref, result.oref);
+            this.modifyAggregateField(tableName, result.nref, result.oref, calcDialog, tableName);
+         });
+         calcDialog.aggregateDelete.subscribe((result: any) => {
+            this.deleteAggregateField(tableName, result.nref, result.oref, calcDialog, tableName);
          });
          calcDialog.sqlMergeable = fieldsInfo.sqlMergeable == true;
       });
@@ -325,7 +328,10 @@ export class VSBindingTreeActions extends ContextMenuActions {
          dialog.sqlMergeable = fieldsInfo.sqlMergeable == true;
          dialog.grayedOutFields = this.grayedOutFields;
          dialog.aggregateModify.subscribe((result: any) => {
-            this.modifyAggreagteField(tableName, result.nref, result.oref);
+            this.modifyAggregateField(tableName, result.nref, result.oref, dialog, tableName);
+         });
+         dialog.aggregateDelete.subscribe((result: any) => {
+            this.deleteAggregateField(tableName, result.nref, result.oref, dialog, tableName);
          });
 
          if(isCube) {
@@ -564,12 +570,35 @@ export class VSBindingTreeActions extends ContextMenuActions {
       });
    }
 
-   private modifyAggreagteField(tname: string, nref: AggregateRef, oref: AggregateRef): void {
+   private modifyAggregateField(tname: string, nref: AggregateRef, oref: AggregateRef,
+                                calcDialog: FormulaEditorDialog, tableName: string): void {
       let name: string = this.assemblyName;
       let event: ModifyAggregateFieldEvent = new ModifyAggregateFieldEvent(name,
          tname, nref, oref, false);
+      this.modelService.sendModel("../api/vs/calculate/modifyAggregateField?vsId=" +
+         Tool.byteEncode(this.runtimeId), event)
+         .subscribe(
+            () => {
+               this.getFormulaFields(null, tableName).subscribe((fieldsInfo) => {
+                  calcDialog.aggregates = fieldsInfo.aggregateFields;
+               });
+            });
+   }
 
-      this.socket.sendEvent("/events/vs/calculate/modifyAggregateField", event);
+   private deleteAggregateField(tname: string, nref: AggregateRef, oref: AggregateRef,
+                                calcDialog: FormulaEditorDialog, tableName: string): void
+   {
+      let name: string = this.assemblyName;
+      let event: ModifyAggregateFieldEvent = new ModifyAggregateFieldEvent(name,
+         tname, nref, oref, false);
+      this.modelService.sendModel("../api/vs/calculate/removeAggregateField?vsId=" +
+         Tool.byteEncode(this.runtimeId), event)
+         .subscribe(
+            () => {
+               this.getFormulaFields(null, tableName).subscribe((fieldsInfo) => {
+                  calcDialog.aggregates = fieldsInfo.aggregateFields;
+               });
+            });
    }
 
    protected getRefNamesForConversion(convertType: number): string[] {
