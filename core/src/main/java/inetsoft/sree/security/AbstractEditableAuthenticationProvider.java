@@ -343,8 +343,8 @@ public abstract class AbstractEditableAuthenticationProvider
 
    private void copyScopedProperties(String fromOrgId, String newOrgId, boolean replace) {
       Properties properties = SreeEnv.getProperties();
-      String oldOrgIdentifier = "inetsoft.org." + fromOrgId;
-      String newOrgPrefix = "inetsoft.org." + newOrgId;
+      String oldOrgIdentifier = "inetsoft.org." + fromOrgId.toLowerCase();
+      String newOrgPrefix = "inetsoft.org." + newOrgId.toLowerCase();
       Enumeration<?> enumeration = properties.propertyNames();
 
       while(enumeration.hasMoreElements()) {
