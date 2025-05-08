@@ -38,9 +38,9 @@
     <form class="row">
       <div class="form-check col-auto" *ngFor="let _label of labels; let i = index">
         <input class="form-check-input" type="radio" name="_" [value]="values[i]"
-               [id]="'item' + i"
+               [id]="varIndex + ':item' + i"
                [ngModel]="value[0]" (ngModelChange)="change($event)">
-        <label class="form-check-label" [for]="'item' + i">
+        <label class="form-check-label" [for]="varIndex + ':item' + i">
           {{_label}}
         </label>
       </div>
