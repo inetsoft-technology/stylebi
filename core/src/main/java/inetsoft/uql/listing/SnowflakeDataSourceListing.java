@@ -32,7 +32,6 @@ public class SnowflakeDataSourceListing extends DataSourceListing {
       ds.setName(getAvailableName());
       ds.setURL("jdbc:snowflake://<account_name>.snowflakecomputing.com/[?db=<database>]");
       ds.setDriver("net.snowflake.client.jdbc.SnowflakeDriver");
-      ds.setCloudHosted(true);
 
       return ds;
    }

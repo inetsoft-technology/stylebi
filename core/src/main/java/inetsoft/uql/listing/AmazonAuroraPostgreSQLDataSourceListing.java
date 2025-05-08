@@ -34,7 +34,6 @@ public class AmazonAuroraPostgreSQLDataSourceListing extends DataSourceListing {
       ds.setURL("jdbc:postgresql://instance.accountId.region.rds.amazonaws.com:5432/databaseName");
       ds.setDriver("org.postgresql.Driver");
       ds.setProductName("AMAZON AURORA");
-      ds.setCloudHosted(true);
       return ds;
    }
 }

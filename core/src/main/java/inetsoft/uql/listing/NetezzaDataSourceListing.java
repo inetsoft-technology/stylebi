@@ -32,7 +32,6 @@ public class NetezzaDataSourceListing extends DataSourceListing {
       ds.setName(getAvailableName());
       ds.setURL("jdbc:netezza://<host>[:<port>]/<database>");
       ds.setDriver("org.netezza.Driver");
-      ds.setCloudHosted(true);
 
       return ds;
    }
