@@ -305,6 +305,14 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
    }
 
+   public void addAction(ScheduleAction action, String linkUrl) {
+      if(action instanceof AbstractAction) {
+         ((AbstractAction) action).setLinkURI(linkUrl);
+      }
+
+      addAction(action);
+   }
+
    /**
     * Get the number of conditions.
     */
