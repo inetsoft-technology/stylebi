@@ -54,8 +54,8 @@ class BaseTableSortColumnControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new BaseTableSortColumnController(
-         runtimeViewsheetRef, coreLifecycleService, viewsheetService, bindingFactory);
+      BaseTableSortColumnServiceProxy service = new BaseTableSortColumnServiceProxy();
+      controller = new BaseTableSortColumnController(runtimeViewsheetRef, service);
    }
 
    // Bug #17147 Create new sort info when sort event multi flag is false
