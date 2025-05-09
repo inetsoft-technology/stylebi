@@ -105,15 +105,6 @@ public class ScheduleTaskChangeController {
       adminSubscribed = true;
    }
 
-   @SubscribeMapping(FOLDER_TOPIC)
-   public synchronized void subscribeFolderChange(Principal principal) {
-      if(assetListener == null) {
-         assetListener = this::folderChanged;
-         subscriber = principal;
-         assetRepository.addAssetChangeListener(assetListener);
-      }
-   }
-
    private void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof TaskActivityMessage) {
          dispatchPortalTaskActivity((TaskActivityMessage) event.getMessage());
@@ -332,16 +323,6 @@ public class ScheduleTaskChangeController {
       return name;
    }
 
-   private void folderChanged(AssetChangeEvent event) {
-      if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED &&
-         event.getAssetEntry() != null && event.getAssetEntry().isScheduleTaskFolder())
-      {
-         debouncer.debounce("task_folder_change", 1L, TimeUnit.SECONDS,
-            ()-> messagingTemplate.convertAndSendToUser(SUtil.getUserDestination(subscriber),
-               FOLDER_TOPIC, ""));
-      }
-   }
-
    private Cluster cluster;
    private MessageListener listener;
    private Principal subscriber;
@@ -358,7 +339,6 @@ public class ScheduleTaskChangeController {
 
    private static final String PORTAL_TOPIC = "/schedule-changed";
    private static final String ADMIN_TOPIC = "/em-schedule-changed";
-   private static final String FOLDER_TOPIC = "/schedule-folder-changed";
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskChangeController.class);
 
