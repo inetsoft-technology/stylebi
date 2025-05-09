@@ -364,4 +364,8 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
    getEmbeddedVSBounds() {
       return Rectangle.fromClientRect(<any> this.model.objectFormat);
    }
+
+   getOverlayZIndex(): number {
+      return 9998 - this.model.objectFormat.zIndex;
+   }
 }
