@@ -18,3 +18,36 @@
 .mat-mdc-form-field {
   width: 100%;
 }
+
+.btn-google-auth {
+  width: 191px;
+  height: 46px;
+  border: none;
+  background-color: transparent;
+  background-image: url("../../../../../../portal/src/assets/oauth/google/btn_google_signin_dark_normal_web.png");
+  &:active {
+    border: none;
+    background-color: transparent;
+    background-image: url("../../../../../../portal/src/assets/oauth/google/btn_google_signin_dark_pressed_web.png");
+  }
+  &:focus {
+    border: none;
+    background-color: transparent;
+    background-image: url("../../../../../../portal/src/assets/oauth/google/btn_google_signin_dark_focus_web.png");
+  }
+  &:disabled, &:disabled:focus {
+    border: none;
+    background-color: #4285F4;
+    background-image: url("../../../../../../portal/src/assets/oauth/google/btn_google_signin_dark_disabled_web.png");
+  }
+}
+
+.readonly-form {
+  pointer-events: none;
+  opacity: 0.7;
+
+  .visible-btn {
+    pointer-events: auto;
+    opacity: 1;
+  }
+}

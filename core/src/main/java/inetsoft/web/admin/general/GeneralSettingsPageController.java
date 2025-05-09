@@ -20,6 +20,8 @@ package inetsoft.web.admin.general;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.web.admin.general.model.*;
+import inetsoft.web.admin.general.model.model.OAuthParams;
+import inetsoft.web.admin.general.model.model.OAuthParamsRequest;
 import inetsoft.web.admin.security.ConnectionStatus;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -149,6 +151,11 @@ public class GeneralSettingsPageController {
    @GetMapping("/api/em/general/settings/cache/cleanup")
    public void cleanUpCache() {
       cacheSettingsService.cleanUpCache();
+   }
+
+   @PostMapping("/api/em/general/settings/email/oauth-params")
+   public OAuthParams getOAuthParams(@RequestBody OAuthParamsRequest request) throws Exception {
+      return emailSettingsService.getOAuthParams(request);
    }
 
    private final LicenseKeySettingsService licenseKeySettingsService;

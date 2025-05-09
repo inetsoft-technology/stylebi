@@ -20,6 +20,7 @@ package inetsoft.web.admin.general.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.web.admin.general.model.model.SMTPAuthType;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -39,13 +40,40 @@ public interface EmailSettingsModel {
    @Nullable
    String jndiUrl();
 
-   boolean smtpAuthentication();
+   SMTPAuthType smtpAuthentication();
 
    @Nullable
    String smtpUser();
 
    @Nullable
    String smtpPassword();
+
+   @Nullable
+   String smtpClientId();
+
+   @Nullable
+   String smtpClientSecret();
+
+   @Nullable
+   String smtpAuthUri();
+
+   @Nullable
+   String smtpTokenUri();
+
+   @Nullable
+   String smtpOAuthScopes();
+
+   @Nullable
+   String smtpOAuthFlags();
+
+   @Nullable
+   String smtpAccessToken();
+
+   @Nullable
+   String smtpRefreshToken();
+
+   @Nullable
+   String tokenExpiration();
 
    @Nullable
    String smtpSecretId();
