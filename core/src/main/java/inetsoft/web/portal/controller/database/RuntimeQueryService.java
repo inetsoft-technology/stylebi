@@ -17,10 +17,11 @@
  */
 package inetsoft.web.portal.controller.database;
 
-import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.XSchema;
@@ -28,15 +29,19 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.util.Tool;
 import org.springframework.stereotype.Service;
 
+import javax.cache.Cache;
+import javax.cache.expiry.Duration;
+import javax.cache.expiry.TouchedExpiryPolicy;
+import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class RuntimeQueryService {
    public RuntimeQueryService() {
+      cache = Cluster.getInstance().getCache(
+         CACHE_NAME, false, new TouchedExpiryPolicy(new Duration(TimeUnit.MINUTES, 3L)));
    }
 
    public RuntimeXQuery createRuntimeQuery(RuntimeWorksheet rws, JDBCQuery query, String database,
@@ -70,7 +75,7 @@ public class RuntimeQueryService {
    }
 
    public RuntimeXQuery getRuntimeQuery(String id) {
-      return rmap.get(id);
+      return cache.get(id);
    }
 
    public String generateRuntimeId(String name) {
@@ -78,15 +83,7 @@ public class RuntimeQueryService {
    }
 
    public void saveRuntimeQuery(RuntimeXQuery runtimeQuery) {
-      mapLock.lock();
-
-      try {
-         rmap.put(runtimeQuery.getId(), runtimeQuery);
-         heartBeatMap.put(runtimeQuery.getId(), new Date());
-      }
-      finally {
-         mapLock.unlock();
-      }
+      cache.put(runtimeQuery.getId(), runtimeQuery);
    }
 
    public void closeRuntimeQuery(String originRuntimeId, String newRuntimeId, boolean save) {
@@ -107,84 +104,31 @@ public class RuntimeQueryService {
    }
 
    public boolean touch(String id) {
-      boolean expired = isExpired(id);
-
-      if(!expired) {
-         heartBeatMap.put(id, new Date());
-      }
-
-      return expired;
-   }
-
-   /**
-    * Destroy the timeout runtime.
-    */
-   public void checkTimeout() {
-      long now = System.currentTimeMillis();
-      long minute3 = now - 180000; // 3 min ago
-
-      mapLock.lock();
-
-      try {
-         Set<String> keys = new HashSet<>(rmap.keySet());
-
-         keys.forEach(id -> {
-            Date lastTime = heartBeatMap.get(id);
-            boolean expired = lastTime.getTime() < minute3;
-
-            if(expired) {
-               destroy(id);
-            }
-         });
-      }
-      finally {
-         mapLock.unlock();
-      }
+      return cache.get(id) != null;
    }
 
    /**
     * Destroy the runtime.
     */
    public void destroy(String id) {
-      mapLock.lock();
-
-      try {
-         rmap.remove(id);
-         heartBeatMap.remove(id);
-      }
-      finally {
-         mapLock.unlock();
-      }
+      cache.remove(id);
    }
 
    /**
     * Clear the runtime.
     */
    public void clear() {
-      mapLock.lock();
-
-      try {
-         rmap.clear();
-         heartBeatMap.clear();
-      }
-      finally {
-         mapLock.unlock();
-      }
+      cache.clear();
    }
 
    public boolean isExpired(String id) {
-      if(Tool.isEmptyString(id)) {
-         return true;
-      }
-
-      if(rmap.get(id) != null) {
-         return false;
-      }
-
-      return true;
+      return cache.get(id) == null;
    }
 
-   public static class RuntimeXQuery implements Cloneable {
+   private final Cache<String, RuntimeXQuery> cache;
+   private static final String CACHE_NAME = RuntimeQueryService.class.getName() + ".cache";
+
+   public static class RuntimeXQuery implements Cloneable, Serializable {
       public RuntimeXQuery(JDBCQuery query, String id, String dataSource) {
          this.query = query;
          this.id = id;
@@ -193,7 +137,7 @@ public class RuntimeQueryService {
       }
 
       private void initMetadata() {
-         if(!(query instanceof JDBCQuery)) {
+         if(query == null) {
             return;
          }
 
@@ -209,11 +153,11 @@ public class RuntimeQueryService {
          if(flds != null && flds.length > 0) {
             metadata = new XTypeNode();
 
-            for(int i = 0; i < flds.length; i++) {
-               String name = (String) flds[i].getName();
-               String type = flds[i].getType();
+            for(XField fld : flds) {
+               String name = (String) fld.getName();
+               String type = fld.getType();
                XTypeNode node = XSchema.createPrimitiveType(type);
-               node.setName(name);
+               Objects.requireNonNull(node).setName(name);
                metadata.addChild(node);
             }
          }
@@ -328,6 +272,7 @@ public class RuntimeQueryService {
          this.aliasMapping = aliasMapping;
       }
 
+      @SuppressWarnings("unchecked")
       @Override
       public RuntimeXQuery clone() throws CloneNotSupportedException {
          RuntimeXQuery clone = (RuntimeXQuery) super.clone();
@@ -351,8 +296,4 @@ public class RuntimeQueryService {
       // original alias -> new alias
       private Map<String, String> aliasMapping = new HashMap<>();
    }
-
-   private static final Lock mapLock = new ReentrantLock();
-   private static final Map<String, RuntimeXQuery> rmap = new ConcurrentHashMap<>();
-   private static final Map<String, Date> heartBeatMap = new ConcurrentHashMap<>();
 }
