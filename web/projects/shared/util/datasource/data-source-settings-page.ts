@@ -316,8 +316,10 @@ export abstract class DataSourceSettingsPage implements OnInit {
                   message = "_#(js:em.data.databases.error.gatewayTimeout)";
                }
 
-               if(!!this.database.cloudError) {
-                  message += "\n" + this.database.cloudError;
+               const cloudError: string = "_#(js:em.datasource.cloudError)";
+
+               if(!!cloudError && !!cloudError.length && cloudError !== "null") {
+                  message += "\n\n" + cloudError;
                }
 
                this.showMessage(message, "ERROR", true);
@@ -335,10 +337,6 @@ export abstract class DataSourceSettingsPage implements OnInit {
          this.databaseStatus = connection.status;
 
          if(this.showTestMessage) {
-            if(!connection.connected && !!this.database.cloudError) {
-               this.databaseStatus += "\n" + this.database.cloudError;
-            }
-
             this.showMessage(this.databaseStatus, connection.connected ? "OK" : "ERROR", true);
          }
          else {

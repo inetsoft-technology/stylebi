@@ -15,24 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.uql.listing;
+package com.inetsoft.jdbc.derbyclient;
 
-import inetsoft.uql.DataSourceListing;
-import inetsoft.uql.XDataSource;
-import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.drivers.AbstractDriverService;
 
-public class AmazonEMRDataSourceListing extends DataSourceListing {
-   public AmazonEMRDataSourceListing() {
-      super("AWS EMR", "Relational Database", "/inetsoft/uql/listing/aws-emr.svg");
+import java.util.Collections;
+import java.util.Set;
+
+public class DriverService extends AbstractDriverService {
+   @Override
+   public Set<String> getDrivers() {
+      return drivers;
    }
 
    @Override
-   public XDataSource createDataSource() throws Exception {
-      final JDBCDataSource ds = new JDBCDataSource();
-      ds.setName(getAvailableName());
-      ds.setURL("jdbc:hive2://<hostname>:<port>/<db>");
-      ds.setDriver("com.amazon.hive.jdbc41.HS2Driver");
-
-      return ds;
+   protected Set<String> getUrls() {
+      return urls;
    }
+
+   private final Set<String> drivers = Collections.singleton("org.apache.derby.jdbc.ClientDriver");
+   private final Set<String> urls = Collections.singleton("jdbc:derby:");
 }

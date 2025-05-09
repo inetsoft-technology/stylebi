@@ -45,15 +45,17 @@ public class AuthorizationChain
 
    @Override
    public void setPermission(ResourceType type, String resource, Permission perm, String orgID) {
+      final String org_id = fixOrgID(orgID);
+
       for(AuthorizationProvider provider : getProviderList()) {
-         if(provider.getPermission(type, resource, orgID) != null) {
-            provider.setPermission(type, resource, perm, orgID);
+         if(provider.getPermission(type, resource, org_id) != null) {
+            provider.setPermission(type, resource, perm, org_id);
             return;
          }
       }
 
       // not found in any provider, set it on the first
-      getProviderList().get(0).setPermission(type, resource, perm, orgID);
+      getProviderList().get(0).setPermission(type, resource, perm, org_id);
    }
 
    @Override
@@ -63,15 +65,17 @@ public class AuthorizationChain
 
    @Override
    public void setPermission(ResourceType type, IdentityID identityID, Permission perm, String orgID) {
+      final String org_id = fixOrgID(orgID);
+
       for(AuthorizationProvider provider : getProviderList()) {
-         if(provider.getPermission(type, identityID, orgID) != null) {
-            provider.setPermission(type, identityID, perm, orgID);
+         if(provider.getPermission(type, identityID, org_id) != null) {
+            provider.setPermission(type, identityID, perm, org_id);
             return;
          }
       }
 
       // not found in any provider, set it on the first
-      getProviderList().get(0).setPermission(type, identityID, perm, orgID);
+      getProviderList().get(0).setPermission(type, identityID, perm, org_id);
    }
 
    @Override
@@ -81,8 +85,10 @@ public class AuthorizationChain
 
    @Override
    public void removePermission(ResourceType type, String resource, String orgID) {
+      final String org_id = fixOrgID(orgID);
+
       stream()
-         .forEach(p -> p.removePermission(type, resource, orgID));
+         .forEach(p -> p.removePermission(type, resource, org_id));
    }
 
    @Override
@@ -92,8 +98,10 @@ public class AuthorizationChain
 
    @Override
    public void removePermission(ResourceType type, IdentityID resourceID, String orgID) {
+      final String org_id = fixOrgID(orgID);
+
       stream()
-         .forEach(p -> p.removePermission(type, resourceID, orgID));
+         .forEach(p -> p.removePermission(type, resourceID, org_id));
    }
 
    @Override
@@ -103,14 +111,10 @@ public class AuthorizationChain
 
    @Override
    public Permission getPermission(ResourceType type, String resource, String orgID) {
-      if(orgID == null) {
-         orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      }
-
-      final String org = orgID;
+      final String org_id = fixOrgID(orgID);
 
       return stream()
-         .map(p -> p.getPermission(type, resource, org))
+         .map(p -> p.getPermission(type, resource, org_id))
          .filter(Objects::nonNull)
          .findFirst()
          .orElse(null);
@@ -123,8 +127,10 @@ public class AuthorizationChain
 
    @Override
    public Permission getPermission(ResourceType type, IdentityID identityID, String orgID) {
+      final String org_id = fixOrgID(orgID);
+
       return stream()
-         .map(p -> p.getPermission(type, identityID, orgID))
+         .map(p -> p.getPermission(type, identityID, org_id))
          .filter(Objects::nonNull)
          .findFirst()
          .orElse(null);
@@ -155,6 +161,14 @@ public class AuthorizationChain
             // no-op
          }
       }
+   }
+
+   private String fixOrgID(String orgID) {
+      if(orgID == null) {
+         orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      }
+
+      return orgID;
    }
 
    @Override

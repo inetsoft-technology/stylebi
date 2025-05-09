@@ -29,11 +29,11 @@ import {
    ViewChild
 } from "@angular/core";
 import {
+   FormGroupDirective,
+   NgForm,
    UntypedFormBuilder,
    UntypedFormControl,
    UntypedFormGroup,
-   FormGroupDirective,
-   NgForm,
    ValidationErrors,
    Validators
 } from "@angular/forms";
@@ -47,11 +47,11 @@ import { MatTableDataSource } from "@angular/material/table";
 import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
-import dayjs from "dayjs";
 import { Observable, of as observableOf, Subject, throwError, timer } from "rxjs";
 import { catchError, finalize, map, takeUntil, tap } from "rxjs/operators";
 import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
 import { DownloadService } from "../../../../../../shared/download/download.service";
+import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 import { ScheduleTaskDialogModel } from "../../../../../../shared/schedule/model/schedule-task-dialog-model";
 import { ScheduleTaskList } from "../../../../../../shared/schedule/model/schedule-task-list";
 import { ScheduleTaskModel } from "../../../../../../shared/schedule/model/schedule-task-model";
@@ -60,6 +60,7 @@ import { DateTypeFormatter } from "../../../../../../shared/util/date-type-forma
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
+import { FlatTreeNodeMenu, FlatTreeNodeMenuItem } from "../../../common/util/tree/flat-tree-model";
 import { FlatTreeSelectNodeEvent } from "../../../common/util/tree/flat-tree-view.component";
 import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
@@ -69,22 +70,19 @@ import {
    RepositoryFlatNode,
    RepositoryTreeNode
 } from "../../content/repository/repository-tree-node";
-import { IdentityId, KEY_DELIMITER } from "../../security/users/identity-id";
+import { convertToKey, KEY_DELIMITER } from "../../security/users/identity-id";
 import { ExportTaskDialogComponent } from "../import-export/export-task-dialog/export-task-dialog.component";
 import { ImportTaskDialogComponent } from "../import-export/import-task-dialog/import-task-dialog.component";
 import { DistributionChart, DistributionChartValue } from "../model/distribution-model";
 import { MoveTaskFolderRequest } from "../model/move-task-folder-request";
-import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 import { TaskDependencyModel } from "../model/task-dependency-model";
 import { TaskListModel } from "../model/task-list-model";
+import { ToggleTaskResponse } from "../model/toggle-task-response";
 import { MoveTaskFolderDialogComponent } from "../move-folder-dialog/move-task-folder-dialog.component";
+import { ScheduleFolderTreeAction } from "../schedule-folder-tree/schedule-folder-tree-action";
 import { ScheduleFolderTreeComponent } from "../schedule-folder-tree/schedule-folder-tree.component";
 import { EmScheduleChangeService } from "./em-schedule-change.service";
-import { FlatTreeNodeMenu, FlatTreeNodeMenuItem } from "../../../common/util/tree/flat-tree-model";
-import { ToggleTaskResponse } from "../model/toggle-task-response";
 import { ScheduleTaskDragService } from "./schedule-task-drag.service";
-import { ScheduleFolderTreeAction } from "../schedule-folder-tree/schedule-folder-tree-action";
-import { convertToKey } from "../../security/users/identity-id";
 
 const GET_SCHEDULED_TASKS_URI = "../api/em/schedule/scheduled-tasks";
 const NEW_TASKS_URI = "../api/em/schedule/new";
@@ -236,11 +234,19 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    ngOnInit() {
       this.pageTitle.title = "_#(js:Schedule Tasks)";
 
-      this.http.get(CHANGE_SHOW_TYPE_URI).subscribe((showTasksAsList) => {
-         this.loading = false;
-         this.showTasksAsList = <boolean> showTasksAsList;
-         this.loadTasks();
-      });
+      this.http.get(CHANGE_SHOW_TYPE_URI).subscribe(
+         (showTasksAsList) => {
+            this.showTasksAsList = <boolean> showTasksAsList;
+            this.loadTasks();
+         },
+         (error) => {
+            this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
+               "Failed to load tasks: " + error.error ? error.error.message : "",
+               MessageDialogType.ERROR));
+         },
+         () => {
+            this.loading = false;
+         });
 
       this.http.get(CHECK_ROOT_PERMISSION_URI).subscribe((rootPermission: boolean) => {
          this.noRootPermission = !rootPermission;
@@ -275,7 +281,6 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
       this.loading = true;
       this.http.post<ScheduleTaskList>(GET_SCHEDULED_TASKS_URI, this.currentFolder).subscribe(
          (list) => {
-            this.loading = false;
             this.setTasks(list.tasks);
             this.setDisplayColumns(list.showOwners);
             this.timeZone = list.timeZone;
@@ -294,6 +299,9 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
             this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
                "Failed to load tasks: " + error.error ? error.error.message : "",
                MessageDialogType.ERROR));
+         },
+         () => {
+            this.loading = false;
          }
       );
 
@@ -504,14 +512,14 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    private navigateToTaskEditor(name: string): void {
-      let path = !!this.selectedNodes && this.selectedNodes.length != 0 ?
+      let path = !!this.selectedNodes && this.selectedNodes.length != 0 && !!this.selectedNodes[0]?.data?.path ?
          this.selectedNodes[0].data.path : "/";
       this.router.navigate(["/settings/schedule/tasks", name],
          {queryParams: {path: path}});
    }
 
    getEditorQueryParams(): any {
-      let path = !!this.selectedNodes && this.selectedNodes.length != 0 ?
+      let path = !!this.selectedNodes && this.selectedNodes.length != 0 && !!this.selectedNodes[0]?.data?.path  ?
          this.selectedNodes[0].data.path : "/";
       return {path: path};
    }
@@ -1007,7 +1015,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    get currentFolder(): RepositoryTreeNode {
-      if(!this.showTasksAsList && this.selectedNodes.length > 0) {
+      if(!this.showTasksAsList && this.selectedNodes.length > 0 && !!this.selectedNodes[0]) {
          return this.selectedNodes[0].data;
       }
 

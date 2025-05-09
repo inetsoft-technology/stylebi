@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.general;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.jdbc.JDBCHandler;
 import inetsoft.util.Catalog;
 import inetsoft.util.ConfigurationContext;
@@ -25,6 +26,7 @@ import inetsoft.web.admin.security.ConnectionStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.security.Principal;
 import java.sql.*;
@@ -92,15 +94,27 @@ public class DatabaseSettingsService {
       }
       catch(SQLException e) {
          LOG.error("Failed to connect to database {}", url, e);
-         return new ConnectionStatus(
-            catalog.getString("em.data.databases.testConnectionError", e.getMessage()));
+         return new ConnectionStatus(getStatusMessage(
+            catalog.getString("em.data.databases.testConnectionError", e.getMessage())));
       }
       catch(Exception e) {
          LOG.error("Failed to test connection", e);
-         return new ConnectionStatus(catalog.getString("em.data.databases.testError"));
+         return new ConnectionStatus(getStatusMessage(
+            catalog.getString("em.data.databases.testError")));
       }
 
       return new ConnectionStatus(catalog.getString("em.security.testlogin.note2"), true);
+   }
+
+   private String getStatusMessage(String base) {
+      String message = base;
+      String cloudError = SreeEnv.getProperty("datasource.cloudError");
+
+      if(StringUtils.hasText(cloudError)) {
+         message = message.trim() + "\n\n" + cloudError.trim();
+      }
+
+      return message;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseSettingsService.class);

@@ -906,6 +906,7 @@ public class RepositoryObjectService {
             (typeFrom & RepositoryEntry.PARTITION) == RepositoryEntry.PARTITION))
          {
             moveDataModel(pathFrom, pathTo, info, typeFrom);
+            renameDataModelPermission(pathFrom, pathTo);
          }
          else {
             // do nothing when folder path is not changed.
@@ -1088,6 +1089,34 @@ public class RepositoryObjectService {
       }
 
       xRepository.updateDataModel(dataModel);
+   }
+
+   private void renameDataModelPermission(String pathFrom, String pathTo) {
+      String resourceID = pathFrom.substring(pathFrom.lastIndexOf("^"));
+      String resourcePathFrom = ResourcePermissionService.getLogicalModelResourceName(pathFrom).getPath();
+      Permission permission =
+         securityProvider.getAuthorizationProvider().getPermission(ResourceType.QUERY, resourcePathFrom);
+
+      //pathTo with folder does not contain DATAMODEL_FOLDER_SPLITER yet but needs to here for permissions
+      pathTo = handleDataModelToContainsFolder(pathFrom, pathTo);
+
+      if(permission != null) {
+         String resourcePathTo = ResourcePermissionService.getLogicalModelResourceName(pathTo + resourceID).getPath();
+         securityProvider.getAuthorizationProvider().setPermission(ResourceType.QUERY, resourcePathTo, permission);
+         securityProvider.getAuthorizationProvider().removePermission(ResourceType.QUERY, resourcePathFrom);
+      }
+   }
+
+   private String handleDataModelToContainsFolder(String pathFrom, String pathTo) {
+      int idx = pathFrom.indexOf("^");
+      String dsName = idx == -1 ? null : pathFrom.substring(0, idx);
+
+      if(dsName != null && pathTo.substring(dsName.length()).contains("/")) {
+         int folderSplitterIdx = pathTo.lastIndexOf("/");
+         return pathTo.substring(0, folderSplitterIdx) + DATAMODEL_FOLDER_SPLITER + pathTo.substring(folderSplitterIdx+1);
+      }
+
+      return pathTo;
    }
 
    private void checkPermission(String[] pathFroms, String[] typeFroms,

@@ -28,6 +28,7 @@ import inetsoft.web.portal.data.DataSourceStatus;
 import org.slf4j.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.io.FileNotFoundException;
 import java.security.Principal;
@@ -153,19 +154,31 @@ public class DataSourceStatusService {
          message = catalog.getString("data.datasources.dataSourceConnected", time);
       }
       else {
-         message = catalog.getString("data.datasources.dataSourceError");
+         String cloudError = SreeEnv.getProperty("datasource.cloudError");
+         boolean cloudErrorAppended = false;
 
          if(errorMessage.contains("username") || errorMessage.contains("password")) {
             message = catalog.getString("data.datasources.loginError");
          }
-         else if(errorMessage.contains("network adapter could not establish")) {
-            message = catalog.getString("data.datasources.networkError");
-         }
          else {
-            message += ": " + errorMessage;
+            if(errorMessage.contains("network adapter could not establish")) {
+               message = catalog.getString("data.datasources.networkError");
+            }
+            else {
+               message = catalog.getString("data.datasources.dataSourceError") + ": " + errorMessage;
+            }
+
+            if(StringUtils.hasText(cloudError)) {
+               cloudErrorAppended = true;
+               message = message.trim() + "\n\n" + cloudError + "\n\n";
+            }
          }
 
-         message += " " + time;
+         if(!cloudErrorAppended) {
+            message = message.trim() + " ";
+         }
+
+         message += time;
       }
 
       return DataSourceStatus.builder()
