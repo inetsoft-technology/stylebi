@@ -18,15 +18,9 @@
 
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.viewsheet.VSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.event.DelayVisibilityEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
@@ -36,12 +30,10 @@ import java.security.Principal;
 @Controller
 public class DelayVisibilityController {
    public DelayVisibilityController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                    ViewsheetService viewsheetService,
-                                    CoreLifecycleService lifecycleService)
+                                    DelayVisibilityServiceProxy serviceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.viewsheetService = viewsheetService;
-      this.lifecycleService = lifecycleService;
+      this.serviceProxy = serviceProxy;
    }
 
    @MessageMapping("/vs/showDelayedVisibility")
@@ -49,35 +41,9 @@ public class DelayVisibilityController {
                                        Principal principal, CommandDispatcher dispatcher)
       throws Exception
    {
-      RuntimeViewsheet rvs = (RuntimeViewsheet)
-         viewsheetService.getSheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      if(vs == null || box == null) {
-         return;
-      }
-
-      for(String name : event.assemblies()) {
-         VSAssembly assembly = vs.getAssembly(name);
-
-         if(assembly != null) {
-            assembly.getVSAssemblyInfo().setVisible(true);
-            assembly.getVSAssemblyInfo().setControlByScript(true);
-
-            // the embedded viewsheet's visibility was originally false, it and its children
-            // would have never been added, need to make sure it has been added before sending
-            // the refresh event
-            if((assembly instanceof Viewsheet) || assembly.isEmbedded()) {
-               lifecycleService.addDeleteVSObject(rvs, assembly, dispatcher, true);
-            }
-
-            lifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
-         }
-      }
+      serviceProxy.onShowDelayedVisibility(runtimeViewsheetRef.getRuntimeId(), event, principal, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final ViewsheetService viewsheetService;
-   private final CoreLifecycleService lifecycleService;
+   private final DelayVisibilityServiceProxy serviceProxy;
 }
