@@ -698,7 +698,7 @@ public final class MVQuery {
       return id;
    }
 
-   private static class SwappableAggregateTable extends AggregateTable {
+   protected static class SwappableAggregateTable extends AggregateTable {
       public SwappableAggregateTable(int cnt, TableLens list,
                                      String[] headers, String[] mdates,
                                      boolean[] tscols)
@@ -753,7 +753,7 @@ public final class MVQuery {
    /**
     * The aggregate table as the execution result of this MVQuery.
     */
-   private static class AggregateTable extends AbstractTableLens {
+   protected static class AggregateTable extends AbstractTableLens {
       public AggregateTable(int cnt, String[] headers, String[] mdates, boolean[] tscols) {
          this.cnt = cnt;
          this.headers = headers;
@@ -957,7 +957,7 @@ public final class MVQuery {
    }
 
    // avoid anonymous inner class which holds a reference to this
-   private static class PagedTableLens0 extends PagedTableLens {
+   protected static class PagedTableLens0 extends PagedTableLens {
    }
 
    GroupRef[] groups;

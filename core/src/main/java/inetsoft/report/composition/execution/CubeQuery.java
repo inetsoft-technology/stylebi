@@ -1536,7 +1536,7 @@ public class CubeQuery extends AssetQuery {
       private boolean shouldRename = false;
    }
 
-   private static class MergedJoinTableLens2 extends MergedJoinTableLens {
+   protected static class MergedJoinTableLens2 extends MergedJoinTableLens {
       /**
        * Constructor.
        */

@@ -138,7 +138,8 @@ public class TableStyleTest {
          Subtle1.class,
          Subtle2.class,
          TitleGrid.class,
-         TrailingBreak.class
+         TrailingBreak.class,
+         XTableStyle.class
       };
 
       return Arrays.stream(tableStyleClasses).map((cls -> {

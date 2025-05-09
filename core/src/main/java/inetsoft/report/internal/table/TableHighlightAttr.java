@@ -1070,7 +1070,7 @@ public class TableHighlightAttr extends TableAttr {
       private TableDataDescriptor descriptor;
       private Object querySandbox;
       private boolean inited = false;
-      private transient TableLens ctable;
+      private TableLens ctable;
    }
 
    private Map<TableDataPath, HighlightGroup> hlmap;

@@ -622,7 +622,7 @@ public class VSChartShowDataService extends VSChartControllerService<VSChartShow
       }
    }
 
-   private static class DcFormatTableLens extends FormatTableLens2 {
+   protected static class DcFormatTableLens extends FormatTableLens2 {
       public DcFormatTableLens(TableLens base, DateComparisonFormat dcFormat) {
          super(base);
          this.dcFormat = dcFormat;

@@ -20,13 +20,14 @@ package inetsoft.report.internal.table;
 import inetsoft.util.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
+import java.io.Serializable;
 import java.util.*;
 
 /**
  * This class captures the CalcTable cell context. It records how a cell is
  * generated and the relation to the group that generated the cell.
  */
-public class CalcCellContext {
+public class CalcCellContext implements Serializable {
    public CalcCellContext(CalcCellContext c1, CalcCellContext c2) {
       this.groups = new DelayedMergeMap<>(c1.groups, c2.groups);
       this.valueidx = new DelayedMergeIntMap<>(c1.valueidx, c2.valueidx);
