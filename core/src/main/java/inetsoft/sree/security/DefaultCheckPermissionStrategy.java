@@ -194,6 +194,9 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          xPrincipal.setGroups(Arrays.stream(groups).map(g -> g.getName()).toArray(String[]::new));
       }
 
+      String orgID = isOpeningShareGlobalAsset(principal) ? organization :
+         OrganizationManager.getInstance().getCurrentOrgID(principal);;
+
       // Bug #40590, always check permission for additional connection (backward
       // compatibility)
       if((roles != null || groups != null || organization != null) &&
@@ -227,8 +230,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          }
 
          //if admin permissions to this resource, return true
-         boolean hasResourcePermission = provider.getPermission(type, resource) != null &&
-            provider.getPermission(type, resource)
+         boolean hasResourcePermission = provider.getPermission(type, resource, orgID) != null &&
+            provider.getPermission(type, resource, orgID)
                .getOrgScopedUserGrants(ResourceAction.ASSIGN, OrganizationManager.getInstance().getCurrentOrgID())
                .contains(pId);
 
@@ -245,8 +248,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          return false;
       }
 
-      Permission perm = getPermission(type, resource, action);
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      Permission perm = getPermission(type, resource, action, orgID);
 
       boolean useParent = (perm == null) || (!perm.hasOrgEditedGrantAll(orgID));
       boolean inheritedPermission = useParent || isSecurityIdentity(type);
@@ -291,7 +293,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          Resource parent = type.getParent(resource);
 
          if(parent != null) {
-            perm = provider.getPermission(parent.getType(), parent.getPath());
+            perm = provider.getPermission(parent.getType(), parent.getPath(), orgID);
             useParent = (perm == null) ||  !perm.hasOrgEditedGrantAll(orgID);
             resource = parent.getPath();
             type = parent.getType();
@@ -306,7 +308,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             parent = type.getRoot();
 
             if(parent != null) {
-               perm = provider.getPermission(parent.getType(), parent.getPath());
+               perm = provider.getPermission(parent.getType(), parent.getPath(), orgID);
             }
 
             if(perm == null) {
@@ -324,7 +326,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       if(type == ResourceType.SECURITY_ROLE) {
-         Permission rolePerm = provider.getPermission(type, new IdentityID("Organization Roles", organization));
+         Permission rolePerm = provider.getPermission(type, new IdentityID("Organization Roles", organization), orgID);
 
          if(rolePerm != null && checker.checkPermission(identity, rolePerm, action, true)) {
             return true;
@@ -342,7 +344,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          while(!queue.isEmpty()) {
             Resource current = queue.removeFirst();
-            perm = provider.getPermission(current.getType(), current.getPath());
+            perm = provider.getPermission(current.getType(), current.getPath(), orgID);
             useParent = (perm == null) || !perm.hasOrgEditedGrantAll(orgID);
 
             if(perm != null && checker.checkPermission(identity, perm, action, true)) {
@@ -375,7 +377,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             type == ResourceType.SECURITY_ROLE)
          {
             if((perm == null) || !perm.hasOrgEditedGrantAll(orgID) || type == ResourceType.SECURITY_ROLE) {
-               Permission orgPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION, new IdentityID(organization, organization));
+               Permission orgPerm = provider.getPermission(ResourceType.SECURITY_ORGANIZATION, new IdentityID(organization, organization), orgID);
 
                if(orgPerm != null && checker.checkPermission(identity, orgPerm, ResourceAction.ADMIN, true)) {
                   return true;
@@ -458,12 +460,11 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    private boolean isAllowedDefaultGlobalVSAction(Principal principal, ResourceAction action,
                                                   ResourceType type, String resource)
    {
-      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
-      String orgID = principal instanceof XPrincipal ? ((XPrincipal) principal).getOrgId() : null;
+      if(!isOpeningShareGlobalAsset(principal)) {
+         return false;
+      }
 
-      if(!SUtil.isDefaultVSGloballyVisible(principal) || Tool.equals(orgID, currOrgID) ||
-         !Organization.getDefaultOrganizationID().equals(currOrgID) || action != ResourceAction.READ)
-      {
+      if(action != ResourceAction.READ) {
          return false;
       }
 
@@ -472,6 +473,14 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       return type == ResourceType.CHART_TYPE || type == ResourceType.SHARE;
+   }
+
+   private boolean isOpeningShareGlobalAsset(Principal principal) {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String orgID = principal instanceof XPrincipal ? ((XPrincipal) principal).getOrgId() : null;
+
+      return SUtil.isDefaultVSGloballyVisible(principal) && !Tool.equals(orgID, currOrgID) &&
+         Organization.getDefaultOrganizationID().equals(currOrgID);
    }
 
    private boolean isNotGlobalRole(ResourceType type, IdentityID name) {
@@ -597,9 +606,11 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
    }
 
    private Permission getPermission(final ResourceType type, final String resource,
-                                    final ResourceAction action)
+                                    final ResourceAction action, String orgId)
    {
-      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      if(orgId == null) {
+         orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      }
 
       if(action == ResourceAction.ADMIN) {
          // admin permissions are cumulative on the entire resource path
@@ -743,7 +754,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          return permission;
       }
       else {
-         return provider.getPermission(type, resource);
+         return provider.getPermission(type, resource, orgId);
       }
    }
 
