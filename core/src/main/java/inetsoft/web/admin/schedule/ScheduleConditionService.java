@@ -224,22 +224,6 @@ public class ScheduleConditionService {
                   formatParameterValue(repRequest, type, ((DynamicValueModel) value).getValue(), paramName));
             }
          }
-         else if(value instanceof ArrayParameterValue) {
-            array = true;
-            vals = ((ArrayParameterValue) value).getValue();
-            type = ((ArrayParameterValue) value).getType();
-
-            AddParameterDialogModel paramModel = AddParameterDialogModel.builder()
-               .name(paramName)
-               .type(type)
-               .array(array)
-               .value(new DynamicValueModel(formatParameterValue(
-                  repRequest, "array", vals, paramName), DynamicValueModel.VALUE, type, array))
-               .build();
-
-            paramModels.add(paramModel);
-            continue;
-         }
          else {
             vals = array ? (Object[]) value : null;
             value = formatParameterValue(repRequest, type, value, paramName);
@@ -358,10 +342,6 @@ public class ScheduleConditionService {
          if(value instanceof Date) {
             return parameterValue.getDataType();
          }
-      }
-
-      if(value instanceof ArrayParameterValue) {
-         return ((ArrayParameterValue) value).getType();
       }
 
       if(value instanceof Boolean) {
