@@ -37,7 +37,7 @@ export class EmScheduleChangeService implements OnDestroy {
                (message) => this.zone.run(() => this.taskChanged(JSON.parse(message.frame.body))))
          );
          this.subscriptions.add(connection.subscribe(
-            "/user/schedule-folder-changed",
+            "/user/em-schedule-folder-changed",
             (message) => this.zone.run(() => this.onFolderChange.emit()))
          );
        }
