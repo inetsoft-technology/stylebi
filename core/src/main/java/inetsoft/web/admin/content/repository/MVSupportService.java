@@ -36,6 +36,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.util.*;
 import jakarta.annotation.PreDestroy;
+import org.awaitility.Awaitility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -122,10 +123,10 @@ public class MVSupportService {
       List<UserInfo> exceptions = new ArrayList<>();
       Map<String, StringBuffer> plans = new HashMap<>();
 
-      AnalysisTask task = new AnalysisTask(
-         identifiers, exceptions, plans, expanded, bypass, full, true, principal, false);
-
-      return new AnalysisResult(identifiers, null, exceptions, plans, analyzePool.submit(task));
+      String id = UUID.randomUUID().toString();
+      analyzePool.submit(new AnalysisTask(
+         id, identifiers, null, exceptions, plans, expanded, bypass, full, true, principal, false));
+      return new AnalysisResult(id);
    }
 
    /**
@@ -183,12 +184,13 @@ public class MVSupportService {
       identifiers = newIdentifiers;
       paths = newPaths;
 
-      AnalysisTask task = new AnalysisTask(
-         identifiers, exceptions, plans, new boolean[] { expandGroups },
+      String id = UUID.randomUUID().toString();
+      analyzePool.submit(new AnalysisTask(
+         id, identifiers, paths, exceptions, plans, new boolean[] { expandGroups },
          new boolean[] { bypassVpm }, new boolean[] { fullData }, false,
-         principal, portal);
+         principal, portal));
 
-      return new AnalysisResult(identifiers, paths, exceptions, plans, analyzePool.submit(task));
+      return new AnalysisResult(id);
    }
 
    /**
@@ -327,6 +329,7 @@ public class MVSupportService {
          ThreadContext.setContextPrincipal(oldPrincipal);
       }
    }
+
    /**
     * Creates a set of materialized views.
     *
@@ -556,7 +559,6 @@ public class MVSupportService {
    @PreDestroy
    public void shutdown() {
       analyzePool.shutdownNow();
-      localCreatePool.shutdownNow();
       remoteCreatePool.shutdownNow();
    }
 
@@ -828,30 +830,62 @@ public class MVSupportService {
       private boolean scheduled;
    }
 
-   /**
-    * Class that encapsulates the asynchronous result of an MV analysis.
-    */
-   public static final class AnalysisResult {
-      /**
-       * Creates a new instance of <tt>AnalysisResult</tt>.
-       *
-       * @param identifiers the identifiers of the viewsheets being analyzed.
-       * @param paths       the paths to the viewsheets being analyzed.
-       * @param exceptions  the users for whom the viewsheet cannot be
-       *                    materialized.
-       * @param plans       the materialization plans.
-       * @param future      the asynchronous response for the analysis task.
-       */
-      private AnalysisResult(List<String> identifiers, List<String> paths,
-                             List<UserInfo> exceptions,
-                             Map<String, StringBuffer> plans,
-                             Future<List<MVStatus>> future)
+   public static final class AnalysisStatus {
+      public AnalysisStatus(List<String> identiifers, List<String> paths, List<UserInfo> exceptions,
+                            Map<String, StringBuffer> plans, List<MVStatus> results,
+                            Exception error)
       {
-         this.identifiers = identifiers;
+         this.identiifers = identiifers;
          this.paths = paths;
          this.exceptions = exceptions;
          this.plans = plans;
-         this.future = future;
+         this.results = results;
+         this.error = error;
+      }
+
+      public List<String> getIdentiifers() {
+         return identiifers;
+      }
+
+      public List<String> getPaths() {
+         return paths;
+      }
+
+      public List<UserInfo> getExceptions() {
+         return exceptions;
+      }
+
+      public Map<String, StringBuffer> getPlans() {
+         return plans;
+      }
+
+      public List<MVStatus> getResults() {
+         return results;
+      }
+
+      public Exception getError() {
+         return error;
+      }
+
+      private final List<String> identiifers;
+      private final List<String> paths;
+      private final List<UserInfo> exceptions;
+      private final Map<String, StringBuffer> plans;
+      private final List<MVStatus> results;
+      private final Exception error;
+   }
+
+   /**
+    * Class that encapsulates the asynchronous result of an MV analysis.
+    */
+   public static final class AnalysisResult implements Serializable {
+      /**
+       * Creates a new instance of <tt>AnalysisResult</tt>.
+       *
+       * @param id the identifier of the analysis task.
+       */
+      private AnalysisResult(String id) {
+         this.id = id;
       }
 
       /**
@@ -860,7 +894,8 @@ public class MVSupportService {
        * @return the identifiers.
        */
       public List<String> getIdentifiers() {
-         return identifiers;
+         return getAnalysisStatus().map(AnalysisStatus::getIdentiifers).orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
       }
 
       /**
@@ -869,7 +904,8 @@ public class MVSupportService {
        * @return the paths.
        */
       public List<String> getPaths() {
-         return paths;
+         return getAnalysisStatus().map(AnalysisStatus::getPaths).orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
       }
 
       /**
@@ -878,7 +914,8 @@ public class MVSupportService {
        * @return the exception users.
        */
       public List<UserInfo> getExceptions() {
-         return exceptions;
+         return getAnalysisStatus().map(AnalysisStatus::getExceptions).orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
       }
 
       /**
@@ -888,7 +925,8 @@ public class MVSupportService {
        * @return the result status.
        */
       public List<MVStatus> getStatus() {
-         return status;
+         return getAnalysisStatus().map(AnalysisStatus::getResults).orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
       }
 
       /**
@@ -897,7 +935,8 @@ public class MVSupportService {
        * @return the plans.
        */
       public Map<String, StringBuffer> getPlans() {
-         return plans;
+         return getAnalysisStatus().map(AnalysisStatus::getPlans).orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
       }
 
       /**
@@ -906,57 +945,54 @@ public class MVSupportService {
        * @return <tt>true</tt> if completed; <tt>false</tt> otherwise.
        */
       public synchronized boolean isCompleted() {
-         boolean result = true;
-
-         if(future != null) {
-            if(future.isDone() || future.isCancelled()) {
-               try {
-                  status = future.get();
-               }
-               catch(Exception ex) {
-                  LOG.error("Failed to generate MV: " + ex, ex);
-               }
-
-               future = null;
-            }
-            else {
-               result = false;
-            }
-         }
-
-         return result;
+         AnalysisStatus analysisStatus = getAnalysisStatus().orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
+         return analysisStatus.getResults() != null || analysisStatus.getError() != null;
       }
 
       /**
        * Waits for the background analysis task to complete.
        */
       public synchronized void waitFor() {
-         if(future != null) {
-            try {
-               status = future.get();
-            }
-            catch(Exception e) {
-               LOG.error("Failed to perform MV analysis", e);
-            }
-
-            future = null;
-         }
+         Awaitility.await()
+            .pollInterval(500, TimeUnit.MILLISECONDS)
+            .until(this::isCompleted);
       }
 
-      private final List<String> identifiers;
-      private final List<String> paths;
-      private final List<UserInfo> exceptions;
-      private final Map<String, StringBuffer> plans;
-      private List<MVStatus> status;
-      private Future<List<MVStatus>> future;
+      private synchronized Optional<AnalysisStatus> getAnalysisStatus() {
+         if(completed != null) {
+            return Optional.of(completed);
+         }
+
+         Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+         AnalysisStatus result = map.get(id);
+
+         if(result == null) {
+            return Optional.empty();
+         }
+
+         if(result.getResults() != null || result.getError() != null) {
+            completed = result;
+            map.remove(id);
+            return Optional.of(result);
+         }
+
+         return Optional.of(result);
+      }
+
+      private final String id;
+      private AnalysisStatus completed;
    }
 
-   private static final class AnalysisTask implements Callable<List<MVStatus>> {
-      public AnalysisTask(List<String> identifiers, List<UserInfo> exceptions,
-                          Map<String, StringBuffer> plans, boolean[] expanded,
-                          boolean[] bypass, boolean[] full, boolean reanalyze,
+   private static final class AnalysisTask implements Runnable {
+      public AnalysisTask(String id, List<String> identifiers, List<String> paths,
+                          List<UserInfo> exceptions, Map<String, StringBuffer> plans,
+                          boolean[] expanded, boolean[] bypass, boolean[] full, boolean reanalyze,
                           Principal principal, boolean portal) throws Exception
       {
+         this.id = id;
+         this.identifiers = identifiers;
+         this.paths = paths;
          this.exceptions = exceptions;
          this.plans = plans;
          this.reanalyze = reanalyze;
@@ -970,9 +1006,25 @@ public class MVSupportService {
             jobs[i] = new AnalysisJob(identifiers.get(i), expanded[mod],
                                       bypass[mod], full[mod], principal);
          }
+
+         updateStatus(null, null);
       }
 
       @Override
+      public void run() {
+         List<MVStatus> results = null;
+         Exception error = null;
+
+         try {
+            results = call();
+         }
+         catch(Exception e) {
+            error = e;
+         }
+
+         updateStatus(results, error);
+      }
+
       public List<MVStatus> call() {
          Principal oldPrincipal = ThreadContext.getContextPrincipal();
          ThreadContext.setContextPrincipal(principal);
@@ -999,6 +1051,7 @@ public class MVSupportService {
             for(UserInfo info : infos) {
                if(!exceptions.contains(info)) {
                   exceptions.add(info);
+                  updateStatus(null, null);
                }
             }
 
@@ -1010,6 +1063,7 @@ public class MVSupportService {
             }
 
             plans.put(job.identifier, plan);
+            updateStatus(null, null);
          }
 
          List<MVDef> mvs = new ArrayList<>();
@@ -1026,6 +1080,7 @@ public class MVSupportService {
          for(UserInfo info : hints) {
             if(!exceptions.contains(info)) {
                exceptions.add(info);
+               updateStatus(null, null);
             }
          }
 
@@ -1041,6 +1096,15 @@ public class MVSupportService {
          return result;
       }
 
+      private void updateStatus(List<MVStatus> results, Exception error) {
+         Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+         AnalysisStatus status = new AnalysisStatus(identifiers, paths, exceptions, plans, results, error);
+         map.put(id, status);
+      }
+
+      private final String id;
+      private final List<String> identifiers;
+      private final List<String> paths;
       private final boolean reanalyze;
       private final AnalysisJob[] jobs;
       private final List<UserInfo> exceptions;
@@ -1388,12 +1452,12 @@ public class MVSupportService {
 
    private final ExecutorService analyzePool =
       Executors.newFixedThreadPool(4, new GroupedThreadFactory());
-   private final ExecutorService localCreatePool =
-      Executors.newFixedThreadPool(2, new GroupedThreadFactory());
    private final ExecutorService remoteCreatePool =
       Executors.newCachedThreadPool(new GroupedThreadFactory());
    public static final String MV_TASK_PREFIX = "MV Task: ";
    public static final String MV_TASK_STAGE_PREFIX = "MV Task Stage 2: ";
+   private static final String ANALYSIS_STATUS_MAP =
+      MVSupportService.class.getName() + ".analysisStatusMap";
 
    private static final Logger LOG = LoggerFactory.getLogger(MVSupportService.class);
 

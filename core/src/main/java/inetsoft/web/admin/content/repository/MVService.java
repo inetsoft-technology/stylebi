@@ -61,7 +61,7 @@ public class MVService {
       if(!SreeEnv.getBooleanProperty("ws.mv.enabled")) {
          nodesToAnalyze = nodesToAnalyze.stream()
             .filter(node -> !toAssetEntry(node).isWorksheet())
-            .collect(Collectors.toList());
+            .toList();
       }
 
       List<String> paths = nodesToAnalyze.stream()
@@ -267,7 +267,7 @@ public class MVService {
       for(MVDef def : defs) {
          String sheets = getSheetNames(def);
 
-         if(sheets.length() != 0) {
+         if(!sheets.isEmpty()) {
             mvs.add(
                MaterializedModel.builder()
                   .name(def.getName())
@@ -334,7 +334,7 @@ public class MVService {
    private String getTableNames(MVMetaData data) {
       Map<String, Set<String>> tableNameMap = data.getTableNameMap();
 
-      if(tableNameMap.values().isEmpty()) {
+      if(tableNameMap.isEmpty()) {
          return "";
       }
 
@@ -377,8 +377,8 @@ public class MVService {
 
    private String getStatus(MVDef def) {
       Catalog catalog = Catalog.getCatalog();
-      Map statusMap = Cluster.getInstance().getMap("inetsoft.mv.status.map");
-      String status = (String) statusMap.get(def.getName());
+      Map<String, String> statusMap = Cluster.getInstance().getMap("inetsoft.mv.status.map");
+      String status = statusMap.get(def.getName());
 
       if(status != null) {
          return catalog.getString(status);
