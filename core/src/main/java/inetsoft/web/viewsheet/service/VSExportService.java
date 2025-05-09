@@ -369,7 +369,7 @@ public class VSExportService {
    /**
     * Attempting to export globally visible viewsheets requires passing underlying assetEntry
     */
-   private AssetEntry handleAttemptExportGloballyVisibleAsset(AssetEntry entry, int format) throws MessageException {
+   public AssetEntry handleAttemptExportGloballyVisibleAsset(AssetEntry entry, int format) throws MessageException {
       String curOrg = OrganizationManager.getInstance().getCurrentOrgID();
       boolean isSnapshot = Tool.equals(format, FileFormatInfo.EXPORT_TYPE_SNAPSHOT);
       boolean snapShotProhibited = false;
@@ -491,7 +491,7 @@ public class VSExportService {
    }
 
 
-   private String getMime(int format) {
+   public static String getMime(int format) {
       String mime = "application/octet-stream";
 
       switch(format) {
@@ -516,7 +516,7 @@ public class VSExportService {
       return mime;
    }
 
-   private String getSuffix(int format) {
+   public static String getSuffix(int format) {
       switch(format) {
       case FileFormatInfo.EXPORT_TYPE_EXCEL:
          return "xlsx";
@@ -797,7 +797,7 @@ public class VSExportService {
       }
    }
 
-   private int getFormatNumberFromExtension(String ext) {
+   public static int getFormatNumberFromExtension(String ext) {
       switch(ext.toLowerCase()) {
       case "xlsx":
       case "xls":

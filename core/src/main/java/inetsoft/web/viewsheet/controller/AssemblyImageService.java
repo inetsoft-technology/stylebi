@@ -19,38 +19,45 @@ package inetsoft.web.viewsheet.controller;
 
 import inetsoft.analytic.composition.VSPortalHelper;
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.cluster.*;
+import inetsoft.graph.EGraph;
 import inetsoft.graph.geo.service.WebMapLimitException;
 import inetsoft.graph.internal.DimensionD;
-import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.TableLens;
+import inetsoft.report.composition.*;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.graph.VGraphPair;
+import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.gui.viewsheet.*;
 import inetsoft.report.gui.viewsheet.cylinder.VSCylinder;
 import inetsoft.report.gui.viewsheet.gauge.*;
 import inetsoft.report.gui.viewsheet.slidingscale.VSSlidingScale;
 import inetsoft.report.gui.viewsheet.thermometer.VSThermometer;
-import inetsoft.report.internal.Common;
-import inetsoft.report.internal.MetaImage;
+import inetsoft.report.internal.*;
+import inetsoft.report.internal.table.DcFormatTableLens;
+import inetsoft.report.internal.table.FormatTableLens2;
 import inetsoft.report.io.viewsheet.ExportUtil;
+import inetsoft.report.io.viewsheet.OfficeExporterFactory;
+import inetsoft.report.io.viewsheet.excel.CSVWSExporter;
+import inetsoft.report.io.viewsheet.excel.WSExporter;
+import inetsoft.report.lens.DefaultTableLens;
+import inetsoft.report.lens.MaxRowsTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.SRPrincipal;
-import inetsoft.uql.asset.AbstractSheet;
-import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.GroupedThread;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
-import jakarta.servlet.ServletOutputStream;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.service.VSExportService;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -58,17 +65,19 @@ import org.w3c.dom.Element;
 import java.awt.*;
 import java.awt.geom.Dimension2D;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.security.Principal;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
-import java.util.Locale;
-import java.util.zip.GZIPOutputStream;
+import java.util.*;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 @Service
+@ClusterProxy
 public class AssemblyImageService {
-   @Autowired
+
    public AssemblyImageService(ViewsheetService viewsheetService) {
       this.viewsheetService = viewsheetService;
    }
@@ -79,48 +88,44 @@ public class AssemblyImageService {
     * @param width     The width of the image to be returned.
     * @param height    The height of the image to be returned.
     * @param principal The user which is logged into the browser.
-    * @param response  The response which will be returned to the browser, into
-    *                  which the requested image data is to be returned.
     * @param svg       Flag for image format. svg if true, png otherwise
     */
-   public void downloadAssemblyImage(String vid, String aid, double width, double height,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ImageRenderResult downloadAssemblyImage(@ClusterProxyKey String vid, String aid, double width, double height,
                                      double maxWidth, double maxHeight, boolean svg,
-                                     Principal principal,
-                                     HttpServletRequest request,
-                                     HttpServletResponse response)
+                                     Principal principal)
       throws Exception
    {
-      String suffix = svg ? ".svg" : ".png";
-
-      response.setHeader("Content-Disposition", "attachment; filename=" + StringUtils.normalizeSpace(aid) + suffix);
-      processGetAssemblyImage(vid, aid, width, height, maxWidth, maxHeight, null,
-                              0, 0, 0, principal, request, response, svg, true);
+      return processGetAssemblyImage(vid, aid, width, height, maxWidth, maxHeight, null,
+                              0, 0, 0, principal, svg, true);
    }
 
-   public void processGetAssemblyImage(String vid, String aid, double width, double height,
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ImageRenderResult processGetAssemblyImage(@ClusterProxyKey String vid, String aid, double width, double height,
                                        double maxWidth, double maxHeight, String aname,
                                        int index, int row, int col, Principal principal,
-                                       HttpServletRequest request,
-                                       HttpServletResponse response,
                                        boolean svg, boolean export)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(Tool.byteDecode(vid), principal);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vid, principal);
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
       String sheetName = box.getAssetEntry() == null ? "" : box.getAssetEntry().getPath();
       String assemblyName = Tool.byteDecode(aid);
+      AtomicReference<ImageRenderResult> imageResultsRef = new AtomicReference<>();
 
       try {
          GroupedThread.withGroupedThread(groupedThread -> {
             groupedThread.addRecord(LogContext.DASHBOARD.getRecord(sheetName));
             groupedThread.addRecord(LogContext.ASSEMBLY.getRecord(assemblyName));
          });
+
          // for Feature #26586, add ui processing time record.
          ProfileUtils.addExecutionBreakDownRecord(box.getID(),
              ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
-               processGetAssemblyImage1(vid, aid, width, height, maxWidth, maxHeight, aname, index,
-                                        row, col, principal, request, response, svg, export);
-            });
+               ImageRenderResult result = processGetAssemblyImage1(vid, aid, width, height, maxWidth, maxHeight, aname, index,
+                                        row, col, principal, svg, export);
+              imageResultsRef.set(result);
+         });
       }
       finally {
          GroupedThread.withGroupedThread(groupedThread -> {
@@ -128,6 +133,293 @@ public class AssemblyImageService {
             groupedThread.removeRecord(LogContext.ASSEMBLY.getRecord(assemblyName));
          });
       }
+
+      return imageResultsRef.get();
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public MessageCommand checkExporting(@ClusterProxyKey String runtimeId, Principal principal) throws Exception {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      MessageCommand messageCommand = new MessageCommand();
+
+      if("true".equals(rvs.getProperty("__EXPORTING__"))) {
+         messageCommand.setType(MessageCommand.Type.WARNING);
+         messageCommand.setMessage(Catalog.getCatalog(principal)
+                                      .getString("viewer.viewsheet.exporting"));
+      }
+      else {
+         messageCommand.setType(MessageCommand.Type.OK);
+      }
+
+      return messageCommand;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public SheetExportResult exportViewsheetTable(@ClusterProxyKey String runtimeId, String assemblyName,
+                                                    String agent, Principal principal) throws Exception {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      RuntimeWorksheet worksheet = rvs.getRuntimeWorksheet();
+      ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
+
+      if(vbox == null) {
+         return null;
+      }
+
+      TableLens lens = vbox.getVSTableLens(assemblyName, false);
+
+      if(lens == null) {
+         lens = new DefaultTableLens();
+      }
+
+      Tool.localizeHeader(lens);
+      List<ColumnInfo> columns = new ArrayList<>();
+
+      String fileName = VSExportService.getViewsheetFileName(rvs.getEntry());
+      fileName = Tool.normalizeFileName(fileName + "_" + assemblyName);
+
+      VSAssembly tableAssembly = (VSAssembly) rvs.getViewsheet().getAssembly(assemblyName);
+
+      // @by stephenwebster, For Bug #26629
+      // The exportExcel method is expecting the table name to be the name of the worksheet.
+      // For viewsheet table export, get the source of the table instead.
+      if(tableAssembly instanceof TableDataVSAssembly &&
+         !"true".equals(SreeEnv.getProperty("table.export.hiddenColumns")))
+      {
+         TableDataVSAssembly tassembly = (TableDataVSAssembly) tableAssembly;
+         SourceInfo srcInfo = tassembly.getSourceInfo();
+         TableDataVSAssemblyInfo info = tassembly.getTableDataVSAssemblyInfo();
+         assemblyName = srcInfo != null ? srcInfo.getSource() : assemblyName;
+
+         TableLens finalLens = lens;
+         int[] visCols = IntStream.range(0, lens.getColCount())
+            .filter(c -> info.getColumnWidth2(c, finalLens) > 0 ||
+               Double.isNaN(info.getColumnWidth2(c, finalLens)))
+            .toArray();
+
+         // ignore hidden column when exporting data from a table. (56152)
+         if(visCols.length != lens.getColCount()) {
+            lens = new ColumnMapFilter(lens, visCols);
+         }
+      }
+
+      return exportToMemory(fileName, VSUtil.getVSAssemblyBinding(assemblyName),lens, columns, worksheet);
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public SheetExportResult exportWorksheet(@ClusterProxyKey String wsId, String vsId, String path, String assemblyName,
+                                            String tableAssemblyName, String fileNameParam, Principal principal) throws Exception{
+      RuntimeWorksheet rws = viewsheetService.getWorksheet(wsId, principal);
+      Worksheet worksheet = rws.getWorksheet();
+      AssetQuerySandbox box = rws.getAssetQuerySandbox();
+      TableLens lens = box.getTableLens(tableAssemblyName, AssetQuerySandbox.RUNTIME_MODE);
+      boolean isPreviewWsTable = path.startsWith("__PREVIEW_WORKSHEET__");
+      List<ColumnInfo> columns =
+         box.getColumnInfos(tableAssemblyName, AssetQuerySandbox.RUNTIME_MODE);
+
+      if(isPreviewWsTable) {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+         VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
+         ViewsheetSandbox vsBox = rvs.getViewsheetSandbox();
+         DataTableAssembly tableAssembly =
+            (DataTableAssembly) worksheet.getAssembly(tableAssemblyName);
+         FormatTableLens2 formatLens = null;
+         boolean appliedDC = false;
+
+         if(assembly instanceof ChartVSAssembly) {
+            appliedDC = ((ChartVSAssembly) assembly).getVSChartInfo().isAppliedDateComparison();
+         }
+
+         if(appliedDC && tableAssembly != null) {
+            formatLens = new DcFormatTableLens(
+               new MaxRowsTableLens(lens, 5002), getDcFormat(vsBox, assemblyName));
+            formatLens.addTableFormat((DataVSAssembly) assembly, tableAssembly,
+                                      tableAssembly.getColumnSelection(), null, null);
+         }
+         else {
+            formatLens = new FormatTableLens2(lens);
+            applyTheShowDetailFormat(formatLens, rws.getWorksheet(), tableAssemblyName);
+         }
+
+         lens = formatLens;
+      }
+
+      String fileName = fileNameParam == null ? fileNameParam : (Tool.normalizeFileName(
+         getWorksheetFileName(rws.getEntry()) + "_" + tableAssemblyName));
+
+      return exportToMemory(fileName, tableAssemblyName, lens, columns, rws);
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Dimension getChartSize(@ClusterProxyKey String id, int width, int height, String chartId, Principal principal) throws Exception {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
+      Dimension chartSize = calculateDownloadSize(width, height, rvs, chartId);
+
+      return chartSize;
+   }
+
+   public Dimension calculateDownloadSize(int width, int height, RuntimeViewsheet rvs,
+                                          String chartId)
+   {
+      if(width > 0 && height > 0) {
+         return new Dimension(width, height);
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         return new Dimension(width, height);
+      }
+
+      final String name = Tool.byteDecode(chartId);
+      Assembly assembly = vs.getAssembly(name);
+      Dimension assemblySize = assembly.getPixelSize();
+
+      if(height == 0 && width == 0) {
+         return new Dimension((int) assemblySize.getWidth(), (int) assemblySize.getHeight());
+      }
+      else {
+         double ratio = assemblySize.getWidth() / assemblySize.getHeight();
+
+         if(width == 0) {
+            width = (int) (height * ratio);
+         }
+         else {
+            height = (int) (width / ratio);
+         }
+
+         return new Dimension(width, height);
+      }
+   }
+
+   private SheetExportResult exportToMemory(String fileName,
+                                            String assemblyName,
+                                            TableLens lens,
+                                            List<ColumnInfo> columns,
+                                            RuntimeWorksheet worksheet) throws Exception {
+      String mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      String suffix = "xlsx";
+      String format = SreeEnv.getProperty("table.export.format");
+      String threshold = SreeEnv.getProperty("table.export.cell.threshold.forcetocsv");
+      int cellThreshold = -1;
+
+      if(threshold != null) {
+         try {
+            cellThreshold = Integer.parseInt(threshold);
+         } catch (NumberFormatException ignore) {
+         }
+      }
+
+      int row = (lens == null) ? 1 : lens.getRowCount();
+      int col = (lens == null) ? 1 : lens.getColCount();
+      WSExporter exporter;
+
+      if((lens != null && lens.moreRows(5000) && format == null) ||
+         (cellThreshold != -1 && lens.getColCount() * lens.getRowCount() > cellThreshold) ||
+         "csv".equalsIgnoreCase(format)) {
+         exporter = new CSVWSExporter();
+         mime = "text/csv";
+         suffix = "csv";
+      }
+      else {
+         exporter = OfficeExporterFactory.getInstance().createWorksheetExporter(row, col);
+      }
+
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+      if(lens != null) {
+         exporter.prepareSheet(assemblyName, worksheet, row, col);
+         Class[] colTypes = exporter.getColTypes(lens);
+         HashMap<Integer, Integer> map = getColumnMap(lens, columns);
+         exporter.writeTable(lens, columns, colTypes, map);
+      }
+
+      exporter.write(baos);
+      return new SheetExportResult(baos.toByteArray(), fileName, mime, suffix);
+   }
+
+
+   private String getWorksheetFileName(AssetEntry entry) {
+      return VSExportService.getFileName(entry, "ExportedWorksheet");
+   }
+
+   private DateComparisonFormat getDcFormat(ViewsheetSandbox box, String assemblyName)
+      throws Exception
+   {
+      if(box == null) {
+         return null;
+      }
+
+      VGraphPair pair = box.getVGraphPair(assemblyName);
+      EGraph graph = pair.getEGraph();
+
+      return (DateComparisonFormat)
+         GraphUtil.getAllScales(graph.getCoordinate()).stream()
+            .map(s -> s.getAxisSpec().getTextSpec().getFormat())
+            .filter(f -> f instanceof DateComparisonFormat).findFirst().orElse(null);
+   }
+
+   /**
+    * Apply the format for show worksheet preview table.
+    * @param formatLens format table lens.
+    * @param worksheet worksheet
+    * @param assemblyName table that contains format.
+    */
+   private void applyTheShowDetailFormat(FormatTableLens2 formatLens, Worksheet worksheet,
+                                         String assemblyName)
+   {
+      TableAssemblyInfo tableAssemblyInfo = null;
+      TableAssembly tableAssembly = null;
+
+      if(worksheet != null && worksheet.getAssembly(assemblyName) instanceof TableAssembly) {
+         tableAssembly = (TableAssembly) worksheet.getAssembly(assemblyName);
+
+         if(tableAssembly == null || tableAssembly.getTableInfo() == null) {
+            return;
+         }
+
+         tableAssemblyInfo = tableAssembly.getTableInfo();
+
+         if(!Tool.equals(tableAssemblyInfo.getClassName(), "WSPreviewTable")) {
+            return;
+         }
+      }
+
+      if(tableAssemblyInfo != null && tableAssembly != null) {
+         Map<String, VSCompositeFormat> formatMap = tableAssemblyInfo.getFormatMap();
+
+         if(formatMap == null) {
+            return;
+         }
+
+         for(String key : formatMap.keySet()) {
+            if(formatMap.get(key) == null) {
+               continue;
+            }
+
+            formatLens.addColumnFormat(key, tableAssembly.getColumnSelection(), formatMap.get(key));
+         }
+      }
+   }
+
+   private HashMap<Integer, Integer> getColumnMap(TableLens lens, List<ColumnInfo> colInfo) {
+      ColumnIndexMap columnIndexMap = new ColumnIndexMap(lens, true);
+      HashMap<Integer, Integer> map = new HashMap<>();
+
+      for(int i = 0; i < colInfo.size(); i++) {
+         ColumnInfo info = colInfo.get(i);
+         String attr = "null";
+         ColumnRef ref = new ColumnRef(new AttributeRef(attr));
+
+         // avoid the value at the specified cell is null.
+         if(!Tool.equals(ref, info.getColumnRef())) {
+            map.put(Util.findColumn(columnIndexMap, info, lens), i);
+         }
+         else {
+            map.put(i, i);
+         }
+      }
+
+      return map;
    }
 
    /**
@@ -226,25 +518,23 @@ public class AssemblyImageService {
       return img;
    }
 
-   private void processGetAssemblyImage1(String vid, String aid, double width, double height,
+   private ImageRenderResult processGetAssemblyImage1(String vid, String aid, double width, double height,
                                          double maxWidth, double maxHeight, String aname,
                                          int index, int row, int col, Principal principal,
-                                         HttpServletRequest request,
-                                         HttpServletResponse response,
                                          boolean svg, boolean export)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(Tool.byteDecode(vid), principal);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vid, principal);
 
       if(rvs == null || width <= 0 || height <= 0) {
-         return;
+         return null;
       }
 
       final Viewsheet vs = rvs.getViewsheet();
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
       if(vs == null || box == null) {
-         return;
+         return null;
       }
 
       final String name = Tool.byteDecode(aid);
@@ -307,7 +597,7 @@ public class AssemblyImageService {
                   if(pair == null || !pair.isCompleted() || pair.isCancelled() ||
                      !pair.isPlotted())
                   {
-                     return;
+                     return null;
                   }
 
                   if(svg) {
@@ -327,10 +617,8 @@ public class AssemblyImageService {
                   SreeEnv.setProperty("webmap.suspend.until", hours24 + "");
 
                   box.clearGraph(name);
-                  processGetAssemblyImage1(vid, aid, width, height, maxWidth, maxHeight, aname,
-                                           index, row, col, principal,
-                                           request, response, svg, export);
-                  return;
+                  return processGetAssemblyImage1(vid, aid, width, height, maxWidth, maxHeight, aname,
+                                           index, row, col, principal, svg, export);
                }
                finally {
                   box.unlockRead();
@@ -396,81 +684,20 @@ public class AssemblyImageService {
          throw ex;
       }
 
-      if((buf != null || svgGraphics != null) && response != null) {
-         final String encodingTypes = request.getHeader("Accept-Encoding");
-         final ServletOutputStream outputStream = response.getOutputStream();
+      boolean isPNG = image != null || rawEncodePNG;
+      int resultWidth = (int) width;
+      int resultHeight = (int) height;
 
-         try {
-            if(image != null || rawEncodePNG) {
-               response.setContentType("image/png");
-            }
-            else {
-               response.setContentType("image/svg+xml");
-            }
-
-            if(encodingTypes != null && encodingTypes.contains("gzip")) {
-               try(final GZIPOutputStream out = new GZIPOutputStream(outputStream)) {
-                  response.addHeader("Content-Encoding", "gzip");
-
-                  if(svgGraphics != null) {
-                     writeSvg(out, svgGraphics);
-                  }
-                  else {
-                     out.write(buf);
-                  }
-               }
-            }
-            else {
-               if(svgGraphics != null) {
-                  writeSvg(outputStream, svgGraphics);
-               }
-               else {
-                  outputStream.write(buf);
-               }
-            }
-         }
-         catch(IOException e) {
-            LOG.debug("Broken connection while writing image", e);
-         }
+      if(image != null) {
+         resultWidth = image.getWidth();
+         resultHeight = image.getHeight();
       }
+
+      return new ImageRenderResult(isPNG, buf, resultWidth, resultHeight);
    }
 
-   private static void writeSvg(OutputStream out, Graphics2D svg) throws Exception {
+   public static void writeSvg(OutputStream out, Graphics2D svg) throws Exception {
       SVGSupport.getInstance().writeSVG(svg, out);
-   }
-
-   public Dimension calculateDownloadSize(int width, int height, RuntimeViewsheet rvs,
-                                          String chartId)
-   {
-      if(width > 0 && height > 0) {
-         return new Dimension(width, height);
-      }
-
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         return new Dimension(width, height);
-      }
-
-      final String name = Tool.byteDecode(chartId);
-      Assembly assembly = vs.getAssembly(name);
-      Dimension assemblySize = assembly.getPixelSize();
-
-      if(height == 0 && width == 0) {
-         return new Dimension((int) assemblySize.getWidth(), (int) assemblySize.getHeight());
-      }
-      else {
-         double ratio = assemblySize.getWidth() / assemblySize.getHeight();
-
-         if(width == 0) {
-            width = (int) (height * ratio);
-         }
-         else {
-            height = (int) (width / ratio);
-         }
-
-         return new Dimension(width, height);
-      }
    }
 
    // Check if should send me raw bytes
@@ -905,5 +1132,66 @@ public class AssemblyImageService {
 
    private final String EMPTY_IMAGE = "/inetsoft/report/images/emptyimage.gif";
    private final ViewsheetService viewsheetService;
-   private static final Logger LOG = LoggerFactory.getLogger(GetImageController.class);
+
+   public class ImageRenderResult implements Serializable {
+      private static final long serialVersionUID = 1L;
+      private final boolean isPng;
+      private final byte[] imageData;
+      private final int width;
+      private final int height;
+
+      public ImageRenderResult(boolean isPng, byte[] imageData, int width, int height) {
+         this.isPng = isPng;
+         this.imageData = imageData;
+         this.width = width;
+         this.height = height;
+      }
+
+      public boolean isPng() {
+         return isPng;
+      }
+
+      public byte[] getImageData() {
+         return imageData;
+      }
+
+      public int getWidth() {
+         return width;
+      }
+
+      public int getHeight() {
+         return height;
+      }
+   }
+
+   public class SheetExportResult implements Serializable {
+      private final byte[] data;
+      private final String fileName;
+      private final String mime;
+      private final String suffix;
+
+      public SheetExportResult(byte[] data, String fileName, String mime, String suffix) {
+         this.data = data;
+         this.fileName = fileName;
+         this.mime = mime;
+         this.suffix = suffix;
+      }
+
+      public byte[] getData() {
+         return data;
+      }
+
+      public String getFileName() {
+         return fileName;
+      }
+
+      public String getMime() {
+         return mime;
+      }
+
+      public String getSuffix() {
+         return suffix;
+      }
+   }
+
 }
