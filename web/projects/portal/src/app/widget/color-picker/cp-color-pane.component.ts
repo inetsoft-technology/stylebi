@@ -60,7 +60,7 @@ export class ColorPane implements OnInit {
 
    setColorValue(value: string) {
       if(!value) {
-         this.selectColor(value);
+         setTimeout(() => this.selectColor(value), 0);
       }
       else {
          this.colorValue = getColorHex("#" + value);
@@ -68,7 +68,7 @@ export class ColorPane implements OnInit {
          if(/^[0-9a-fA-F]{6}$/.test(value)) {
             this.color = "#" + value;
             this.recentColorService.colorSelected(this.color);
-            this.colorChanged.emit(this.color);
+            setTimeout(() => this.colorChanged.emit(this.color), 0);
          }
       }
    }
