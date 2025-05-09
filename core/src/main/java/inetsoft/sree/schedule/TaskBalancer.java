@@ -230,7 +230,7 @@ public class TaskBalancer {
       int hardCoded = slots.stream()
          .mapToInt(BitSet::cardinality)
          .sum();
-      int slotsPerThread = duration / interval;
+      int slotsPerThread = Math.max(1, duration / interval);
       int requiredThreads =
          Math.max(1, (int) Math.ceil((conditions.size() + hardCoded) / (float) slotsPerThread));
       int conditionIndex = 0;
