@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import inetsoft.uql.asset.DetailDndInfo;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.model.SortInfoModel;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 @Value.Immutable
+@Serial.Structural
 @JsonDeserialize(builder = ShowDetailsEvent.Builder.class)
 public abstract class ShowDetailsEvent implements BaseTableEvent {
    public abstract Map<Integer, int[]> getSelectedCells();

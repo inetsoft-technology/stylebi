@@ -50,7 +50,7 @@ import inetsoft.web.composer.vs.dialog.TableViewStylePaneController;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.viewsheet.command.LoadPreviewTableCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableShowDetailsController;
+import inetsoft.web.viewsheet.controller.table.BaseTableShowDetailsService;
 import inetsoft.web.viewsheet.event.chart.VSChartShowDetailsEvent;
 import inetsoft.web.viewsheet.model.PreviewTableCellModel;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
@@ -283,26 +283,26 @@ public class VSChartShowDetailsService extends VSChartControllerService<VSChartS
          chartVSAssembly, rvs.getViewsheet(), tableLens, columns);
 
       for(int colIndex : event.getColumns()) {
-         BaseTableShowDetailsController.handleColumnEvents(
+         BaseTableShowDetailsService.handleColumnEvents(
             infos == null || infos.isEmpty() ? columns : infos,
             colIndex, event.getNewColName(), event.isToggleHide());
       }
 
       if(infos != null) {
-         BaseTableShowDetailsController.updateColumnHeaders(tableLens, infos,
+         BaseTableShowDetailsService.updateColumnHeaders(tableLens, infos,
                                                             assembly.getColumnSelection());
       }
 
       if(event.getDndInfo() != null) {
          ColumnSelection cols = infos == null || infos.isEmpty() ? columns : infos;
-         cols = BaseTableShowDetailsController.getDetailColumns(event.getDndInfo(), cols);
+         cols = BaseTableShowDetailsService.getDetailColumns(event.getDndInfo(), cols);
          chartVSAssembly.setDetailColumns(cols);
          assembly.setColumnSelection(cols);
          infos = cols;
-         tableLens = BaseTableShowDetailsController.createColumnMapFilter(tableLens, cols, columns);
+         tableLens = BaseTableShowDetailsService.createColumnMapFilter(tableLens, cols, columns);
       }
       else if(infos != null && !infos.isEmpty()) {
-         boolean isChanged = BaseTableShowDetailsController.isColumnChanged(infos, columns);
+         boolean isChanged = BaseTableShowDetailsService.isColumnChanged(infos, columns);
 
          //If binding changed, so not apply detail order and clear detail columns.
          if(isChanged) {
@@ -310,7 +310,7 @@ public class VSChartShowDetailsService extends VSChartControllerService<VSChartS
             assembly.setData(tableLens);
          }
          else {
-            tableLens = BaseTableShowDetailsController.createColumnMapFilter(
+            tableLens = BaseTableShowDetailsService.createColumnMapFilter(
                tableLens, infos, columns);
             assembly.setData(tableLens);
          }
