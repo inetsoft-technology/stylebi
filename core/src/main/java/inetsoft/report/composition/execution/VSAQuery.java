@@ -1720,21 +1720,18 @@ public abstract class VSAQuery {
          return null;
       }
 
+      String baseAssembly = getAssembly().getAbsoluteName();
+
+      if(assemblyName.startsWith(Assembly.TABLE_VS_BOUND) && baseAssembly.contains(".")) {
+         int idx = baseAssembly.lastIndexOf(".");
+         String baseParent = baseAssembly.substring(0, idx + 1);
+         assemblyName = Assembly.TABLE_VS_BOUND + baseParent + assemblyName.substring(15);
+      }
+
       TableLens lens = box.getTableData(assemblyName);
 
       if(lens == null) {
-         String baseAssembly = getAssembly().getAbsoluteName();
-
-         if(assemblyName.startsWith(Assembly.TABLE_VS_BOUND) || baseAssembly.contains(".")) {
-            int idx = baseAssembly.lastIndexOf(".");
-            String baseParent = baseAssembly.substring(0, idx + 1);
-            assemblyName = Assembly.TABLE_VS_BOUND + baseParent + assemblyName.substring(15);
-            lens = box.getTableData(assemblyName);
-         }
-
-         if(lens == null) {
-            return null;
-         }
+        return null;
       }
 
       // meta data doesn't require all rows, which would cause conversion to calc problem
