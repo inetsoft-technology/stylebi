@@ -324,7 +324,7 @@ public class EmbeddedQuery extends AssetQuery {
       return null;
    }
 
-   private static class DesignEmbeddedTableFilter extends AbstractTableLens
+   protected static class DesignEmbeddedTableFilter extends AbstractTableLens
       implements TableFilter
    {
       public DesignEmbeddedTableFilter(TableLens table, ColumnSelection columns)
@@ -460,7 +460,7 @@ public class EmbeddedQuery extends AssetQuery {
       private TableLens table;
    }
 
-   private static class XSnapshotLens extends XTableLens implements DFWrapper {
+   protected static class XSnapshotLens extends XTableLens implements DFWrapper {
       /**
        * Constructor.
        * @param table the specified xtable.

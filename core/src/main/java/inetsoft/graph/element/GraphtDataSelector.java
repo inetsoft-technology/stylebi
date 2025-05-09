@@ -19,13 +19,15 @@ package inetsoft.graph.element;
 
 import inetsoft.graph.data.DataSet;
 
+import java.io.Serializable;
+
 /**
  * This interface is the API for selecting data point to be plotted on the chart.
  *
  * @version 13.5
  * @author InetSoft Technology Corp
  */
-public interface GraphtDataSelector {
+public interface GraphtDataSelector extends Serializable {
    /**
     * Return true if the row should be plotted.
     * @param fields if not null, the fields that are used in the caller's calculation.

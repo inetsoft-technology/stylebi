@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import java.awt.*;
+import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.sql.Time;
@@ -1832,7 +1833,7 @@ public class FormulaFunctions {
    /**
     * Parse and store the option string.
     */
-   private static class Options {
+   private static class Options implements Serializable {
       public Options(String str) {
          // options name=value
          List<String> opts = new ArrayList<>();

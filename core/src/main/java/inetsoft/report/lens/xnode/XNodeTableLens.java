@@ -18,7 +18,8 @@
 package inetsoft.report.lens.xnode;
 
 import inetsoft.mv.DFWrapper;
-import inetsoft.report.*;
+import inetsoft.report.TableDataDescriptor;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.CachedTableLens;
 import inetsoft.report.internal.table.CancellableTableLens;
@@ -34,6 +35,7 @@ import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.*;
 import java.util.HashMap;
 import java.util.List;
 
@@ -725,7 +727,16 @@ public class XNodeTableLens extends AbstractTableLens
       this.maxRowHintMap = map;
    }
 
-   protected XTable table = null;
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+
+      if(delegate != null) {
+         table = delegate.getTable();
+      }
+   }
+
+   private transient XTable table = null;
    private XNodeTable delegate = null;
    private SparseMatrix matrix = null;
    private boolean hmodified = false;

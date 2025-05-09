@@ -24,6 +24,8 @@ import inetsoft.util.DataComparer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Serializable;
+
 /**
  * Selft Join operator performs the evaluation task of one self-join operation.
  * Any self join operation MUST be one of the following join operations:<p>
@@ -42,7 +44,7 @@ import org.slf4j.LoggerFactory;
  * @version 8.0
  * @author InetSoft Technology Corp
  */
-public final class SelfJoinOperator {
+public final class SelfJoinOperator implements Serializable {
    /**
     * Constructor.
     * @param table the specified table.

@@ -40,6 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
@@ -1420,6 +1421,14 @@ public class FormulaTableLens extends AbstractTableLens
       return type != null ? type : table == null ? null : table.getReportType();
    }
 
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      cancelLock = new ReentrantLock();
+      lock = new ReentrantLock();
+      senv = new JavaScriptEnv();
+   }
+
    private TableLens table;
    private String tableName = null;
    private Object[] headers;
@@ -1438,7 +1447,7 @@ public class FormulaTableLens extends AbstractTableLens
    private List<FormulaHeaderInfo> hinfos;
    private boolean completed;       // completed flag
    private volatile boolean cancelled;       // cancelled flag
-   private final Lock cancelLock = new ReentrantLock();
+   private transient Lock cancelLock = new ReentrantLock();
 
    private transient Object[] scripts; // compiled javascripts
    private transient TableRow2 tableRow; // row javascript object

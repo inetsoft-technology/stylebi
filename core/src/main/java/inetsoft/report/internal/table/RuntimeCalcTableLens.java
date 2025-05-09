@@ -37,6 +37,7 @@ import it.unimi.dsi.fastutil.ints.IntList;
 import org.springframework.util.StringUtils;
 
 import java.awt.*;
+import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
@@ -1255,7 +1256,7 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
    /**
     * Data structure used to hold per row/column information.
     */
-   private static class IndexObject {
+   private static class IndexObject implements Serializable {
       public IndexObject(int index, CalcCellContext context) {
          this.index = index;
          this.context = context;
@@ -1268,7 +1269,7 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
    /**
     * This class handles row/column maps.
     */
-   public static class IndexMap implements Cloneable {
+   public static class IndexMap implements Cloneable, Serializable {
       public IndexMap(int count) {
          map.setSize(count);
          len = count;

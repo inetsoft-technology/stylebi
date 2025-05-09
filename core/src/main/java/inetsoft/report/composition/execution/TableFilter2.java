@@ -32,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.*;
 
 /**
  * Another table filter for shared usage.
@@ -807,13 +808,19 @@ public class TableFilter2 extends AbstractTableLens
       return type != null ? type : table != null ? table.getReportType() : null;
    }
 
+   @Serial
+   private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
+      in.defaultReadObject();
+      setTable(table);
+   }
+
    private static final Logger LOG =
       LoggerFactory.getLogger(TableFilter2.class);
    private TableLens table;
-   private Class[] coltypes = {};
+   private transient Class[] coltypes = {};
    private SparseMatrix matrix = null;
    private String mv;
    private long ts = System.currentTimeMillis();
-   private boolean embedded = false;
+   private transient boolean embedded = false;
    private boolean cancelled = false;
 }

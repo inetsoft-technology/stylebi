@@ -881,7 +881,7 @@ public class TableVSAQuery extends DataVSAQuery {
     * Plain table, used to convert any table to a plain table which only
     * have header and detail path.
     */
-   private static class PlainTable extends DefaultTableFilter {
+   protected static class PlainTable extends DefaultTableFilter {
       public PlainTable(TableLens table) {
          super(table);
       }

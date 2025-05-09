@@ -444,6 +444,24 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          // condition.
          data = getCachedData(key, touchTime);
 
+         // check for distributed cache data
+         if(data == null) {
+            DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
+
+            if(store.exists(key)) {
+               try {
+                  data = store.get(key, touchTime);
+
+                  if(data != null) {
+                     cache.put(key, data);
+                  }
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to load table lens from distributed table cache store", e);
+               }
+            }
+         }
+
          if(data != null) {
             return data;
          }
@@ -511,6 +529,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
          if(executingKey != null) {
             synchronized(executingKey) {
+               DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
+               store.put(key, cache.get(key));
                cache.unmarkExecuting(executingKey);
                executingKey.notifyAll();
             }

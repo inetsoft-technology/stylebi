@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.internal.SelectionSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Serializable;
 import java.util.*;
 
 /**
@@ -32,7 +33,7 @@ import java.util.*;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-public abstract class TableMetaData implements Cloneable {
+public abstract class TableMetaData implements Cloneable, Serializable {
    /**
     * Name for the min measure value in the mvalues.
     */
