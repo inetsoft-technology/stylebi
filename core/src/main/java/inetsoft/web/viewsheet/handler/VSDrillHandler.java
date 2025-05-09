@@ -29,7 +29,6 @@ import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.model.DrillFilterAction;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
@@ -47,23 +46,20 @@ public class VSDrillHandler {
    public VSDrillHandler(List<DrillHandler> drillHandlers,
                          ViewsheetService viewsheetService,
                          CoreLifecycleService coreLifecycleService,
-                         RuntimeViewsheetRef runtimeViewsheetRef,
                          VSBindingService bfactory)
    {
       this.drillHandlers = drillHandlers;
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.bfactory = bfactory;
    }
 
-   public void processDrillAction(DrillFilterAction drillFilterAction,
+   public void processDrillAction(String runtimeId, DrillFilterAction drillFilterAction,
                                   CommandDispatcher dispatcher, String linkUri,
                                   Principal principal)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-         runtimeViewsheetRef.getRuntimeId(), principal);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly vsAssembly = vs.getAssembly(drillFilterAction.getAssemblyName());
 
@@ -227,7 +223,6 @@ public class VSDrillHandler {
    private final List<DrillHandler> drillHandlers;
    private final ViewsheetService viewsheetService;
    private final CoreLifecycleService coreLifecycleService;
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSBindingService bfactory;
 
    private static final Logger LOGGER = LoggerFactory.getLogger(VSDrillHandler.class);

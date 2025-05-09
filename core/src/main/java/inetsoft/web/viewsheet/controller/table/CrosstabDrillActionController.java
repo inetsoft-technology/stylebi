@@ -17,15 +17,9 @@
  */
 package inetsoft.web.viewsheet.controller.table;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.table.BaseTableDrillEvent;
-import inetsoft.web.viewsheet.event.table.DrillEvent;
-import inetsoft.web.viewsheet.handler.VSDrillHandler;
-import inetsoft.web.viewsheet.handler.crosstab.CrosstabDrillHandler;
-import inetsoft.web.viewsheet.model.CrosstabDrillFilterAction;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,28 +28,17 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Controller
-public class CrosstabDrillActionController extends BaseTableDrillController<BaseTableDrillEvent> {
-
+public class CrosstabDrillActionController {
    @Autowired
-   public CrosstabDrillActionController(CrosstabDrillHandler crosstabDrillHandler,
-                                        RuntimeViewsheetRef runtimeViewsheetRef,
-                                        CoreLifecycleService coreLifecycleService,
-                                        ViewsheetService viewsheetService,
-                                        VSBindingService bindingFactory,
-                                        VSDrillHandler vsDrillHandler)
+   public CrosstabDrillActionController(RuntimeViewsheetRef runtimeViewsheetRef,
+                                        CrosstabDrillActionServiceProxy crosstabDrillActionService)
    {
-      super(crosstabDrillHandler, runtimeViewsheetRef, coreLifecycleService,
-            viewsheetService, bindingFactory);
-
-      this.vsDrillHandler = vsDrillHandler;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.crosstabDrillActionService = crosstabDrillActionService;
    }
 
-   @Override
    @Undoable
    @LoadingMask
    @MessageMapping("/crosstab/action/drill")
@@ -63,38 +46,10 @@ public class CrosstabDrillActionController extends BaseTableDrillController<Base
                             CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      vsDrillHandler.processDrillAction(prepareDrillFilterInfo(event, event.getDrillEvents()),
-         dispatcher, linkUri, principal);
+      crosstabDrillActionService.eventHandler(runtimeViewsheetRef.getRuntimeId(), event,
+                                 principal, dispatcher, linkUri);
    }
 
-   public CrosstabDrillFilterAction prepareDrillFilterInfo(BaseTableDrillEvent event,
-                                                           DrillEvent[] drillEvents)
-   {
-      List<CrosstabDrillFilterAction.DrillCellInfo> drillCellInfos = new ArrayList<>();
-
-      for(int i = 0; i < drillEvents.length; i++) {
-         CrosstabDrillFilterAction.DrillCellInfo cellInfo
-            = new CrosstabDrillFilterAction.DrillCellInfo();
-
-         cellInfo.setRow(drillEvents[i].getRow())
-            .setCol(drillEvents[i].getCol())
-            .setField(drillEvents[i].getField())
-            .setDirection(drillEvents[i].getDirection());
-
-         drillCellInfos.add(cellInfo);
-      }
-
-      CrosstabDrillFilterAction drillFilterInfo = new CrosstabDrillFilterAction();
-      drillFilterInfo
-         .setCellInfos(drillCellInfos)
-         .setFields(drillCellInfos.stream()
-            .map(CrosstabDrillFilterAction.DrillCellInfo::getField)
-            .collect(Collectors.toList()))
-         .setDrillUp(event.isDrillUp())
-         .setAssemblyName(event.getAssemblyName());
-
-      return drillFilterInfo;
-   }
-
-   private final VSDrillHandler vsDrillHandler;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final CrosstabDrillActionServiceProxy crosstabDrillActionService;
 }

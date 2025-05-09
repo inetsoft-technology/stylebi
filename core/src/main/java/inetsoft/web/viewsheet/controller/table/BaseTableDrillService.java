@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 package inetsoft.web.viewsheet.controller.table;
 
 import inetsoft.analytic.composition.ViewsheetService;
@@ -42,47 +43,44 @@ import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.event.table.*;
 import inetsoft.web.viewsheet.handler.crosstab.CrosstabDrillHandler;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
-public abstract class BaseTableDrillController<T extends BaseTableEvent> extends BaseTableController<T> {
-
-   public BaseTableDrillController(CrosstabDrillHandler crosstabDrillHandler,
-                                   RuntimeViewsheetRef runtimeViewsheetRef,
-                                   CoreLifecycleService coreLifecycleService,
-                                   ViewsheetService viewsheetService,
-                                   VSBindingService bindingFactory)
+public abstract class BaseTableDrillService <T extends BaseTableEvent> extends BaseTableService<T> {
+   public BaseTableDrillService(CoreLifecycleService coreLifecycleService,
+                                ViewsheetService viewsheetService,
+                                CrosstabDrillHandler crosstabDrillHandler,
+                                VSBindingService bindingFactory)
    {
-      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      super(coreLifecycleService, viewsheetService);
 
-      this.bindingFactory = bindingFactory;
       this.crosstabDrillHandler = crosstabDrillHandler;
+      this.bindingFactory = bindingFactory;
    }
 
-   protected void processDrill(DrillEvent event, Principal principal,
+
+   protected void processDrill(String runtimeId, DrillEvent event, Principal principal,
                                CommandDispatcher dispatcher, @LinkUri String linkUri,
                                boolean refreshPage)
       throws Exception
    {
-      processDrill(event, principal, dispatcher, linkUri, refreshPage, null,
-         DrillCellsEvent.DrillTarget.NONE, false, null, false);
+      processDrill(runtimeId, event, principal, dispatcher, linkUri, refreshPage, null,
+                   DrillCellsEvent.DrillTarget.NONE, false, null, false);
    }
 
-   protected void processDrill(DrillEvent event, Principal principal,
+   protected void processDrill(String runtimeId, DrillEvent event, Principal principal,
                                CommandDispatcher dispatcher, @LinkUri String linkUri,
                                boolean refreshPage, String assemblyName,
                                DrillCellsEvent.DrillTarget drillTarget, boolean drillUp,
                                String field, boolean replace)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
-         runtimeViewsheetRef.getRuntimeId(), principal);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       long startTime = System.currentTimeMillis();
       Viewsheet vs = rvs.getViewsheet();
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
@@ -126,7 +124,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
             }
             else if(DrillCellsEvent.DrillTarget.FIELD == drillTarget) {
                crosstabDrillHandler.drillAllField(replace, drillUp, field, table,
-                    this::allowExpandLevel, false, lens);
+                                                  this::allowExpandLevel, false, lens);
             }
             else {
                drillAllCells(event, rvs, name, table, oinfo, lens, dispatcher, linkUri);
@@ -220,7 +218,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
       Object value = lens.getObject(row, col);
 
       crosstabDrillHandler.drillAllField(false, false, event.getField(),
-         assembly, this::allowExpandLevel, true, true, lens);
+                                         assembly, this::allowExpandLevel, true, true, lens);
       Map<String, Set<String>> expandedPaths = crosstabTree.getExpandedPaths();
       Map<String, Set<String>> backupExpandedPaths = new HashMap<>();
 
@@ -301,7 +299,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
                String parentField = crosstabTree.getParentField(fieldName);
 
                if(cubeType && !(((CrossTabCubeFilter) cross).getData0(i, j) instanceof MemberObject)) {
-                   continue;
+                  continue;
                }
 
                if(matchedParentField == null && p != null && p.equals(path) ||
@@ -485,7 +483,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
                for(int i = reflist.size() - 1; i >= 0; i--) {
                   if(reflist.get(i) instanceof VSDimensionRef) {
                      int rank2 = getDimRanking((VSDimensionRef) reflist.get(i),
-                        cube, (VSDimensionRef) ref);
+                                               cube, (VSDimensionRef) ref);
 
                      if(rank2 > rank) {
                         changed.add(((VSDimensionRef) reflist.get(i)).getFullName());
@@ -514,7 +512,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
       saveColumnInfo(assemblyInfo, lens);
 
       DrillInfo info = getDrillInfo(rowHeaders0, colHeaders0, field, isCol,
-         cinfo, changed);
+                                    cinfo, changed);
 
       if(info == null) {
          return (VSDimensionRef) ref;
@@ -525,7 +523,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
       if(!isCol && clearAlias) {
          ClearTableHeaderAliasHandler.clearAlias(ref, table.getFormatInfo(), col + 1);
       }
-      
+
       return (VSDimensionRef) ref;
    }
 
@@ -636,7 +634,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
          for(int i = reflist.size() - 1; i >= 0; i--) {
             if(reflist.get(i) instanceof VSDimensionRef) {
                int rank2 = getDimRanking((VSDimensionRef) reflist.get(i),
-                  cube, cref);
+                                         cube, cref);
 
                if(!expand && rank2 >= rank) {
                   changed.add(((VSDimensionRef) reflist.get(i)).getFullName());
@@ -665,7 +663,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
                for(int i = reflist.size() - 1; i >= 0; i--) {
                   if(reflist.get(i) instanceof VSDimensionRef) {
                      int rank2 = getDimRanking((VSDimensionRef) reflist.get(i),
-                        cube, cref);
+                                               cube, cref);
 
                      if(rank2 > rank) {
                         changed.add(((VSDimensionRef) reflist.get(i)).getFullName());
@@ -1152,7 +1150,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
     * @param pathTo   The String containing the path of the other end of the swap.
     */
    private <V> void swapMapFormats(Map<TableDataPath, V> map,
-                               final String pathFrom, final String pathTo)
+                                   final String pathFrom, final String pathTo)
    {
       TableDataPath[] keyObjs = map.keySet().toArray(new TableDataPath[0]);
 
@@ -1191,7 +1189,7 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
       if(lens == null || map == null || lens.getDescriptor() == null) {
          return false;
       }
-      
+
       boolean changed = false;
 
       for(int i = 0; i < lens.getColCount(); i++) {

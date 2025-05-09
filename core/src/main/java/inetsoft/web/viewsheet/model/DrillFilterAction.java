@@ -20,9 +20,10 @@ package inetsoft.web.viewsheet.model;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class DrillFilterAction {
+public class DrillFilterAction implements Serializable {
    public boolean isDrillUp() {
       return drillUp;
    }
