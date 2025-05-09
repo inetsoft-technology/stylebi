@@ -33,6 +33,7 @@ import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.service.LicenseService;
 import inetsoft.web.viewsheet.controller.*;
 import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataController;
+import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataServiceProxy;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.model.annotation.VSAnnotationModel;
 import inetsoft.web.viewsheet.model.calendar.VSCalendarModel;
@@ -121,6 +122,7 @@ public class ControllersExtension extends MockMessageExtension {
       coreLifecycleService =
          new CoreLifecycleService(objectModelFactoryService, viewsheetService,
                                   vsLayoutService, parameterService);
+      BaseTableLoadDataServiceProxy tableLoadDataServiceProxy = new BaseTableLoadDataServiceProxy();
       assetRepository = (AssetRepository) SUtil.getRepletRepository();
       objectTreeService = new VSObjectTreeService(objectModelFactoryService);
       securityEngine = SecurityEngine.getSecurity();
@@ -155,7 +157,7 @@ public class ControllersExtension extends MockMessageExtension {
       openViewsheetController = new OpenViewsheetController(runtimeViewsheetRef, runtimeViewsheetManager,
                                                             vsLifecycleService, licenseService, new OpenViewsheetServiceProxy());
       baseTableLoadDataController =
-         new BaseTableLoadDataController(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+         new BaseTableLoadDataController(runtimeViewsheetRef, tableLoadDataServiceProxy);
       selectionService = new VSSelectionService(coreLifecycleService, viewsheetService,
                                                 maxModeAssemblyService, sharedFilterService);
       selectionServiceProxy = new VSSelectionServiceProxy();
@@ -251,6 +253,7 @@ public class ControllersExtension extends MockMessageExtension {
    private RuntimeViewsheetManager runtimeViewsheetManager;
    private VSObjectModelFactoryService objectModelFactoryService;
    private CoreLifecycleService coreLifecycleService;
+   private BaseTableLoadDataServiceProxy tableLoadDataServiceProxy;
    private ViewsheetController viewsheetController;
    private VSObjectTreeService objectTreeService;
    private SecurityEngine securityEngine;

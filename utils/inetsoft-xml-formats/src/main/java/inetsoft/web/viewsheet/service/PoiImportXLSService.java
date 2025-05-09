@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataController;
+import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataService;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.xmlbeans.impl.schema.SchemaTypeSystemImpl;
@@ -167,9 +168,9 @@ public class PoiImportXLSService implements ImportXLSService {
 
                VSAssemblyInfo info = VSEventUtil.getAssemblyInfo(rvs, vsAssembly);
                coreLifecycleService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(), dispatcher);
-               BaseTableLoadDataController.loadTableData(rvs, name, 0, 0,
-                                                         table.getRowCount(), linkUri,
-                                                         dispatcher);
+               BaseTableLoadDataService.loadTableData(rvs, name, 0, 0,
+                                                      table.getRowCount(), linkUri,
+                                                      dispatcher);
 
                // TODO Refresh scripts
 //               for(int r = 1; r < table.getRowCount(); r ++) {
