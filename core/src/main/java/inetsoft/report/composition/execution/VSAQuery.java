@@ -1731,7 +1731,7 @@ public abstract class VSAQuery {
       TableLens lens = box.getTableData(assemblyName);
 
       if(lens == null) {
-        return null;
+         return null;
       }
 
       // meta data doesn't require all rows, which would cause conversion to calc problem
