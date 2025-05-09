@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnDestroy, Output } from "@angular/core";
 import {
    UntypedFormBuilder,
@@ -26,13 +27,20 @@ import {
 } from "@angular/forms";
 import { ErrorStateMatcher } from "@angular/material/core";
 import { Subscription } from "rxjs";
+import {
+   OAuthAuthorizationService,
+   OAuthParameters
+} from "../../../../../../portal/src/app/common/services/oauth-authorization.service";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { Searchable } from "../../../searchable";
 import { IdentityId } from "../../security/users/identity-id";
 import { GeneralSettingsChanges } from "../general-settings-page/general-settings-page.component";
 import { GeneralSettingsType } from "../general-settings-page/general-settings-type.enum";
-import { EmailSettingsModel } from "./email-settings-model";
+import {
+   EmailSettingsModel,
+   SMTPAuthType,
+} from "./email-settings-model";
 import { ContextHelp } from "../../../context-help";
 
 @Searchable({
@@ -56,6 +64,9 @@ export class EmailSettingsViewComponent implements OnDestroy {
    form: UntypedFormGroup;
    errorStateMatcher: ErrorStateMatcher;
    hidePassword: boolean = true;
+   hideSecret: boolean = true;
+   hideAccessToken: boolean = true;
+   hideRefreshToken: boolean = true;
    emailUsers: IdentityId[] = [];
    groups: IdentityId[] = [];
    private subscriptions = new Subscription();
@@ -75,7 +86,9 @@ export class EmailSettingsViewComponent implements OnDestroy {
 
    constructor(private formBuilder: UntypedFormBuilder,
                private usersService: ScheduleUsersService,
-               defaultErrorMatcher: ErrorStateMatcher)
+               defaultErrorMatcher: ErrorStateMatcher,
+               private httpClient: HttpClient,
+               private oauthService: OAuthAuthorizationService,)
    {
       this.errorStateMatcher = {
          isErrorState: (control: UntypedFormControl | null, form: FormGroupDirective | NgForm | null) =>
@@ -108,7 +121,16 @@ export class EmailSettingsViewComponent implements OnDestroy {
          this.booleanValueChanged(this.model.fromAddressEnabled, formVal.fromAddressEnabled) ||
          this.stringValueChanged(this.model.deliveryMailSubjectFormat, formVal.deliveryMailSubjectFormat) ||
          this.stringValueChanged(this.model.notificationMailSubjectFormat, formVal.notificationMailSubjectFormat) ||
-         this.model.historyEnabled != formVal.historyEnabled;
+         this.model.historyEnabled != formVal.historyEnabled ||
+         this.stringValueChanged(this.model.smtpClientId, formVal.smtpClientId) ||
+         this.stringValueChanged(this.model.smtpClientSecret, formVal.smtpClientSecret) ||
+         this.stringValueChanged(this.model.smtpAuthUri, formVal.smtpAuthUri) ||
+         this.stringValueChanged(this.model.smtpTokenUri, formVal.smtpTokenUri) ||
+         this.stringValueChanged(this.model.smtpOAuthScopes, formVal.smtpOAuthScopes) ||
+         this.stringValueChanged(this.model.smtpOAuthFlags, formVal.smtpOAuthFlags) ||
+         this.stringValueChanged(this.model.smtpAccessToken, formVal.smtpAccessToken) ||
+         this.stringValueChanged(this.model.smtpRefreshToken, formVal.smtpRefreshToken) ||
+         this.stringValueChanged(this.model.tokenExpiration, formVal.tokenExpiration);
    }
 
    initForm() {
@@ -127,7 +149,16 @@ export class EmailSettingsViewComponent implements OnDestroy {
             historyEnabled: [""],
             fromAddress: ["", [Validators.required, FormValidators.emailSpecialCharacters]],
             deliveryMailSubjectFormat: [""],
-            notificationMailSubjectFormat: [""]
+            notificationMailSubjectFormat: [""],
+            smtpClientId: ["", Validators.required],
+            smtpClientSecret: ["", Validators.required],
+            smtpAuthUri: ["", Validators.required],
+            smtpTokenUri: ["", Validators.required],
+            smtpOAuthScopes: ["", Validators.required],
+            smtpOAuthFlags: [""],
+            smtpAccessToken: ["", Validators.required],
+            smtpRefreshToken: ["", Validators.required],
+            tokenExpiration: ["", Validators.required]
          },
          {
             validator: FormValidators.passwordsMatch("smtpPassword", "confirmSmtpPassword")
@@ -165,19 +196,79 @@ export class EmailSettingsViewComponent implements OnDestroy {
          this.model.fromAddress = formVal.fromAddress;
          this.model.deliveryMailSubjectFormat = formVal.deliveryMailSubjectFormat;
          this.model.notificationMailSubjectFormat = formVal.notificationMailSubjectFormat;
+         this.model.smtpClientId = formVal.smtpClientId;
+         this.model.smtpClientSecret = formVal.smtpClientSecret;
+         this.model.smtpAuthUri = formVal.smtpAuthUri;
+         this.model.smtpTokenUri = formVal.smtpTokenUri;
+         this.model.smtpOAuthScopes = formVal.smtpOAuthScopes;
+         this.model.smtpOAuthFlags = formVal.smtpOAuthFlags;
+         this.model.smtpAccessToken = formVal.smtpAccessToken;
+         this.model.smtpRefreshToken = formVal.smtpRefreshToken;
+         this.model.tokenExpiration = formVal.tokenExpiration;
          this.onModelChanged();
       }));
 
       this.subscriptions.add(
-         this.form.controls["smtpAuthentication"].valueChanges.subscribe(() => {
-            this.smtpAuthenticationChanged(!this.model.smtpAuthentication);
+         this.form.controls["smtpAuthentication"].valueChanges.subscribe((change) => {
+            this.smtpAuthenticationChanged(change);
          }));
    }
 
-   smtpAuthenticationChanged(checked: boolean) {
-      if(checked) {
+   smtpAuthenticationChanged(authType: SMTPAuthType) {
+      if(authType == SMTPAuthType.SMTP_AUTH) {
          this.form.get("smtpUser").enable({emitEvent: false});
+         this.toggleSecretId(true);
 
+         this.form.get("smtpClientId").disable({emitEvent: false});
+         this.form.get("smtpClientSecret").disable({emitEvent: false});
+         this.form.get("smtpAccessToken").disable({emitEvent: false});
+         this.form.get("smtpRefreshToken").disable({emitEvent: false});
+         this.form.get("tokenExpiration").disable({emitEvent: false});
+         this.form.get("smtpAuthUri").disable({emitEvent: false});
+         this.form.get("smtpTokenUri").disable({emitEvent: false});
+         this.form.get("smtpOAuthScopes").disable({emitEvent: false});
+         this.form.get("smtpOAuthFlags").disable({emitEvent: false});
+      }
+      else if(authType == SMTPAuthType.SASL_XOAUTH2 || authType == SMTPAuthType.GOOGLE_AUTH) {
+         this.form.get("smtpUser").enable({emitEvent: false});
+         this.form.get("smtpClientId").enable({emitEvent: false});
+         this.form.get("smtpClientSecret").enable({emitEvent: false});
+         this.form.get("smtpAccessToken").enable({emitEvent: false});
+         this.form.get("smtpRefreshToken").enable({emitEvent: false});
+         this.form.get("tokenExpiration").enable({emitEvent: false});
+
+         this.toggleSecretId(false);
+
+         if(authType == SMTPAuthType.SASL_XOAUTH2) {
+            this.form.get("smtpAuthUri").enable({emitEvent: false});
+            this.form.get("smtpTokenUri").enable({emitEvent: false});
+            this.form.get("smtpOAuthScopes").enable({emitEvent: false});
+            this.form.get("smtpOAuthFlags").enable({emitEvent: false});
+         }
+         else {
+            this.form.get("smtpAuthUri").disable({emitEvent: false});
+            this.form.get("smtpTokenUri").disable({emitEvent: false});
+            this.form.get("smtpOAuthScopes").disable({emitEvent: false});
+            this.form.get("smtpOAuthFlags").disable({emitEvent: false});
+         }
+      }
+      else {
+         this.form.get("smtpUser").disable({emitEvent: false});
+         this.toggleSecretId(false);
+         this.form.get("smtpClientId").disable({emitEvent: false});
+         this.form.get("smtpClientSecret").disable({emitEvent: false});
+         this.form.get("smtpAccessToken").disable({emitEvent: false});
+         this.form.get("smtpRefreshToken").disable({emitEvent: false});
+         this.form.get("tokenExpiration").disable({emitEvent: false});
+         this.form.get("smtpAuthUri").disable({emitEvent: false});
+         this.form.get("smtpTokenUri").disable({emitEvent: false});
+         this.form.get("smtpOAuthScopes").disable({emitEvent: false});
+         this.form.get("smtpOAuthFlags").disable({emitEvent: false});
+      }
+   }
+
+   toggleSecretId(checked: boolean) {
+      if(checked) {
          if(this.model.secretIdVisible) {
             this.form.get("smtpSecretId").enable({emitEvent: false});
          }
@@ -187,8 +278,6 @@ export class EmailSettingsViewComponent implements OnDestroy {
          }
       }
       else {
-         this.form.get("smtpUser").disable({emitEvent: false});
-
          if(this.model.secretIdVisible) {
             this.form.get("smtpSecretId").disable({emitEvent: false});
          }
@@ -226,4 +315,47 @@ export class EmailSettingsViewComponent implements OnDestroy {
 
       return str1 != str2;
    }
+
+   public authorize() {
+      const authUri = this.form.get("smtpAuthUri").value;
+      const tokenUri = this.form.get("smtpTokenUri").value;
+      const scope = this.form.get("smtpOAuthScopes").value;
+      const flags = this.form.get("smtpOAuthFlags").value;
+
+      this.authorize0(authUri, tokenUri, scope, flags);
+   }
+
+   public authorizeGoogle() {
+      const authUri = "https://accounts.google.com/o/oauth2/v2/auth?access_type=offline&prompt=consent";
+      const tokenUri = "https://oauth2.googleapis.com/token";
+      const scope = "https://mail.google.com/";
+      const flags = null;
+
+      this.authorize0(authUri, tokenUri, scope, flags);
+   }
+
+   private authorize0(authUri: string, tokenUri: string, scope: string, flags: string) {
+      const paramsRequest = {
+         user: this.form.get("smtpUser").value,
+         clientId: this.form.get("smtpClientId").value,
+         clientSecret: this.form.get("smtpClientSecret").value,
+         scope: scope,
+         authorizationUri: authUri,
+         tokenUri: tokenUri,
+         flags: flags
+      };
+
+      // The specific parameter we need from the server is the license key
+      this.httpClient.post<OAuthParameters>("../api/em/general/settings/email/oauth-params", paramsRequest)
+         .subscribe((authParams) => {
+            this.oauthService.authorize(authParams).subscribe((oAuthTokens) => {
+               const expiration = new Date(oAuthTokens.expiration).getTime();
+               this.form.get("smtpAccessToken").setValue(oAuthTokens.accessToken);
+               this.form.get("smtpRefreshToken").setValue(oAuthTokens.refreshToken);
+               this.form.get("tokenExpiration").setValue(expiration);
+            });
+         });
+   }
+
+   protected readonly SMTPAuthType = SMTPAuthType;
 }

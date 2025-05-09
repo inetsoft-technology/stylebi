@@ -20,7 +20,7 @@ export interface EmailSettingsModel {
    ssl: boolean;
    tls: boolean;
    jndiUrl: string;
-   smtpAuthentication: boolean;
+   smtpAuthentication: SMTPAuthType;
    smtpUser: string;
    smtpPassword: string;
    smtpSecretId: string;
@@ -31,4 +31,20 @@ export interface EmailSettingsModel {
    notificationMailSubjectFormat: string;
    historyEnabled: boolean;
    secretIdVisible: boolean;
+   smtpClientId: string;
+   smtpClientSecret: string;
+   smtpAccessToken: string;
+   smtpAuthUri: string;
+   smtpTokenUri: string;
+   smtpOAuthScopes: string;
+   smtpOAuthFlags: string;
+   smtpRefreshToken: string;
+   tokenExpiration: string;
+}
+
+export enum SMTPAuthType {
+   NONE = <any> "NONE",
+   SMTP_AUTH = <any> "SMTP_AUTH",
+   SASL_XOAUTH2 = <any> "SASL_XOAUTH2",
+   GOOGLE_AUTH = <any> "GOOGLE_AUTH"
 }
