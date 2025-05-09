@@ -18,28 +18,32 @@
 package inetsoft.web.portal.controller.database;
 
 import com.google.common.collect.Sets;
+import inetsoft.cluster.ClusterProxy;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.web.portal.model.database.graph.PhysicalGraphLayout;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import javax.cache.Cache;
+import javax.cache.expiry.Duration;
+import javax.cache.expiry.TouchedExpiryPolicy;
 import java.awt.*;
+import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeUnit;
 
 @Service
+@ClusterProxy
 public class RuntimePartitionService {
    public RuntimePartitionService() {
+      cache = Cluster.getInstance().getCache(
+         CACHE_NAME, false, new TouchedExpiryPolicy(new Duration(TimeUnit.MINUTES, 3L)));
    }
 
    /**
     * create a new model.
-    * @param partition
-    * @param database
-    * @return
     */
    public RuntimeXPartition createModel(XPartition partition, String database) {
       RuntimeXPartition runtimeXPartition =
@@ -53,12 +57,9 @@ public class RuntimePartitionService {
 
    /**
     * Open the physical model create a runtime.
-    * @param dataModel
-    * @param name
-    * @return
     */
    public RuntimeXPartition openModel(XDataModel dataModel, String name, String parent) {
-      boolean isExtended = !StringUtils.isEmpty(parent);
+      boolean isExtended = StringUtils.hasText(parent);
       XPartition partition = !isExtended ? dataModel.getPartition(name) :
          dataModel.getPartition(parent);
 
@@ -113,41 +114,30 @@ public class RuntimePartitionService {
    }
 
    public void saveRuntimePartition(RuntimeXPartition runtimeXPartition) {
-      mapLock.lock();
-
-      try {
-         rmap.put(runtimeXPartition.getId(), runtimeXPartition);
-         heartBeatMap.put(runtimeXPartition.getId(), new Date());
-      }
-      finally {
-         mapLock.unlock();
-      }
+      cache.put(runtimeXPartition.getId(), runtimeXPartition);
    }
 
-   public String generateRuntimeId(String name) {
-      return name + System.currentTimeMillis();
+   public static String generateRuntimeId(String name) {
+      return name + UUID.randomUUID().toString().replace("-", "");
    }
 
    /**
     * Update the physical model of runtime.
-    * @param id
-    * @param newPartition
     */
    public void updatePartition(String id, XPartition newPartition) {
-      RuntimeXPartition runtimeXPartition = rmap.get(id);
+      RuntimeXPartition runtimeXPartition = cache.get(id);
 
       if(runtimeXPartition != null) {
          runtimeXPartition.setPartition(newPartition);
+         cache.put(id, runtimeXPartition);
       }
    }
 
    /**
     * Get the physical model from runtime.
-    * @param id
-    * @return
     */
    public XPartition getPartition(String id) {
-      RuntimeXPartition runtimeXPartition = rmap.get(id);
+      RuntimeXPartition runtimeXPartition = cache.get(id);
 
       if(runtimeXPartition == null) {
          return null;
@@ -164,83 +154,38 @@ public class RuntimePartitionService {
 
    /**
     * get run time partition.
-    * @param id
-    * @return
     */
    public RuntimeXPartition getRuntimePartition(String id) {
-      return rmap.get(id);
+      return cache.get(id);
    }
 
    /**
     * Destroy the runtime.
-    * @param id
     */
    public void destroy(String id) {
-      mapLock.lock();
-
-      try {
-         rmap.remove(id);
-         heartBeatMap.remove(id);
-      }
-      finally {
-         mapLock.unlock();
-      }
+      cache.remove(id);
    }
 
    /**
     * Process the heartbeat.
-    * @param id
-    * @return
     */
    public boolean touch(String id) {
-      boolean expired = isExpired(id);
-
-      if(!expired) {
-         heartBeatMap.put(id, new Date());
-      }
-
-      return expired;
-   }
-
-   /**
-    * Destroy the time out runtime.
-    */
-   public void checkTimeout() {
-      long now = System.currentTimeMillis();
-      long minute3 = now - 180000; // 3 min ago
-
-      mapLock.lock();
-
-      try {
-         Set<String> keys = new HashSet<>(rmap.keySet());
-
-         keys.forEach(id -> {
-            Date lastTime = heartBeatMap.get(id);
-            boolean expired = lastTime.getTime() < minute3;
-
-            if(expired) {
-               destroy(id);
-            }
-         });
-      }
-      finally {
-         mapLock.unlock();
-      }
+      return cache.get(id) != null;
    }
 
    public boolean isExpired(String id) {
-      if(StringUtils.isEmpty(id)) {
+      if(!StringUtils.hasText(id)) {
          return true;
       }
 
-      if(rmap.get(id) != null) {
-         return false;
-      }
-
-      return true;
+      return cache.get(id) == null;
    }
 
-   public static class RuntimeXPartition implements Cloneable {
+   private final Cache<String, RuntimeXPartition> cache;
+   public static final String CACHE_NAME =
+      "inetsoft.web.portal.controller.database.RuntimePartitionService.cache";
+
+   public static class RuntimeXPartition implements Cloneable, Serializable {
       public RuntimeXPartition() {
       }
 
@@ -328,10 +273,6 @@ public class RuntimePartitionService {
       private String dataSource;
       private int graphWidth = PhysicalGraphLayout.DEFAULT_VIEWPORT_WIDTH;
       private int graphHeight = PhysicalGraphLayout.DEFAULT_VIEWPORT_HEIGHT;
-      private Set<String> movedTables = Sets.newConcurrentHashSet();
+      private final Set<String> movedTables = Sets.newConcurrentHashSet();
    }
-
-   private static final Lock mapLock = new ReentrantLock();
-   private static final Map<String, RuntimeXPartition> rmap = new ConcurrentHashMap<>();
-   private static final Map<String, Date> heartBeatMap = new ConcurrentHashMap<>();
 }
