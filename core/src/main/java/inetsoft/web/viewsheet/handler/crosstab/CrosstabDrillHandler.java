@@ -34,7 +34,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
-import inetsoft.web.viewsheet.controller.table.BaseTableDrillController;
+import inetsoft.web.viewsheet.controller.table.BaseTableDrillService;
 import inetsoft.web.viewsheet.handler.BaseDrillHandler;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -243,7 +243,7 @@ public class CrosstabDrillHandler
          cinfo.setRuntimeColHeaders(newCols);
       }
 
-      BaseTableDrillController.saveColumnInfo(assembly.getCrosstabInfo(), lens);
+      BaseTableDrillService.saveColumnInfo(assembly.getCrosstabInfo(), lens);
    }
 
    private void drillUpAction(VSCrosstabInfo cinfo, String field, XCube cube,
@@ -556,7 +556,7 @@ public class CrosstabDrillHandler
          if(replace) {
             refs.set(currentColIndex, childRef);
             // in-place drill, port the format to new data path.
-            // the same for regular drill is handled in BaseTableDrillController.syncPath().
+            // the same for regular drill is handled in BaseTableDrillService.syncPath().
             syncPath(assembly.getFormatInfo().getFormatMap(), ref, childRef);
             updateCalcuators(assembly.getVSCrosstabInfo(), ref, childRef);
          }
@@ -623,7 +623,7 @@ public class CrosstabDrillHandler
       if(assembly instanceof CrosstabVSAssembly) {
          TableLens nlens = box.getVSTableLens(name, false);
          // restore the saved (in syncCrosstabPath) header info with the new table.
-         BaseTableDrillController.restoreColumnInfo(
+         BaseTableDrillService.restoreColumnInfo(
             ((CrosstabVSAssembly) assembly).getCrosstabInfo(), nlens);
       }
 

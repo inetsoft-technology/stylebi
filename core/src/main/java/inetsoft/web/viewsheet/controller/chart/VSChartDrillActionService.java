@@ -70,7 +70,7 @@ public class VSChartDrillActionService extends VSChartControllerService<VSChartD
    {
       processEvent(runtimeId, event, principal, linkUri, dispatcher, chartState -> {
          try {
-            return drillAction(event, chartState, dispatcher, linkUri, principal);
+            return drillAction(runtimeId, event, chartState, dispatcher, linkUri, principal);
          }
          catch(Exception e) {
             throw new RuntimeException(e);
@@ -82,7 +82,7 @@ public class VSChartDrillActionService extends VSChartControllerService<VSChartD
 
 
 
-   public int drillAction(VSChartDrillActionEvent event, VSChartStateInfo chartState,
+   public int drillAction(String runtimeId, VSChartDrillActionEvent event, VSChartStateInfo chartState,
                           CommandDispatcher dispatcher, String linkUri, Principal principal)
       throws Exception
    {
@@ -129,7 +129,7 @@ public class VSChartDrillActionService extends VSChartControllerService<VSChartD
       filterInfo.setFields(fields)
          .setAssemblyName(name)
          .setDrillUp(event.isDrillUp());
-      vsDrillHandler.processDrillAction(filterInfo, dispatcher, linkUri, principal);
+      vsDrillHandler.processDrillAction(runtimeId, filterInfo, dispatcher, linkUri, principal);
 
       // runtime info may be used during processing, delay clearing it until after all
       // processing has completed.

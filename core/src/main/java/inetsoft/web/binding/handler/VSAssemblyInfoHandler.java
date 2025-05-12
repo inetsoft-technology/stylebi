@@ -52,7 +52,7 @@ import inetsoft.web.binding.event.ConvertTableRefEvent;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableDrillController;
+import inetsoft.web.viewsheet.controller.table.BaseTableDrillService;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
 import inetsoft.web.viewsheet.service.*;
 import org.apache.commons.lang3.StringUtils;
@@ -202,7 +202,7 @@ public class VSAssemblyInfoHandler {
                   TableLens lens = box.getVSTableLens(name, false);
 
                   // save the column header info to be restored after change is applied. (60379)
-                  BaseTableDrillController.saveColumnInfo(cross.getCrosstabInfo(), lens);
+                  BaseTableDrillService.saveColumnInfo(cross.getCrosstabInfo(), lens);
 
                   if(finfo != null) {
                      VSUtil.syncCrosstabPath(cross, ocinfo, false, finfo.getFormatMap(),
@@ -271,7 +271,7 @@ public class VSAssemblyInfoHandler {
                   TableLens lens2 = box.getVSTableLens(name, false);
 
                   // restore the column header info saved before the change is applied. (60379)
-                  boolean changed = BaseTableDrillController.restoreColumnInfo(
+                  boolean changed = BaseTableDrillService.restoreColumnInfo(
                      (CrosstabVSAssemblyInfo) assembly.getVSAssemblyInfo(), lens2);
 
                   if(changed) {
