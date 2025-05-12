@@ -1612,11 +1612,15 @@ public class IdentityService {
                }
             }
          }
-         else {
+         else if(oldUser != null) {
             user.setPassword(oldUser.getPassword());
             user.setPasswordAlgorithm(oldUser.getPasswordAlgorithm());
             user.setPasswordSalt(oldUser.getPasswordSalt());
             user.setAppendPasswordSalt(oldUser.isAppendPasswordSalt());
+
+            if(!Tool.equals(oldUser.getName(), user.getName())) {
+               logoutSession(oIdentity);
+            }
          }
       }
 
