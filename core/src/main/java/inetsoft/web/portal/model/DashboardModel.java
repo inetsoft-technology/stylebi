@@ -20,11 +20,13 @@ package inetsoft.web.portal.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 
 @Value.Immutable
+@Serial.Structural
 @JsonSerialize(as = ImmutableDashboardModel.class)
 @JsonDeserialize(as = ImmutableDashboardModel.class)
 @JsonIgnoreProperties(ignoreUnknown = true)
