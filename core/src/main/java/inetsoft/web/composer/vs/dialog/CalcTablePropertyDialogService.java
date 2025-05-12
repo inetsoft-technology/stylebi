@@ -32,7 +32,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
 
@@ -141,8 +141,8 @@ public class CalcTablePropertyDialogService {
       advPane.setSortOthersLastEnabled(calcTableAssemblyInfo.isSortOthersLastEnabled());
 
       if(lens != null) {
-         advPane.setHeaderColCount(BaseTableController.getHeaderColCount(calcTableAssembly, lens));
-         advPane.setHeaderRowCount(BaseTableController.getHeaderRowCount(calcTableAssembly, lens));
+         advPane.setHeaderColCount(BaseTableService.getHeaderColCount(calcTableAssembly, lens));
+         advPane.setHeaderRowCount(BaseTableService.getHeaderRowCount(calcTableAssembly, lens));
          advPane.setApproxVisibleRows(getApproxVisibleRows(lens, calcTableAssembly));
          advPane.setApproxVisibleCols(getApproxVisibleCols(lens, scrollX, calcTableAssembly));
          advPane.setRowCount(lens.getRowCount());
@@ -190,7 +190,7 @@ public class CalcTablePropertyDialogService {
 
       try {
          if(isWrapped) {
-            tableHeight = BaseTableController.getHeaderRowPositions(lens,
+            tableHeight = BaseTableService.getHeaderRowPositions(lens,
                                                                     isWrapped, headerRowCount)[headerRowCount];
          }
          else {
@@ -229,14 +229,14 @@ public class CalcTablePropertyDialogService {
       }
 
       if(rowCount < headerRowcount) {
-         return BaseTableController.getHeaderRowPositions(lens, isWrapped,
+         return BaseTableService.getHeaderRowPositions(lens, isWrapped,
                                                           headerRowcount)[rowCount];
       }
 
       int dataRowCount = Math.max(0, rowCount - headerRowcount);
       lens.initTableGrid(calcTableAssemblyInfo);
 
-      return BaseTableController.getDataRowPositions(lens, isWrapped,
+      return BaseTableService.getDataRowPositions(lens, isWrapped,
                                                      headerRowcount, dataRowCount)[dataRowCount];
    }
 
@@ -251,8 +251,8 @@ public class CalcTablePropertyDialogService {
       }
 
       int rowCount = lens.getRowCount();
-      int headerRowcount = BaseTableController.getHeaderRowCount(calcTableAssembly, lens);
-      boolean isWrapped = BaseTableController.isWrapped(lens,
+      int headerRowcount = BaseTableService.getHeaderRowCount(calcTableAssembly, lens);
+      boolean isWrapped = BaseTableService.isWrapped(lens,
                                                         headerRowcount >= rowCount ? 0 : headerRowcount);
       double tableHeight = getTableHeight(lens, isWrapped, headerRowcount,
                                           calcTableAssembly);
@@ -281,9 +281,9 @@ public class CalcTablePropertyDialogService {
       CalcTableVSAssemblyInfo calcTableAssemblyInfo =
          (CalcTableVSAssemblyInfo) calcTableAssembly.getVSAssemblyInfo();
       final int headerColCount =
-         BaseTableController.getHeaderColCount(calcTableAssembly, lens);
+         BaseTableService.getHeaderColCount(calcTableAssembly, lens);
       int currentCol = headerColCount;
-      double[] colWidths = BaseTableController.getColWidths(calcTableAssembly, lens);
+      double[] colWidths = BaseTableService.getColWidths(calcTableAssembly, lens);
       double approxVisibleCols = 0;
       double headerColW = 0;
       scrollX = scrollX == null ? 0 : scrollX;

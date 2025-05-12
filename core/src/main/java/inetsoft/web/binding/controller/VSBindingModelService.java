@@ -37,7 +37,7 @@ import inetsoft.web.binding.model.CloseBindingPaneCommand;
 import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.command.*;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -124,7 +124,7 @@ public class VSBindingModelService {
             model = objectModelService.createModel(assembly, rvs);
 
             if(model instanceof BaseTableModel && !(assembly instanceof CalcTableVSAssembly)) {
-               BaseTableController.loadTableModelProperties(
+               BaseTableService.loadTableModelProperties(
                   rvs, (TableDataVSAssembly) assembly, (BaseTableModel) model);
             }
 
@@ -147,7 +147,7 @@ public class VSBindingModelService {
          dispatcher.sendCommand(command);
 
          if(assembly instanceof TableDataVSAssembly && !(assembly instanceof CalcTableVSAssembly)) {
-            BaseTableController.loadTableData(rvs, event.getName(), 0, 0, 100, null, dispatcher);
+            BaseTableService.loadTableData(rvs, event.getName(), 0, 0, 100, null, dispatcher);
          }
       }
       finally {
@@ -194,7 +194,7 @@ public class VSBindingModelService {
       assemblyInfoHandler.getGrayedOutFields(rvs, dispatcher);
 
       if(assembly instanceof TableDataVSAssembly) {
-         BaseTableController.loadTableData(
+         BaseTableService.loadTableData(
             rvs, event.getName(), 0, 0, 100, null, dispatcher);
       }
 

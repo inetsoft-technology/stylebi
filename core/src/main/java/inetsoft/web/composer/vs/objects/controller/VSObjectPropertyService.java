@@ -53,7 +53,7 @@ import inetsoft.web.composer.vs.command.ExpandTreeNodesCommand;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.command.RenameVSObjectCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
@@ -476,7 +476,7 @@ public class VSObjectPropertyService {
             int num = 100;
             int start = ((TableDataVSAssembly) assembly).getLastStartRow();
             rvs.getViewsheetSandbox().resetDataMap(name);
-            BaseTableController.loadTableData(rvs, name, mode, start, num, linkUri, commandDispatcher, true);
+            BaseTableService.loadTableData(rvs, name, mode, start, num, linkUri, commandDispatcher, true);
          }
 
          if(assembly.getVSAssemblyInfo() instanceof PopVSAssemblyInfo) {

@@ -58,7 +58,7 @@ import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.controller.chart.VSChartLegendsVisibilityController;
 import inetsoft.web.viewsheet.controller.chart.VSChartLegendsVisibilityService;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -387,7 +387,7 @@ public class VSWizardBindingHandler {
          this.coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
 
          if(assembly instanceof TableDataVSAssembly) {
-            BaseTableController.loadTableData(
+            BaseTableService.loadTableData(
                rvs, assembly.getAbsoluteName(), 0, 0, 100, linkUri, dispatcher);
          }
       }

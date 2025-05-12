@@ -38,7 +38,7 @@ import inetsoft.web.composer.vs.objects.command.ForceEditModeCommand;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
@@ -98,7 +98,7 @@ public class ComposerObjectService {
       viewsheet.addAssembly(assembly);
 
       this.coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher);
-      BaseTableController.loadTableData(rvs, assembly.getAbsoluteName(), 0, 0, 100,
+      BaseTableService.loadTableData(rvs, assembly.getAbsoluteName(), 0, 0, 100,
                                         linkUri, dispatcher);
 
       AssemblyRef[] vrefs = viewsheet.getViewDependings(assembly.getAssemblyEntry());

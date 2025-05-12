@@ -53,7 +53,7 @@ import inetsoft.web.composer.vs.objects.controller.*;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectBindingEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.InsertSelectionChildEvent;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
@@ -291,7 +291,7 @@ public class VSBindingService {
             ViewsheetSandbox box = rvs.getViewsheetSandbox();
             // reset so association conditions are applied on new table
             box.reset(null, viewsheet.getAssemblies(), clist, true, true, null);
-            BaseTableController.loadTableData(
+            BaseTableService.loadTableData(
                rvs, newAssembly.getAbsoluteName(), 0, 0, 100, linkUri, dispatcher);
          }
 

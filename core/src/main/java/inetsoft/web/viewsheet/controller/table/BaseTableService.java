@@ -66,7 +66,7 @@ import java.util.function.Supplier;
 public abstract class BaseTableService<T extends BaseTableEvent> {
 
    /**
-    * Creates a new instance of <tt>BaseTableController</tt>.
+    * Creates a new instance of <tt>BaseTableService</tt>.
     *
     */
    protected BaseTableService(CoreLifecycleService coreLifecycleService,

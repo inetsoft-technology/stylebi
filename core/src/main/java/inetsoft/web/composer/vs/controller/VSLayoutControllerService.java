@@ -38,7 +38,7 @@ import inetsoft.web.composer.vs.event.*;
 import inetsoft.web.viewsheet.DataTipInLayoutCheckResult;
 import inetsoft.web.viewsheet.command.UpdateLayoutCommand;
 import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
@@ -771,7 +771,7 @@ public class VSLayoutControllerService {
          }
 
          try {
-            BaseTableController.loadTableData(rvs, layout.getName(), 0, 0, 100, null, dispatcher);
+            BaseTableService.loadTableData(rvs, layout.getName(), 0, 0, 100, null, dispatcher);
          }
          catch(Exception e) {
             throw new RuntimeException("Failed to load table data", e);

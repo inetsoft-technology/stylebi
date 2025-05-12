@@ -45,7 +45,7 @@ import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.service.*;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -453,7 +453,7 @@ public class VSRefreshService {
 
       // refresh new table data.
       if(assembly instanceof TableDataVSAssembly) {
-         BaseTableController.loadTableData(
+         BaseTableService.loadTableData(
             rvs, assembly.getAbsoluteName(), 0, 0, 100, linkUri, dispatcher);
       }
    }

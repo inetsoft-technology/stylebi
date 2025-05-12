@@ -48,7 +48,7 @@ import inetsoft.web.composer.model.BrowseDataModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.command.*;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
@@ -1241,7 +1241,7 @@ public class CoreLifecycleService {
             rvs.isPopComponent(assembly.getAbsoluteName()))))
          {
             int nrows = Math.max(assembly.getPixelSize().height / 16, 100);
-            BaseTableController.loadTableData(rvs, assembly.getAbsoluteName(), 0, 0, nrows,
+            BaseTableService.loadTableData(rvs, assembly.getAbsoluteName(), 0, 0, nrows,
                                               uri, dispatcher);
             // Bug #17514 Initing a table can cause the info to have changes, like its
             // script being executed. 12.2 LoadTableLensEvent was called here which
@@ -2835,7 +2835,7 @@ public class CoreLifecycleService {
          int mode = 0;
          int num = 100;
          int start = ((TableDataVSAssembly) assembly).getLastStartRow();
-         BaseTableController.loadTableData(rvs, name, mode, start, num, uri, dispatcher, refreshData);
+         BaseTableService.loadTableData(rvs, name, mode, start, num, uri, dispatcher, refreshData);
       }
       catch(ExpiredSheetException | CancelledException | ConfirmException | MessageException |
          ColumnNotFoundException e)
