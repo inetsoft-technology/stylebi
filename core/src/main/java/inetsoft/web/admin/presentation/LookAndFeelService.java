@@ -52,8 +52,8 @@ public class LookAndFeelService {
       manager.loadThemes(); // to get past change listener bug
       final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      boolean asc = "Ascending".equals(SreeEnv.getProperty("repository.tree.sort"));
-      boolean customLogoEnabled = SreeEnv.getBooleanProperty("portal.customLogo.enabled");
+      boolean asc = "Ascending".equals(SreeEnv.getProperty("repository.tree.sort", false, !globalProperty));
+      boolean customLogoEnabled = SreeEnv.getBooleanProperty("portal.customLogo.enabled", false, !globalProperty);
       boolean repositoryTree = manager.getReportListType() == 0;
       boolean expand = manager.isAutoExpand();
       boolean defaultLogo = !customLogoEnabled ||
