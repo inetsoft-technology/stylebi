@@ -315,10 +315,10 @@ public class VSBookmarkController {
             bookmarkService.processBookmark(VSBookmark.HOME_BOOKMARK, IdentityID.getIdentityIDFromKey(principal.getName()),
                                             rvs, (XPrincipal) principal, value, linkUri,
                                             rvs.getID(), commandDispatcher);
-         }
 
-         Cluster.getInstance().sendMessage(new ViewsheetBookmarkChangedEvent(rvs,
-                                           true, currBookmark.getName()));
+            Cluster.getInstance().sendMessage(new ViewsheetBookmarkChangedEvent(rvs,
+               true, currBookmark.getName()));
+         }
       }
       catch(MessageException ex) {
          MessageCommand command = new MessageCommand();
