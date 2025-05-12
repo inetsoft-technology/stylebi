@@ -19,6 +19,7 @@ package inetsoft.web.admin.security.user;
 
 // Service to provide helper methods for ensuring that there is always a system administrator present in the system
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.web.admin.security.IdentityModel;
@@ -163,11 +164,13 @@ public class SystemAdminService {
          .map(IdentityModification::getIdentityID)
          .collect(Collectors.toList());
 
+      boolean multi = SUtil.isMultiTenant();
+
       // Roles with the org administrator property
       List<IdentityID> orgAdminRoles = Arrays.stream(securityProvider.getRoles())
-         .filter(provider::isOrgAdministratorRole)
+         .filter(multi ? provider::isOrgAdministratorRole : provider::isSystemAdministratorRole)
          .filter(r -> !deletedRoles.contains(r) && !r.equals(removedOrgAdmin))
-         .filter(r -> provider.getRole(r).getOrganizationID() == null) //global roles only
+         .filter(r -> !multi || provider.getRole(r).getOrganizationID() == null) //global roles only
          .collect(Collectors.toList());
 
       List<IdentityID> rolesQueue = new ArrayList<>(orgAdminRoles);
