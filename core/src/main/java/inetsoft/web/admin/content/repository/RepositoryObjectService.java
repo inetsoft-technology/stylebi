@@ -748,9 +748,10 @@ public class RepositoryObjectService {
       AuthorizationProvider authz = securityProvider.getAuthorizationProvider();
       Permission perm = new Permission();
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String userOrgID = ((XPrincipal) principal).getOrgId();
       Set<String> userGrants = new HashSet<>();
 
-      if(principal instanceof XPrincipal && Tool.equals(((XPrincipal) principal).getOrgId(), currentOrgID)) {
+      if(principal instanceof XPrincipal && Organization.getSelfOrganizationID().equals(userOrgID)) {
          userGrants.add(IdentityID.getIdentityIDFromKey(principal.getName()).name);
       }
 
