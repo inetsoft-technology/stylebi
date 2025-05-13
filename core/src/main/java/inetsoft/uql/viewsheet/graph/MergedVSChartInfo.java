@@ -230,7 +230,6 @@ public class MergedVSChartInfo extends VSChartInfo implements MergedChartInfo {
          list.add(rtflds[i]);
       }
 
-
       VSDataRef[] arr = new VSDataRef[list.size()];
       list.toArray(arr);
       return arr;
