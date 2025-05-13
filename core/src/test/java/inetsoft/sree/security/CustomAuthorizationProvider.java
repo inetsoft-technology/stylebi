@@ -97,6 +97,11 @@ public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
    public void authenticationChanged(AuthenticationChangeEvent event) {
    }
 
+   @Override
+   public boolean contentInConfig() {
+      return true;
+   }
+
    private final Map<ResourceKey, Permission> permissions = new ConcurrentHashMap<>();
 
    public static final class Configuration {
