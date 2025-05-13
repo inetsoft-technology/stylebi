@@ -888,6 +888,10 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
     */
    @Override
    public int getMaxRows() {
+      if(getWorksheet() != null && getWorksheet().getWorksheetInfo().getTempMaxRow() > 0) {
+         return getWorksheet().getWorksheetInfo().getTempMaxRow();
+      }
+
       return getTableInfo().getMaxRows();
    }
 

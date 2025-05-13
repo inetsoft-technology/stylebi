@@ -82,6 +82,14 @@ public class WorksheetInfo implements AssetObject {
       this.previewMaxRow = max;
    }
 
+   public int getTempMaxRow() {
+      return tempMaxRow;
+   }
+
+   public void setTempMaxRow(int tempMaxRow) {
+      this.tempMaxRow = tempMaxRow;
+   }
+
    /**
     * Get the alias of the worksheet entry.
     */
@@ -278,6 +286,7 @@ public class WorksheetInfo implements AssetObject {
 
    private int inputmax;
    private int previewMaxRow;
+   private int tempMaxRow;
    private String alias;
    private String description;
    private String[] messageLevels = new String[] {"Error", "Warning", "Info"};
