@@ -96,7 +96,7 @@ export class GlobalParameterGuard implements CanActivate {
    }
 
    private getGlobalParameters(path: string, type: string): Observable<GlobalParameterModel> {
-      path = Tool.byteEncode(path);
+      path = encodeURI(path);
       const url = `../api/portal/global-parameters/${type}/${path}`;
       return this.http.get<GlobalParameterModel>(url);
    }
