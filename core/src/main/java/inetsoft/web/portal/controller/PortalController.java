@@ -50,6 +50,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -287,7 +289,6 @@ public class PortalController {
    public GlobalParameterModel getGlobalParameters(@PathVariable("type") String type,
                                                    @RemainingPath String path, Principal principal)
    {
-      path = Tool.byteDecode(path);
       String providerClassName = SreeEnv.getProperty("global.parameter.provider", (String) null);
       ParameterPageModel model = null;
 
