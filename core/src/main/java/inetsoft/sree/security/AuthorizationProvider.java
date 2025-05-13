@@ -174,4 +174,8 @@ public interface AuthorizationProvider
       return SUtil.isMultiTenant() ?
          OrganizationManager.getInstance().getCurrentOrgID() : Organization.getDefaultOrganizationID();
    }
+
+   default boolean contentInConfig() {
+      return false;
+   }
 }
