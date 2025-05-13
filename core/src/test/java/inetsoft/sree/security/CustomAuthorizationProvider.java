@@ -177,16 +177,16 @@ public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
       }
 
       public GrantConfig(ResourceAction action, Permission permission) {
-         users = permission.getUserGrants(action).stream()
+         users = permission.getUserGrants(action, null).stream()
             .map(u -> new IdentityID(u.getName(), u.getOrganizationID()))
             .collect(Collectors.toSet());
-         groups = permission.getGroupGrants(action).stream()
+         groups = permission.getGroupGrants(action, null).stream()
             .map(u -> new IdentityID(u.getName(), u.getOrganizationID()))
             .collect(Collectors.toSet());
-         roles = permission.getRoleGrants(action).stream()
+         roles = permission.getRoleGrants(action, null).stream()
             .map(u -> new IdentityID(u.getName(), u.getOrganizationID()))
             .collect(Collectors.toSet());
-         organizations = permission.getOrganizationGrants(action).stream()
+         organizations = permission.getOrganizationGrants(action, null).stream()
             .map(u -> new IdentityID(u.getName(), u.getOrganizationID()))
             .collect(Collectors.toSet());
       }
