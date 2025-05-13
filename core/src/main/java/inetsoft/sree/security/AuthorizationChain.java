@@ -19,6 +19,7 @@ package inetsoft.sree.security;
 
 import inetsoft.util.Tuple4;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -46,16 +47,31 @@ public class AuthorizationChain
    @Override
    public void setPermission(ResourceType type, String resource, Permission perm, String orgID) {
       final String org_id = fixOrgID(orgID);
+      AuthorizationProvider changedProvider = null;
 
-      for(AuthorizationProvider provider : getProviderList()) {
-         if(provider.getPermission(type, resource, org_id) != null) {
-            provider.setPermission(type, resource, perm, org_id);
-            return;
+      try {
+         for(AuthorizationProvider provider : getProviderList()) {
+            if(provider.getPermission(type, resource, org_id) != null) {
+               provider.setPermission(type, resource, perm, org_id);
+               changedProvider = provider;
+               return;
+            }
+         }
+
+         // not found in any provider, set it on the first
+         getProviderList().get(0).setPermission(type, resource, perm, org_id);
+         changedProvider = getProviderList().get(0);
+      }
+      finally {
+         try {
+            if(changedProvider != null && changedProvider.contentInConfig()) {
+               saveConfiguration();
+            }
+         }
+         catch(IOException e) {
+            throw new RuntimeException(e);
          }
       }
-
-      // not found in any provider, set it on the first
-      getProviderList().get(0).setPermission(type, resource, perm, org_id);
    }
 
    @Override
