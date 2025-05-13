@@ -203,6 +203,21 @@ public class MergedVSChartInfo extends VSChartInfo implements MergedChartInfo {
       DataRef[] xyflds = super.getRTFields(true, false, false, false);
       DataRef[] rtflds = super.getRTFields(false, true, true, true);
 
+      if(this instanceof VSMapInfo) {
+         ChartRef[] geoRefs = ((VSMapInfo) this).getGeoFields();
+
+         for(int i = 0; i < geoRefs.length; i++) {
+            if(geoRefs[i] instanceof VSChartGeoRef && getHyperlink() != null) {
+               VSChartGeoRef ngeoRef = ((VSChartGeoRef) geoRefs[i]).clone();
+               ngeoRef.setHyperlink(getHyperlink());
+               list.add(ngeoRef);
+            }
+            else {
+               list.add(geoRefs[i]);
+            }
+         }
+      }
+
       for(int i = 0; i < xyflds.length; i++) {
          list.add(xyflds[i]);
       }
@@ -214,6 +229,7 @@ public class MergedVSChartInfo extends VSChartInfo implements MergedChartInfo {
       for(int i = 0; i < rtflds.length; i++) {
          list.add(rtflds[i]);
       }
+
 
       VSDataRef[] arr = new VSDataRef[list.size()];
       list.toArray(arr);
