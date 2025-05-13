@@ -553,6 +553,27 @@ public class VSMapInfo extends MergedVSChartInfo implements MapInfo {
       return list.toArray(new ChartRef[list.size()]);
    }
 
+   @Override
+   public VSDataRef[] getRTFields() {
+      List list = new ArrayList(Arrays.asList(super.getRTFields().clone()));
+      ChartRef[] geoRefs = getGeoFields();
+
+      for(int i = 0; i < geoRefs.length; i++) {
+         if(geoRefs[i] instanceof VSChartGeoRef && getHyperlink() != null) {
+            VSChartGeoRef ngeoRef = ((VSChartGeoRef) geoRefs[i]).clone();
+            ngeoRef.setHyperlink(getHyperlink());
+            list.add(ngeoRef);
+         }
+         else {
+            list.add(geoRefs[i]);
+         }
+      }
+
+      VSDataRef[] arr = new VSDataRef[list.size()];
+      list.toArray(arr);
+      return arr;
+   }
+
    private ArrayList<VSChartGeoRef> geoRefs = new ArrayList<>();
    private VSChartRef[] rGeoRefs;
    private static final Logger LOG =
