@@ -27,6 +27,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import org.springframework.stereotype.Service;
 
+import java.io.Serializable;
 import java.security.Principal;
 
 @Service
@@ -55,7 +56,7 @@ public class DashboardService {
    private final ViewsheetService viewsheetService;
 
 
-   public class DashboardModelInfo {
+   public static class DashboardModelInfo implements Serializable {
       public boolean composedDashboard;
       public boolean scaleToScreen;
       public boolean fitToWidth;
