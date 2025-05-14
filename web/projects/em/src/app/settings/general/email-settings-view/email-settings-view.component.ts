@@ -183,6 +183,17 @@ export class EmailSettingsViewComponent implements OnDestroy {
             return;
          }
 
+         if(formVal.smtpAuthentication == SMTPAuthType.GOOGLE_AUTH) {
+            if(formVal.smtpUser != this.model.smtpUser) {
+               formVal.fromAddress = formVal.smtpUser;
+               this.form.get("fromAddress").setValue(formVal.smtpUser, {emitEvent: false});
+            }
+            else {
+               formVal.smtpUser = formVal.fromAddress;
+               this.form.get("smtpUser").setValue(formVal.fromAddress, {emitEvent: false});
+            }
+         }
+
          this.model.smtpHost = formVal.smtpHost.trim();
          this.model.ssl = formVal.ssl;
          this.model.tls = formVal.tls;

@@ -24,30 +24,24 @@ import inetsoft.util.InvalidOrgException;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.security.*;
-import inetsoft.web.session.IgniteSessionRepository;
-import inetsoft.web.viewsheet.AuditObjectName;
-import inetsoft.web.viewsheet.AuditUser;
+import inetsoft.web.viewsheet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.Map;
 
 @RestController
 public class UserController {
    @Autowired
    public UserController(UserTreeService userTreeService,
-                         IdentityService identityService,
-                         IgniteSessionRepository sessionRepository)
+                         IdentityService identityService)
    {
       this.userTreeService = userTreeService;
       this.identityService = identityService;
-      this.sessionRepository = sessionRepository;
    }
 
    @PostMapping("/api/em/security/users/create-user/{provider}")
@@ -92,10 +86,6 @@ public class UserController {
       }
 
       userTreeService.editUser(model, provider, principal);
-
-      Map<String, IgniteSessionRepository.IgniteSession> userSessions = sessionRepository.findByIndexNameAndIndexValue(
-         FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, model.oldIdentityKey());
-      userSessions.keySet().forEach(sessionRepository::deleteById);
       HttpSession session = request.getSession(true);
       Object ticket = session.getAttribute(SUtil.TICKET);
       String warning = identityService.getTimeOutWarning(ticket, model.oldName());
@@ -107,6 +97,5 @@ public class UserController {
 
    private final UserTreeService userTreeService;
    private final IdentityService identityService;
-   private final IgniteSessionRepository sessionRepository;
    private static final Logger LOG = LoggerFactory.getLogger(UserController.class);
 }

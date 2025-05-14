@@ -18,6 +18,8 @@
 package inetsoft.uql.gdata;
 
 import inetsoft.uql.tabular.*;
+import inetsoft.uql.tabular.oauth.AuthorizationClient;
+import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +27,7 @@ import org.w3c.dom.Element;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.time.Instant;
 
 @SuppressWarnings("unused")
 @View(vertical = true, value = {
@@ -44,8 +47,26 @@ public class GDataQuery extends TabularQuery {
       }
 
       GDataDataSource dataSource = (GDataDataSource) getDataSource();
+      refreshToken();
       spreadsheet.setOauthToken(dataSource.getAccessToken());
       return spreadsheet;
+   }
+
+   private void refreshToken() {
+      GDataDataSource dataSource = (GDataDataSource) getDataSource();
+
+      if(!Instant.now().isAfter(Instant.ofEpochMilli(dataSource.getTokenExpiration()))) {
+         return;
+      }
+
+      try {
+         Tokens tokens = AuthorizationClient.refresh("google-sheets-picker",
+            dataSource.getRefreshToken(), null);
+         dataSource.updateTokens(tokens);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to refresh Google Sheets picker access token", e);
+      }
    }
 
    public void setSpreadsheet(GooglePicker spreadsheet) {

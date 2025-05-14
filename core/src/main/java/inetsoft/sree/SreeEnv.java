@@ -71,16 +71,26 @@ public class SreeEnv {
       return PropertiesEngine.getInstance().getProperty(name, fn, false);
    }
 
+   public static boolean getBooleanProperty(String name, boolean earlyLoaded, boolean orgScope, String ... trueValues) {
+      String property = getProperty(name, earlyLoaded, orgScope);
+
+      return getBooleanPropertyValue(property, trueValues);
+   }
+
    public static boolean getBooleanProperty(String name, String ... trueValues) {
       String property = getProperty(name);
 
-      if(property != null) {
+      return getBooleanPropertyValue(property, trueValues);
+   }
+
+   private static boolean getBooleanPropertyValue(String value, String ... trueValues) {
+      if(value != null) {
          if(trueValues.length == 0) {
-            return "true".equals(property);
+            return "true".equals(value);
          }
 
          for(String trueValue : trueValues) {
-            if(trueValue.equals(property)) {
+            if(trueValue.equals(value)) {
                return true;
             }
          }

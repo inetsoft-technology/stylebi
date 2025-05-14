@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
+import inetsoft.web.admin.general.model.model.SMTPAuthType;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.model.UsersModel;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -119,8 +120,10 @@ public class EmailDialogService {
       boolean userDialogEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
       boolean useSelf =
          !"false".equals(SreeEnv.getProperty("em.mail.defaultEmailFromSelf"));
+      boolean googleSMTP =
+         SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth")) == SMTPAuthType.GOOGLE_AUTH;
 
-      if(!"anonymous".equals(pId.name) && useSelf) {
+      if(!"anonymous".equals(pId.name) && useSelf && !googleSMTP) {
          String[] emails = SUtil.getEmails(pId);
          email = emails.length > 0 ? emails[0] : email;
          userDialogEnabled = true;

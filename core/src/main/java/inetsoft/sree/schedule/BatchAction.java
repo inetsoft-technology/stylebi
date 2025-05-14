@@ -21,7 +21,8 @@ import inetsoft.report.TableLens;
 import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
-import inetsoft.sree.*;
+import inetsoft.sree.DynamicParameterValue;
+import inetsoft.sree.RepletRequest;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -32,7 +33,8 @@ import inetsoft.util.Tool;
 import inetsoft.util.script.ScriptEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.*;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.io.PrintWriter;
 import java.security.Principal;
@@ -167,10 +169,6 @@ public class BatchAction extends AbstractAction {
                      }
 
                      val = RepletRequest.executeParameter(((DynamicParameterValue) val), scope);
-                  }
-
-                  if(val instanceof ArrayParameterValue) {
-                     val = ((ArrayParameterValue) val).getValue();
                   }
 
                   repletRequest.setParameter(paramName, val);
@@ -322,29 +320,6 @@ public class BatchAction extends AbstractAction {
             writer.print("</valueType>");
             writer.print("</dynamicParameterValue>");
          }
-         else if(val instanceof ArrayParameterValue) {
-            ArrayParameterValue parameterValue = (ArrayParameterValue) val;
-            Object[] array = parameterValue.getValue();
-            writer.print("<arrayParameterValue>");
-
-            if(array != null) {
-               writer.print("<values>");
-
-               for(Object item : array) {
-                  writer.print("<value>");
-                  writer.print("<![CDATA[" + Tool.getDataString(item) + "]]>");
-                  writer.print("</value>");
-               }
-
-               writer.print("</values>");
-            }
-
-            writer.print("<type>");
-            writer.print("<![CDATA[" + parameterValue.getType() + "]]>");
-            writer.print("</type>");
-
-            writer.print("</arrayParameterValue>");
-         }
          else {
             writer.print("<value>");
             writer.print("<![CDATA[" + Tool.getDataString(val) + "]]>");
@@ -372,7 +347,6 @@ public class BatchAction extends AbstractAction {
          Element keyNode = Tool.getChildNodeByTagName(propNode, "key");
          String key = Tool.getValue(keyNode);
          Element dynamicParameterValue = Tool.getChildNodeByTagName(propNode, "dynamicParameterValue");
-         Element arrayParameterValue = Tool.getChildNodeByTagName(propNode, "arrayParameterValue");
 
          if(dynamicParameterValue != null) {
             Element valNode = Tool.getChildNodeByTagName(dynamicParameterValue, "value");
@@ -382,23 +356,6 @@ public class BatchAction extends AbstractAction {
             String type = Tool.getValue(typeNode);
             String dataType = Tool.getValue(dataTypeNode);
             map.put(key, new DynamicParameterValue(value, type, dataType));
-         }
-         else if(arrayParameterValue != null) {
-            Element valsNode = Tool.getChildNodeByTagName(arrayParameterValue, "values");
-            Element valTypeNode = Tool.getChildNodeByTagName(arrayParameterValue, "type");
-            String valType = Tool.getValue(valTypeNode);
-
-            if(valsNode != null) {
-               NodeList valueNodes = Tool.getChildNodesByTagName(valsNode, "value");
-               Object[] values = new Object[valueNodes.getLength()];
-
-               for(int j = 0; j < valueNodes.getLength(); j++) {
-                  Element valueElement = (Element) valueNodes.item(j);
-                  values[j] = Tool.getData(valType, Tool.getValue(valueElement));
-               }
-
-               map.put(key, new ArrayParameterValue(values, valType));
-            }
          }
          else {
             Element valNode = Tool.getChildNodeByTagName(propNode, "value");
