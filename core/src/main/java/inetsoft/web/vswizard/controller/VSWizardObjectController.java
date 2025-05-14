@@ -110,6 +110,10 @@ public class VSWizardObjectController {
       box.lockWrite();
 
       try {
+         if(rvs.getRuntimeWorksheet() != null) {
+            rvs.getRuntimeWorksheet().getWorksheet().getWorksheetInfo().setTempMaxRow(100);
+         }
+
          // For clean temp failed.
          if(temporaryInfoService.existTemporary(event.getRuntimeId(), principal) && !goBack &&
             !WizardRecommenderUtil.isTempAssembly(event.getAssemblyName()))
@@ -121,9 +125,6 @@ public class VSWizardObjectController {
             temporaryInfoService.initTemporary(event.getRuntimeId(), principal,
                                                new Point(event.getX(), event.getY()));
          }
-
-         OpenObjectWizardCommand openCommand = new OpenObjectWizardCommand(true);
-         dispatcher.sendCommand(openCommand);
 
          SetWizardBindingTreeNodesCommand command = new SetWizardBindingTreeNodesCommand();
          // click cancel without to recommend
@@ -199,6 +200,9 @@ public class VSWizardObjectController {
             temporaryInfo.setAutoOrder(true);
          }
 
+         OpenObjectWizardCommand openCommand = new OpenObjectWizardCommand(true);
+         dispatcher.sendCommand(openCommand);
+
          AssetTreeModel assetTreeModel = treeHandler.getChartTreeModel(
             viewsheetService.getAssetRepository(), rvs,
             temporaryInfo.getTempChart().getChartInfo(), true, principal);
@@ -218,6 +222,10 @@ public class VSWizardObjectController {
          dispatcher.sendCommand(initBindingTreeCommand);
       }
       finally {
+         if(rvs.getRuntimeWorksheet() != null) {
+            rvs.getRuntimeWorksheet().getWorksheet().getWorksheetInfo().setTempMaxRow(-1);
+         }
+
          box.unlockWrite();
       }
    }
