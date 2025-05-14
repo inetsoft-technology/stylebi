@@ -70,8 +70,8 @@ public class VSChartAreasService {
                                              CommandDispatcher dispatcher, Principal principal)
       throws Exception
    {
-      VSChartController.VSChartStateInfo state =
-         VSChartController.VSChartStateInfo.createChartState(
+      VSChartControllerService.VSChartStateInfo state =
+         VSChartControllerService.VSChartStateInfo.createChartState(
             event, this.viewsheetService, principal, id, true);
 
       if(state == null) {

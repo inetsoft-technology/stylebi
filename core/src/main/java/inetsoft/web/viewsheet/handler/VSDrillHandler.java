@@ -167,7 +167,7 @@ public class VSDrillHandler {
       final SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
       dispatcher.sendCommand(bcommand);
 
-      // refreshViewsheet is called in VSChartController.complete(). no need to call explicitly.
+      // refreshViewsheet is called in VSChartControllerService.complete(). no need to call explicitly.
       if(!(vsAssembly instanceof ChartVSAssembly)) {
          refreshViewsheet(rvs, dispatcher, linkUri);
       }
@@ -191,7 +191,7 @@ public class VSDrillHandler {
       getDrillHandle(drillFilterVSAssembly)
          .removeDrillFilter(dataRef, drillFilterVSAssembly, false, true);
 
-      // refreshViewsheet is called in VSChartController.complete(). no need to call explicitly.
+      // refreshViewsheet is called in VSChartControllerService.complete(). no need to call explicitly.
       if(!(assembly instanceof ChartVSAssembly)) {
          refreshViewsheet(rvs, dispatcher, linkUri);
       }
