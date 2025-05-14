@@ -254,7 +254,10 @@ public class CSSDictionary {
       Map<String, String> cssEntries = PortalThemesManager.getManager().getCssEntries();
       String orgFile = cssEntries.get(OrganizationManager.getInstance().getCurrentOrgID());
       List<String> otherFiles = new ArrayList<>();
-      otherFiles.add(orgFile);
+
+      if(orgFile != null) {
+         otherFiles.add(orgFile);
+      }
 
       if(!Tool.equals(otherFiles, dict.otherFiles)) {
          return System.currentTimeMillis();
