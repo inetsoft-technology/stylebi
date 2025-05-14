@@ -31,6 +31,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.database.model.DataModelFolderManagerService;
+import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.portal.controller.SearchComparator;
 import inetsoft.web.portal.data.DataModelBrowserModel;
 import inetsoft.web.portal.model.database.*;
@@ -46,6 +47,8 @@ import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.stream.Stream;
+
+import static inetsoft.uql.util.XUtil.DATAMODEL_FOLDER_SPLITER;
 
 @Service
 public class DatabaseModelBrowserService {
@@ -397,6 +400,8 @@ public class DatabaseModelBrowserService {
             dinfo.addRenameInfo(obj, rinfo);
          }
 
+         renameDataModelPermission(oldPath, newPath);
+
          DependencyTransformer.createExtendModelDepInfoForFolderChanged(dinfo, logicalModel,
             oldFolder, folder);
          RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
@@ -412,6 +417,32 @@ public class DatabaseModelBrowserService {
             Audit.getInstance().auditAction(actionRecord, principal);
          }
       }
+   }
+
+   private void renameDataModelPermission(String pathFrom, String pathTo) {
+      pathFrom = handleDataModelFolderSource(pathFrom);
+      pathTo = handleDataModelFolderSource(pathTo);
+
+      String resourcePathFrom = ResourcePermissionService.getLogicalModelResourceName(pathFrom).getPath();
+      Permission permission =
+         securityEngine.getSecurityProvider().getAuthorizationProvider().getPermission(ResourceType.QUERY, resourcePathFrom);
+
+      if(permission != null) {
+         String resourcePathTo = ResourcePermissionService.getLogicalModelResourceName(pathTo).getPath();
+         securityEngine.getSecurityProvider().getAuthorizationProvider().setPermission(ResourceType.QUERY, resourcePathTo, permission);
+         securityEngine.getSecurityProvider().getAuthorizationProvider().removePermission(ResourceType.QUERY, resourcePathFrom);
+      }
+   }
+
+   private String handleDataModelFolderSource(String path) {
+      String resourceID = path.substring(path.lastIndexOf("^") + 1);
+
+      //if source separated by splitter key, ignore for permission
+      if(path.contains(DATAMODEL_FOLDER_SPLITER + resourceID)) {
+         return path.replace(DATAMODEL_FOLDER_SPLITER + resourceID, "^" + resourceID);
+      }
+
+      return path;
    }
 
    private void changeViewFolder(XDataModel dataModel, String name, String folder,
