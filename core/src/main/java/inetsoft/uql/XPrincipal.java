@@ -81,12 +81,20 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @param roles      the roles assigned to the user.
     */
    public XPrincipal(IdentityID identityID, IdentityID[] roles, String[] groups, String orgId) {
-      this.name = identityID.convertToKey();
+      this.name = identityID != null ? identityID.convertToKey() : null;
       this.roles = roles == null ? new IdentityID[0] : roles;
       this.groups = groups == null ? new String[0] : groups;
-      this.orgId = orgId == null ? identityID.getOrgID() : orgId;
+
+      if(orgId == null) {
+         this.orgId = identityID != null ? identityID.getOrgID() : null;
+      }
+      else {
+         this.orgId = orgId;
+      }
+
       this.sessionID =
-         XSessionService.createSessionID(XSessionService.USER, identityID.convertToKey());
+         XSessionService.createSessionID(XSessionService.USER,
+                                         identityID != null ? identityID.convertToKey() : null);
       this.prop = new ConcurrentHashMap<>();
       this.params = new Hashtable();
    }
@@ -366,6 +374,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
 
       if(users != null && users.getLength() > 0) {
          name = Tool.getValue(users.item(0));
+         orgId = IdentityID.getIdentityIDFromKey(name).orgID;
       }
 
       Element rsnode = Tool.getChildNodeByTagName(elem, "roles");

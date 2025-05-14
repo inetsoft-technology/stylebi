@@ -70,6 +70,7 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       topns = new ConditionList();
       ginfo = new AggregateInfo();
       sinfo = new SortInfo();
+      id = UUID.randomUUID().toString();
    }
 
    /**
@@ -87,6 +88,7 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       topns = new ConditionList();
       ginfo = new AggregateInfo();
       sinfo = new SortInfo();
+      id = UUID.randomUUID().toString();
    }
 
    /**
@@ -1079,6 +1081,10 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       return realAggregateInfo;
    }
 
+   public String getId() {
+      return id;
+   }
+
    /**
     * Write contents.
     * @param writer the specified writer.
@@ -1178,6 +1184,8 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          writer.println("<property><name><![CDATA[" + key + "]]></name>" +
             "<value><![CDATA[" + value + "]]></value></property>");
       }
+
+      writer.println("<id><![CDATA[" + id + "]]></id>");
    }
 
    /**
@@ -1296,6 +1304,12 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          if(name != null && value != null) {
             setProperty(name, value);
          }
+      }
+
+      id = Tool.getChildValueByTagName(elem, "id");
+
+      if(id == null) {
+         id = UUID.randomUUID().toString();
       }
    }
 
@@ -2337,4 +2351,5 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
    private transient String expressionKey;
    private transient Set<AssemblyRef> expressionDeps;
    private transient long lastModified = new Date().getTime();
+   private String id;
 }

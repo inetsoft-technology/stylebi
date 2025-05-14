@@ -100,12 +100,13 @@ public abstract class RuntimeSheet {
       contextPrincipal = loadXPrincipal(state.getContextPrincipal());
       editable = state.isEditable();
 
-      if(state.getPoints() != null) {
+      List<String> statePoints = state.getPoints();
+
+      if(statePoints != null) {
          points = new XSwappableSheetList(contextPrincipal);
 
-         for(String p : state.getPoints()) {
-            String[] split = p.split(":");
-            points.add(loadSheet(split[0], split[1]));
+         for(int i = 0; i < statePoints.size(); i += 2) {
+            points.add(loadSheet(statePoints.get(i), statePoints.get(i + 1)));
          }
       }
 
@@ -498,7 +499,8 @@ public abstract class RuntimeSheet {
             AbstractSheet sheet = points.get(i);
 
             if(sheet != null) {
-               values.add(sheet.getClass().getName() + ": " + saveXml(sheet));
+               values.add(sheet.getClass().getName());
+               values.add(saveXml(sheet));
             }
          }
 

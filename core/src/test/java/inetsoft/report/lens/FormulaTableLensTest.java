@@ -18,12 +18,17 @@
 package inetsoft.report.lens;
 
 import inetsoft.report.TabularSheet;
+import inetsoft.report.internal.binding.FormulaHeaderInfo;
 import inetsoft.test.TestSerializeUtils;
 import inetsoft.test.XTableUtil;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.JavaScriptEnv;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+
 class FormulaTableLensTest {
    @Test
    void testFormula() {
@@ -55,11 +60,15 @@ class FormulaTableLensTest {
    public void testSerialize() throws Exception {
       String[] headers = { "f1" };
       String[] formulas = { "field['col2'] + field['col3']" };
+      List<FormulaHeaderInfo> formulaHeaderInfoList = new ArrayList<>();
+      FormulaHeaderInfo formulaHeaderInfo = new FormulaHeaderInfo("f1", "f1", false,
+                                                                  null);
+      formulaHeaderInfoList.add(formulaHeaderInfo);
       FormulaTableLens originalTable = new FormulaTableLens(XTableUtil.getDefaultTableLens(),
                                                             headers, formulas, new JavaScriptEnv(),
                                                             null);
+      originalTable.setFormulaHeaderInfo(formulaHeaderInfoList);
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
-
       Assertions.assertEquals(FormulaTableLens.class, deserializedTable.getClass());
    }
 }

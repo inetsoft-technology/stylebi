@@ -209,6 +209,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
       if(state.getEmbedAssemblyInfo() != null) {
          embedAssemblyInfo = loadJson(EmbedAssemblyInfo.class, state.getEmbedAssemblyInfo(), mapper);
       }
+
+      // load base worksheet and create asset query sandbox
+      resetRuntime();
    }
 
    /**
