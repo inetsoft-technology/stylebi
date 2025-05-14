@@ -39,6 +39,7 @@ import inetsoft.util.dep.ScheduleTaskAsset;
 import inetsoft.util.dep.XAsset;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.model.ExportFormatModel;
+import inetsoft.web.admin.general.model.model.SMTPAuthType;
 import inetsoft.web.admin.model.NameLabelTuple;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeConditionModel;
@@ -372,7 +373,9 @@ public class ScheduleTaskService {
 
       boolean useSelf = !"false".equals(SreeEnv.getProperty("em.mail.defaultEmailFromSelf"));
       String userEmail = useSelf && emails.length > 0 ? emails[0] : null;
-      String fromEmail = userEmail != null && !userEmail.isEmpty() ?
+      boolean googleSMTP =
+         SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth")) == SMTPAuthType.GOOGLE_AUTH;
+      String fromEmail = userEmail != null && !userEmail.isEmpty() && !googleSMTP ?
             userEmail : SreeEnv.getProperty("mail.from.address");
 
       boolean historyEnabled = "true".equalsIgnoreCase(SreeEnv.getProperty("mail.history.enabled"));
