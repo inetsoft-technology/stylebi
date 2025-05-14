@@ -50,7 +50,7 @@ import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.table.ChangeVSTableCellsTextEvent;
 import inetsoft.web.viewsheet.handler.crosstab.CrosstabDrillHandler;
 import inetsoft.web.viewsheet.model.VSObjectModel;
@@ -404,7 +404,7 @@ public class ComposerVSTableService {
       info.setUserHeaderRowHeight(false);
       info.setUserDataRowHeight(false);
       rvs.getViewsheetSandbox().resetDataMap(table.getAbsoluteName());
-      BaseTableController.loadTableData(rvs, table.getAbsoluteName(), 0, 0, 100, "",
+      BaseTableService.loadTableData(rvs, table.getAbsoluteName(), 0, 0, 100, "",
                                         dispatcher);
       coreLifecycleService.refreshVSAssembly(rvs, table, dispatcher);
 
@@ -1034,7 +1034,7 @@ public class ComposerVSTableService {
             int baseCol = TableTool.getCol(lens, path[0]);
             final int colCount = lens.getColCount();
             final int colSpan = endCol - startCol;
-            final double[] colWidths = BaseTableController.getColWidths(table, lens);
+            final double[] colWidths = BaseTableService.getColWidths(table, lens);
 
             if(baseCol < 0) {
                baseCol = startCol;

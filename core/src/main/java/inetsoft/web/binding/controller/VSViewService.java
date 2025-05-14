@@ -25,7 +25,7 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.event.GetVSObjectModelEvent;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
@@ -57,7 +57,7 @@ public class VSViewService {
       if(assembly instanceof TableDataVSAssembly) {
          int hint = VSAssembly.BINDING_CHANGED;
          holder.execute(rvs, event.getName(), null, hint, dispatcher);
-         BaseTableController.loadTableData(
+         BaseTableService.loadTableData(
             rvs, event.getName(), 0, 0, 100, null, dispatcher);
       }
 

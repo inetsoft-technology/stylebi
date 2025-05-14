@@ -17,50 +17,22 @@
  */
 package inetsoft.web.composer.vs.objects.controller;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.TableDataPath;
-import inetsoft.report.composition.ChangedAssemblyList;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.composer.vs.VSObjectTreeNode;
-import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
-import inetsoft.web.composer.vs.objects.command.ChangeVSSelectionTitleCommand;
-import inetsoft.web.composer.vs.objects.command.ForceEditModeCommand;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
-import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableController;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
-import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
-import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-import java.awt.*;
 import java.io.Serializable;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
-import java.util.stream.Collectors;
-
-import static inetsoft.uql.asset.internal.AssetUtil.defh;
-import static inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE;
-import static inetsoft.uql.viewsheet.internal.VSAssemblyInfo.TITLEPATH;
 
 /**
  * Controller that provides a REST endpoint for object actions.

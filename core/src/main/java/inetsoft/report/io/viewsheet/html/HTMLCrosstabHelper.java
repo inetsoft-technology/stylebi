@@ -145,7 +145,7 @@ public class HTMLCrosstabHelper extends HTMLTableDataHelper {
          totalWidth += columnWidths[i];
       }
 
-      // fill the last column, same as the front-end logic in BaseTableController
+      // fill the last column, same as the front-end logic in BaseTableService
       if(totalWidth < bounds.getWidth()) {
          for(int i = columnWidths.length - 1; i >= 0; i--) {
             if(columnWidths[i] > 0) {

@@ -87,7 +87,7 @@ public class VSFormTableService {
       }
 
       box.resetDataMap(assemblyName);
-      BaseTableController.loadTableData(rvs, assemblyName, box.getMode(),
+      BaseTableService.loadTableData(rvs, assemblyName, box.getMode(),
                                         event.start(), 100, linkUri, dispatcher);
       this.coreLifecycleService.refreshVSAssembly(rvs, assemblyName, dispatcher);
 
@@ -114,7 +114,7 @@ public class VSFormTableService {
       rows.sort(Collections.reverseOrder());
       rows.forEach(form::deleteRow);
       box.resetDataMap(assemblyName);
-      BaseTableController.loadTableData(rvs, event.getAssemblyName(), box.getMode(),
+      BaseTableService.loadTableData(rvs, event.getAssemblyName(), box.getMode(),
                                         event.start(), 100, linkUri, dispatcher);
       return null;
    }
@@ -252,7 +252,7 @@ public class VSFormTableService {
          coreLifecycleService.dispatchEvent(scriptEvent, dispatcher, rvs);
       }
 
-      BaseTableController.loadTableData(rvs, event.getAssemblyName(), box.getMode(),
+      BaseTableService.loadTableData(rvs, event.getAssemblyName(), box.getMode(),
                                         event.start(), 100, linkUri, dispatcher);
       return null;
    }
@@ -296,7 +296,7 @@ public class VSFormTableService {
       }
 
       rvs.resetRuntime();
-      BaseTableController.loadTableData(rvs, assemblyName, box.getMode(),
+      BaseTableService.loadTableData(rvs, assemblyName, box.getMode(),
                                         0, 100, linkUri, dispatcher);
       ChangedAssemblyList clist =
          coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
