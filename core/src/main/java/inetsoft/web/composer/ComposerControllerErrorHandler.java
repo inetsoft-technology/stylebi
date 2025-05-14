@@ -135,10 +135,9 @@ public class ComposerControllerErrorHandler {
    public void handleConfirmException(ConfirmException e, CommandDispatcher dispatcher,
                                       Principal principal) throws Exception
    {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
+      boolean waitForMV = serviceProxy.confirmExceptionWaitForMV(runtimeViewsheetRef.getRuntimeId(), e, dispatcher, principal);
 
-      if(!coreLifecycleService.waitForMV(e, rvs, dispatcher)) {
+      if(!waitForMV) {
          sendMessageCommand(e, dispatcher, MessageCommand.Type.CONFIRM);
          throw e;
       }
@@ -184,8 +183,7 @@ public class ComposerControllerErrorHandler {
       InvalidDependencyException e, Principal principal,
       CommandDispatcher commandDispatcher)
    {
-      RuntimeSheet rs = viewsheetService.getSheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      rs.rollback();
+      serviceProxy.handleInvalidDependencyRollback(runtimeViewsheetRef.getRuntimeId(), principal);
 
       InvalidDependencyException thrown = LOG.isDebugEnabled() ? e : null;
       LogManager.getInstance().logException(LOG, e.getLogLevel(), e.getMessage(), thrown);
@@ -231,9 +229,15 @@ public class ComposerControllerErrorHandler {
       this.notificationService = notificationService;
    }
 
+   @Autowired
+   public void setComposerControllerErrorHandlerServiceProxy(ComposerControllerErrorHandlerServiceProxy serviceProxy) {
+      this.serviceProxy = serviceProxy;
+   }
+
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private ViewsheetService viewsheetService;
    private CoreLifecycleService coreLifecycleService;
    private NotificationService notificationService;
+   private ComposerControllerErrorHandlerServiceProxy serviceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(ComposerControllerErrorHandler.class);
 }
