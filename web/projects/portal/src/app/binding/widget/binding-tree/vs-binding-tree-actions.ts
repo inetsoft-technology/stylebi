@@ -277,6 +277,7 @@ export class VSBindingTreeActions extends ContextMenuActions {
          calcDialog.columns = <DataRef[]> fieldsInfo.columnFields;
          calcDialog.aggregates = <DataRef[]> fieldsInfo.aggregateFields;
          calcDialog.calcFieldsGroup = <string[]> fieldsInfo.calcFieldsGroup;
+         calcDialog.grayedOutFields = <DataRef[]> fieldsInfo.grayedOutFields;
          calcDialog.userAggNames = <string[]> fieldsInfo.userAggNames;
          calcDialog.dataType = "string";
          calcDialog.aggregateModify.subscribe((result: any) => {
