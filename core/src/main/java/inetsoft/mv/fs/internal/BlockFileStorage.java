@@ -129,7 +129,7 @@ public class BlockFileStorage implements AutoCloseable {
 
    public BlobStorage<Metadata> getStorage(String orgID) {
       orgID = orgID == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgID;
-      String storeID = orgID.toLowerCase() + "__" + "mvBlock";
+      String storeID = Tool.buildString(orgID.toLowerCase(), "__", "mvBlock");
       return SingletonManager.getInstance(BlobStorage.class, storeID, true);
    }
 

@@ -29,8 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
 import java.io.*;
-import java.util.Base64;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -174,6 +173,16 @@ public class EmbeddedTableAssembly extends AbstractTableAssembly {
     * @param writer the specified writer.
     */
    protected synchronized void writeEmbeddedData(PrintWriter writer) {
+      if(getWorksheet().getWsID() != null) {
+         EmbeddedDataCacheHandler handler = new EmbeddedDataCacheHandler(this);
+         handler.writeEmbeddedData(writer);
+      }
+      else {
+         writeEmbeddedData0(writer);
+      }
+   }
+
+   protected synchronized void writeEmbeddedData0(PrintWriter writer) {
       XEmbeddedTable xdata = getEmbeddedData();
       xdata.reset();
 

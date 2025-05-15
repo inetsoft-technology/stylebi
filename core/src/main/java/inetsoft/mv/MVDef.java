@@ -1798,7 +1798,9 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       if(ws != null) {
          if(separateWS) {
             try {
+               ws.setWsID(wsId);
                writeWorksheet(ws);
+               ws.setWsID(null);
             }
             catch(Exception ex) {
                LOG.error("Failed to write worksheet", ex);

@@ -58,6 +58,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static inetsoft.util.Tool.buildString;
 import static inetsoft.util.Tool.isNumberClass;
 
 /**
@@ -2972,7 +2973,7 @@ public class CoreTool {
             }
             break;
          case Element.ENTITY_REFERENCE_NODE:
-            String val = "&" + child.getNodeName() + ";";
+            String val = buildString("&", child.getNodeName(), ";");
             String eval = decoding.get(val);
 
             if(eval != null) {

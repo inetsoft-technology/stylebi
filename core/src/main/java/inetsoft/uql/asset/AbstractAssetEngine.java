@@ -3117,6 +3117,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       if(!Objects.equals(oidentifier, nidentifier)) {
          ostorage.remove(oidentifier);
+         EmbeddedDataCacheHandler.clearWSCache(oidentifier);
       }
 
       npfolder.addEntry(nentry);

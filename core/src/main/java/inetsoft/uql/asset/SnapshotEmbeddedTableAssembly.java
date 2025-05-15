@@ -348,7 +348,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
          stable.moreRows(XTable.EOT);
          rowCnt = stable.getRowCount();
 
-         writer.println("<sembeddedData row=\"" + rowCnt + "\">");
+         writer.println(Tool.buildString("<sembeddedData row=\"", rowCnt, "\">"));
 
          if(columns != null) {
             columns.writeXML(writer);
@@ -359,8 +359,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
          if(dataPaths != null) {
             for(String dataPath : dataPaths) {
                if(dataPathsLoadVersion.get(dataPath) != null) {
-                  writer.println("<path loadVersion=\"" + dataPathsLoadVersion.get(dataPath) +
-                                    "\"><![CDATA[");
+                  writer.println(Tool.buildString("<path loadVersion=\"", dataPathsLoadVersion.get(dataPath), "\"><![CDATA["));
                }
                else {
                   writer.println("<path><![CDATA[");
@@ -418,10 +417,10 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
             writer.print("<header ");
 
             if(headers[i] != null) {
-               writer.print("name=\"" + Tool.escape(headers[i].toString()) + "\" ");
+               writer.print(Tool.buildString("name=\"", Tool.escape(headers[i].toString()), "\" ") );
             }
 
-            writer.println("creator=\"" + creators[i] + "\" lflag=\"" + lflags[i] + "\"/>");
+            writer.println(Tool.buildString("creator=\"", creators[i],  "\" lflag=\"", lflags[i], "\"/>"));
          }
 
          writer.println("</headers>");

@@ -84,12 +84,11 @@ public class MVWorksheetStorage implements AutoCloseable {
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase() + "__" + "mvws";
-      return SingletonManager.getInstance(BlobStorage.class, storeID, false);
+      return getStorage(OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    private BlobStorage<Metadata> getStorage(String orgID) {
-      String storeID = orgID.toLowerCase() + "__" + "mvws";
+      String storeID =  Tool.buildString(orgID.toLowerCase(), "__", "mvws");
       return SingletonManager.getInstance(BlobStorage.class, storeID, false);
    }
 
