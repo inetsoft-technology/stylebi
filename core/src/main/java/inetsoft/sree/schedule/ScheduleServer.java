@@ -248,9 +248,25 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
       List<ViewsheetModel> executingViewsheets = new ArrayList<>();
 
       if(engine != null) {
-         RuntimeViewsheet[] viewsheets = engine.getRuntimeViewsheets(null);
+         for(ScheduleViewsheetsStatus status : engine.invokeOnAll(new GetViewsheetsTask())) {
+            openViewsheets.addAll(status.getOpenViewsheets());
+            executingViewsheets.addAll(status.getExecutingViewsheets());
+         }
+      }
 
-         for(RuntimeViewsheet rvs : viewsheets) {
+      ScheduleViewsheetsStatus viewsheets = new ScheduleViewsheetsStatus();
+      viewsheets.setOpenViewsheets(openViewsheets);
+      viewsheets.setExecutingViewsheets(executingViewsheets);
+      return viewsheets;
+   }
+
+   private static final class GetViewsheetsTask implements ViewsheetService.Task<ScheduleViewsheetsStatus> {
+      @Override
+      public ScheduleViewsheetsStatus apply(ViewsheetService engine) throws Exception {
+         List<ViewsheetModel> openViewsheets = new ArrayList<>();
+         List<ViewsheetModel> executingViewsheets = new ArrayList<>();
+
+         for(RuntimeViewsheet rvs : engine.getRuntimeViewsheets(null)) {
             Vector<?> threads = engine.getExecutingThreads(rvs.getID());
             List<ViewsheetThreadModel> threadModels;
 
@@ -264,25 +280,25 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
             }
 
             openViewsheets.add(ViewsheetModel.builder()
-                           .from(rvs)
-                           .threads(threadModels)
-                           .state(ViewsheetModel.State.OPEN)
-                           .build());
+                                  .from(rvs)
+                                  .threads(threadModels)
+                                  .state(ViewsheetModel.State.OPEN)
+                                  .build());
 
             if(threads.size() > 0) {
                executingViewsheets.add(ViewsheetModel.builder()
-                                     .from(rvs)
-                                     .threads(threadModels)
-                                     .state(ViewsheetModel.State.EXECUTING)
-                                     .build());
+                                          .from(rvs)
+                                          .threads(threadModels)
+                                          .state(ViewsheetModel.State.EXECUTING)
+                                          .build());
             }
          }
-      }
 
-      ScheduleViewsheetsStatus viewsheets = new ScheduleViewsheetsStatus();
-      viewsheets.setOpenViewsheets(openViewsheets);
-      viewsheets.setExecutingViewsheets(executingViewsheets);
-      return viewsheets;
+         ScheduleViewsheetsStatus viewsheets = new ScheduleViewsheetsStatus();
+         viewsheets.setOpenViewsheets(openViewsheets);
+         viewsheets.setExecutingViewsheets(executingViewsheets);
+         return viewsheets;
+      }
    }
 
    @Override

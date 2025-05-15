@@ -169,21 +169,38 @@ public class ViewsheetService
          return 0;
       }
 
-      RuntimeViewsheet[] viewsheets = engine.getRuntimeViewsheets(null);
-
-      if(viewsheets == null) {
-         return 0;
-      }
-
-      int executed = Arrays.stream(viewsheets)
-         .mapToInt(rvs -> engine.getExecutingThreads(rvs.getID()).size())
+      return engine.invokeOnAll(new GetCountTask(state)).stream()
+         .mapToInt(Integer::intValue)
          .sum();
+   }
 
-      if(state == ViewsheetModel.State.OPEN && viewsheets.length >= executed) {
-         return viewsheets.length - executed;
+   private static final class GetCountTask
+      implements inetsoft.analytic.composition.ViewsheetService.Task<Integer>
+   {
+      public GetCountTask(ViewsheetModel.State state) {
+         this.state = state;
       }
 
-      return executed;
+      @Override
+      public Integer apply(inetsoft.analytic.composition.ViewsheetService service) throws Exception {
+         RuntimeViewsheet[] viewsheets = service.getRuntimeViewsheets(null);
+
+         if(viewsheets == null) {
+            return 0;
+         }
+
+         int executed = Arrays.stream(viewsheets)
+            .mapToInt(rvs -> service.getExecutingThreads(rvs.getID()).size())
+            .sum();
+
+         if(state == ViewsheetModel.State.OPEN && viewsheets.length >= executed) {
+            return viewsheets.length - executed;
+         }
+
+         return executed;
+      }
+
+      private final ViewsheetModel.State state;
    }
 
    /**
@@ -253,18 +270,21 @@ public class ViewsheetService
     * Get the executing thread infos.
     */
    public List<ViewsheetThreadModel> getThreads(String id) {
+      return getThreads(id, engine);
+   }
+
+   private static List<ViewsheetThreadModel> getThreads(String id, inetsoft.analytic.composition.ViewsheetService service) {
       if(id == null || id.trim().isEmpty()) {
          throw new IllegalArgumentException("The viewsheet ID is required");
       }
 
-
-      if(engine == null) {
+      if(service == null) {
          return Collections.emptyList();
       }
 
-      checkVSExisted(id);
+      checkVSExisted(id, service);
 
-      Vector<?> threads = engine.getExecutingThreads(id);
+      Vector<?> threads = service.getExecutingThreads(id);
 
       // synchronize on returned vector to prevent concurrent modification exception
       synchronized(threads) {
@@ -303,24 +323,41 @@ public class ViewsheetService
          return Collections.emptyList();
       }
 
-      RuntimeViewsheet[] viewsheets = engine.getRuntimeViewsheets(null);
-      List<ViewsheetModel> results = new ArrayList<>();
+      return engine.invokeOnAll(new GetViewsheetsTask(state)).stream()
+         .flatMap(Collection::stream)
+         .toList();
+   }
 
-      for(RuntimeViewsheet rvs : viewsheets) {
-         List<ViewsheetThreadModel> threads = getThreads(rvs.getID());
-
-         if(state == ViewsheetModel.State.OPEN ||
-            !threads.isEmpty() && state == ViewsheetModel.State.EXECUTING)
-         {
-            results.add(ViewsheetModel.builder()
-               .from(rvs)
-               .threads(threads)
-               .state(state)
-               .build());
-         }
+   private static final class GetViewsheetsTask
+      implements inetsoft.analytic.composition.ViewsheetService.Task<ArrayList<ViewsheetModel>>
+   {
+      public GetViewsheetsTask(ViewsheetModel.State state) {
+         this.state = state;
       }
 
-      return results;
+      @Override
+      public ArrayList<ViewsheetModel> apply(inetsoft.analytic.composition.ViewsheetService service) {
+         RuntimeViewsheet[] viewsheets = service.getRuntimeViewsheets(null);
+         ArrayList<ViewsheetModel> results = new ArrayList<>();
+
+         for(RuntimeViewsheet rvs : viewsheets) {
+            List<ViewsheetThreadModel> threads = getThreads(rvs.getID(), service);
+
+            if(state == ViewsheetModel.State.OPEN ||
+               !threads.isEmpty() && state == ViewsheetModel.State.EXECUTING)
+            {
+               results.add(ViewsheetModel.builder()
+                              .from(rvs)
+                              .threads(threads)
+                              .state(state)
+                              .build());
+            }
+         }
+
+         return results;
+      }
+
+      private final ViewsheetModel.State state;
    }
 
    /**
@@ -430,11 +467,15 @@ public class ViewsheetService
    }
 
    private void checkVSExisted(String id) {
-      if(engine == null) {
+      checkVSExisted(id, engine);
+   }
+
+   private static void checkVSExisted(String id, inetsoft.analytic.composition.ViewsheetService service) {
+      if(service == null) {
          throw new IllegalStateException("The viewsheet engine has not been initialized");
       }
 
-      if(engine.getSheet(id, null) == null) {
+      if(service.getSheet(id, null) == null) {
          throw new IllegalArgumentException("No viewsheet with ID \"" + id + "\" exists");
       }
    }
@@ -483,5 +524,6 @@ public class ViewsheetService
    private static final String[] lowAttrs = {
       "count", "id", "state", "threadId", "name", "user", "dateCreated"
    };
+
    private static final Logger LOG = LoggerFactory.getLogger(ViewsheetService.class);
 }

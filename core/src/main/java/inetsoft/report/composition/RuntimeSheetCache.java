@@ -26,14 +26,17 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.SRPrincipal;
+import inetsoft.util.Tool;
 import inetsoft.web.json.ThirdPartySupportModule;
 import org.apache.ignite.IgniteCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
 
 import javax.cache.Cache;
-import java.io.Closeable;
-import java.io.IOException;
+import java.io.*;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -347,6 +350,34 @@ public class RuntimeSheetCache
       }
 
       return sheet;
+   }
+
+   public List<String> getAllIds(Principal user) {
+      Set<String> ids = new HashSet<>();
+
+      for(Iterator<Cache.Entry<String, RuntimeSheetState>> i = cache.iterator(); i.hasNext(); ) {
+         Cache.Entry<String, RuntimeSheetState> e = i.next();
+
+         if(user == null) {
+            ids.add(e.getKey());
+         }
+         else if(e.getValue().getUser() != null) {
+            try {
+               Document document = Tool.parseXML(new StringReader(e.getValue().getUser()));
+               SRPrincipal principal = new SRPrincipal();
+               principal.parseXML(document.getDocumentElement());
+
+               if(Objects.equals(principal, user)) {
+                  ids.add(e.getKey());
+               }
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to parse principal", ex);
+            }
+         }
+      }
+
+      return List.copyOf(ids);
    }
 
    private final Cluster cluster;

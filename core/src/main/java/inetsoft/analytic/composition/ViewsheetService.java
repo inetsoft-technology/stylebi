@@ -25,8 +25,11 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.util.SingletonManager;
 
+import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.security.Principal;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  * Viewsheet service, includes a viewsheet repository to be the server
@@ -150,6 +153,8 @@ public interface ViewsheetService extends WorksheetService {
     */
    RuntimeViewsheet[] getRuntimeViewsheets(Principal user);
 
+   <T extends Serializable> List<T> invokeOnAll(Task<T> task);
+
    /**
     * Update the all runtime viewsheet bookmark based on entry.
     *
@@ -181,5 +186,10 @@ public interface ViewsheetService extends WorksheetService {
       }
 
       private ViewsheetEngine engine;
+   }
+
+   @FunctionalInterface
+   interface Task<T extends Serializable> extends Serializable {
+      T apply(ViewsheetService service) throws Exception;
    }
 }

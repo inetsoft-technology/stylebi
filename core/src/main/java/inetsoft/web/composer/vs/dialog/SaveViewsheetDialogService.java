@@ -38,7 +38,8 @@ import inetsoft.util.log.LogLevel;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.viewsheet.command.SaveSheetCommand;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -243,26 +244,14 @@ public class SaveViewsheetDialogService {
                                                         ActionRecord.ACTION_NAME_CREATE,
                                                         objectName,
                                                         AssetEventUtil.getObjectType(entry));
-      AssetRepository assetRepository = vsService.getAssetRepository();
 
       try {
-         if(vsService.isDuplicatedEntry(assetRepository, entry)) {
-            RuntimeViewsheet[] openSheets = vsService.getRuntimeViewsheets(null);
+         boolean duplicate = vsService.invokeOnAll(new IsDuplicateTask(runtimeId, entry)).stream()
+            .anyMatch(Boolean::booleanValue);
 
-            for(int i = 0; openSheets != null && i < openSheets.length; i++) {
-               AssetEntry tentry = openSheets[i].getEntry();
-
-               if(!assetRepository.containsEntry(tentry)) {
-                  continue;
-               }
-
-               if(openSheets[i].getMode() == Viewsheet.SHEET_DESIGN_MODE &&
-                  !Tool.equals(runtimeId, openSheets[i].getID()) &&
-                  Tool.equals(entry, tentry)) {
-                  throw new MessageException(catalog.getString(
-                     "common.overwriteForbidden"), LogLevel.DEBUG, false);
-               }
-            }
+         if(duplicate) {
+            throw new MessageException(catalog.getString(
+               "common.overwriteForbidden"), LogLevel.DEBUG, false);
          }
 
          AssetEntry wentry = model.getViewsheetOptionsPaneModel()
@@ -322,6 +311,42 @@ public class SaveViewsheetDialogService {
       }
 
       return null;
+   }
+
+   private static final class IsDuplicateTask implements ViewsheetService.Task<Boolean> {
+      public IsDuplicateTask(String runtimeId, AssetEntry entry) {
+         this.runtimeId = runtimeId;
+         this.entry = entry;
+      }
+
+      @Override
+      public Boolean apply(ViewsheetService service) throws Exception {
+         AssetRepository assetRepository = service.getAssetRepository();
+
+         if(service.isDuplicatedEntry(assetRepository, entry)) {
+            RuntimeViewsheet[] openSheets = service.getRuntimeViewsheets(null);
+
+            for(int i = 0; openSheets != null && i < openSheets.length; i++) {
+               AssetEntry tentry = openSheets[i].getEntry();
+
+               if(!assetRepository.containsEntry(tentry)) {
+                  continue;
+               }
+
+               if(openSheets[i].getMode() == Viewsheet.SHEET_DESIGN_MODE &&
+                  !Tool.equals(runtimeId, openSheets[i].getID()) &&
+                  Tool.equals(entry, tentry))
+               {
+                  return true;
+               }
+            }
+         }
+
+         return false;
+      }
+
+      private final String runtimeId;
+      private final AssetEntry entry;
    }
 
    private final CoreLifecycleService coreLifecycleService;

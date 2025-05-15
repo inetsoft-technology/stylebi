@@ -534,6 +534,16 @@ public class TestCluster implements Cluster {
    }
 
    @Override
+   public <T> List<T> affinityCallAll(String cache, AffinityCallable<T> job) {
+      try {
+         return List.of(job.call());
+      }
+      catch(Exception e) {
+         throw new IgniteException("Failed to execute affinity call", e);
+      }
+   }
+
+   @Override
    public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
       // no-op
    }
