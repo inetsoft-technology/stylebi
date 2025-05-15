@@ -37,10 +37,6 @@ public class EmbeddedDataCacheHandler {
       XEmbeddedTable xdata = assembly.getEmbeddedData();
       String folder = getAssemblyCacheFolder();
 
-      System.err.println("\n-------cachefolder: " + folder);
-      System.err.println("-------worksheet: " + assembly.getWorksheet().getWsID());
-      System.err.println("-------getAssemblyEntry: " + assembly.getAssemblyEntry());
-
       try {
          if(!writeEmbeddedDataWithCache(writer)) {
             xdata.reset();
@@ -92,7 +88,7 @@ public class EmbeddedDataCacheHandler {
 
       if(dir.isDirectory()) {
          List<File> files = sortedCacheBlocks(dir);
-         System.err.println("=======existCache: " + files.size());
+
          for(int i = 0; i < files.size(); i++) {
             try(BufferedReader reader = Files.newBufferedReader(files.get(i).toPath())) {
                reader.lines().forEach(writer::println);
