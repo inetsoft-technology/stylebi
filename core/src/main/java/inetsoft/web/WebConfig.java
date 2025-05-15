@@ -40,12 +40,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.*;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.scheduling.annotation.EnableScheduling;
-import org.springframework.util.ClassUtils;
+import org.springframework.web.filter.CommonsRequestLoggingFilter;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.multipart.support.StandardServletMultipartResolver;
 import org.springframework.web.servlet.ViewResolver;
 import org.springframework.web.servlet.config.annotation.*;
-import org.springframework.web.socket.server.support.AbstractHandshakeHandler;
 import org.springframework.web.util.UrlPathHelper;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.spring6.templateresolver.SpringResourceTemplateResolver;
@@ -77,8 +76,7 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
 
    @Override
    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-      if(applicationContext instanceof DefaultResourceLoader) {
-         DefaultResourceLoader loader = (DefaultResourceLoader) applicationContext;
+      if(applicationContext instanceof DefaultResourceLoader loader) {
          loader.addProtocolResolver(new DataSpaceProtocolResolver());
          loader.addProtocolResolver(new ThemeProtocolResolver());
       }
@@ -255,17 +253,7 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
 
    @Override
    public void configurePathMatch(PathMatchConfigurer configurer) {
-      // .com in name causing json return type to be rejected
-      configurer.setUseSuffixPatternMatch(false);
-
-      if(isWebSphere()) {
-         // WebSphere strips the trailing slash
-         UrlPathHelper helper = new UrlPathHelper();
-         helper.setAlwaysUseFullPath(true);
-         helper.setRemoveSemicolonContent(false);
-         configurer.setUrlPathHelper(helper);
-      }
-      else if(configurer.getUrlPathHelper() == null) {
+      if(configurer.getUrlPathHelper() == null) {
          UrlPathHelper helper = new UrlPathHelper();
          helper.setRemoveSemicolonContent(false);
          configurer.setUrlPathHelper(helper);
@@ -275,16 +263,11 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
       configurer.getUrlPathHelper().setDefaultEncoding("UTF-8");
    }
 
-   @Override
-   public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
-      // .com in name causing json return type to be rejected
-      configurer.favorPathExtension(false);
-   }
-
-   private boolean isWebSphere() {
-      return ClassUtils.isPresent(
-         "com.ibm.websphere.wsoc.WsWsocServerContainer",
-         AbstractHandshakeHandler.class.getClassLoader());
+   @Bean
+   public CommonsRequestLoggingFilter requestLoggingFilter() {
+      CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter();
+      filter.setIncludeQueryString(true);
+      return filter;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(WebConfig.class);
