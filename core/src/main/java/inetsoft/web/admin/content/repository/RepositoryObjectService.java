@@ -715,9 +715,6 @@ public class RepositoryObjectService {
             }
          }
 
-         setResourcePermission(isWorksheetFolder ? ResourceType.ASSET :
-                                  type == RepositoryEntry.DATA_SOURCE_FOLDER ?
-                                     ResourceType.DATA_SOURCE_FOLDER : ResourceType.REPORT, principal, folderName);
          actionRecord.setObjectName(Util.getObjectFullPath(isWorksheetFolder ?
              RepositoryEntry.WORKSHEET_FOLDER : type, folderName, principal, user));
 
@@ -743,25 +740,6 @@ public class RepositoryObjectService {
          }
       }
    }
-
-   private void setResourcePermission(ResourceType type, Principal principal, String name) {
-      AuthorizationProvider authz = securityProvider.getAuthorizationProvider();
-      Permission perm = new Permission();
-      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
-      Set<String> userGrants = new HashSet<>();
-
-      if(principal instanceof XPrincipal && Tool.equals(((XPrincipal) principal).getOrgId(), currentOrgID)) {
-         userGrants.add(IdentityID.getIdentityIDFromKey(principal.getName()).name);
-      }
-
-      for(ResourceAction action : ResourceAction.values()) {
-         perm.setUserGrantsForOrg(action, userGrants, currentOrgID);
-      }
-
-      perm.updateGrantAllByOrg(currentOrgID, !userGrants.isEmpty());
-      authz.setPermission(type, name, perm);
-   }
-
 
    private void removeFolder(TreeNodeInfo node, RepletRegistry registry) throws Exception {
       final String folder = node.path();
