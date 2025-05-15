@@ -49,9 +49,15 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.*;
+import inetsoft.util.graphics.SVGSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -2090,10 +2096,33 @@ public class VsToReportConverter {
                   }
                }
 
-               try(FileOutputStream output = new FileOutputStream(tempFile)) {
-                  if(svg != null) {
-                     output.write(svg);
+               Document doc = SVGSupport.getInstance().createSVGDocument(new ByteArrayInputStream(svg));
+               Element root = doc.getDocumentElement();
+               String alphaStr = imgInfo.getImageAlpha();
+
+               if(alphaStr != null && !alphaStr.equals("100")) {
+                  try {
+                     float alpha = Integer.parseInt(alphaStr) / 100.0f;
+                     root.setAttribute("fill-opacity", String.valueOf(alpha));
+                     root.setAttribute("stroke-opacity", String.valueOf(alpha));
                   }
+                  catch(NumberFormatException e) {
+                     root.setAttribute("fill-opacity", "1.0");
+                     root.setAttribute("stroke-opacity", "1.0");
+                  }
+               }
+
+               try {
+                  Transformer transformer = TransformerFactory.newInstance().newTransformer();
+                  transformer.setOutputProperty(OutputKeys.ENCODING, "UTF-8");
+                  transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+
+                  try(FileOutputStream output = new FileOutputStream(tempFile)) {
+                     transformer.transform(new DOMSource(doc), new StreamResult(output));
+                  }
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to write modified SVG to temp file", e);
                }
 
                FileSystemService.getInstance().remove(tempFile, 10 * 60000);
