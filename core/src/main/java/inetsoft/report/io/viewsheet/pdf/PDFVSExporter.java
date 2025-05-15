@@ -42,6 +42,7 @@ import inetsoft.util.graphics.SVGSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 
 import javax.swing.*;
 import java.awt.*;
@@ -357,6 +358,20 @@ public class PDFVSExporter extends AbstractVSExporter {
                   Document doc =
                      SVGSupport.getInstance().createSVGDocument(new ByteArrayInputStream(svg));
                   Graphics2D g2 = (Graphics2D) g.create();
+                  Element root = doc.getDocumentElement();
+                  String alphaStr = info.getImageAlpha();
+
+                  if(alphaStr != null && !alphaStr.equals("100")) {
+                     try {
+                        float alpha = Integer.parseInt(alphaStr) / 100.0f;
+                        root.setAttribute("fill-opacity", String.valueOf(alpha));
+                        root.setAttribute("stroke-opacity", String.valueOf(alpha));
+                     }
+                     catch(NumberFormatException e) {
+                        root.setAttribute("fill-opacity", "1.0");
+                        root.setAttribute("stroke-opacity", "1.0");
+                     }
+                  }
 
                   MetaImage.printSVG(g2, x, y, width, height, doc);
                   g2.dispose();
