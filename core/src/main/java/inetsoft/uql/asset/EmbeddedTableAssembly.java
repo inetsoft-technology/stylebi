@@ -399,7 +399,7 @@ public class EmbeddedTableAssembly extends AbstractTableAssembly {
          xdata.printKey(writer);
       }
 
-      writer.print("," + getWorksheet().printKey(writer) + ":" + getName());
+      writer.print("," + getId() + ":" + getName());
 
       return true;
    }

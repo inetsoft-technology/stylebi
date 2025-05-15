@@ -1308,18 +1308,6 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
    }
 
    /**
-    * Print the key to identify this content object. If the keys of two content
-    * objects are equal, the content objects are equal too.
-    *
-    * @param writer The writer to print the output to.
-    * @throws Exception
-    */
-   public boolean printKey(PrintWriter writer) throws Exception {
-      writer.print(toString());
-      return true;
-   }
-
-   /**
     * Sets whether the current thread is writing to temp (swap/auto-save) storage.
     */
    public static void setIsTEMP(boolean is_Temp) {

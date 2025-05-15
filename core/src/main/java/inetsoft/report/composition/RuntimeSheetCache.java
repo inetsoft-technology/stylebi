@@ -77,7 +77,7 @@ public class RuntimeSheetCache
       return cache.unwrap(IgniteCache.class);
    }
 
-   private static ObjectMapper createObjectMapper() {
+   protected static ObjectMapper createObjectMapper() {
       StreamReadConstraints defaults = StreamReadConstraints.defaults();
       JsonFactory jsonFactory = new MappingJsonFactory();
       jsonFactory.setStreamReadConstraints(StreamReadConstraints.builder()

@@ -20,11 +20,17 @@ package inetsoft.test;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.Tool;
+import org.apache.ignite.IgniteCache;
 import org.apache.ignite.IgniteException;
+import org.apache.ignite.cache.*;
+import org.apache.ignite.cache.query.*;
+import org.apache.ignite.cluster.ClusterGroup;
+import org.apache.ignite.lang.*;
+import org.apache.ignite.transactions.TransactionException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import javax.cache.Cache;
+import javax.cache.*;
 import javax.cache.CacheManager;
 import javax.cache.configuration.CacheEntryListenerConfiguration;
 import javax.cache.configuration.Configuration;
@@ -1164,7 +1170,7 @@ public class TestCluster implements Cluster {
       private final ScheduledExecutorService delegate = Executors.newSingleThreadScheduledExecutor();
    }
 
-   private static final class LocalCache<K, V> implements Cache<K, V> {
+   private static final class LocalCache<K, V> implements IgniteCache<K, V> {
       public LocalCache(String name, DistributedMap<K, V> map) {
          this.name = name;
          this.map = map;
@@ -1173,6 +1179,21 @@ public class TestCluster implements Cluster {
       @Override
       public V get(K key) {
          return map.get(key);
+      }
+
+      @Override
+      public IgniteFuture<V> getAsync(K key) {
+         return null;
+      }
+
+      @Override
+      public CacheEntry<K, V> getEntry(K key) throws TransactionException {
+         return null;
+      }
+
+      @Override
+      public IgniteFuture<CacheEntry<K, V>> getEntryAsync(K key) throws TransactionException {
+         return null;
       }
 
       @Override
@@ -1189,8 +1210,48 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public IgniteFuture<Map<K, V>> getAllAsync(Set<? extends K> keys) throws TransactionException {
+         return null;
+      }
+
+      @Override
+      public Collection<CacheEntry<K, V>> getEntries(Set<? extends K> keys) throws TransactionException {
+         return List.of();
+      }
+
+      @Override
+      public IgniteFuture<Collection<CacheEntry<K, V>>> getEntriesAsync(Set<? extends K> keys) throws TransactionException {
+         return null;
+      }
+
+      @Override
+      public Map<K, V> getAllOutTx(Set<? extends K> keys) {
+         return Map.of();
+      }
+
+      @Override
+      public IgniteFuture<Map<K, V>> getAllOutTxAsync(Set<? extends K> keys) {
+         return null;
+      }
+
+      @Override
       public boolean containsKey(K key) {
          return map.containsKey(key);
+      }
+
+      @Override
+      public IgniteFuture<Boolean> containsKeyAsync(K key) throws TransactionException {
+         return null;
+      }
+
+      @Override
+      public boolean containsKeys(Set<? extends K> keys) throws TransactionException {
+         return false;
+      }
+
+      @Override
+      public IgniteFuture<Boolean> containsKeysAsync(Set<? extends K> keys) throws TransactionException {
+         return null;
       }
 
       @Override
@@ -1205,8 +1266,19 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public IgniteFuture<Void> putAsync(K key, V val) throws TransactionException {
+         put(key, val);
+         return null;
+      }
+
+      @Override
       public V getAndPut(K key, V value) {
          return map.put(key, value);
+      }
+
+      @Override
+      public IgniteFuture<V> getAndPutAsync(K key, V val) throws TransactionException {
+         return null;
       }
 
       @Override
@@ -1217,8 +1289,19 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public IgniteFuture<Void> putAllAsync(Map<? extends K, ? extends V> map) throws TransactionException {
+         putAll(map);
+         return null;
+      }
+
+      @Override
       public boolean putIfAbsent(K key, V value) {
          return map.putIfAbsent(key, value) != null;
+      }
+
+      @Override
+      public IgniteFuture<Boolean> putIfAbsentAsync(K key, V val) {
+         return null;
       }
 
       @Override
@@ -1227,13 +1310,30 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public IgniteFuture<Boolean> removeAsync(K key) throws TransactionException {
+         remove(key);
+         return null;
+      }
+
+      @Override
       public boolean remove(K key, V oldValue) {
          return map.remove(key, oldValue);
       }
 
       @Override
+      public IgniteFuture<Boolean> removeAsync(K key, V oldVal) throws TransactionException {
+         remove(key, oldVal);
+         return null;
+      }
+
+      @Override
       public V getAndRemove(K key) {
          return map.remove(key);
+      }
+
+      @Override
+      public IgniteFuture<V> getAndRemoveAsync(K key) throws TransactionException {
+         return null;
       }
 
       @Override
@@ -1249,6 +1349,12 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public IgniteFuture<Boolean> replaceAsync(K key, V oldVal, V newVal) throws TransactionException {
+         replace(key, oldVal, newVal);
+         return null;
+      }
+
+      @Override
       public boolean replace(K key, V value) {
          if(map.containsKey(key)) {
             map.put(key, value);
@@ -1256,6 +1362,12 @@ public class TestCluster implements Cluster {
          }
 
          return false;
+      }
+
+      @Override
+      public IgniteFuture<Boolean> replaceAsync(K key, V val) throws TransactionException {
+         replace(key, val);
+         return null;
       }
 
       @Override
@@ -1268,10 +1380,22 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public IgniteFuture<V> getAndReplaceAsync(K key, V val) {
+         getAndReplace(key, val);
+         return null;
+      }
+
+      @Override
       public void removeAll(Set<? extends K> keys) {
          for(K key : keys) {
             map.remove(key);
          }
+      }
+
+      @Override
+      public IgniteFuture<Void> removeAllAsync(Set<? extends K> keys) throws TransactionException {
+         removeAll(keys);
+         return null;
       }
 
       @Override
@@ -1280,12 +1404,250 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public IgniteFuture<Void> removeAllAsync() {
+         removeAll();
+         return null;
+      }
+
+      @Override
       public void clear() {
          map.clear();
       }
 
       @Override
+      public IgniteFuture<Void> clearAsync() {
+         clear();
+         return null;
+      }
+
+      @Override
+      public void clear(K key) {
+         map.remove(key);
+      }
+
+      @Override
+      public IgniteFuture<Void> clearAsync(K key) {
+         clear(key);
+         return null;
+      }
+
+      @Override
+      public void clearAll(Set<? extends K> keys) {
+         map.removeAll(keys);
+      }
+
+      @Override
+      public IgniteFuture<Void> clearAllAsync(Set<? extends K> keys) {
+         clearAll(keys);
+         return null;
+      }
+
+      @Override
+      public void localClear(K key) {
+      }
+
+      @Override
+      public void localClearAll(Set<? extends K> keys) {
+
+      }
+
+      @Override
+      public IgniteCache<K, V> withAsync() {
+         return null;
+      }
+
+      @Override
+      public boolean isAsync() {
+         return false;
+      }
+
+      @Override
+      public <R> IgniteFuture<R> future() {
+         return null;
+      }
+
+      @Override
       public <C extends Configuration<K, V>> C getConfiguration(Class<C> clazz) {
+         return null;
+      }
+
+      @Override
+      public IgniteCache<K, V> withExpiryPolicy(ExpiryPolicy plc) {
+         return null;
+      }
+
+      @Override
+      public IgniteCache<K, V> withSkipStore() {
+         return null;
+      }
+
+      @Override
+      public IgniteCache<K, V> withNoRetries() {
+         return null;
+      }
+
+      @Override
+      public IgniteCache<K, V> withPartitionRecover() {
+         return null;
+      }
+
+      @Override
+      public IgniteCache<K, V> withReadRepair(ReadRepairStrategy strategy) {
+         return null;
+      }
+
+      @Override
+      public <K1, V1> IgniteCache<K1, V1> withKeepBinary() {
+         return null;
+      }
+
+      @Override
+      public void loadCache(@Nullable IgniteBiPredicate<K, V> p, @Nullable Object... args) throws CacheException {
+
+      }
+
+      @Override
+      public IgniteFuture<Void> loadCacheAsync(@Nullable IgniteBiPredicate<K, V> p, @Nullable Object... args) throws CacheException {
+         return null;
+      }
+
+      @Override
+      public void localLoadCache(@Nullable IgniteBiPredicate<K, V> p, @Nullable Object... args) throws CacheException {
+
+      }
+
+      @Override
+      public IgniteFuture<Void> localLoadCacheAsync(@Nullable IgniteBiPredicate<K, V> p, @Nullable Object... args) throws CacheException {
+         return null;
+      }
+
+      @Override
+      public V getAndPutIfAbsent(K key, V val) throws CacheException, TransactionException {
+         return null;
+      }
+
+      @Override
+      public IgniteFuture<V> getAndPutIfAbsentAsync(K key, V val) throws CacheException, TransactionException {
+         return null;
+      }
+
+      @Override
+      public Lock lock(K key) {
+         return null;
+      }
+
+      @Override
+      public Lock lockAll(Collection<? extends K> keys) {
+         return null;
+      }
+
+      @Override
+      public boolean isLocalLocked(K key, boolean byCurrThread) {
+         return false;
+      }
+
+      @Override
+      public <R> QueryCursor<R> query(Query<R> qry) {
+         return null;
+      }
+
+      @Override
+      public FieldsQueryCursor<List<?>> query(SqlFieldsQuery qry) {
+         return null;
+      }
+
+      @Override
+      public <T, R> QueryCursor<R> query(Query<T> qry, IgniteClosure<T, R> transformer) {
+         return null;
+      }
+
+      @Override
+      public Iterable<Entry<K, V>> localEntries(CachePeekMode... peekModes) throws CacheException {
+         return null;
+      }
+
+      @Override
+      public QueryMetrics queryMetrics() {
+         return null;
+      }
+
+      @Override
+      public void resetQueryMetrics() {
+
+      }
+
+      @Override
+      public Collection<? extends QueryDetailMetrics> queryDetailMetrics() {
+         return List.of();
+      }
+
+      @Override
+      public void resetQueryDetailMetrics() {
+
+      }
+
+      @Override
+      public void localEvict(Collection<? extends K> keys) {
+
+      }
+
+      @Override
+      public V localPeek(K key, CachePeekMode... peekModes) {
+         return null;
+      }
+
+      @Override
+      public int size(CachePeekMode... peekModes) throws CacheException {
+         return 0;
+      }
+
+      @Override
+      public IgniteFuture<Integer> sizeAsync(CachePeekMode... peekModes) throws CacheException {
+         return null;
+      }
+
+      @Override
+      public long sizeLong(CachePeekMode... peekModes) throws CacheException {
+         return 0;
+      }
+
+      @Override
+      public IgniteFuture<Long> sizeLongAsync(CachePeekMode... peekModes) throws CacheException {
+         return null;
+      }
+
+      @Override
+      public long sizeLong(int partition, CachePeekMode... peekModes) throws CacheException {
+         return 0;
+      }
+
+      @Override
+      public IgniteFuture<Long> sizeLongAsync(int partition, CachePeekMode... peekModes) throws CacheException {
+         return null;
+      }
+
+      @Override
+      public int localSize(CachePeekMode... peekModes) {
+         return 0;
+      }
+
+      @Override
+      public long localSizeLong(CachePeekMode... peekModes) {
+         return 0;
+      }
+
+      @Override
+      public long localSizeLong(int partition, CachePeekMode... peekModes) {
+         return 0;
+      }
+
+      @Override
+      public <T> Map<K, EntryProcessorResult<T>> invokeAll(Map<? extends K, ? extends EntryProcessor<K, V, T>> map, Object... args) throws TransactionException {
+         return Map.of();
+      }
+
+      @Override
+      public <T> IgniteFuture<Map<K, EntryProcessorResult<T>>> invokeAllAsync(Map<? extends K, ? extends EntryProcessor<K, V, T>> map, Object... args) throws TransactionException {
          return null;
       }
 
@@ -1299,6 +1661,21 @@ public class TestCluster implements Cluster {
          catch(Exception e) {
             throw new EntryProcessorException(e);
          }
+      }
+
+      @Override
+      public <T> IgniteFuture<T> invokeAsync(K key, EntryProcessor<K, V, T> entryProcessor, Object... arguments) throws TransactionException {
+         return null;
+      }
+
+      @Override
+      public <T> T invoke(K key, CacheEntryProcessor<K, V, T> entryProcessor, Object... arguments) throws TransactionException {
+         return null;
+      }
+
+      @Override
+      public <T> IgniteFuture<T> invokeAsync(K key, CacheEntryProcessor<K, V, T> entryProcessor, Object... arguments) throws TransactionException {
+         return null;
       }
 
       @Override
@@ -1318,6 +1695,21 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public <T> IgniteFuture<Map<K, EntryProcessorResult<T>>> invokeAllAsync(Set<? extends K> keys, EntryProcessor<K, V, T> entryProcessor, Object... args) throws TransactionException {
+         return null;
+      }
+
+      @Override
+      public <T> Map<K, EntryProcessorResult<T>> invokeAll(Set<? extends K> keys, CacheEntryProcessor<K, V, T> entryProcessor, Object... args) throws TransactionException {
+         return Map.of();
+      }
+
+      @Override
+      public <T> IgniteFuture<Map<K, EntryProcessorResult<T>>> invokeAllAsync(Set<? extends K> keys, CacheEntryProcessor<K, V, T> entryProcessor, Object... args) throws TransactionException {
+         return null;
+      }
+
+      @Override
       public String getName() {
          return name;
       }
@@ -1330,6 +1722,66 @@ public class TestCluster implements Cluster {
       @Override
       public void close() {
          closed = true;
+      }
+
+      @Override
+      public void destroy() {
+
+      }
+
+      @Override
+      public IgniteFuture<Boolean> rebalance() {
+         return null;
+      }
+
+      @Override
+      public IgniteFuture<?> indexReadyFuture() {
+         return null;
+      }
+
+      @Override
+      public CacheMetrics metrics() {
+         return null;
+      }
+
+      @Override
+      public CacheMetrics metrics(ClusterGroup grp) {
+         return null;
+      }
+
+      @Override
+      public CacheMetrics localMetrics() {
+         return null;
+      }
+
+      @Override
+      public Collection<Integer> lostPartitions() {
+         return List.of();
+      }
+
+      @Override
+      public void enableStatistics(boolean enabled) {
+
+      }
+
+      @Override
+      public void clearStatistics() {
+
+      }
+
+      @Override
+      public void preloadPartition(int partition) {
+
+      }
+
+      @Override
+      public IgniteFuture<Void> preloadPartitionAsync(int partition) {
+         return null;
+      }
+
+      @Override
+      public boolean localPreloadPartition(int partition) {
+         return false;
       }
 
       @Override

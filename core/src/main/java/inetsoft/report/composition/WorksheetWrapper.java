@@ -484,18 +484,6 @@ public final class WorksheetWrapper extends Worksheet {
       }
    }
 
-   /**
-    * Print the key to identify this content object. If the keys of two content
-    * objects are equal, the content objects are equal too.
-    *
-    * @param writer The writer to print the output to.
-    * @throws Exception
-    */
-   @Override
-   public boolean printKey(PrintWriter writer) throws Exception {
-      return inner_ws.printKey(writer);
-   }
-
    private Worksheet inner_ws;
    private List<WSAssembly> alist = new ArrayList<>();
 }
