@@ -18,6 +18,8 @@
 package inetsoft.sree.security;
 
 import inetsoft.mv.fs.FSService;
+import inetsoft.mv.fs.internal.AbstractFileSystem;
+import inetsoft.mv.fs.internal.DefaultBlockSystem;
 import inetsoft.mv.mr.XJobPool;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
@@ -338,6 +340,37 @@ public abstract class AbstractEditableAuthenticationProvider
          else {
             dataspace.copy(path, newPath);
          }
+      }
+
+      if(!replace && Organization.getDefaultOrganizationID().equals(fromOrgId)) {
+         copyFileSystemFileAndBlockSystemFile(fromOrgId, toOrgId);
+      }
+   }
+
+   private void copyFileSystemFileAndBlockSystemFile(String fromOrgId, String toOrgId) {
+      DataSpace dataspace = DataSpace.getDataSpace();
+      String[] orgPaths = AbstractFileSystem.getOrgPaths(null);
+
+      for(String path : orgPaths) {
+         String fromPath = AbstractFileSystem.getOrgFileName(path, fromOrgId);
+
+         if(!dataspace.exists(null, fromPath)) {
+            continue;
+         }
+
+         dataspace.copy(fromPath, AbstractFileSystem.getOrgFileName(path, toOrgId));
+      }
+
+      orgPaths = DefaultBlockSystem.getOrgPaths(null);
+
+      for(String path : orgPaths) {
+         String fromPath = DefaultBlockSystem.getOrgFileName(path, fromOrgId);
+
+         if(!dataspace.exists(null, fromPath)) {
+            continue;
+         }
+
+         dataspace.copy(fromPath, DefaultBlockSystem.getOrgFileName(path, toOrgId));
       }
    }
 
