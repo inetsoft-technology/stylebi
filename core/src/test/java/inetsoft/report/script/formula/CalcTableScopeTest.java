@@ -89,7 +89,6 @@ public class CalcTableScopeTest {
    /**
     * test none function
     */
-
    private static Stream<Arguments> provideNoneTestCases() {
       CalcTableLens calcTableLens1 = new CalcTableLens(objData);
       Object lens1 = FormulaFunctions.toList(calcTableLens1, "field=id,sort=desc");
@@ -124,6 +123,7 @@ public class CalcTableScopeTest {
          Arguments.of(null, null, null, null)
       );
    }
+
    /**
     * test sum
     */
@@ -162,6 +162,7 @@ public class CalcTableScopeTest {
          Arguments.of(null, null, null, null, null)
       );
    }
+
    /**
     * test count and distinct
     */
@@ -407,7 +408,7 @@ public class CalcTableScopeTest {
    }
 
    private String doubleToString(Number value) {
-      if (value instanceof Number) {
+      if (value != null) {
          return String.format("%.4f", value.doubleValue());
       }
 
