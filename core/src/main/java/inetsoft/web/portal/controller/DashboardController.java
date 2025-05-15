@@ -64,10 +64,12 @@ public class DashboardController {
     */
    @Autowired
    public DashboardController(AnalyticRepository analyticRepository,
-                              ViewsheetService viewsheetService)
+                              ViewsheetService viewsheetService,
+                              DashboardServiceProxy serviceProxy)
    {
       this.analyticRepository = analyticRepository;
       this.viewsheetService = viewsheetService;
+      this.serviceProxy = serviceProxy;
    }
 
    @GetMapping(value = "/api/portal/dashboard-tab-model")
@@ -182,16 +184,11 @@ public class DashboardController {
          boolean fitToWidth = false;
 
          if(identifier != null) {
-            AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-            Viewsheet vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
-               entry, principal, false, AssetContent.CONTEXT);
+            DashboardService.DashboardModelInfo modelInfo = serviceProxy.getDashboardModelInfo(identifier, principal);
 
-            if(vs != null) {
-               ViewsheetInfo info = vs.getViewsheetInfo();
-               composedDashboard = info.isComposedDashboard();
-               scaleToScreen = info.isScaleToScreen();
-               fitToWidth = info.isFitToWidth();
-            }
+            composedDashboard = modelInfo.composedDashboard;
+            scaleToScreen = modelInfo.scaleToScreen;
+            fitToWidth = modelInfo.fitToWidth;
          }
 
          return DashboardModel.builder()
@@ -654,6 +651,7 @@ public class DashboardController {
 
    private final AnalyticRepository analyticRepository;
    private final ViewsheetService viewsheetService;
+   private final DashboardServiceProxy serviceProxy;
    private static final Logger LOG =
       LoggerFactory.getLogger(DashboardController.class);
 }
