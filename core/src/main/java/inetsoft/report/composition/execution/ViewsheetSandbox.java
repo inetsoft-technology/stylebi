@@ -4629,17 +4629,37 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    private void applyShareFilter(VSAssembly assembly) throws Exception {
-      RuntimeViewsheet[] arr = ViewsheetEngine.getViewsheetEngine().
-         getRuntimeViewsheets(getUser());
+      ViewsheetEngine.getViewsheetEngine().invokeOnAll(new ApplyShareFilterTask(
+         assembly, System.identityHashCode(getViewsheet()), getUser()));
+   }
 
-      for(RuntimeViewsheet rvs : arr) {
-         if(rvs == null || rvs.getViewsheet() == getViewsheet()) {
-            continue;
+   private static final class ApplyShareFilterTask implements ViewsheetService.Task<String> {
+      public ApplyShareFilterTask(VSAssembly assembly, int viewsheetIdentity, Principal user) {
+         this.assembly = assembly;
+         this.viewsheetIdentity = viewsheetIdentity;
+         this.user = user;
+      }
+
+      @Override
+      public String apply(ViewsheetService service) throws Exception {
+         RuntimeViewsheet[] arr = ViewsheetEngine.getViewsheetEngine().
+            getRuntimeViewsheets(user);
+
+         for(RuntimeViewsheet rvs : arr) {
+            if(rvs == null || System.identityHashCode(rvs.getViewsheet()) == viewsheetIdentity) {
+               continue;
+            }
+
+            rvs.getViewsheetSandbox().processSharedFilters(
+               assembly, null, true);
          }
 
-         rvs.getViewsheetSandbox().processSharedFilters(
-            assembly, null, true);
+         return null;
       }
+
+      private final VSAssembly assembly;
+      private final int viewsheetIdentity;
+      private final Principal user;
    }
 
    /**

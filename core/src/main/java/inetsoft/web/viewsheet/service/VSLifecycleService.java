@@ -17,6 +17,7 @@
  */
 package inetsoft.web.viewsheet.service;
 
+import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
@@ -24,6 +25,8 @@ import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.AffinityCallable;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
@@ -44,12 +47,14 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.security.Principal;
 import java.sql.Date;
 import java.util.*;
@@ -468,30 +473,78 @@ public class VSLifecycleService {
          return;
       }
 
-      Set<RuntimeViewsheet> list =
-         new TreeSet<>(Comparator.comparingLong(RuntimeSheet::getLastAccessed));
-
-      for(RuntimeViewsheet sheet : viewsheetService.getRuntimeViewsheets(user)) {
-         if(sheet.getEntry().equals(entry) && sheet.isViewer()) {
-            list.add(sheet);
-         }
-      }
+      List<OpenViewsheet> list = viewsheetService.invokeOnAll(new GetOpenViewsheetsTask(user))
+         .stream()
+         .flatMap(Collection::stream)
+         .sorted()
+         .toList();
 
       // a viewsheet is being opened, so we want limit - 1 instances left
       while(list.size() >= limit) {
-         Iterator<RuntimeViewsheet> iterator = list.iterator();
-         RuntimeViewsheet sheet = iterator.next();
+         Iterator<OpenViewsheet> iterator = list.iterator();
+         OpenViewsheet sheet = iterator.next();
          iterator.remove();
 
          LOG.debug(
-            "Closing viewsheet " + sheet.getID() + " due to quota for " + user);
+            "Closing viewsheet " + sheet.getId() + " due to quota for " + user);
 
-         closeViewsheet(sheet.getID(), user, null);
+         final String rid = sheet.getId();
+         Cluster.getInstance().affinityCall(ViewsheetEngine.CACHE_NAME, rid, new AffinityCallable<Void>() {
+            @Override
+            public Void call() throws Exception {
+               ViewsheetEngine.getViewsheetEngine().closeViewsheet(rid, user);
+               return null;
+            }
+         });
 
          if(runtimeViewsheetManager != null) {
-            runtimeViewsheetManager.sheetClosed(sheet.getID());
+            runtimeViewsheetManager.sheetClosed(sheet.getId());
          }
       }
+   }
+
+   private static final class OpenViewsheet implements Serializable, Comparable<OpenViewsheet> {
+      public OpenViewsheet(String id, long lastModified) {
+         this.id = id;
+         this.lastModified = lastModified;
+      }
+
+      public String getId() {
+         return id;
+      }
+
+      public long getLastModified() {
+         return lastModified;
+      }
+
+      @Override
+      public int compareTo(@NotNull VSLifecycleService.OpenViewsheet o) {
+         return Comparator.comparing(OpenViewsheet::getLastModified)
+            .thenComparing(OpenViewsheet::getId)
+            .compare(this, o);
+      }
+
+      private final String id;
+      private final long lastModified;
+   }
+
+   private static final class GetOpenViewsheetsTask implements ViewsheetService.Task<ArrayList<OpenViewsheet>> {
+      public GetOpenViewsheetsTask(Principal user) {
+         this.user = user;
+      }
+
+      @Override
+      public ArrayList<OpenViewsheet> apply(ViewsheetService service) throws Exception {
+         ArrayList<OpenViewsheet> result = new ArrayList<>();
+
+         for(RuntimeViewsheet rvs : service.getRuntimeViewsheets(user)) {
+            result.add(new OpenViewsheet(rvs.getID(), rvs.getLastAccessed()));
+         }
+
+         return result;
+      }
+
+      private final Principal user;
    }
 
    private boolean shouldAuditFinish(ViewsheetSandbox viewsheetSandbox) {

@@ -23,6 +23,8 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.AffinityCallable;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -34,6 +36,7 @@ import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
@@ -460,6 +463,11 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          .toArray(RuntimeViewsheet[]::new);
    }
 
+   @Override
+   public <T extends Serializable> List<T> invokeOnAll(Task<T> task) {
+      return Cluster.getInstance().affinityCallAll(CACHE_NAME, new InvokeAllTask<>(task));
+   }
+
    /**
     * Get the next sheet id.
     * @param entry the specified entry.
@@ -831,4 +839,18 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       SingletonManager.getInstance(ViewsheetLifecycleMessageChannel.class);
    private int dataChangeCount;
    private final Map<AssetEntry, Long> dataChangeMap = new HashMap<>();
+
+   private static final class InvokeAllTask<T extends Serializable> implements AffinityCallable<T> {
+      public InvokeAllTask(Task<T> task) {
+         this.task = task;
+      }
+
+      @Override
+      public T call() throws Exception {
+         ViewsheetService service = ViewsheetEngine.getViewsheetEngine();
+         return task.apply(service);
+      }
+
+      private final Task<T> task;
+   }
 }

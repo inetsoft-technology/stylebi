@@ -267,6 +267,18 @@ public interface Cluster extends AutoCloseable {
    <T> T affinityCall(String cache, String key, AffinityCallable<T> job);
 
    /**
+    * Executes the given job on all nodes that host a primary partition of a cache.
+    *
+    * @param cache the name of the cache.
+    * @param job   the job to execute.
+    *
+    * @return the return value of the job.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> List<T> affinityCallAll(String cache, AffinityCallable<T> job);
+
+   /**
     * Adds a listener that is notified when a cache is rebalanced.
     *
     * @param cacheName the name of the cache.

@@ -31,7 +31,9 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
+import java.io.Serializable;
 import java.security.Principal;
+import java.util.*;
 
 @Service
 public class SharedFilterService {
@@ -61,47 +63,27 @@ public class SharedFilterService {
       // equals the original RefreshVSObjectCommand, see bug1247647231402
       dispatcher.setSharedHint(assembly.getAbsoluteName());
 
-      // @davidd bug1364406849572, Process shared filters in other
-      // viewsheets. Local shared filters are processed in
-      // ViewsheetSandbox.processSelection
-      try {
-         RuntimeViewsheet[] arr = viewsheetService.getRuntimeViewsheets(principal);
+      List<ChangedViewsheet> changed = viewsheetService.invokeOnAll(new ApplyFiltersTask(vs.getID(), assembly, principal))
+         .stream()
+         .flatMap(Collection::stream)
+         .toList();
 
-         for(RuntimeViewsheet rvs : arr) {
-            if(rvs == vs) {
-               continue;
-            }
+      for(ChangedViewsheet rvs : changed) {
+         SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
+         headerAccessor.setSessionId(rvs.getSocketSessionId());
+         headerAccessor.setLeaveMutable(true);
+         headerAccessor.setNativeHeader(
+            CommandDispatcher.COMMAND_TYPE_HEADER, "UpdateSharedFiltersCommand");
+         headerAccessor.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, rvs.getId());
+         String user = rvs.getSocketUserName();
 
-            boolean changed = rvs.getViewsheetSandbox().processSharedFilters(
-               assembly, null, true);
-
-            if(changed) {
-               SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
-               headerAccessor.setSessionId(rvs.getSocketSessionId());
-               headerAccessor.setLeaveMutable(true);
-               headerAccessor.setNativeHeader(
-                  CommandDispatcher.COMMAND_TYPE_HEADER, "UpdateSharedFiltersCommand");
-               headerAccessor.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, rvs.getID());
-               String user = rvs.getSocketUserName();
-
-               if(user == null) {
-                  user = dispatcher.getUserName();
-               }
-
-               messagingTemplate.convertAndSendToUser(
-                  user, CommandDispatcher.COMMANDS_TOPIC,
-                  new UpdateSharedFiltersCommand(), headerAccessor.getMessageHeaders());
-            }
+         if(user == null) {
+            user = dispatcher.getUserName();
          }
-      }
-      catch(ConfirmDataException ignored) {
-         // ignored
-      }
-      catch(ConfirmException cex) {
-         throw cex;
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to process the shared filters", ex);
+
+         messagingTemplate.convertAndSendToUser(
+            user, CommandDispatcher.COMMANDS_TOPIC,
+            new UpdateSharedFiltersCommand(), headerAccessor.getMessageHeaders());
       }
 
       dispatcher.setSharedHint(null);
@@ -111,4 +93,77 @@ public class SharedFilterService {
    private final SimpMessagingTemplate messagingTemplate;
    private final ViewsheetService viewsheetService;
    private static final Logger LOG = LoggerFactory.getLogger(SharedFilterService.class);
+
+   private static final class ChangedViewsheet implements Serializable {
+      public ChangedViewsheet(RuntimeViewsheet rvs) {
+         this(rvs.getID(), rvs.getSocketSessionId(), rvs.getSocketUserName());
+      }
+
+      public ChangedViewsheet(String id, String socketSessionId, String socketUserName) {
+         this.id = id;
+         this.socketSessionId = socketSessionId;
+         this.socketUserName = socketUserName;
+      }
+
+      public String getId() {
+         return id;
+      }
+
+      public String getSocketSessionId() {
+         return socketSessionId;
+      }
+
+      public String getSocketUserName() {
+         return socketUserName;
+      }
+
+      private final String id;
+      private final String socketSessionId;
+      private final String socketUserName;
+   }
+
+   private static final class ApplyFiltersTask implements ViewsheetService.Task<ArrayList<ChangedViewsheet>> {
+      public ApplyFiltersTask(String rid, VSAssembly assembly, Principal principal) {
+         this.rid = rid;
+         this.assembly = assembly;
+         this.principal = principal;
+      }
+
+      @Override
+      public ArrayList<ChangedViewsheet> apply(ViewsheetService service) throws Exception {
+         ArrayList<ChangedViewsheet> result = new ArrayList<>();
+
+         try {
+            RuntimeViewsheet[] arr = service.getRuntimeViewsheets(principal);
+
+            for(RuntimeViewsheet rvs : arr) {
+               if(rvs.getID().equals(rid)) {
+                  continue;
+               }
+
+               boolean changed = rvs.getViewsheetSandbox().processSharedFilters(
+                  assembly, null, true);
+
+               if(changed) {
+                  result.add(new ChangedViewsheet(rvs));
+               }
+            }
+         }
+         catch(ConfirmDataException ignored) {
+            // ignored
+         }
+         catch(ConfirmException cex) {
+            throw cex;
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to process the shared filters", ex);
+         }
+
+         return result;
+      }
+
+      private final String rid;
+      private final VSAssembly assembly;
+      private final Principal principal;
+   }
 }

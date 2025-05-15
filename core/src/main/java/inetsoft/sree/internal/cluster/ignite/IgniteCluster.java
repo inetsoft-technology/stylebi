@@ -912,6 +912,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public <T> List<T> affinityCallAll(String cache, AffinityCallable<T> job) {
+      Collection<String> caches = Set.of(cache);
+      IgniteAffinityCallable<T> task = new IgniteAffinityCallable<>(job);
+      int partitions = ignite.affinity(cache).partitions();
+      List<T> results = new ArrayList<>(partitions);
+
+      for(int i = 0; i < partitions; i++) {
+         results.add(ignite.compute().affinityCall(caches, i, task));
+      }
+
+      return results;
+   }
+
+   @Override
    public void addCacheRebalanceListener(String cacheName, CacheRebalanceListener listener) {
       UUID id = ignite.events()
          .remoteListen(new RebalanceListenerAdapter(listener),
