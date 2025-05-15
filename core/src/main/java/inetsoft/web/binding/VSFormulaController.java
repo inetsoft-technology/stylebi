@@ -66,9 +66,18 @@ public class VSFormulaController {
          List<DataRefModel> aggregateFields = new ArrayList<>();
          List<DataRefModel> allcolumns = new ArrayList<>();
          List<String> calcFieldsGroup = new ArrayList<>();
+         List<String> userAggNames = new ArrayList<>();
 
          populateSelection(selection, columnFields, aggregateFields,
                            allcolumns, calcFieldsGroup, tableName);
+
+         AggregateRef[] userAggs = viewsheet.getAggrFields(tableName);
+
+         if(userAggs != null) {
+            for(int i = 0; i < userAggs.length; i++) {
+               userAggNames.add(userAggs[i].toString());
+            }
+         }
 
          Map<String, Object> result = new HashMap<>();
          result.put("columnFields", columnFields);
@@ -76,6 +85,7 @@ public class VSFormulaController {
          result.put("allcolumns", allcolumns);
          result.put("calcFieldsGroup", calcFieldsGroup);
          result.put("sqlMergeable", selection.getProperty("sqlMergeable"));
+         result.put("userAggNames", userAggNames);
          boolean isWS = viewsheet.getBaseEntry() != null && viewsheet.getBaseEntry() .isWorksheet();
          DataRefModel[] grayedOutFields = assemblyInfoHandler.getGrayedOutFields(rvs);
 
