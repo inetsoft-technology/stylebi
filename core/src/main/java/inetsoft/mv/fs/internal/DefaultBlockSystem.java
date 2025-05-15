@@ -456,6 +456,13 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
     * Get the list of fs.bs.files.
     */
    private String[] getPaths() {
+      return getOrgPaths(this.orgId);
+   }
+
+   /**
+    * Get the list of fs.bs.files. if orgId is empty or host-org will return original paths.
+    */
+   public static String[] getOrgPaths(String orgId) {
       String val = SreeEnv.getEarlyLoadedProperty("fs.bs.files");
 
       if(val == null) {
@@ -467,15 +474,15 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
       if(orgId != null && !Tool.equals(Organization.getDefaultOrganizationID(), orgId)) {
          for(int i = 0; i < files.length; i++) {
             files[i] = files[i].trim();
-            files[i] = getOrgFileName(files[i]);
+            files[i] = getOrgFileName(files[i], orgId);
          }
       }
 
       return files;
    }
 
-   private String getOrgFileName(String oldName) {
-      if(Tool.isEmptyString(oldName)) {
+   public static String getOrgFileName(String oldName, String orgId) {
+      if(Tool.isEmptyString(oldName) || Tool.equals(Organization.getDefaultOrganizationID(), orgId)) {
          return oldName;
       }
 
