@@ -187,7 +187,11 @@ public class RepletRegistryManager {
       }
 
       registryTo.setFolderDescription(newPath, description);
-      registryTo.setFolderAlias(newPath, alias, true);
+
+      if(!Tool.equals(registry.getFolderAlias(oldPath), registryTo.getFolderAlias(newPath))) {
+         registryTo.setFolderAlias(newPath, alias, true);
+      }
+
       registryTo.save();
    }
 
