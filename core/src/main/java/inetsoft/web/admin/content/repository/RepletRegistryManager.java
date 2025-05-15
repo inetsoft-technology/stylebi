@@ -25,6 +25,7 @@ import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -649,7 +650,7 @@ public class RepletRegistryManager {
             try {
                setPermissionIgnored();
                copySheet(asset, viewsheetPath, userFrom, pathTo, userTo, infos, false,
-                  move, principal);
+                  move, true, principal);
             }
             finally {
                removePermissionIgnored();
@@ -700,7 +701,7 @@ public class RepletRegistryManager {
    private boolean copySheet(AssetEntry oentry, String pathFrom,
                              IdentityID userFrom, String pathTo, IdentityID userTo,
                              Map<String, List<String>> infos,
-                             boolean isWorksheet, boolean move,
+                             boolean isWorksheet, boolean move, boolean fromFolder,
                              Principal principal)
       throws Exception
    {
@@ -809,6 +810,10 @@ public class RepletRegistryManager {
                   repository.changeSheet(oentry, nentry, principal, true);
                   //System.out.println("changeSheet :" + (new Date().getTime() - start.getTime()));
 
+                  if(fromFolder) {
+                     DependencyHandler dependencyHandler = DependencyHandler.getInstance();
+                     RenameTransformHandler.getTransformHandler().addTransformTask(dependencyHandler.getRenameDependencyInfo(oentry, nentry), true);
+                  }
                }
                else {
                   ((AbstractAssetEngine) repository).setSheet(nentry, vs,
@@ -871,7 +876,7 @@ public class RepletRegistryManager {
    {
       AssetEntry oentry = getAssetEntry(identifier, principal);
 
-      return copySheet(oentry, pathFrom, userFrom, pathTo, userTo, infos, isWorksheet, move,
+      return copySheet(oentry, pathFrom, userFrom, pathTo, userTo, infos, isWorksheet, move, false,
          principal);
    }
 
