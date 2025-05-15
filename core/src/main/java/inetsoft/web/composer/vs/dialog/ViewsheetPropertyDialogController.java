@@ -228,8 +228,6 @@ public class ViewsheetPropertyDialogController {
          vsLayoutDialog.setLandscape(printLayout.isHorizontalScreen());
          vsLayoutDialog.setScaleFont(printLayout.getScaleFont());
          vsLayoutDialog.setNumberingStart(printLayout.getPrintInfo().getPageNumberingStart());
-         vsLayoutDialog.setFooterFromEdge(printLayout.getPrintInfo().getFooterFromEdge());
-         vsLayoutDialog.setHeaderFromEdge(printLayout.getPrintInfo().getHeaderFromEdge());
          PrintInfo pinfo = printLayout.getPrintInfo();
          String unit = pinfo.getUnit();
          double ratio = 1 / PrintInfo.getUnitRatio(unit); // convert inches to current unit
@@ -238,6 +236,8 @@ public class ViewsheetPropertyDialogController {
          vsLayoutDialog.setMarginBottom(getDisplayPageSize(margin.bottom, ratio));
          vsLayoutDialog.setMarginLeft(getDisplayPageSize(margin.left, ratio));
          vsLayoutDialog.setMarginRight(getDisplayPageSize(margin.right, ratio));
+         vsLayoutDialog.setFooterFromEdge((float) getDisplayPageSize(pinfo.getFooterFromEdge(), ratio));
+         vsLayoutDialog.setHeaderFromEdge((float) getDisplayPageSize(pinfo.getHeaderFromEdge(), ratio));
 
          DimensionD size = printLayout.getPrintInfo().getSize();
          vsLayoutDialog.setCustomHeight(getDisplayPageSize(size.getHeight(), 1));
@@ -405,8 +405,6 @@ public class ViewsheetPropertyDialogController {
          printInfo.setPaperType(vsPrintLayoutDialog.getPaperSize());
          printLayout.setScaleFont(vsPrintLayoutDialog.getScaleFont());
          printInfo.setPageNumberingStart(vsPrintLayoutDialog.getNumberingStart());
-         printInfo.setFooterFromEdge(vsPrintLayoutDialog.getFooterFromEdge());
-         printInfo.setHeaderFromEdge(vsPrintLayoutDialog.getHeaderFromEdge());
 
          double radio = PrintInfo.getUnitRatio(vsPrintLayoutDialog.getUnits()); // convert to inch
          Size size = PaperSize.getSize(vsPrintLayoutDialog.getPaperSize());
@@ -427,6 +425,8 @@ public class ViewsheetPropertyDialogController {
             vsPrintLayoutDialog.getMarginBottom() * radio,
             vsPrintLayoutDialog.getMarginRight() * radio) ;
          printInfo.setMargin(margin);
+         printInfo.setFooterFromEdge((float) (vsPrintLayoutDialog.getFooterFromEdge() * radio));
+         printInfo.setHeaderFromEdge((float) (vsPrintLayoutDialog.getHeaderFromEdge() * radio));
 
          printLayout.setPrintInfo(printInfo);
          printLayout.setHorizontalScreen(vsPrintLayoutDialog.isLandscape());
