@@ -358,6 +358,13 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
     * Get the list of fs.files.
     */
    private String[] getPaths() {
+      return getOrgPaths(this.orgId);
+   }
+
+   /**
+    * Get the list of org fs.files. if orgId is empty or host-org will return original paths.
+    */
+   public static String[] getOrgPaths(String orgId) {
       String val = SreeEnv.getEarlyLoadedProperty("fs.files");
 
       // SreeEnv.getProperty("fs.files","") always returns "",
@@ -372,15 +379,15 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
       if(orgId != null && !Tool.equals(Organization.getDefaultOrganizationID(), orgId)) {
          for(int i = 0; i < files.length; i++) {
             files[i] = files[i].trim();
-            files[i] = getOrgFileName(files[i]);
+            files[i] = getOrgFileName(files[i], orgId);
          }
       }
 
       return files;
    }
 
-   private String getOrgFileName(String oldName) {
-      if(Tool.isEmptyString(oldName)) {
+   public static String getOrgFileName(String oldName, String orgId) {
+      if(Tool.isEmptyString(oldName) || Tool.equals(Organization.getDefaultOrganizationID(), orgId)) {
          return oldName;
       }
 
