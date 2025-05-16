@@ -1456,7 +1456,8 @@ public class VsToReportConverter {
             ChartRef[] rGeoRefs = ((VSMapInfo) vinfo).getRTGeoFields();
 
             for(int i = 0; i < rGeoRefs.length; i++) {
-               ((MapInfo) rinfo).addGeoField(rGeoRefs[i]);
+               ((VSMapInfo) rinfo).addGeoField(rGeoRefs[i]);
+               ((VSMapInfo) rinfo).addRTGeoField(rGeoRefs[i]);
             }
          }
       }
