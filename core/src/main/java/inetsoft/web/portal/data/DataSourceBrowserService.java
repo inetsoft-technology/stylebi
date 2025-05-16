@@ -630,8 +630,15 @@ public class DataSourceBrowserService {
             if(!securityEngine.checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER,
                   item.getPath(), ResourceAction.WRITE))
             {
+               String path = item.getPath();
+
+               if(path != null) {
+                  path = path.replace(item.getName(), "");
+                  path = path.replaceAll("[\\\\/]+$", "");
+               }
+
                throw new MessageException(Catalog.getCatalog()
-                  .getString("common.writeAuthority", item.getPath()));
+                  .getString("common.writeAuthority", path));
             }
 
             if(PortalDataType.DATA_SOURCE_FOLDER.name().equals(item.getType())) {
