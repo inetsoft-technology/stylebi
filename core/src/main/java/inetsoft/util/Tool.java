@@ -4976,11 +4976,11 @@ public final class Tool extends CoreTool {
       }
    }
 
-   public static String buildString(String... strs) {
+   public static String buildString(Object... strs) {
       return buildString(50, strs);
    }
 
-   public static String buildString(int capacity, String... strs) {
+   public static String buildString(int capacity, Object... strs) {
       if(strs == null || strs.length == 0) {
          return "";
       }
