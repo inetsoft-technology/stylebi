@@ -1432,6 +1432,7 @@ public class ScheduleService {
                         if(parameter.array()) {
                            value = scheduleConditionService
                               .getParamValueAsArray(parameter.type(), parameter.value().getValue().toString());
+                           value = fixDateArrayValue(value, parameter.type());
                         }
                         else if(value instanceof DynamicValueModel) {
                            value = ((DynamicValueModel) value).convertParameterValue();
@@ -1464,6 +1465,26 @@ public class ScheduleService {
       }
 
       return action;
+   }
+
+   // For date and timeInstant type values as array, their values will the same type(java.util.date)
+   // so it will change to timeInstant time when using Tool.getDataString, so we should change date
+   // to java.sql.date to split them using right type.
+   private Object fixDateArrayValue(Object value, String type) {
+      if(value instanceof Object[]) {
+         Object[] array = (Object[]) value;
+
+         if(array != null && Tool.DATE.equals(type)) {
+            for(int i = 0; i < array.length; i++) {
+               if(array[i] instanceof java.util.Date) {
+                  java.util.Date odate = (java.util.Date) array[i];
+                  array[i] = new java.sql.Date(odate.getTime());
+               }
+            }
+         }
+      }
+
+      return value;
    }
 
    private String trimEmailSpaces(String emails) {
