@@ -151,20 +151,7 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
 
    @Input()
    set selected(selected: boolean) {
-      if(!!this.currentTimeout) {
-         clearTimeout(this.currentTimeout);
-      }
-
-      if(!selected) {
-         // wait the blur event and the change event of the edit input before input be removed from dom.
-         this.currentTimeout = setTimeout(() => {
-            this._selected = selected;
-            this.changeDetectionRef.detectChanges();
-         });
-      }
-      else {
-         this._selected = selected;
-      }
+      this._selected = selected;
    }
 
    constructor(private renderer: Renderer2,
