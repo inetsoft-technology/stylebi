@@ -2764,6 +2764,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             }
 
             storage.putXMLSerializable(identifier, sheet);
+            EmbeddedDataCacheHandler.clearWSCache(identifier);
 
             // @by jasonshobe, add the entry to the parent after saving the
             // sheet so that if an exception occurs while saving the sheet, the
