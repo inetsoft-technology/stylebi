@@ -127,6 +127,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Input() isCondition: boolean = false;
 
    @Input() grayedOutFields: DataRef[];
+   @Input() userAggNames: string[];
    @Input() selfVisible: boolean = true;
    @Input() checkDuplicatesInColumnTree: boolean = true;
 
@@ -686,6 +687,8 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                useragg: "true",
                data: this.getAggrExpression(aggregateRef)
             };
+
+            this.userAggNames.push(this.getFullName(aggregateRef));
             let anode: TreeNodeModel = this.createTreeNode(
                this.getFullName(aggregateRef), properties, true, null);
 
@@ -926,7 +929,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                parentName: column.data.name,
                parentLabel: column.label,
                parentData: column.data.data,
-               useragg: "true"
+               useragg: this.userAggNames.indexOf(this.getFullName(field)) >= 0 ? "true" : "false"
             }
          };
 
