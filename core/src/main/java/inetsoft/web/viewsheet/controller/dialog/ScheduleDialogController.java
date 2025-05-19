@@ -431,9 +431,15 @@ public class ScheduleDialogController {
       }
 
       TimeCondition condition = new TimeCondition();
-      condition.setHour(Optional.ofNullable(timeConditionModel.hour()).orElse(1));
-      condition.setMinute(Optional.ofNullable(timeConditionModel.minute()).orElse(30));
-      condition.setSecond(Optional.ofNullable(timeConditionModel.second()).orElse(0));
+      condition.setHour(Optional.ofNullable(timeConditionModel.hour())
+                           .filter(h -> h > 0)
+                           .orElse(1));
+      condition.setMinute(Optional.ofNullable(timeConditionModel.minute())
+                             .filter(h -> h > 0)
+                             .orElse(30));
+      condition.setSecond(Optional.ofNullable(timeConditionModel.second())
+                             .filter(h -> h > 0)
+                             .orElse(0));
       condition.setType(timeConditionModel.type());
 
       if(condition.getType() == TimeCondition.EVERY_DAY) {
