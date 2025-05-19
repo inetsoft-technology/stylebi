@@ -1288,6 +1288,11 @@ public class CoreLifecycleService {
       if(manualRefresh && refreshParent) {
          // make sure that any embedded viewsheets have their contents updated
          sheet.update(rvs.getAssetRepository(), null, rvs.getUser());
+         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+
+         if(box != null) {
+            box.disposeSandbox();
+         }
       }
 
       Assembly[] assemblies = sheet.getAssemblies(false, true);
