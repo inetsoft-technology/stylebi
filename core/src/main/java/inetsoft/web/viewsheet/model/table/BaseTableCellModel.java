@@ -45,8 +45,7 @@ import javax.annotation.Nullable;
 import java.awt.*;
 import java.sql.NClob;
 import java.sql.Time;
-import java.util.Iterator;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 
 
@@ -111,7 +110,8 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
    }
 
    public static BaseTableCellModel createTableCell(VSAssemblyInfo assemblyInfo,
-                                                    VSTableLens lens, int row, int col, int spanRow)
+                                                    VSTableLens lens, int row, int col, int spanRow,
+                                                    Map<VSFormat, VSFormatModel> formatModelCache)
    {
       FormatTableLens formatTableLens = getFormatTableLens(lens.getTable());
       Object obj = lens.getObject(row, col);
@@ -130,7 +130,13 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       Object data = formatTableLens == null ? obj : formatTableLens.getTable().getObject(row, col);
 
       VSFormat vsFormat = lens.getFormat(row, col, spanRow);
-      VSFormatModel vsFormatModel = new VSFormatModel(vsFormat, assemblyInfo);
+      VSFormatModel vsFormatModel = formatModelCache
+         .computeIfAbsent(vsFormat, K -> new VSFormatModel(vsFormat, assemblyInfo));
+
+      if(!Tool.equals(vsFormatModel.getPadding(), lens.getInsets(row, col))) {
+         vsFormatModel = new VSFormatModel(vsFormat, assemblyInfo);
+      }
+
       vsFormatModel.setPadding(lens.getInsets(row, col));
       String drillOp = lens.getDrillOp(row, col);
 
@@ -282,7 +288,8 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
 
    public static BaseTableCellModel createFormCell(VSAssemblyInfo info,
                                                    FormTableLens formLens,
-                                                   VSTableLens lens, int row, int col)
+                                                   VSTableLens lens, int row, int col,
+                                                   Map<VSFormat, VSFormatModel> formatModelCache)
    {
       Object obj = lens.getObject(row, col);
       Object label = formLens.getLabel(row, col) != null ?
@@ -301,7 +308,14 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       VSFormat vsFormat = lens.getFormat(row, col);
       VSCompositeFormat compositeFormat = new VSCompositeFormat();
       compositeFormat.setUserDefinedFormat(vsFormat);
-      VSFormatModel vsFormatModel = new VSFormatModel(compositeFormat, info);
+
+      VSFormatModel vsFormatModel = formatModelCache
+         .computeIfAbsent(vsFormat, K -> new VSFormatModel(vsFormat, info));
+
+      if(!Tool.equals(vsFormatModel.getPadding(), lens.getInsets(row, col))) {
+         vsFormatModel = new VSFormatModel(vsFormat, info);
+      }
+
       vsFormatModel.setPadding(lens.getInsets(row, col));
 
       TableDataPath path = lens.getTableDataPath(row, col);

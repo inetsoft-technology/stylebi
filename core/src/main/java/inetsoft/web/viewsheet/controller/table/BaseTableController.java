@@ -46,6 +46,7 @@ import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.table.BaseTableEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.viewsheet.model.VSFormatModel;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import inetsoft.web.viewsheet.model.table.BaseTableModel;
 import inetsoft.web.viewsheet.service.*;
@@ -772,6 +773,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
       int[] spanRow = new int[colCount];
       Arrays.fill(spanRow, start);
       CrossTabFilter filter = Util.getCrosstab(lens);
+      Map<VSFormat, VSFormatModel> formatModelCache = new HashMap<>();
 
       for(int i = start; i < end; i++) {
          for(int j = 0; j < colCount; j++) {
@@ -800,7 +802,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
                BaseTableCellModel cell;
 
                if(formLens == null) {
-                  cell = BaseTableCellModel.createTableCell(info, lens, i, j, spanRow[j]++);
+                  cell = BaseTableCellModel.createTableCell(info, lens, i, j, spanRow[j]++, formatModelCache);
 
                   for(int colSpanCount = 1; colSpanCount < span.width; colSpanCount++) {
                      spanRow[j + colSpanCount]++;
@@ -811,7 +813,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
                   }
                }
                else {
-                  cell = BaseTableCellModel.createFormCell(info, formLens, lens, i, j);
+                  cell = BaseTableCellModel.createFormCell(info, formLens, lens, i, j, formatModelCache);
                }
 
                cell.setColSpan(span.width);
@@ -868,10 +870,10 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
 
                // If not created already or a spanning cell then create normally
                if(formLens == null) {
-                  cell = BaseTableCellModel.createTableCell(info, lens, i, j, spanRow[j]++);
+                  cell = BaseTableCellModel.createTableCell(info, lens, i, j, spanRow[j]++, formatModelCache);
                }
                else {
-                  cell = BaseTableCellModel.createFormCell(info, formLens, lens, i, j);
+                  cell = BaseTableCellModel.createFormCell(info, formLens, lens, i, j, formatModelCache);
                }
 
                if(info instanceof CrosstabVSAssemblyInfo) {
