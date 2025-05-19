@@ -973,7 +973,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
             parentLabel: column.label,
             parentData: column.data.data,
             isField: "true",
-            useragg: this.aggregateOnly ? "true" : "false"
+            useragg: this.aggregateOnly ? "true" : null
          }
       };
 
