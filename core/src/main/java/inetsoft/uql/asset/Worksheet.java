@@ -1358,6 +1358,14 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
       }
    }
 
+   public String getWsID() {
+      return wsID;
+   }
+
+   public void setWsID(String wsID) {
+      this.wsID = wsID;
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(Worksheet.class);
    private static ThreadLocal<Boolean> temp = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
@@ -1369,4 +1377,5 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
    private WorksheetInfo winfo; // viewsheet info
    private boolean offline;
    private transient Map<String, WSAssembly> amap;
+   private transient String wsID = null; // for mv cache
 }

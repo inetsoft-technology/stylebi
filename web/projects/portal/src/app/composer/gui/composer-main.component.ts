@@ -329,9 +329,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             if(sheet) {
                if(!this.confirmExpiredDisplayed) {
                   this.confirmExpiredDisplayed = true;
-                  const msg = "_#(js:common.expiredSheets)"
-                     + ComponentTool.MESSAGEDIALOG_MESSAGE_CONNECTION
-                     + sheet.type + " " + sheet.label;
+                  const msg = Tool.formatCatalogString("_#(js:common.expiredSheets)", [sheet.label])
                   const options: NgbModalOptions = { backdrop: "static" };
                   ComponentTool.showConfirmDialog(modalService, "_#(js:Expired)", msg,
                      CONFIRM_MESSAGE.options, options)

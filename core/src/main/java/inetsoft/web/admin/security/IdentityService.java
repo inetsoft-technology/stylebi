@@ -916,6 +916,7 @@ public class IdentityService {
       removeBlobStorage("__pdata", orgID, EmbeddedTableStorage.Metadata.class);
       removeBlobStorage("__library", orgID, LibManager.Metadata.class);
       removeBlobStorage("__autoSave", orgID, LibManager.Metadata.class);
+      EmbeddedDataCacheHandler.clearOrgCache(orgID);
    }
 
    public void copyStorages(Organization oOrg, Organization nOrg, boolean rename) {

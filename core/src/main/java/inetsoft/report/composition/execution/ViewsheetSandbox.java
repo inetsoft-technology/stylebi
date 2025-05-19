@@ -648,7 +648,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       pairs.clear();
       images.clear();
 
-      // dispose sandbox
+      disposeSandbox();
+   }
+
+   // dispose sandbox
+   public void disposeSandbox() {
       List<String> list = new ArrayList<>(bmap.keySet());
 
       for(String name : list) {
