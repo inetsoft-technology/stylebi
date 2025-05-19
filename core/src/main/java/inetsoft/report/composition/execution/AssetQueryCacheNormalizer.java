@@ -318,6 +318,8 @@ public class AssetQueryCacheNormalizer {
          }
       }
 
+      Pattern pattern = Pattern.compile(table.getName() + "\\[[\"|']" + alias + "(@.*)?]");
+
       // check if the alias is referenced in other assemblies
       for(Assembly assembly : box.getWorksheet().getAssemblies()) {
          if(!(assembly instanceof TableAssembly) || assembly == table) {
@@ -333,8 +335,6 @@ public class AssetQueryCacheNormalizer {
                continue;
             }
 
-            Pattern pattern = Pattern.compile(table.getName() + "\\[[\"|']" + alias +
-                                                 "(@.*)?]"); // digits
             ExpressionRef ref = (ExpressionRef) col.getDataRef();
             Matcher matcher = pattern.matcher(ref.getExpression());
 
