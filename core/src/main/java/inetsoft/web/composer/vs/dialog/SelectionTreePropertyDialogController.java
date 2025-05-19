@@ -282,6 +282,7 @@ public class SelectionTreePropertyDialogController {
       streeInfo.setPrimary(basicGeneralPaneModel.isPrimary());
       streeInfo.setVisibleValue(basicGeneralPaneModel.getVisible());
 
+      int oldShowType = streeInfo.getShowTypeValue();
       streeInfo.setShowTypeValue(selectionGeneralPane.getShowType());
 
       Dimension size = viewsheet.getViewsheet().getPixelSize(streeInfo);
@@ -289,11 +290,11 @@ public class SelectionTreePropertyDialogController {
       if(streeInfo.getShowTypeValue() == SelectionListVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
          size.height = streeInfo.getTitleHeight();
       }
-      else {
-         int minListHeight = streeInfo.getListHeight() * AssetUtil.defh;
+      else if(oldShowType != streeInfo.getShowTypeValue()) {
+         int minListHeight = streeInfo.getListHeight() * streeInfo.getCellHeight();
 
          if(streeInfo.isTitleVisible()) {
-            minListHeight += AssetUtil.defh;
+            minListHeight += streeInfo.getCellHeight();
          }
 
          if(minListHeight > size.height) {
