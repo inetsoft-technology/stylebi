@@ -632,9 +632,13 @@ public class DataSourceBrowserService {
             {
                String path = item.getPath();
 
-               if(path != null) {
+               if(!path.isEmpty()) {
                   path = path.replace(item.getName(), "");
-                  path = path.replaceAll("[\\\\/]+$", "");
+                  char last = path.charAt(path.length() - 1);
+
+                  if(last == '/' || last == '\\') {
+                     path = path.substring(0, path.length() - 1);
+                  }
                }
 
                throw new MessageException(Catalog.getCatalog()
