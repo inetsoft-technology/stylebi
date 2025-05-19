@@ -59,7 +59,7 @@ export class MultiSelectTreeNodeDirective {
          if(!newSelection.some((n) => n.label === nodeData.label &&
             n.data === nodeData.data))
          {
-            newSelection.push(nodeData);
+            newSelection = [nodeData];
          }
       }
       else if(!event.ctrlKey && !event.metaKey && !event.shiftKey) {
