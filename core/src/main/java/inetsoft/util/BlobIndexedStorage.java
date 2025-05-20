@@ -450,8 +450,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
             executor.submit(() -> new MigrateScheduleTask(entry, oname, nname, currOrg).updateNameProcess());
          }
-
-         if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
+         else if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
             if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
                updateDependencySheet(oname, nname, key, executor);
                executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname, currOrg).updateNameProcess());
