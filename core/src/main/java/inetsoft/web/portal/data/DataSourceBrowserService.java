@@ -631,14 +631,11 @@ public class DataSourceBrowserService {
                   item.getPath(), ResourceAction.WRITE))
             {
                String path = item.getPath();
+               String name = item.getName();
 
-               if(!path.isEmpty()) {
-                  path = path.replace(item.getName(), "");
-                  char last = path.charAt(path.length() - 1);
-
-                  if(last == '/' || last == '\\') {
-                     path = path.substring(0, path.length() - 1);
-                  }
+               if(path.length() > name.length() && path.endsWith("/" + item.getName())) {
+                  int index = path.length() - name.length() - 1;
+                  path = path.substring(0, index);
                }
 
                throw new MessageException(Catalog.getCatalog()
