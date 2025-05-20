@@ -332,10 +332,10 @@ export class LayoutPane extends CommandProcessor implements OnInit, OnChanges, O
          let nheight: number;
 
          if(region == PrintLayoutSection.HEADER) {
-            nheight = mtop - this.getPLayoutSize(this.vsLayout.headerFromEdge, unit);
+            nheight = mtop - this.getPLayoutSize(this.vsLayout.headerFromEdge, "inches");
          }
          else {
-            nheight = this.getPLayoutSize(this.vsLayout.footerFromEdge, unit);
+            nheight = this.getPLayoutSize(this.vsLayout.footerFromEdge, "inches");
          }
 
          this.guideSize.height = nheight;
