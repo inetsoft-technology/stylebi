@@ -1255,7 +1255,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                label: () => "_#(js:Delete)",
                icon: () => null,
                enabled: () => true,
-               visible: () => node?.data?.useragg,
+               visible: () => node?.data?.useragg == "true",
                action: () => this.deleteAggregate(node)
             }
          ])
