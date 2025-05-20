@@ -177,7 +177,14 @@ public class RuntimeSheetCache
          }
 
          RuntimeSheet sheet = local.put(key, value);
-         cache.putAsync(key, value.saveState(mapper));
+
+         try {
+            cache.putAsync(key, value.saveState(mapper));
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to save sheet state to cache", e);
+         }
+
          return sheet;
       }
       finally {
