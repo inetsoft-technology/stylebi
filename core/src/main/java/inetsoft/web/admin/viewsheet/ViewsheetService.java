@@ -169,38 +169,21 @@ public class ViewsheetService
          return 0;
       }
 
-      return engine.invokeOnAll(new GetCountTask(state)).stream()
-         .mapToInt(Integer::intValue)
+      RuntimeViewsheet[] viewsheets = engine.getRuntimeViewsheets(null);
+
+      if(viewsheets == null) {
+         return 0;
+      }
+
+      int executed = Arrays.stream(viewsheets)
+         .mapToInt(rvs -> engine.getExecutingThreads(rvs.getID()).size())
          .sum();
-   }
 
-   private static final class GetCountTask
-      implements inetsoft.analytic.composition.ViewsheetService.Task<Integer>
-   {
-      public GetCountTask(ViewsheetModel.State state) {
-         this.state = state;
+      if(state == ViewsheetModel.State.OPEN && viewsheets.length >= executed) {
+         return viewsheets.length - executed;
       }
 
-      @Override
-      public Integer apply(inetsoft.analytic.composition.ViewsheetService service) throws Exception {
-         RuntimeViewsheet[] viewsheets = service.getRuntimeViewsheets(null);
-
-         if(viewsheets == null) {
-            return 0;
-         }
-
-         int executed = Arrays.stream(viewsheets)
-            .mapToInt(rvs -> service.getExecutingThreads(rvs.getID()).size())
-            .sum();
-
-         if(state == ViewsheetModel.State.OPEN && viewsheets.length >= executed) {
-            return viewsheets.length - executed;
-         }
-
-         return executed;
-      }
-
-      private final ViewsheetModel.State state;
+      return executed;
    }
 
    /**
@@ -323,41 +306,24 @@ public class ViewsheetService
          return Collections.emptyList();
       }
 
-      return engine.invokeOnAll(new GetViewsheetsTask(state)).stream()
-         .flatMap(Collection::stream)
-         .toList();
-   }
+      RuntimeViewsheet[] viewsheets = engine.getRuntimeViewsheets(null);
+      ArrayList<ViewsheetModel> results = new ArrayList<>();
 
-   private static final class GetViewsheetsTask
-      implements inetsoft.analytic.composition.ViewsheetService.Task<ArrayList<ViewsheetModel>>
-   {
-      public GetViewsheetsTask(ViewsheetModel.State state) {
-         this.state = state;
-      }
+      for(RuntimeViewsheet rvs : viewsheets) {
+         List<ViewsheetThreadModel> threads = getThreads(rvs.getID(), engine);
 
-      @Override
-      public ArrayList<ViewsheetModel> apply(inetsoft.analytic.composition.ViewsheetService service) {
-         RuntimeViewsheet[] viewsheets = service.getRuntimeViewsheets(null);
-         ArrayList<ViewsheetModel> results = new ArrayList<>();
-
-         for(RuntimeViewsheet rvs : viewsheets) {
-            List<ViewsheetThreadModel> threads = getThreads(rvs.getID(), service);
-
-            if(state == ViewsheetModel.State.OPEN ||
-               !threads.isEmpty() && state == ViewsheetModel.State.EXECUTING)
-            {
-               results.add(ViewsheetModel.builder()
-                              .from(rvs)
-                              .threads(threads)
-                              .state(state)
-                              .build());
-            }
+         if(state == ViewsheetModel.State.OPEN ||
+            !threads.isEmpty() && state == ViewsheetModel.State.EXECUTING)
+         {
+            results.add(ViewsheetModel.builder()
+                           .from(rvs)
+                           .threads(threads)
+                           .state(state)
+                           .build());
          }
-
-         return results;
       }
 
-      private final ViewsheetModel.State state;
+      return results;
    }
 
    /**
