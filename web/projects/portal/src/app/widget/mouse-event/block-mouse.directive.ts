@@ -21,7 +21,7 @@ import { Input, Directive, NgZone, ElementRef, OnInit } from "@angular/core";
    selector: "[blockMouse]"
 })
 export class BlockMouseDirective implements OnInit {
-   @Input() isBlockMouse: boolean = true;
+   @Input("blockMouse") isBlockMouse: boolean = true;
 
    constructor(private _ngZone: NgZone, private el: ElementRef) {
    }
@@ -29,6 +29,7 @@ export class BlockMouseDirective implements OnInit {
    ngOnInit(): void {
       const handler = (event: MouseEvent) => {
          if(this.isBlockMouse) {
+            console.trace(1);
             event.stopPropagation();
          }
       };

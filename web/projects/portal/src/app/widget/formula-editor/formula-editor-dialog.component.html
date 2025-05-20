@@ -19,7 +19,7 @@
    (onCancel)="cancel()"
    [cshid]="'CreatingExpression'">
 </modal-header>
-<div class="modal-body" blockMouse>
+<div class="modal-body" [blockMouse]="false">
   <form [formGroup]="form" class="container-fluid" [class.flex-col-container]="canResize">
     <div *ngIf="isCalc && !isCube" class="calc-type-pane">
       <h5>_#(Calculate Field From)</h5>
