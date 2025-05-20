@@ -929,7 +929,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                parentName: column.data.name,
                parentLabel: column.label,
                parentData: column.data.data,
-               useragg: this.userAggNames.indexOf(this.getFullName(field)) >= 0 ? "true" : "false"
+               useragg: this.userAggNames?.indexOf(this.getFullName(field)) >= 0 ? "true" : "false"
             }
          };
 
@@ -1255,7 +1255,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                label: () => "_#(js:Delete)",
                icon: () => null,
                enabled: () => true,
-               visible: () => node?.data?.useragg,
+               visible: () => node?.data?.useragg == "true",
                action: () => this.deleteAggregate(node)
             }
          ])

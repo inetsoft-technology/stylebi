@@ -834,7 +834,6 @@ public class ScheduleTaskService {
          for(int i = 0; i < task.getActionCount(); i++) {
             if(task.getAction(i) instanceof ViewsheetAction) {
                ViewsheetAction action = (ViewsheetAction) task.getAction(i);
-               boolean groupShare = ScheduleManager.hasShareGroupPermission(modelID, principal);
 
                List<String> bookmarkList = new ArrayList<>();
                List<IdentityID> bookmarkUserList = new ArrayList<>();
@@ -842,10 +841,10 @@ public class ScheduleTaskService {
                String[] bookmarks = action.getBookmarks();
                int[] bookmarkTypes = action.getBookmarkTypes();
                IdentityID[] bookmarkUsers = action.getBookmarkUsers();
-               Identity identity = task.getIdentity();
-               IdentityID identityID = identity == null ? null : identity.getIdentityID();
 
                for(int j = 0; bookmarkTypes != null && j < bookmarkTypes.length; j++) {
+                  boolean groupShare = ScheduleManager.isSameGroup(modelID, bookmarkUsers[j]);
+
                   if(bookmarkTypes[j] == VSBookmarkInfo.ALLSHARE ||
                      (bookmarkTypes[j] == VSBookmarkInfo.GROUPSHARE && groupShare) ||
                      Tool.equals(modelID, bookmarkUsers[j]))

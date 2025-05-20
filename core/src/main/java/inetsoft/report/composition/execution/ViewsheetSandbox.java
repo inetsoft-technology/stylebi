@@ -3675,9 +3675,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // of the target embedded table
       if(assembly instanceof InputVSAssembly) {
          InputVSAssembly iassembly = (InputVSAssembly) assembly;
-
-
-         new InputVSAQuery(this, iassembly.getName()).resetEmbeddedData(initing);
+         new InputVSAQuery(this, iassembly.getAbsoluteName()).resetEmbeddedData(initing);
          updateAssembly(iassembly);
          refreshVariable(iassembly, initing, clist);
       }

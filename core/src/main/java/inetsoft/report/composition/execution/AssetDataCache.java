@@ -378,6 +378,10 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          }
       }
 
+      if(box.getAdditionalVariableProvider() != null) {
+         vtable.put("additionalVarProvider", true);
+      }
+
       try {
          vtable.addAll(extraVars);
       }
