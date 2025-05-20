@@ -128,7 +128,7 @@ public class ModifyAggregateFieldService {
          if(!confirmed) {
             Catalog catalog = Catalog.getCatalog();
             MessageException cevent = new MessageException(
-               catalog.getString("aggregate.vsused.warning") + usingCalcs);
+               catalog.getString("aggregate.vsused.warning", usingCalcs));
 
             throw cevent;
          }
