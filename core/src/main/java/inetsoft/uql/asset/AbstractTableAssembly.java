@@ -18,6 +18,7 @@
 package inetsoft.uql.asset;
 
 import inetsoft.mv.RuntimeMV;
+import inetsoft.report.composition.execution.DataKey;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.*;
@@ -1911,6 +1912,8 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
          writer.print(Thread.currentThread().toString());
          writer.print(",");
          writer.print(System.currentTimeMillis() / 2000);
+         writer.print(",");
+         writer.print(DataKey.LOCAL_CACHE_ONLY);
       }
 
       String analysisMaxrow = getProperty("analysisMaxrow");

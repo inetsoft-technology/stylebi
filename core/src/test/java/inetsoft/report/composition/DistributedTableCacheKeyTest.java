@@ -32,7 +32,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
-@SreeHome(importResources = "EmbeddedVS1.zip")
+@SreeHome(importResources = { "EmbeddedVS1.zip", "ExpRefVS.zip" })
 public class DistributedTableCacheKeyTest {
    @Test
    void testEmbeddedTable() throws Exception {
@@ -49,11 +49,28 @@ public class DistributedTableCacheKeyTest {
       // table key of the restored runtime viewsheet should be equal
       Assertions.assertEquals(rvs1TableKey, rvs2TableKey);
 
+      // table key should not be marked for local cache only
+      Assertions.assertFalse(rvs1TableKey.contains(DataKey.LOCAL_CACHE_ONLY));
+
       rvs1TableKey = getCacheKey(rvs1, "TableView1", false);
       rvs2TableKey = getCacheKey(rvs2, "TableView1", false);
 
       // data cache key of the restored runtime viewsheet should be equal
       Assertions.assertEquals(rvs1TableKey, rvs2TableKey);
+   }
+
+   @Test
+   void testExpressionRefTable() throws Exception {
+      RuntimeViewsheet rvs = vs2Resource.getRuntimeViewsheet();
+      String tableCacheKey = getCacheKey(rvs, "TableView1", true);
+
+      // table key should be marked for local cache only
+      Assertions.assertTrue(tableCacheKey.contains(DataKey.LOCAL_CACHE_ONLY));
+
+      DataKey dataKey = getDataKey(rvs, "TableView1");
+
+      // check if data key localCacheOnly is true
+      Assertions.assertTrue(dataKey.isLocalCacheOnly());
    }
 
    private String getCacheKey(RuntimeViewsheet rvs, String vsAssemblyName, boolean onlyTable) throws Exception {
@@ -76,6 +93,16 @@ public class DistributedTableCacheKeyTest {
       }
    }
 
+   private DataKey getDataKey(RuntimeViewsheet rvs, String vsAssemblyName) throws Exception {
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Viewsheet vs = box.getViewsheet();
+      TableVSAssembly vsTable = (TableVSAssembly) vs.getAssembly(vsAssemblyName);
+      Worksheet ws = box.getWorksheet();
+      TableAssembly table = (TableAssembly) ws.getAssembly(vsTable.getTableName());
+      return AssetDataCache.getCacheKey(table, box.getAssetQuerySandbox(), null,
+                                        AssetQuerySandbox.RUNTIME_MODE, false);
+   }
+
    private static OpenViewsheetEvent createOpenViewsheetEvent(String assetId) {
       OpenViewsheetEvent event = new OpenViewsheetEvent();
       event.setEntryId(assetId);
@@ -92,5 +119,11 @@ public class DistributedTableCacheKeyTest {
    RuntimeViewsheetExtension vs1Resource =
       new RuntimeViewsheetExtension(createOpenViewsheetEvent(VS1_ASSET_ID), controllers);
 
+   @RegisterExtension
+   @Order(2)
+   RuntimeViewsheetExtension vs2Resource =
+      new RuntimeViewsheetExtension(createOpenViewsheetEvent(VS2_ASSET_ID), controllers);
+
    private static final String VS1_ASSET_ID = "1^128^__NULL__^EmbeddedVS1^host-org";
+   private static final String VS2_ASSET_ID = "1^128^__NULL__^ExpRefVS^host-org";
 }
