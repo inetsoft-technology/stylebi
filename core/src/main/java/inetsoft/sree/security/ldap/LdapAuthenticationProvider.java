@@ -411,11 +411,7 @@ public abstract class LdapAuthenticationProvider
     */
    @Override
    public final Role getRole(IdentityID roleid) {
-      if(roleid != null && !SUtil.isMultiTenant()) {
-         if("Organization Administrator".equals(roleid.getName())) {
-            return null;
-         }
-
+      if(roleid != null) {
          if(Organization.getDefaultOrganizationID().equals(roleid.getOrgID()) || roleid.getOrgID() == null) {
             return getCache().getRole(roleid.getName());
          }
