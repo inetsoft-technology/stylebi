@@ -29,7 +29,6 @@ export class BlockMouseDirective implements OnInit {
    ngOnInit(): void {
       const handler = (event: MouseEvent) => {
          if(this.isBlockMouse) {
-            console.trace(1);
             event.stopPropagation();
          }
       };
