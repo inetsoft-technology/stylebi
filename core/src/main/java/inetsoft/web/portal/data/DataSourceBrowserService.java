@@ -633,7 +633,7 @@ public class DataSourceBrowserService {
                String path = item.getPath();
                String name = item.getName();
 
-               if(path.length() > name.length() && path.endsWith("/" + item.getName())) {
+               if(path.endsWith("/" + item.getName())) {
                   int index = path.length() - name.length() - 1;
                   path = path.substring(0, index);
                }
