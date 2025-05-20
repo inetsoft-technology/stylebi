@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
@@ -410,7 +411,17 @@ public abstract class LdapAuthenticationProvider
     */
    @Override
    public final Role getRole(IdentityID roleid) {
-      return getCache().getRole(roleid.getName());
+      if(roleid != null) {
+         if("Organization Administrator".equals(roleid.getName())) {
+            return null;
+         }
+
+         if(Organization.getDefaultOrganizationID().equals(roleid.getOrgID()) || roleid.getOrgID() == null) {
+            return getCache().getRole(roleid.getName());
+         }
+      }
+
+      return null;
    }
 
    protected Role doGetRole(String name) {
