@@ -75,8 +75,15 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       System.out.format("Joining cluster on %s/24%n", Tool.getIP());
       ignite = createIgniteInstance(config);
       ignite.message().localListen(MESSAGE_TOPIC, new MessageDispatcher());
+      ignite.message().localListen(AFFINITY_TOPIC, new AffinityCallProcessor());
       ignite.events().localListen(new MembershipDispatcher(), EventType.EVT_NODE_JOINED, EventType.EVT_NODE_LEFT);
       clusterFileTransfer = new ClusterFileTransfer();
+      messageExecutor = Executors.newFixedThreadPool(
+         Runtime.getRuntime().availableProcessors(),
+         r -> new GroupedThread(r, "IgniteMessages"));
+      affinityExecutor = Executors.newFixedThreadPool(
+         Runtime.getRuntime().availableProcessors(),
+         r -> new GroupedThread(r, "IgniteMessages"));
 
       if(!config.isClientMode()) {
          initLockTimer();
@@ -908,18 +915,52 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <T> T affinityCall(String cache, String key, AffinityCallable<T> job) {
-      return ignite.compute().affinityCall(cache, key, new IgniteAffinityCallable<>(job));
+      String id = UUID.randomUUID().toString();
+      ClusterNode node = ignite.affinity(cache).mapKeyToNode(key);
+      AffinityCallRequest<T> request = new AffinityCallRequest<>(
+         id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+      CompletableFuture<T> future = new CompletableFuture<>();
+      affinityFutures.put(id, future);
+      ignite.message().sendOrdered(node, request, 0);
+
+      try {
+         return future.get();
+      }
+      catch(Exception e) {
+         throw new RuntimeException(e);
+      }
    }
 
    @Override
    public <T> List<T> affinityCallAll(String cache, AffinityCallable<T> job) {
-      Collection<String> caches = Set.of(cache);
-      IgniteAffinityCallable<T> task = new IgniteAffinityCallable<>(job);
-      int partitions = ignite.affinity(cache).partitions();
-      List<T> results = new ArrayList<>(partitions);
+      Set<ClusterNode> nodes = new HashSet<>();
+      Affinity<?> affinity = ignite.affinity(cache);
 
-      for(int i = 0; i < partitions; i++) {
-         results.add(ignite.compute().affinityCall(caches, i, task));
+      for(int i = 0; i < affinity.partitions(); i++) {
+         nodes.add(affinity.mapPartitionToNode(i));
+      }
+
+      List<CompletableFuture<T>> futures = new ArrayList<>(nodes.size());
+
+      for(ClusterNode node : nodes) {
+         String id = UUID.randomUUID().toString();
+         AffinityCallRequest<T> request = new AffinityCallRequest<>(
+            id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+         CompletableFuture<T> future = new CompletableFuture<>();
+         affinityFutures.put(id, future);
+         futures.add(future);
+         ignite.message().sendOrdered(node, request, 0);
+      }
+
+      List<T> results = new ArrayList<>();
+
+      for(CompletableFuture<T> future : futures) {
+         try {
+            results.add(future.get());
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
       }
 
       return results;
@@ -1398,13 +1439,17 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final Set<ClusterLifecycleListener> lifecycleListeners =
       new CopyOnWriteArraySet<>();
    private final Map<String, LockInfo> lockInfos = new ConcurrentHashMap<>();
+   private final Map<String, CompletableFuture<?>> affinityFutures = new ConcurrentHashMap<>();
    private final Timer timer = new Timer();
    private final ClusterFileTransfer clusterFileTransfer;
    private final Map<Integer, ExecutorService> executorServiceMap = new ConcurrentHashMap<>();
+   private final ExecutorService messageExecutor;
+   private final ExecutorService affinityExecutor;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
    private static final long MIN_LOCK_DURATION_MILLIS = Duration.ofMinutes(10).toMillis();
    private static final String MESSAGE_TOPIC = IgniteCluster.class.getName() + ".messageTopic";
+   private static final String AFFINITY_TOPIC = IgniteCluster.class.getName() + ".affinityTopic";
    private static final String RW_MAP_NAME = IgniteCluster.class.getName() + ".rwMap";
    private static final IgnitePredicate<ClusterNode> SCHEDULE_SELECTOR = node -> {
       // select any node when config has cloud runner, because the separate scheduler server do not exist.
@@ -1419,6 +1464,120 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final int IGNITE_EXECUTE_POOL_COUNT = 2;
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
+   private final class AffinityCallProcessor implements IgniteBiPredicate<UUID, Serializable> {
+      @SuppressWarnings({ "rawtypes", "unchecked" })
+      @Override
+      public boolean apply(UUID uuid, Serializable message) {
+         if(message instanceof AffinityCallRequest request) {
+            if(getNodeName(ignite.cluster().localNode()).equals(request.getRecipient())) {
+               affinityExecutor.submit(new AffinityCallRequestTask(request));
+            }
+         }
+         else if(message instanceof AffinityCallResponse response) {
+            if(getNodeName(ignite.cluster().localNode()).equals(response.getRecipient())) {
+               CompletableFuture future = affinityFutures.remove(response.getId());
+
+               if(future != null) {
+                  if(response.getError() != null) {
+                     future.completeExceptionally(response.getError());
+                  }
+                  else {
+                     future.complete(response.getResult());
+                  }
+               }
+            }
+         }
+
+         return true;
+      }
+   }
+
+   private static final class AffinityCallRequest<T> implements Serializable {
+      public AffinityCallRequest(String id, String sender, String recipient, AffinityCallable<T> callable) {
+         this.id = id;
+         this.sender = sender;
+         this.recipient = recipient;
+         this.callable = callable;
+      }
+
+      public String getId() {
+         return id;
+      }
+
+      public String getSender() {
+         return sender;
+      }
+
+      public String getRecipient() {
+         return recipient;
+      }
+
+      public AffinityCallable<T> getCallable() {
+         return callable;
+      }
+
+      private final String id;
+      private final String sender;
+      private final String recipient;
+      private final AffinityCallable<T> callable;
+   }
+
+   private static final class AffinityCallResponse<T extends Serializable> implements Serializable {
+      public AffinityCallResponse(String id, String recipient, T result, Throwable error) {
+         this.id = id;
+         this.recipient = recipient;
+         this.result = result;
+         this.error = error;
+      }
+
+      public String getId() {
+         return id;
+      }
+
+      public String getRecipient() {
+         return recipient;
+      }
+
+      public T getResult() {
+         return result;
+      }
+
+      public Throwable getError() {
+         return error;
+      }
+
+      private final String id;
+      private final String recipient;
+      private final T result;
+      private final Throwable error;
+   }
+
+   private static final class AffinityCallRequestTask<T extends Serializable> implements Runnable {
+      public AffinityCallRequestTask(AffinityCallRequest<T> request) {
+         this.request = request;
+      }
+
+      @Override
+      public void run() {
+         T result = null;
+         Throwable error = null;
+
+         try {
+            result = request.getCallable().call();
+         }
+         catch(Exception e) {
+            error = e;
+         }
+
+         AffinityCallResponse<T> response =
+            new AffinityCallResponse<>(request.getId(), request.getSender(), result, error);
+         IgniteCluster cluster = (IgniteCluster) Cluster.getInstance();
+         cluster.ignite.message().sendOrdered(AFFINITY_TOPIC, response, 0);
+      }
+
+      private final AffinityCallRequest<T> request;
+   }
 
    private final class MessageDispatcher
       implements IgniteBiPredicate<UUID, Serializable>
@@ -1448,12 +1607,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                      Objects.equals(senderNode, localNode), message);
                }
 
-               listener.messageReceived(event);
+               messageExecutor.submit(new MessageDispatchTask(listener, event));
             }
          }
 
          return true;
       }
+   }
+
+   private record MessageDispatchTask(MessageListener listener, MessageEvent event)
+      implements Runnable
+   {
+      @Override
+         public void run() {
+            listener.messageReceived(event);
+         }
    }
 
    private static final class AddressedMessage implements Serializable {
@@ -1764,16 +1932,4 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       protected Ignite ignite;
    }
 
-   private static final class IgniteAffinityCallable<T> implements IgniteCallable<T> {
-      public IgniteAffinityCallable(AffinityCallable<T> delegate) {
-         this.delegate = delegate;
-      }
-
-      @Override
-      public T call() throws Exception {
-         return delegate.call();
-      }
-
-      private final AffinityCallable<T> delegate;
-   }
 }
