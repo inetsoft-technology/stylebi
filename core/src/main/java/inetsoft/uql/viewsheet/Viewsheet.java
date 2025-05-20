@@ -2944,7 +2944,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          return ws == null ? null : ws.getAssembly(entry.getName());
       }
 
-      return getAssembly(entry.getName());
+      return getAssembly(entry.getAbsoluteName());
    }
 
    /**
