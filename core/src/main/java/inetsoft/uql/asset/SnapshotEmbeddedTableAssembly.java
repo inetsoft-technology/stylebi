@@ -35,10 +35,12 @@ import java.lang.reflect.Method;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.groovy.io.StringBuilderWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -763,92 +765,118 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
 
       if(dataPaths != null) {
          try {
-            String[] paths = new String[dataPaths.length];
-            Map<String, String> absolutePathsLoadVersion = new HashMap<>();
-            List<File> tempFiles = new ArrayList<>();
-            FileSystemService fileSystemService = FileSystemService.getInstance();
+            StringBuilderWriter cacheKeyBuilderWriter = new StringBuilderWriter();
+            printEmbeddedDataKey(new PrintWriter(cacheKeyBuilderWriter));
+            String cacheKey = cacheKeyBuilderWriter.toString();
+            XSwappableTable cacheTable = SnapshotEmbeddedTableDataCache.getInstance().get(cacheKey);
 
-            // copy pdata to cache folder
-            for(int i = 0; i < paths.length; i++) {
-               String path = dataPaths[i] + "_s.tdat";
-               File file = fileSystemService.getCacheFile(path);
-               paths[i] = file.getAbsolutePath();
-               paths[i] = paths[i].substring(0, paths[i].lastIndexOf("_s.tdat"));
+            if(cacheTable != null) {
+               stable = cacheTable;
+               return;
+            }
 
-               try(InputStream in = EmbeddedTableStorage.getInstance().readTable(path)) {
-                  if(in != null) {
-                     // if cache file doesn't exist then just copy
-                     if(!file.exists()) {
-                        try(FileOutputStream out = new FileOutputStream(file)) {
-                           Tool.fileCopy(in, out);
+            ReentrantLock lock = SnapshotEmbeddedTableDataCache.getInstance().getLock(cacheKey);
+            lock.lock();
+
+            cacheTable = SnapshotEmbeddedTableDataCache.getInstance().get(cacheKey);
+
+            if(cacheTable != null) {
+               stable = cacheTable;
+               return;
+            }
+
+            try {
+               String[] paths = new String[dataPaths.length];
+               Map<String, String> absolutePathsLoadVersion = new HashMap<>();
+               List<File> tempFiles = new ArrayList<>();
+               FileSystemService fileSystemService = FileSystemService.getInstance();
+
+               // copy pdata to cache folder
+               for(int i = 0; i < paths.length; i++) {
+                  String path = dataPaths[i] + "_s.tdat";
+                  File file = fileSystemService.getCacheFile(path);
+                  paths[i] = file.getAbsolutePath();
+                  paths[i] = paths[i].substring(0, paths[i].lastIndexOf("_s.tdat"));
+
+                  try(InputStream in = EmbeddedTableStorage.getInstance().readTable(path)) {
+                     if(in != null) {
+                        // if cache file doesn't exist then just copy
+                        if(!file.exists()) {
+                           try(FileOutputStream out = new FileOutputStream(file)) {
+                              Tool.fileCopy(in, out);
+                           }
                         }
-                     }
-                     // if cache file already exists then check if contents are different
-                     else {
-                        File tempCacheFile = fileSystemService.getCacheFile(
-                           UUID.randomUUID() + path);
-
-                        try(FileOutputStream out = new FileOutputStream(tempCacheFile)) {
-                           Tool.fileCopy(in, out);
-                        }
-
-                        String oldDigest;
-                        String newDigest;
-
-                        try(InputStream input = new FileInputStream(file)) {
-                           oldDigest = DigestUtils.md5Hex(input);
-                        }
-
-                        try(InputStream input = new FileInputStream(tempCacheFile)) {
-                           newDigest = DigestUtils.md5Hex(input);
-                        }
-
-                        // if contents not equal then rename, otherwise delete the new file
-                        if(!Tool.equals(oldDigest, newDigest)) {
-                           fileSystemService.rename(tempCacheFile, file);
-                        }
+                        // if cache file already exists then check if contents are different
                         else {
-                           fileSystemService.remove(tempCacheFile, 6000);
+                           File tempCacheFile = fileSystemService.getCacheFile(
+                              UUID.randomUUID() + path);
+
+                           try(FileOutputStream out = new FileOutputStream(tempCacheFile)) {
+                              Tool.fileCopy(in, out);
+                           }
+
+                           String oldDigest;
+                           String newDigest;
+
+                           try(InputStream input = new FileInputStream(file)) {
+                              oldDigest = DigestUtils.md5Hex(input);
+                           }
+
+                           try(InputStream input = new FileInputStream(tempCacheFile)) {
+                              newDigest = DigestUtils.md5Hex(input);
+                           }
+
+                           // if contents not equal then rename, otherwise delete the new file
+                           if(!Tool.equals(oldDigest, newDigest)) {
+                              fileSystemService.rename(tempCacheFile, file);
+                           }
+                           else {
+                              fileSystemService.remove(tempCacheFile, 6000);
+                           }
                         }
+
+                        tempFiles.add(file);
+                        absolutePathsLoadVersion.put(paths[i], dataPathsLoadVersion.get(dataPaths[i]));
                      }
-
-                     tempFiles.add(file);
-                     absolutePathsLoadVersion.put(paths[i], dataPathsLoadVersion.get(dataPaths[i]));
+                     else {
+                        LOG.error("Snapshot data file missing: " + path +
+                                     " updated: " + dataPathsUpdated + " (" + this + ")");
+                     }
                   }
-                  else {
-                     LOG.error("Snapshot data file missing: " + path +
-                                  " updated: " + dataPathsUpdated + " (" + this + ")");
+                  catch(FileAlreadyExistsException ignore) {
                   }
                }
-               catch(FileAlreadyExistsException ignore) {
+
+               XSwappableTable stable = new XSwappableTable();
+
+               if(!tempFiles.isEmpty()) {
+                  synchronized(fileReferences) {
+                     Cleaner.add(new EmbeddedTableReference(stable, tempFiles.toArray(new File[0])));
+                  }
                }
-            }
 
-            XSwappableTable stable = new XSwappableTable();
+               XTableColumnCreator[] xcreators = new XTableColumnCreator[creators.length];
+               XTableFragment[] tables = new XTableFragment[paths.length];
 
-            if(!tempFiles.isEmpty()) {
-               synchronized(fileReferences) {
-                  Cleaner.add(new EmbeddedTableReference(stable, tempFiles.toArray(new File[0])));
+               for(int i = 0; i < creators.length; i++) {
+                  Class<?> clazz = Class.forName(creators[i]);
+                  Method method = clazz.getMethod("getCreator");
+                  xcreators[i] = (XTableColumnCreator) method.invoke(new Object[0]);
                }
+
+               for(int i = 0; i < paths.length; i++) {
+                  tables[i] = createFragment(xcreators, paths[i], absolutePathsLoadVersion);
+               }
+
+               stable.init(xcreators);
+               stable.initFragments(tables, headers, rowCnt, dataPaths);
+               originalSTable = stable;
+               this.stable = stable;
+               SnapshotEmbeddedTableDataCache.getInstance().set(cacheKey, stable);
             }
-
-            XTableColumnCreator[] xcreators = new XTableColumnCreator[creators.length];
-            XTableFragment[] tables = new XTableFragment[paths.length];
-
-            for(int i = 0; i < creators.length; i++) {
-               Class<?> clazz = Class.forName(creators[i]);
-               Method method = clazz.getMethod("getCreator");
-               xcreators[i] = (XTableColumnCreator) method.invoke(new Object[0]);
+            finally {
+               lock.unlock();
             }
-
-            for(int i = 0; i < paths.length; i++) {
-               tables[i] = createFragment(xcreators, paths[i], absolutePathsLoadVersion);
-            }
-
-            stable.init(xcreators);
-            stable.initFragments(tables, headers, rowCnt, dataPaths);
-            originalSTable = stable;
-            this.stable = stable;
          }
          catch(Exception exc) {
             LOG.error("Failed to initialize table assembly", exc);
