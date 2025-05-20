@@ -464,6 +464,11 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       String id = getNextID(entry, user);
       rs.setID(id);
       amap.put(id, rs);
+
+      if(LOG.isDebugEnabled()) {
+         LOG.debug("Opened runtime sheet {} on {}", id, Cluster.getInstance().getLocalMember());
+      }
+
       return id;
    }
 
