@@ -929,7 +929,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                parentName: column.data.name,
                parentLabel: column.label,
                parentData: column.data.data,
-               useragg: this.userAggNames.indexOf(this.getFullName(field)) >= 0 ? "true" : "false"
+               useragg: this.userAggNames?.indexOf(this.getFullName(field)) >= 0 ? "true" : "false"
             }
          };
 
