@@ -40,13 +40,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.zip.GZIPOutputStream;
-
-import static inetsoft.web.viewsheet.controller.AssemblyImageService.writeSvg;
 
 /**
  * This class handles image retrieval from the server.  It was extaccted from
@@ -276,13 +275,10 @@ public class GetImageController {
                                                HttpServletRequest request, HttpServletResponse response) throws Exception
    {
       if(result != null) {
-         BufferedImage img = new BufferedImage(result.getWidth(), result.getHeight(), BufferedImage.TYPE_INT_ARGB);
-         Graphics2D svgGraphics = img.createGraphics();
-
          boolean isPNG = result.isPng();
          byte[] buf = result.getImageData();
 
-         if((buf != null || svgGraphics != null) && response != null) {
+         if(buf != null && response != null) {
             final String encodingTypes = request.getHeader("Accept-Encoding");
             final ServletOutputStream outputStream = response.getOutputStream();
 
@@ -297,22 +293,11 @@ public class GetImageController {
                if(encodingTypes != null && encodingTypes.contains("gzip")) {
                   try(final GZIPOutputStream out = new GZIPOutputStream(outputStream)) {
                      response.addHeader("Content-Encoding", "gzip");
-
-                     if(svgGraphics != null) {
-                        writeSvg(out, svgGraphics);
-                     }
-                     else {
-                        out.write(buf);
-                     }
+                     out.write(buf);
                   }
                }
                else {
-                  if(svgGraphics != null) {
-                     writeSvg(outputStream, svgGraphics);
-                  }
-                  else {
-                     outputStream.write(buf);
-                  }
+                  outputStream.write(buf);
                }
             }
             catch(IOException e) {

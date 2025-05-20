@@ -677,6 +677,11 @@ public class AssemblyImageService {
             if(image != null) {
                buf = VSUtil.getImageBytes(image, dpi);
             }
+            else if(svgGraphics != null) {
+               ByteArrayOutputStream out = new ByteArrayOutputStream();
+               SVGSupport.getInstance().writeSVG(svgGraphics, out);
+               buf = out.toByteArray();
+            }
          }
       }
       catch(Exception ex) {
