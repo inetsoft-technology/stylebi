@@ -1474,11 +1474,21 @@ public class ScheduleService {
       if(value instanceof Object[]) {
          Object[] array = (Object[]) value;
 
-         if(array != null && Tool.DATE.equals(type)) {
-            for(int i = 0; i < array.length; i++) {
-               if(array[i] instanceof java.util.Date) {
-                  java.util.Date odate = (java.util.Date) array[i];
-                  array[i] = new java.sql.Date(odate.getTime());
+         if(array != null) {
+            if(Tool.DATE.equals(type)) {
+               for(int i = 0; i < array.length; i++) {
+                  if(array[i] instanceof java.util.Date) {
+                     java.util.Date odate = (java.util.Date) array[i];
+                     array[i] = new java.sql.Date(odate.getTime());
+                  }
+               }
+            }
+            else if(Tool.TIME.equals(type)) {
+               for(int i = 0; i < array.length; i++) {
+                  if(array[i] instanceof java.util.Date) {
+                     java.util.Date odate = (java.util.Date) array[i];
+                     array[i] = new java.sql.Time(odate.getTime());
+                  }
                }
             }
          }
