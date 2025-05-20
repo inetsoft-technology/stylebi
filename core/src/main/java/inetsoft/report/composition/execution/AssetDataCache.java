@@ -379,15 +379,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
 
       if(box.getAdditionalVariableProvider() != null) {
-         VariableTable varTable = new VariableTable();
-         varTable.put("additionalVarProvider", true);
-
-         try {
-            vtable.addAll(varTable);
-         }
-         catch(Exception e) {
-            // ignore
-         }
+         vtable.put("additionalVarProvider", true);
       }
 
       try {
