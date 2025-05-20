@@ -828,26 +828,34 @@ public class ScheduleManager {
       boolean isShareRole = SreeEnv.getBooleanProperty("schedule.options.shareTaskInGroup");
 
       if(isShareRole) {
-         SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+         return isSameGroup(owner, IdentityID.getIdentityIDFromKey(principal.getName()));
+      }
 
-         if(securityProvider == null) {
-            return false;
-         }
+      return false;
+   }
 
-         String[] taskOwnerGroups = securityProvider.getUserGroups(owner);
-         String[] userGroups = securityProvider.getUserGroups(IdentityID.getIdentityIDFromKey(principal.getName()));
-
-         if(taskOwnerGroups == null || userGroups == null) {
-            return false;
-         }
-
-         for(String taskOwnerGroup : taskOwnerGroups) {
-            if(ArrayUtils.contains(userGroups, taskOwnerGroup)) {
-               return true;
-            }
-         }
-
+   public static boolean isSameGroup(IdentityID owner, IdentityID user) {
+      if(!SecurityEngine.getSecurity().isSecurityEnabled()) {
          return false;
+      }
+
+      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+
+      if(securityProvider == null) {
+         return false;
+      }
+
+      String[] taskOwnerGroups = securityProvider.getUserGroups(owner);
+      String[] userGroups = securityProvider.getUserGroups(user);
+
+      if(taskOwnerGroups == null || userGroups == null) {
+         return false;
+      }
+
+      for(String taskOwnerGroup : taskOwnerGroups) {
+         if(ArrayUtils.contains(userGroups, taskOwnerGroup)) {
+            return true;
+         }
       }
 
       return false;
