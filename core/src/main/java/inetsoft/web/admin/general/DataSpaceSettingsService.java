@@ -53,7 +53,9 @@ public class DataSpaceSettingsService extends BackupSupport {
 
       boolean assetWritePermission = SecurityEngine.getSecurity().checkPermission(
          principal, ResourceType.SCHEDULE_TASK, InternalScheduledTaskService.ASSET_FILE_BACKUP,
-         ResourceAction.WRITE);
+         ResourceAction.WRITE) && SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.EM_COMPONENT, "settings/schedule/tasks",
+         ResourceAction.ACCESS);
       String assetName = assetWritePermission ? InternalScheduledTaskService.ASSET_FILE_BACKUP : "";
 
       return DataSpaceSettingsModel.builder()
