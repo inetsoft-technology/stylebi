@@ -230,8 +230,7 @@ public class ScheduleConditionService {
          }
 
          if(array) {
-            type = vals.length > 0 ? Tool.getDataType(vals[0]) :
-               getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
+            type = getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
          }
 
          AddParameterDialogModel paramModel = AddParameterDialogModel.builder()
@@ -265,8 +264,7 @@ public class ScheduleConditionService {
       }
       else if("array".equals(type)) {
          Object[] vals = (Object[]) value;
-         type = vals.length > 0 ? Tool.getDataType(vals[0]) :
-            getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
+         type = getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
          StringBuilder builder = new StringBuilder();
 
          for(int i = 0; i < vals.length; i++) {
