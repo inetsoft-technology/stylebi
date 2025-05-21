@@ -1456,7 +1456,7 @@ public class CoreLifecycleService {
             addDeleteVSObject(rvs, (VSAssembly) infoObj, dispatcher);
          }
 
-         initTable(rvs, dispatcher, "", ((Viewsheet) assembly).getAssemblies(true, false));
+         initTable(rvs, dispatcher, "", ((Viewsheet) assembly).getAssemblies(false, false));
       }
       else {
          if(assembly.isEmbedded()) {
