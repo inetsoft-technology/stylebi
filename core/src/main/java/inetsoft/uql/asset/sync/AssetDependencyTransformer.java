@@ -382,6 +382,7 @@ public class AssetDependencyTransformer extends DependencyTransformer {
 
             if(info.isSqlTable()) {
                renameSQLSources(doc, info);
+               renameTabularTableSources(doc, info);
             }
 
             if(info.isAsset()) {
@@ -664,6 +665,9 @@ public class AssetDependencyTransformer extends DependencyTransformer {
    }
 
    protected void renameSQLSources(Element doc, RenameInfo info) {
+   }
+
+   protected void renameTabularTableSources(Element doc, RenameInfo info) {
    }
 
    protected void replaceAssetAttr(Element elem, String oname, String nname) {
