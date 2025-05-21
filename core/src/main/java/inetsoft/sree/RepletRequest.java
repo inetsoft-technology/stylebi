@@ -855,7 +855,6 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       if(val instanceof DynamicParameterValue) {
          DynamicParameterValue dynamicParameterValue = (DynamicParameterValue) val;
          buffer.append(" dynamicType=\"" + dynamicParameterValue.getType() + "\" ");
-         buffer.append(" array=\"" + dynamicParameterValue.isArray() + "\" ");
          val = dynamicParameterValue.getValue();
 
          buffer.append("type=\"" + dynamicParameterValue.getDataType() + "\"");
@@ -1037,7 +1036,6 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
    private Object getParameterValue(Element param) {
       String pname = byteDecode(param.getAttribute("name"));
       String ptype = param.getAttribute("type");
-      boolean isArray = "true".equals(param.getAttribute("array"));
       String pvalue = byteDecode(Tool.getAttribute(param, "value"));
 
       Element valueNode =
@@ -1055,7 +1053,6 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
          parameterValue = new DynamicParameterValue();
          parameterValue.setType(dynamicType);
          parameterValue.setDataType(ptype);
-         parameterValue.setArray(isArray);
 
          Object value = pvalue;
 
