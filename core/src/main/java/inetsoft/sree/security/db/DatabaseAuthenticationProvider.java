@@ -679,20 +679,6 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       return new Role(roleIdentity, "");
    }
 
-   private boolean existRole(IdentityID roleIdentity) {
-      if(roleIdentity == null) {
-         return false;
-      }
-
-      IdentityID[] roles = getRoles();
-
-      if(roles == null) {
-         return false;
-      }
-
-      return Arrays.asList(roles).contains(roleIdentity);
-   }
-
    private String parseOrgOrGlobalRole(String roleName, String userOrg) {
       return getRole(new IdentityID(roleName, userOrg)) == null ? null : userOrg;
    }

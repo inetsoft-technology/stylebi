@@ -21,6 +21,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.util.Identity;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
+
 /**
  * A skeletal implementation of an authentication provider.
  *
@@ -144,6 +146,25 @@ public abstract class AbstractAuthenticationProvider
    @Override
    public Role getRole(IdentityID roleIdentity) {
       return new Role(roleIdentity);
+   }
+
+   /**
+    * Check whether the role exist.
+    *
+    * @param roleIdentity role
+    */
+   protected boolean existRole(IdentityID roleIdentity) {
+      if(roleIdentity == null) {
+         return false;
+      }
+
+      IdentityID[] roles = getRoles();
+
+      if(roles == null) {
+         return false;
+      }
+
+      return Arrays.asList(roles).contains(roleIdentity);
    }
 
    /**
