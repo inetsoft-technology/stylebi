@@ -405,7 +405,6 @@ public class ScheduleConditionService {
       String name = model.name();
       String type = model.type();
       DynamicParameterValue parameterValue = value.convertParameterValue();
-      parameterValue.setArray(model.array());
 
       if(model.array()) {
          parameterValue.setValue(getParamValueAsArray(type, value.getValue().toString()));
