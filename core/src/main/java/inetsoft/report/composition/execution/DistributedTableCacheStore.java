@@ -56,6 +56,10 @@ public class DistributedTableCacheStore {
     * Checks if the table data file exists in the blob storage.
     */
    boolean exists(DataKey dataKey) {
+      if(dataKey.isLocalCacheOnly()) {
+         return false;
+      }
+
       BlobStorage<Metadata> storage = getStorage();
       return storage.exists(getKey(dataKey));
    }
@@ -75,6 +79,10 @@ public class DistributedTableCacheStore {
    }
 
    void put(DataKey dataKey, TableLens lens) {
+      if(dataKey.isLocalCacheOnly()) {
+         return;
+      }
+
       String key = getKey(dataKey);
       BlobStorage<Metadata> storage = getStorage();
 
