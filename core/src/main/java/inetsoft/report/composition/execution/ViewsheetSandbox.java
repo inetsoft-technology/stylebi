@@ -1625,6 +1625,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             // with full path between sub-vs. (61076)
             ChangedAssemblyList clist2 = new ChangedAssemblyList();
             reset(name, vs.getAssemblies(), clist2, initing, doOnLoad, null, toggleMaxMode);
+
+            clist2.getDataList().clear();
+            Viewsheet parent = vs.getViewsheet();
+            AssemblyEntry parentEntry = parent == null ? null :
+               new AssemblyEntry(parent.getName(), parent.getAbsoluteName(), parent.getAssemblyType());
+
+            // don't need to add sub entries when parent entry have already in data list,
+            // else will cause refresh duplicated times which will effect performance.
+            if(parentEntry == null || !clist.contains(parentEntry)) {
+               AssemblyEntry entry = new AssemblyEntry(arr[i].getName(), arr[i].getAbsoluteName(),
+                                                       arr[i].getAssemblyType());
+               clist2.getDataList().add(entry);
+            }
+
             // merge to main list. this may not be necessary but keep track of all changes
             // like before.
             clist.mergeCore(clist2);

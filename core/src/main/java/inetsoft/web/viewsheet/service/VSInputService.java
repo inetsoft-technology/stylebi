@@ -2874,6 +2874,11 @@ public class VSInputService {
          if(info.isSubmitOnChange() && info.isRefresh()) {
             for(Assembly a : vs.getAssemblies()) {
                if(isAssemblyReferenced(assembly, a)) {
+                  // Bug #71186, execute dynamic values
+                  if(a instanceof OutputVSAssembly) {
+                     box.updateAssembly(a.getAbsoluteName());
+                  }
+
                   clist.getDataList().add(a.getAssemblyEntry());
                }
             }
@@ -2908,6 +2913,11 @@ public class VSInputService {
 
       if(assembly instanceof VSAssembly) {
          if(isVSAssemblyReferenced("$(" + inputName + ")", (VSAssembly) assembly)) {
+            return true;
+         }
+
+         // check for inputName.value in the script
+         if(isVSAssemblyReferenced(inputName + ".value", (VSAssembly) assembly)) {
             return true;
          }
       }
@@ -2945,7 +2955,8 @@ public class VSInputService {
    private boolean isAssemblyReferenced(String varName, List<DynamicValue> list) {
       return list != null && list.stream()
          .map(DynamicValue::getDValue)
-         .anyMatch(v -> Objects.equals(varName, v));
+         .anyMatch(v -> Objects.equals(varName, v) ||
+            (VSUtil.isScriptValue(v) && v.contains(varName)));
    }
 
    private boolean isTableLayoutReferenced(String inputName, TableLayout layout) {
