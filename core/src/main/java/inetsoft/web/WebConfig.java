@@ -30,6 +30,7 @@ import inetsoft.web.json.ThirdPartySupportModule;
 import inetsoft.web.reportviewer.service.HttpServletRequestWrapperArgumentResolver;
 import inetsoft.web.security.WebSocketLimitFilter;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.*;
@@ -265,8 +266,14 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
 
    @Bean
    public CommonsRequestLoggingFilter requestLoggingFilter() {
-      CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter();
+      CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter() {
+         @Override
+         protected void afterRequest(HttpServletRequest request, String message) {
+            // no-op
+         }
+      };
       filter.setIncludeQueryString(true);
+      filter.setBeforeMessagePrefix("Received request [");
       return filter;
    }
 
