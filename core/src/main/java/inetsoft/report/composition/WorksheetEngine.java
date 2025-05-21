@@ -42,6 +42,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The default worksheet service implementation, implements all the methods
@@ -72,6 +73,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       executionMap = new ExecutionMap();
       renameInfoMap = new HashMap<>();
       nextId = cluster.getLong(NEXT_ID_NAME);
+      debouncer = new DefaultDebouncer<>(false);
 
       singlePreviewEnabled = "true".equals(SreeEnv.getProperty("single.preview.enabled"));
       setAssetRepository(engine);
@@ -533,7 +535,10 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          }
       }
 
-      accessSheet(id, touch);
+      // debounce and execute in a different thread the call to accessSheet as it
+      // serializes the runtime sheet and saves it in the distributed cache
+      debouncer.debounce("accessSheet_" + id, 1L,
+                         TimeUnit.SECONDS, () -> accessSheet(id, touch));
       return rs;
    }
 
@@ -1216,6 +1221,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    protected ExecutionMap executionMap; // the executing viewsheet
    protected int counter; // counter
    private final DistributedLong nextId;
+   private final Debouncer<String> debouncer;
 
    private final boolean singlePreviewEnabled;
    private boolean server = false; // server flag
