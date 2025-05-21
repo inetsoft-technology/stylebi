@@ -26,8 +26,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
+import org.w3c.dom.*;
 
 import java.util.*;
 
@@ -152,6 +151,82 @@ public class AssetSQLTableDependencyTransformer extends AssetDependencyTransform
             Element elem = (Element) conditions.item(i);
             renameCondition(elem, info, rinfos);
          }
+      }
+   }
+
+   protected void renameTabularTableSources(Element doc, RenameInfo info) {
+      String tabularAssembly =
+         "//assemblies/oneAssembly/assembly[@class='inetsoft.uql.asset.TabularTableAssembly']";
+
+      if(info.isDataSourceFolder() || info.isDataSource()) {
+         NodeList list = getChildNodes(doc, tabularAssembly + "/assemblyInfo/source/sourceInfo/prefix |" +
+                                       tabularAssembly + "/assemblyInfo/source/sourceInfo/source");
+
+         for(int i = 0; i < list.getLength(); i++) {
+            Element elem = (Element) list.item(i);
+            renameTabularSource(elem, info);
+         }
+      }
+
+      if(info.isSource() || info.isTableOption()) {
+         NodeList fileFolders = getChildNodes(doc,
+                                              tabularAssembly + "/assemblyInfo/query/query_SERVER_FILE/fileFolder");
+         List<RenameInfo> rinfos = new ArrayList<>();
+
+         for(int i = 0; i < fileFolders.getLength(); i++) {
+            Element elem = (Element) fileFolders.item(i);
+            renameTabularFile(elem, info, rinfos);
+         }
+
+         NodeList items = getChildNodes(doc,
+                                        tabularAssembly + "/assemblyInfo/normalColumnSelection/ColumnSelection/dataRef");
+
+         for(int i = 0; i < items.getLength(); i++) {
+            Element elem = (Element) items.item(i);
+            renameColumnItem(elem, info);
+         }
+
+         NodeList joins = getChildNodes(doc, tabularAssembly + "/assemblyInfo/joins/XJoin");
+
+         for(int i = 0; i < joins.getLength(); i++) {
+            Element elem = (Element) joins.item(i);
+            renameJoin(elem, info, rinfos);
+         }
+
+         NodeList conditions = getChildNodes(doc,
+                                             tabularAssembly + "/assemblyInfo/conditions/conditions/condition");
+
+         for(int i = 0; i < conditions.getLength(); i++) {
+            Element elem = (Element) conditions.item(i);
+            renameCondition(elem, info, rinfos);
+         }
+      }
+   }
+
+   private void renameTabularSource(Element sourceElement, RenameInfo info) {
+      String oname = info.getOldName();
+      String nname = info.getNewName();
+
+      if(Tool.equals(oname, Tool.getValue(sourceElement))) {
+         replaceCDATANode(sourceElement, nname);
+      }
+   }
+
+   private void renameTabularFile(Element fileFolder, RenameInfo info, List<RenameInfo> rinfos) {
+      Element node = fileFolder;
+      String oname = info.getOldName();
+      String nname = info.getNewName();
+      String ofileName = Tool.getValue(node);
+
+      if(ofileName == null || !info.isSource()) {
+         return;
+      }
+
+      if(Tool.equals(oname, ofileName)) {
+         replaceCDATANode(node, nname);
+
+         RenameInfo renameInfo = new RenameInfo(ofileName, nname, RenameInfo.SOURCE);
+         rinfos.add(renameInfo);
       }
    }
 
