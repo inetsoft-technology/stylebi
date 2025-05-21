@@ -1373,13 +1373,13 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
          SRPrincipal srPrincipal2 = users.get(srPrincipal.getUser());
 
-         // if the principal is created on the same machine as the server,
-         // trust it as is so the principal can be passed from another
-         // application to the report server by declaring a user
          if(srPrincipal2 == null) {
-            String host2 = srPrincipal.getHost();
-            String host = Tool.getIP();
-            return host != null && host.equals(host2);
+            // anonymous users are not added to the users map. allow anonymous users if they exist
+            ClientInfo user = srPrincipal.getUser();
+            IdentityID identity = user.getLoginUserID();
+            return ClientInfo.ANONYMOUS.equals(identity.getName()) &&
+               (provider == null || provider.getAuthenticationProvider().isVirtual() ||
+                  containsAnonymous(identity.getOrgID()));
          }
 
          ClientInfo user1 = srPrincipal.getUser();
