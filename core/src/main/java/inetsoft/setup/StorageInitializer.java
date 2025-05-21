@@ -20,7 +20,8 @@ package inetsoft.setup;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.LoadKeyValueTask;
-import inetsoft.util.*;
+import inetsoft.util.HashedPassword;
+import inetsoft.util.PasswordEncryption;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.SecretsConfig;
 import org.apache.commons.lang3.StringUtils;
@@ -33,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.function.BiFunction;
 
 /**
  * Class that performs basic initialization of a new storage.
@@ -59,6 +61,18 @@ public class StorageInitializer implements Callable<Integer> {
    )
    private File assetsDirectory;
 
+   @CommandLine.Option(
+      names = { "-f", "--files" }, paramLabel = "FILES_DIR",
+      description = "The path to the directory containing files to import to the data space"
+   )
+   private File filesDirectory;
+
+   @CommandLine.Option(
+      names = { "-s", "--scripts" }, paramLabel = "SCRIPTS_DIR",
+      description = "The path to the directory containing DSL script files to execute"
+   )
+   private File scriptsDirectory;
+
    private static final String STORAGE_INITIALIZED_KEY = "storage.initialized";
 
    /**
@@ -78,15 +92,23 @@ public class StorageInitializer implements Callable<Integer> {
       if(initialized) {
          System.out.println("Storage already initialized");
       }
-      else {
-         setProperties();
-      }
 
-      installPlugins();
+      SetupExtension.Context context = new SetupExtension.Context(
+         initialized, configDirectory, pluginsDirectory, filesDirectory, assetsDirectory,
+         scriptsDirectory);
+      List<SetupExtension> extensions = new ArrayList<>();
+      ServiceLoader.load(SetupExtension.class).forEach(extensions::add);
+      System.err.println("LOADED EXTENSIONS: " + extensions);
+      context = applyExtensions(context, extensions, (c, e) -> e.start(c));
+      System.err.println("UPDATED CONTEXT: " + context);
+
+      context = setProperties(context, extensions);
+      context = installPlugins(context, extensions);
+      context = configureSecurity(context, extensions);
+      context = importFiles(context, extensions);
+      context = importAssets(context, extensions);
 
       if(!initialized) {
-         configureSecurity();
-         importAssets();
          setInitialized();
          System.out.println("Storage initialized successfully");
       }
@@ -106,43 +128,57 @@ public class StorageInitializer implements Callable<Integer> {
       }
    }
 
-   private void setProperties() throws Exception {
-      try(PropertiesService service = new PropertiesService(configDirectory.getAbsolutePath())) {
-         for(Map.Entry<String, String> e : System.getenv().entrySet()) {
-            if(e.getKey().startsWith("INETSOFTENV_")) {
-               String property = e.getKey()
-                  .substring(12)
-                  .toLowerCase()
-                  .replace('_', '.');
-               service.put(property, e.getValue());
-               System.out.println("Set property " + property);
-            }
-         }
-
-         service.put("schedule.auto.start", "false");
-         service.put("schedule.auto.stop", "false");
-      }
-   }
-
-   private void installPlugins() throws Exception {
-      if(pluginsDirectory == null) {
-         pluginsDirectory = new File("/usr/local/inetsoft/plugins");
-      }
-
-      if(pluginsDirectory.isDirectory()) {
-         File[] files = pluginsDirectory.listFiles(this::isPluginFile);
-
-         if(files != null && files.length > 0) {
-            try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
-               for(File file : files) {
-                  service.installPlugin(file);
+   private SetupExtension.Context setProperties(SetupExtension.Context context,
+                                                List<SetupExtension> extensions)
+      throws Exception
+   {
+      if(!context.initialized()) {
+         try(PropertiesService service = new PropertiesService(configDirectory.getAbsolutePath())) {
+            for(Map.Entry<String, String> e : System.getenv().entrySet()) {
+               if(e.getKey().startsWith("INETSOFTENV_")) {
+                  String property = e.getKey()
+                     .substring(12)
+                     .toLowerCase()
+                     .replace('_', '.');
+                  service.put(property, e.getValue());
+                  System.out.println("Set property " + property);
                }
             }
 
-            // send a message to reload the plugins from the kv store
-            Cluster.getInstance().submit("plugins",
-                                         new LoadKeyValueTask("plugins", true)).get();
+            service.put("schedule.auto.start", "false");
+            service.put("schedule.auto.stop", "false");
          }
+      }
+
+      return applyExtensions(context, extensions, (c, e) -> e.afterPropertiesSet(c));
+   }
+
+   private SetupExtension.Context installPlugins(SetupExtension.Context context,
+                                                 List<SetupExtension> extensions)
+      throws Exception
+   {
+      installPlugins(new File("/usr/local/inetsoft/plugins"));
+
+      if(context.pluginsDirectory() != null && context.pluginsDirectory().isDirectory()) {
+         installPlugins(context.pluginsDirectory());
+      }
+
+      return applyExtensions(context, extensions, (c, e) -> e.afterPluginsInstalled(c));
+   }
+
+   private void installPlugins(File directory) throws Exception {
+      File[] files = directory.listFiles(this::isPluginFile);
+
+      if(files != null && files.length > 0) {
+         try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
+            for(File file : files) {
+               service.installPlugin(file);
+            }
+         }
+
+         // send a message to reload the plugins from the kv store
+         Cluster.getInstance().submit("plugins",
+                                      new LoadKeyValueTask<>("plugins", true)).get();
       }
    }
 
@@ -158,33 +194,40 @@ public class StorageInitializer implements Callable<Integer> {
       return false;
    }
 
-   private void configureSecurity() throws Exception {
-      String password = System.getenv("INETSOFT_ADMIN_PASSWORD");
+   private SetupExtension.Context configureSecurity(SetupExtension.Context context,
+                                                    List<SetupExtension> extensions)
+      throws Exception
+   {
+      if(!context.initialized()) {
+         String password = System.getenv("INETSOFT_ADMIN_PASSWORD");
 
-      if(!StringUtils.isEmpty(password)) {
-         HashedPassword hash = getPasswordEncryption().hash(password, "bcrypt", null, false);
-         FSUser user =
-            new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
-         user.setPassword(hash.getHash());
-         user.setPasswordAlgorithm(hash.getAlgorithm());
-         user.setPasswordSalt(null);
-         user.setAppendPasswordSalt(false);
-         user.setRoles(new IdentityID[] { new IdentityID("Administrator", null) });
-         Path temp = Files.createTempFile("virtual_security", ".xml");
+         if(!StringUtils.isEmpty(password)) {
+            HashedPassword hash = getPasswordEncryption().hash(password, "bcrypt", null, false);
+            FSUser user =
+               new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
+            user.setPassword(hash.getHash());
+            user.setPasswordAlgorithm(hash.getAlgorithm());
+            user.setPasswordSalt(null);
+            user.setAppendPasswordSalt(false);
+            user.setRoles(new IdentityID[]{ new IdentityID("Administrator", null) });
+            Path temp = Files.createTempFile("virtual_security", ".xml");
 
-         try(PrintWriter writer = new PrintWriter(Files.newBufferedWriter(temp, StandardCharsets.UTF_8))) {
-            writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-            writer.println("<virtualSecurityProvider>");
-            user.writeXML(writer);
-            writer.println("</virtualSecurityProvider>");
+            try(PrintWriter writer = new PrintWriter(Files.newBufferedWriter(temp, StandardCharsets.UTF_8))) {
+               writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+               writer.println("<virtualSecurityProvider>");
+               user.writeXML(writer);
+               writer.println("</virtualSecurityProvider>");
+            }
+
+            try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
+               service.write("virtual_security.xml", temp.toFile());
+            }
+
+            Files.delete(temp);
          }
-
-         try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
-            service.write("virtual_security.xml", temp.toFile());
-         }
-
-         Files.delete(temp);
       }
+
+      return applyExtensions(context, extensions, (c, e) -> e.afterSecurityConfigured(c));
    }
 
    private PasswordEncryption getPasswordEncryption() {
@@ -208,33 +251,70 @@ public class StorageInitializer implements Callable<Integer> {
       return PasswordEncryption.newInstance(config);
    }
 
-   private void importAssets() {
-      try {
-         Class.forName("inetsoft.enterprise.client.ClientFactory");
+   private SetupExtension.Context importFiles(SetupExtension.Context context,
+                                              List<SetupExtension> extensions)
+      throws Exception
+   {
+      if(!context.initialized() &&
+         context.filesDirectory() != null && context.filesDirectory().isDirectory())
+      {
+         try(StorageService service = new StorageService(configDirectory.getAbsolutePath())) {
+            importFiles(service, context.filesDirectory(), context.filesDirectory());
+         }
       }
-      catch(ClassNotFoundException ignore) {
-         // only supported in enterprise
-         return;
-      }
 
-      if(assetsDirectory != null && assetsDirectory.isDirectory()) {
-         File[] files = assetsDirectory.listFiles(
-            pathname -> pathname.isFile() && pathname.getName().toLowerCase().endsWith(".zip"));
+      return applyExtensions(context, extensions, (c, e) -> e.afterFilesImported(c));
+   }
 
-         if(files != null && files.length > 0) {
-            try(AutoCloseable client = openClient()) {
-               Object fileService = getFileService(client);
+   private void importFiles(StorageService service, File root, File file) throws IOException {
+      if(file.isDirectory()) {
+         File[] files = file.listFiles();
 
-               for(File file : files) {
-                  importAssets(fileService, file);
-               }
-            }
-            catch(Exception e) {
-               throw new RuntimeException(
-                  "Failed to import assets from '" + assetsDirectory.getAbsolutePath() + "'", e);
+         if(files != null) {
+            for(File f : files) {
+               importFiles(service, root, f);
             }
          }
       }
+      else {
+         String name = root.toPath().relativize(file.toPath()).toString();
+         service.write(name, file);
+      }
+   }
+
+   private SetupExtension.Context importAssets(SetupExtension.Context context,
+                                               List<SetupExtension> extensions)
+   {
+      if(!context.initialized()) {
+         try {
+            Class.forName("inetsoft.enterprise.client.ClientFactory");
+         }
+         catch(ClassNotFoundException ignore) {
+            // only supported in enterprise
+            return context;
+         }
+
+         if(context.assetsDirectory() != null && context.assetsDirectory().isDirectory()) {
+            File[] files = context.assetsDirectory().listFiles(
+               pathname -> pathname.isFile() && pathname.getName().toLowerCase().endsWith(".zip"));
+
+            if(files != null && files.length > 0) {
+               try(AutoCloseable client = openClient()) {
+                  Object fileService = getFileService(client);
+
+                  for(File file : files) {
+                     importAssets(fileService, file);
+                  }
+               }
+               catch(Exception e) {
+                  throw new RuntimeException(
+                     "Failed to import assets from '" + context.assetsDirectory().getAbsolutePath() + "'", e);
+               }
+            }
+         }
+      }
+
+      return applyExtensions(context, extensions, (c, e) -> e.afterAssetsInstalled(c));
    }
 
    private AutoCloseable openClient() {
@@ -280,5 +360,12 @@ public class StorageInitializer implements Callable<Integer> {
       catch(Exception e) {
          throw new RuntimeException("Failed to import assets from " + zipFile.getAbsolutePath(), e);
       }
+   }
+
+   private SetupExtension.Context applyExtensions(
+      SetupExtension.Context context, List<SetupExtension> extensions,
+      BiFunction<SetupExtension.Context, SetupExtension, SetupExtension.Context> fn)
+   {
+      return extensions.stream().reduce(context, fn, (c1, c2) -> c2);
    }
 }

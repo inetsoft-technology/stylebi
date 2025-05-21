@@ -63,4 +63,9 @@ then
 fi
 
 set -o noglob
-exec $JAVA_HOME/bin/java $JAVA_OPTS -classpath $JAVA_CP inetsoft.setup.StorageInitializer -c /var/lib/inetsoft/config -a /var/lib/inetsoft/assets
+exec $JAVA_HOME/bin/java $JAVA_OPTS -classpath $JAVA_CP inetsoft.setup.StorageInitializer \
+  -c /var/lib/inetsoft/config \
+  -p /var/lib/inetsoft/setup/plugins \
+  -a /var/lib/inetsoft/setup/assets \
+  -f /var/lib/inetsoft/setup/files \
+  -s /var/lib/inetsoft/setup/scripts
