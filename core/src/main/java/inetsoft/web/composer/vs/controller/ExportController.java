@@ -149,7 +149,7 @@ public class ExportController {
       CSVConfig csvConfig = new CSVConfig();
 
       //expand by default when exporting directly for pdf if match
-      boolean match = "pdf".equalsIgnoreCase(type) ? matchParam.orElse(false) : matchParam.orElse(true);
+      boolean match = matchParam.orElse(!"pdf".equalsIgnoreCase(type));
 
       // always expand tables when export to csv.
       if(format == FileFormatInfo.EXPORT_TYPE_CSV) {
