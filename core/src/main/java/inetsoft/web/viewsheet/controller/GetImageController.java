@@ -162,14 +162,12 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
-      VSUtil.globalShareVsRunInHostScope(Tool.byteDecode(vid), principal,
-         () -> {
-            AssemblyImageService.ImageRenderResult result = imageServiceProxy.processGetAssemblyImage(Tool.byteDecode(vid), aid,
-                                                                                                      width, height, maxWidth, maxHeight, aname,
-                                                                                                      index, row, col, principal, svg, false);
-            processImageRenderResult(result, request, response);
-            return null;
-         });
+         AssemblyImageService.ImageRenderResult result =
+            imageServiceProxy.processGetAssemblyImageInHostScope(Tool.byteDecode(vid), aid, width,
+                                                                 height, maxWidth, maxHeight, aname,
+                                                                 index, row, col, principal, svg,
+                                                                 false);
+         processImageRenderResult(result, request, response);
    }
 
    /**

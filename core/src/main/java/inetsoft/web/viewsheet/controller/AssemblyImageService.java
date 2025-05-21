@@ -101,6 +101,20 @@ public class AssemblyImageService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ImageRenderResult processGetAssemblyImageInHostScope(@ClusterProxyKey String vid,
+                                                               String aid, double width,
+                                                               double height, double maxWidth,
+                                                               double maxHeight, String aname,
+                                                               int index, int row, int col,
+                                                               Principal principal, boolean svg,
+                                                               boolean export) throws Exception
+   {
+      return VSUtil.globalShareVsRunInHostScope(vid, principal, () -> processGetAssemblyImage(
+         vid, aid, width, height, maxWidth, maxHeight, aname, index, row, col, principal, svg,
+         export));
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public ImageRenderResult processGetAssemblyImage(@ClusterProxyKey String vid, String aid, double width, double height,
                                        double maxWidth, double maxHeight, String aname,
                                        int index, int row, int col, Principal principal,
