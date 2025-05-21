@@ -2015,80 +2015,94 @@ public class IdentityService {
       Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
          null : provider.getOrganization(oldOrgId);
 
-      for(Tuple4<ResourceType, String, String, Permission> permissionSet : provider.getPermissions()) {
-         String resourceOrgID = permissionSet.getSecond();
-         String path = permissionSet.getThird();
-         Permission permission = permissionSet.getForth();
+      //iterate through all providers when updating permissions, else only first is found and set permissions can be lost
+      for(AuthorizationProvider aprovider : SecurityEngine.getSecurity().getAuthorizationChain().get().getProviders()) {
+         List<Tuple4<ResourceType, String, String, Permission>> permissionSetList = null;
 
-         if(permission == null) {
-            continue;
+         try {
+            permissionSetList = aprovider.getPermissions();
+         }
+         catch(UnsupportedOperationException e) {
+            // no-op
          }
 
-         if(resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) && !Tool.equals(resourceOrgID, newOrgId) ||
-            newName == null && path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
-               !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldName.orgID) &&
-               !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID,oldOrgId))
-         {
-            //skip permissions not in this organization
-            continue;
-         }
+         if(permissionSetList != null) {
+            for(Tuple4<ResourceType, String, String, Permission> permissionSet : permissionSetList) {
+               String resourceOrgID = permissionSet.getSecond();
+               String path = permissionSet.getThird();
+               Permission permission = permissionSet.getForth();
 
-         if(containsOrgID(path, oldName.getOrgID()) && newName == null) {
-            provider.removePermission(permissionSet.getFirst(), path, resourceOrgID);
-         }
+               if(permission == null) {
+                  continue;
+               }
 
-         for(ResourceAction action : ResourceAction.values()) {
-            if(permission != null) {
-               if(type == Identity.USER) {
-                  for(IdentityID granteeName : permission.getOrgScopedUserGrants(action, oldOrganization).toArray(new IdentityID[0])) {
-                     if(oldName != null && oldName.name.equals(granteeName.name)) {
-                        //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
+               if(resourceOrgID != null && !Tool.equals(resourceOrgID, oldOrgId) && !Tool.equals(resourceOrgID, newOrgId) ||
+                  newName == null && path.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(path).orgID != null &&
+                     !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID, oldName.orgID) &&
+                     !Tool.equals(IdentityID.getIdentityIDFromKey(path).orgID, oldOrgId))
+               {
+                  //skip permissions not in this organization
+                  continue;
+               }
+
+               if(containsOrgID(path, oldName.getOrgID()) && newName == null) {
+                  aprovider.removePermission(permissionSet.getFirst(), path, resourceOrgID);
+               }
+
+               for(ResourceAction action : ResourceAction.values()) {
+                  if(permission != null) {
+                     if(type == Identity.USER) {
+                        for(IdentityID granteeName : permission.getOrgScopedUserGrants(action, oldOrganization).toArray(new IdentityID[0])) {
+                           if(oldName != null && oldName.name.equals(granteeName.name)) {
+                              //rename old grantee to new name
+                              updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
+                           }
+                        }
+                     }
+                     else if(type == Identity.GROUP) {
+                        for(IdentityID granteeName : permission.getOrgScopedGroupGrants(action, oldOrganization).toArray(new IdentityID[0])) {
+                           if(oldName != null && oldName.name.equals(granteeName.name)) {
+                              //rename old grantee to new name
+                              updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
+                           }
+                        }
+                     }
+                     else if(type == Identity.ROLE) {
+                        for(IdentityID granteeName : permission.getOrgScopedRoleGrants(action, oldOrganization).toArray(new IdentityID[0])) {
+                           if(oldName != null && oldName.name.equals(granteeName.name)) {
+                              //rename old grantee to new name
+                              updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
+                           }
+                        }
+                     }
+                     else if(type == Identity.ORGANIZATION) {
+                        updateOrgIdentitiesPermission(newName, oldName, oldOrganization, newOrgId, permission, action);
                      }
                   }
                }
-               else if(type == Identity.GROUP) {
-                  for(IdentityID granteeName : permission.getOrgScopedGroupGrants(action, oldOrganization).toArray(new IdentityID[0])) {
-                     if(oldName != null && oldName.name.equals(granteeName.name)) {
-                        //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
-                     }
-                  }
+
+               String oldOrgName;
+               String newOrgName;
+
+               if(type == Identity.ORGANIZATION &&
+                  permissionSet.getFirst() == ResourceType.SECURITY_ORGANIZATION &&
+                  newName != null && oldName != null)
+               {
+                  oldOrgName = oldName.getName();
+                  newOrgName = newName.getName();
                }
-               else if(type == Identity.ROLE) {
-                  for(IdentityID granteeName : permission.getOrgScopedRoleGrants(action, oldOrganization).toArray(new IdentityID[0])) {
-                     if(oldName != null && oldName.name.equals(granteeName.name)) {
-                        //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
-                     }
-                  }
+               else {
+                  oldOrgName = oldName != null && oldName.getOrgID() != null ? oldName.getName() : null;
+                  newOrgName = newName != null && newName.getName() != null ? newName.getName() : null;
                }
-               else if(type == Identity.ORGANIZATION) {
-                  updateOrgIdentitiesPermission(newName, oldName, oldOrganization, newOrgId, permission, action);
-               }
+
+               updatePermission(aprovider, permissionSet, oldOrgName, newOrgName, oldOrgId, newOrgId, doReplace, type);
             }
          }
-
-         String oldOrgName;
-         String newOrgName;
-
-         if(type == Identity.ORGANIZATION &&
-            permissionSet.getFirst() == ResourceType.SECURITY_ORGANIZATION &&
-            newName != null && oldName != null)
-         {
-            oldOrgName = oldName.getName();
-            newOrgName = newName.getName();
-         }
-         else {
-            oldOrgName = oldName != null && oldName.getOrgID() != null ? oldName.getName() : null;
-            newOrgName = newName != null && newName.getName() != null ? newName.getName() : null;
-         }
-
-         updatePermission(provider, permissionSet, oldOrgName, newOrgName, oldOrgId, newOrgId, doReplace, type);
       }
    }
 
-   private void updatePermission(SecurityProvider provider,
+   private void updatePermission(AuthorizationProvider provider,
                                  Tuple4<ResourceType, String, String, Permission> permissionSet,
                                  String oIdentityName, String nIdentityName, String oorgId,
                                  String norgId, boolean doReplace, int changeIdentityType)
