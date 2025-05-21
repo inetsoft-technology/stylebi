@@ -239,7 +239,7 @@ public class ScheduleConditionService {
             .type(type)
             .array(array)
             .value(value instanceof DynamicValueModel ? (DynamicValueModel) value
-               : new DynamicValueModel(value, DynamicValueModel.VALUE, type, array))
+               : new DynamicValueModel(value, DynamicValueModel.VALUE, type))
             .build();
 
          paramModels.add(paramModel);

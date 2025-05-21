@@ -36,15 +36,8 @@ public class DynamicParameterValue implements Serializable, Cloneable {
         this.dataType = dataType;
     }
 
-    public DynamicParameterValue(Object value, String type, String dataType, boolean array) {
-       this.value = value;
-       this.type = type;
-       this.dataType = dataType;
-       this.array = array;
-    }
-
     public DynamicValueModel convertModel() {
-        return new DynamicValueModel(this.value, this.type, this.dataType, this.array);
+        return new DynamicValueModel(this.value, this.type, this.dataType);
     }
 
     public Object getValue() {
