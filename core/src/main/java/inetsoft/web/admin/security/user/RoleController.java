@@ -348,15 +348,15 @@ public class RoleController {
       else if(includesSelfOrg) {
          warnings.add(Catalog.getCatalog().getString("em.security.delSelfOrg"));
       }
+      else if(!systemAdminService.hasSystemAdminAfterDelete(identitiesToDelete)) {
+         // if no system admin would remain
+         warnings.add(Catalog.getCatalog().getString("em.security.noSystemAdmin"));
+      }
       else if(!systemAdminService.hasOrgAdminAfterDelete(identitiesToDelete)) {
          warnings.add(Catalog.getCatalog().getString("em.security.noOrgAdmin"));
       }
-      else if(systemAdminService.hasSystemAdminAfterDelete(identitiesToDelete)) {
-         warnings = identityService.deleteIdentities(models, providerName, principal);
-      }
       else {
-         // if no system admin would remain
-         warnings.add(Catalog.getCatalog().getString("em.security.noSystemAdmin"));
+         warnings = identityService.deleteIdentities(models, providerName, principal);
       }
 
       return DeleteIdentitiesResponse.builder()
