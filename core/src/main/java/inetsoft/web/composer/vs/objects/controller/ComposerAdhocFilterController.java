@@ -502,7 +502,8 @@ public class ComposerAdhocFilterController {
          final SelectionListVSAssembly list = (SelectionListVSAssembly) assembly;
          final SelectionListVSAssemblyInfo info =
             (SelectionListVSAssemblyInfo) list.getVSAssemblyInfo();
-         containerName = (String) list.getAhFilterProperty().get("_container");
+         Map<String, Object> map = list.getAhFilterProperty();
+         containerName = map != null ? (String) map.get("_container") : null;
 
          if(list.getSelectedObjects().isEmpty() && info.isCreatedByAdhoc()) {
             coreLifecycleService.removeVSAssembly(rvs, linkUri, list, dispatcher, false, false);
@@ -517,7 +518,8 @@ public class ComposerAdhocFilterController {
          final TimeSliderVSAssembly slider = (TimeSliderVSAssembly) assembly;
          final SelectionList slist = slider.getSelectionList();
          final TimeSliderVSAssemblyInfo info = (TimeSliderVSAssemblyInfo) slider.getInfo();
-         containerName = (String) slider.getAhFilterProperty().get("_container");
+         Map<String, Object> map = slider.getAhFilterProperty();
+         containerName = map != null ? (String) map.get("_container") : null;
 
          if(slist != null) {
             final SelectionValue start = slist.getSelectionValue(0);
@@ -800,6 +802,11 @@ public class ComposerAdhocFilterController {
 
    private void restoreFormats(VSAssembly moved) {
       Map<String, Object> prop = ((AbstractSelectionVSAssembly) moved).getAhFilterProperty();
+
+      if(prop == null) {
+         return;
+      }
+
       VSAssemblyInfo info = moved.getVSAssemblyInfo();
       FormatInfo fmtInfo = info.getFormatInfo();
       Object zindexObj = prop.get("_zindex");
