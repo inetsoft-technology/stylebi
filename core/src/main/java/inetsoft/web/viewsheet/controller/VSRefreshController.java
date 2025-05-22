@@ -40,7 +40,7 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.LoadingMask;
-import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
+import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.controller.table.BaseTableController;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
@@ -467,8 +467,15 @@ public class VSRefreshController {
 
       // refresh new table data.
       if(assembly instanceof TableDataVSAssembly) {
-         BaseTableController.loadTableData(
-            rvs, assembly.getAbsoluteName(), 0, 0, 100, linkUri, dispatcher);
+         try {
+            dispatcher.sendCommand(assembly.getAbsoluteName(), new AssemblyLoadingCommand());
+
+            BaseTableController.loadTableData(
+               rvs, assembly.getAbsoluteName(), 0, 0, 100, linkUri, dispatcher);
+         }
+         finally {
+            dispatcher.sendCommand(assembly.getAbsoluteName(), new ClearAssemblyLoadingCommand());
+         }
       }
    }
 
