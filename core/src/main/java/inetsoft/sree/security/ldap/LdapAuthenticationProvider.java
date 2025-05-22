@@ -412,7 +412,7 @@ public abstract class LdapAuthenticationProvider
    @Override
    public final Role getRole(IdentityID roleid) {
       if(roleid != null) {
-         if("Organization Administrator".equals(roleid.getName())) {
+         if(!existRole(roleid)) {
             return null;
          }
 
