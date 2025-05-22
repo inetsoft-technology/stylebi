@@ -318,6 +318,11 @@ export class AggregatePane {
       }
       else if(row.group) {
          let findIndex = this.groups[listIndex].findIndex((group) => group.label === row.group);
+
+         if(findIndex == -1) {
+            return null;
+         }
+
          return this.groups[listIndex][findIndex].dgroup;
       }
       else {
