@@ -47,7 +47,8 @@ public class GroupContainerVSAScriptableTest {
       viewsheet.getVSAssemblyInfo().setName("vs1");
 
       groupContainerVSAssembly = new GroupContainerVSAssembly();
-      groupContainerVSAssemblyInfo = (GroupContainerVSAssemblyInfo) groupContainerVSAssembly.getVSAssemblyInfo();
+      groupContainerVSAssemblyInfo =
+         (GroupContainerVSAssemblyInfo) groupContainerVSAssembly.getVSAssemblyInfo();
       groupContainerVSAssemblyInfo.setName("GroupContainer1");
       viewsheet.addAssembly(groupContainerVSAssembly);
 

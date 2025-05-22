@@ -75,7 +75,8 @@ public class CheckBoxVSAScriptableTest {
 
    @Test
    void testGet() {
-      assertArrayEquals(new Object[0], (Object[]) checkBoxVSAScriptable.get("value", checkBoxVSAScriptable));
+      assertArrayEquals(new Object[0],
+                        (Object[]) checkBoxVSAScriptable.get("value", checkBoxVSAScriptable));
       checkBoxVSAScriptable.setCellValue(new Date(125, 1, 20));
       assert simpleDateFormat.format(checkBoxVSAScriptable.get("value", checkBoxVSAScriptable)).equals("2025-02-20");
       assertEquals("CheckBox", checkBoxVSAScriptable.get("title", checkBoxVSAScriptable));
@@ -93,7 +94,8 @@ public class CheckBoxVSAScriptableTest {
    void testAddProperties() {
       checkBoxVSAScriptable.addProperties();
 
-      assertEquals("CheckBox", checkBoxVSAScriptable.get("title", checkBoxVSAScriptable));
+      assertEquals("CheckBox",
+                   checkBoxVSAScriptable.get("title", checkBoxVSAScriptable));
       assertEquals(true, checkBoxVSAScriptable.get("titleVisible", checkBoxVSAScriptable));
       assertEquals(false, checkBoxVSAScriptable.get("selectFirstItemOnLoad", checkBoxVSAScriptable));
    }
@@ -107,12 +109,16 @@ public class CheckBoxVSAScriptableTest {
 
    @Test
    void testSetSelectedObjects() {
-      checkBoxVSAScriptable.setSelectedObjects(new Object[]{ "value1", "value2" });
-      assertArrayEquals(new Object[]{ "value1", "value2" }, (Object[]) checkBoxVSAScriptable.getDefaultValue(String.class));
+      Object[] obj1 = new Object[]{ "value1", "value2" };
+      checkBoxVSAScriptable.setSelectedObjects(obj1);
+      assertArrayEquals(obj1, (Object[]) checkBoxVSAScriptable.getDefaultValue(String.class));
 
       //set Date type objects
       checkBoxVSAScriptable.setDataType("Date");
-      Object[] objects = new Object[]{ new Date(125, 1, 20), new Date(125, 2, 20) };
+      Object[] objects = new Object[]{
+         new Date(125, 1, 20),
+         new Date(125, 2, 20)
+      };
       checkBoxVSAScriptable.setSelectedObjects(objects);
       assertArrayEquals(objects, (Object[]) checkBoxVSAScriptable.getDefaultValue(Date.class));
       assertArrayEquals(objects, checkBoxVSAssemblyInfo.getSelectedObjects());

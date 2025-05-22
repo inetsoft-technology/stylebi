@@ -40,18 +40,17 @@ import java.awt.*;
 import java.security.Principal;
 import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 
 @SreeHome(importResources = "ChartVSAScriptableTest.vso")
 public class ChartVSAScriptableTest {
-   private ViewsheetSandbox viewsheetSandbox ;
-
-   private ChartVSAScriptable chartVSAScriptable;
-
+   private ViewsheetSandbox viewsheetSandbox, sandbox;
+   private ChartVSAScriptable chartVSAScriptable, chartVSAScriptable1;
    private ChartVSAssemblyInfo chartVSAssemblyInfo;
-
+   private ChartVSAssembly chartVSAssembly, chartVSAssembly1;
    @Mock
    ViewsheetService viewsheetService;
 
@@ -61,7 +60,7 @@ public class ChartVSAScriptableTest {
       Viewsheet viewsheet = new Viewsheet();
       viewsheet.getVSAssemblyInfo().setName("vs-chart-1");
 
-      ChartVSAssembly  chartVSAssembly = new ChartVSAssembly();
+      chartVSAssembly = new ChartVSAssembly();
       chartVSAssemblyInfo = (ChartVSAssemblyInfo) chartVSAssembly.getVSAssemblyInfo();
       chartVSAssemblyInfo.setName("chart1");
 
@@ -117,11 +116,11 @@ public class ChartVSAScriptableTest {
 
       //put query
       chartVSAScriptable.put("query", null, "q1");
-      assert  chartVSAScriptable.get("query", null) == "q1";
+      assertEquals("q1", chartVSAScriptable.get("query", null));
 
       //put chart style
       chartVSAScriptable.put("chartStyle", null, StyleConstants.CHART_LINE);
-      assert chartVSAssemblyInfo.getChartStyle() == StyleConstants.CHART_LINE;
+      assertEquals(StyleConstants.CHART_LINE, chartVSAssemblyInfo.getChartStyle());
    }
 
    @Test
@@ -129,61 +128,51 @@ public class ChartVSAScriptableTest {
       //Set font with valid font object
       Font font1 = new Font("Arial", Font.PLAIN, 12);
       chartVSAScriptable.setFont(font1);
-      assert chartVSAScriptable.getFont().equals(font1);
+      assertEquals(font1, chartVSAScriptable.getFont());
 
       chartVSAScriptable.setForeground(Color.BLUE);
-      assert chartVSAScriptable.getForeground().equals(Color.BLUE);
+      assertEquals(Color.BLUE, chartVSAScriptable.getForeground());
 
       chartVSAScriptable.setTipViewValue("this is a tip view value");
       chartVSAScriptable.setTipView("this is a tip view");
-      assert Objects.equals(chartVSAScriptable.getTipView(), "this is a tip view");
+      assertEquals("this is a tip view", chartVSAScriptable.getTipView());
    }
-
 
    /**
     * use a imported vs to test get all binding options
     */
    @Test
    void testGetBindingField() throws Exception {
-      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
+      processAssembly("Chart1");
 
       //check x,y,color,shape,text,size fields on bar chart
-      final ChartVSAssembly Chart1 = (ChartVSAssembly) viewsheetResource
-         .getRuntimeViewsheet().getViewsheet().getAssembly("Chart1");
-      ChartVSAScriptable chartVSAScriptable1 = new ChartVSAScriptable(sandbox);
-      chartVSAScriptable1.setAssembly(Chart1.getName());
-
-      String[] x1 = (String[]) chartVSAScriptable1.get("xFields", null);
-      String[] y1 = (String[]) chartVSAScriptable1.get("yFields", null);
-      assert Arrays.toString(x1).equals("[State]");
-      assert Arrays.toString(y1).equals("[Population]");
-      assert chartVSAScriptable1.get("colorField").equals("Region");
-      assert chartVSAScriptable1.get("shapeField").equals("Division");
-      assert chartVSAScriptable1.get("sizeField").equals("Median Income");
-      assert chartVSAScriptable1.get("textField").equals("Property Value");
-      assert chartVSAScriptable1.get("data") != null;
-      assert chartVSAScriptable1.get("query").equals("Data");
+      assertArrayEquals(new String[] {"State"},
+                        (String[])chartVSAScriptable1.get("xFields", null));
+      assertArrayEquals(new String[] {"Population"},
+                        (String[])chartVSAScriptable1.get("yFields", null));
+      assertEquals("Region", chartVSAScriptable1.get("colorField"));
+      assertEquals("Division", chartVSAScriptable1.get("shapeField"));
+      assertEquals("Median Income", chartVSAScriptable1.get("sizeField"));
+      assertEquals("Property Value", chartVSAScriptable1.get("textField"));
+      assertNotNull(chartVSAScriptable1.get("data"));
+      assertEquals("Data", chartVSAScriptable1.get("query"));
 
       //check getSuffix
       String[] items = {"xFields", "yFields", "axis", "singleStyle"};
       for (String item : items) {
-         assert chartVSAScriptable1.getSuffix(item).equals("[]");;
+         assertEquals("[]", chartVSAScriptable1.getSuffix(item));
       }
-      assert chartVSAScriptable1.getSuffix("highlighted").equals("");
-      assert chartVSAScriptable1.getSuffix("webMapStyle").equals("");
-      assert chartVSAScriptable1.getSuffix("setHyperlink").equals("()");
+      assertEquals("", chartVSAScriptable1.getSuffix("highlighted"));
+      assertEquals("", chartVSAScriptable1.getSuffix("webMapStyle"));
+      assertEquals("()", chartVSAScriptable1.getSuffix("setHyperlink"));
 
       //check get others
-      assert chartVSAScriptable1.getAxisIds().length != 0;
-      assert chartVSAScriptable1.getFieldAxisIds().length != 0;
-      assert chartVSAScriptable1.getLegendIds().length != 0;
-      assert chartVSAScriptable1.getTitleIds().length != 0;
-      assert chartVSAScriptable1.getValueFormatIds().length != 0;
-      assert chartVSAScriptable1.getEGraphIds().length != 0;
+      assertNotEquals(0, chartVSAScriptable1.getAxisIds().length);
+      assertNotEquals(0, chartVSAScriptable1.getFieldAxisIds().length);
+      assertNotEquals(0, chartVSAScriptable1.getLegendIds().length);
+      assertNotEquals(0, chartVSAScriptable1.getTitleIds().length);
+      assertNotEquals(0, chartVSAScriptable1.getValueFormatIds().length);
+      assertNotEquals(0, chartVSAScriptable1.getEGraphIds().length);
 
       //check geo field
       final ChartVSAssembly Map = (ChartVSAssembly) viewsheetResource
@@ -191,40 +180,30 @@ public class ChartVSAScriptableTest {
       ChartVSAScriptable chartVSAScriptable2 = new ChartVSAScriptable(sandbox);
       chartVSAScriptable2.setAssembly(Map.getName());
 
-      String[] geo = (String[]) chartVSAScriptable2.get("geoFields", null);
-      assert Arrays.toString(geo).equals("[State]");
-      assert chartVSAScriptable2.getSuffix("geoFields").equals("[]");
+      assertArrayEquals(new String[] {"State"},
+                        (String[])chartVSAScriptable2.get("geoFields", null));
+      assertEquals("[]", chartVSAScriptable2.getSuffix("geoFields"));
 
       EGraph eGraph = chartVSAScriptable2.getEGraph();
-      assert eGraph != null;
-      assert eGraph.getElementCount() == 1;
+      assertNotNull(eGraph);
+      assertEquals(1, eGraph.getElementCount());
    }
 
    @Test
    void testSetHyperlinkActionVisible() throws Exception {
-      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
-
-      final ChartVSAssembly Chart1 = (ChartVSAssembly) viewsheetResource
-         .getRuntimeViewsheet().getViewsheet().getAssembly("Chart1");
-
-      ChartVSAScriptable chartVSAScriptable1 = new ChartVSAScriptable(sandbox);
-      chartVSAScriptable1.setAssembly(Chart1.getName());
+      processAssembly("Chart1");
 
       //check set hyperlink
       chartVSAScriptable1.setHyperlink(0, "www.google.com");
-      assert chartVSAScriptable1.hasHyperlink();
+      assertTrue(chartVSAScriptable1.hasHyperlink());
 
       //check set action visible
       chartVSAScriptable1.setActionVisible("Color Legend", true);
       chartVSAScriptable1.setActionVisible("Shape Legend", false);
       chartVSAScriptable1.setActionVisible("Size Legend", true);
-      assert chartVSAScriptable1.isActionVisible("Color Legend");
-      assert !chartVSAScriptable1.isActionVisible("Shape Legend");
-      assert chartVSAScriptable1.isActionVisible("Size Legend");
+      assertTrue(chartVSAScriptable1.isActionVisible("Color Legend"));
+      assertFalse(chartVSAScriptable1.isActionVisible("Shape Legend"));
+      assertTrue(chartVSAScriptable1.isActionVisible("Size Legend"));
    }
 
    /**
@@ -232,16 +211,7 @@ public class ChartVSAScriptableTest {
     */
    @Test
    void testAddTargetLine() throws Exception {
-      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
-
-      final ChartVSAssembly Chart1 = (ChartVSAssembly) viewsheetResource
-         .getRuntimeViewsheet().getViewsheet().getAssembly("Chart1");
-      ChartVSAScriptable chartVSAScriptable1 = new ChartVSAScriptable(sandbox);
-      chartVSAScriptable1.setAssembly(Chart1.getName());
+      processAssembly("Chart1");
 
       //clrs: color
       chartVSAScriptable1.addProperties();
@@ -253,42 +223,44 @@ public class ChartVSAScriptableTest {
       };
 
       targetOptions.put("lineStyle", targetOptions , GraphConstants.THIN_LINE);
-      chartVSAScriptable1.addTargetLine("Sum(Population)", "0xDD99DD", new String[]{"aver"}, targetOptions);
+      chartVSAScriptable1.addTargetLine("Sum(Population)", "0xDD99DD",
+                                        new String[]{"aver"}, targetOptions);
 
       targetOptions.put("fillAbove",targetOptions , new Color(255, 255, 255));
       targetOptions.put("fillBelow",targetOptions , new Color(255, 255, 255));
       targetOptions.put("label",targetOptions , "{1},{1}");
       targetOptions.put("lineColor",targetOptions , new Color(255, 0, 0));
       targetOptions.put("lineStyle",targetOptions , GraphConstants.THICK_LINE);
-      chartVSAScriptable1.addTargetBand("Sum(Population)", "0xDD99DD", new String[]{"min", "max"}, targetOptions);
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 2;
+      chartVSAScriptable1.addTargetBand("Sum(Population)", "0xDD99DD",
+                                        new String[]{"min", "max"}, targetOptions);
+      assertEquals(2, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
 
       chartVSAScriptable1.clearTargets();
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 0;
+      assertEquals(0, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
       chartVSAScriptable1.addConfidenceIntervalTarget("Sum(Population)","0xDDAAAA", 99, targetOptions);
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 1;
+      assertEquals(1, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
 
       chartVSAScriptable1.clearTargets();
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 0;
+      assertEquals(0, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
       chartVSAScriptable1.addPercentageTarget("Sum(Population)","null", 125, targetOptions);
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 1;
+      assertEquals(1, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
 
       chartVSAScriptable1.clearTargets();
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 0;
+      assertEquals(0, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
       chartVSAScriptable1.addPercentileTarget("Sum(Population)","null", 95, targetOptions);
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 1;
+      assertEquals(1, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
 
       chartVSAScriptable1.clearTargets();
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 0;
+      assertEquals(0, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
       chartVSAScriptable1.addQuantileTarget("Sum(Population)",new String[] {"0xDDAAAA","0xDDCCCC"},
                                             4, targetOptions);
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 1;
+      assertEquals(1, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
 
       chartVSAScriptable1.clearTargets();
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 0;
+      assertEquals(0, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
       chartVSAScriptable1.addStandardDeviationTarget("Sum(Population)",new String[] {"0xDDCCCC","0xDDAAAA","0xDDCCCC"},
                                                      new Object[] {-1,1,-2,2}, targetOptions);
-      assert chartVSAScriptable1.getRTChartDescriptor().getTargetCount() == 1;
+      assertEquals(1, chartVSAScriptable1.getRTChartDescriptor().getTargetCount());
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {
@@ -297,6 +269,26 @@ public class ChartVSAScriptableTest {
       event.setViewer(true);
 
       return event;
+   }
+
+   /**
+    * Processes the specified assembly by retrieving it from the runtime viewsheet
+    * and initializing the `ChartVSAScriptable` instance with the assembly name.
+    *
+    * @param assemblyName the name of the assembly to process
+    * @throws Exception if an error occurs during the processing of the assembly
+    */
+   private void processAssembly(String assemblyName) throws Exception {
+      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
+      sandbox = rvs.getViewsheetSandbox();
+      Principal principal = mock(Principal.class);
+      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
+         .thenReturn(viewsheetResource.getRuntimeViewsheet());
+
+      chartVSAssembly1 = (ChartVSAssembly) viewsheetResource
+         .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);
+      chartVSAScriptable1 = new ChartVSAScriptable(sandbox);
+      chartVSAScriptable1.setAssembly(chartVSAssembly1.getName());
    }
    public static final String ASSET_ID = "1^128^__NULL__^ChartVSAScriptableTest";
 

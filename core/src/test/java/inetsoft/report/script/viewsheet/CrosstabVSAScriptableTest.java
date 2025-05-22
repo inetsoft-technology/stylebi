@@ -34,7 +34,6 @@ import static org.mockito.MockitoAnnotations.openMocks;
 
 public class CrosstabVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
-
    private CrosstabVSAScriptable crosstabVSAScriptable;
 
    @BeforeEach
@@ -109,12 +108,12 @@ public class CrosstabVSAScriptableTest {
 
       crosstabVSAScriptable.setTable(tbl1);
       crosstabVSAScriptable.setSize(dimension);
-      assert crosstabVSAScriptable.getSize().equals(dimension);
+      assertEquals(dimension, crosstabVSAScriptable.getSize());
 
-      assert crosstabVSAScriptable.isCrosstabOrCalc();
+      assertTrue(crosstabVSAScriptable.isCrosstabOrCalc());
 
       crosstabVSAScriptable.addProperties();
-      assert crosstabVSAScriptable.getBindingInfo() != null;
+      assertNotNull(crosstabVSAScriptable.getBindingInfo());
 
       crosstabVSAScriptable.clearCache();
    }

@@ -18,12 +18,14 @@
 
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.graph.aesthetic.CategoricalSizeFrame;
+import inetsoft.graph.aesthetic.StaticSizeFrame;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.region.ChartConstants;
+import inetsoft.report.internal.binding.BaseField;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.ColumnSelection;
-import inetsoft.uql.viewsheet.ChartVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,7 @@ import org.mockito.Mock;
 
 import java.util.Objects;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -69,35 +72,60 @@ public class VSChartBindingScriptableTest {
 
    @Test
    void testSetFieldsBinding() {
-      Object[][] xf1 = {{ "state", ChartConstants.STRING},
-                        {"date", ChartConstants.DATE},
-                        { "product_id", ChartConstants.NUMBER }};
-      Object[][] yf1 = {{"company", ChartConstants.STRING},
-                        {"customer_id", ChartConstants.NUMBER}};
+      Object[][] xf1 = { { "state", ChartConstants.STRING },
+                         { "date", ChartConstants.DATE },
+                         { "product_id", ChartConstants.NUMBER } };
+      Object[][] yf1 = { { "company", ChartConstants.STRING },
+                         { "customer_id", ChartConstants.NUMBER } };
       chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_BAR);
 
       vsChartBindingScriptable.setXFields(xf1);
       vsChartBindingScriptable.setYFields(yf1);
 
-      assert vsChartBindingScriptable.getXFields().length == 3;
-      assert vsChartBindingScriptable.getYFields().length == 2;
+      assertEquals(3, vsChartBindingScriptable.getXFields().length);
+      assertEquals(2, vsChartBindingScriptable.getYFields().length);
 
-      VSAestheticRef ref1 = (VSAestheticRef)vsChartBindingScriptable
+      VSAestheticRef ref1 = (VSAestheticRef) vsChartBindingScriptable
          .createAestheticRef("order_date", ChartConstants.DATE);
 
       vsChartBindingScriptable.setColorField(ref1, null, ChartConstants.DATE);
-      assert Objects.equals(vsChartBindingScriptable.getColorField("order_date").getName(), "order_date");
+      assertEquals("order_date",
+                   vsChartBindingScriptable.getColorField("order_date").getName());
 
-      VSAestheticRef ref2 = (VSAestheticRef)vsChartBindingScriptable
+      VSAestheticRef ref2 = (VSAestheticRef) vsChartBindingScriptable
          .createAestheticRef("id", ChartConstants.NUMBER);
       vsChartBindingScriptable.setShapeField(ref2, null, ChartConstants.NUMBER);
-      assert Objects.equals(vsChartBindingScriptable.getShapeField("id").getName(), "id");
+      assertEquals("id", vsChartBindingScriptable.getShapeField("id").getName());
 
       vsChartBindingScriptable.setSizeField(ref1, null, ChartConstants.DATE);
-      assert Objects.equals(vsChartBindingScriptable.getSizeField("order_date").getName(), "order_date");
+      assertEquals("order_date",
+                   vsChartBindingScriptable.getSizeField("order_date").getName());
 
       vsChartBindingScriptable.setTextField(ref2, null, ChartConstants.NUMBER);
-      assert Objects.equals(vsChartBindingScriptable.getTextField("id").getName(), "id");
+      assertEquals("id", vsChartBindingScriptable.getTextField("id").getName());
+   }
+
+   @Test
+   void testSetTopNSizeFrame() {
+      VSDimensionRef ref1 = new VSDimensionRef(new BaseField("state"));
+      vsChartBindingScriptable.setTopN(ref1, 2);
+      assertEquals(2, vsChartBindingScriptable.getTopN(ref1));
+      vsChartBindingScriptable.setTopNSummaryCol(ref1, "Sum(Customer_id)");
+      assertEquals("Sum(Customer_id)", vsChartBindingScriptable.getTopNSummaryCol(ref1));
+      vsChartBindingScriptable.setTopNReverse(ref1, true);
+      assertTrue(vsChartBindingScriptable.isTopNReverse(ref1));
+
+      //set static size frame
+      StaticSizeFrame sizeFrame = new StaticSizeFrame();
+      vsChartBindingScriptable.setSizeFrame(sizeFrame);
+      assertEquals(sizeFrame, vsChartBindingScriptable.getSizeFrame());
+      assertTrue(vsChartBindingScriptable.getInfo().getSizeFrameWrapper().isChanged());
+
+      //set categorical size frame
+      CategoricalSizeFrame categoricalSizeFrame = new CategoricalSizeFrame();
+      vsChartBindingScriptable.setSizeFrame(categoricalSizeFrame);
+      assertEquals(categoricalSizeFrame, vsChartBindingScriptable.getSizeFrame());
+      assertFalse(vsChartBindingScriptable.getInfo().getSizeFrameWrapper().isChanged());
    }
 
    /**
@@ -105,7 +133,7 @@ public class VSChartBindingScriptableTest {
     */
    @Test
    void testGeoMapBinding() {
-      Object[][] geof1 = { {"state", ChartConstants.STRING}};
+      Object[][] geof1 = { { "state", ChartConstants.STRING } };
       chartVSAssemblyInfo.setChartStyle(GraphTypes.CHART_MAP);
       chartVSAssemblyInfo.setMapType("U.S.");
 
@@ -113,15 +141,15 @@ public class VSChartBindingScriptableTest {
       VSChartGeoRef ref = new VSChartGeoRef();
       ref.setGroupColumnValue("state");
       columnSelection.addAttribute(ref);
-      VSMapInfo vsMapInfo = (VSMapInfo)vsChartBindingScriptable.getInfo();
+      VSMapInfo vsMapInfo = (VSMapInfo) vsChartBindingScriptable.getInfo();
       vsMapInfo.setGeoColumns(columnSelection);
 
       vsChartBindingScriptable.setGeoFields(geof1);
-      assert vsChartBindingScriptable.getGeoFields().length == 1;
+      assertEquals(1, vsChartBindingScriptable.getGeoFields().length);
 
       vsMapInfo.addRTGeoField(ref);
       vsChartBindingScriptable.setMapLayer("state", ChartConstants.STATE);
-      assert Objects.equals(vsChartBindingScriptable.getMapLayer("state"), ChartConstants.STATE);
+      assertEquals(ChartConstants.STATE, vsChartBindingScriptable.getMapLayer("state"));
 
       //todo
       /*vsChartBindingScriptable.addMapping("state","s1","state0113");

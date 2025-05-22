@@ -69,9 +69,11 @@ public class SliderVSAScriptableTest {
 
       assertEquals("0.0", sliderVSAScriptable.get("min", sliderVSAScriptable));
       assertEquals("100.0", sliderVSAScriptable.get("max", sliderVSAScriptable));
-      assertEquals(Double.parseDouble("20.0"), sliderVSAScriptable.get("increment", sliderVSAScriptable));
+      assertEquals(Double.parseDouble("20.0"),
+                   sliderVSAScriptable.get("increment", sliderVSAScriptable));
 
-      String[] keys = {"minVisible", "maxVisible", "tickVisible", "currentVisible", "labelVisible", "snap"};
+      String[] keys = {"minVisible", "maxVisible", "tickVisible",
+                       "currentVisible", "labelVisible", "snap"};
 
       for (String key : keys) {
          assert sliderVSAScriptable.get(key, null) instanceof Boolean;

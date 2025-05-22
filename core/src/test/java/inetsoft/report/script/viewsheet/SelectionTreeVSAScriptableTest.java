@@ -43,9 +43,9 @@ import static org.mockito.MockitoAnnotations.openMocks;
 @SreeHome(importResources = "SelectionTreeVSAScriptableTest.vso")
 public class SelectionTreeVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
-   private SelectionTreeVSAScriptable selectionTreeVSAScriptable;
+   private SelectionTreeVSAScriptable selectionTreeVSAScriptable, selectionTreeVSAScriptable1;
    private SelectionTreeVSAssemblyInfo selectionTreeVSAssemblyInfo;
-   private SelectionTreeVSAssembly selectionTreeVSAssembly;
+   private SelectionTreeVSAssembly selectionTreeVSAssembly, selectionTreeVSAssembly1;
    private VSAScriptable vsaScriptable;
 
    @Mock
@@ -58,7 +58,8 @@ public class SelectionTreeVSAScriptableTest {
       viewsheet.getVSAssemblyInfo().setName("vs1");
 
       selectionTreeVSAssembly = new SelectionTreeVSAssembly();
-      selectionTreeVSAssemblyInfo = (SelectionTreeVSAssemblyInfo) selectionTreeVSAssembly.getVSAssemblyInfo();
+      selectionTreeVSAssemblyInfo =
+         (SelectionTreeVSAssemblyInfo) selectionTreeVSAssembly.getVSAssemblyInfo();
       selectionTreeVSAssemblyInfo.setName("SelectionTree1");
       viewsheet.addAssembly(selectionTreeVSAssembly);
 
@@ -80,14 +81,17 @@ public class SelectionTreeVSAScriptableTest {
    @Test
    void testAddProperties() {
       selectionTreeVSAScriptable.addProperties();
-      String[] keys = {"dropdown", "singleSelection", "selectFirstItemOnLoad", "submitOnChange", "wrapping", "suppressBlank", "expandAll"};
+      String[] keys = {"dropdown", "singleSelection", "selectFirstItemOnLoad",
+                       "submitOnChange", "wrapping", "suppressBlank", "expandAll"};
 
       for (String key : keys) {
          assert selectionTreeVSAScriptable.get(key, selectionTreeVSAScriptable) instanceof Boolean;
       }
 
-      assertEquals("SelectionTree", selectionTreeVSAScriptable.get("title", selectionTreeVSAScriptable));
-      assertEquals(XConstants.SORT_SPECIFIC, selectionTreeVSAScriptable.get("sortType", selectionTreeVSAScriptable));
+      assertEquals("SelectionTree",
+                   selectionTreeVSAScriptable.get("title", selectionTreeVSAScriptable));
+      assertEquals(XConstants.SORT_SPECIFIC,
+                   selectionTreeVSAScriptable.get("sortType", selectionTreeVSAScriptable));
       assertNull(selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
    }
 
@@ -101,8 +105,10 @@ public class SelectionTreeVSAScriptableTest {
    void testGet() {
       assertNull(selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
       selectionTreeVSAScriptable.setCellValue("value1");
-      assertEquals("value1", selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
-      assertEquals("SelectionTree", selectionTreeVSAScriptable.get("title", selectionTreeVSAScriptable));
+      assertEquals("value1",
+                   selectionTreeVSAScriptable.get("value", selectionTreeVSAScriptable));
+      assertEquals("SelectionTree",
+                   selectionTreeVSAScriptable.get("title", selectionTreeVSAScriptable));
       assertNull(selectionTreeVSAScriptable.get("drillMember", selectionTreeVSAScriptable));
       assertNull(selectionTreeVSAScriptable.get("drillMembers", selectionTreeVSAScriptable));
    }
@@ -158,16 +164,7 @@ public class SelectionTreeVSAScriptableTest {
     */
    @Test
    void testGetSetSingleSelectionLevels() throws Exception {
-      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
-
-      final SelectionTreeVSAssembly tree1 = (SelectionTreeVSAssembly) viewsheetResource
-         .getRuntimeViewsheet().getViewsheet().getAssembly("SelectionTree1");
-      SelectionTreeVSAScriptable selectionTreeVSAScriptable1 = new SelectionTreeVSAScriptable(sandbox);
-      selectionTreeVSAScriptable1.setAssembly(tree1.getName());
+      processAssembly("SelectionTree1");
 
       //null levels
       selectionTreeVSAScriptable.setSingleSelectionLevels(null);
@@ -176,9 +173,11 @@ public class SelectionTreeVSAScriptableTest {
       //one single level and multiple single levels
       selectionTreeVSAScriptable1.setSingleSelection(true);
       selectionTreeVSAScriptable1.setSingleSelectionLevels(new String[] {"STATE"});
-      assertArrayEquals(new String[] {"STATE"}, selectionTreeVSAScriptable1.getSingleSelectionLevels());
+      assertArrayEquals(new String[] {"STATE"},
+                        selectionTreeVSAScriptable1.getSingleSelectionLevels());
       selectionTreeVSAScriptable1.setSingleSelectionLevels(new String[] {"STATE", "CITY"});
-      assertArrayEquals(new String[] {"STATE", "CITY"}, selectionTreeVSAScriptable1.getSingleSelectionLevels());
+      assertArrayEquals(new String[] {"STATE", "CITY"},
+                        selectionTreeVSAScriptable1.getSingleSelectionLevels());
    }
 
    /**
@@ -186,16 +185,7 @@ public class SelectionTreeVSAScriptableTest {
     */
    @Test
    void testGetSetSingleSelection() throws Exception {
-      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
-
-      final SelectionTreeVSAssembly tree1 = (SelectionTreeVSAssembly) viewsheetResource
-         .getRuntimeViewsheet().getViewsheet().getAssembly("SelectionTree2");
-      SelectionTreeVSAScriptable selectionTreeVSAScriptable1 = new SelectionTreeVSAScriptable(sandbox);
-      selectionTreeVSAScriptable1.setAssembly(tree1.getName());
+      processAssembly("SelectionTree2");
 
       assertNull(selectionTreeVSAScriptable.getSingleSelectionLevels());
       selectionTreeVSAScriptable1.setSingleSelection(true);
@@ -210,6 +200,27 @@ public class SelectionTreeVSAScriptableTest {
 
       return event;
    }
+
+   /**
+    * Processes the specified assembly by retrieving it from the runtime viewsheet
+    * and initializing the `SelectionTreeVSAScriptable` instance with the assembly name.
+    *
+    * @param assemblyName the name of the assembly to process
+    * @throws Exception if an error occurs during the processing of the assembly
+    */
+   private void processAssembly(String assemblyName) throws Exception {
+      RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      Principal principal = mock(Principal.class);
+      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
+         .thenReturn(viewsheetResource.getRuntimeViewsheet());
+
+      selectionTreeVSAssembly1 = (SelectionTreeVSAssembly) viewsheetResource
+         .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);
+      selectionTreeVSAScriptable1 = new SelectionTreeVSAScriptable(sandbox);
+      selectionTreeVSAScriptable1.setAssembly(selectionTreeVSAssembly1.getName());
+   }
+
    public static final String ASSET_ID = "1^128^__NULL__^SelectionTreeVSAScriptableTest";
 
    @RegisterExtension

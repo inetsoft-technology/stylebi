@@ -66,7 +66,8 @@ public class ComboBoxVSAScriptableTest {
 
    @Test
    void testGet() {
-      assertEquals(false, comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
+      assertEquals(false,
+                   comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
    }
 
    @Test
@@ -78,7 +79,8 @@ public class ComboBoxVSAScriptableTest {
    @Test
    void testAddProperties() {
       comboBoxVSAScriptable.addProperties();
-      assertEquals(false, comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
+      assertEquals(false,
+                   comboBoxVSAScriptable.get("serverTimeZone", comboBoxVSAScriptable));
    }
 
    @Test
@@ -101,7 +103,10 @@ public class ComboBoxVSAScriptableTest {
       //calendar combobox
       comboBoxVSAScriptable.setDataType("Date");
       comboBoxVSAssemblyInfo.setCalendar(true);
-      Object[] values = new Object[]{ new Date(125, 1, 20), new Date(125, 2, 20) };
+      Object[] values = new Object[]{
+         new Date(125, 1, 20),
+         new Date(125, 2, 20)
+      };
       comboBoxVSAScriptable.setValues(values);
       assertArrayEquals(values, comboBoxVSAScriptable.getValues());
       comboBoxVSAScriptable.setSelectedObject(new Date(125, 1, 20));
