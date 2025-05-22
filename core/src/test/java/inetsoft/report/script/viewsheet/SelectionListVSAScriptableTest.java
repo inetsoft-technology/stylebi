@@ -48,7 +48,8 @@ public class SelectionListVSAScriptableTest {
       viewsheet.getVSAssemblyInfo().setName("vs1");
 
       selectionListVSAssembly = new SelectionListVSAssembly();
-      selectionListVSAssemblyInfo = (SelectionListVSAssemblyInfo) selectionListVSAssembly.getVSAssemblyInfo();
+      selectionListVSAssemblyInfo =
+         (SelectionListVSAssemblyInfo) selectionListVSAssembly.getVSAssemblyInfo();
       selectionListVSAssemblyInfo.setName("SelectionList1");
       viewsheet.addAssembly(selectionListVSAssembly);
 
@@ -70,14 +71,17 @@ public class SelectionListVSAScriptableTest {
    @Test
    void testAddProperties() {
       selectionListVSAScriptable.addProperties();
-      String[] keys = {"dropdown", "singleSelection", "selectFirstItemOnLoad", "submitOnChange", "wrapping", "suppressBlank"};
+      String[] keys = {"dropdown", "singleSelection", "selectFirstItemOnLoad",
+                       "submitOnChange", "wrapping", "suppressBlank"};
 
       for (String key : keys) {
          assert selectionListVSAScriptable.get(key, selectionListVSAScriptable) instanceof Boolean;
       }
 
-      assertEquals("SelectionList", selectionListVSAScriptable.get("title", selectionListVSAScriptable));
-      assertEquals(XConstants.SORT_SPECIFIC, selectionListVSAScriptable.get("sortType", selectionListVSAScriptable));
+      assertEquals("SelectionList",
+                   selectionListVSAScriptable.get("title", selectionListVSAScriptable));
+      assertEquals(XConstants.SORT_SPECIFIC,
+                   selectionListVSAScriptable.get("sortType", selectionListVSAScriptable));
       assertNull(selectionListVSAScriptable.get("value", selectionListVSAScriptable));
    }
 
@@ -91,8 +95,10 @@ public class SelectionListVSAScriptableTest {
    void testGet() {
       assertNull(selectionListVSAScriptable.get("value", selectionListVSAScriptable));
       selectionListVSAScriptable.setCellValue("value1");
-      assertEquals("value1", selectionListVSAScriptable.get("value", selectionListVSAScriptable));
-      assertEquals("SelectionList", selectionListVSAScriptable.get("title", selectionListVSAScriptable));
+      assertEquals("value1",
+                   selectionListVSAScriptable.get("value", selectionListVSAScriptable));
+      assertEquals("SelectionList",
+                   selectionListVSAScriptable.get("title", selectionListVSAScriptable));
    }
 
    @Test
@@ -143,7 +149,10 @@ public class SelectionListVSAScriptableTest {
       //keep default size when set size is invalid
       Dimension defaultSize = new Dimension(100, 120);
       Dimension[] invalidDimensions = new Dimension[] {
-         new Dimension(-1, 100), new Dimension(100, -1), new Dimension(-1, -1)};
+         new Dimension(-1, 100),
+         new Dimension(100, -1),
+         new Dimension(-1, -1)
+      };
       for (Dimension dim : invalidDimensions) {
          selectionListVSAScriptable.setSize(dim);
          assertEquals(defaultSize, selectionListVSAScriptable.getSize());
@@ -211,7 +220,8 @@ public class SelectionListVSAScriptableTest {
       selectionListVSAScriptable.setQuery("query");
       assertEquals("query", selectionListVSAScriptable.getQuery());
       selectionListVSAScriptable.setQueries(new String[] {"query1", "query2"});
-      assertArrayEquals(new String[] {"query1", "query2"}, selectionListVSAScriptable.getQueries());
+      assertArrayEquals(new String[] {"query1", "query2"},
+                        selectionListVSAScriptable.getQueries());
    }
 
    @Test

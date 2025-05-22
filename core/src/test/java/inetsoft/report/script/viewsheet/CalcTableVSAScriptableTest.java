@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test;
 
 import java.awt.*;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -34,9 +35,7 @@ import static org.mockito.MockitoAnnotations.openMocks;
 public class CalcTableVSAScriptableTest {
    private ViewsheetSandbox viewsheetSandbox ;
    private CalcTableVSAScriptable calcTableVSAScriptable;
-
    private CalcTableVSAssemblyInfo calcTableVSAssemblyInfo;
-
 
    @BeforeEach
    void setUp() {
@@ -58,6 +57,11 @@ public class CalcTableVSAScriptableTest {
    }
 
    @Test
+   void testGetClassName() {
+      assertEquals("FormulaTableVSA", calcTableVSAScriptable.getClassName());
+   }
+
+   @Test
    void testAddProperties() {
       calcTableVSAScriptable.addProperties();
 
@@ -68,15 +72,22 @@ public class CalcTableVSAScriptableTest {
 
    @Test
    void testSetSize() {
+      when(viewsheetSandbox.isRuntime()).thenReturn(true);
+
       Dimension dim = new Dimension(1, 2);
       calcTableVSAssemblyInfo.setHeaderColCount(3);
       calcTableVSAssemblyInfo.setHeaderRowCount(2);
       calcTableVSAScriptable.setSize(dim);
 
-      assert dim.width == 4 && dim.height == 4;
+      assertEquals(4, dim.width);
+      assertEquals(4, dim.height);
+      assertEquals(new Dimension(4, 4), calcTableVSAScriptable.getSize());
 
-      assert calcTableVSAScriptable.isCrosstabOrCalc();
-      assert calcTableVSAScriptable.getLayoutInfo() == null;
+      Dimension dim2 = new Dimension(10, 10);
+      calcTableVSAScriptable.setSize(dim2);
+      assertEquals(dim2, calcTableVSAScriptable.getSize());
+
+      assertTrue(calcTableVSAScriptable.isCrosstabOrCalc());
+      assertNull(calcTableVSAScriptable.getLayoutInfo());
    }
-
 }

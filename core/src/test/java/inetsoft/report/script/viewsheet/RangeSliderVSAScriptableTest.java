@@ -47,7 +47,8 @@ public class RangeSliderVSAScriptableTest {
 
       rangeSliderVSAssembly = new TimeSliderVSAssembly();
       rangeSliderVSAssembly.setStateSelectionList(new SelectionList());
-      rangeSliderVSAssemblyInfo = (TimeSliderVSAssemblyInfo) rangeSliderVSAssembly.getVSAssemblyInfo();
+      rangeSliderVSAssemblyInfo =
+         (TimeSliderVSAssemblyInfo) rangeSliderVSAssembly.getVSAssemblyInfo();
       rangeSliderVSAssemblyInfo.setName("RangeSlider1");
       viewsheet.addAssembly(rangeSliderVSAssembly);
 
@@ -70,7 +71,8 @@ public class RangeSliderVSAScriptableTest {
    void testAddProperties() {
       rangeSliderVSAScriptable.addProperties();
 
-      String[] keys = {"minVisible", "maxVisible", "currentVisible", "tickVisible", "logScale", "upperInclusive", "composite"};
+      String[] keys = {"minVisible", "maxVisible", "currentVisible",
+                       "tickVisible", "logScale", "upperInclusive", "composite"};
 
       for (String key : keys) {
          assert rangeSliderVSAScriptable.get(key, rangeSliderVSAScriptable) instanceof Boolean;
@@ -79,14 +81,22 @@ public class RangeSliderVSAScriptableTest {
 
    @Test
    void testPut() {
-      assertEquals(true, rangeSliderVSAScriptable.get("minVisible", rangeSliderVSAScriptable));
+      assertEquals(true,
+                   rangeSliderVSAScriptable.get("minVisible", rangeSliderVSAScriptable));
       rangeSliderVSAScriptable.put("minVisible", rangeSliderVSAScriptable, false);
-      assertEquals(false, rangeSliderVSAScriptable.get("minVisible", rangeSliderVSAScriptable));
+      assertEquals(false,
+                   rangeSliderVSAScriptable.get("minVisible", rangeSliderVSAScriptable));
    }
 
    @Test
    void testSetGetRangeMinMax() {
-      rangeSliderVSAssemblyInfo.setSelectionList(new SelectionList());
+      SelectionList selectionList = new SelectionList();
+      SelectionValue[] selectionValues = new SelectionValue[2];
+      selectionValues[0] = new SelectionValue("label1", "5");
+      selectionValues[1] = new SelectionValue("label2", "10");
+      selectionValues[0].setSelected(true);
+      selectionList.setSelectionValues(selectionValues);
+      rangeSliderVSAssemblyInfo.setSelectionList(selectionList);
 
       rangeSliderVSAScriptable.setRangeMin(1);
       assertEquals(1, rangeSliderVSAScriptable.getRangeMin());
