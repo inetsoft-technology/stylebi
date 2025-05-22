@@ -67,7 +67,7 @@ public class VSFormulaService {
          tableName = tableName == null ? assembly.getTableName() : tableName;
 
          ColumnSelection selection = columnHandler.getColumnSelection(
-            rvs, viewsheetService, assemblyName, tableName, null,
+            rvs, assemblyName, tableName, null,
             false, true, false, false, false, true);
 
          List<DataRefModel> columnFields = new ArrayList<>();

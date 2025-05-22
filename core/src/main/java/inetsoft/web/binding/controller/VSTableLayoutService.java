@@ -500,7 +500,7 @@ public class VSTableLayoutService {
          return null;
       }
 
-      ColumnSelection cols = columnsHandler.getColumnSelection(rvs, viewsheetService, name,
+      ColumnSelection cols = columnsHandler.getColumnSelection(rvs, name,
                                                                sinfo.getSource(), null, false, true, false, false, false, false);
       AssetRepository rep = AssetUtil.getAssetRepository(false);
 

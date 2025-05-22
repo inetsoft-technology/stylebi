@@ -22,6 +22,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
@@ -42,7 +43,7 @@ class VSObjectPropertyServiceTest {
    @BeforeEach
    void setup() throws Exception {
       controller = new VSObjectPropertyService(coreLifecycleService,
-                                               vsInputService,
+                                               vsColumnHandler,
                                                vsObjectTreeService,
                                                infoHandler, viewsheetEngine,
                                                temporaryInfoService,
@@ -68,9 +69,8 @@ class VSObjectPropertyServiceTest {
       assertEquals(popComponents[0], selectionListAssemblyName);
    }
 
-   @Mock
-   CoreLifecycleService coreLifecycleService;
-   @Mock VSInputService vsInputService;
+   @Mock CoreLifecycleService coreLifecycleService;
+   @Mock VSColumnHandler vsColumnHandler;
    @Mock VSObjectTreeService vsObjectTreeService;
    @Mock VSAssemblyInfoHandler infoHandler;
    @Mock ViewsheetEngine viewsheetEngine;
