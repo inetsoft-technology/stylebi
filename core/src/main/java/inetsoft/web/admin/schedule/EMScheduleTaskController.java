@@ -107,13 +107,18 @@ public class EMScheduleTaskController {
     *
     * @throws Exception if could not get task
     */
-   @Secured(
+   @Secured( value = {
       @RequiredPermission(
          resourceType = ResourceType.SCHEDULER,
          resource = "*",
          actions = ResourceAction.ACCESS
+      ),
+      @RequiredPermission(
+         resourceType = ResourceType.EM_COMPONENT,
+         resource = "settings/schedule/tasks",
+         actions = ResourceAction.ACCESS
       )
-   )
+   })
    @GetMapping("/api/em/schedule/edit")
    public ScheduleTaskDialogModel getDialogModel(@RequestParam("taskName") String taskName,
                                                  Principal principal)

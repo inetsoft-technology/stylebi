@@ -103,7 +103,6 @@ public class ExportController {
       path = Tool.byteDecode(path);
       int format = formatParam.orElse(FileFormatInfo.EXPORT_TYPE_PDF);
       String type = outtypeParam.orElse(null);
-      boolean match = matchParam.orElse(true);
       boolean exportAllTabbedTables = exportAllTabbedTablesParam.orElse(false);
       boolean expandSelections = expandSelectionsParam.orElse(false);
       boolean current = currentParam.orElse(true);
@@ -114,6 +113,9 @@ public class ExportController {
          bookmarkString.split(",") : new String[0];
       boolean onlyDataComponents = onlyDataComponentsParam.orElse(false);
       CSVConfig csvConfig = new CSVConfig();
+
+      //expand by default when exporting directly for pdf if match
+      boolean match = matchParam.orElse(!"pdf".equalsIgnoreCase(type));
 
       // always expand tables when export to csv.
       if(format == FileFormatInfo.EXPORT_TYPE_CSV) {

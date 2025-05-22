@@ -120,10 +120,11 @@ public class EmailDialogService {
       boolean userDialogEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
       boolean useSelf =
          !"false".equals(SreeEnv.getProperty("em.mail.defaultEmailFromSelf"));
-      boolean googleSMTP =
-         SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth")) == SMTPAuthType.GOOGLE_AUTH;
+      boolean smtp =
+         SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth")) == SMTPAuthType.GOOGLE_AUTH ||
+            SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth")) == SMTPAuthType.SMTP_AUTH;
 
-      if(!"anonymous".equals(pId.name) && useSelf && !googleSMTP) {
+      if(!"anonymous".equals(pId.name) && useSelf && !smtp) {
          String[] emails = SUtil.getEmails(pId);
          email = emails.length > 0 ? emails[0] : email;
          userDialogEnabled = true;

@@ -230,8 +230,7 @@ public class ScheduleConditionService {
          }
 
          if(array) {
-            type = vals.length > 0 ? Tool.getDataType(vals[0]) :
-               getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
+            type = getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
          }
 
          AddParameterDialogModel paramModel = AddParameterDialogModel.builder()
@@ -239,7 +238,7 @@ public class ScheduleConditionService {
             .type(type)
             .array(array)
             .value(value instanceof DynamicValueModel ? (DynamicValueModel) value
-               : new DynamicValueModel(value, DynamicValueModel.VALUE, type, array))
+               : new DynamicValueModel(value, DynamicValueModel.VALUE, type))
             .build();
 
          paramModels.add(paramModel);
@@ -265,8 +264,7 @@ public class ScheduleConditionService {
       }
       else if("array".equals(type)) {
          Object[] vals = (Object[]) value;
-         type = vals.length > 0 ? Tool.getDataType(vals[0]) :
-            getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
+         type = getParameterType(repRequest, paramName, vals.length > 0 ? vals[0] : null);
          StringBuilder builder = new StringBuilder();
 
          for(int i = 0; i < vals.length; i++) {
@@ -405,7 +403,6 @@ public class ScheduleConditionService {
       String name = model.name();
       String type = model.type();
       DynamicParameterValue parameterValue = value.convertParameterValue();
-      parameterValue.setArray(model.array());
 
       if(model.array()) {
          parameterValue.setValue(getParamValueAsArray(type, value.getValue().toString()));
