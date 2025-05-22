@@ -518,7 +518,7 @@ export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
    }
 
    validateFirstRow() {
-      if(!this.previewTable && this.previewTable.length <= 0) {
+      if(!this.previewTable || this.previewTable.length <= 0  || !this.previewTable[0]) {
          return;
       }
 
