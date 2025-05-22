@@ -165,6 +165,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Output() aggregateModify: EventEmitter<any> = new EventEmitter<any>();
    @Output() aggregateDelete: EventEmitter<any> = new EventEmitter<any>();
    @ViewChild("newAggrDialog") newAggrDialog: TemplateRef<any>;
+   @ViewChild("formElement") formElementRef: ElementRef<HTMLFormElement>;
    private _scriptDefinitions: any = null;
    _aggregates: DataRef[] = [];
    public static DATE_PART_COLUMN: string = "date_part_column";
@@ -1239,6 +1240,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       let options: DropdownOptions = {
          position: {x: event[0].clientX + 2, y: event[0].clientY + 2},
          contextmenu: true,
+         container: this.formElementRef.nativeElement,
       };
 
       let contextmenu: ActionsContextmenuComponent = this.dropdownService

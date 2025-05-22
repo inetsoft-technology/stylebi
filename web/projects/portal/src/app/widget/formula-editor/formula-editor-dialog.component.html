@@ -20,7 +20,7 @@
    [cshid]="'CreatingExpression'">
 </modal-header>
 <div class="modal-body" blockMouse>
-  <form [formGroup]="form" class="container-fluid" [class.flex-col-container]="canResize">
+  <form #formElement [formGroup]="form" class="container-fluid" [class.flex-col-container]="canResize">
     <div *ngIf="isCalc && !isCube" class="calc-type-pane">
       <h5>_#(Calculate Field From)</h5>
       <div class="container">
