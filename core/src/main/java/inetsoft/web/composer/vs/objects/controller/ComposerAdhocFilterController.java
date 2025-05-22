@@ -505,7 +505,7 @@ public class ComposerAdhocFilterController {
          containerName = (String) list.getAhFilterProperty().get("_container");
 
          if(list.getSelectedObjects().isEmpty() && info.isCreatedByAdhoc()) {
-            coreLifecycleService.removeVSAssembly(rvs, linkUri, list, dispatcher, false, false);
+            VSEventUtil.removeVSObject(rvs, event.getName(), dispatcher);
             return;
          }
          else {
@@ -524,7 +524,7 @@ public class ComposerAdhocFilterController {
             final SelectionValue end = slist.getSelectionValue(slist.getSelectionValueCount() - 1);
 
             if(start.isSelected() && end.isSelected() && info.isCreatedByAdhoc()) {
-               coreLifecycleService.removeVSAssembly(rvs, linkUri, slider, dispatcher, false, false);
+               VSEventUtil.removeVSObject(rvs, event.getName(), dispatcher);
                return;
             }
             else {
