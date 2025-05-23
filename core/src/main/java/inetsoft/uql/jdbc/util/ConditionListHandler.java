@@ -21,6 +21,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ConditionUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.*;
+import inetsoft.util.CoreTool;
 import inetsoft.util.Queue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -468,9 +469,11 @@ public class ConditionListHandler {
                                          cond.isEqual() ? ">=" : ">");
          break;
       default: // EQUAL_TO
-         condnode = new XBinaryCondition(field,
-                                         getExpression(cond, cond.getValue(0), vars, true),
-                                         "=");
+         Object condValue = cond.getValue(0);
+         String sqlType = SQLTypes.getSQLTypes(null).convertToXType(field.getSqlType());
+         condValue = CoreTool.getData(sqlType, condValue);
+         condnode = new XBinaryCondition(field, getExpression(cond, CoreTool.getData(sqlType, condValue),
+                                                              vars, true), "=");
          break;
       }
 
