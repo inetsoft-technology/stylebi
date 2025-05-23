@@ -46,6 +46,7 @@ import inetsoft.util.*;
 import inetsoft.util.script.ScriptEnv;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
@@ -82,7 +83,7 @@ public class VSObjectPropertyService {
    @Autowired
    public VSObjectPropertyService(
       CoreLifecycleService coreLifecycleService,
-      VSInputService vsInputService,
+      VSColumnHandler vsColumnHandler,
       VSObjectTreeService vsObjectTreeService,
       VSAssemblyInfoHandler infoHander,
       ViewsheetService viewsheetService,
@@ -91,7 +92,7 @@ public class VSObjectPropertyService {
       SharedFilterService sharedFilterService)
    {
       this.coreLifecycleService = coreLifecycleService;
-      this.vsInputService = vsInputService;
+      this.vsColumnHandler = vsColumnHandler;
       this.vsObjectTreeService = vsObjectTreeService;
       this.infoHander = infoHander;
       this.viewsheetService = viewsheetService;
@@ -1637,7 +1638,7 @@ public class VSObjectPropertyService {
                                                         RuntimeViewsheet rvs, Principal principal)
       throws Exception
    {
-      ColumnSelection selection = vsInputService.getTableColumns(
+      ColumnSelection selection = vsColumnHandler.getTableColumns(
          rvs, table, null, null, dimensionOf, false, false, true, false, false, true, principal);
       List<OutputColumnRefModel> columnList = new ArrayList<>();
 
@@ -2140,7 +2141,7 @@ public class VSObjectPropertyService {
 
 
    private final CoreLifecycleService coreLifecycleService;
-   private final VSInputService vsInputService;
+   private final VSColumnHandler vsColumnHandler;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSAssemblyInfoHandler infoHander;
    private final ViewsheetService viewsheetService;

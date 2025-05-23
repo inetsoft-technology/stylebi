@@ -18,17 +18,17 @@
 
 package inetsoft.web.composer.vs.dialog;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.viewsheet.service.VSInputService;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -38,10 +38,10 @@ import java.util.*;
 @ClusterProxy
 public class SelectionListService {
 
-   public SelectionListService(VSInputService vsInputService, ViewsheetService viewsheetService,
-                                                              VSAssemblyInfoHandler infoHandler)
+   public SelectionListService(VSColumnHandler vsColumnHandler, ViewsheetService viewsheetService,
+                               VSAssemblyInfoHandler infoHandler)
    {
-      this.vsInputService = vsInputService;
+      this.vsColumnHandler = vsColumnHandler;
       this.viewsheetService = viewsheetService;
       this.infoHandler = infoHandler;
    }
@@ -52,12 +52,12 @@ public class SelectionListService {
    {
 
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ColumnSelection selection = this.vsInputService.getTableColumns(rvs, table, principal);
+      ColumnSelection selection = vsColumnHandler.getTableColumns(rvs, table, principal);
       String[] columns = selection.stream().map(DataRef::getName).toArray(String[]::new);
       String[] tooltips = new String[selection.getAttributeCount()];
       String[] dataTypes = new String[selection.getAttributeCount()];
 
-      for(int i = 0; i < columns.length; i ++) {
+      for(int i = 0; i < columns.length; i++) {
          if(columns[i].isEmpty()) {
             columns[i] = "Column [" + i + "]";
          }
@@ -99,6 +99,6 @@ public class SelectionListService {
    }
 
    private ViewsheetService viewsheetService;
-   private final VSInputService vsInputService;
+   private final VSColumnHandler vsColumnHandler;
    private final VSAssemblyInfoHandler infoHandler;
 }

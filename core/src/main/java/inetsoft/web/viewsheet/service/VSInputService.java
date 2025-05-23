@@ -38,13 +38,13 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.XSwappableTable;
 import inetsoft.uql.util.XEmbeddedTable;
-import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.event.VSOnClickEvent;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
@@ -60,8 +60,8 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.security.Principal;
 import java.text.Format;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.regex.Pattern;
 
 @Service
@@ -75,7 +75,8 @@ public class VSInputService {
                          VSDialogService dialogService,
                          VSTrapService trapService,
                          DataRefModelFactoryService dataRefModelFactoryService,
-                         VSAssemblyInfoHandler vsAssemblyInfoHandler)
+                         VSAssemblyInfoHandler vsAssemblyInfoHandler,
+                         VSColumnHandler vsColumnHandler)
    {
       this.vsObjectService = vsObjectService;
       this.coreLifecycleService = coreLifecycleService;
@@ -85,6 +86,7 @@ public class VSInputService {
       this.trapService = trapService;
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
+      this.vsColumnHandler = vsColumnHandler;
    }
 
    /**
@@ -534,8 +536,10 @@ public class VSInputService {
       DataRef[] allColumns = new DataRef[0];
 
       if(sourceInfo != null && sourceInfo.getSource() != null) {
-         columnSelection =getTableColumns(rvs, sourceInfo.getSource(), null, null, null,
-                                           false, false, true, false, false, true, principal);
+         columnSelection = vsColumnHandler.getTableColumns(rvs, sourceInfo.getSource(), null,
+                                                           null, null, false,
+                                                           false, true, false,
+                                                           false, true, principal);
          allColumns = (DataRef[]) Collections.list(columnSelection.getAttributes()).toArray(new DataRef[0]);
       }
 
@@ -1223,7 +1227,8 @@ public class VSInputService {
                                                 Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ColumnSelection selection = getTableColumns(rvs,Tool.byteDecode(table), true, principal);
+      ColumnSelection selection = vsColumnHandler.getTableColumns(rvs,Tool.byteDecode(table),
+                                                                  true, principal);
       String[] columnList = new String[selection.getAttributeCount()];
       String[] descriptionList = new String[selection.getAttributeCount()];
 
@@ -3088,194 +3093,6 @@ public class VSInputService {
    }
 
    /**
-    * Get the Column Selection for a table, Mimic of GetColumnSelectionEvent
-    * @param rvs                    Runtime Viewsheet instance
-    * @param table                  the table
-    * @param assembly               assembly name
-    * @param vsName                 viewsheet name
-    * @param dimensionOf            dimension name
-    * @param embedded               get embedded tables
-    * @param measureOnly            only get measures
-    * @param includeCalc            include calc columns
-    * @param ignoreToCheckPerm      ignore check ?
-    * @param includeAggregate       include aggregate columns
-    * @param excludeAggregateCalc   exclude aggregate calc columns
-    * @param principal              principal user
-    * @return the ColumnSelection
-    * @throws Exception if can't retrieve the columns
-    */
-   public ColumnSelection getTableColumns(RuntimeViewsheet rvs, String table, String assembly,
-                                          String vsName, String dimensionOf, boolean embedded,
-                                          boolean measureOnly, boolean includeCalc,
-                                          boolean ignoreToCheckPerm, boolean includeAggregate,
-                                          boolean excludeAggregateCalc, Principal principal)
-      throws Exception
-   {
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         return new ColumnSelection();
-      }
-
-      if(vsName == null && assembly != null && assembly.indexOf('.') > 0) {
-         vsName = assembly.substring(0, assembly.lastIndexOf('.'));
-      }
-
-      // get the real viewsheet name, if this event is fired by an embedded vs
-      if(vsName != null) {
-         vs = (Viewsheet) vs.getAssembly(vsName);
-      }
-
-      if(vs == null) {
-         return new ColumnSelection();
-      }
-
-      Worksheet ws = vs.getBaseWorksheet();
-      ColumnSelection selection;
-
-      if(ws != null && ignoreToCheckPerm ||
-         VSEventUtil.checkBaseWSPermission(vs, principal, viewsheetService.getAssetRepository(), ResourceAction.READ))
-      {
-         Assembly wsobj = Objects.requireNonNull(ws).getAssembly(table);
-
-         if(!(wsobj instanceof TableAssembly tableAssembly)) {
-            return new ColumnSelection();
-         }
-
-         TableAssembly tableAssembly0 = tableAssembly;
-
-         while(tableAssembly0 instanceof MirrorTableAssembly) {
-            tableAssembly0 =
-               ((MirrorTableAssembly) tableAssembly0).getTableAssembly();
-         }
-
-         // still get the original column selection, otherwise the column selection will not match
-         // the runtime column selection and things like TableVSAQuery.getQueryData() may fail
-         selection = table == null ? new ColumnSelection() :
-            tableAssembly.getColumnSelection(true).clone();
-         XUtil.addDescriptionsFromSource(tableAssembly0, selection);
-         AggregateInfo dimonly = null;
-
-         if(dimensionOf != null) {
-            Assembly obj = vs.getAssembly(dimensionOf);
-
-            if(obj instanceof CubeVSAssembly) {
-               dimonly = ((CubeVSAssembly) obj).getAggregateInfo();
-            }
-         }
-
-         for(int i = selection.getAttributeCount() - 1; i >= 0; i--) {
-            ColumnRef ref = (ColumnRef) selection.getAttribute(i);
-            boolean excludeCalc = !includeCalc && ref instanceof CalculateRef;
-            boolean excludeAggCalc = excludeAggregateCalc && VSUtil.isAggregateCalc(ref);
-
-            if(VSUtil.isPreparedCalcField(ref) || embedded && ref.isExpression() || measureOnly &&
-               (ref.getRefType() & DataRef.CUBE) == DataRef.CUBE &&
-               (ref.getRefType() & DataRef.MEASURE) != DataRef.MEASURE ||
-               dimonly != null && !isDimensionRef(ref, dimonly) ||
-               excludeCalc || excludeAggCalc ||
-               ref instanceof CalculateRef && ((CalculateRef) ref).isDcRuntime())
-            {
-               selection.removeAttribute(i);
-            }
-         }
-
-         if(includeCalc) {
-            CalculateRef[] calcs = vs.getCalcFields(table);
-
-            if(calcs != null && calcs.length > 0) {
-               for(CalculateRef ref : calcs) {
-                  if(VSUtil.isPreparedCalcField(ref)) {
-                     continue;
-                  }
-
-                  if(!ref.isDcRuntime() && (!excludeAggregateCalc || ref.isBaseOnDetail()) &&
-                     !(selection.containsAttribute(ref) ||
-                        selection.getAttribute(ref.getName()) != null))
-                  {
-                     selection.addAttribute(ref);
-                  }
-               }
-            }
-         }
-
-         selection = VSUtil.getVSColumnSelection(selection);
-         selection = VSUtil.sortColumns(selection);
-
-         if(includeAggregate) {
-            ColumnSelection aggregate = VSEventUtil.getAggregateColumnSelection(vs, table);
-
-            for(int i = 0; i < aggregate.getAttributeCount(); i++) {
-               selection.addAttribute(aggregate.getAttribute(i), false);
-            }
-         }
-
-         AssetQuery query = AssetUtil.handleMergeable(rvs.getRuntimeWorksheet(), tableAssembly);
-
-         if(tableAssembly != null && query != null) {
-            selection.setProperty("sqlMergeable", query.isQueryMergeable(false));
-         }
-      }
-      else {
-         selection = new ColumnSelection();
-      }
-
-      return selection;
-   }
-
-   /**
-    * Check if ref is a group in the aggregate info.
-    * @param ref     The column ref
-    * @param ainfo   the aggregate info
-    * @return if the ref is a dimension
-    */
-   private boolean isDimensionRef(ColumnRef ref, AggregateInfo ainfo) {
-      // ignore table name in vs binding
-      DataRef ref2 = new AttributeRef(ref.getAttribute());
-      boolean dim = ainfo.containsGroup(new GroupRef(ref2));
-
-      if(dim) {
-         return true;
-      }
-
-      boolean agg = ainfo.containsAggregate(ref2);
-      return !agg && !VSEventUtil.isMeasure(ref);
-   }
-
-   /**
-    * Called by selection list editor
-    * @param rvs        RuntimeViewsheet instance
-    * @param table      table
-    * @param principal  the principal user
-    * @return the column selection
-    * @throws Exception if can't retrieve columns
-    */
-   public ColumnSelection getTableColumns(RuntimeViewsheet rvs, String table,
-                                          Principal principal)
-      throws Exception
-   {
-      return getTableColumns(rvs, table, null, null, null, false,
-                             false, false, false, false, false, principal);
-   }
-
-   /**
-    * Called by data input pane
-    * @param rvs        RuntimeViewsheet instance
-    * @param table      table
-    * @param embedded   get embedded tables
-    * @param principal  the principal user
-    * @return the column selection
-    * @throws Exception if can't retrieve columns
-    */
-   public ColumnSelection getTableColumns(RuntimeViewsheet rvs, String table,
-                                          boolean embedded, Principal principal)
-      throws Exception
-   {
-      return getTableColumns(rvs, table, null, null, null, embedded,
-                             false, false, false, false, false, principal);
-   }
-
-   /**
     * Get tables available in viewsheet as tree. Mimic of GetTablesEvent for data input
     * @param rvs        the runtime viewsheet
     * @param principal  the principal user
@@ -3517,7 +3334,7 @@ public class VSInputService {
       if(table != null && !table.isEmpty() && column != null &&
          !column.isEmpty() && value != null && !value.isEmpty())
       {
-         ColumnSelection selection = this.getTableColumns(rvs, table, principal);
+         ColumnSelection selection = vsColumnHandler.getTableColumns(rvs, table, principal);
          boolean colFound = false;
          boolean valFound = false;
 
@@ -3776,5 +3593,6 @@ public class VSInputService {
    private final VSObjectService vsObjectService;
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
+   private final VSColumnHandler vsColumnHandler;
    private static final Logger LOG = LoggerFactory.getLogger(VSInputService.class);
 }

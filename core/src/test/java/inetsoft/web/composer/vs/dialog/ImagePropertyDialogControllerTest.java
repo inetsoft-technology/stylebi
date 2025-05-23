@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
@@ -69,7 +70,7 @@ class ImagePropertyDialogControllerTest {
                                                   vsLayoutService, parameterService);
       temporaryInfoService = new VSWizardTemporaryInfoService(viewsheetService);
       vsObjectPropertyService = spy(new VSObjectPropertyService(coreLifecycleService,
-                                                                vsInputService,
+                                                                vsColumnHandler,
                                                                 vsObjectTreeService,
                                                                 infoHandler, viewsheetEngine,
                                                                 temporaryInfoService,
@@ -136,7 +137,7 @@ class ImagePropertyDialogControllerTest {
    @Mock SharedFilterService sharedFilterService;
 
    private CoreLifecycleService coreLifecycleService;
-   @Mock VSInputService vsInputService;
+   @Mock VSColumnHandler vsColumnHandler;
    private VSObjectPropertyService vsObjectPropertyService;
    private ImagePropertyDialogController controller;
    private VSTrapService trapService;
