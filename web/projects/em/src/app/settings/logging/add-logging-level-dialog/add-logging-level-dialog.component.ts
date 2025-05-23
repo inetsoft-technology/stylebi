@@ -30,6 +30,7 @@ import { MessageDialog, MessageDialogType } from "../../../common/util/message-d
 export class AddLoggingLevelDialogComponent implements OnInit {
    index: number;
    loggingLevels: LogLevelDTO[];
+   enterprise: boolean;
    model: LogLevelDTO;
    title: string;
    form: UntypedFormGroup;
@@ -40,6 +41,7 @@ export class AddLoggingLevelDialogComponent implements OnInit {
    {
       this.index = data.index;
       this.loggingLevels = data.loggingLevels;
+      this.enterprise = data.enterprise;
       this.form = fb.group({
          context: ["", Validators.required],
          name: ["", Validators.required],
