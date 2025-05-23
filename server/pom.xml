@@ -484,7 +484,6 @@
               <configDirectory>${project.build.directory}/server/config</configDirectory>
               <properties>
                 <log.level.org.apache.ignite>WARN</log.level.org.apache.ignite>
-                <security.login.orgLocation>domain</security.login.orgLocation>
               </properties>
             </configuration>
           </plugin>
