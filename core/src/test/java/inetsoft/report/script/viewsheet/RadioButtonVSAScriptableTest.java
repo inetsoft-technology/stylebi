@@ -124,7 +124,8 @@ public class RadioButtonVSAScriptableTest {
 
       //set values with Date type
       radioButtonVSAScriptable.setDataType("Date");
-      radioButtonVSAScriptable.setValues(new Object[] { new Date(125, 1, 20), new Date(125, 2, 20) });
+      radioButtonVSAScriptable.setValues(new Object[] {
+         new Date(125, 1, 20), new Date(125, 2, 20) });
       Object [] values = radioButtonVSAScriptable.getValues();
 
       String[] expectedDates = { "2025-02-20", "2025-03-20" };
@@ -155,6 +156,7 @@ public class RadioButtonVSAScriptableTest {
       //set default value with Date type
       radioButtonVSAScriptable.setDataType("Date");
       radioButtonVSAScriptable.setSelectedObject(new Date(125, 1, 20));
-      assert simpleDateFormat.format(radioButtonVSAScriptable.getDefaultValue(String.class)).equals("2025-02-20");
+      assertEquals("2025-02-20",
+                   simpleDateFormat.format(radioButtonVSAScriptable.getDefaultValue(String.class)));
    }
 }

@@ -49,7 +49,8 @@ public class SelectionContainerVSAScriptableTest {
       viewsheet.getVSAssemblyInfo().setName("vs1");
 
       selectionContainerVSAssembly = new CurrentSelectionVSAssembly();
-      selectionContainerVSAssemblyInfo = (CurrentSelectionVSAssemblyInfo) selectionContainerVSAssembly.getVSAssemblyInfo();
+      selectionContainerVSAssemblyInfo =
+         (CurrentSelectionVSAssemblyInfo) selectionContainerVSAssembly.getVSAssemblyInfo();
       selectionContainerVSAssemblyInfo.setName("SelectionContainer1");
       viewsheet.addAssembly(selectionContainerVSAssembly);
 
@@ -90,7 +91,8 @@ public class SelectionContainerVSAScriptableTest {
    @Test
    void testSetSize() {
       when(viewsheetSandbox.isRuntime()).thenReturn(true);
-      selectionContainerVSAssemblyInfo.setAssemblies(new String[]{"SelectionList1", "SelectionList2"});
+      selectionContainerVSAssemblyInfo.setAssemblies(
+         new String[]{"SelectionList1", "SelectionList2"});
       Dimension size1 = new Dimension(120, 260);
       selectionContainerVSAScriptable.setSize(size1);
       assertEquals(size1, selectionContainerVSAScriptable.getSize());
