@@ -2958,7 +2958,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          return null;
       }
 
-      int index = name.indexOf('.');
+      int index = name.lastIndexOf('.');
 
       if(index >= 0) {
          Viewsheet vs = null;
