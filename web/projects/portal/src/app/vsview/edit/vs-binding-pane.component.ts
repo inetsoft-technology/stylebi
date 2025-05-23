@@ -424,6 +424,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
 
    private processSetVSBindingModelCommand(command: SetVSBindingModelCommand): void {
       this.bindingModel = command.binding;
+      this.treeService.changeLoadingState(true);
 
       this.clientService.sendEvent("/events/vs/bindingtree/gettreemodel",
                                       new RefreshBindingTreeEvent(this.assemblyName));
@@ -551,6 +552,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
       }
 
       this.treeService.resetTreeModel(command.treeModel);
+      this.treeService.changeLoadingState(false);
    }
 
    private processMessageCommand(command: MessageCommand): void {
