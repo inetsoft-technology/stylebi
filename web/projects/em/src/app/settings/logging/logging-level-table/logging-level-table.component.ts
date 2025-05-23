@@ -30,6 +30,7 @@ import { AddLoggingLevelDialogComponent } from "../add-logging-level-dialog/add-
 })
 export class LoggingLevelTableComponent {
    @Input() loggingLevels: LogLevelDTO[] = [];
+   @Input() enterprise: boolean;
    @Output() loggingLevelsChange = new EventEmitter<LogLevelDTO[]>();
    tableInfo: TableInfo = {
       title: "_#(js:Custom Log Levels)",
@@ -53,6 +54,7 @@ export class LoggingLevelTableComponent {
          data: {
             index: index,
             loggingLevels: this.loggingLevels,
+            enterprise: this.enterprise,
          }
       });
 
