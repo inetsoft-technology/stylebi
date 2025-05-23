@@ -21,11 +21,13 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.ConditionUtil;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.*;
+import inetsoft.util.CoreTool;
 import inetsoft.util.Queue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Time;
+import java.sql.Types;
 import java.util.*;
 
 /**
@@ -468,9 +470,16 @@ public class ConditionListHandler {
                                          cond.isEqual() ? ">=" : ">");
          break;
       default: // EQUAL_TO
-         condnode = new XBinaryCondition(field,
-                                         getExpression(cond, cond.getValue(0), vars, true),
-                                         "=");
+         Object condValue = cond.getValue(0);
+
+         if(field != null && (field.getSqlType() == Types.BOOLEAN ||
+            field.getSqlType() == Types.VARCHAR || field.getSqlType() == Types.INTEGER))
+         {
+            String sqlType = SQLTypes.getSQLTypes(null).convertToXType(field.getSqlType());
+            condValue = CoreTool.getData(sqlType, condValue);
+         }
+
+         condnode = new XBinaryCondition(field, getExpression(cond, condValue, vars, true), "=");
          break;
       }
 

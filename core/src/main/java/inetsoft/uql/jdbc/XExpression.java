@@ -28,6 +28,7 @@ import org.w3c.dom.NodeList;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.sql.Types;
 import java.util.Vector;
 
 /**
@@ -165,6 +166,14 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
     */
    public String getType() {
       return type;
+   }
+
+   public int getSqlType() {
+      return sqlType;
+   }
+
+   public void setSqlType(int sqlType) {
+      this.sqlType = sqlType;
    }
 
    public String toString() {
@@ -363,6 +372,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    private int quote = QUOTE_NONE;
    private Object value = "";
    private String type = FIELD;
+   private int sqlType = Types.VARCHAR;
 
    private static Vector opList = new Vector();
    private static Vector functionNameList = new Vector();
