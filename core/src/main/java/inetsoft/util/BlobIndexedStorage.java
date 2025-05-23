@@ -446,12 +446,13 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
       for(String key : getKeys(null)) {
          final AssetEntry entry = AssetEntry.createAssetEntry(key);
+         boolean viewsheet = entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK;
 
          if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
             executor.submit(() -> new MigrateScheduleTask(entry, oname, nname, currOrg).updateNameProcess());
          }
-         else if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
-            if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+         else if(entry.getUser() != null && entry.getUser().name.equals(oname) || viewsheet) {
+            if(viewsheet) {
                updateDependencySheet(oname, nname, key, executor);
                executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname, currOrg).updateNameProcess());
             }
