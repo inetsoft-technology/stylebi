@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Time;
+import java.sql.Types;
 import java.util.*;
 
 /**
@@ -470,10 +471,15 @@ public class ConditionListHandler {
          break;
       default: // EQUAL_TO
          Object condValue = cond.getValue(0);
-         String sqlType = SQLTypes.getSQLTypes(null).convertToXType(field.getSqlType());
-         condValue = CoreTool.getData(sqlType, condValue);
-         condnode = new XBinaryCondition(field, getExpression(cond, CoreTool.getData(sqlType, condValue),
-                                                              vars, true), "=");
+
+         if(field != null && (field.getSqlType() == Types.BOOLEAN ||
+            field.getSqlType() == Types.VARCHAR || field.getSqlType() == Types.INTEGER))
+         {
+            String sqlType = SQLTypes.getSQLTypes(null).convertToXType(field.getSqlType());
+            condValue = CoreTool.getData(sqlType, condValue);
+         }
+
+         condnode = new XBinaryCondition(field, getExpression(cond, condValue, vars, true), "=");
          break;
       }
 
