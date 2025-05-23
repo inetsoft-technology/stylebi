@@ -115,7 +115,10 @@
           <mat-option value="error">_#(Error)</mat-option>
         </mat-select>
       </mat-form-field>
-      <em-logging-level-table [loggingLevels]="getLevels(model.logLevels)" (loggingLevelsChange)="changeLoggingLevels($event)"></em-logging-level-table>
+      <em-logging-level-table [loggingLevels]="getLevels(model.logLevels)"
+                              [enterprise]="enterprise"
+                              (loggingLevelsChange)="changeLoggingLevels($event)">
+      </em-logging-level-table>
     </ng-container>
   </form>
 </mat-card-content>

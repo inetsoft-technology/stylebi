@@ -31,7 +31,7 @@
         <mat-option value="ROLE">_#(Role)</mat-option>
         <mat-option value="SCHEDULE_TASK">_#(Schedule Task)</mat-option>
         <mat-option value="CATEGORY">_#(Log Category)</mat-option>
-        <mat-option value="ORGANIZATION">_#(Organization)</mat-option>
+        <mat-option *ngIf="enterprise" value="ORGANIZATION">_#(Organization)</mat-option>
       </mat-select>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent">
