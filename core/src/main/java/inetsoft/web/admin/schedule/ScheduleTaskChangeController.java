@@ -33,7 +33,6 @@ import inetsoft.web.admin.schedule.model.ScheduleTaskModel;
 
 import java.rmi.RemoteException;
 import java.security.Principal;
-import java.util.concurrent.TimeUnit;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -289,8 +288,19 @@ public class ScheduleTaskChangeController {
 
    private boolean checkPortalPermission(String task) {
       try {
-         return repository.checkPermission(
-            subscriber, ResourceType.SCHEDULE_TASK, task, ResourceAction.READ);
+         if(repository.checkPermission(
+            subscriber, ResourceType.SCHEDULE_TASK, task, ResourceAction.READ))
+         {
+            return true;
+         }
+
+         ScheduleTask scheduleTask = scheduleManager.getScheduleTask(task);
+
+         if(scheduleTask == null) {
+            return false;
+         }
+
+         return ScheduleManager.hasShareGroupPermission(scheduleTask, subscriber);
       }
       catch(RemoteException e) {
          LOG.warn("Failed to check schedule task permission", e);
