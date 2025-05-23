@@ -22,6 +22,7 @@ import inetsoft.sree.internal.HttpXMLSerializable;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.general.model.model.SMTPAuthType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -392,7 +393,10 @@ public abstract class AbstractAction implements Cloneable, EmailSupport,
          }
 
          boolean useSelf = !"false".equals(SreeEnv.getProperty("em.mail.defaultEmailFromSelf"));
-         String userEmail = useSelf && emails.length > 0 ? emails[0] : null;
+         boolean smtp = SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth")) ==
+            SMTPAuthType.GOOGLE_AUTH ||
+            SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth")) == SMTPAuthType.SMTP_AUTH;
+         String userEmail = useSelf && !smtp && emails.length > 0 ? emails[0] : null;
          return userEmail != null && !userEmail.isEmpty() ?
             userEmail : SreeEnv.getProperty("mail.from.address");
       }
