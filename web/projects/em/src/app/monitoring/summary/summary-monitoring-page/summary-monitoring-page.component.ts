@@ -29,6 +29,7 @@ import { Router } from "@angular/router";
 import { Subscription } from "rxjs";
 import { switchMap, tap } from "rxjs/operators";
 import { DownloadService } from "../../../../../../shared/download/download.service";
+import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { TableInfo } from "../../../common/util/table/table-info";
@@ -187,6 +188,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
                private authzService: AuthorizationService,
                private renderer: Renderer2,
                private router: Router,
+               private appInfoService: AppInfoService,
                private dialog: MatDialog)
    {
    }
@@ -227,6 +229,20 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
             this.serverModel = serverModel;
             this.refreshLegends();
          }));
+
+      this.subscriptions.add(this.appInfoService.isEnterprise().subscribe((isEnterprise) => {
+         if(!isEnterprise) {
+            this.top5UsersTableInfo = {
+               columns: [
+                  {field: "userName", header: "_#(js:User)"},
+                  {field: "viewsheetCount", header: "_#(js:Viewsheets)"},
+                  {field: "age", header: "_#(js:Session Age)"}
+               ],
+               selectionEnabled: false,
+               title: "_#(js:Top 5 Users)"
+            };
+         }
+      }));
    }
 
    private refreshLegends(): void {
