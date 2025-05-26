@@ -1611,6 +1611,10 @@ public class JavaScriptEngine {
          }
       }
 
+      if(idx < 0) {
+         return "";
+      }
+
       return str.substring(0, idx);
    }
 
