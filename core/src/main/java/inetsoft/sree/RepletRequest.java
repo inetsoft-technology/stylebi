@@ -1126,7 +1126,7 @@ public class RepletRequest implements java.io.Serializable, Cloneable, HttpXMLSe
       }
       else if(ptype.equals("Date")) {
          try {
-            Date val = dateFmt.parse(pvalue);
+            java.sql.Date val = new java.sql.Date(dateFmt.parse(pvalue).getTime());
 
             if(parameterValue != null) {
                parameterValue.setValue(val);
