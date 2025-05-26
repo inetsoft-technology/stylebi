@@ -125,6 +125,10 @@
            class="alert alert-danger">
         _#(viewer.worksheet.import.header.negative)
       </div>
+      <div *ngIf="form.controls['headerCols'].errors && form.controls['headerCols'].errors['integerInRange']"
+           class="alert alert-danger">
+        _#(viewer.worksheet.import.header.range.error)
+      </div>
       <div *ngIf="duplicateHeaders"
            class="alert alert-danger">
         _#(viewer.worksheet.import.duplicateHeaders)
