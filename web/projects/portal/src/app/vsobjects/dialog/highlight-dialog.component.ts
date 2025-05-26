@@ -132,12 +132,5 @@ export class HighlightDialog extends AbstractHighlight implements OnInit {
    apply(event: boolean): void {
       this.onApply.emit({collapse: event, result: this.getServerAppliedModel()});
    }
-
-   // remove fields that are not used on the server side to reduce the transmission size
-   getServerAppliedModel(): HighlightDialogModel {
-      let model = Tool.shallowClone(this.model);
-      model.fields = [];
-      return model;
-   }
 }
 
