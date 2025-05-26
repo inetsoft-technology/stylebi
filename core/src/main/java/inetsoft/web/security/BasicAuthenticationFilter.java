@@ -18,6 +18,7 @@
 package inetsoft.web.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
@@ -342,7 +343,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
          .filter(u -> !u.equals(IdentityID.getIdentityIDFromKey(principal.getName())))
          .filter(u -> checkLoginAs(principal, provider, u))
          .map(u -> new NameLabelTuple.Builder()
-            .label(siteAdmin ? (provider.getOrgNameFromID(u.getOrgID()) + ":" + u.getName()) : u.getName())
+            .label(siteAdmin && LicenseManager.getInstance().isEnterprise() ? (provider.getOrgNameFromID(u.getOrgID()) + ":" + u.getName()) : u.getName())
             .name(u.convertToKey())
             .build()
          )
