@@ -532,7 +532,9 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       try {
          RenameTransformObject obj = service.get(key);
 
-         if(obj == null) {
+         if(!(obj instanceof DependenciesInfo) ||
+            ((DependenciesInfo) obj).getDependencies() == null)
+         {
             return;
          }
 
