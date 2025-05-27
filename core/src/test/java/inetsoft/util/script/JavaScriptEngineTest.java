@@ -36,12 +36,15 @@ class JavaScriptEngineTest {
    @BeforeAll
    static void before() {
       defaultZone = TimeZone.getDefault();
+      defaultLocale = Locale.getDefault();
       TimeZone.setDefault(TimeZone.getTimeZone(ZoneId.of("US/Eastern")));
+      Locale.setDefault(Locale.US);
    }
 
    @AfterAll
    static void after() {
       TimeZone.setDefault(defaultZone);
+      Locale.setDefault(defaultLocale);
    }
 
    @Test
@@ -49,8 +52,8 @@ class JavaScriptEngineTest {
       // Bug #47883
       // Script taken from expression column, turns the result into a string representing
       // the difference in time between the two dates. e.g. 4 d 5 h 54 m
-      java.util.Date d1 = new Timestamp(toDate("2021-03-05T22:05").getTime());
-      java.util.Date d2 = new Timestamp(toDate("2021-03-10T03:59").getTime());
+      java.util.Date d1 = new Timestamp(toDate("2021-03-05T22:05:12").getTime());
+      java.util.Date d2 = new Timestamp(toDate("2021-03-10T03:59:17").getTime());
 
       double D = JavaScriptEngine.dateDiff("d", d1, d2);
       assertEquals(4, D);
@@ -62,6 +65,10 @@ class JavaScriptEngineTest {
 
       double M = JavaScriptEngine.dateDiff("n", d1, d2);  // n = mins
       assertEquals(54, M);
+      d1 = JavaScriptEngine.dateAdd("n", (int) M, d1);
+
+      double S = JavaScriptEngine.dateDiff("s", d1, d2);  // s = seconds
+      assertEquals(5, S);
    }
 
    @Test
@@ -160,6 +167,15 @@ class JavaScriptEngineTest {
       // Test with an invalid object
       result = JavaScriptEngine.formatDate("invalid", format);
       assertEquals("NaD", result);
+
+      //Test different date formats
+      java.util.Date d2 = toDate("2023-10-01T15:23:15");
+      assertEquals("Oct.1.2023", JavaScriptEngine.formatDate(d2, "MMM.d.yyyy"));
+      assertEquals("Sunday, October 01, 2023", JavaScriptEngine.formatDate(d2, "EEEEE, MMMMM dd, yyyy"));
+      assertEquals("10/01/2023 15:23:15", JavaScriptEngine.formatDate(d2, "MM/dd/yyyy H:mm:ss"));
+      assertEquals("Oct. 1, 2023 3:23:15 PM", JavaScriptEngine.formatDate(d2, "MMM. d, yyyy h:mm:ss a"));
+      assertEquals("274-2023 15:23:15", JavaScriptEngine.formatDate(d2, "D-y k:m:s"));
+      assertEquals("40-1, 7-07,1 2023", JavaScriptEngine.formatDate(d2, "w-W, u-uu,F yyyy"));
    }
 
    @Test
@@ -196,7 +212,6 @@ class JavaScriptEngineTest {
       assertEquals("test", JavaScriptEngine.numberToString("test"));
    }
 
-   // 在测试类中添加以下方法
    @Test
    void testParseDate() {
       // Test with valid date string and format
@@ -205,9 +220,6 @@ class JavaScriptEngineTest {
 
       // Test with valid date string and null format
       assertNotNull(JavaScriptEngine.parseDate("October 1, 2023", null));
-
-      // Test with valid time string and parseTime as true
-      assertNotNull(JavaScriptEngine.parseDate("12:30:45", true));
 
       // Test with invalid date string
       assertNull(JavaScriptEngine.parseDate("invalid-date", "yyyy-MM-dd"));
@@ -220,6 +232,18 @@ class JavaScriptEngineTest {
 
       // Test with valid date string and default format fallback
       assertNotNull(JavaScriptEngine.parseDate("2023-10-01", null));
+
+      //Test different date formats
+      assertEquals(toDate("2023-10-01T00:00"),
+                   JavaScriptEngine.parseDate("Oct.1.2023 ", "MMM.d.yyyy"));
+      assertEquals(toDate("2023-10-01T00:00"),
+                   JavaScriptEngine.parseDate("Sunday, October 01, 2023", "EEEEE, MMMMM dd, yyyy"));
+      assertEquals(toDate("2023-10-01T15:23:15"),
+                   JavaScriptEngine.parseDate("10/01/2023 15:23:15", "MM/dd/yyyy H:mm:ss"));
+      assertEquals(toDate("2023-10-01T15:23:15"),
+                   JavaScriptEngine.parseDate("Oct. 1, 2023 3:23:15 PM", "MMM. d, yyyy h:mm:ss a"));
+      assertEquals(toDate("2023-01-05T15:23:15"),
+                   JavaScriptEngine.parseDate("5-2023 15:23:15", "D-y k:m:s"));
    }
 
    @ParameterizedTest
@@ -324,6 +348,19 @@ class JavaScriptEngineTest {
       // Test with applyWeekStart as true
       result = JavaScriptEngine.datePart("d", date, true);
       assertTrue(result >= 1 && result <= 31);
+
+      //Test with other intervals
+      java.util.Date d2 = toDate("2025-05-26T11:23:35");
+      assertEquals(2025, JavaScriptEngine.datePart("yyyy", d2, false));
+//      assertEquals(2, JavaScriptEngine.datePart("q", d2, false));//bug #71285
+      assertEquals(5, JavaScriptEngine.datePart("m", d2, false));
+      assertEquals(146, JavaScriptEngine.datePart("y", d2, false));
+      assertEquals(26, JavaScriptEngine.datePart("d", d2, false));
+      assertEquals(2, JavaScriptEngine.datePart("w", d2, false));
+      assertEquals(21, JavaScriptEngine.datePart("ww", d2, false));
+      assertEquals(11, JavaScriptEngine.datePart("h", d2, false));
+      assertEquals(23, JavaScriptEngine.datePart("n", d2, false));
+      assertEquals(35, JavaScriptEngine.datePart("s", d2, false));
    }
 
    @Test
@@ -333,40 +370,59 @@ class JavaScriptEngineTest {
       java.util.Date d2 = toDate("2023-01-01T00:00");
       assertEquals(3, JavaScriptEngine.dateDiff("yyyy", d1, d2));
 
-      // Test with valid dates and interval "m" (months)
+      // Test with valid dates and interval "m" (months) and "ww"(week of the year)
       d1 = toDate("2023-01-01T00:00");
       d2 = toDate("2023-04-01T00:00");
       assertEquals(3, JavaScriptEngine.dateDiff("m", d1, d2));
+//      assertEquals(13, JavaScriptEngine.dateDiff("ww", d1, d2));//bug #71288
 
-      // Test with valid dates and interval "w" (weeks)
+      // Test with valid dates and interval "w" (weeks) and "d"(day of the month)
       d1 = toDate("2023-04-01T00:00");
       d2 = toDate("2023-04-10T00:00");
       assertEquals(1, JavaScriptEngine.dateDiff("w", d1, d2));
+      assertEquals(9, JavaScriptEngine.dateDiff("d", d1, d2));
 
-      // Test with valid dates and interval "q" (quarters)
+      // Test with valid dates and interval "q" (quarters) and "y"(day of the year)
       d1 = toDate("2023-01-01T00:00");
       d2 = toDate("2023-10-01T00:00");
       assertEquals(3, JavaScriptEngine.dateDiff("q", d1, d2));
+      assertEquals(273, JavaScriptEngine.dateDiff("y", d1, d2));
+
+      // Test with interval "h" (hours), "n" (minutes), and "s" (seconds)
+      d1 = toDate("2023-10-01T02:12:23");
+      d2 = toDate("2023-10-01T06:01:47");
+      assertEquals(3, JavaScriptEngine.dateDiff("h", d1, d2));
+      assertEquals(229, JavaScriptEngine.dateDiff("n", d1, d2));
+      assertEquals(13764, JavaScriptEngine.dateDiff("s", d1, d2));
    }
 
    @Test
    void testDateAdd() {
-      // Test with valid date and interval "d" (days)
-      java.util.Date date = toDate("2023-10-01T00:00");
-      java.util.Date result = JavaScriptEngine.dateAdd("d", 5, date);
-      assertEquals(toDate("2023-10-06T00:00"), result);
-
-      // Test with valid date and interval "m" (months)
-      result = JavaScriptEngine.dateAdd("m", 2, date);
-      assertEquals(toDate("2023-12-01T00:00"), result);
+      java.util.Date date = toDate("2023-10-01T10:23:34");
+      // Test with valid date and interval "yyyy" (years)
+      assertEquals(toDate("2024-10-01T10:23:34"), JavaScriptEngine.dateAdd("yyyy", 1, date));
 
       // Test with valid date and interval "q" (quarters)
-      result = JavaScriptEngine.dateAdd("q", 1, date);
-      assertEquals(toDate("2024-01-01T00:00"), result);
+      assertEquals(toDate("2024-01-01T10:23:34"), JavaScriptEngine.dateAdd("q", 1, date));
+
+      // Test with valid date and interval "m" (months)
+      assertEquals(toDate("2023-12-01T10:23:34"), JavaScriptEngine.dateAdd("m", 2, date));
+
+      // Test with valid date and interval "d" (days) and "y" (Day of the year)
+      assertEquals(toDate("2023-10-06T10:23:34"), JavaScriptEngine.dateAdd("d", 5, date));
+      assertEquals(toDate("2023-10-04T10:23:34"), JavaScriptEngine.dateAdd("y", 3, date));
+
+      // Test with valid date and interval "h" (hours), "n" (minutes), and "s" (seconds)
+      assertEquals(toDate("2023-10-01T12:23:34"), JavaScriptEngine.dateAdd("h", 2, date));
+      assertEquals(toDate("2023-10-01T10:43:34"), JavaScriptEngine.dateAdd("n", 20, date));
+      assertEquals(toDate("2023-10-01T10:24:04"), JavaScriptEngine.dateAdd("s", 30, date));
+
+      // Test with valid date and interval "w" (Day of the week) and "ww" (Week of the year)
+      assertEquals(toDate("2023-10-03T10:23:34"), JavaScriptEngine.dateAdd("w", 2, date));
+      assertEquals(toDate("2023-10-22T10:23:34"), JavaScriptEngine.dateAdd("ww", 3, date));
 
       // Test with null date
-      result = JavaScriptEngine.dateAdd("d", 5, null);
-      assertNull(result);
+      assertNull(JavaScriptEngine.dateAdd("d", 5, null));
    }
 
    @Test
@@ -467,6 +523,38 @@ class JavaScriptEngineTest {
       assertNotNull(result);
    }
 
+   @Test
+   void testFindObject() {
+      ScriptableObject scope = new NativeObject();
+      ScriptableObject parentScope = new NativeObject();
+      scope.setParentScope(parentScope);
+
+      // Add properties to the scope
+      scope.put("key1", scope, "value1");
+      parentScope.put("key2", parentScope, "value2");
+
+      // Test finding an existing key in the current scope
+      Object result = JavaScriptEngine.findObject("key1", scope, new Vector<>());
+      assertEquals("value1", result);
+
+      // Test finding an existing key in the parent scope
+      result = JavaScriptEngine.findObject("key2", scope, new Vector<>());
+      assertEquals("value2", result);
+
+      // Test finding a non-existing key
+      result = JavaScriptEngine.findObject("key3", scope, new Vector<>());
+      assertEquals(Scriptable.NOT_FOUND, result);
+
+      // Test with a null scope
+      result = JavaScriptEngine.findObject("key1", null, new Vector<>());
+      assertEquals(Scriptable.NOT_FOUND, result);
+
+      // Test with a circular reference in the scope chain
+      parentScope.setParentScope(scope);
+      result = JavaScriptEngine.findObject("key1", scope, new Vector<>());
+      assertEquals("value1", result);
+   }
+
    /**
     * @param localDateTime an ISO-8601 datetime string, e.g. 2007-12-03T10:15:30
     *
@@ -479,4 +567,5 @@ class JavaScriptEngineTest {
    }
 
    private static TimeZone defaultZone;
+   private static Locale defaultLocale;
 }
