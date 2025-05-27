@@ -17,6 +17,8 @@
  */
 .field-list-pane {
   min-height: 36px;
+  max-height: 116px;
+  overflow-y: auto;
   padding: 0px;
   display: flex;
 }
