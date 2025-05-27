@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import {
    ChangeDetectionStrategy,
    ChangeDetectorRef,
@@ -147,6 +148,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    private actionSubscription: Subscription;
    private _selected: boolean = false;
    private unApplySubscription: Subscription;
+   private updateViewSubscription: Subscription;
    private subscriptions: Subscription = new Subscription();
    measureMin: number;
    measureMax: number;
@@ -222,10 +224,16 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          this.unApplySubscription.unsubscribe();
       }
 
+      if(this.updateViewSubscription) {
+         this.updateViewSubscription.unsubscribe();
+      }
+
       if(controller) {
          this.unApplySubscription = controller.unappliedSubject.subscribe(unApply => {
             this.globalSubmitService.updateState(this.model.absoluteName, unApply);
          });
+
+         this.updateViewSubscription = controller.updateViewSubject.subscribe(() => this.changeDetectorRef.detectChanges());
       }
 
       this._controller = controller;
@@ -244,6 +252,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
                private dropdownService: FixedDropdownService,
                private globalSubmitService: GlobalSubmitService,
                private popService: PopComponentService,
+               private http: HttpClient,
                @Optional() private selectionMobileService?: SelectionMobileService)
    {
       super(viewsheetClient, zone, context, dataTipService);
@@ -313,7 +322,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
          else {
             let listModel: VSSelectionListModel = <VSSelectionListModel> value;
             let list: SelectionListController = new SelectionListController(
-               this.viewsheetClient, this.formDataService, value.absoluteName);
+               this.viewsheetClient, this.formDataService, value.absoluteName, this.http);
             list.model = listModel;
             this.controller = list;
 

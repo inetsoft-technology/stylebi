@@ -39,6 +39,7 @@ export class ApplySelectionListEvent implements ViewsheetEvent {
    public toggle: boolean;
    public toggleAll: boolean;
    public toggleLevels: number[];
+   public segment: boolean;
 
    public static APPLY: ApplySelectionType = "APPLY";
    public static REVERSE: ApplySelectionType = "REVERSE";
@@ -52,7 +53,7 @@ export class ApplySelectionListEvent implements ViewsheetEvent {
    constructor(values: SelectionStateModel[] = null,
                type: ApplySelectionType = ApplySelectionListEvent.APPLY,
                selectStart: number = -1, selectEnd: number = -1, eventSource?: string,
-               toggle?: boolean, toggleAll?: boolean, toggleLevels?: number[])
+               toggle?: boolean, toggleAll?: boolean, toggleLevels?: number[], segment?: boolean)
    {
       this.type = type;
       this.values = values;
@@ -62,6 +63,7 @@ export class ApplySelectionListEvent implements ViewsheetEvent {
       this.toggle = toggle;
       this.toggleAll = toggleAll;
       this.toggleLevels = toggleLevels;
+      this.segment = segment;
    }
 }
 

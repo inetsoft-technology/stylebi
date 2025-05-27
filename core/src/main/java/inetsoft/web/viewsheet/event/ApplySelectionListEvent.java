@@ -93,6 +93,14 @@ public class ApplySelectionListEvent {
       this.toggleLevels = toggleLevels;
    }
 
+   public boolean isSegment() {
+      return segment;
+   }
+
+   public void setSegment(boolean segment) {
+      this.segment = segment;
+   }
+
    @Override
    public String toString() {
       return "ApplySelectionListEvent{" +
@@ -111,6 +119,7 @@ public class ApplySelectionListEvent {
    private boolean toggle;
    private boolean toggleAll;
    private int[] toggleLevels;
+   private boolean segment;
 
    public enum Type {
       APPLY, REVERSE

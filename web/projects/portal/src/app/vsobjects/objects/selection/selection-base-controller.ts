@@ -35,6 +35,7 @@ export interface SelectionStateModel {
 export abstract class SelectionBaseController<T extends VSSelectionBaseModel> {
    private _model: T;
    private _unappliedSubject: Subject<SelectionStateModel[]> = new Subject<SelectionStateModel[]>();
+   private _updateView: Subject<any> = new Subject<any>();
    protected showAll: boolean = false;
    showOther: boolean = false;
    visibleValues: SelectionValueModel[];
@@ -61,6 +62,14 @@ export abstract class SelectionBaseController<T extends VSSelectionBaseModel> {
 
    get unappliedSubject(): Observable<SelectionStateModel[]> {
       return this._unappliedSubject.asObservable();
+   }
+
+   public fireUpdateView(): void {
+      this._updateView.next("");
+   }
+
+   get updateViewSubject(): Observable<any> {
+      return this._updateView.asObservable();
    }
 
    public get model(): T {

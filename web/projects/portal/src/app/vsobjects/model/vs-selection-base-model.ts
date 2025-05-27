@@ -39,4 +39,5 @@ export interface VSSelectionBaseModel extends VSCompositeModel {
    searchDisplayed?: boolean;
    objectHeight?: number;
    maxMode?: boolean;
+   submitPadding?: boolean;
 }
