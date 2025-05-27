@@ -1366,6 +1366,9 @@ public class JavaScriptEngine {
                int startDayOfYear = cal.get(Calendar.DAY_OF_YEAR);
 
                return endDayOfYear - startDayOfYear + 1;
+            case "q":
+               int month = cal.get(Calendar.MONTH);
+               return (month / 3) + 1;
             default:
                int field = getDateInterval(interval);
 
