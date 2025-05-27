@@ -17,9 +17,12 @@
  */
 package inetsoft.web.viewsheet.controller;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.internal.LicenseException;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.ws.event.OpenSheetEventValidator;
@@ -52,13 +55,15 @@ public class OpenViewsheetController {
                                   RuntimeViewsheetManager runtimeViewsheetManager,
                                   VSLifecycleService vsLifecycleService,
                                   LicenseService licenseService,
-                                  OpenViewsheetServiceProxy serviceProxy)
+                                  OpenViewsheetServiceProxy serviceProxy,
+                                  ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.vsLifecycleService = vsLifecycleService;
       this.licenseService = licenseService;
       this.serviceProxy = serviceProxy;
+      this.viewsheetService = viewsheetService;
    }
 
    @GetMapping("api/vs/route-data")
@@ -66,7 +71,22 @@ public class OpenViewsheetController {
    public ViewsheetRouteDataModel getRouteData(@RequestParam("id") String identifier,
                                                Principal principal) throws Exception
    {
-      return serviceProxy.getRouteData(identifier, principal);
+      boolean scaleToScreen = false;
+      boolean fitToWidth = false;
+      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+      Viewsheet vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
+         entry, principal, false, AssetContent.CONTEXT);
+
+      if(vs != null) {
+         ViewsheetInfo info = vs.getViewsheetInfo();
+         scaleToScreen = info.isScaleToScreen();
+         fitToWidth = info.isFitToWidth();
+      }
+
+      return ViewsheetRouteDataModel.builder()
+         .scaleToScreen(scaleToScreen)
+         .fitToWidth(fitToWidth)
+         .build();
    }
 
    /**
@@ -152,4 +172,5 @@ public class OpenViewsheetController {
    private final VSLifecycleService vsLifecycleService;
    private final LicenseService licenseService;
    private final OpenViewsheetServiceProxy serviceProxy;
+   private final ViewsheetService viewsheetService;
 }

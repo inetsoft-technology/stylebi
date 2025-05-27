@@ -124,11 +124,7 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
     * Copy the parameters set in user principal.
     */
    public void copyParameters(XPrincipal user) {
-      Enumeration params = user.getParameterNames();
-
-      while(params.hasMoreElements()) {
-         String name = (String) params.nextElement();
-
+      for(String name : user.getParameterNames()) {
          // parameters in user should have a lower priority than variables
          // set in the onload or defined in report
          // if parameter in principal changed from the last time the values

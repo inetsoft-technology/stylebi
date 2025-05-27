@@ -23,6 +23,9 @@ import org.springframework.messaging.simp.user.DestinationUserNameProvider;
 public class DestinationUserNameProviderPrincipal
    extends SRPrincipal implements DestinationUserNameProvider
 {
+   public DestinationUserNameProviderPrincipal() {
+   }
+
    public DestinationUserNameProviderPrincipal(SRPrincipal principal) {
       super(principal);
    }

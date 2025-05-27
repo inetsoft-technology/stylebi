@@ -96,7 +96,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
          XSessionService.createSessionID(XSessionService.USER,
                                          identityID != null ? identityID.convertToKey() : null);
       this.prop = new ConcurrentHashMap<>();
-      this.params = new Hashtable();
+      this.params = new ConcurrentHashMap<>();
    }
 
    /**
@@ -108,8 +108,8 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       this.groups = principal.groups.clone();
       this.orgId = principal.orgId;
       this.prop = new ConcurrentHashMap<>(principal.prop);
-      this.params = (Hashtable) principal.params.clone();
-      this.paramTS = (HashMap) principal.paramTS.clone();
+      this.params = new ConcurrentHashMap<>(principal.params);
+      this.paramTS = new ConcurrentHashMap<>(principal.paramTS);
       this.ignoreLogin = principal.ignoreLogin;
       this.sessionID = principal.sessionID;
    }
@@ -232,9 +232,9 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    /**
     * Get all attribute names.
     */
-   public Enumeration<String> getPropertyNames() {
+   public Set<String> getPropertyNames() {
       // Bug #57296, use JDK enumeration and prevent concurrent modification
-      return Collections.enumeration(new HashSet<>(prop.keySet()));
+      return new HashSet<>(prop.keySet());
    }
 
    /**
@@ -260,7 +260,9 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
          }
       }
 
-      return ((Principal) another).getName().equals(name);
+      String otherName = (another instanceof XPrincipal) ?
+         ((XPrincipal) another).name : ((Principal) another).getName();
+      return Objects.equals(name, otherName);
    }
 
    /**
@@ -460,12 +462,16 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @param value the value of the parameter.
     */
    public void setParameter(String name, Object value) {
+      setParameter(name, value, System.currentTimeMillis());
+   }
+
+   protected void setParameter(String name, Object value, long ts) {
       if(value == null) {
          params.remove(name);
       }
       else {
          params.put(name, JavaScriptEngine.unwrap(value));
-         paramTS.put(name, System.currentTimeMillis());
+         paramTS.put(name, ts);
       }
    }
 
@@ -493,8 +499,8 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @return all the parameter names.
     * @hidden
     */
-   public Enumeration getParameterNames() {
-      return params.keys();
+   public Set<String> getParameterNames() {
+      return params.keySet();
    }
 
    /**
@@ -625,8 +631,8 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    protected String orgId;
    protected String sessionID;
    protected Map<String, String> prop;
-   private Hashtable params;
-   private HashMap<String, Long> paramTS = new HashMap<>();
+   private Map<String, Object> params;
+   private Map<String, Long> paramTS = new ConcurrentHashMap<>();
    private boolean ignoreLogin = false;
    private boolean profiling = false;
 

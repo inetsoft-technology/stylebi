@@ -266,14 +266,8 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
 
    @Bean
    public CommonsRequestLoggingFilter requestLoggingFilter() {
-      CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter() {
-         @Override
-         protected void afterRequest(HttpServletRequest request, String message) {
-            // no-op
-         }
-      };
+      CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter();
       filter.setIncludeQueryString(true);
-      filter.setBeforeMessagePrefix("Received request [");
       return filter;
    }
 
