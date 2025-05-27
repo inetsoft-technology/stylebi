@@ -471,20 +471,32 @@ public class ConditionListHandler {
          break;
       default: // EQUAL_TO
          Object condValue = cond.getValue(0);
-
-         if(field != null && (field.getSqlType() == Types.BOOLEAN ||
-            field.getSqlType() == Types.VARCHAR || field.getSqlType() == Types.INTEGER))
-         {
-            String sqlType = SQLTypes.getSQLTypes(null).convertToXType(field.getSqlType());
-            condValue = CoreTool.getData(sqlType, condValue);
-         }
-
+         condValue = fixConditionValue(field, condValue);
          condnode = new XBinaryCondition(field, getExpression(cond, condValue, vars, true), "=");
          break;
       }
 
       condnode.setIsNot(cond.isNegated());
       return condnode;
+   }
+
+   private Object fixConditionValue(XExpression field, Object condValue) {
+      if(field == null || condValue == null) {
+         return condValue;
+      }
+
+      if(!(condValue instanceof String || condValue instanceof Number || condValue instanceof Boolean)) {
+         return condValue;
+      }
+
+      int sql_type = field.getSqlType();
+
+      if(sql_type == Types.BOOLEAN || sql_type == Types.VARCHAR || sql_type == Types.INTEGER) {
+         String sqlType = SQLTypes.getSQLTypes(null).convertToXType(sql_type);
+         return CoreTool.getData(sqlType, condValue);
+      }
+
+      return condValue;
    }
 
    /**
