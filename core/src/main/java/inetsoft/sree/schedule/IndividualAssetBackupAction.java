@@ -142,14 +142,14 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
             String id = ((TableStyleAsset) asset).getStyleID();
 
             if(LibManager.getManager().getTableStyle(id) == null) {
-               throw new RuntimeException("Error retrieving tablestyle from lib manager: " + id);
+               failedAssets.add(asset);
             }
          }
          else if(asset instanceof ScriptAsset) {
             String name = asset.getPath();
 
             if(LibManager.getManager().getScript(name) == null) {
-               throw new RuntimeException("Error retrieving tablestyle from lib manager: " + name);
+               failedAssets.add(asset);
             }
          }
       }
