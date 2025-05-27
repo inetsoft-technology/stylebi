@@ -240,6 +240,7 @@ export class AggregatePane {
    }
 
    populateOptions(row: Row, index: number): void {
+      this.dateLevelExamples[index] = null;
       let num = 0;
       this.groups[index] = [
          ...this.baseGroups,
