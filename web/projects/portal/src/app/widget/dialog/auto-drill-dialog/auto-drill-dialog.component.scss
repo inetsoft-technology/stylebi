@@ -15,6 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.btn-close {
+  margin-left: auto;
+}
+
 .drill-header {
    background-color: #f2f2f6;
    width: 100%;
