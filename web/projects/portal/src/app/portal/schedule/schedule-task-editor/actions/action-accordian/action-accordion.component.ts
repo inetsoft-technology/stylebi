@@ -350,7 +350,7 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    public modifyBookmark(): void {
       if(this.action.bookmarks
          .findIndex(b => b.name == this.selectedBookmark.name &&
-            b.owner == this.selectedBookmark.owner) != -1)
+            Tool.isEquals(b.owner, this.selectedBookmark.owner)) != -1)
       {
          ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
             "_#(js:em.scheduler.actions.bookmarkDuplicate)");
