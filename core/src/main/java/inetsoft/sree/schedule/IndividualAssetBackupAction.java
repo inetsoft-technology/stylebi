@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.report.LibManager;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.HttpXMLSerializable;
 import inetsoft.sree.internal.SUtil;
@@ -26,8 +27,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.Tool;
-import inetsoft.util.dep.AbstractSheetAsset;
-import inetsoft.util.dep.XAsset;
+import inetsoft.util.dep.*;
 import inetsoft.web.admin.deploy.DeployUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,7 +124,6 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
       AssetEntry assetEntry;
 
       for(XAsset asset : dependencies) {
-
          if(asset instanceof AbstractSheetAsset) {
             assetEntry = ((AbstractSheetAsset) asset).getAssetEntry();
 
@@ -136,7 +135,21 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
                }
             }
             catch(Exception e) {
-               throw new RuntimeException("Error retrieving asset from repository: "+assetEntry);
+               throw new RuntimeException("Error retrieving asset from repository: " + assetEntry);
+            }
+         }
+         else if(asset instanceof TableStyleAsset) {
+            String id = ((TableStyleAsset) asset).getStyleID();
+
+            if(LibManager.getManager().getTableStyle(id) == null) {
+               failedAssets.add(asset);
+            }
+         }
+         else if(asset instanceof ScriptAsset) {
+            String name = asset.getPath();
+
+            if(LibManager.getManager().getScript(name) == null) {
+               failedAssets.add(asset);
             }
          }
       }
