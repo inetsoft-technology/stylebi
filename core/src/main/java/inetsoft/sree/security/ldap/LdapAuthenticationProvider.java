@@ -21,7 +21,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
@@ -270,6 +269,23 @@ public abstract class LdapAuthenticationProvider
          name.append(getGroupAttribute()).append('=').append(group);
 
          if(getGroupBase() != null && !getGroupBase().isEmpty()) {
+            String middleGroup = doGetGroups().get(group);
+
+            if(middleGroup != null) {
+               int baseGroupIndex = Math.max(0, middleGroup.indexOf(getGroupBase()));
+
+               if(middleGroup.startsWith(name.toString()) && baseGroupIndex > name.length() + 1) {
+                  middleGroup = middleGroup.substring(name.length() + 1, baseGroupIndex - 1);
+               }
+               else {
+                  middleGroup = null;
+               }
+
+               if(!Tool.isEmptyString(middleGroup)) {
+                  name.append(",").append(middleGroup);
+               }
+            }
+
             return Arrays.stream(getGroupBases(getGroupBase()))
                .map(g -> name.append(",").append(g).toString())
                .flatMap(g -> searchDirectory(g, filter, scope, attr).stream())
