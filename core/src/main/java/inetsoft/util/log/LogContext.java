@@ -18,8 +18,11 @@
 package inetsoft.util.log;
 
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
+import inetsoft.util.Tool;
 import org.slf4j.MDC;
 
 import java.security.Principal;
@@ -108,7 +111,18 @@ public enum LogContext {
    }
 
    public String getRecord(String name) {
+      name = fixOrgScopeResourceName(name);
       return prefix + name;
+   }
+
+   private String fixOrgScopeResourceName(String name) {
+      if(!SUtil.isMultiTenant() || Tool.equals(ORGANIZATION.getPrefix(), getPrefix()) ||
+         Tool.equals(CATEGORY.getPrefix(), getPrefix()))
+      {
+         return name;
+      }
+
+      return Tool.buildString(name, "^", OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    public String getRecordName(Object record) {
