@@ -167,7 +167,8 @@ export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
       this.form.addControl("headerCols", new UntypedFormControl(
          {value: this.model.headerCols, disabled: !this.model.unpivotCB}, [
             Validators.required,
-            Validators.min(0)
+            Validators.min(0),
+            FormValidators.integerInRange()
          ]));
       this.form.addControl("firstRowCB", new UntypedFormControl(this.model.firstRowCB));
       this.form.addControl("removeQuotesCB", new UntypedFormControl({
