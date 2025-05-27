@@ -25,6 +25,7 @@ import inetsoft.report.composition.region.ChartArea;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.vs.objects.command.SetCurrentFormatCommand;
 import inetsoft.web.composer.vs.objects.event.GetVSObjectFormatEvent;
@@ -53,7 +54,21 @@ class FormatPainterControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = spy(new FormatPainterController(runtimeViewsheetRef, formatPainterService));
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+      FormatPainterService formatPainterService =
+         new FormatPainterService(coreLifecycleService,
+                                  chartRegionHandler, viewsheetEngine,
+                                  objectModelService, bindingService,
+                                  vsLayoutService);
+      FormatPainterServiceProxy formatPainterServiceProxy = new FormatPainterServiceProxy();
+      doReturn(formatPainterService)
+         .when(spyContext)
+         .getSpringBean(FormatPainterService.class);
+      controller = spy(new FormatPainterController(runtimeViewsheetRef, formatPainterServiceProxy));
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class)))
@@ -72,6 +87,11 @@ class FormatPainterControllerTest {
       chart.setChartDescriptor(chartDescriptor);
 
       when(viewsheet.getAssembly("Chart1")).thenReturn(chart);
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    @Test
@@ -162,9 +182,9 @@ class FormatPainterControllerTest {
    @Mock CommandDispatcher dispatcher;
    @Mock VSBindingService bindingService;
    @Mock VSLayoutService vsLayoutService;
-   @Mock FormatPainterServiceProxy formatPainterService;
    @Mock VGraphPair graphPair;
    private ChartVSAssembly chart;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 
    private FormatPainterController controller;
 }
