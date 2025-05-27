@@ -17,6 +17,7 @@
  */
 package inetsoft.web.viewsheet.controller;
 
+import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.viewsheet.*;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.event.SortSelectionListEvent;
@@ -25,6 +26,7 @@ import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 
@@ -65,6 +67,19 @@ public class VSSelectionListController {
    {
       final Context context = createContext(principal, dispatcher, linkUri);
       vsSelectionService.applySelection(assemblyName, event, context);
+   }
+
+   @RequestMapping(
+      value = "/api/selectionList/update/{runtimeId}/{name}",
+      method = RequestMethod.POST)
+   @ResponseBody
+   public void applySelection(
+      @PathVariable("runtimeId") @DecodePathVariable String runtimeId,
+      @PathVariable("name") String name, @LinkUri String linkUri,
+      @RequestBody ApplySelectionListEvent event, Principal principal) throws Exception
+   {
+      final Context context = createContext(runtimeId, principal, linkUri);
+      vsSelectionService.applySelection(name, event, context);
    }
 
    @Undoable
@@ -138,6 +153,14 @@ public class VSSelectionListController {
    {
       return vsSelectionService.createContext(runtimeViewsheetRef.getRuntimeId(),
          principal, dispatcher, linkUri);
+   }
+
+   private Context createContext(String runtimeId, Principal principal,
+                                 String linkUri)
+      throws Exception
+   {
+      return CommandDispatcher.withDummyDispatcher(principal, dispatcher ->
+         vsSelectionService.createContext(runtimeId, principal, dispatcher, linkUri));
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
