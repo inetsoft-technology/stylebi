@@ -93,12 +93,39 @@ export class AbstractHighlight {
          // confirm that the user wants to proceed
          if(this._model.confirmChanges && this.conditionsChanged) {
             this.confirmConditionChanges(() => {
-               this.onCommit.emit(this._model);
+               this.onCommit.emit(this.getServerAppliedModel());
             });
          }
          else {
-            this.onCommit.emit(this._model);
+            this.onCommit.emit(this.getServerAppliedModel());
          }
       }
+   }
+
+   // remove fields that are not used on the server side to reduce the transmission size
+   getServerAppliedModel(): HighlightDialogModel {
+      let model = Tool.shallowClone(this._model);
+      model.fields = [];
+
+      if(model.highlights) {
+         model.highlights = Tool.shallowClone(model.highlights);
+
+         for(let i = model.highlights.length - 1; i >= 0; i--) {
+            let highlight = model.highlights[i];
+
+            if(!highlight) {
+               continue;
+            }
+
+            model.highlights[i] = Tool.shallowClone(model.highlights[i]);
+
+            if(model.highlights[i]?.vsConditionDialogModel?.fields) {
+               model.highlights[i].vsConditionDialogModel = Tool.shallowClone(model.highlights[i].vsConditionDialogModel);
+               model.highlights[i].vsConditionDialogModel.fields = [];
+            }
+         }
+      }
+
+      return model;
    }
 }
