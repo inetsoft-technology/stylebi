@@ -112,10 +112,6 @@ public class PrintInfo implements AssetObject {
       return headerFromEdge;
    }
 
-   public float getInchHeaderFromEdge() {
-      return headerFromEdge * (float) getUnitRatio();
-   }
-
    /**
     * Set margin right to the print layout.
     */
@@ -128,10 +124,6 @@ public class PrintInfo implements AssetObject {
     */
    public float getFooterFromEdge() {
       return footerFromEdge;
-   }
-
-   public float getInchFooterFromEdge() {
-      return footerFromEdge * (float) getUnitRatio();
    }
 
    /**

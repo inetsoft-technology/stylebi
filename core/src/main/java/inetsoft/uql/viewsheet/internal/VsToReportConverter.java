@@ -277,8 +277,8 @@ public class VsToReportConverter {
       int MARGIN_LEFT = (int) margin.left * 72;
       int MARGIN_TOP = (int) margin.top * 72;
 
-      report.setHeaderFromEdge(pinfo.getInchHeaderFromEdge());
-      report.setFooterFromEdge(pinfo.getInchFooterFromEdge());
+      report.setHeaderFromEdge(pinfo.getHeaderFromEdge());
+      report.setFooterFromEdge(pinfo.getFooterFromEdge());
       report.setPageNumberingStart(pinfo.getPageNumberingStart());
 
       headerSection = createReportSection();
@@ -286,14 +286,14 @@ public class VsToReportConverter {
       // section id may be duplicated with other section which in
       // other regions (footer/detail), so set id for header and footer.
       headerSection.setID("headerSection");
-      float headerH = (float) (margin.top - pinfo.getInchHeaderFromEdge());
+      float headerH = (float) (margin.top - pinfo.getHeaderFromEdge());
       getSectionContent(headerSection).setHeight(headerH);
       report.addHeaderElement(headerSection);
 
       footerSection = createReportSection();
       footerSection.setID("footerSection");
       footerSection.setProperty("vsPrintLayout", true + "");
-      float footerH = pinfo.getInchFooterFromEdge();
+      float footerH = pinfo.getFooterFromEdge();
       getSectionContent(footerSection).setHeight(footerH);
       report.addFooterElement(footerSection);
 
