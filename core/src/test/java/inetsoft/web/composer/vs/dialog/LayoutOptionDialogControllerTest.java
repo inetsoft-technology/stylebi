@@ -22,9 +22,11 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.LayoutOptionDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.composer.vs.controller.VSLayoutControllerService;
 import inetsoft.web.composer.vs.objects.controller.GroupingService;
 import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
@@ -34,7 +36,7 @@ import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
@@ -47,6 +49,18 @@ class LayoutOptionDialogControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+      LayoutOptionDialogService layoutOptionDialogService =
+         new LayoutOptionDialogService(groupingService, vsObjectTreeService,
+                                       engine, vsTableService, coreLifecycleService);
+      doReturn(layoutOptionDialogService)
+         .when(spyContext)
+         .getSpringBean(LayoutOptionDialogService.class);
+
       controller = new LayoutOptionDialogController(runtimeViewsheetRef,
                                                     new LayoutOptionDialogServiceProxy());
    }
@@ -81,6 +95,7 @@ class LayoutOptionDialogControllerTest {
    CoreLifecycleService coreLifecycleService;
    @Mock VSAssemblyInfoHandler infoHandler;
    @Mock ViewsheetService viewsheetService;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 
    private LayoutOptionDialogController controller;
 }
