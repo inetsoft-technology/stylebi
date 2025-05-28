@@ -24,14 +24,14 @@ import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -48,6 +48,21 @@ public class TextPropertyDialogControllerTest {
 
    @BeforeEach
    public void setup() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+      TextPropertyDialogService textPropertyDialogService =
+         new TextPropertyDialogService(vsObjectPropertyService,
+                                       vsOutputService,
+                                       engine,
+                                       dialogService,
+                                       trapService,
+                                       infoHandler);
+      doReturn(textPropertyDialogService)
+         .when(spyContext)
+         .getSpringBean(TextPropertyDialogService.class);
       controller = new TextPropertyDialogController(runtimeViewsheetRef,
                                                     new TextPropertyDialogServiceProxy());
 
@@ -56,6 +71,11 @@ public class TextPropertyDialogControllerTest {
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(textAssembly);
       when(textAssembly.getVSAssemblyInfo()).thenReturn(textVSAssemblyInfoSpy);
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    @Test
@@ -98,6 +118,7 @@ public class TextPropertyDialogControllerTest {
    @Mock VSDialogService dialogService;
    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
    private TextPropertyDialogModel textPropertyDialogModel;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 
    private TextPropertyDialogController controller;
 }
