@@ -319,6 +319,7 @@ public class RepositoryTreeSearchController {
          .addAllChildren(folderNodes)
          .addAllChildren(fileNodes)
          .leaf(false)
+         .expanded(true)
          .build();
    }
 
