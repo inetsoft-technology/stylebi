@@ -246,13 +246,11 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     *         otherwise.
     */
    public boolean equals(Object another) {
-      if(!(another instanceof Principal)) {
+      if(!(another instanceof Principal principal)) {
          return false;
       }
 
-      if(another instanceof XPrincipal) {
-         XPrincipal p = (XPrincipal) another;
-
+      if(another instanceof XPrincipal p) {
          if(Identity.UNKNOWN_USER.equals(name)) {
             return Tool.equals(p.getName(), name) &&
                Tool.equals(p.roles, roles) &&
@@ -260,9 +258,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
          }
       }
 
-      String otherName = (another instanceof XPrincipal) ?
-         ((XPrincipal) another).name : ((Principal) another).getName();
-      return Objects.equals(name, otherName);
+      return Objects.equals(getName(), principal.getName());
    }
 
    /**

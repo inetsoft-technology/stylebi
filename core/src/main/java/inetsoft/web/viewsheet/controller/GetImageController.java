@@ -124,9 +124,8 @@ public class GetImageController {
       HttpServletResponse response) throws Exception
    {
       vid = Tool.byteDecode(vid);
-      AssemblyImageService.ImageRenderResult result = imageServiceProxy.processGetAssemblyImage(vid, aid, width, height,
-                                                                                                0, 0, null, 0, 0, 0,
-                                                                                                principal, true, false);
+      AssemblyImageService.ImageRenderResult result = imageServiceProxy.processGetAssemblyImage(
+         vid, aid, width, height, 0, 0, null, 0, 0, 0, principal, true, false);
       processImageRenderResult(result, request, response);
    }
 

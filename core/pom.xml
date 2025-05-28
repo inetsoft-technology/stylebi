@@ -278,6 +278,12 @@
     </dependency>
 
     <dependency>
+      <groupId>org.apache.ignite</groupId>
+      <artifactId>ignite-slf4j</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
       <groupId>args4j</groupId>
       <artifactId>args4j</artifactId>
       <scope>compile</scope>

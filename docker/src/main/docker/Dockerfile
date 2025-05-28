@@ -23,7 +23,8 @@ ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX
 ENV JAVA_LOCALE_OPTS='-Duser.language=en -Duser.country=US -Djava.locale.providers=COMPAT,SPI'
 ENV JAVA_CODECACHE_OPTS='-XX:ReservedCodeCacheSize=100m -XX:+UseCodeCacheFlushing'
 ENV JAVA_NETWORK_OPTS='-Djava.net.preferIPv4Stack=true'
-ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs'
+ENV JAVA_DEBUG_OPTS=''
+ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS $JAVA_DEBUG_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs -DIGNITE_NO_ASCII=true -DIGNITE_QUIET=true -DIGNITE_TO_STRING_INCLUDE_SENSITIVE=false -DIGNITE_PERFORMANCE_SUGGESTIONS_DISABLED=true'
 ENV JAVA_CLASSPATH=''
 ENV INETSOFT_SERVER_MAIN='inetsoft.web.InetsoftApplication'
 

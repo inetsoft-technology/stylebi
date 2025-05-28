@@ -70,7 +70,13 @@ public class ServiceProxyContext {
          Message<?> message = messageAttrs.getMessage();
 
          if(message != null) {
-            this.messageId = message.getHeaders().getId();
+            UUID messageId = message.getHeaders().getId();
+
+            if(messageId == null) {
+               messageId = MessageHeaders.ID_VALUE_NONE;
+            }
+
+            this.messageId = messageId;
             this.messageTimestamp = message.getHeaders().getTimestamp();
             this.messageHeaders = new HashMap<>();
             filterAttributes(message.getHeaders(), this.messageHeaders);
@@ -139,7 +145,6 @@ public class ServiceProxyContext {
       }
    }
 
-   @SuppressWarnings("JavaReflectionMemberAccess")
    public void preprocess() {
       if(contextPrincipal != null) {
          ThreadContext.setContextPrincipal(contextPrincipal);
@@ -156,7 +161,7 @@ public class ServiceProxyContext {
 
          try {
             Constructor<MessageHeaders> cstr =
-               MessageHeaders.class.getConstructor(Map.class, UUID.class, Long.class);
+               MessageHeaders.class.getDeclaredConstructor(Map.class, UUID.class, Long.class);
             cstr.setAccessible(true);
             headers = cstr.newInstance(messageHeaders, messageId, messageTimestamp);
          }

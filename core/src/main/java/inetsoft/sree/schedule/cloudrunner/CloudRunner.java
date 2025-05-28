@@ -21,6 +21,7 @@ import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MessageListener;
+import inetsoft.sree.internal.cluster.ignite.IgniteUtils;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.IdentityID;
@@ -128,7 +129,7 @@ public class CloudRunner implements Callable<Integer> {
       ipFinder.setAddresses(Arrays.stream(clusterAddress.split(",")).toList());
       discoverySpi.setIpFinder(ipFinder);
       igniteConfig.setDiscoverySpi(discoverySpi);
-      SUtil.configBinaryTypes(igniteConfig);
+      IgniteUtils.configBinaryTypes(igniteConfig);
 
       try(Ignite ignite = Ignition.start(igniteConfig)) {
          System.out.println("Connected to the InetSoft cluster");

@@ -17,7 +17,6 @@
  */
 package inetsoft.sree;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.XPrincipal;

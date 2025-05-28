@@ -22,7 +22,6 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
-import org.apache.ignite.binary.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -77,7 +76,9 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
                      String defaultLocale = Catalog.getCatalog().getString("Default");
 
                      //overwrite default user locale with set organization locale
-                     if((locale == null || "".equals(locale) || defaultLocale.equals(locale)) && identity.getOrganizationID() != null) {
+                     if((locale == null || locale.isEmpty() || defaultLocale.equals(locale)) &&
+                        identity.getOrganizationID() != null)
+                     {
                         Organization userOrg = provider.getOrganization(identity.getOrganizationID());
 
                         if(userOrg.getLocale() != null && !"".equals(userOrg.getLocale())) {
@@ -362,7 +363,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       // @by billh, please refer to bug bug1269875133083
       String[] groups = getGroups();
       IdentityID[] roles = getRoles();
-      String org = getOrgId();
       boolean existing = groups != null && groups.length > 0;
 
       if(!existing) {
@@ -402,11 +402,10 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
          return true;
       }
 
-      if(!(another instanceof SRPrincipal)) {
+      if(!(another instanceof SRPrincipal that)) {
          return false;
       }
 
-      SRPrincipal that = (SRPrincipal) another;
       boolean this_fake = "true".equals(getProperty("__FAKE__"));
       boolean that_fake = "true".equals(that.getProperty("__FAKE__"));
 
@@ -852,12 +851,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
    }
 
    private void writeStringExternal(String s, ObjectOutput out) throws IOException {
-      if(s == null) {
-         out.writeUTF("__EXT_NULL_STR__");
-      }
-      else {
-         out.writeUTF(s);
-      }
+      out.writeUTF(Objects.requireNonNullElse(s, "__EXT_NULL_STR__"));
    }
 
    @Override
@@ -920,6 +914,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
    }
 
    // for backward compatibility
+   @Serial
    private static final long serialVersionUID = 329619388094919499L;
    private static final char SEP = ';';
    private static final char SEP2 = '^';
@@ -931,7 +926,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
    private Date age;
    private long accessed; // last access timestamp
    // machine this principal object is created
-   private String host = null;
+   private String host;
    private transient Locale locale = null;
    private transient WeakReference<Object> sref = null;
 
