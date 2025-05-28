@@ -304,24 +304,27 @@ export class HyperlinkDialog implements OnInit {
          }
       }
 
+      const { fields, ...modelClone } = this.model;
+      const model: HyperlinkDialogModel = { ...modelClone, fields: [] };
+
       // Check trap
       const trapInfo = new TrapInfo(CHECK_TRAP_REST_URI, this.objectName, this.runtimeId,
                                     this.model);
 
       this.trapService.checkTrap(trapInfo, () => {
          if(commit) {
-            this.onCommit.emit(this.model);
+            this.onCommit.emit(model);
          }
          else {
-            this.onApply.emit({collapse: collapse, result: this.model});
+            this.onApply.emit({collapse: collapse, result: model});
          }
       }, () => {
       }, () => {
          if(commit) {
-            this.onCommit.emit(this.model);
+            this.onCommit.emit(model);
          }
          else {
-            this.onApply.emit({collapse: collapse, result: this.model});
+            this.onApply.emit({collapse: collapse, result: model});
          }
       });
    }
