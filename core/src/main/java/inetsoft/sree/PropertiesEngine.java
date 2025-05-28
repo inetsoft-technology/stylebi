@@ -332,11 +332,16 @@ public class PropertiesEngine {
       XPrincipal principal = (XPrincipal) ThreadContext.getPrincipal();
       principal = principal == null ? (XPrincipal) ThreadContext.getContextPrincipal() : principal;
       String orgID;
+
       if(principal == null) {
          orgID = null;
       }
       else {
-         orgID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase();
+         orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(orgID != null) {
+            orgID = orgID.toLowerCase();
+         }
       }
 
       List<String> excludedProps = Arrays.asList(
