@@ -720,6 +720,7 @@ public class VSExportService {
                exportBox =
                   new ViewsheetSandbox(cviewsheet, vmode, rbox.getUser(), rbox.getAssetEntry());
                exportBox.prepareMVCreation();
+               exportBox.getScope().prepareVariables(rbox.getVariableTable());
 
                for(int i = 0; exportBox != null && i < assemblies.length; i++) {
                   VSAssembly assembly = (VSAssembly) assemblies[i];

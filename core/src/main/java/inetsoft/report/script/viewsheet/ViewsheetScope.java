@@ -128,6 +128,10 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
       }
    }
 
+   public void prepareVariables(VariableTable vtable) {
+      setVariableTable(vtable);
+   }
+
    /**
     * Execute a query.
     * @param name query name.
