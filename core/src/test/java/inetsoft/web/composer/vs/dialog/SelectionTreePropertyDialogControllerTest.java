@@ -23,6 +23,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.SelectionTreeVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.SelectionTreePropertyDialogModel;
@@ -30,8 +31,7 @@ import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -42,16 +42,39 @@ import java.security.Principal;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
 class SelectionTreePropertyDialogControllerTest {
    @BeforeEach
    void setup(){
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+      SelectionTreePropertyDialogService selectionTreePropertyDialogService =
+         new SelectionTreePropertyDialogService(
+            vsObjectPropertyService,
+            vsOutputService,
+            engine,
+            trapService,
+            dialogService,
+            vsSelectionService,
+            selectionDialogService,
+            assemblyInfoHandler,
+            dataRefService);
+      doReturn(selectionTreePropertyDialogService)
+         .when(spyContext)
+         .getSpringBean(SelectionTreePropertyDialogService.class);
       controller = new SelectionTreePropertyDialogController(runtimeViewsheetRef,
                                                              new SelectionTreePropertyDialogServiceProxy());
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    @Test
@@ -65,7 +88,10 @@ class SelectionTreePropertyDialogControllerTest {
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(selectionTreeAssembly);
-      when(selectionTreeAssembly.getVSAssemblyInfo()).thenReturn(new SelectionTreeVSAssemblyInfo());
+      doReturn(new SelectionTreeVSAssemblyInfo())
+         .when(selectionTreeAssembly)
+         .getVSAssemblyInfo();
+
       when(viewsheet.getViewsheet().getPixelSize()).thenReturn(size);
       when(selectionTreePropertyDialogModel.getSelectionTreePaneModel().getMode()).thenReturn(2);
 
@@ -105,6 +131,7 @@ class SelectionTreePropertyDialogControllerTest {
    private Viewsheet viewsheet;
    @Mock (answer = Answers.RETURNS_DEEP_STUBS)
    private SelectionTreePropertyDialogModel selectionTreePropertyDialogModel;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 
    private SelectionTreePropertyDialogController controller;
 }
