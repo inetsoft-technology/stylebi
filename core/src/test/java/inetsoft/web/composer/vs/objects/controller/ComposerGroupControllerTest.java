@@ -22,15 +22,15 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -47,11 +47,18 @@ class ComposerGroupControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+
       controller = new ComposerGroupController(runtimeViewsheetRef, new ComposerGroupServiceProxy());
       service = new ComposerGroupService(coreLifecycleService,
                                           viewsheetService, vsObjectTreeService,
                                           vsObjectPropertyService, vsCompositionService,
                                           vsLayoutService);
+      doReturn(service).when(spyContext).getSpringBean(ComposerGroupService.class);
       assemblies[0] = tab;
       assemblies[1] = image;
       assemblies[2] = calendar;
@@ -65,6 +72,11 @@ class ComposerGroupControllerTest {
       when(group.getAssemblies()).thenReturn(groupAssemblies);
       when(viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal)).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    @Test
@@ -120,6 +132,7 @@ class ComposerGroupControllerTest {
    @Mock Principal principal;
    @Mock CommandDispatcher commandDispatcher;
    @Mock RuntimeViewsheet rvs;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
    String[] tabAssemblies = new String[2];
    String[] groupAssemblies = new String[3];
    Assembly[] assemblies = new Assembly[4];
