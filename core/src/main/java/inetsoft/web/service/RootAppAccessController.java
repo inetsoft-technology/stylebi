@@ -21,9 +21,8 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletException;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetRepository;
-import inetsoft.util.Tool;
 import inetsoft.util.data.CommonKVModel;
 import inetsoft.web.portal.model.LicenseInfo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +30,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
+import java.util.*;
 
 @RestController
 public class RootAppAccessController {
@@ -56,6 +56,19 @@ public class RootAppAccessController {
    public CommonKVModel getOrgInfo(@SuppressWarnings("unused") Principal principal) {
       return new CommonKVModel(OrganizationManager.getInstance().getCurrentOrgID(),
                                OrganizationManager.getCurrentOrgName());
+   }
+
+   @GetMapping("/api/organizations")
+   public List<String> getAllOrganizations(@SuppressWarnings("unused") Principal principal) {
+      List<String> list = new ArrayList<>();
+
+      if(!SUtil.isMultiTenant()) {
+         return list;
+      }
+
+      String[] names = SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames();
+
+     return Arrays.asList(names);
    }
 
    /**

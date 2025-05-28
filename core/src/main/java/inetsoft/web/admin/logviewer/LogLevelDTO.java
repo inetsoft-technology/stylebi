@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.util.log.LogLevelSetting;
 import org.immutables.value.Value;
+import javax.annotation.Nullable;
 
 @Value.Immutable
 @JsonSerialize(as = ImmutableLogLevelDTO.class)
@@ -29,6 +30,9 @@ public interface LogLevelDTO {
    String context();
 
    String name();
+
+   @Nullable
+   String orgName();
 
    String level();
 
@@ -40,6 +44,7 @@ public interface LogLevelDTO {
       public LogLevelDTO from(LogLevelSetting setting) {
          return context(setting.getContext().name())
             .name(setting.getName())
+            .orgName(setting.getOrgName())
             .level(setting.getLevel().level())
             .build();
       }

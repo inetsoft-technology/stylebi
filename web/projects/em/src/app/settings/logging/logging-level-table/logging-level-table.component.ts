@@ -31,18 +31,35 @@ import { AddLoggingLevelDialogComponent } from "../add-logging-level-dialog/add-
 export class LoggingLevelTableComponent {
    @Input() loggingLevels: LogLevelDTO[] = [];
    @Input() enterprise: boolean;
+   @Input() isMultiTenant: boolean;
+   @Input() organizations: string[] = [];
    @Output() loggingLevelsChange = new EventEmitter<LogLevelDTO[]>();
-   tableInfo: TableInfo = {
-      title: "_#(js:Custom Log Levels)",
-      selectionEnabled: true,
-      columns: [
-         {header: "_#(js:Type)", field: "context"},
-         {header: "_#(js:Name)", field: "name"},
-         {header: "_#(js:Level)", field: "level"}
-      ],
-      actions: [TableAction.EDIT, TableAction.ADD, TableAction.DELETE]
-   };
 
+   get tableInfo(): TableInfo {
+      return {
+         title: "_#(js:Custom Log Levels)",
+         selectionEnabled: true,
+         columns: this.getTableColumns(),
+         actions: [TableAction.EDIT, TableAction.ADD, TableAction.DELETE]
+      };
+   }
+   private getTableColumns() {
+      if(!this.enterprise || !this.isMultiTenant) {
+         return [
+            {header: "_#(js:Type)", field: "context"},
+            {header: "_#(js:Name)", field: "name"},
+            {header: "_#(js:Level)", field: "level"}
+         ];
+      }
+      else {
+         return [
+            {header: "_#(js:Type)", field: "context"},
+            {header: "_#(js:Name)", field: "name"},
+            {header: "_#(js:Organization)", field: "orgName"},
+            {header: "_#(js:Level)", field: "level"}
+         ];
+      }
+   }
    constructor(private dialog: MatDialog) {
    }
 
@@ -55,6 +72,8 @@ export class LoggingLevelTableComponent {
             index: index,
             loggingLevels: this.loggingLevels,
             enterprise: this.enterprise,
+            isMultiTenant: this.isMultiTenant,
+            organizations: this.organizations
          }
       });
 
