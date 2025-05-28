@@ -169,7 +169,8 @@ public class LogSettingService {
             }
 
             if(!found) {
-               String name = fixLogName(level, securityProvider);
+               String name = fixLogName(level.getName(), level.getOrgName(),
+                                        level.getContext(), securityProvider);
                SreeEnv.setLogLevel(level.getContext(), name, LogLevel.OFF);
             }
          }
@@ -177,7 +178,8 @@ public class LogSettingService {
          if(logLevels != null) {
             for(LogLevelDTO logLevel : logLevels) {
                LogContext context = LogContext.valueOf(logLevel.context());
-               String name = fixLogName(logLevel, securityProvider);
+               String name = fixLogName(logLevel.name(), logLevel.orgName(),
+                                        LogContext.valueOf(logLevel.context()), securityProvider);
                LogLevel level = LogManager.getInstance().parseLevel(logLevel.level());
                SreeEnv.setLogLevel(context, name, level);
             }
@@ -196,34 +198,12 @@ public class LogSettingService {
       }
    }
 
-   private String fixLogName(LogLevelSetting level, SecurityProvider provider) {
-      String name = level.getName();
-      String orgName = level.getOrgName();
-      String orgId = null;
-
-      if(orgName != null) {
-         orgId = provider.getOrgIdFromName(orgName);
-      }
-
-      if(Tool.isEmptyString(orgId) && level.getContext() != LogContext.ORGANIZATION &&
-         level.getContext() != LogContext.CATEGORY)
-      {
-         orgId = Organization.getDefaultOrganizationID();
-      }
-
-      return orgId == null ? name : Tool.buildString(name, "^", orgId);
-   }
-
-   private String fixLogName(LogLevelDTO level, SecurityProvider provider) {
-      String name = level.name();
-      String orgName = level.orgName();
+   private String fixLogName(String name, String orgName, LogContext context, SecurityProvider provider) {
       String orgId = null;
 
       if(!Tool.isEmptyString(orgName)) {
          orgId = provider.getOrgIdFromName(orgName);
       }
-
-      LogContext context = LogContext.valueOf(level.context());
 
       if(Tool.isEmptyString(orgId) && context != LogContext.ORGANIZATION &&
          context != LogContext.CATEGORY)
