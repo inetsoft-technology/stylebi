@@ -19,6 +19,7 @@ package inetsoft.web.admin.logviewer;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
 import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -128,6 +129,7 @@ public class LogSettingService {
       ActionRecord actionRecord =
          SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_EDIT,
                                "Logging-Log Configuration", ActionRecord.OBJECT_TYPE_EMPROPERTY);
+      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
 
       try {
          String provider = model.provider();
@@ -157,7 +159,8 @@ public class LogSettingService {
             if(logLevels != null) {
                for(LogLevelDTO logLevel : logLevels) {
                   if(logLevel.context().equals(level.getContext().name()) &&
-                     logLevel.name().equals(level.getName()))
+                     logLevel.name().equals(level.getName()) &&
+                     Tool.equals(logLevel.orgName(), level.getOrgName()))
                   {
                      found = true;
                      break;
@@ -166,15 +169,15 @@ public class LogSettingService {
             }
 
             if(!found) {
-               SreeEnv.setLogLevel(
-                  level.getContext(), level.getName(), LogLevel.OFF);
+               String name = fixLogName(level, securityProvider);
+               SreeEnv.setLogLevel(level.getContext(), name, LogLevel.OFF);
             }
          }
 
          if(logLevels != null) {
             for(LogLevelDTO logLevel : logLevels) {
                LogContext context = LogContext.valueOf(logLevel.context());
-               String name = logLevel.name();
+               String name = fixLogName(logLevel, securityProvider);
                LogLevel level = LogManager.getInstance().parseLevel(logLevel.level());
                SreeEnv.setLogLevel(context, name, level);
             }
@@ -191,6 +194,44 @@ public class LogSettingService {
       finally {
          Audit.getInstance().auditAction(actionRecord, principal);
       }
+   }
+
+   private String fixLogName(LogLevelSetting level, SecurityProvider provider) {
+      String name = level.getName();
+      String orgName = level.getOrgName();
+      String orgId = null;
+
+      if(orgName != null) {
+         orgId = provider.getOrgIdFromName(orgName);
+      }
+
+      if(Tool.isEmptyString(orgId) && level.getContext() != LogContext.ORGANIZATION &&
+         level.getContext() != LogContext.CATEGORY)
+      {
+         orgId = Organization.getDefaultOrganizationID();
+      }
+
+      return orgId == null ? name : Tool.buildString(name, "^", orgId);
+   }
+
+   private String fixLogName(LogLevelDTO level, SecurityProvider provider) {
+      String name = level.name();
+      String orgName = level.orgName();
+      String orgId = null;
+
+      if(!Tool.isEmptyString(orgName)) {
+         orgId = provider.getOrgIdFromName(orgName);
+      }
+
+      LogContext context = LogContext.valueOf(level.context());
+
+      if(Tool.isEmptyString(orgId) && context != LogContext.ORGANIZATION &&
+         context != LogContext.CATEGORY)
+      {
+         orgId = Organization.getDefaultOrganizationID();
+      }
+
+      return orgId == null ? name : Tool.buildString(name, "^", orgId);
    }
 
    private void setFileSettings(FileLogSettingsModel model) {

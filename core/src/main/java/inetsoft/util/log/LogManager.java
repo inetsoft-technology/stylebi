@@ -18,7 +18,10 @@
 package inetsoft.util.log;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.util.*;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.*;
@@ -200,16 +203,35 @@ public final class LogManager implements AutoCloseable, MessageListener {
     */
    public List<LogLevelSetting> getContextLevels() {
       List<LogLevelSetting> result = new ArrayList<>();
+      final SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
       for(Map.Entry<LogContext, Map<String, LogLevel>> entry : contextLevels.entrySet()) {
          entry.getValue().entrySet().stream()
             .filter(e -> entry.getKey() != LogContext.CATEGORY || !e.getKey().equals("inetsoft"))
             .filter(e -> e.getValue() != LogLevel.OFF)
-            .map(e -> new LogLevelSetting(entry.getKey(), e.getKey(), e.getValue()))
+            .map(e -> buildLogLevelSetting(entry.getKey(), e, provider))
             .forEachOrdered(result::add);
       }
 
       return result;
+   }
+
+   private LogLevelSetting buildLogLevelSetting(LogContext context, Map.Entry<String, LogLevel> entry,
+                                                SecurityProvider provider)
+   {
+      String name = entry.getKey();
+      LogLevel level = entry.getValue();
+      String orgId = null;
+      String orgName = null;
+      int idx = name.lastIndexOf("^");
+
+      if(idx != -1) {
+         orgId = name.substring(idx + 1);
+         orgName = provider.getOrgNameFromID(orgId);
+         name = name.substring(0, idx);
+      }
+
+      return new LogLevelSetting(context, name, orgName, level);
    }
 
    public boolean isDebugEnabled(String name) {

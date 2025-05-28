@@ -117,6 +117,8 @@
       </mat-form-field>
       <em-logging-level-table [loggingLevels]="getLevels(model.logLevels)"
                               [enterprise]="enterprise"
+                              [isMultiTenant]="isMultiTenant"
+                              [organizations]="organizations"
                               (loggingLevelsChange)="changeLoggingLevels($event)">
       </em-logging-level-table>
     </ng-container>
