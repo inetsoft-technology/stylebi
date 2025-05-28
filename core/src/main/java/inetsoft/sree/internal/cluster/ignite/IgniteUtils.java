@@ -18,37 +18,11 @@
 
 package inetsoft.sree.internal.cluster.ignite;
 
-import inetsoft.sree.internal.cluster.ignite.serializer.Object2ObjectOpenHashMapSerializer;
-import inetsoft.sree.internal.cluster.ignite.serializer.RectangleSerializer;
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import org.apache.ignite.binary.BinaryTypeConfiguration;
-import org.apache.ignite.configuration.BinaryConfiguration;
+import inetsoft.sree.internal.cluster.ignite.serializer.BinarySerializerFactory;
 import org.apache.ignite.configuration.IgniteConfiguration;
-
-import java.awt.*;
-import java.util.ArrayList;
-import java.util.List;
 
 public class IgniteUtils {
    public static void configBinaryTypes(IgniteConfiguration config) {
-      BinaryConfiguration binaryCfg = new BinaryConfiguration();
-      binaryCfg.setTypeConfigurations(getBinaryTypeConfigurations());
-      config.setBinaryConfiguration(binaryCfg);
-   }
-
-   private static List<BinaryTypeConfiguration> getBinaryTypeConfigurations() {
-      List<BinaryTypeConfiguration> binaryTypeConfigurations = new ArrayList<>();
-
-      BinaryTypeConfiguration typeCfg = new BinaryTypeConfiguration();
-      typeCfg.setTypeName(Object2ObjectOpenHashMap.class.getName());
-      typeCfg.setSerializer(new Object2ObjectOpenHashMapSerializer());
-      binaryTypeConfigurations.add(typeCfg);
-
-      typeCfg = new BinaryTypeConfiguration();
-      typeCfg.setTypeName(Rectangle.class.getName());
-      typeCfg.setSerializer(new RectangleSerializer());
-      binaryTypeConfigurations.add(typeCfg);
-
-      return binaryTypeConfigurations;
+      BinarySerializerFactory.registerSerializers(config);
    }
 }
