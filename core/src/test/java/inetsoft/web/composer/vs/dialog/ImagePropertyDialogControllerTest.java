@@ -30,22 +30,21 @@ import inetsoft.uql.viewsheet.ImageVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.composer.vs.controller.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.Mockito;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -65,6 +64,12 @@ class ImagePropertyDialogControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+
       trapService = new VSTrapService();
       coreLifecycleService = new CoreLifecycleService(objectModelService, viewsheetEngine,
                                                   vsLayoutService, parameterService);
@@ -76,8 +81,27 @@ class ImagePropertyDialogControllerTest {
                                                                 temporaryInfoService,
                                                                 vsCompositionService,
                                                                 sharedFilterService));
+
+      ImagePreviewPaneService imagePreviewPaneService =
+         new ImagePreviewPaneService(viewsheetService, vsObjectService);
+      ImagePropertyDialogService imagePropertyDialogService =
+         new ImagePropertyDialogService(vsObjectPropertyService,
+                                        vsOutputService,
+                                        viewsheetEngine,
+                                        imagePreviewPaneService,
+                                        dialogService,
+                                        trapService,
+                                        infoHandler);
+      doReturn(imagePropertyDialogService)
+         .when(spyContext)
+         .getSpringBean(ImagePropertyDialogService.class);
       controller = new ImagePropertyDialogController(runtimeViewsheetRef,
                                                      new ImagePropertyDialogServiceProxy());
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    @Test
@@ -135,6 +159,8 @@ class ImagePropertyDialogControllerTest {
    @Mock ParameterService parameterService;
    @Mock VSCompositionService vsCompositionService;
    @Mock SharedFilterService sharedFilterService;
+   @Mock VSObjectService vsObjectService;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 
    private CoreLifecycleService coreLifecycleService;
    @Mock VSColumnHandler vsColumnHandler;
