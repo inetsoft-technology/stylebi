@@ -602,7 +602,8 @@ public class ComposerBindingController {
          }
       }
       else if(assembly instanceof CalendarVSAssembly && dtype != null &&
-              ("timeInstant".equals(dtype) || "date".equals(dtype)))
+         ("timeInstant".equals(dtype) || "date".equals(dtype)) &&
+         !table.startsWith(Assembly.CUBE_VS))
       {
          //noinspection ConstantConditions
          CalendarVSAssemblyInfo assemblyinfo = (CalendarVSAssemblyInfo) info;
