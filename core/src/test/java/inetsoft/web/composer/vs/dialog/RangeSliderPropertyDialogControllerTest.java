@@ -23,14 +23,14 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -41,14 +41,30 @@ import java.util.Collections;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @SreeHome()
 @ExtendWith(MockitoExtension.class)
 class RangeSliderPropertyDialogControllerTest {
    @BeforeEach
    void setup() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+      RangeSliderPropertyDialogService rangeSliderPropertyDialogService =
+         new RangeSliderPropertyDialogService(
+            vsObjectPropertyService,
+            vsOutputService,
+            engine,
+            dialogService,
+            trapService,
+            selectionDialogService,
+            assemblyInfoHandler);
+      doReturn(rangeSliderPropertyDialogService)
+         .when(spyContext)
+         .getSpringBean(RangeSliderPropertyDialogService.class);
       controller = new RangeSliderPropertyDialogController(runtimeViewsheetRef,
                                                            new RangeSliderPropertyDialogServiceProxy());
 
@@ -57,6 +73,11 @@ class RangeSliderPropertyDialogControllerTest {
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssembly(anyString())).thenReturn(timeSliderAssembly);
       when(timeSliderAssembly.getVSAssemblyInfo()).thenReturn(timeSliderVSAssemblyInfoSpy);
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    @Test
@@ -102,6 +123,7 @@ class RangeSliderPropertyDialogControllerTest {
    VSAssemblyInfoHandler assemblyInfoHandler;
    @Mock (answer = Answers.RETURNS_DEEP_STUBS)
    private RangeSliderPropertyDialogModel rangeSliderPropertyDialogModel;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 
    private RangeSliderPropertyDialogController controller;
 
