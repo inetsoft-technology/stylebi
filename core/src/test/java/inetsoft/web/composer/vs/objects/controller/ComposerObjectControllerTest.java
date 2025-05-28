@@ -22,6 +22,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
@@ -31,7 +32,7 @@ import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
@@ -43,6 +44,15 @@ import static org.mockito.Mockito.*;
 class ComposerObjectControllerTest {
    @BeforeEach
    void setup() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+      ComposerObjectService composerObjectService = new ComposerObjectService(vsObjectTreeService, coreLifecycleService,
+                                                                              engine, assemblyHandler, objectModelService,
+                                                                              vsObjectService, vsCompositionService);
+      doReturn(composerObjectService).when(spyContext).getSpringBean(ComposerObjectService.class);
       controller = new ComposerObjectController(runtimeViewsheetRef, new ComposerObjectServiceProxy());
    }
 
@@ -68,6 +78,7 @@ class ComposerObjectControllerTest {
    @Mock LockVSObjectEvent event;
    @Mock Principal principal;
    @Mock CommandDispatcher dispatcher;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
    @Mock VSAssemblyInfoHandler assemblyHandler;
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSObjectService vsObjectService;
