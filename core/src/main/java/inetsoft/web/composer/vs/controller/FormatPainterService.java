@@ -2030,7 +2030,7 @@ public class FormatPainterService {
 
 
 
-   private static class RegionInfo {
+   private static final class RegionInfo {
       public RegionInfo(CompositeTextFormat format, ChartArea area) {
          this.format = format;
          this.area = area;

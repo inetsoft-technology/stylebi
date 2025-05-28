@@ -199,11 +199,11 @@ public class WSEditTableDataService extends WorksheetControllerService {
    }
 
 
-   private class WSEditTableDataQueue<T> extends ConcurrentLinkedQueue<T> {
+   private static final class WSEditTableDataQueue<T> extends ConcurrentLinkedQueue<T> {
       WSEditTableDataEvent lastSuccesfulEvent;
    }
 
-   private class WSEditTableDataKeyTuple {
+   private static final class WSEditTableDataKeyTuple {
       private String runtimeId;
       private String tableName;
 

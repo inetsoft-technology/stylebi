@@ -415,7 +415,7 @@ public class InnerJoinService extends WorksheetControllerService {
       return refs;
    }
 
-   private class IncompatibleDataTypesException extends RuntimeException {
+   private static final class IncompatibleDataTypesException extends RuntimeException {
 
       public IncompatibleDataTypesException(String s) {
          super(s);
@@ -886,7 +886,7 @@ public class InnerJoinService extends WorksheetControllerService {
       operator.setRightAttribute(leftAttribute);
    }
 
-   private static class JoinMetaInfo {
+   private static final class JoinMetaInfo {
       private JoinMetaInfo(RelationalJoinTableAssembly joinTable, boolean newTable) {
          this(joinTable, newTable, null, null);
       }

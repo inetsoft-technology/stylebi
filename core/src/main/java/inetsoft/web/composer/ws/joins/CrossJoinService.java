@@ -265,7 +265,7 @@ public class CrossJoinService extends WorksheetControllerService {
       WorksheetEventUtil.refreshAssembly(sheet, tableName, true, commandDispatcher, principal);
    }
 
-   protected static class CrossJoinMetaInfo {
+   protected static final class CrossJoinMetaInfo {
       private CrossJoinMetaInfo(RelationalJoinTableAssembly joinTable, boolean newTable) {
          this.joinTable = joinTable;
          this.newTable = newTable;
