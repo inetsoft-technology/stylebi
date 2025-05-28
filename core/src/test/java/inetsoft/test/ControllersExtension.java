@@ -154,8 +154,9 @@ public class ControllersExtension extends MockMessageExtension {
          dataRefModelFactoryService, vsCompositionService, parameterService);
       viewsheetController = new ViewsheetController(runtimeViewsheetRef, new ViewsheetControllerServiceProxy());
       licenseService = new LicenseService();
-      openViewsheetController = new OpenViewsheetController(runtimeViewsheetRef, runtimeViewsheetManager,
-                                                            vsLifecycleService, licenseService, new OpenViewsheetServiceProxy());
+      openViewsheetController = new OpenViewsheetController(
+         runtimeViewsheetRef, runtimeViewsheetManager, vsLifecycleService, licenseService,
+         new OpenViewsheetServiceProxy(), viewsheetService);
       baseTableLoadDataController =
          new BaseTableLoadDataController(runtimeViewsheetRef, tableLoadDataServiceProxy);
       selectionService = new VSSelectionService(coreLifecycleService, viewsheetService,

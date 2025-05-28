@@ -49,28 +49,6 @@ public class OpenViewsheetService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public ViewsheetRouteDataModel getRouteData(@ClusterProxyKey String identifier,
-                                               Principal principal) throws Exception
-   {
-      boolean scaleToScreen = false;
-      boolean fitToWidth = false;
-      AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-      Viewsheet vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
-         entry, principal, false, AssetContent.CONTEXT);
-
-      if(vs != null) {
-         ViewsheetInfo info = vs.getViewsheetInfo();
-         scaleToScreen = info.isScaleToScreen();
-         fitToWidth = info.isFitToWidth();
-      }
-
-      return ViewsheetRouteDataModel.builder()
-         .scaleToScreen(scaleToScreen)
-         .fitToWidth(fitToWidth)
-         .build();
-   }
-
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void sendPopulateObjectTreeCommand(@ClusterProxyKey String runtimeId, String eventEntryId,
                              CommandDispatcher commandDispatcher, Principal principal) throws Exception {
       AssetEntry entry = AssetEntry.createAssetEntry(eventEntryId);

@@ -17,7 +17,6 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.util.*;
@@ -31,8 +30,10 @@ import org.apache.ignite.cluster.ClusterGroup;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.*;
 import org.apache.ignite.events.*;
+import org.apache.ignite.failure.StopNodeFailureHandler;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.lang.*;
+import org.apache.ignite.logger.slf4j.Slf4jLogger;
 import org.apache.ignite.services.ServiceConfiguration;
 import org.apache.ignite.services.ServiceDescriptor;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
@@ -48,7 +49,6 @@ import org.slf4j.LoggerFactory;
 import javax.cache.Cache;
 import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
-import java.lang.invoke.MethodHandles;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -96,6 +96,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       IgniteConfiguration config = new IgniteConfiguration();
       config.setMetricsLogFrequency(0);
       config.setPeerClassLoadingEnabled(true);
+      config.setGridLogger(new Slf4jLogger());
+
+      if("true".equals(System.getProperty("inetsoftStorageInitializing"))) {
+         config.setFailureHandler(new StopNodeFailureHandler());
+      }
 
       // atomic data structures like distributed long
       AtomicConfiguration atomicConfiguration = new AtomicConfiguration();
@@ -240,7 +245,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       config.setExecutorConfiguration(executePools);
-      SUtil.configBinaryTypes(config);
+      IgniteUtils.configBinaryTypes(config);
 
       return config;
    }
@@ -267,8 +272,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          LOG.error("Failed to get the DiscoveryFinderFactory", ex);
       }
 
-      LOG.error("Failed to get the DiscoveryFinderFactory with type:" + type);
-
+      LOG.error("Failed to get the DiscoveryFinderFactory with type: {}", type);
       return null;
    }
 
@@ -917,17 +921,40 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    public <T> T affinityCall(String cache, String key, AffinityCallable<T> job) {
       String id = UUID.randomUUID().toString();
       ClusterNode node = ignite.affinity(cache).mapKeyToNode(key);
+      LOG.debug("AFFINITY CALL START: cache={}, key={}, node={}, id={}", cache, key, node, id);
+
+      if(Objects.equals(node, ignite.cluster().localNode())) {
+         LOG.debug("AFFINITY CALL DIRECT: cache={}, key={}, node={}, id={}", cache, key, node, id);
+
+         try {
+            return job.call();
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
+      }
+
       AffinityCallRequest<T> request = new AffinityCallRequest<>(
          id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
       CompletableFuture<T> future = new CompletableFuture<>();
       affinityFutures.put(id, future);
-      ignite.message().sendOrdered(node, request, 0);
 
       try {
-         return future.get();
+         LOG.debug("AFFINITY CALL SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
+         ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to send affinity call request: cache={}, key={}, node={}, id={}, exception={}", cache, key, node, id, e);
+      }
+
+      try {
+         return future.get(60L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          throw new RuntimeException(e);
+      }
+      finally {
+         LOG.debug("AFFINITY CALL COMPLETED: cache={}, key={}, node={}, id={}", cache, key, node, id);
       }
    }
 
@@ -941,18 +968,27 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       List<CompletableFuture<T>> futures = new ArrayList<>(nodes.size());
+      List<T> results = new ArrayList<>();
 
       for(ClusterNode node : nodes) {
-         String id = UUID.randomUUID().toString();
-         AffinityCallRequest<T> request = new AffinityCallRequest<>(
-            id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
-         CompletableFuture<T> future = new CompletableFuture<>();
-         affinityFutures.put(id, future);
-         futures.add(future);
-         ignite.message().sendOrdered(node, request, 0);
+         if(Objects.equals(ignite.cluster().localNode(), node)) {
+            try {
+               results.add(job.call());
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         }
+         else {
+            String id = UUID.randomUUID().toString();
+            AffinityCallRequest<T> request = new AffinityCallRequest<>(
+               id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+            CompletableFuture<T> future = new CompletableFuture<>();
+            affinityFutures.put(id, future);
+            futures.add(future);
+            ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+         }
       }
-
-      List<T> results = new ArrayList<>();
 
       for(CompletableFuture<T> future : futures) {
          try {
@@ -1463,20 +1499,25 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final String IGNITE_EXECUTE_POOL = "IGNITE_EXECUTE_POOL";
    private static final int IGNITE_EXECUTE_POOL_COUNT = 2;
 
-   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+   private static final Logger LOG = LoggerFactory.getLogger(IgniteCluster.class);
 
    private final class AffinityCallProcessor implements IgniteBiPredicate<UUID, Serializable> {
       @SuppressWarnings({ "rawtypes", "unchecked" })
       @Override
       public boolean apply(UUID uuid, Serializable message) {
+         LOG.debug("RECEIVED MESSAGE ON AFFINITY TOPIC: id={}, message={}", uuid, message);
          if(message instanceof AffinityCallRequest request) {
+            LOG.debug("RECEIVED AFFINITY REQUEST: {}", request);
             if(getNodeName(ignite.cluster().localNode()).equals(request.getRecipient())) {
+               LOG.debug("SUBMITTED AFFINITY REQUEST: {}", request);
                affinityExecutor.submit(new AffinityCallRequestTask(request));
             }
          }
          else if(message instanceof AffinityCallResponse response) {
+            LOG.debug("RECEIVED AFFINITY RESPONSE: {}", response);
             if(getNodeName(ignite.cluster().localNode()).equals(response.getRecipient())) {
                CompletableFuture future = affinityFutures.remove(response.getId());
+               LOG.debug("COMPLETING AFFINITY FUTURE: response={}, future={}", response, future);
 
                if(future != null) {
                   if(response.getError() != null) {
@@ -1517,6 +1558,16 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          return callable;
       }
 
+      @Override
+      public String toString() {
+         return "AffinityCallRequest{" +
+            "id='" + id + '\'' +
+            ", sender='" + sender + '\'' +
+            ", recipient='" + recipient + '\'' +
+            ", callable=" + callable +
+            '}';
+      }
+
       private final String id;
       private final String sender;
       private final String recipient;
@@ -1547,6 +1598,16 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          return error;
       }
 
+      @Override
+      public String toString() {
+         return "AffinityCallResponse{" +
+            "id='" + id + '\'' +
+            ", recipient='" + recipient + '\'' +
+            ", result=" + result +
+            ", error=" + error +
+            '}';
+      }
+
       private final String id;
       private final String recipient;
       private final T result;
@@ -1560,6 +1621,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       @Override
       public void run() {
+         LOG.debug("PROCESSING AFFINITY REQUEST: {}", request);
          T result = null;
          Throwable error = null;
 
@@ -1573,6 +1635,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          AffinityCallResponse<T> response =
             new AffinityCallResponse<>(request.getId(), request.getSender(), result, error);
          IgniteCluster cluster = (IgniteCluster) Cluster.getInstance();
+         LOG.debug("SENDING AFFINITY RESPONSE: {}", response);
          cluster.ignite.message().sendOrdered(AFFINITY_TOPIC, response, 0);
       }
 

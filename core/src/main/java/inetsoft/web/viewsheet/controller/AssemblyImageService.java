@@ -101,6 +101,20 @@ public class AssemblyImageService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ImageRenderResult processGetAssemblyImageInHostScope(@ClusterProxyKey String vid,
+                                                               String aid, double width,
+                                                               double height, double maxWidth,
+                                                               double maxHeight, String aname,
+                                                               int index, int row, int col,
+                                                               Principal principal, boolean svg,
+                                                               boolean export) throws Exception
+   {
+      return VSUtil.globalShareVsRunInHostScope(vid, principal, () -> processGetAssemblyImage(
+         vid, aid, width, height, maxWidth, maxHeight, aname, index, row, col, principal, svg,
+         export));
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public ImageRenderResult processGetAssemblyImage(@ClusterProxyKey String vid, String aid, double width, double height,
                                        double maxWidth, double maxHeight, String aname,
                                        int index, int row, int col, Principal principal,
@@ -1138,7 +1152,8 @@ public class AssemblyImageService {
    private final String EMPTY_IMAGE = "/inetsoft/report/images/emptyimage.gif";
    private final ViewsheetService viewsheetService;
 
-   public class ImageRenderResult implements Serializable {
+   public static final class ImageRenderResult implements Serializable {
+      @Serial
       private static final long serialVersionUID = 1L;
       private final boolean isPng;
       private final byte[] imageData;
@@ -1169,7 +1184,7 @@ public class AssemblyImageService {
       }
    }
 
-   public class SheetExportResult implements Serializable {
+   public static final class SheetExportResult implements Serializable {
       private final byte[] data;
       private final String fileName;
       private final String mime;

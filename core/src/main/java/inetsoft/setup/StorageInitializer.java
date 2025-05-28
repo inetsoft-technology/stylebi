@@ -17,14 +17,22 @@
  */
 package inetsoft.setup;
 
+import ch.qos.logback.classic.*;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.Appender;
+import ch.qos.logback.core.ConsoleAppender;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.LoadKeyValueTask;
-import inetsoft.util.HashedPassword;
-import inetsoft.util.PasswordEncryption;
+import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.SecretsConfig;
+import inetsoft.util.log.LogUtil;
+import inetsoft.util.log.logback.AuditLogFilter;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 import java.io.*;
@@ -81,12 +89,14 @@ public class StorageInitializer implements Callable<Integer> {
     * @param args the command line arguments.
     */
    public static void main(String[] args) {
+      System.setProperty("inetsoftStorageInitializing", "true");
       int exitCode = new CommandLine(new StorageInitializer()).execute(args);
       System.exit(exitCode);
    }
 
    @Override
    public Integer call() throws Exception {
+      initLogging();
       boolean initialized = isInitialized();
 
       if(initialized) {
@@ -99,7 +109,7 @@ public class StorageInitializer implements Callable<Integer> {
       List<SetupExtension> extensions = new ArrayList<>();
       ServiceLoader.load(SetupExtension.class).forEach(extensions::add);
       System.err.println("LOADED EXTENSIONS: " + extensions);
-      context = applyExtensions(context, extensions, (c, e) -> e.start(c));
+      context = applyExtensions(context, extensions, "start", (c, e) -> e.start(c));
       System.err.println("UPDATED CONTEXT: " + context);
 
       context = setProperties(context, extensions);
@@ -150,7 +160,7 @@ public class StorageInitializer implements Callable<Integer> {
          }
       }
 
-      return applyExtensions(context, extensions, (c, e) -> e.afterPropertiesSet(c));
+      return applyExtensions(context, extensions, "afterPropertiesSet", (c, e) -> e.afterPropertiesSet(c));
    }
 
    private SetupExtension.Context installPlugins(SetupExtension.Context context,
@@ -163,7 +173,7 @@ public class StorageInitializer implements Callable<Integer> {
          installPlugins(context.pluginsDirectory());
       }
 
-      return applyExtensions(context, extensions, (c, e) -> e.afterPluginsInstalled(c));
+      return applyExtensions(context, extensions, "afterPluginsInstalled", (c, e) -> e.afterPluginsInstalled(c));
    }
 
    private void installPlugins(File directory) throws Exception {
@@ -227,7 +237,7 @@ public class StorageInitializer implements Callable<Integer> {
          }
       }
 
-      return applyExtensions(context, extensions, (c, e) -> e.afterSecurityConfigured(c));
+      return applyExtensions(context, extensions, "afterSecurityConfigured", (c, e) -> e.afterSecurityConfigured(c));
    }
 
    private PasswordEncryption getPasswordEncryption() {
@@ -263,7 +273,7 @@ public class StorageInitializer implements Callable<Integer> {
          }
       }
 
-      return applyExtensions(context, extensions, (c, e) -> e.afterFilesImported(c));
+      return applyExtensions(context, extensions, "afterFilesImported", (c, e) -> e.afterFilesImported(c));
    }
 
    private void importFiles(StorageService service, File root, File file) throws IOException {
@@ -314,7 +324,7 @@ public class StorageInitializer implements Callable<Integer> {
          }
       }
 
-      return applyExtensions(context, extensions, (c, e) -> e.afterAssetsInstalled(c));
+      return applyExtensions(context, extensions, "afterAssetsInstalled", (c, e) -> e.afterAssetsInstalled(c));
    }
 
    private AutoCloseable openClient() {
@@ -363,9 +373,68 @@ public class StorageInitializer implements Callable<Integer> {
    }
 
    private SetupExtension.Context applyExtensions(
-      SetupExtension.Context context, List<SetupExtension> extensions,
+      SetupExtension.Context context, List<SetupExtension> extensions, String phase,
       BiFunction<SetupExtension.Context, SetupExtension, SetupExtension.Context> fn)
    {
-      return extensions.stream().reduce(context, fn, (c1, c2) -> c2);
+      return extensions.stream()
+         .peek(e -> System.out.println("Applying extension " + phase + ": " + e.getClass().getName()))
+         .reduce(context, fn, (c1, c2) -> c2);
+   }
+
+   private void initLogging() {
+      LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
+      context.reset();
+
+      Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
+      rootLogger.setLevel(Level.ERROR);
+
+      rootLogger.addAppender(createConsoleAppender(context));
+
+      context.getLogger("inetsoft.scheduler_test").setLevel(Level.OFF);
+      context.getLogger("mv_debug").setLevel(Level.OFF);
+      context.getLogger("inetsoft_swap_data").setLevel(Level.OFF);
+      context.getLogger(SUtil.MAC_LOG_NAME).setLevel(Level.OFF);
+      context.getLogger(LogUtil.PERFORMANCE_LOGGER_NAME).setLevel(Level.OFF);
+      context.getLogger("liquibase").setLevel(Level.WARN);
+      context.getLogger("org.apache.ignite").setLevel(Level.WARN);
+
+      context.getLogger(DataSpace.class).setLevel(Level.INFO);
+      context.getLogger("inetsoft.util.db").setLevel(Level.INFO);
+      context.getLogger("inetsoft.util.Plugins").setLevel(Level.INFO);
+      context.getLogger("inetsoft.util.Drivers").setLevel(Level.INFO);
+      context.getLogger("inetsoft.shell.setup").setLevel(Level.INFO);
+      context.getLogger("inetsoft.setup").setLevel(Level.INFO);
+      context.getLogger("inetsoft.enterprise.setup").setLevel(Level.INFO);
+      context.getLogger("inetsoft_audit").setLevel(Level.INFO);
+   }
+
+   private AsyncAppender createConsoleAppender(LoggerContext context) {
+      ConsoleAppender<ILoggingEvent> appender = new ConsoleAppender<>();
+      appender.setName("STDOUT");
+      appender.setContext(context);
+      appender.setEncoder(createEncoder(context));
+      appender.addFilter(new AuditLogFilter(true));
+      appender.start();
+      return createAsyncAppender("ASYNC_STDOUT", appender, context);
+   }
+
+   private PatternLayoutEncoder createEncoder(LoggerContext context) {
+      PatternLayoutEncoder encoder = new PatternLayoutEncoder();
+      encoder.setContext(context);
+      encoder.setPattern("%d %level %property{LOCAL_IP_ADDR} [%mdc] %c{1}: %message %n%ex");
+      encoder.start();
+      return encoder;
+   }
+
+   private AsyncAppender createAsyncAppender(String name, Appender<ILoggingEvent> ref,
+                                             LoggerContext context)
+   {
+      AsyncAppender appender = new AsyncAppender();
+      appender.setName(name);
+      appender.setContext(context);
+      appender.setQueueSize(1000);
+      appender.addAppender(ref);
+      appender.start();
+      return appender;
    }
 }

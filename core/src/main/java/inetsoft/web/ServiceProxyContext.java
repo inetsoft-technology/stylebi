@@ -20,14 +20,17 @@ package inetsoft.web;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.util.*;
+import inetsoft.web.composer.ClipboardService;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpAttributes;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.session.FindByIndexNameSessionRepository;
@@ -62,13 +65,21 @@ public class ServiceProxyContext {
       MessageAttributes messageAttrs = MessageContextHolder.getMessageAttributes();
 
       if(messageAttrs != null) {
-         this.messageAttributes = new HashMap<>(messageAttrs.getAttributes());
+         this.messageAttributes = new HashMap<>();
+         filterAttributes(messageAttrs.getAttributes(), this.messageAttributes);
          Message<?> message = messageAttrs.getMessage();
 
          if(message != null) {
-            this.messageId = message.getHeaders().getId();
+            UUID messageId = message.getHeaders().getId();
+
+            if(messageId == null) {
+               messageId = MessageHeaders.ID_VALUE_NONE;
+            }
+
+            this.messageId = messageId;
             this.messageTimestamp = message.getHeaders().getTimestamp();
-            this.messageHeaders = new HashMap<>(message.getHeaders());
+            this.messageHeaders = new HashMap<>();
+            filterAttributes(message.getHeaders(), this.messageHeaders);
          }
          else {
             this.messageId = null;
@@ -81,6 +92,27 @@ public class ServiceProxyContext {
          this.messageId = null;
          this.messageTimestamp = null;
          this.messageHeaders = null;
+      }
+   }
+
+   @SuppressWarnings("unchecked")
+   private static void filterAttributes(Map<String, Object> source, Map<String, Object> target) {
+      for(Map.Entry<String, Object> e : source.entrySet()) {
+         String key = e.getKey();
+
+         if(!key.startsWith(SimpAttributes.DESTRUCTION_CALLBACK_NAME_PREFIX) &&
+            !key.startsWith("scopedTarget.") && !key.equals(ClipboardService.CLIPBOARD))
+         {
+            Object value = e.getValue();
+
+            if(value instanceof Map) {
+               Map<String, Object> valueMap = new HashMap<>();
+               filterAttributes((Map<String, Object>) value, valueMap);
+               value = valueMap;
+            }
+
+            target.put(key, value);
+         }
       }
    }
 
@@ -101,9 +133,9 @@ public class ServiceProxyContext {
          }
 
          if(messageHeaders != null) {
-            for(Map.Entry<String, Object> e : messageHeaders.entrySet()) {
-               messageAttrs.getMessage().getHeaders().put(e.getKey(), e.getValue());
-            }
+            LoggerFactory.getLogger(getClass()).warn(
+               "APPLY MESSAGE HEADERS: old={}, new={}",
+               messageAttrs.getMessage().getHeaders(), messageHeaders);
          }
       }
 
@@ -112,7 +144,6 @@ public class ServiceProxyContext {
       }
    }
 
-   @SuppressWarnings("JavaReflectionMemberAccess")
    public void preprocess() {
       if(contextPrincipal != null) {
          ThreadContext.setContextPrincipal(contextPrincipal);
@@ -129,7 +160,7 @@ public class ServiceProxyContext {
 
          try {
             Constructor<MessageHeaders> cstr =
-               MessageHeaders.class.getConstructor(Map.class, UUID.class, Long.class);
+               MessageHeaders.class.getDeclaredConstructor(Map.class, UUID.class, Long.class);
             cstr.setAccessible(true);
             headers = cstr.newInstance(messageHeaders, messageId, messageTimestamp);
          }

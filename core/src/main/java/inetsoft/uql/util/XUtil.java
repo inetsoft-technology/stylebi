@@ -3292,11 +3292,7 @@ public final class XUtil {
          return;
       }
 
-      Enumeration pnames = user.getPropertyNames();
-
-      while(pnames.hasMoreElements()) {
-         String pname = (String) pnames.nextElement();
-
+      for(String pname : user.getPropertyNames()) {
          if(pname.startsWith("_Db_")) {
             vtable.put(pname, user.getProperty(pname));
          }

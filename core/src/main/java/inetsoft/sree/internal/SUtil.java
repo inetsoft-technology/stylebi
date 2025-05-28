@@ -17,16 +17,15 @@
  */
 package inetsoft.sree.internal;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import inetsoft.mv.fs.*;
+import inetsoft.mv.fs.FSService;
+import inetsoft.mv.fs.XServerNode;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.internal.Util;
-import inetsoft.report.internal.license.*;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.internal.cluster.ignite.serializer.Object2ObjectOpenHashMapSerializer;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
@@ -35,7 +34,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.util.*;
+import inetsoft.uql.util.Identity;
 import inetsoft.uql.viewsheet.vslayout.DeviceInfo;
 import inetsoft.uql.viewsheet.vslayout.DeviceRegistry;
 import inetsoft.util.*;
@@ -46,6 +45,13 @@ import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.schedule.model.ServerLocation;
 import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
+import jakarta.servlet.http.*;
+import org.apache.commons.io.IOUtils;
+import org.apache.hc.core5.net.InetAddressUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.messaging.simp.user.DestinationUserNameProvider;
+import org.springframework.util.StringUtils;
 
 import java.io.*;
 import java.lang.ref.WeakReference;
@@ -57,18 +63,6 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
-
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
-import jakarta.servlet.http.*;
-import org.apache.commons.io.IOUtils;
-import org.apache.hc.core5.net.InetAddressUtils;
-import org.apache.ignite.binary.BinaryTypeConfiguration;
-import org.apache.ignite.configuration.BinaryConfiguration;
-import org.apache.ignite.configuration.IgniteConfiguration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.messaging.simp.user.DestinationUserNameProvider;
-import org.springframework.util.StringUtils;
 
 /**
  * Common utility methods used in SREE.
@@ -3203,22 +3197,6 @@ public class SUtil {
 
       locations.sort(Comparator.comparing(ServerLocation::label));
       return locations;
-   }
-
-   public static void configBinaryTypes(IgniteConfiguration config) {
-      BinaryConfiguration binaryCfg = new BinaryConfiguration();
-      binaryCfg.setTypeConfigurations(getBinaryTypeConfigurations());
-      config.setBinaryConfiguration(binaryCfg);
-   }
-
-   private static List<BinaryTypeConfiguration> getBinaryTypeConfigurations() {
-      List<BinaryTypeConfiguration> binaryTypeConfigurations = new ArrayList<>();
-      BinaryTypeConfiguration typeCfg = new BinaryTypeConfiguration();
-      typeCfg.setTypeName(Object2ObjectOpenHashMap.class.getName());
-      typeCfg.setSerializer(new Object2ObjectOpenHashMapSerializer());
-      binaryTypeConfigurations.add(typeCfg);
-
-      return binaryTypeConfigurations;
    }
 
    public static String writeCookiesString(Cookie[] cookies) {

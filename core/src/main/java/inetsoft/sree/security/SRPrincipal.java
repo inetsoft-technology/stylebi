@@ -22,7 +22,6 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -31,6 +30,7 @@ import org.w3c.dom.NodeList;
 import java.io.*;
 import java.lang.ref.WeakReference;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This class implements <code>java.security.Principal</code> to represent
@@ -40,7 +40,7 @@ import java.util.*;
  * @author Helen Chen
  * @version 5.1, 9/20/2003
  */
-public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipal {
+public class SRPrincipal extends XPrincipal implements Serializable, Externalizable, LogPrincipal {
    /**
     * Construct a <code>SRPrincipal</code> instance
     */
@@ -76,7 +76,9 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
                      String defaultLocale = Catalog.getCatalog().getString("Default");
 
                      //overwrite default user locale with set organization locale
-                     if((locale == null || "".equals(locale) || defaultLocale.equals(locale)) && identity.getOrganizationID() != null) {
+                     if((locale == null || locale.isEmpty() || defaultLocale.equals(locale)) &&
+                        identity.getOrganizationID() != null)
+                     {
                         Organization userOrg = provider.getOrganization(identity.getOrganizationID());
 
                         if(userOrg.getLocale() != null && !"".equals(userOrg.getLocale())) {
@@ -189,11 +191,10 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       this.age = new Date(principal.getAge());
       this.client = principal.getUser();
 
-      Collections.list((Enumeration<String>) principal.getParameterNames())
-         .forEach(item -> this.setParameter(item, principal.getParameter(item)));
-
-      Collections.list((Enumeration<String>) principal.getPropertyNames()).forEach(
-         (item) -> this.setProperty(item, principal.getProperty((item))));
+      principal.getParameterNames().forEach(
+         item -> this.setParameter(item, principal.getParameter(item)));
+      principal.getPropertyNames().forEach(
+         item -> this.setProperty(item, principal.getProperty(item)));
    }
 
    public SRPrincipal(SRPrincipal principal, ClientInfo client) {
@@ -333,13 +334,10 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
          sb.append(roles[i]);
       }
 
-      Enumeration<?> pnames = getParameterNames();
-
-      while(pnames.hasMoreElements()) {
-         String name = (String) pnames.nextElement();
+      for(String name : getParameterNames()) {
          Object val = getParameter(name);
 
-         if(name != null && name.length() > 0 && val != null) {
+         if(name != null && !name.isEmpty() && val != null) {
             sb.append(SEP);
             sb.append(name);
             sb.append(SEP2);
@@ -365,7 +363,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       // @by billh, please refer to bug bug1269875133083
       String[] groups = getGroups();
       IdentityID[] roles = getRoles();
-      String org = getOrgId();
       boolean existing = groups != null && groups.length > 0;
 
       if(!existing) {
@@ -405,11 +402,10 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
          return true;
       }
 
-      if(!(another instanceof SRPrincipal)) {
+      if(!(another instanceof SRPrincipal that)) {
          return false;
       }
 
-      SRPrincipal that = (SRPrincipal) another;
       boolean this_fake = "true".equals(getProperty("__FAKE__"));
       boolean that_fake = "true".equals(that.getProperty("__FAKE__"));
 
@@ -802,7 +798,123 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       return sref == null || sref.get() != null;
    }
 
+   @Override
+   public void writeExternal(ObjectOutput out) throws IOException {
+      writeStringExternal(name, out);
+      out.writeInt(roles == null ? 0 : roles.length);
+
+      if(roles != null) {
+         for(IdentityID role : roles) {
+            writeStringExternal(role.getName(), out);
+            writeStringExternal(role.getOrgID(), out);
+         }
+      }
+
+      out.writeInt(groups == null ? 0 : groups.length);
+
+      if(groups != null) {
+         for(String group : groups) {
+            writeStringExternal(group, out);
+         }
+      }
+
+      writeStringExternal(orgId, out);
+      writeStringExternal(sessionID, out);
+      out.writeInt(prop == null ? 0 : prop.size());
+
+      if(prop != null) {
+         for(Map.Entry<String, String> entry : prop.entrySet()) {
+            writeStringExternal(entry.getKey(), out);
+            writeStringExternal(entry.getValue(), out);
+         }
+      }
+
+      Set<String> parameterNames = getParameterNames();
+      out.writeInt(parameterNames.size());
+
+      for(String name : parameterNames) {
+         Object val = getParameter(name);
+         long ts = getParameterTS(name);
+         writeStringExternal(name, out);
+         out.writeObject(val);
+         out.writeLong(ts);
+      }
+
+      out.writeBoolean(isIgnoreLogin());
+      out.writeBoolean(isProfiling());
+      out.writeObject(client);
+      out.writeLong(secureID);
+      out.writeLong(age.getTime());
+      out.writeLong(accessed);
+      out.writeObject(host);
+      out.writeObject(locale);
+   }
+
+   private void writeStringExternal(String s, ObjectOutput out) throws IOException {
+      out.writeUTF(Objects.requireNonNullElse(s, "__EXT_NULL_STR__"));
+   }
+
+   @Override
+   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+      name = readStringExternal(in);
+      int length = in.readInt();
+      roles = new IdentityID[length];
+
+      for(int i = 0; i < length; i++) {
+         roles[i] = new IdentityID(readStringExternal(in), readStringExternal(in));
+      }
+
+      length = in.readInt();
+      groups = new String[length];
+
+      for(int i = 0; i < length; i++) {
+         groups[i] = readStringExternal(in);
+      }
+
+      orgId = readStringExternal(in);
+      sessionID = readStringExternal(in);
+      length = in.readInt();
+
+      prop = new ConcurrentHashMap<>();
+
+      for(int i = 0; i < length; i++) {
+         String key = readStringExternal(in);
+         String val = readStringExternal(in);
+         prop.put(key, val);
+      }
+
+      length = in.readInt();
+
+      for(int i = 0; i < length; i++) {
+         String name = readStringExternal(in);
+         Object val = in.readObject();
+         long ts = in.readLong();
+         setParameter(name, val, ts);
+      }
+
+      setIgnoreLogin(in.readBoolean());
+      setProfiling(in.readBoolean());
+      client = (ClientInfo) in.readObject();
+      secureID = in.readLong();
+      age = new Date(in.readLong());
+      accessed = in.readLong();
+      host = (String) in.readObject();
+      locale = (Locale) in.readObject();
+   }
+
+   private String readStringExternal(ObjectInput in) throws IOException {
+      String s = in.readUTF();
+
+      if(s.equals("__EXT_NULL_STR__")) {
+         return null;
+      }
+      else {
+         return s;
+      }
+   }
+
    // for backward compatibility
+   @Serial
    private static final long serialVersionUID = 329619388094919499L;
    private static final char SEP = ';';
    private static final char SEP2 = '^';
@@ -814,7 +926,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
    private Date age;
    private long accessed; // last access timestamp
    // machine this principal object is created
-   private String host = null;
+   private String host;
    private transient Locale locale = null;
    private transient WeakReference<Object> sref = null;
 

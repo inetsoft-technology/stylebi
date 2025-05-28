@@ -17,11 +17,11 @@
  */
 package inetsoft.sree;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
+import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.*;
 
 import java.io.*;
@@ -246,7 +246,13 @@ public class ClientInfo implements Cloneable, Serializable, XMLSerializable {
 
       if(locale != null) {
          writer.print("<locale>");
-         writer.print("<![CDATA[" + locale.getDisplayName() + "]]>");
+         writer.print("<![CDATA[" + locale.getLanguage());
+
+         if(!StringUtils.isBlank(locale.getCountry())) {
+            writer.print("_" + locale.getCountry());
+         }
+
+         writer.print("]]>");
          writer.print("</locale>");
       }
 

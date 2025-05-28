@@ -25,13 +25,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
+
 import java.security.Principal;
 
 @Controller
 public class TouchAssetController {
-   /**
-    * Ripped from {@link inetsoft.analytic.composition.event.TouchAssetEvent}
-    */
    @MessageMapping("/composer/touch-asset")
    public void touchAsset(@Payload TouchAssetEvent event, Principal principal,
                           CommandDispatcher commandDispatcher, @LinkUri String linkUri)

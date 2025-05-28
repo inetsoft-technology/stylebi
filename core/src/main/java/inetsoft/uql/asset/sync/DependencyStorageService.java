@@ -22,14 +22,12 @@ import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
-import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.*;
-import inetsoft.util.migrate.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -37,7 +35,7 @@ import java.util.stream.Collectors;
  * Provides storage for asset dependencies info.
  */
 @SingletonManager.Singleton(DependencyStorageService.Reference.class)
-public final class DependencyStorageService implements AutoCloseable {
+public final class DependencyStorageService {
    private DependencyStorageService() {
    }
 
@@ -149,11 +147,10 @@ public final class DependencyStorageService implements AutoCloseable {
 
    private RenameTransformObject syncDependencyUser(RenameTransformObject obj, IdentityID oldUser,
                                                     IdentityID newUser) {
-      if(!(obj instanceof DependenciesInfo)) {
+      if(!(obj instanceof DependenciesInfo dinfo)) {
          return obj;
       }
 
-      DependenciesInfo dinfo = (DependenciesInfo) obj;
       dinfo.setDependencies(syncUserDependencies(dinfo.getDependencies(), oldUser, newUser));
       return dinfo;
    }
@@ -165,8 +162,7 @@ public final class DependencyStorageService implements AutoCloseable {
       }
 
       return dependencies.stream().map(d -> {
-         if(d instanceof AssetEntry) {
-            AssetEntry old = (AssetEntry) d;
+         if(d instanceof AssetEntry old) {
 
             // if the asset entry base on the renamed user, should change it.
             if(Tool.equals(old.getUser(), oldUser)) {
@@ -193,11 +189,10 @@ public final class DependencyStorageService implements AutoCloseable {
    }
 
    private RenameTransformObject syncDependencyData(RenameTransformObject obj, Organization nOrg) {
-      if(!(obj instanceof DependenciesInfo)) {
+      if(!(obj instanceof DependenciesInfo dinfo)) {
          return obj;
       }
 
-      DependenciesInfo dinfo = (DependenciesInfo) obj;
       dinfo.setDependencies(syncDependencies(dinfo.getDependencies(), nOrg));
       dinfo.setEmbedDependencies(syncDependencies(dinfo.getEmbedDependencies(), nOrg));
       return dinfo;
@@ -224,11 +219,6 @@ public final class DependencyStorageService implements AutoCloseable {
          .collect(Collectors.toSet());
    }
 
-   @Override
-   public void close() throws Exception {
-      getDependencyStorage().close();
-   }
-
    private void initStorage() {
       getDependencyStorage();
    }
@@ -237,13 +227,12 @@ public final class DependencyStorageService implements AutoCloseable {
       return getDependencyStorage(null);
    }
 
+   @SuppressWarnings("unchecked")
    private KeyValueStorage<RenameTransformObject> getDependencyStorage(String orgID) {
       if(orgID == null) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
-      else {
-         orgID = orgID;
-      }
+
       String storeID = orgID.toLowerCase() + "__" + "dependencyStorage";
       Supplier<LoadDependencyStorageTask> supplier = () -> new LoadDependencyStorageTask(storeID);
       return SingletonManager.getInstance(KeyValueStorage.class, storeID, supplier);
@@ -265,19 +254,9 @@ public final class DependencyStorageService implements AutoCloseable {
 
       @Override
       public void dispose() {
-         if(dependencyIndexedStorage != null) {
-            try {
-               dependencyIndexedStorage.close();
-            }
-            catch(Exception e) {
-               LOG.error("Unable to close dependency storage", e);
-            }
-            finally {
-               dependencyIndexedStorage = null;
-            }
-         }
+         dependencyIndexedStorage = null;
       }
 
-      private DependencyStorageService dependencyIndexedStorage;
+      private volatile DependencyStorageService dependencyIndexedStorage;
    }
 }
