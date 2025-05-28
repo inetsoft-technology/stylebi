@@ -25,6 +25,8 @@ import org.mozilla.javascript.*;
 
 import java.awt.*;
 import java.sql.Timestamp;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -149,7 +151,7 @@ class JavaScriptEngineTest {
    void testRtrim() {
       assertEquals("  he llo", JavaScriptEngine.rtrim("  he llo  "));
       assertEquals("hello", JavaScriptEngine.rtrim("hello"));
-      //assertEquals("", JavaScriptEngine.rtrim("   "));//bug #71262
+      assertEquals("", JavaScriptEngine.rtrim("   "));//bug #71262
    }
 
    @Test
@@ -352,7 +354,7 @@ class JavaScriptEngineTest {
       //Test with other intervals
       java.util.Date d2 = toDate("2025-05-26T11:23:35");
       assertEquals(2025, JavaScriptEngine.datePart("yyyy", d2, false));
-//      assertEquals(2, JavaScriptEngine.datePart("q", d2, false));//bug #71285
+      assertEquals(2, JavaScriptEngine.datePart("q", d2, false));//bug #71285
       assertEquals(5, JavaScriptEngine.datePart("m", d2, false));
       assertEquals(146, JavaScriptEngine.datePart("y", d2, false));
       assertEquals(26, JavaScriptEngine.datePart("d", d2, false));
@@ -376,10 +378,10 @@ class JavaScriptEngineTest {
       assertEquals(3, JavaScriptEngine.dateDiff("m", d1, d2));
 //      assertEquals(13, JavaScriptEngine.dateDiff("ww", d1, d2));//bug #71288
 
-      // Test with valid dates and interval "w" (weeks) and "d"(day of the month)
+      // Test with valid dates and interval "w" (day of the week) and "d"(day of the month)
       d1 = toDate("2023-04-01T00:00");
       d2 = toDate("2023-04-10T00:00");
-      assertEquals(1, JavaScriptEngine.dateDiff("w", d1, d2));
+//      assertEquals(9, JavaScriptEngine.dateDiff("w", d1, d2));//bug #71288
       assertEquals(9, JavaScriptEngine.dateDiff("d", d1, d2));
 
       // Test with valid dates and interval "q" (quarters) and "y"(day of the year)
@@ -397,29 +399,40 @@ class JavaScriptEngineTest {
    }
 
    @Test
-   void testDateAdd() {
-      java.util.Date date = toDate("2023-10-01T10:23:34");
+   void testDateAdd() throws ParseException {
+      java.util.Date date = toDate("2023-04-01T10:23:34");
+      SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
       // Test with valid date and interval "yyyy" (years)
-      assertEquals(toDate("2024-10-01T10:23:34"), JavaScriptEngine.dateAdd("yyyy", 1, date));
+      assertEquals(simpleDateFormat.parse("2024-04-01 10:23:34"),
+                   JavaScriptEngine.dateAdd("yyyy", 1, date));
 
       // Test with valid date and interval "q" (quarters)
-      assertEquals(toDate("2024-01-01T10:23:34"), JavaScriptEngine.dateAdd("q", 1, date));
+      assertEquals(simpleDateFormat.parse("2023-07-01 10:23:34"),
+                   JavaScriptEngine.dateAdd("q", 1, date));
 
       // Test with valid date and interval "m" (months)
-      assertEquals(toDate("2023-12-01T10:23:34"), JavaScriptEngine.dateAdd("m", 2, date));
+      assertEquals(simpleDateFormat.parse("2023-06-01 10:23:34"),
+                   JavaScriptEngine.dateAdd("m", 2, date));
 
       // Test with valid date and interval "d" (days) and "y" (Day of the year)
-      assertEquals(toDate("2023-10-06T10:23:34"), JavaScriptEngine.dateAdd("d", 5, date));
-      assertEquals(toDate("2023-10-04T10:23:34"), JavaScriptEngine.dateAdd("y", 3, date));
+      assertEquals(simpleDateFormat.parse("2023-04-06 10:23:34"),
+                   JavaScriptEngine.dateAdd("d", 5, date));
+      assertEquals(simpleDateFormat.parse("2023-04-04 10:23:34"),
+                   JavaScriptEngine.dateAdd("y", 3, date));
 
       // Test with valid date and interval "h" (hours), "n" (minutes), and "s" (seconds)
-      assertEquals(toDate("2023-10-01T12:23:34"), JavaScriptEngine.dateAdd("h", 2, date));
-      assertEquals(toDate("2023-10-01T10:43:34"), JavaScriptEngine.dateAdd("n", 20, date));
-      assertEquals(toDate("2023-10-01T10:24:04"), JavaScriptEngine.dateAdd("s", 30, date));
+      assertEquals(simpleDateFormat.parse("2023-04-01 12:23:34"),
+                   JavaScriptEngine.dateAdd("h", 2, date));
+      assertEquals(simpleDateFormat.parse("2023-04-01 10:43:34"),
+                   JavaScriptEngine.dateAdd("n", 20, date));
+      assertEquals(simpleDateFormat.parse("2023-04-01 10:24:04"),
+                   JavaScriptEngine.dateAdd("s", 30, date));
 
       // Test with valid date and interval "w" (Day of the week) and "ww" (Week of the year)
-      assertEquals(toDate("2023-10-03T10:23:34"), JavaScriptEngine.dateAdd("w", 2, date));
-      assertEquals(toDate("2023-10-22T10:23:34"), JavaScriptEngine.dateAdd("ww", 3, date));
+      assertEquals(simpleDateFormat.parse("2023-04-03 10:23:34"),
+                   JavaScriptEngine.dateAdd("w", 2, date));
+      assertEquals(simpleDateFormat.parse("2023-04-22 10:23:34"),
+                   JavaScriptEngine.dateAdd("ww", 3, date));
 
       // Test with null date
       assertNull(JavaScriptEngine.dateAdd("d", 5, null));
