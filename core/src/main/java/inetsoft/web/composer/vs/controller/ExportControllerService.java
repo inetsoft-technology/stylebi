@@ -299,7 +299,7 @@ public class ExportControllerService {
    private final CoreLifecycleService coreLifecycleService;
    private static final Logger LOG = LoggerFactory.getLogger(ExportControllerService.class);
 
-   public class ViewsheetExportResult implements Serializable {
+   public static final class ViewsheetExportResult implements Serializable {
       private final byte[] data;
       private final String fileName;
       private final String mime;

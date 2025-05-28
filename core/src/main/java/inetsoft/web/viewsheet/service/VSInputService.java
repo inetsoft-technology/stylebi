@@ -3360,7 +3360,7 @@ public class VSInputService {
       return info;
    }
 
-   public class VariableEntry implements Comparable{
+   public static final class VariableEntry implements Comparable{
       public VariableEntry(String label, String value) {
          this.label = label;
          this.value = value;

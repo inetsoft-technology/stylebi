@@ -56,7 +56,7 @@ public class DashboardService {
    private final ViewsheetService viewsheetService;
 
 
-   public static class DashboardModelInfo implements Serializable {
+   public static final class DashboardModelInfo implements Serializable {
       public boolean composedDashboard;
       public boolean scaleToScreen;
       public boolean fitToWidth;

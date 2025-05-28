@@ -609,7 +609,7 @@ public class SelectionListTestService {
    /**
     * mock a commandDispather for coreLifecycleService
     */
-   class MockCommandDispatcher extends CommandDispatcher {
+   static final class MockCommandDispatcher extends CommandDispatcher {
       public MockCommandDispatcher(StompHeaderAccessor headerAccessor,
                                    CommandDispatcherService dispatcherService,
                                    FindByIndexNameSessionRepository sessionRepository)

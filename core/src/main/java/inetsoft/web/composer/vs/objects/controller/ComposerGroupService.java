@@ -385,7 +385,7 @@ public class ComposerGroupService {
    /**
     * Compare the position of assemblies.
     */
-   private static class PosComparator implements Comparator<String> {
+   private static final class PosComparator implements Comparator<String> {
       public PosComparator(Viewsheet vs) {
          this.vs = vs;
       }

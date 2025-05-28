@@ -185,7 +185,7 @@ public class RuntimePartitionService {
    public static final String CACHE_NAME =
       "inetsoft.web.portal.controller.database.RuntimePartitionService.cache";
 
-   public static class RuntimeXPartition implements Cloneable, Serializable {
+   public static final class RuntimeXPartition implements Cloneable, Serializable {
       public RuntimeXPartition() {
       }
 

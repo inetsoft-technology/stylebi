@@ -514,7 +514,7 @@ public class ConcatenateTablesService extends WorksheetControllerService {
     * Information class for whether or not tables are compatible for concatenation.
     * An optional failure message can contain the reason for the failure.
     */
-   static class ConcatenationCompatibility {
+   static final class ConcatenationCompatibility {
       private final boolean compatible;
       private final String compatibilityFailureMessage;
 

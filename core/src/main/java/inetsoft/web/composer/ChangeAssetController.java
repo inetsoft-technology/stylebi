@@ -370,7 +370,7 @@ public class ChangeAssetController {
    /**
     * Sort entries.
     */
-   private static class EntriesComparator implements Comparator {
+   private static final class EntriesComparator implements Comparator {
       @Override
       public int compare(Object v1, Object v2) {
          int type1 = ((AssetEntry) v1).getType().id();
