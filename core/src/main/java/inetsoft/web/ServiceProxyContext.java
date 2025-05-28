@@ -133,10 +133,9 @@ public class ServiceProxyContext {
          }
 
          if(messageHeaders != null) {
-            LoggerFactory.getLogger(getClass()).warn("APPLY MESSAGE HEADERS: old={}, new={}", messageAttrs.getMessage().getHeaders(), messageHeaders);
-//            for(Map.Entry<String, Object> e : messageHeaders.entrySet()) {
-//               messageAttrs.getMessage().getHeaders().put(e.getKey(), e.getValue());
-//            }
+            LoggerFactory.getLogger(getClass()).warn(
+               "APPLY MESSAGE HEADERS: old={}, new={}",
+               messageAttrs.getMessage().getHeaders(), messageHeaders);
          }
       }
 
