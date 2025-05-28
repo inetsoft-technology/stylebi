@@ -22,15 +22,14 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
-import inetsoft.web.composer.vs.dialog.VSConditionDialogController;
-import inetsoft.web.composer.vs.dialog.VSConditionDialogServiceProxy;
+import inetsoft.web.composer.vs.dialog.*;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -47,8 +46,21 @@ class VSConditionDialogControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+
+      VSConditionDialogService dialogService = new VSConditionDialogService(dataRefModelFactoryService, vsAssemblyInfoHandler, viewsheetEngine);
+      doReturn(dialogService).when(spyContext).getSpringBean(VSConditionDialogService.class);
       controller = new VSConditionDialogController(runtimeViewsheetRef,
                                                    new VSConditionDialogServiceProxy());
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    @Test
@@ -97,6 +109,7 @@ class VSConditionDialogControllerTest {
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;
    @Mock BindingInfo bindingInfo;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 
    private VSConditionDialogController controller;
 }
