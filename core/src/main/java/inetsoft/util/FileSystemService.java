@@ -434,6 +434,25 @@ public class FileSystemService {
    }
 
    /**
+    * Remove file from a path in a period.
+    *
+    * @param path the specified path for the file to be removed.
+    *
+    * @param period the specified time period.
+    *
+    */
+   public synchronized void remove(Path path, int period) {
+      FileEntry entry = new FileEntry(path, period);
+      int pos = Collections.binarySearch(list, entry);
+      pos = pos >= 0 ? pos : -pos - 1;
+      list.add(pos, entry);
+
+      if(list.size() == 1) {
+         TimedQueue.add(runnable);
+      }
+   }
+
+   /**
     * Remove file in a period.
     *
     * @param file the specified file to be removed.
@@ -625,11 +644,27 @@ public class FileSystemService {
          this.ts = System.currentTimeMillis() + period;
       }
 
+      public FileEntry(Path path, int period) {
+         super();
+
+         this.path = path;
+         this.ts = System.currentTimeMillis() + period;
+      }
+
       public boolean isRemovable() {
          return System.currentTimeMillis() >= ts;
       }
 
       public void remove() {
+         if(file != null) {
+            removeFile();
+         }
+         else if(path != null) {
+            removePath();
+         }
+      }
+
+      private void removeFile() {
          try {
             if(file.exists()) {
                boolean removed = file.delete();
@@ -646,6 +681,18 @@ public class FileSystemService {
          }
       }
 
+      private void removePath() {
+         try {
+            if(Files.exists(path)) {
+               Files.delete(path);
+            }
+         }
+         catch(Exception ex) {
+            LOG.error("Error removing path in FileTool: " +
+                         path, ex);
+         }
+      }
+
       @Override
       public int compareTo(FileEntry entry) {
          long val = ts - entry.ts;
@@ -653,10 +700,12 @@ public class FileSystemService {
       }
 
       public String toString() {
-         return "FileEntry[" + ts + ", " + file.getAbsolutePath() + "]";
+         String pathString = file != null ? file.getAbsolutePath() : path.toString();
+         return "FileEntry[" + ts + ", " + pathString + "]";
       }
 
       private File file;
+      private Path path;
       private long ts;
    }
 

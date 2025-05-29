@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.controller;
 
 import inetsoft.util.*;
+import inetsoft.util.cachefs.CacheFS;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -30,6 +31,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.Principal;
 
 /**
@@ -68,8 +72,15 @@ public class ImportXLSController {
       throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId).replace('/', '_');
+      FileSystemService fileSystemService = FileSystemService.getInstance();
 
-      importXLSControllerServiceProxy.processGetAssemblyImage(runtimeId, type, file.getBytes());
+      String key = "/" + ImportXLSControllerService.class + "_" + runtimeId + "_" + type;
+      Path path = CacheFS.getPath("tempStorage", key);
+      fileSystemService.remove(path, 120000);
+
+      try(OutputStream output = Files.newOutputStream(path)) {
+         output.write(file.getBytes());
+      }
    }
 
    /**
