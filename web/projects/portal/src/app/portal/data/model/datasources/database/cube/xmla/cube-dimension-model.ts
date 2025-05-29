@@ -22,5 +22,6 @@ export interface CubeDimensionModel extends XDimensionModel {
    uniqueName: string;
    caption: string;
    originalOrder: boolean;
+   timeDimension: boolean;
    classType?: string;
 }
