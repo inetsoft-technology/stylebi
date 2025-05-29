@@ -289,9 +289,12 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
          public void nextElement(ScriptIterator.Token token, ScriptIterator.Token pref,
                                  ScriptIterator.Token cref)
          {
-            if(token.isRef() && pref != null && "runQuery".equals(pref.val) )
-            {
-               list.add(createAssetEntry(token.val));
+            if(token.isRef() && pref != null && "runQuery".equals(pref.val)) {
+               AssetEntry assetEntry = createAssetEntry(token.val);
+
+               if(assetEntry != null) {
+                  list.add(assetEntry);
+               }
             }
          }
       };
