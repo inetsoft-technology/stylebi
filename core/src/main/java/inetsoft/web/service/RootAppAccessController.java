@@ -62,7 +62,7 @@ public class RootAppAccessController {
    public List<String> getAllOrganizations(@SuppressWarnings("unused") Principal principal) {
       List<String> list = new ArrayList<>();
 
-      if(!SUtil.isMultiTenant()) {
+      if(!SUtil.isMultiTenant() || !OrganizationManager.getInstance().isSiteAdmin(principal)) {
          return list;
       }
 
