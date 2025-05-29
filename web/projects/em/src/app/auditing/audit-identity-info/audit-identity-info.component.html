@@ -21,7 +21,7 @@
     <mat-form-field *ngIf="organizationFilter == true" appearance="outline" color="accent" class="flex">
       <mat-label>_#(Identity Organizations)</mat-label>
       <mat-select formControlName="selectedOrganizations" multiple>
-        <mat-option *ngFor="let org of organizations; let i = index" [value]="org">{{organizationNames[i]}}</mat-option>
+        <mat-option *ngFor="let org of organizations; let i = index" [value]="org.orgID">{{organizations[i].name}}</mat-option>
       </mat-select>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
