@@ -18,6 +18,7 @@
 package inetsoft.graph.internal;
 
 import inetsoft.report.Comparer;
+import inetsoft.uql.xmla.MemberObject;
 import inetsoft.util.DefaultComparator;
 import inetsoft.util.Tool;
 
@@ -80,6 +81,10 @@ public class ManualOrderComparer implements Comparator, Serializable, Comparer {
     */
    @Override
    public int compare(Object v1, Object v2) {
+      if(v1 instanceof MemberObject && v2 instanceof MemberObject) {
+         return compare(((MemberObject) v1).getCaption(), ((MemberObject) v2).getCaption());
+      }
+
       v1 = "".equals(v1) ? null : v1;
       v2 = "".equals(v2) ? null : v2;
       int idx1 = indexOfValue(v1);
