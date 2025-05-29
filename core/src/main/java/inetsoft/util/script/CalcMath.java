@@ -264,23 +264,16 @@ public class CalcMath {
     */
    public static double floor(double number, double significance) {
       if((number < 0 && significance > 0) || (number > 0 && significance < 0)) {
-         throw new RuntimeException("Number and Significance should have " +
-                                    "same signs");
-      }
-
-      int sign = 1;
-
-      if(number < 0) {
-         sign = -1;
-         number = Math.abs(number);
-         significance = Math.abs(significance);
+         throw new RuntimeException("Number and Significance should have same signs");
       }
 
       if(significance == 0.0) {
          return 0;
       }
 
-      return ((int) (number / significance)) * significance * sign;
+      double adjusted = number / significance;
+      double factor = (significance > 0) ? Math.floor(adjusted) : Math.ceil(adjusted);
+      return factor * significance;
    }
 
    /**
