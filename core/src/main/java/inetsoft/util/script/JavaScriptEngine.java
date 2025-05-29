@@ -1256,10 +1256,10 @@ public class JavaScriptEngine {
          final ZonedDateTime zonedDate2 = Instant.ofEpochMilli(dateVal2.getTime())
             .atZone(ZoneId.systemDefault());
 
-         if(interval.equals("y") || interval.equals("d")) {
+         if(interval.equals("y") || interval.equals("d") || interval.equals("w")) {
             return zonedDate1.until(zonedDate2, ChronoUnit.DAYS);
          }
-         else if(interval.equals("w") || interval.equals("ws")) {
+         else if(interval.equals("ws") || interval.equals("ww")) {
             return zonedDate1.until(zonedDate2, ChronoUnit.WEEKS);
          }
          else if(interval.equals("h")) {
