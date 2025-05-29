@@ -142,6 +142,10 @@ public class DashboardRegistry implements SessionListener {
       String nKey = getRegistryKey(name, norg.getOrganizationID());
       DashboardRegistry registry = getRegistry(identityID, oorg.getId(), true);
 
+      if(registry == null || !registry.pathExist()) {
+         return;
+      }
+
       REGISTRY_LOCK.lock();
 
       try {
@@ -591,6 +595,13 @@ public class DashboardRegistry implements SessionListener {
     */
    protected String getPath() {
       return SreeEnv.getPath("$(sree.home)/portal/" + organizationId + "/" + FILE_NAME);
+   }
+
+   /**
+    * Whether file exist.
+    */
+   protected boolean pathExist() {
+      return DataSpace.getDataSpace().exists(null, getPath());
    }
 
    /**
