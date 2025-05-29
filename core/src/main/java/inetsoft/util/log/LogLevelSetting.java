@@ -17,6 +17,8 @@
  */
 package inetsoft.util.log;
 
+import java.util.Objects;
+
 /**
  * Class that represents a custom log level setting.
  *
@@ -124,16 +126,13 @@ public final class LogLevelSetting implements Comparable<LogLevelSetting> {
       }
 
       LogLevelSetting that = (LogLevelSetting) o;
-      return context == that.context &&
-         !(name != null ? !name.equals(that.name) : that.name != null) &&
-         !(orgName != null ? !orgName.equals(that.orgName) : that.orgName != null);
+      return context == that.context && Objects.equals(name, that.name) &&
+         Objects.equals(orgName, that.orgName);
    }
 
    @Override
    public int hashCode() {
-      int result = context != null ? context.hashCode() : 0;
-      result = 31 * result + (name != null ? name.hashCode() : 0) + (orgName != null ? orgName.hashCode() : 0);
-      return result;
+      return 31 * Objects.hashCode(context) + Objects.hashCode(name) + Objects.hashCode(orgName);
    }
 
    @Override
