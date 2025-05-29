@@ -135,8 +135,7 @@ public class Dimension implements XDimension {
     * @return <tt>true</tt> if should keep, <tt>false</tt> otherwise.
     */
    public boolean isOriginalOrder() {
-      return originalOrder ||
-         (type & DataRef.CUBE_TIME_DIMENSION) == DataRef.CUBE_TIME_DIMENSION;
+      return originalOrder;
    }
 
    /**
