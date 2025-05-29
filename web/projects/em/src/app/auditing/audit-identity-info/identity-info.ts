@@ -20,7 +20,7 @@ import {IdentityId} from "../../settings/security/users/identity-id";
 
 export interface IdentityInfoParameters extends AuditRecordParameters {
    hosts: string[];
-   organizations: string[];
+   organizations: IdentityId[];
    organizationFilter: boolean;
    systemAdministrator: boolean;
 }
