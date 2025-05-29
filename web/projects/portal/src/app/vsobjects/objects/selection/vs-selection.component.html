@@ -269,4 +269,7 @@
      [class.left]="model.dropdown || model.maxMode || inContainer"
      [class.top]="!model.titleVisible"
      title="_#(common.viewsheet.pending.submit)"></i>
+
+  <vs-loading-display *ngIf="model?.submitPadding"
+                      [assemblyLoading]="true"></vs-loading-display>
 </div>

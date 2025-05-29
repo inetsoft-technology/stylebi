@@ -540,6 +540,10 @@ public class VSSelectionService {
       hint |= applySelection(assembly, selectionList, true);
       refreshNeighborSelections(assembly, oldConditions);
 
+      if(event != null && event.isSegment()) {
+         return;
+      }
+
       executeSelection(assembly, hint, context, event != null ? event.getEventSource() : null);
 
       // Hide adhoc filters if not filtering
