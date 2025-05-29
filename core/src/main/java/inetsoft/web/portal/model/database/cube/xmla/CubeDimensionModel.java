@@ -55,8 +55,17 @@ public class CubeDimensionModel extends XDimensionModel {
       this.originalOrder = originalOrder;
    }
 
+   public boolean isTimeDimension() {
+      return time;
+   }
+
+   public void setTimeDimension(boolean time) {
+      this.time = time;
+   }
+
    private String dimensionName = null;
    private String uniqueName = null;
    private String caption = null;
    private boolean originalOrder;
+   private boolean time;
 }
