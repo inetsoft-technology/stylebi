@@ -1121,9 +1121,8 @@ public class CalcStat {
                                     "data points");
       }
 
-      if(k < 0 || k > 1) {
-         throw new RuntimeException("K should be a value between 0 and 1 " +
-                                    "(both inclusive)");
+      if(k <= 0 || k > 1) {
+         throw new RuntimeException("K should be a value large than 0 and less than or equal to 1");
       }
 
       /*
