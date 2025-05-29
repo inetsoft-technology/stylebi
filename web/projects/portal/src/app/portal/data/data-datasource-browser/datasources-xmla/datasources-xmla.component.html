@@ -144,7 +144,7 @@
                             <div class="form-check form-group">
                                 <input type="checkbox" id="keepOriginalOrder" class="form-check-input"
                                        [ngModel]="selectedDimension?.originalOrder"
-                                       [disabled]="!selectedDimension" (ngModelChange)="changeOriginalOrder()">
+                                       [disabled]="!selectedDimension || selectedDimension.timeDimension" (ngModelChange)="changeOriginalOrder()">
                                 <label class="form-check-label" for="keepOriginalOrder">
                                     _#(Keep Original Order)
                                 </label>
