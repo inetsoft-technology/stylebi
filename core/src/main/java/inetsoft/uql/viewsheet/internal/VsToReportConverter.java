@@ -2011,7 +2011,9 @@ public class VsToReportConverter {
       }
 
       DefaultTextLens textlens = new DefaultTextLens(text);
-      TextBoxElementDef textbox = new TextBoxElementDef(report, textlens);
+      VSAssemblyInfo ainfo = assembly.getVSAssemblyInfo();
+      boolean embedUrl = ((TextVSAssemblyInfo) ainfo).getUrlValue();
+      TextBoxElementDef textbox = new TextBoxElementDef(report, textlens, embedUrl);
 
       int border = StyleConstants.NO_BORDER;
       Color bcolor = null;

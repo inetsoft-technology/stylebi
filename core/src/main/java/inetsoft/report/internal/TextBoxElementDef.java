@@ -70,14 +70,21 @@ public class TextBoxElementDef extends PainterElementDef
       setBorderColor(getForeground());
    }
 
+   public TextBoxElementDef(ReportSheet report, TextLens lens) {
+      this(report, lens, false);
+   }
+
    /**
     * Create a text element from a text lens.
     * @param lens text lens pointing to the text content.
+    * @param forceNoWrap force to not apply wrap, this is for vs printlayout with text embed as url.
     */
-   public TextBoxElementDef(ReportSheet report, TextLens lens) {
+   public TextBoxElementDef(ReportSheet report, TextLens lens, boolean forceNoWrap) {
       super(report, null);
 
-      setPainter(painter = new TextPainter(this));
+      painter = new TextPainter(this);
+      painter.setForceNoWrap(forceNoWrap);
+      setPainter(painter);
       painter.setText(text = lens);
       setPadding(report.padding);
       setJustify(report.justify);
