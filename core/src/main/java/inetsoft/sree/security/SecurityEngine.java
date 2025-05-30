@@ -22,6 +22,7 @@ import inetsoft.sree.ClientInfo;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import org.slf4j.Logger;
@@ -1377,9 +1378,10 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
             // anonymous users are not added to the users map. allow anonymous users if they exist
             ClientInfo user = srPrincipal.getUser();
             IdentityID identity = user.getLoginUserID();
-            return ClientInfo.ANONYMOUS.equals(identity.getName()) &&
+            return XPrincipal.SYSTEM.equals(identity.getName()) ||
+               (ClientInfo.ANONYMOUS.equals(identity.getName()) &&
                (provider == null || provider.getAuthenticationProvider().isVirtual() ||
-                  containsAnonymous(identity.getOrgID()));
+                  containsAnonymous(identity.getOrgID())));
          }
 
          ClientInfo user1 = srPrincipal.getUser();
