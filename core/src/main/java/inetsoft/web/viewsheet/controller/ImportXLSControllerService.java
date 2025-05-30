@@ -24,12 +24,14 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.util.*;
+import inetsoft.util.cachefs.CacheFS;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.Principal;
 import java.util.*;
 
@@ -45,27 +47,15 @@ public class ImportXLSControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void processGetAssemblyImage(@ClusterProxyKey String runtimeId, String type,
-                                       byte[] fileBytes) throws Exception
-   {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      File temp = fileSystemService.getCacheFile(runtimeId + "_" + type);
-      fileSystemService.remove(temp, 120000);
-      FileOutputStream fileOutput = new FileOutputStream(temp);
-      fileOutput.write(fileBytes);
-
-      return null;
-   }
-
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void processXLSUpload(@ClusterProxyKey String vsId, String type, String linkUri,
                                 Principal principal, CommandDispatcher dispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
-      String fileName = vsId.replace('/', '_') + "_" + type;
-      File excelFile = FileSystemService.getInstance().getCacheFile(fileName);
 
-      if(!excelFile.exists()) {
+      String key = "/" + ImportXLSControllerService.class + "_" + vsId + "_" + type;
+      Path excelPath = CacheFS.getPath("tempStorage", key);
+
+      if(!Files.exists(excelPath)) {
          String msg = catalog.getString("Upload Timeout");
          this.coreLifecycleService
             .sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
@@ -83,7 +73,7 @@ public class ImportXLSControllerService {
 
       try {
          ImportXLSService.getInstance().updateViewsheet(
-            excelFile, type, rvs, linkUri, dispatcher, coreLifecycleService, catalog, assemblies,
+            excelPath, type, rvs, linkUri, dispatcher, coreLifecycleService, catalog, assemblies,
             notInRange);
       }
       catch(FileNotFoundException e) {
@@ -116,7 +106,6 @@ public class ImportXLSControllerService {
          this.coreLifecycleService.sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
       }
    }
-
 
    private final Catalog catalog = Catalog.getCatalog();
    private final ViewsheetService viewsheetService;
