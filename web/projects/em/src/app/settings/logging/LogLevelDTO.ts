@@ -18,5 +18,6 @@
 export interface LogLevelDTO {
    context: string;
    name: string;
+   orgName?: string;
    level: string;
 }

@@ -37,6 +37,7 @@ export class LoggingSettingsViewComponent {
    private _model: LogSettingsModel;
    form: UntypedFormGroup;
    enterprise: boolean;
+   organizations: string[];
    isMultiTenant: boolean = false;
 
    @Input()
@@ -99,6 +100,8 @@ export class LoggingSettingsViewComponent {
       });
 
       appInfoService.isEnterprise().subscribe(info => this.enterprise = info);
+
+      appInfoService.getAllOrgnanizations().subscribe(orgs => this.organizations = orgs);
 
       this.http.get("../api/em/navbar/isMultiTenant").subscribe((isMultiTenant: boolean) =>
       {
