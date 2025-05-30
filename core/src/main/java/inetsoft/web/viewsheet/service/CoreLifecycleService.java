@@ -30,21 +30,17 @@ import inetsoft.report.script.viewsheet.ScriptEvent;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
-import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
 import inetsoft.util.*;
 import inetsoft.util.script.ScriptException;
-import inetsoft.web.composer.BrowseDataController;
-import inetsoft.web.composer.model.BrowseDataModel;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.command.*;
@@ -61,6 +57,7 @@ import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
+import java.io.Serializable;
 import java.net.URLEncoder;
 import java.security.Principal;
 import java.util.List;
@@ -78,12 +75,13 @@ public class CoreLifecycleService {
    @Autowired
    public CoreLifecycleService(
       VSObjectModelFactoryService objectModelService, ViewsheetService viewsheetService,
-      VSLayoutService vsLayoutService, ParameterService parameterService)
+      VSLayoutService vsLayoutService, ParameterService parameterService, CoreLifecycleControllerServiceProxy serviceProxy)
    {
       this.objectModelService = objectModelService;
       this.viewsheetService = viewsheetService;
       this.vsLayoutService = vsLayoutService;
       this.parameterService = parameterService;
+      this.serviceProxy = serviceProxy;
    }
 
    public String openViewsheet(ViewsheetService engine, OpenViewsheetEvent event,
@@ -95,7 +93,6 @@ public class CoreLifecycleService {
                                String fullScreenId, String execSessionId)
       throws Exception
    {
-      ChangedAssemblyList clist = createList(true, event, dispatcher, null, uri);
       String vsID = entry.getProperty("vsID");
       String id = Tool.byteDecode(fullScreenId);
       String bookmarkIndex =
@@ -103,242 +100,38 @@ public class CoreLifecycleService {
       entry.setProperty("drillfrom", drillFrom);
       entry.setProperty("vsID", null);
       entry.setProperty("bookmarkIndex", null);
-      RuntimeViewsheet rvs;
-      RuntimeViewsheet rvs2 = null;
+      String nid = null;
 
       if(id != null && id.length() > 0) {
-         rvs = engine.getViewsheet(id, user);
-         rvs.getEntry().setProperty("bookmarkIndex", bookmarkIndex);
-         // optimization, this shouldn't be needed for new vs since the
-         // RuntimeViewsheet cstr calls updateVSBookmark through setEntry
-         rvs.updateVSBookmark();
-         // @by davyc, if full screen viewsheet, keep its variables
-         // fix bug1366833082660
-         VariableTable temp = rvs.getViewsheetSandbox().getVariableTable();
 
-         if(temp != null) {
-            temp.addAll(variables);
+         if(runtimeViewsheetRef != null) {
+            runtimeViewsheetRef.setRuntimeId(id);
          }
 
-         variables = temp;
+         if(runtimeViewsheetManager != null) {
+            runtimeViewsheetManager.sheetOpened(id);
+         }
+
+        id = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, entry, viewer, bookmarkIndex, drillFrom,
+                                            uri, variables, event, dispatcher, user);
       }
-      else {
-         if(vsID != null) {
-            rvs2 = engine.getViewsheet(vsID, user);
-         }
 
+      if(id == null || id.length() == 0) {
          id = engine.openViewsheet(entry, user, viewer);
-         rvs = engine.getViewsheet(id, user);
-      }
 
-      if(runtimeViewsheetRef != null) {
-         runtimeViewsheetRef.setRuntimeId(id);
-      }
-
-      if(runtimeViewsheetManager != null) {
-         runtimeViewsheetManager.sheetOpened(id);
-      }
-
-      VSEventUtil.syncEmbeddedTableVSAssembly(rvs.getViewsheet());
-      rvs.setEmbeddedID(eid);
-      rvs.setExecSessionID(execSessionId);
-
-      // if opened for editing from a viewer vs, copy the current viewer vs so
-      // editing starts from the same state as the viewer
-      if(rvs2 != null) {
-         Viewsheet sheet = rvs2.restoreViewsheet();
-         //if opened for editing from viewer vs, clear layout position and size
-         sheet.clearLayoutState();
-         rvs.setViewsheet(sheet);
-      }
-
-      // @by changhongyang 2017-10-12, when opening the autosaved copy, set the save point so that
-      // the viewsheet is indicated to be modified
-      if(event.isOpenAutoSaved() || event.isConfirmed()) {
-         rvs.setSavePoint(-1);
-      }
-
-      ChangedAssemblyList.ReadyListener rlistener = clist.getReadyListener();
-      rvs.setSocketSessionId(dispatcher.getSessionId());
-      rvs.setSocketUserName(dispatcher.getUserName());
-      dispatcher.sendCommand(null, new SetRuntimeIdCommand(id, getPermissions(rvs, user)));
-      setExportType(rvs, dispatcher);
-      setComposedDashboard(rvs, dispatcher);
-
-      // embed web component
-      if(event.getEmbedAssemblyName() != null) {
-         Viewsheet vs = rvs.getViewsheet();
-
-         if(vs != null && !vs.containsAssembly(event.getEmbedAssemblyName())) {
-            throw new RuntimeException("Assembly does not exist: " + event.getEmbedAssemblyName());
+         if(runtimeViewsheetRef != null) {
+            runtimeViewsheetRef.setRuntimeId(id);
          }
 
-         EmbedAssemblyInfo embedAssemblyInfo = new EmbedAssemblyInfo();
-         embedAssemblyInfo.setAssemblyName(event.getEmbedAssemblyName());
-         embedAssemblyInfo.setAssemblySize(event.getEmbedAssemblySize());
-         rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
-      }
-
-      if(rlistener != null) {
-         rlistener.setRuntimeSheet(rvs);
-         rlistener.setID(id);
-      }
-
-      Set<String> scopied = new HashSet<>();
-      ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
-      AssetQuerySandbox box = vbox.getAssetQuerySandbox();
-      executeVariablesQuery(rvs, vbox);
-
-      // drilldown vs inherit selections from source
-      if(drillFrom != null) {
-         RuntimeViewsheet ovs = engine.getViewsheet(drillFrom, user);
-
-         if(ovs != null) {
-            ViewsheetSandbox ovbox = ovs.getViewsheetSandbox();
-            VSEventUtil.copySelections(ovs.getViewsheet(), rvs.getViewsheet(), scopied);
-
-            if(!scopied.isEmpty()) {
-               // in case calendar changed from single to double
-               rvs.getViewsheet().layout();
-            }
-
-            if(box != null) {
-               vbox.setPViewsheet(ovbox.getScope());
-            }
+         if(runtimeViewsheetManager != null) {
+            runtimeViewsheetManager.sheetOpened(id);
          }
 
-         if(box != null) {
-            // replace all drilldown variables so they don't accumulate
-            box.getVariableTable().clear();
-         }
+         nid = serviceProxy.handleOpenedSheet(id, eid, execSessionId, vsID, entry, viewer, bookmarkIndex, drillFrom,
+                                             uri, variables, event, dispatcher, user);
       }
 
-      if(variables != null && box != null) {
-         Enumeration iter = variables.keys();
-
-         while(iter.hasMoreElements()) {
-            String key = (String) iter.nextElement();
-            Object val = variables.get(key);
-            box.getVariableTable().put(key, val);
-         }
-
-         vbox.resetRuntime();
-      }
-
-      List<String> ids = null;
-
-      if(eid != null) {
-         RuntimeViewsheet prvs = engine.getViewsheet(eid, user);
-
-         if(prvs != null) {
-            Viewsheet parent = prvs.getViewsheet();
-            parent.addChildId(id);
-
-            ids = parent.getChildrenIds();
-
-            // use parent viewsheet to refresh viewsheet
-            RuntimeViewsheet crvs = engine.getViewsheet(id, user);
-            Viewsheet embed = VSEventUtil.getViewsheet(parent,
-                                                       crvs.getEntry());
-            updateViewsheet(embed, crvs, dispatcher);
-         }
-      }
-
-      try {
-         refreshViewsheet(rvs, id, uri, event.getWidth(), event.getHeight(),
-            event.isMobile(),
-            event.getUserAgent(), event.isDisableParameterSheet(), dispatcher,
-            true, false, false, clist, scopied, variables, event.isManualRefresh(),
-            false, true);
-      }
-      catch(ConfirmException e) {
-         if(!waitForMV(e, rvs, dispatcher)) {
-            throw e;
-         }
-      }
-
-      if(ids != null) {
-         SetVSEmbedCommand command = new SetVSEmbedCommand();
-         command.setIds(ids);
-         dispatcher.sendCommand(command);
-      }
-
-      return id;
-   }
-
-   private List<DataVSAssembly> getDataVSAssemblies(Viewsheet vs) {
-      List<DataVSAssembly> dataObjs = new ArrayList<>();
-
-      for(Assembly assembly : vs.getAssemblies()) {
-         if(assembly instanceof Viewsheet) {
-            dataObjs.addAll(getDataVSAssemblies((Viewsheet) assembly));
-         }
-
-         if(assembly instanceof DataVSAssembly) {
-            dataObjs.add((DataVSAssembly) assembly);
-         }
-      }
-
-      return dataObjs;
-   }
-
-   private void executeVariablesQuery(RuntimeViewsheet rvs, ViewsheetSandbox vbox)
-      throws Exception
-   {
-      Viewsheet vs = vbox.getViewsheet();
-      List<DataVSAssembly> dataObjs = getDataVSAssemblies(vs);
-
-      for(DataVSAssembly dassembly : dataObjs) {
-         String tName = dassembly.getTableName();
-         UserVariable[] vars = dassembly.getAllVariables();
-
-         if(tName == null) {
-            continue;
-         }
-
-         RuntimeWorksheet rws = dassembly.isEmbedded() ?
-            VSUtil.getRuntimeWorksheet(dassembly.getViewsheet(), vbox) :
-            rvs.getRuntimeWorksheet();
-
-         if(rws == null) {
-            continue;
-         }
-
-         for(UserVariable uuvar : vars) {
-            if(uuvar.getChoiceQuery() == null) {
-               continue;
-            }
-
-            String cname = uuvar.getChoiceQuery();
-            String[] pair = Tool.split(uuvar.getChoiceQuery(), "]:[", false);
-
-            if(pair != null && pair.length > 1) {
-               tName = pair[0];
-               cname = pair[pair.length - 1];
-            }
-
-            ColumnRef dataRef;
-
-            // for calc table, map cell name to column name
-            if(dassembly instanceof CalcTableVSAssembly) {
-               dataRef = new ColumnRef(new AttributeRef(
-                  VSUtil.getCalcTableColumnNameFromCellName(cname, (CalcTableVSAssembly) dassembly)));
-            }
-            else {
-               dataRef = new ColumnRef(new AttributeRef(cname));
-            }
-
-            BrowseDataController browseDataCtrl = new BrowseDataController();
-            browseDataCtrl.setColumn(dataRef);
-            browseDataCtrl.setName(tName);
-
-            final BrowseDataModel data = browseDataCtrl.process(rws.getAssetQuerySandbox());
-            uuvar.setValues(data.values());
-            uuvar.setChoices(data.values());
-            uuvar.setDataTruncated(data.dataTruncated());
-            uuvar.setExecuted(true);
-         }
-      }
+      return nid == null ? id : nid;
    }
 
    public boolean waitForMV(ConfirmException e, RuntimeViewsheet rvs,
@@ -515,87 +308,6 @@ public class CoreLifecycleService {
       command.setMessage(message);
       command.setType(type);
       dispatcher.sendCommand(command);
-   }
-
-   private void updateViewsheet(Viewsheet source, RuntimeViewsheet rtarget,
-                                CommandDispatcher dispatcher) throws Exception
-   {
-      Viewsheet target = rtarget.getViewsheet();
-
-      if(target == null) {
-         return;
-      }
-
-      Assembly[] assemblies = target.getAssemblies();
-      // sort assemblies, first copy container, then copy child, so
-      // the container's selection and child visible will be correct
-      // fix bug1257130820064
-      Arrays.sort(assemblies, new Comparator<Assembly>() {
-         @Override
-         public int compare(Assembly obj1, Assembly obj2) {
-            if(!(obj1 instanceof VSAssembly) || !(obj2 instanceof VSAssembly)) {
-               return 0;
-            }
-
-            VSAssembly ass1 = (VSAssembly) obj1;
-            VSAssembly ass2 = (VSAssembly) obj2;
-
-            if(isParent(ass1, ass2)) {
-               return 1;
-            }
-            else if(isParent(ass2, ass1)) {
-               return -1;
-            }
-
-            return 0;
-         }
-
-         private boolean isParent(VSAssembly child, VSAssembly parent) {
-            VSAssembly p = child.getContainer();
-
-            while(p != null) {
-               if(p == parent) {
-                  return true;
-               }
-
-               p = p.getContainer();
-            }
-
-            return false;
-         }
-      });
-
-      for(Assembly assemblyObj : assemblies) {
-         VSAssembly assembly = (VSAssembly) assemblyObj;
-         String name = assembly.getName();
-         VSAssembly nassembly = source == null ? null :
-            (VSAssembly) source.getAssembly(name);
-
-         target.removeAssembly(assembly.getAbsoluteName(), false, true);
-
-         if(nassembly != null) {
-            VSAssembly cassembly = (VSAssembly) nassembly.clone();
-
-            // @by cehnw, fix bug1258511736132.
-            // Embedd viewsheet's assemblies visible property is runtime's.
-            // When the embedd viewsheet is drilled, the opened viewsheet's
-            // component is cloned from the parent, it could be wrong.
-            // I fixed visible property according to the original viewsheet.
-            VSAssemblyInfo info = assembly.getVSAssemblyInfo();
-
-            if((info.getVisibleValue().equals("" + VSAssembly.ALWAYS_SHOW) ||
-               "show".equals(info.getVisibleValue())) && info.isVisible()) {
-               cassembly.getVSAssemblyInfo().setVisible(true);
-            }
-
-            target.addAssembly(cassembly, false, false);
-
-            if(!assembly.getVSAssemblyInfo().equals(
-               cassembly.getVSAssemblyInfo())) {
-               refreshVSAssembly(rtarget, cassembly, dispatcher);
-            }
-         }
-      }
    }
 
    public boolean layoutViewsheet(RuntimeViewsheet rvs, String id, String uri,
@@ -2979,6 +2691,7 @@ public class CoreLifecycleService {
    private final ViewsheetService viewsheetService;
    private final VSLayoutService vsLayoutService;
    private final ParameterService parameterService;
+   private final CoreLifecycleControllerServiceProxy serviceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(CoreLifecycleService.class);
 
    /**
@@ -3013,7 +2726,7 @@ public class CoreLifecycleService {
    }
 
    private class ReadyListener
-      implements ChangedAssemblyList.ReadyListener
+      implements ChangedAssemblyList.ReadyListener, Serializable
    {
       ReadyListener(ChangedAssemblyList clist, CommandDispatcher dispatcher,
                     RuntimeViewsheet rvs, String uri)

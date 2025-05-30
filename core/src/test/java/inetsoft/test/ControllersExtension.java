@@ -121,7 +121,7 @@ public class ControllersExtension extends MockMessageExtension {
       ParameterService parameterService = new ParameterService(viewsheetService);
       coreLifecycleService =
          new CoreLifecycleService(objectModelFactoryService, viewsheetService,
-                                  vsLayoutService, parameterService);
+                                  vsLayoutService, parameterService, new CoreLifecycleControllerServiceProxy());
       BaseTableLoadDataServiceProxy tableLoadDataServiceProxy = new BaseTableLoadDataServiceProxy();
       assetRepository = (AssetRepository) SUtil.getRepletRepository();
       objectTreeService = new VSObjectTreeService(objectModelFactoryService);
@@ -151,7 +151,7 @@ public class ControllersExtension extends MockMessageExtension {
       vsCompositionService = new VSCompositionService();
       vsLifecycleService = new VSLifecycleService(
          viewsheetService, assetRepository, coreLifecycleService, bookmarkService,
-         dataRefModelFactoryService, vsCompositionService, parameterService);
+         dataRefModelFactoryService, vsCompositionService, parameterService, new VSLifecycleControllerServiceProxy());
       viewsheetController = new ViewsheetController(runtimeViewsheetRef, new ViewsheetControllerServiceProxy());
       licenseService = new LicenseService();
       openViewsheetController = new OpenViewsheetController(
