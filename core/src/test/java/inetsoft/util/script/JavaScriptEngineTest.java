@@ -376,12 +376,12 @@ class JavaScriptEngineTest {
       d1 = toDate("2023-01-01T00:00");
       d2 = toDate("2023-04-01T00:00");
       assertEquals(3, JavaScriptEngine.dateDiff("m", d1, d2));
-//      assertEquals(13, JavaScriptEngine.dateDiff("ww", d1, d2));//bug #71288
+      assertEquals(12, JavaScriptEngine.dateDiff("ww", d1, d2));//bug #71288
 
       // Test with valid dates and interval "w" (day of the week) and "d"(day of the month)
       d1 = toDate("2023-04-01T00:00");
       d2 = toDate("2023-04-10T00:00");
-//      assertEquals(9, JavaScriptEngine.dateDiff("w", d1, d2));//bug #71288
+      assertEquals(9, JavaScriptEngine.dateDiff("w", d1, d2));//bug #71288
       assertEquals(9, JavaScriptEngine.dateDiff("d", d1, d2));
 
       // Test with valid dates and interval "q" (quarters) and "y"(day of the year)
