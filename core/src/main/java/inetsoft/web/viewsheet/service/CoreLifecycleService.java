@@ -100,6 +100,7 @@ public class CoreLifecycleService {
       entry.setProperty("drillfrom", drillFrom);
       entry.setProperty("vsID", null);
       entry.setProperty("bookmarkIndex", null);
+      String nid = null;
 
       if(id != null && id.length() > 0) {
 
@@ -126,11 +127,11 @@ public class CoreLifecycleService {
             runtimeViewsheetManager.sheetOpened(id);
          }
 
-         id = serviceProxy.handleOpenedSheet(id, eid, execSessionId, vsID, entry, viewer, bookmarkIndex, drillFrom,
+         nid = serviceProxy.handleOpenedSheet(id, eid, execSessionId, vsID, entry, viewer, bookmarkIndex, drillFrom,
                                              uri, variables, event, dispatcher, user);
       }
 
-      return id == null ? Tool.byteDecode(fullScreenId) : id;
+      return nid == null ? id : nid;
    }
 
    public boolean waitForMV(ConfirmException e, RuntimeViewsheet rvs,
