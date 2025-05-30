@@ -21,30 +21,22 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.AffinityCallable;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.XSessionService;
-import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.log.*;
-import inetsoft.web.binding.command.SetGrayedOutFieldsCommand;
-import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
-import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import org.jetbrains.annotations.NotNull;
@@ -67,7 +59,8 @@ public class VSLifecycleService {
                              VSBookmarkService vsBookmarkService,
                              DataRefModelFactoryService dataRefModelFactoryService,
                              VSCompositionService vsCompositionService,
-                             ParameterService parameterService)
+                             ParameterService parameterService,
+                             VSLifecycleControllerServiceProxy serviceProxy)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
@@ -76,6 +69,7 @@ public class VSLifecycleService {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.vsCompositionService = vsCompositionService;
       this.parameterService = parameterService;
+      this.serviceProxy = serviceProxy;
    }
 
    public String openViewsheet(OpenViewsheetEvent event, Principal principal, String linkUri)
@@ -227,49 +221,7 @@ public class VSLifecycleService {
 
       // Add selection parameters if hyperlinkSourceID is set
       if(event.getHyperlinkSourceId() != null) {
-         RuntimeViewsheet rvs =
-            viewsheetService.getViewsheet(event.getHyperlinkSourceId(), principal);
-         parameters = parameters == null ? new HashMap<>() : parameters;
-
-         if(rvs != null && rvs.getViewsheetSandbox() != null) {
-            Hyperlink.Ref hyperlinkRef = new Hyperlink.Ref();
-            // get selection parameters of source rvs
-            VSUtil.addSelectionParameter(hyperlinkRef,
-                                         rvs.getViewsheetSandbox().getSelections());
-            Enumeration<?> keys = hyperlinkRef.getParameterNames();
-
-            while(keys.hasMoreElements()) {
-               String pname = (String) keys.nextElement();
-
-               // dont add parameters that already have values set
-               if(parameters.containsKey(pname)) {
-                  continue;
-               }
-
-               Object paramValue = hyperlinkRef.getParameter(pname);
-               String[] values = new String[0];
-
-               if(Tool.getDataType(paramValue).equals(Tool.ARRAY)) {
-                  if(((Object[]) paramValue).length > 0) {
-                     paramValue = ((Object[]) paramValue)[0].toString().split("\\^");
-                     Object[] params =
-                        (Object[]) Tool.getData(Tool.ARRAY, Tool.getDataString(paramValue));
-
-                     if(params != null && params.length > 0) {
-                        values = Arrays.stream(params)
-                           .map((param) -> Tool.getData(Tool.getDataType(param),
-                                                        Tool.getDataString(param)).toString())
-                           .toArray(String[]::new);
-                     }
-                  }
-               }
-               else {
-                  values = new String[] { Tool.getDataString(paramValue) };
-               }
-
-               parameters.put(pname, values);
-            }
-         }
+         serviceProxy.setRuntimeParameters(event.getHyperlinkSourceId(), parameters, principal);
       }
 
       VariableTable variables = parameterService.readParameters(parameters);
@@ -293,84 +245,8 @@ public class VSLifecycleService {
             viewsheetService, event, principal, linkUri, event.getEmbeddedViewsheetId(),
             entry, dispatcher, runtimeViewsheetRef, runtimeViewsheetManager, viewer,
             event.getDrillFrom(), variables, event.getFullScreenId(), execSessionId);
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-         coreLifecycleService.setExportType(rvs, dispatcher);
-         coreLifecycleService.setPermission(rvs, principal, dispatcher);
 
-         if(event.getBookmarkName() != null && event.getBookmarkUser() != null) {
-            IdentityID bookmarkUser = IdentityID.getIdentityIDFromKey(event.getBookmarkUser());
-            VSBookmarkInfo openedBookmark = rvs.getOpenedBookmark();
-
-            // Bug #66887, only open bookmark if it's different from the currently opened bookmark
-            // prevents the default bookmark from loading twice
-            if(openedBookmark == null ||
-               !(Tool.equals(openedBookmark.getName(), event.getBookmarkName()) &&
-                  Tool.equals(openedBookmark.getOwner(), bookmarkUser)))
-            {
-               vsBookmarkService.processBookmark(
-                  runtimeId, rvs, linkUri, principal, event.getBookmarkName(),
-                  bookmarkUser, event, dispatcher);
-            }
-         }
-
-         if(rvs != null) {
-            auditFinish = shouldAuditFinish(rvs.getViewsheetSandbox());
-
-            if(event.getPreviousUrl() != null) {
-               rvs.setPreviousURL(event.getPreviousUrl());
-            }
-            // drill from exist? it is the previous viewsheet
-            else if(event.getDrillFrom() != null) {
-               RuntimeViewsheet drvs =
-                  viewsheetService.getViewsheet(event.getDrillFrom(), principal);
-               AssetEntry dentry = drvs.getEntry();
-               String didentifier = dentry.toIdentifier();
-               String purl = linkUri + "app/viewer/view/" + didentifier +
-                  "?rvid=" + event.getDrillFrom();
-               rvs.setPreviousURL(purl);
-            }
-
-            String url = rvs.getPreviousURL();
-
-            if(url != null) {
-               SetPreviousUrlCommand command = new SetPreviousUrlCommand();
-               command.setPreviousUrl(url);
-               dispatcher.sendCommand(command);
-            }
-
-            VSModelTrapContext context = new VSModelTrapContext(rvs, true);
-
-            if(context.isCheckTrap()) {
-               context.checkTrap(null, null);
-               DataRef[] refs = context.getGrayedFields();
-
-               if(refs.length > 0) {
-                  DataRefModel[] refsModel = new DataRefModel[refs.length];
-
-                  for(int i = 0; i < refs.length; i++) {
-                     refsModel[i] = dataRefModelFactoryService.createDataRefModel(refs[i]);
-                  }
-
-                  SetGrayedOutFieldsCommand command = new SetGrayedOutFieldsCommand(refsModel);
-                  dispatcher.sendCommand(command);
-               }
-            }
-
-            Viewsheet vs = rvs.getViewsheet();
-            Assembly[] assemblies = vs.getAssemblies();
-
-            // fix bug1309250160380, fix AggregateInfo for CrosstabVSAssembly
-            for(Assembly assembly : assemblies) {
-               if(assembly instanceof CrosstabVSAssembly) {
-                  VSEventUtil.fixAggregateInfo(
-                     (CrosstabVSAssembly) assembly, rvs, assetRepository, principal);
-               }
-            }
-
-            // fix z-index. flash may use a different z-index structure so we should eliminate
-            // duplicate values (which may happen for group containers).
-            vsCompositionService.shrinkZIndex(vs, dispatcher);
-         }
+         auditFinish = serviceProxy.processSheet(runtimeId, event, linkUri, auditFinish, dispatcher, principal);
 
          execTimestamp = new Date(System.currentTimeMillis());
          executionRecord.setExecTimestamp(execTimestamp);
@@ -413,48 +289,13 @@ public class VSLifecycleService {
                                       RuntimeViewsheetManager runtimeViewsheetManager)
       throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(rid, principal);
-
-      if(rvs == null) {
-         coreLifecycleService.sendMessage(
-            "Viewsheet " + rid + " was expired", MessageCommand.Type.INFO, dispatcher);
-         return;
-      }
-
-      rvs.setSocketSessionId(dispatcher.getSessionId());
-      rvs.setSocketUserName(dispatcher.getUserName());
       runtimeViewsheetRef.setRuntimeId(rid);
 
       if(runtimeViewsheetManager != null) {
          runtimeViewsheetManager.sheetOpened(rid);
       }
 
-      dispatcher.sendCommand(null, new SetRuntimeIdCommand(rid));
-      coreLifecycleService.setExportType(rvs, dispatcher);
-      coreLifecycleService.setPermission(rvs, principal, dispatcher);
-      coreLifecycleService.setComposedDashboard(rvs, dispatcher);
-      vsBookmarkService.processBookmark(rid, rvs, linkUri, principal, event.getBookmarkName(),
-                                        IdentityID.getIdentityIDFromKey(event.getBookmarkUser()),
-                                        event, dispatcher);
-      ChangedAssemblyList clist = coreLifecycleService.createList(
-         true, event, dispatcher, rvs, linkUri);
-
-      // optimization, call resetRuntime() explicitly instead of passing true to
-      // refreshViewsheet's resetRuntime (last parameter). otherwise the touch timestamp
-      // would be updated causing cached tablelens to be invalidated after binding change
-      rvs.resetRuntime();
-
-      coreLifecycleService.refreshViewsheet(
-         rvs, rid, linkUri, event.getWidth(), event.getHeight(), event.isMobile(),
-         event.getUserAgent(), dispatcher, true, false, false, clist,
-         event.isManualRefresh(), false);
-      String url = rvs.getPreviousURL();
-
-      if(url != null) {
-         SetPreviousUrlCommand command = new SetPreviousUrlCommand();
-         command.setPreviousUrl(url);
-         dispatcher.sendCommand(command);
-      }
+      serviceProxy.openReturnedViewsheet(rid, principal, linkUri, event, dispatcher);
    }
 
    private void applyViewsheetQuota(AssetEntry entry, Principal user, RuntimeViewsheetManager runtimeViewsheetManager) {
@@ -547,52 +388,6 @@ public class VSLifecycleService {
       private final Principal user;
    }
 
-   private boolean shouldAuditFinish(ViewsheetSandbox viewsheetSandbox) {
-      try {
-         Viewsheet vs = viewsheetSandbox.getViewsheet();
-         ViewsheetInfo vsInfo = vs == null ? null : vs.getViewsheetInfo();
-
-         if(vsInfo != null && vsInfo.isDisableParameterSheet()) {
-            return true;
-         }
-
-         return shouldAuditFinish0(viewsheetSandbox);
-      }
-      catch(Exception e) {
-         // In case there are any issues/errors in checking the Variables for
-         // this Viewsheet, just swallow the exception and continue on with the
-         // previous logic. There is no reason to display this error to the end-user.
-      }
-
-      return true;
-   }
-
-   private boolean shouldAuditFinish0(ViewsheetSandbox viewsheetSandbox) {
-      VariableTable vars = new VariableTable();
-      AssetQuerySandbox abox = viewsheetSandbox.getAssetQuerySandbox();
-      UserVariable[] params = abox.getAllVariables(vars);
-
-      if(params != null && params.length > 0) {
-         return false;
-      }
-
-      ViewsheetSandbox[] sandboxes = viewsheetSandbox.getSandboxes();
-
-      if(sandboxes != null) {
-         for(ViewsheetSandbox sandbox : sandboxes) {
-            if(viewsheetSandbox == sandbox) {
-               continue;
-            }
-
-            if(!shouldAuditFinish0(sandbox)) {
-               return false;
-            }
-         }
-      }
-
-      return true;
-   }
-
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
    private final CoreLifecycleService coreLifecycleService;
@@ -600,5 +395,6 @@ public class VSLifecycleService {
    private final DataRefModelFactoryService dataRefModelFactoryService;
    private final VSCompositionService vsCompositionService;
    private final ParameterService parameterService;
+   private final VSLifecycleControllerServiceProxy serviceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(VSLifecycleService.class);
 }

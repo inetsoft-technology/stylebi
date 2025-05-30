@@ -31,6 +31,7 @@ import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import org.immutables.serial.Serial;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +50,7 @@ import java.util.*;
  */
 @JsonSerialize(using = VariableTable.Serializer.class)
 @JsonDeserialize(using = VariableTable.Deserializer.class)
+@Serial.Structural
 public class VariableTable implements ContentObject, Serializable, Cloneable {
    /**
     * The name for the HttpServletRequest parameter. This parameter is

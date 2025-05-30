@@ -96,7 +96,7 @@ public class ScheduleViewsheetService {
       VSLayoutService vsLayoutService = new VSLayoutService(objectModelFactoryService);
       ParameterService parameterService = new ParameterService(engine);
       return new CoreLifecycleService(objectModelFactoryService, engine, vsLayoutService,
-                                      parameterService);
+                                      parameterService, new CoreLifecycleControllerServiceProxy());
    }
 
    public String openViewsheet(AssetEntry entry, RepletRequest repletRequest, Principal principal)
