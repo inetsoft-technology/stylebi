@@ -497,8 +497,12 @@ public class CalcUtil {
     */
    public static long factorialdouble(long n) {
       // Base Case:
+      // If n == 0 then n! = 1
+      if(n == 0) {
+         return 1;
+      }
       // If n == 1 or n ==2 then n! = n.
-      if(n == 1 || n == 2) {
+      else if(n == 1 || n == 2) {
          return n;
       }
       // Recursive Case:
