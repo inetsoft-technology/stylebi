@@ -564,9 +564,6 @@ class CalcStatTest {
       // 50th percentile (median)
       assertEquals(3.0, CalcStat.percentile(inputArray, 0.5), 0.0001);
 
-      // Test case: Edge case with k = 0 (minimum value)
-//      assertEquals(1.0, CalcStat.percentile(inputArray, 0.0), 0.0001);//bug #71297
-
       // Test case: Edge case with k = 1 (maximum value)
       assertEquals(5.0, CalcStat.percentile(inputArray, 1.0), 0.0001);
 
@@ -583,13 +580,15 @@ class CalcStatTest {
       exception = assertThrows(RuntimeException.class, () -> CalcStat.percentile(largeArray, 0.5));
       assertEquals("Array should have less than 8191 data points", exception.getMessage());
 
-      // Test case: Invalid k (less than 0)
+      // Test case: Invalid k (less than or equal to 0), bug #71297
+      exception = assertThrows(RuntimeException.class, () -> CalcStat.percentile(inputArray, 0));
+      assertEquals("K should be a value large than 0 and less than or equal to 1", exception.getMessage());
       exception = assertThrows(RuntimeException.class, () -> CalcStat.percentile(inputArray, -0.1));
-      assertEquals("K should be a value between 0 and 1 (both inclusive)", exception.getMessage());
+      assertEquals("K should be a value large than 0 and less than or equal to 1", exception.getMessage());
 
       // Test case: Invalid k (greater than 1)
       exception = assertThrows(RuntimeException.class, () -> CalcStat.percentile(inputArray, 1.1));
-      assertEquals("K should be a value between 0 and 1 (both inclusive)", exception.getMessage());
+      assertEquals("K should be a value large than 0 and less than or equal to 1", exception.getMessage());
    }
 
    @Test
