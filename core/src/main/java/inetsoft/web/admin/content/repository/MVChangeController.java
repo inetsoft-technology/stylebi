@@ -22,22 +22,27 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.Debouncer;
 import inetsoft.util.DefaultDebouncer;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.messaging.simp.annotation.SubscribeMapping;
-import org.springframework.stereotype.Controller;
-
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.*;
+
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class MVChangeController implements MessageListener {
    @Autowired
    public MVChangeController(SimpMessagingTemplate messagingTemplate)
@@ -47,7 +52,7 @@ public class MVChangeController implements MessageListener {
    }
 
    @PostConstruct
-   public void addListeners() throws Exception {
+   public void addListeners() {
       MVManager.getManager().addPropertyChangeListener(this.mvListener);
       Cluster.getInstance().addMessageListener(this);
    }
@@ -60,8 +65,32 @@ public class MVChangeController implements MessageListener {
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
-   public void subscribeToTopic(Principal principal) throws Exception {
-      this.principal = principal;
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws Exception {
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String subscriptionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+      subscriptions.put(subscriptionId, principal);
+   }
+
+   @EventListener
+   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
+      removeSubscription(event);
+   }
+
+   @EventListener
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String subscriptionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+
+      if(subscriptionId != null) {
+         subscriptions.remove(subscriptionId);
+      }
    }
 
    private void mvPropertyChanged(PropertyChangeEvent event) {
@@ -75,8 +104,10 @@ public class MVChangeController implements MessageListener {
    }
 
    private void sendChangeMessage() {
-      messagingTemplate
-         .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+      for(Principal principal : subscriptions.values()) {
+         messagingTemplate
+            .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+      }
    }
 
    @Override
@@ -88,7 +119,7 @@ public class MVChangeController implements MessageListener {
       }
    }
 
-   private Principal principal;
+   private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
 
    private final SimpMessagingTemplate messagingTemplate;
    private final Debouncer<String> debouncer;
