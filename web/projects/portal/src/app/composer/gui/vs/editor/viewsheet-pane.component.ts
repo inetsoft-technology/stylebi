@@ -704,8 +704,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
                count++;
             }
 
-            return assembly.objectType === "VSViewsheet" ||
-               assembly.objectType === "VSSelectionContainer";
+            return assembly.objectType === "VSSelectionContainer";
          });
 
       return count > 1 && tabParentCount < 2 && !groupingDisabled;
