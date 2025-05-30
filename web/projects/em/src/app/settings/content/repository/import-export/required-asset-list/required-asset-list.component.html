@@ -32,23 +32,23 @@
       </td>
     </ng-container>
     <ng-container matColumnDef="name">
-      <th mat-header-cell *matHeaderCellDef>_#(Name)</th>
+      <th mat-header-cell *matHeaderCellDef mat-sort-header>_#(Name)</th>
       <td mat-cell class="path-content" *matCellDef="let row" [attr.title]="row.label"> {{ row.label }}</td>
     </ng-container>
     <ng-container matColumnDef="type">
-      <th mat-header-cell *matHeaderCellDef class="type-column">_#(Type)</th>
+      <th mat-header-cell *matHeaderCellDef mat-sort-header class="type-column">_#(Type)</th>
       <td mat-cell *matCellDef="let row"> {{ row.typeLabel ? row.typeLabel : row.type }}</td>
     </ng-container>
     <ng-container matColumnDef="appliedTargetLabel">
-      <th mat-header-cell *matHeaderCellDef>_#(Imported Path)</th>
+      <th mat-header-cell *matHeaderCellDef mat-sort-header>_#(Imported Path)</th>
       <td mat-cell class="path-content" *matCellDef="let row" [title]="row.appliedTargetLabel"> {{ row.appliedTargetLabel }}</td>
     </ng-container>
     <ng-container matColumnDef="lastModifiedTime">
-      <th mat-header-cell *matHeaderCellDef class="type-column">_#(Last Modified Time)</th>
+      <th mat-header-cell *matHeaderCellDef mat-sort-header class="type-column">_#(Last Modified Time)</th>
       <td mat-cell *matCellDef="let row"> {{ getTimeLabel(row.lastModifiedTime, row.dateFormat) }}</td>
     </ng-container>
     <ng-container matColumnDef="requiredBy">
-      <th mat-header-cell *matHeaderCellDef>_#(Required By)</th>
+      <th mat-header-cell *matHeaderCellDef mat-sort-header>_#(Required By)</th>
       <td mat-cell *matCellDef="let row"> {{ row.requiredBy }}</td>
     </ng-container>
     <ng-container matColumnDef="expandedDetail">
