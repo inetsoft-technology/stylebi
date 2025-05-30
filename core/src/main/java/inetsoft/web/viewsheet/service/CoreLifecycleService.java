@@ -130,7 +130,7 @@ public class CoreLifecycleService {
                                              uri, variables, event, dispatcher, user);
       }
 
-      return id;
+      return id == null ? Tool.byteDecode(fullScreenId) : id;
    }
 
    public boolean waitForMV(ConfirmException e, RuntimeViewsheet rvs,
