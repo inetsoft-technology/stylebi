@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client/index";
 import { SelectionValue } from "../../../composer/data/vs/selection-value";
@@ -34,7 +35,7 @@ import { SelectionBaseController, SelectionStateModel } from "./selection-base-c
 export class SelectionListController extends SelectionBaseController<VSSelectionListModel> {
    constructor(protected viewsheetClient: ViewsheetClientService,
                private formDataService: CheckFormDataService,
-               private assemblyName: string) {
+               private assemblyName: string, private http: HttpClient) {
       super(viewsheetClient);
    }
 
@@ -145,11 +146,53 @@ export class SelectionListController extends SelectionBaseController<VSSelection
       this.formDataService.checkFormData(
          this.viewsheetClient.runtimeId, this.model.absoluteName, null,
          () => {
-            this.viewsheetClient.sendEvent(
-               "/events/selectionList/update/" + this.assemblyName,
-               new ApplySelectionListEvent(values, ApplySelectionListEvent.APPLY, -1,
-                  -1, eventSource ? eventSource : this.model.absoluteName,
-                  toggle, toggleAll));
+            let segmentCount = Math.ceil(values.length / 1000);
+
+            if(segmentCount <= 1) {
+               this.viewsheetClient.sendEvent(
+                  "/events/selectionList/update/" + this.assemblyName,
+                  new ApplySelectionListEvent(values, ApplySelectionListEvent.APPLY, -1,
+                     -1, eventSource ? eventSource : this.model.absoluteName,
+                     toggle, toggleAll));
+            }
+            else {
+               let index = 0;
+               this.model.submitPadding = true;
+               this.fireUpdateView();
+
+               let call = () => {
+                  let currentVals =
+                     values.slice(index * 1000, Math.min((index + 1) * 1000, values.length))
+                  let lastSegment = index == segmentCount -1;
+
+                  if(lastSegment) {
+                     this.viewsheetClient.sendEvent(
+                        "/events/selectionList/update/" + this.assemblyName,
+                        new ApplySelectionListEvent(currentVals, ApplySelectionListEvent.APPLY, -1,
+                           -1, eventSource ? eventSource : this.model.absoluteName,
+                           toggle, toggleAll));
+
+                     setTimeout(() => {
+                        this.model.submitPadding = false;
+                        this.fireUpdateView();
+                     }, 1000);
+                  }
+                  else {
+                     let event = new ApplySelectionListEvent(
+                        values.slice(index * 1000, Math.min((index + 1) * 1000, values.length)),
+                        ApplySelectionListEvent.APPLY, -1,
+                        -1, eventSource ? eventSource : this.model.absoluteName,
+                        toggle, toggleAll, undefined, index < segmentCount -1)
+                     let url = `../api/selectionList/update/${Tool.byteEncode(this.viewsheetClient.runtimeId)}/${this.assemblyName}`;
+                     this.http.post(url, event).subscribe(() => {
+                        index++;
+                        call();
+                     })
+                  }
+               };
+
+               call();
+            }
          },
          () => {
             let event: GetVSObjectModelEvent =

@@ -330,6 +330,10 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    }
 
    public touchVScroll(delta: number) {
+      if(!this.isVScrollable()) {
+         return;
+      }
+
       this.scrollY = Math.max(0, this.scrollY - delta);
       this.scrollY = Math.min(this.scrollY,
          this.tableHeight -

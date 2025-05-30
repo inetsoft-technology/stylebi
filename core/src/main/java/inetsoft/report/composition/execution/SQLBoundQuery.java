@@ -29,6 +29,7 @@ import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.log.LogContext;
+import org.slf4j.MDC;
 
 import java.util.*;
 
@@ -187,7 +188,7 @@ public class SQLBoundQuery extends BoundQuery {
    @Override
    protected Collection<?> getLogRecord() {
       if(table != null) {
-         String name = table.getAbsoluteName() + " " + getDataSourceLogRecord() + "Embedded";
+         String name = Tool.buildString(MDC.get(LogContext.WORKSHEET.name()), ".", table.getAbsoluteName());
          return Collections.singleton(LogContext.QUERY.getRecord(name));
       }
       else if(xquery != null) {

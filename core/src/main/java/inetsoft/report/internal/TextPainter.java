@@ -402,9 +402,9 @@ public class TextPainter implements ExpandablePainter, StyleConstants, Cloneable
 
       // get the max right side sub string
       int dot = 0;
-      boolean wrap = true;
+      boolean wrap = !forceNoWrap;
 
-      if(sectionDecimal >= 0) {
+      if(sectionDecimal >= 0 && !forceNoWrap) {
          dot = sectionDecimal;
          wrap = h > Common.getHeight(getFont()) * 1.3;
       }
@@ -862,6 +862,10 @@ public class TextPainter implements ExpandablePainter, StyleConstants, Cloneable
       stream.writeObject(getFont());
    }
 
+   public void setForceNoWrap(boolean forceNoWrap) {
+      this.forceNoWrap = forceNoWrap;
+   }
+
    private static byte shadowW = 4; // shadow width
 
    static {
@@ -881,6 +885,7 @@ public class TextPainter implements ExpandablePainter, StyleConstants, Cloneable
    private transient Font font = null; // highlight font
    private transient TextBoxElementInfo lastInfo = null; // optimization
    private transient short width = -1; // width in section
+   private transient boolean forceNoWrap = false;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(TextPainter.class);

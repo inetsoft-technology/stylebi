@@ -89,12 +89,6 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
    }
 
    protected VSAssemblyInfo getVSAssemblyInfo() {
-      Viewsheet vs = box.getViewsheet();
-
-      if(vs.isEmbedded()) {
-         return vs.getVSAssemblyInfo();
-      }
-
       return super.getVSAssemblyInfo();
    }
 
