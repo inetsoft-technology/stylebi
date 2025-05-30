@@ -417,7 +417,6 @@ public class PropertiesEngine {
          }
 
          String home = ConfigurationContext.getContext().getHome();
-         String path = home + "/sree.properties";
 
          KeyValueStorage<String> storage = getStorage();
          storage.addListener(changeListener);
@@ -431,7 +430,6 @@ public class PropertiesEngine {
          }
 
          prop.setProperty("sree.home", home);
-         prop.setProperty("sree.properties", path);
 
          DefaultProperties topProp = new DefaultProperties(prop, getDefaultProperties());
          ConfigurationContext.getContext().put(PROPERTIES_KEY, topProp);
@@ -520,28 +518,6 @@ public class PropertiesEngine {
             }
          }
          catch(Exception ignore) {
-         }
-
-         InputStream inp = null;
-         String configHome = ConfigurationContext.getContext().getHome();
-
-         try {
-            inp = new FileInputStream(configHome + "/sree.properties");
-         }
-         catch(IOException ignore) {
-         }
-         catch(SecurityException se) {
-            inp = PropertiesEngine.class.getResourceAsStream("/sree.properties");
-         }
-
-         try {
-            if(inp != null) {
-               base.load(inp);
-               inp.close();
-            }
-         }
-         catch(Exception e) {
-            LOG.error("Failed to load sree.properties file", e);
          }
 
          // get resource bundles
@@ -976,7 +952,6 @@ public class PropertiesEngine {
 
       String admHome = prop.getProperty("sree.home", ".");
       prop.remove("sree.home");
-      prop.remove("sree.properties");
       prop.put("adm.home", admHome);
 
       KeyValueStorage<String> storage = getStorage();
