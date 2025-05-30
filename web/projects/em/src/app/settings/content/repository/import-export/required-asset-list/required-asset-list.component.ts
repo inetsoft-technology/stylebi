@@ -29,9 +29,10 @@ import { RequiredAssetModel } from "../required-asset-model";
    styleUrls: ["./required-asset-list.component.scss"],
    animations: [
       trigger("detailExpand", [
-         state("collapsed", style({height: "0px", minHeight: "0"})),
+         state("collapsed, void", style({height: "0px", minHeight: "0"})),
          state("expanded", style({height: "*"})),
          transition("expanded <=> collapsed", animate("225ms cubic-bezier(0.4, 0.0, 0.2, 1)")),
+         transition('expanded <=> void', animate('225ms cubic-bezier(0.4, 0.0, 0.2, 1)'))
       ]),
    ]
 })
@@ -84,6 +85,17 @@ export class RequiredAssetListComponent implements OnInit {
    }
 
    ngOnInit() {
+      this.dataSource.sortingDataAccessor = (item, property) => {
+         switch(property) {
+         case "name": return item.label;
+         case "type": return item.type;
+         case "appliedTargetLabel": return item.type;
+         case "lastModifiedTime": return item.lastModifiedTime;
+         case "requiredBy": return item.requiredBy;
+         default: return item[property];
+         }
+      };
+
       this.dataSource.sort = this.sort;
    }
 

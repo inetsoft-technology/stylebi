@@ -70,6 +70,16 @@ export class SelectedAssetListComponent implements OnInit {
    }
 
    ngOnInit() {
+      this.dataSource.sortingDataAccessor = (item, property) => {
+         switch(property) {
+         case "name": return item.label;
+         case "type": return item.type;
+         case "appliedTargetLabel": return item.type;
+         case "lastModifiedTime": return item.lastModifiedTime;
+         default: return item[property];
+         }
+      };
+
       this.dataSource.sort = this.sort;
    }
 

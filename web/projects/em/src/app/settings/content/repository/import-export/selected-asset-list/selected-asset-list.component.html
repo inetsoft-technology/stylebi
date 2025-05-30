@@ -17,19 +17,19 @@
   -->
 <table mat-table matSort [dataSource]="dataSource">
   <ng-container matColumnDef="name">
-    <th mat-header-cell *matHeaderCellDef>_#(Name)</th>
+    <th mat-header-cell *matHeaderCellDef mat-sort-header>_#(Name)</th>
     <td mat-cell *matCellDef="let row; let i = index" [title]="row.label"> {{ getLabel(row.label, i) }}</td>
   </ng-container>
   <ng-container matColumnDef="type">
-    <th mat-header-cell *matHeaderCellDef class="type-column">_#(Type)</th>
+    <th mat-header-cell *matHeaderCellDef mat-sort-header class="type-column">_#(Type)</th>
     <td mat-cell *matCellDef="let row"> {{ row.typeLabel ? row.typeLabel : row.typeName }}</td>
   </ng-container>
   <ng-container matColumnDef="appliedTargetLabel">
-    <th [style.display]="selectedTargetFolder ? '' : 'none'" mat-header-cell *matHeaderCellDef>_#(Imported Path)</th>
+    <th [style.display]="selectedTargetFolder ? '' : 'none'" mat-header-cell mat-sort-header *matHeaderCellDef>_#(Imported Path)</th>
     <td [style.display]="selectedTargetFolder ? '' : 'none'" mat-cell *matCellDef="let row; let i = index" [title]="row.appliedTargetLabel"> {{ getLabel(row.appliedTargetLabel, i) }}</td>
   </ng-container>
   <ng-container matColumnDef="lastModifiedTime">
-    <th mat-header-cell *matHeaderCellDef class="type-column">_#(Last Modified Time)</th>
+    <th mat-header-cell *matHeaderCellDef mat-sort-header class="type-column">_#(Last Modified Time)</th>
     <td mat-cell *matCellDef="let row"> {{ getTimeLabel(row.lastModifiedTime, row.dateFormat) }}</td>
   </ng-container>
   <tr mat-header-row *matHeaderRowDef="displayColumns;"></tr>
