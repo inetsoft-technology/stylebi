@@ -25,17 +25,25 @@ import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.handler.DestinationPatternsMessageCondition;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.*;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.security.Principal;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class PluginChangeController {
    @Autowired
    public PluginChangeController(SimpMessagingTemplate messagingTemplate) {
@@ -54,8 +62,32 @@ public class PluginChangeController {
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
-   public void subscribeToTopic(Principal principal) throws Exception {
-      this.principal = principal;
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) {
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String subscriptionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+      subscriptions.put(subscriptionId, principal);
+   }
+
+   @EventListener
+   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
+      removeSubscription(event);
+   }
+
+   @EventListener
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String subscriptionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+
+      if(subscriptionId != null) {
+         subscriptions.remove(subscriptionId);
+      }
    }
 
    private void pluginChanged(ActionEvent actionEvent) {
@@ -63,11 +95,13 @@ public class PluginChangeController {
    }
 
    private void sendChangeMessage() {
-      messagingTemplate
-         .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+      for(Principal principal : subscriptions.values()) {
+         messagingTemplate
+            .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+      }
    }
 
-   private Principal principal;
+   private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private final Debouncer<String> debouncer;
    private final SimpMessagingTemplate messagingTemplate;
    private static final String CHANGE_TOPIC = "/em-plugin-changed";
