@@ -289,6 +289,12 @@ public class CalcMath {
          throw new RuntimeException("Array should at least contain one number");
       }
 
+      for(int i = 0; i < nos.length; i++) {
+         if(nos[i] < 0) {
+            throw new RuntimeException("All numbers should be non-negative");
+         }
+      }
+
       int gcd;
 
       if(nos.length == 1) {
