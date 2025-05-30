@@ -18,6 +18,7 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepletRegistry;
@@ -388,7 +389,7 @@ public class RepositoryObjectService {
                LibManager.getManager().save();
                break;
             case RepositoryEntry.TABLE_STYLE | RepositoryEntry.FOLDER:
-               LibManager.getManager().removeTableStyleFolder(node.path());
+               AssetEventUtil.removeStyleFolder(node.path(), LibManager.getManager());
                LibManager.getManager().save();
                break;
             case RepositoryEntry.FOLDER:
