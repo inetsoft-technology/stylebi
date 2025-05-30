@@ -1938,7 +1938,7 @@ public class DataSourceRegistry implements MessageListener {
       this.existQueryFolders = folders;
    }
 
-   private static boolean matchesDataSourceFilter(String key) {
+   public static boolean matchesDataSourceFilter(String key) {
       return key.startsWith(FILTER_PREFIX) && FILTERED_ASSET_TYPES.stream()
          .map(t -> AssetRepository.QUERY_SCOPE + "^" + t.id() + "^")
          .anyMatch(key::startsWith);
