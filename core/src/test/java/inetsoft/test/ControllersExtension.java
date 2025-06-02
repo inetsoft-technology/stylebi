@@ -73,7 +73,7 @@ public class ControllersExtension extends MockMessageExtension {
       viewsheetService = ViewsheetEngine.getViewsheetEngine();
       worksheetService = WorksheetEngine.getWorksheetService();
 
-      runtimeViewsheetRef = new RuntimeViewsheetRef(viewsheetService) {
+      runtimeViewsheetRef = new RuntimeViewsheetRef(new RuntimeViewsheetRefServiceProxy()) {
          @Override
          public String getRuntimeId() {
             return ControllersExtension.this.runtimeId;

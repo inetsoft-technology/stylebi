@@ -118,7 +118,10 @@ public class ComposerViewsheetController {
    @MessageMapping("composer/viewsheet/close")
    public void closeViewsheet(@Payload CloseSheetEvent event, Principal principal) throws Exception {
       String runtimeId = runtimeViewsheetRef.getRuntimeId();
-      composerViewsheetService.closeViewsheet(runtimeId, event, principal);
+
+      if(runtimeId != null) {
+         composerViewsheetService.closeViewsheet(runtimeId, event, principal);
+      }
    }
 
    /**

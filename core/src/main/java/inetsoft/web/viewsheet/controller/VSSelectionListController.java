@@ -78,8 +78,7 @@ public class VSSelectionListController {
       @PathVariable("name") String name, @LinkUri String linkUri,
       @RequestBody ApplySelectionListEvent event, Principal principal) throws Exception
    {
-      final Context context = createContext(runtimeId, principal, linkUri);
-      vsSelectionService.applySelection(name, event, context);
+      vsSelectionServiceProxy.applySelection(runtimeId, name, event, principal, null, linkUri);
    }
 
    @Undoable
@@ -143,14 +142,6 @@ public class VSSelectionListController {
    {
       vsSelectionServiceProxy.toggleSelectionStyle(runtimeViewsheetRef.getRuntimeId(), assemblyName,
                                               principal, dispatcher, linkUri);
-   }
-
-   private Context createContext(String runtimeId, Principal principal,
-                                 String linkUri)
-      throws Exception
-   {
-      return CommandDispatcher.withDummyDispatcher(principal, dispatcher ->
-         vsSelectionService.createContext(runtimeId, principal, dispatcher, linkUri));
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;

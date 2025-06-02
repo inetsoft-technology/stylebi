@@ -223,10 +223,13 @@ public class VSExportService {
       String execSessionId =
          XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
-      return CommandDispatcher.withDummyDispatcher(principal, d -> coreLifecycleService.openViewsheet(
-         viewsheetService, openViewsheetEvent, principal, null, null, entry, d, null,
-         null, true, openViewsheetEvent.getDrillFrom(), vt,
-         openViewsheetEvent.getFullScreenId(), execSessionId));
+      return CommandDispatcher.withDummyDispatcher(principal, d -> {
+         CoreLifecycleControllerService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
+            viewsheetService, openViewsheetEvent, principal, null, null, entry, d, null,
+            null, true, openViewsheetEvent.getDrillFrom(), vt,
+            openViewsheetEvent.getFullScreenId(), execSessionId);
+         return result.id;
+      });
    }
 
    public void exportViewsheet(RuntimeViewsheet rvs, int format, boolean match,
