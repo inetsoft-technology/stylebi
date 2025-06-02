@@ -39,6 +39,7 @@ import inetsoft.util.log.*;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRefServiceProxy;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +77,7 @@ public class VSLifecycleService {
       throws Exception
    {
       return CommandDispatcher.withDummyDispatcher(principal, dispatcher -> openViewsheet(
-         event, principal, dispatcher, new RuntimeViewsheetRef(this.viewsheetService), null,
+         event, principal, dispatcher, new RuntimeViewsheetRef(new RuntimeViewsheetRefServiceProxy()), null,
          linkUri));
    }
 
@@ -176,7 +177,7 @@ public class VSLifecycleService {
          viewsheetService.closeViewsheet(runtimeId, principal);
 
          if(runtimeViewsheetManager != null) {
-            runtimeViewsheetManager.sheetClosed(runtimeId);
+            runtimeViewsheetManager.sheetClosed(principal, runtimeId);
          }
       }
       catch(Exception e) {
@@ -241,13 +242,14 @@ public class VSLifecycleService {
                   event.getWidth() + ", mobile=" + event.isMobile());
          }
 
-         runtimeId = coreLifecycleService.openViewsheet(
-            viewsheetService, event, principal, linkUri, event.getEmbeddedViewsheetId(),
-            entry, dispatcher, runtimeViewsheetRef, runtimeViewsheetManager, viewer,
-            event.getDrillFrom(), variables, event.getFullScreenId(), execSessionId);
+         CoreLifecycleControllerService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
+                                                                     viewsheetService, event, principal, linkUri,
+                                                                     event.getEmbeddedViewsheetId(), entry, dispatcher,
+                                                                     runtimeViewsheetRef, runtimeViewsheetManager, viewer,
+                                                                     event.getDrillFrom(), variables, event.getFullScreenId(), execSessionId);
 
-         auditFinish = serviceProxy.processSheet(runtimeId, event, linkUri, auditFinish, dispatcher, principal);
-
+         runtimeId = result.id;
+         auditFinish = result.auditFinish;
          execTimestamp = new Date(System.currentTimeMillis());
          executionRecord.setExecTimestamp(execTimestamp);
          executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_SUCCESS);
@@ -292,7 +294,7 @@ public class VSLifecycleService {
       runtimeViewsheetRef.setRuntimeId(rid);
 
       if(runtimeViewsheetManager != null) {
-         runtimeViewsheetManager.sheetOpened(rid);
+         runtimeViewsheetManager.sheetOpened(principal, rid);
       }
 
       serviceProxy.openReturnedViewsheet(rid, principal, linkUri, event, dispatcher);
@@ -339,7 +341,7 @@ public class VSLifecycleService {
          });
 
          if(runtimeViewsheetManager != null) {
-            runtimeViewsheetManager.sheetClosed(sheet.getId());
+            runtimeViewsheetManager.sheetClosed(user, sheet.getId());
          }
       }
    }

@@ -16,45 +16,32 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.web.viewsheet.controller;
+package inetsoft.web.viewsheet.model;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
+import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.WorksheetEngine;
-import inetsoft.web.viewsheet.service.RuntimeViewsheetManager;
 import org.springframework.stereotype.Service;
-
-import java.security.Principal;
 
 @Service
 @ClusterProxy
-public class ViewsheetControllerService {
+public class RuntimeViewsheetRefService {
 
-   public ViewsheetControllerService(RuntimeViewsheetManager runtimeViewsheetManager,
-                                     ViewsheetService viewsheetService)
-   {
-      this.runtimeViewsheetManager = runtimeViewsheetManager;
+   public RuntimeViewsheetRefService(ViewsheetService viewsheetService) {
       this.viewsheetService = viewsheetService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void closeViewsheet(@ClusterProxyKey String rvId, Principal principal)
-   {
-      try {
-         viewsheetService.closeViewsheet(rvId, principal);
+   public Void handleTouchAsset(@ClusterProxyKey String sheetRuntimeId) {
+      RuntimeSheet rvs = viewsheetService.getSheet(sheetRuntimeId, null);
 
-         if(runtimeViewsheetManager != null) {
-            runtimeViewsheetManager.sheetClosed(principal, rvId);
-         }
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to close viewsheet", e);
+      if(rvs != null) {
+         rvs.access(true);
       }
 
       return null;
    }
 
-
-   private final RuntimeViewsheetManager runtimeViewsheetManager;
    private final ViewsheetService viewsheetService;
 }

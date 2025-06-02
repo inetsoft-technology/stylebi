@@ -17,9 +17,7 @@
  */
 package inetsoft.web.viewsheet.model;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ExpiredSheetException;
-import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import org.slf4j.Logger;
@@ -42,7 +40,7 @@ import org.springframework.stereotype.Component;
 @Scope(scopeName = "message", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class RuntimeViewsheetRef {
    @Autowired
-   public RuntimeViewsheetRef(ViewsheetService viewsheetService) {
+   public RuntimeViewsheetRef(RuntimeViewsheetRefServiceProxy runtimeViewsheetRefServiceProxy) {
       final MessageAttributes messageAttributes = MessageContextHolder.getMessageAttributes();
       final StompHeaderAccessor headerAccessor = messageAttributes.getHeaderAccessor();
 
@@ -56,11 +54,7 @@ public class RuntimeViewsheetRef {
 
          if(!"/events/composer/touch-asset".equals(messageHeaders.get("simpDestination"))) {
             try {
-               RuntimeSheet rvs = viewsheetService.getSheet(sheetRuntimeId, null);
-
-               if(rvs != null) {
-                  rvs.access(true);
-               }
+              runtimeViewsheetRefServiceProxy.handleTouchAsset(sheetRuntimeId);
             }
             catch(ExpiredSheetException e) {
                // ignored
