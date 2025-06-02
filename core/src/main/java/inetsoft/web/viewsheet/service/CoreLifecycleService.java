@@ -1494,6 +1494,8 @@ public class CoreLifecycleService {
             // previous execution of output value). (68371)
             else {
                outputInfo.setValue(data);
+               outputInfo.updateHighlight(box.getAllVariables(),
+                                          box.getConditionAssetQuerySandbox(assembly.getViewsheet()));
             }
 
             BindingInfo binding = outputInfo.getBindingInfo();
