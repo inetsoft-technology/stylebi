@@ -26,21 +26,28 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.Debouncer;
 import inetsoft.util.DefaultDebouncer;
 import inetsoft.web.composer.model.AssetChangeEventModel;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.*;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.beans.PropertyChangeEvent;
 import java.security.Principal;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class AssetTreeRefreshController {
    @Autowired
    public void setAssetRepository(AssetRepository assetRepository) {
@@ -52,10 +59,23 @@ public class AssetTreeRefreshController {
       this.messagingTemplate = messagingTemplate;
    }
 
+   @PostConstruct
+   public void addListeners() {
+      assetRepository.addAssetChangeListener(listener);
+      LibManager.getManager().addActionListener(libraryListener);
+      DataSourceRegistry.getRegistry().addRefreshedListener(this::dataSourceRefreshed);
+      AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
+
+      if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
+         runtimeAssetRepository.addAssetChangeListener(listener);
+      }
+   }
+
    @PreDestroy
    public void preDestroy() throws Exception {
       assetRepository.removeAssetChangeListener(listener);
       LibManager.getManager().removeActionListener(libraryListener);
+      DataSourceRegistry.getRegistry().removeRefreshedListener(this::dataSourceRefreshed);
       AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
       if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
@@ -66,33 +86,64 @@ public class AssetTreeRefreshController {
    }
 
    @SubscribeMapping("/asset-changed")
-   public void subscribeToTopic(Principal principal) {
-      destination = SUtil.getUserDestination(principal);
-      assetRepository.addAssetChangeListener(listener);
-      LibManager.getManager().addActionListener(libraryListener);
-      AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
+   public void subscribeToTopic(StompHeaderAccessor header, Principal principal) {
+      final MessageHeaders messageHeaders = header.getMessageHeaders();
+      final String subscriptionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+      subscriptions.put(subscriptionId, principal);
+   }
 
-      if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
-         runtimeAssetRepository.addAssetChangeListener(listener);
+   @EventListener
+   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
+      removeSubscription(event);
+   }
+
+   @EventListener
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      final Message<byte[]> message = event.getMessage();
+      final MessageHeaders headers = message.getHeaders();
+      final String subscriptionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+
+      if(subscriptionId != null) {
+         subscriptions.remove(subscriptionId);
       }
+   }
 
-      DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-      final String orgId = ((XPrincipal) principal).getOrgId();
-      registry.addRefreshedListener(event -> {
+   private void dataSourceRefreshed(PropertyChangeEvent event) {
+      for(Principal principal : subscriptions.values()) {
          // Data Source Entry
+         String orgId = ((XPrincipal) principal).getOrgId();
          AssetEntry entry = AssetEntry.createAssetEntry("0^65605^__NULL__^/^" + orgId);
          AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
             .parentEntry(entry)
             .oldIdentifier(null)
             .newIdentifier(entry.toIdentifier())
             .build();
-         messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel);
-      });
+         messagingTemplate.convertAndSendToUser(
+            SUtil.getUserDestination(principal), "/asset-changed", eventModel);
+      }
+   }
+
+   private void sendMessages(AssetChangeEventModel eventModel) {
+      for(Principal user : subscriptions.values()) {
+         messagingTemplate.convertAndSendToUser(
+            SUtil.getUserDestination(user), "/asset-changed", eventModel);
+      }
    }
 
    private AssetRepository assetRepository;
    private SimpMessagingTemplate messagingTemplate;
-   private String destination;
+   private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
+
+   final private Debouncer<String> debouncer = new DefaultDebouncer<>(false);
+   private static final String TABLE_STYLE = "Table Style";
+   private static final String SCRIPT = "Script Function";
+
    private final AssetChangeListener listener = new AssetChangeListener() {
       @Override
       public void assetChanged(AssetChangeEvent event) {
@@ -104,8 +155,7 @@ public class AssetTreeRefreshController {
                .build();
 
             debouncer.debounce("change" + (event.getAssetEntry().getParent() != null ?
-               event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS, () ->
-               messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel)
+               event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS, () -> sendMessages(eventModel)
             );
          }
       }
@@ -118,7 +168,7 @@ public class AssetTreeRefreshController {
       }
 
       private boolean isConnectionInitialized() {
-         return messagingTemplate != null && destination != null;
+         return messagingTemplate != null && !subscriptions.isEmpty();
       }
    };
 
@@ -155,12 +205,9 @@ public class AssetTreeRefreshController {
          }
 
          if(eventModel != null) {
-            messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel);
+            sendMessages(eventModel);
          }
       }
    };
 
-   final private Debouncer<String> debouncer = new DefaultDebouncer<>(false);
-   private static final String TABLE_STYLE = "Table Style";
-   private static final String SCRIPT = "Script Function";
 }
