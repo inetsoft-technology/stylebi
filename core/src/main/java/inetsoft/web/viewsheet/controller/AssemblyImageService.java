@@ -53,6 +53,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
+import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
@@ -712,7 +713,11 @@ public class AssemblyImageService {
          resultHeight = image.getHeight();
       }
 
-      return new ImageRenderResult(isPNG, buf, resultWidth, resultHeight);
+      String key = "/" + AssemblyImageService.class.getName() + "_" + vid + "_" + aid +
+         "_" + index + "_" + row + "_" + col;
+      BinaryTransfer imageData = new BinaryTransfer(key);
+      imageData.setData(buf);
+      return new ImageRenderResult(isPNG, imageData, resultWidth, resultHeight);
    }
 
    public static void writeSvg(OutputStream out, Graphics2D svg) throws Exception {
@@ -1156,11 +1161,11 @@ public class AssemblyImageService {
       @Serial
       private static final long serialVersionUID = 1L;
       private final boolean isPng;
-      private final byte[] imageData;
+      private final BinaryTransfer imageData;
       private final int width;
       private final int height;
 
-      public ImageRenderResult(boolean isPng, byte[] imageData, int width, int height) {
+      public ImageRenderResult(boolean isPng, BinaryTransfer imageData, int width, int height) {
          this.isPng = isPng;
          this.imageData = imageData;
          this.width = width;
@@ -1171,7 +1176,7 @@ public class AssemblyImageService {
          return isPng;
       }
 
-      public byte[] getImageData() {
+      public BinaryTransfer getImageData() {
          return imageData;
       }
 

@@ -38,6 +38,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
+import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.viewsheet.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,17 +95,21 @@ public class ExportControllerService {
 
       int format = VSExportService.getFormatNumberFromExtension(type);
 
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
+      String key = "/" + ExportControllerService.class.getName() + "_" + runtimeId + "_" + type;
+      BinaryTransfer data = new BinaryTransfer(key);
+      OutputStream out = data.getOutputStream();
+
       writeViewsheetExport(rvs, out, principal, format, previewPrintLayout, print, match,
                            expandSelections, current, bookmarks, onlyDataComponents,
                            csvConfig, null, false, exportAllTabbedTables);
+      data.closeOutputStream();
 
       String fileName = VSExportService.getViewsheetFileName(rvs.getEntry());
       String suffix = VSExportService.getSuffix(format);
       String mime = VSExportService.getMime(format);
 
       try {
-         return new ViewsheetExportResult(out.toByteArray(), fileName, mime, suffix);
+         return new ViewsheetExportResult(data, fileName, mime, suffix);
       }
       catch(Exception ex) {
          LOG.warn("Unable to complete export for {}", runtimeId);
@@ -300,19 +305,19 @@ public class ExportControllerService {
    private static final Logger LOG = LoggerFactory.getLogger(ExportControllerService.class);
 
    public static final class ViewsheetExportResult implements Serializable {
-      private final byte[] data;
+      private final BinaryTransfer data;
       private final String fileName;
       private final String mime;
       private final String suffix;
 
-      public ViewsheetExportResult(byte[] data, String fileName, String mime, String suffix) {
+      public ViewsheetExportResult(BinaryTransfer data, String fileName, String mime, String suffix) {
          this.data = data;
          this.fileName = fileName;
          this.mime = mime;
          this.suffix = suffix;
       }
 
-      public byte[] getData() { return data; }
+      public BinaryTransfer getData() { return data; }
       public String getFileName() { return fileName; }
       public String getMime() { return mime; }
       public String getSuffix() { return suffix; }

@@ -24,6 +24,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.*;
+import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.*;
@@ -194,7 +195,8 @@ public class ExportController {
          VSExportService.setResponseHeader(
             new ExportResponse(response), result.getSuffix(), "attachment", result.getFileName(), result.getMime());
 
-         response.getOutputStream().write(result.getData());
+         BinaryTransfer data = result.getData();
+         data.writeData(response.getOutputStream());
       }
    }
 

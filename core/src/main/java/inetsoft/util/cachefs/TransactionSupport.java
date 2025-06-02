@@ -60,9 +60,13 @@ class TransactionSupport {
       try {
          transaction.commit();
          CacheMetadata metadata = storage.getMetadata(parent);
-         Set<String> children = new TreeSet<>(Arrays.asList(metadata.getChildren()));
-         children.add(name);
-         metadata.setChildren(children.toArray(new String[0]));
+
+         if(metadata.getChildren() != null) {
+            Set<String> children = new TreeSet<>(Arrays.asList(metadata.getChildren()));
+            children.add(name);
+            metadata.setChildren(children.toArray(new String[0]));
+         }
+
          storage.createDirectory(parent, metadata);
       }
       finally {

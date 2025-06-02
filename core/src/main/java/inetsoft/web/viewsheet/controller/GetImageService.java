@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -55,9 +56,9 @@ public class GetImageService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Pair<Boolean, byte[]> processGetLayoutImage(@ClusterProxyKey String runtimeId, String layoutName,
-                                     String region, String assemblyName, double width, double height,
-                                     Principal principal) throws Exception
+   public Pair<Boolean, BinaryTransfer> processGetLayoutImage(@ClusterProxyKey String runtimeId, String layoutName,
+                                                              String region, String assemblyName, double width, double height,
+                                                              Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       RuntimeViewsheet parentRvs = rvs.getOriginalID() == null ? rvs :
@@ -130,7 +131,11 @@ public class GetImageService {
                   buf = VSUtil.getImageBytes(image, 72);
                }
 
-               return new ImmutablePair<>(isSvg, buf);
+               String key = "/" + GetImageService.class.getName() + "_" + runtimeId + "_" + assemblyName;
+               BinaryTransfer imageData = new BinaryTransfer(key);
+               imageData.setData(buf);
+
+               return new ImmutablePair<>(isSvg, imageData);
             }
          }
          else {

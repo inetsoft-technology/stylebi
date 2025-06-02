@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
+import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.viewsheet.service.VSObjectService;
 import org.slf4j.Logger;
@@ -52,22 +53,27 @@ public class ImagePreviewPaneService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public byte[] getImagePreviewImageByteBuffer(@ClusterProxyKey String runtimeId, String name,
+   public BinaryTransfer getImagePreviewImageByteBuffer(@ClusterProxyKey String runtimeId, String name,
                                                 Principal principal) throws Exception  {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      return VSUtil.getVSImageBytes(null, name, vs, -1, -1, null, new VSPortalHelper());
 
+      String key = "/" + ImagePreviewPaneService.class.getName() + "_" + runtimeId + "_" + name;
+      BinaryTransfer dataTransfer = new BinaryTransfer(key);
+      byte[] data = VSUtil.getVSImageBytes(null, name, vs, -1, -1, null, new VSPortalHelper());
+      dataTransfer.setData(data);
+      return dataTransfer;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public TreeNodeModel uploadImage(@ClusterProxyKey String runtimeId, String mpfName,
-                                    byte[] mpfBytes, Principal principal) throws Exception
+                                    BinaryTransfer dataTransfer, Principal principal) throws Exception
    {
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
       boolean uploaded = false;
+      byte[] mpfBytes = dataTransfer.getData();
 
       try {
          if(!vsObjectService.isImage(mpfBytes)) {
