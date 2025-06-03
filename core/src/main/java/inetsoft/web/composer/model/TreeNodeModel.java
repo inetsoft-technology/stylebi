@@ -83,8 +83,7 @@ public interface TreeNodeModel extends Comparable<TreeNodeModel> {
 
    @Nullable String cssClass();
 
-   @Value.Default
-   default boolean defaultOrgAsset() { return false; }
+   @Nullable Boolean defaultOrgAsset();
 
    @Value.Default
    default boolean disabled() {

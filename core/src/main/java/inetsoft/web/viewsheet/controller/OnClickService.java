@@ -373,7 +373,7 @@ public class OnClickService {
          return box0;
       }
 
-      int index = name.indexOf(".");
+      int index = name.lastIndexOf(".");
       String vsName = name.substring(0, index);
       box0 = box0.getSandbox(vsName);
 

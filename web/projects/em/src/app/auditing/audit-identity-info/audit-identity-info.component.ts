@@ -26,6 +26,7 @@ import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
 import { Secured } from "../../secured";
+import { IdentityId } from "../../settings/security/users/identity-id";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { IdentityInfo, IdentityInfoList, IdentityInfoParameters } from "./identity-info";
 
@@ -54,8 +55,7 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
    actions = [ "c", "d", "m", "r" ];
    states = [ "0", "1", "2" ];
    hosts: string[] = [];
-   organizations: string[] = [];
-   organizationNames: string[] = [];
+   organizations: IdentityId[] = [];
    orgNames: string[] = [];
    form: FormGroup;
    systemAdministrator = false;
@@ -124,7 +124,6 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
                types: [],
                hosts: [],
                organizations: [],
-               organizationNames: [],
                organizationFilter: true,
                systemAdministrator: false,
                startTime: 0,
@@ -132,7 +131,6 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
             }))),
             tap(params => {
                this.organizations = params.organizations;
-               this.organizationNames = params.organizationNames;
                this.organizationFilter = params.organizationFilter;
                this.hosts = params.hosts;
             }));

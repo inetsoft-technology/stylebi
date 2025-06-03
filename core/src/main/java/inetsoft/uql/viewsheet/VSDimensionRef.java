@@ -1390,7 +1390,21 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
 
          String gtext = Tool.toString(arr[i]);
          DataRef group = columns.getAttribute(gtext);
-         VSDimensionRef ref = this.clone();
+
+         if(group == null && !gtext.equals("null") && !gtext.equals("")) {
+            // don't throw an exception so the rendering can complete without
+            // generating a broken chart image
+            LOG.warn("Column not found: " + groupValue + " (" + columns + ")");
+
+            if(groupValue.getDValue().startsWith("=")) {
+               CoreTool.addUserMessage(Catalog.getCatalog().getString(
+                  "common.viewsheet.expressionColumn", groupValue));
+            }
+
+            continue;
+         }
+
+         VSDimensionRef ref = (VSDimensionRef) this.clone();
 
          if(group instanceof ColumnRef) {
             ColumnRef col = (ColumnRef) group;
