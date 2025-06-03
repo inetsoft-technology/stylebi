@@ -485,10 +485,14 @@ public abstract class LdapAuthenticationProvider
    }
 
    protected String[] doSearchRoles(String name, String dn, int type) {
+      Set<String> allRoles = Arrays.stream(getRoles())
+         .map(IdentityID::getName)
+         .collect(Collectors.toSet());
       String filter = MessageFormat.format(getRolesSearch(type), name, dn);
       String attr = getRoleAttribute();
       return Arrays.stream(getRoleBases(getRoleBase()))
          .flatMap(r -> searchDirectory(r, filter, SearchControls.SUBTREE_SCOPE, attr).stream())
+         .filter(allRoles::contains)
          .toArray(String[]::new);
    }
 
