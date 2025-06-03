@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable, NgZone } from "@angular/core";
+import { Subject } from "rxjs";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { OpenDataTipEvent } from "../../event/open-datatip-event";
@@ -56,6 +57,7 @@ export class DataTipService {
    // Map of data tip names -> visibility.
    private _dataTipsVisible: Map<string, boolean> = new Map<string, boolean>();
    private inited = {}; // track if data tip has been initialized
+   private _dataTipChanged = new Subject<void>();
 
    constructor(private viewsheetClient: ViewsheetClientService, private zone: NgZone)
    {
@@ -178,16 +180,16 @@ export class DataTipService {
             // this is only necessary for the first time the tip is shown.
             // if we do this all the time, the scrolling will flicker when moving between cells.
             if(!inited) {
-               setTimeout(() => this.zone.run(() => this._dataTipName = dataTipName), 200);
+               setTimeout(() => this.zone.run(() => this.dataTipName = dataTipName), 200);
             }
          }
          else if(this._dataTipName != dataTipName) {
-            this._dataTipName = dataTipName;
-            this.zone.run(() => this._dataTipName = dataTipName);
+            this.dataTipName = dataTipName;
+            this.zone.run(() => this.dataTipName = dataTipName);
          }
 
          if(inited) {
-            this._dataTipName = dataTipName;
+            this.dataTipName = dataTipName;
          }
          else if(dataTipName) {
             this.inited[dataTipName] = true;
@@ -222,7 +224,7 @@ export class DataTipService {
          this.clearDataTip();
       }
 
-      this._dataTipName = null;
+      this.dataTipName = null;
       this._parentName = null;
       this._condition = null;
       this._lastDataTip = null;
@@ -236,7 +238,7 @@ export class DataTipService {
    freeze(): void {
       if(this._lastDataTip) {
          this._freeze = false;
-         this._dataTipName = null;
+         this.dataTipName = null;
          this._condition = null;
          this.showDataTip(this._lastDataTip.parentName, this._lastDataTip.dataTipName,
                           this._lastDataTip.dataTipX, this._lastDataTip.dataTipY,
@@ -267,6 +269,11 @@ export class DataTipService {
       return this._dataTipName;
    }
 
+   set dataTipName(value: string) {
+      this._dataTipName = value;
+      this._dataTipChanged.next();
+   }
+
    get dataTipAlpha(): number {
       return this._dataTipAlpha;
    }
@@ -286,5 +293,9 @@ export class DataTipService {
 
    public hasDataTipShowing(): boolean {
       return !!this._dataTipName && this.isDataTipVisible(this._dataTipName);
+   }
+
+   get dataTipChanged(): Subject<void> {
+      return this._dataTipChanged;
    }
 }
