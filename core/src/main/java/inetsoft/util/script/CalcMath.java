@@ -342,7 +342,7 @@ public class CalcMath {
       for(int i = 0; i < nos.length; i++) {
          if(nos[i] < 0) {
             throw new RuntimeException("All parameters to lcm() must be "+
-               "greater than zero, parameter " + (i+1) +" value is " + nos[i]);
+               "non-negative, parameter " + (i+1) +" value is " + nos[i]);
          }
       }
 
