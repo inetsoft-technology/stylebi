@@ -805,14 +805,7 @@ public class ScheduleTaskFolderService {
    public EditTaskFolderDialogModel getFolderEditModel(String folderPath, Principal principal) throws Exception {
       EditTaskFolderDialogModel.Builder model = EditTaskFolderDialogModel.builder();
       AssetEntry entry = getFolderEntry(folderPath);
-      List<IdentityID> owners = getOwners(principal);
-      model.users(owners);
       model.oldPath(folderPath);
-
-      if(owners.size() > 0) {
-         model.adminName(principal.getName());
-      }
-
       setFolderNameAndOwner(model, entry);
       model.securityEnabled(isSecurityEnabled());
 
