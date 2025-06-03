@@ -22,6 +22,8 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.web.binding.service.DataRefModelFactory;
 import org.springframework.stereotype.Component;
 
+import java.sql.Types;
+
 public class AttributeRefModel extends AbstractDataRefModel {
    public AttributeRefModel() {
    }
@@ -30,6 +32,7 @@ public class AttributeRefModel extends AbstractDataRefModel {
       super(dataRef);
 
       this.caption = dataRef.getCaption();
+      this.sqlType = dataRef.getSqlType();
    }
 
    /**
@@ -49,6 +52,22 @@ public class AttributeRefModel extends AbstractDataRefModel {
    }
 
    /**
+    * Get the sql type.
+    * @return the sql type.
+    */
+   public int getSqlType() {
+      return sqlType;
+   }
+
+   /**
+    * Set the sql type.
+    * @param sqlType the sql type.
+    */
+   public void setSqlType(int sqlType) {
+      this.sqlType = sqlType;
+   }
+
+   /**
     * Create a data ref.
     */
    @Override
@@ -56,11 +75,13 @@ public class AttributeRefModel extends AbstractDataRefModel {
       AttributeRef ref = new AttributeRef(this.getEntity(), this.getAttribute());
       ref.setRefType(this.getRefType());
       ref.setCaption(this.getCaption());
+      ref.setSqlType(this.getSqlType());
 
       return ref;
    }
 
    private String caption;
+   private int sqlType = Types.VARCHAR;
 
    @Component
    public static final class AttributeRefModelFactory
