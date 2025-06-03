@@ -45,7 +45,7 @@ public class BinaryTransfer implements Serializable {
       this.fileWritten = fileWritten;
    }
 
-   byte[] data;
-   String cacheFile;
-   boolean fileWritten = false;
+   private byte[] data;
+   private String cacheFile;
+   private boolean fileWritten = false;
 }
