@@ -17,7 +17,8 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.util.CoreTool;
+import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.factory.RemainingPath;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +26,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
-import java.awt.*;
 import java.io.OutputStream;
 import java.security.Principal;
 
@@ -38,9 +38,11 @@ public class PresenterController {
     * Creates a new instance of <tt>PresenterController</tt>.
     */
    @Autowired
-   public PresenterController(PresenterServiceProxy presenterServiceProxy)
+   public PresenterController(PresenterServiceProxy presenterServiceProxy,
+                              BinaryTransferService binaryTransferService)
    {
       this.presenterServiceProxy = presenterServiceProxy;
+      this.binaryTransferService = binaryTransferService;
    }
 
    /**
@@ -65,12 +67,13 @@ public class PresenterController {
                                  Principal principal)
       throws Exception
    {
-      byte[] imageBytes = presenterServiceProxy.getPresenterImage(runtimeId, assembly, row, column,
-                                                            width, height, principal);
-      if(imageBytes != null) {
+      BinaryTransfer imageData = presenterServiceProxy
+         .getPresenterImage(runtimeId, assembly, row, column, width, height, principal);
+
+      if(binaryTransferService.isEmpty(imageData)) {
          response.setContentType("image/png");
          OutputStream out = response.getOutputStream();
-         out.write(imageBytes);
+         binaryTransferService.writeData(imageData, out);
          out.flush();
       }
    }
@@ -95,16 +98,17 @@ public class PresenterController {
                                  Principal principal)
       throws Exception
    {
-      byte[] imageBytes = presenterServiceProxy.getPresenterImage(runtimeId, assembly, width, height,
-                                              layout, layoutRegion, principal);
+      BinaryTransfer imageData = presenterServiceProxy
+         .getPresenterImage(runtimeId, assembly, width, height,layout, layoutRegion, principal);
 
-      if(imageBytes != null) {
+      if(binaryTransferService.isEmpty(imageData)) {
          response.setContentType("image/png");
          OutputStream out = response.getOutputStream();
-         out.write(imageBytes);
+         binaryTransferService.writeData(imageData, out);
          out.flush();
       }
    }
 
    private PresenterServiceProxy presenterServiceProxy;
+   private BinaryTransferService binaryTransferService;
 }

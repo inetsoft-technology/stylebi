@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.ConfigurationContext;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
@@ -81,9 +82,9 @@ class ImagePropertyDialogControllerTest {
                                                                 temporaryInfoService,
                                                                 vsCompositionService,
                                                                 sharedFilterService));
-
+      BinaryTransferService binaryTransferService = new BinaryTransferService();
       ImagePreviewPaneService imagePreviewPaneService =
-         new ImagePreviewPaneService(viewsheetService, vsObjectService);
+         new ImagePreviewPaneService(viewsheetService, vsObjectService, binaryTransferService);
       ImagePropertyDialogService imagePropertyDialogService =
          new ImagePropertyDialogService(vsObjectPropertyService,
                                         vsOutputService,

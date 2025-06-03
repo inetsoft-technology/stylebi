@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.ConfigurationContext;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.dialog.ImagePreviewPaneService;
@@ -53,8 +54,9 @@ class VSLayoutControllerTest {
       staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
       staticConfigurationContext.when(ConfigurationContext::getContext)
          .thenReturn(spyContext);
+      BinaryTransferService binaryTransferService = new BinaryTransferService();
       ImagePreviewPaneService imagePreviewPaneService =
-         new ImagePreviewPaneService(viewsheetService, objectService);
+         new ImagePreviewPaneService(viewsheetService, objectService, binaryTransferService);
       VSLayoutControllerService vsLayoutControllerService =
          new VSLayoutControllerService(coreLifecycleService, viewsheetService,
                                     imagePreviewPaneService, objectModelService,

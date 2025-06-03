@@ -28,6 +28,8 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
+import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.viewsheet.service.VSObjectService;
 import org.slf4j.Logger;
@@ -45,29 +47,36 @@ import java.util.stream.Collectors;
 public class ImagePreviewPaneService {
 
    public ImagePreviewPaneService(ViewsheetService viewsheetService,
-                                  VSObjectService vsObjectService)
+                                  VSObjectService vsObjectService,
+                                  BinaryTransferService binaryTransferService)
    {
       this.viewsheetService = viewsheetService;
       this.vsObjectService = vsObjectService;
+      this.binaryTransferService = binaryTransferService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public byte[] getImagePreviewImageByteBuffer(@ClusterProxyKey String runtimeId, String name,
+   public BinaryTransfer getImagePreviewImageByteBuffer(@ClusterProxyKey String runtimeId, String name,
                                                 Principal principal) throws Exception  {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      return VSUtil.getVSImageBytes(null, name, vs, -1, -1, null, new VSPortalHelper());
 
+      String key = "/" + ImagePreviewPaneService.class.getName() + "_" + runtimeId + "_" + name;
+      BinaryTransfer dataTransfer = binaryTransferService.createBinaryTransfer(key);
+      byte[] data = VSUtil.getVSImageBytes(null, name, vs, -1, -1, null, new VSPortalHelper());
+      binaryTransferService.setData(dataTransfer, data);
+      return dataTransfer;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public TreeNodeModel uploadImage(@ClusterProxyKey String runtimeId, String mpfName,
-                                    byte[] mpfBytes, Principal principal) throws Exception
+                                    BinaryTransfer dataTransfer, Principal principal) throws Exception
    {
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
       boolean uploaded = false;
+      byte[] mpfBytes = binaryTransferService.getData(dataTransfer);
 
       try {
          if(!vsObjectService.isImage(mpfBytes)) {
@@ -299,6 +308,7 @@ public class ImagePreviewPaneService {
 
    private ViewsheetService viewsheetService;
    private VSObjectService vsObjectService;
+   private BinaryTransferService binaryTransferService;
 
 
    private static final Logger LOG =

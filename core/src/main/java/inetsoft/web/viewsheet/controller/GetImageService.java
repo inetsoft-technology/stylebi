@@ -30,6 +30,8 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -47,17 +49,19 @@ public class GetImageService {
    public GetImageService(
       VSLayoutService vsLayoutService,
       ViewsheetService viewsheetService,
-      AssemblyImageService imageService)
+      AssemblyImageService imageService,
+      BinaryTransferService binaryTransferService)
    {
       this.vsLayoutService = vsLayoutService;
       this.viewsheetService = viewsheetService;
       this.imageService = imageService;
+      this.binaryTransferService = binaryTransferService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Pair<Boolean, byte[]> processGetLayoutImage(@ClusterProxyKey String runtimeId, String layoutName,
-                                     String region, String assemblyName, double width, double height,
-                                     Principal principal) throws Exception
+   public Pair<Boolean, BinaryTransfer> processGetLayoutImage(@ClusterProxyKey String runtimeId, String layoutName,
+                                                              String region, String assemblyName, double width, double height,
+                                                              Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       RuntimeViewsheet parentRvs = rvs.getOriginalID() == null ? rvs :
@@ -130,7 +134,11 @@ public class GetImageService {
                   buf = VSUtil.getImageBytes(image, 72);
                }
 
-               return new ImmutablePair<>(isSvg, buf);
+               String key = "/" + GetImageService.class.getName() + "_" + runtimeId + "_" + assemblyName;
+               BinaryTransfer imageData = binaryTransferService.createBinaryTransfer(key);
+               binaryTransferService.setData(imageData, buf);
+
+               return new ImmutablePair<>(isSvg, imageData);
             }
          }
          else {
@@ -164,4 +172,5 @@ public class GetImageService {
    private final ViewsheetService viewsheetService;
    private final AssemblyImageService imageService;
    private final VSLayoutService vsLayoutService;
+   private final BinaryTransferService binaryTransferService;
 }

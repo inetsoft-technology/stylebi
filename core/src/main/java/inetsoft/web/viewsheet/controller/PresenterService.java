@@ -32,7 +32,10 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.ObjectWrapper;
+import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import org.apache.commons.io.output.DeferredFileOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -40,7 +43,6 @@ import org.springframework.stereotype.Service;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
 import java.security.Principal;
 
 @Service
@@ -48,15 +50,17 @@ import java.security.Principal;
 public class PresenterService {
 
    public PresenterService(ViewsheetService viewsheetService,
-                           VSLayoutService vsLayoutService)
+                           VSLayoutService vsLayoutService,
+                           BinaryTransferService binaryTransferService)
    {
       this.viewsheetService = viewsheetService;
       this.vsLayoutService = vsLayoutService;
+      this.binaryTransferService = binaryTransferService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public byte[] getPresenterImage(@ClusterProxyKey String runtimeId, String assembly, int row, int column, int width,
-                                 int height, Principal principal)
+   public BinaryTransfer getPresenterImage(@ClusterProxyKey String runtimeId, String assembly, int row, int column, int width,
+                                           int height, Principal principal)
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
@@ -153,13 +157,17 @@ public class PresenterService {
          }
       }
 
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-      ImageIO.write(image, "png", baos);  // "jpeg" is also fine
-      return baos.toByteArray();
+      String key = "/" + PresenterService.class.getName() + "_" + runtimeId + "_" + assembly + "_" + row + "_" + column;
+      BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
+      DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
+
+      ImageIO.write(image, "png", out);  // "jpeg" is also fine
+      binaryTransferService.closeOutputStream(data, out);
+      return data;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public byte[] getPresenterImage(@ClusterProxyKey String runtimeId, String assembly,
+   public BinaryTransfer getPresenterImage(@ClusterProxyKey String runtimeId, String assembly,
                                  int width, int height, boolean layout, int layoutRegion,
                                  Principal principal) throws Exception
    {
@@ -227,12 +235,17 @@ public class PresenterService {
 
       g.dispose();
 
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-      ImageIO.write(image, "png", baos);  // "jpeg" is also fine
-      return baos.toByteArray();
+      String key = "/" + PresenterService.class.getName() + "_" + runtimeId + "_" + assembly + "_" + layoutRegion;
+      BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
+      DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
+
+      ImageIO.write(image, "png", out);  // "jpeg" is also fine
+      binaryTransferService.closeOutputStream(data, out);
+      return data;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(PresenterController.class);
    private final ViewsheetService viewsheetService;
    private final VSLayoutService vsLayoutService;
+   private final BinaryTransferService binaryTransferService;
 }

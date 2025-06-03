@@ -27,6 +27,8 @@ import inetsoft.report.gui.viewsheet.thermometer.VSThermometer;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.HandleAssetExceptions;
 import inetsoft.web.viewsheet.InGroupedThread;
 import jakarta.servlet.ServletOutputStream;
@@ -58,9 +60,11 @@ import java.util.zip.GZIPOutputStream;
 @Controller
 public class GetImageController {
    @Autowired
-   public GetImageController(AssemblyImageServiceProxy imageServiceProxy,
+   public GetImageController(BinaryTransferService binaryTransferService,
+                             AssemblyImageServiceProxy imageServiceProxy,
                              GetImageServiceProxy serviceProxy)
    {
+      this.binaryTransferService = binaryTransferService;
       this.imageServiceProxy = imageServiceProxy;
       this.serviceProxy = serviceProxy;
    }
@@ -193,11 +197,11 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
-      Pair<Boolean, byte[]> layoutResults = serviceProxy.processGetLayoutImage(Tool.byteDecode(vid), layoutName, region,
-                                                                               assemblyName, width, height, principal);
+      Pair<Boolean, BinaryTransfer> layoutResults = serviceProxy.processGetLayoutImage(Tool.byteDecode(vid), layoutName, region,
+                                                                                       assemblyName, width, height, principal);
 
       boolean isSvg = layoutResults.getLeft();
-      byte[] buf = layoutResults.getRight();
+      byte[] buf = binaryTransferService.getData(layoutResults.getRight());
 
       if(buf != null && response != null) {
          response.setContentType(isSvg ? "image/svg+xml" : "image/png");
@@ -273,7 +277,7 @@ public class GetImageController {
    {
       if(result != null) {
          boolean isPNG = result.isPng();
-         byte[] buf = result.getImageData();
+         byte[] buf = result.getImageData().getData();
 
          if(buf != null && response != null) {
             final String encodingTypes = request.getHeader("Accept-Encoding");
@@ -304,6 +308,7 @@ public class GetImageController {
       }
    }
 
+   private final BinaryTransferService binaryTransferService;
    private final AssemblyImageServiceProxy imageServiceProxy;
    private final GetImageServiceProxy serviceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(GetImageController.class);
