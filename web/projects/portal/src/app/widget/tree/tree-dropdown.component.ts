@@ -95,8 +95,7 @@ export class TreeDropdownComponent extends TreeDataPane {
             {
                label: this.currentLabel,
                data: !!this.currentNodeData ? this.currentNodeData : this.currentLabel,
-               type: this.selectedType,
-               defaultOrgAsset: false
+               type: this.selectedType
             };
 
          return [selectedNode, ...(this.initSelectedNodes ? this.initSelectedNodes : [])];
