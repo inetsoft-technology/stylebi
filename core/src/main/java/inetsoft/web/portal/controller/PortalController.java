@@ -17,30 +17,23 @@
  */
 package inetsoft.web.portal.controller;
 
-import inetsoft.mv.MVManager;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalTab;
 import inetsoft.sree.portal.PortalThemesManager;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.web.WebService;
 import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.util.ConnectionProcessor;
-import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.*;
-import inetsoft.web.admin.pageheader.EmPageHeaderModel;
+import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.GlobalParameterProvider;
 import inetsoft.web.portal.model.*;
 import inetsoft.web.reportviewer.model.ParameterPageModel;
-import inetsoft.web.viewsheet.controller.ComposerClientController;
-import inetsoft.web.viewsheet.controller.dialog.EmailDialogController;
 import inetsoft.web.viewsheet.service.ComposerClientService;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.HttpServletRequest;
@@ -50,11 +43,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Controller that provides a REST endpoint for the portal
@@ -65,10 +55,12 @@ import java.util.stream.Collectors;
 public class PortalController {
    @Autowired
    public PortalController(SecurityEngine securityEngine,
-                           AnalyticRepository analyticRepository)
+                           AnalyticRepository analyticRepository,
+                           ComposerClientService composerClientService)
    {
       this.securityEngine = securityEngine;
       this.analyticRepository = analyticRepository;
+      this.composerClientService = composerClientService;
    }
 
    @GetMapping("/api/portal/get-portal-model")
@@ -182,8 +174,7 @@ public class PortalController {
    public boolean isComposerOpened(HttpServletRequest request) {
       HttpSession session = request.getSession();
       String sessionId = session.getId();
-      String simpSessionId =
-         ComposerClientService.getFirstSimpSessionId(sessionId);
+      String simpSessionId = composerClientService.getFirstSimpSessionId(sessionId);
 
       return simpSessionId != null;
    }
@@ -327,5 +318,6 @@ public class PortalController {
 
    private final SecurityEngine securityEngine;
    private final AnalyticRepository analyticRepository;
+   private final ComposerClientService composerClientService;
    private static final Logger LOG = LoggerFactory.getLogger(PortalController.class);
 }

@@ -31,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.*;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -52,7 +53,7 @@ public class ComposerController {
    {
       String httpSessionId =
          headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString();
-      String simpSessionId = ComposerClientService.getFirstSimpSessionId(httpSessionId);
+      String simpSessionId = composerClientService.getFirstSimpSessionId(httpSessionId);
 
       if(simpSessionId == null) {
          OpenComposerCommand openComposerCommand = OpenComposerCommand.builder()
@@ -85,7 +86,7 @@ public class ComposerController {
    {
       String httpSessionId =
          headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString();
-      String simpSessionId = ComposerClientService.getFirstSimpSessionId(httpSessionId);
+      String simpSessionId = composerClientService.getFirstSimpSessionId(httpSessionId);
 
       if(simpSessionId == null) {
          OpenComposerCommand openComposerCommand = OpenComposerCommand.builder()
@@ -118,7 +119,7 @@ public class ComposerController {
    {
       String httpSessionId =
          headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString();
-      String simpSessionId = ComposerClientService.getFirstSimpSessionId(httpSessionId);
+      String simpSessionId = composerClientService.getFirstSimpSessionId(httpSessionId);
 
       if(simpSessionId == null) {
          commandDispatcher.sendCommand(event);
@@ -145,8 +146,8 @@ public class ComposerController {
    }
 
    @MessageMapping(COMMANDS_TOPIC + "/leave")
-   public void unsubscribe() {
-      composerClientService.removeFromSessionList();
+   public void unsubscribe(StompHeaderAccessor stompHeaderAccessor) {
+      composerClientService.removeFromSessionList(stompHeaderAccessor);
    }
 
    private final SimpMessagingTemplate simpMessagingTemplate;
