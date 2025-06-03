@@ -345,6 +345,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Output() onOpenViewsheetOptionDialog = new EventEmitter<Dimension>();
    @Output() onEmbedError = new EventEmitter<string>();
    @Output() onLoadingStateChanged = new EventEmitter<{ name: string, loading: boolean }>();
+   @Output() onDataTipPopComponentVisible = new EventEmitter<boolean>();
 
    @Input()
    get runtimeId(): string {
@@ -651,6 +652,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.dataTipService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
       this.popComponentService.viewerOffsetFunc = this.setDataTipOffsets.bind(this);
       this.popComponentService.getComponentModelFunc = this.getComponentModel.bind(this);
+
+      if(this.embed) {
+         this.handleDataTipPopComponentChanges();
+      }
    }
 
    ngAfterViewChecked(): void {
@@ -2926,6 +2931,20 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    setDataTipOffsets(): { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number } {
+      if(this.embed) {
+         const el = document.documentElement;
+         const rect = el.getBoundingClientRect();
+
+         return {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            scrollLeft: el.scrollLeft || document.body.scrollLeft,
+            scrollTop: el.scrollTop || document.body.scrollTop
+         };
+      }
+
       let originRect = this.viewerRoot.nativeElement.getBoundingClientRect();
       return {
          x: originRect.left,
@@ -3949,5 +3968,22 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this.onLoadingStateChanged.emit(
             {name: this.assetId, loading: loading});
       }
+   }
+
+   private handleDataTipPopComponentChanges() {
+      this.subscriptions.add(this.dataTipService.dataTipChanged.subscribe(() => {
+         this.onDataTipPopComponentVisible.emit(this.isDataTipOrPopComponentVisible());
+      }));
+
+      this.subscriptions.add(this.popComponentService.popComponentChanged.subscribe(() => {
+         this.onDataTipPopComponentVisible.emit(this.isDataTipOrPopComponentVisible());
+      }));
+   }
+
+   private isDataTipOrPopComponentVisible(): boolean {
+      return (!!this.dataTipService.dataTipName &&
+            this.dataTipService.isDataTipVisible(this.dataTipService.dataTipName)) ||
+         (!!this.popComponentService.getPopComponent() &&
+            this.popComponentService.isPopComponentVisible(this.popComponentService.getPopComponent()));
    }
 }

@@ -64,6 +64,7 @@ export class PopComponentService {
    private popContainerCallbacks: Map<string, ((event: MouseEvent) => boolean)[]> =
       new Map<string, ((event: MouseEvent) => boolean)[]>();
    private _componentPop = new Subject<string>();
+   private _popComponentChanged = new Subject<void>();
 
    get componentPop(): Observable<string> {
       return this._componentPop.asObservable();
@@ -243,12 +244,12 @@ export class PopComponentService {
 
       if(name && this._popComponent && this._popComponent != name) {
          // hide current, and then show next
-         this._popComponent = null;
+         this.popComponent = null;
          this._popComponentSource = null;
          this.showPopComponent(source, name);
 
          setTimeout(() => {
-            this._popComponent = name;
+            this.popComponent = name;
             this._popComponentSource = source;
             this._componentPop.next(this._popComponent);
          }, 0);
@@ -258,7 +259,7 @@ export class PopComponentService {
 
          // make sure the code is executed after all outside listeners have been fired
          setTimeout(() => {
-            this._popComponent = (this._popComponent == name) ? null : name;
+            this.popComponent = (this._popComponent == name) ? null : name;
             this._popComponentSource = !this._popComponent ? null : source;
             this._componentPop.next(this._popComponent);
          });
@@ -267,7 +268,7 @@ export class PopComponentService {
 
    hidePopComponent() {
       this.clearPopViewerOffset();
-      this._popComponent = null;
+      this.popComponent = null;
       this._popComponentSource = null;
    }
 
@@ -319,5 +320,14 @@ export class PopComponentService {
       default:
          return component;
       }
+   }
+
+   set popComponent(value: string) {
+      this._popComponent = value;
+      this._popComponentChanged.next();
+   }
+
+   get popComponentChanged(): Subject<void> {
+      return this._popComponentChanged;
    }
 }

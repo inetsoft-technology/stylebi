@@ -16,7 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 
-<div #embedViewer class="embed-viewer">
+<div #embedViewer class="embed-viewer"
+     [class.data-tip-pop-component-visible]="dataTipPopComponentVisible">
   <viewer-app *ngIf="assetId && connected && !showError"
               [assetId]="assetId"
               [queryParameters]="queryParams"
@@ -24,7 +25,8 @@
               [hideMiniToolbar]="hideMiniToolbar"
               [globalLoadingIndicator]="globalLoadingIndicator"
               (onEmbedError)="onEmbedError($event)"
-              (onLoadingStateChanged)="onLoadingStateChanged($event)">
+              (onLoadingStateChanged)="onLoadingStateChanged($event)"
+              (onDataTipPopComponentVisible)="onDataTipPopComponentVisible($event)">
   </viewer-app>
   <div *ngIf="showError" class="error-viewer txt-danger">
     <span class="error-label">

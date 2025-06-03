@@ -100,11 +100,11 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    errorTimeout: any;
    showError: boolean;
    loading: boolean;
+   dataTipPopComponentVisible: boolean;
    private loadingSet: Set<string> = new Set<string>();
    @ViewChild("embedViewer") embedViewer: ElementRef;
 
    private subscriptions: Subscription = new Subscription();
-   private _runtimeId: string;
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private dialogService: DialogService,
@@ -122,18 +122,6 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    {
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
       showHyperlinkService.inEmbed = true;
-   }
-
-   get runtimeId(): string {
-      return this._runtimeId;
-   }
-
-   set runtimeId(value: string) {
-      this._runtimeId = value;
-   }
-
-   getAssemblyName(): string {
-      return null;
    }
 
    ngOnInit(): void {
@@ -231,5 +219,8 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    private isTrue(value: boolean | string) {
       return value === true || value === "true" || value === "";
    }
-}
 
+   onDataTipPopComponentVisible(visible: boolean) {
+      this.dataTipPopComponentVisible = visible;
+   }
+}
