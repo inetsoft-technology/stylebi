@@ -18,18 +18,18 @@
 package inetsoft.web.viewsheet.controller;
 
 import inetsoft.web.viewsheet.service.ComposerClientService;
-import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
-import org.springframework.messaging.simp.*;
+import org.springframework.context.event.EventListener;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.socket.messaging.*;
 
 import static inetsoft.web.viewsheet.service.ComposerClientService.COMMANDS_TOPIC;
 
 @Controller
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class ComposerClientController {
    @Autowired
    public ComposerClientController(ComposerClientService composerClientService) {
@@ -38,10 +38,26 @@ public class ComposerClientController {
 
    @SubscribeMapping(COMMANDS_TOPIC)
    public void subscribe(SimpMessageHeaderAccessor headerAccessor) {
-      composerClientService.setSessionID(() -> new String[] {
+      composerClientService.setSessionID(() -> new String[]{
          headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString(),
          headerAccessor.getSessionId()
       });
+   }
+
+   @EventListener
+   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
+      removeSubscription(event);
+   }
+
+   @EventListener
+   public void handleDisconnect(SessionDisconnectEvent event) {
+      removeSubscription(event);
+   }
+
+   private void removeSubscription(AbstractSubProtocolEvent event) {
+      Message<byte[]> message = event.getMessage();
+      StompHeaderAccessor headers = StompHeaderAccessor.wrap(message);
+      composerClientService.removeFromSessionList(headers);
    }
 
    private final ComposerClientService composerClientService;
