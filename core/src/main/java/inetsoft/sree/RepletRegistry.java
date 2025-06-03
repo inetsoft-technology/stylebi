@@ -280,6 +280,11 @@ public class RepletRegistry implements Serializable {
 
          if(id != null) {
             oldRegistry = getRegistryCache().get(getRegistryKey(id.convertToKey(), null));
+
+            if(oldRegistry == null || !oldRegistry.registryFileExist()) {
+               return;
+            }
+
             newRegistry = getRegistryCache().get(
                getRegistryKey(new IdentityID(id.getName(), nOrgID).convertToKey(), null));
          }
@@ -1055,6 +1060,13 @@ public class RepletRegistry implements Serializable {
       String path = SreeEnv.getProperty("replet.repository.file");
       int index = path.lastIndexOf(';');
       return index >= 0 ? getRegistryPath(path.substring(index + 1)) : getRegistryPath(path);
+   }
+
+   /**
+    * Whether registry file exist.
+    */
+   protected boolean registryFileExist() {
+      return DataSpace.getDataSpace().exists(null, getRegistryPath());
    }
 
    /**
