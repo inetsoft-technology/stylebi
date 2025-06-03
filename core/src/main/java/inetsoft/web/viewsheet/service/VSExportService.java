@@ -228,7 +228,7 @@ public class VSExportService {
             viewsheetService, openViewsheetEvent, principal, null, null, entry, d, null,
             null, true, openViewsheetEvent.getDrillFrom(), vt,
             openViewsheetEvent.getFullScreenId(), execSessionId);
-         return result.id;
+         return result.getId();
       });
    }
 

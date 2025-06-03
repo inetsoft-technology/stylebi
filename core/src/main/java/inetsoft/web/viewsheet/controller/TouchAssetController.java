@@ -40,12 +40,8 @@ public class TouchAssetController {
                           CommandDispatcher commandDispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      String runtimeId = runtimeViewsheetRef.getRuntimeId();
-
-      if(runtimeId != null) {
          touchAssetServiceProxy.touchAsset(runtimeViewsheetRef.getRuntimeId(), event, principal,
                                            commandDispatcher, linkUri);
-      }
    }
 
    private RuntimeViewsheetRef runtimeViewsheetRef;
