@@ -493,6 +493,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       dimensionModel.setCaption(dimension.getCaption());
       dimensionModel.setType(dimension.getType());
       dimensionModel.setOriginalOrder(dimension.isOriginalOrder());
+
       List<XCubeMemberModel> levels = new ArrayList<>();
       dimensionModel.setMembers(levels);
 
@@ -521,6 +522,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
          cubeHierDimensionModel.setHierCaption(hierDimension.getHierCaption());
          cubeHierDimensionModel.setParentCaption(hierDimension.getParentCaption());
          cubeHierDimensionModel.setUserDefined(hierDimension.isUserDefined());
+         cubeHierDimensionModel.setTimeDimension((hierDimension.getType() & DataRef.CUBE_TIME_DIMENSION) == DataRef.CUBE_TIME_DIMENSION);
          dimensionModel = cubeHierDimensionModel;
       }
 
