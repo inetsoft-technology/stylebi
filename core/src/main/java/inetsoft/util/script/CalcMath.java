@@ -1037,7 +1037,12 @@ public class CalcMath {
 
             if("true".equals(result.toString())) {
                try {
-                  sum += srge[i];
+                  if(srge.length > 0 && i < srge.length) {
+                     sum += srge[i];
+                  }
+                  else if(srge.length == 0) {
+                     sum += rge[i];
+                  }
                }
                catch(Exception e) {
                   sum += rge[i];
