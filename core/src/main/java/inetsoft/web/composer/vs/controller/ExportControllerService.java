@@ -39,7 +39,9 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.service.*;
+import org.apache.commons.io.output.DeferredFileOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -51,9 +53,13 @@ import java.security.Principal;
 @ClusterProxy
 public class ExportControllerService {
 
-   public ExportControllerService(ViewsheetService viewsheetService, CoreLifecycleService coreLifecycleService) {
+   public ExportControllerService(ViewsheetService viewsheetService,
+                                  CoreLifecycleService coreLifecycleService,
+                                  BinaryTransferService binaryTransferService)
+   {
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
+      this.binaryTransferService = binaryTransferService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -96,13 +102,13 @@ public class ExportControllerService {
       int format = VSExportService.getFormatNumberFromExtension(type);
 
       String key = "/" + ExportControllerService.class.getName() + "_" + runtimeId + "_" + type;
-      BinaryTransfer data = new BinaryTransfer(key);
-      OutputStream out = data.getOutputStream();
+      BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
+      DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
 
       writeViewsheetExport(rvs, out, principal, format, previewPrintLayout, print, match,
                            expandSelections, current, bookmarks, onlyDataComponents,
                            csvConfig, null, false, exportAllTabbedTables);
-      data.closeOutputStream();
+      binaryTransferService.closeOutputStream(data, out);
 
       String fileName = VSExportService.getViewsheetFileName(rvs.getEntry());
       String suffix = VSExportService.getSuffix(format);
@@ -302,6 +308,7 @@ public class ExportControllerService {
 
    private final ViewsheetService viewsheetService;
    private final CoreLifecycleService coreLifecycleService;
+   private final BinaryTransferService binaryTransferService;
    private static final Logger LOG = LoggerFactory.getLogger(ExportControllerService.class);
 
    public static final class ViewsheetExportResult implements Serializable {

@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -48,11 +49,13 @@ public class GetImageService {
    public GetImageService(
       VSLayoutService vsLayoutService,
       ViewsheetService viewsheetService,
-      AssemblyImageService imageService)
+      AssemblyImageService imageService,
+      BinaryTransferService binaryTransferService)
    {
       this.vsLayoutService = vsLayoutService;
       this.viewsheetService = viewsheetService;
       this.imageService = imageService;
+      this.binaryTransferService = binaryTransferService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -132,8 +135,8 @@ public class GetImageService {
                }
 
                String key = "/" + GetImageService.class.getName() + "_" + runtimeId + "_" + assemblyName;
-               BinaryTransfer imageData = new BinaryTransfer(key);
-               imageData.setData(buf);
+               BinaryTransfer imageData = binaryTransferService.createBinaryTransfer(key);
+               binaryTransferService.setData(imageData, buf);
 
                return new ImmutablePair<>(isSvg, imageData);
             }
@@ -169,4 +172,5 @@ public class GetImageService {
    private final ViewsheetService viewsheetService;
    private final AssemblyImageService imageService;
    private final VSLayoutService vsLayoutService;
+   private final BinaryTransferService binaryTransferService;
 }

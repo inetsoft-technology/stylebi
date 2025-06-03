@@ -33,7 +33,9 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.ObjectWrapper;
 import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import org.apache.commons.io.output.DeferredFileOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,7 +43,6 @@ import org.springframework.stereotype.Service;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.OutputStream;
 import java.security.Principal;
 
 @Service
@@ -49,10 +50,12 @@ import java.security.Principal;
 public class PresenterService {
 
    public PresenterService(ViewsheetService viewsheetService,
-                           VSLayoutService vsLayoutService)
+                           VSLayoutService vsLayoutService,
+                           BinaryTransferService binaryTransferService)
    {
       this.viewsheetService = viewsheetService;
       this.vsLayoutService = vsLayoutService;
+      this.binaryTransferService = binaryTransferService;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -155,11 +158,11 @@ public class PresenterService {
       }
 
       String key = "/" + PresenterService.class.getName() + "_" + runtimeId + "_" + assembly + "_" + row + "_" + column;
-      BinaryTransfer data = new BinaryTransfer(key);
-      OutputStream out = data.getOutputStream();
+      BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
+      DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
 
       ImageIO.write(image, "png", out);  // "jpeg" is also fine
-      data.closeOutputStream();
+      binaryTransferService.closeOutputStream(data, out);
       return data;
    }
 
@@ -233,15 +236,16 @@ public class PresenterService {
       g.dispose();
 
       String key = "/" + PresenterService.class.getName() + "_" + runtimeId + "_" + assembly + "_" + layoutRegion;
-      BinaryTransfer data = new BinaryTransfer(key);
-      OutputStream out = data.getOutputStream();
+      BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
+      DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
 
       ImageIO.write(image, "png", out);  // "jpeg" is also fine
-      data.closeOutputStream();
+      binaryTransferService.closeOutputStream(data, out);
       return data;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(PresenterController.class);
    private final ViewsheetService viewsheetService;
    private final VSLayoutService vsLayoutService;
+   private final BinaryTransferService binaryTransferService;
 }

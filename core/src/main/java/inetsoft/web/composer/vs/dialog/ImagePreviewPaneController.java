@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.factory.RemainingPath;
 import jakarta.servlet.http.HttpServletResponse;
@@ -41,8 +42,11 @@ import java.security.Principal;
 @Controller
 public class ImagePreviewPaneController {
 
-   public ImagePreviewPaneController(ImagePreviewPaneServiceProxy imagePreviewPaneServiceProxy) {
+   public ImagePreviewPaneController(ImagePreviewPaneServiceProxy imagePreviewPaneServiceProxy,
+                                     BinaryTransferService binaryTransferService)
+   {
       this.imagePreviewPaneServiceProxy = imagePreviewPaneServiceProxy;
+      this.binaryTransferService = binaryTransferService;
    }
 
    /**
@@ -103,9 +107,9 @@ public class ImagePreviewPaneController {
             copyResource(in, response.getOutputStream());
          }
          else if(type.equals(ImageVSAssemblyInfo.UPLOADED_IMAGE)) {
-            byte[] buf = imagePreviewPaneServiceProxy
-               .getImagePreviewImageByteBuffer(runtimeId, name, principal)
-               .getData();
+            byte[] buf = binaryTransferService.getData(
+               imagePreviewPaneServiceProxy
+                  .getImagePreviewImageByteBuffer(runtimeId, name, principal));
 
             if(buf == null || buf.length == 0) {
                Image image = Tool.getImage(this, "/inetsoft/report/images/emptyimage.gif");
@@ -155,8 +159,8 @@ public class ImagePreviewPaneController {
    {
       runtimeId = Tool.byteDecode(runtimeId);
       String key = "/" + ImagePreviewPaneService.class.getName() + "_" + runtimeId + "_" + mpf.getOriginalFilename();
-      BinaryTransfer dataTransfer = new BinaryTransfer(key);
-      dataTransfer.setData(mpf.getBytes());
+      BinaryTransfer dataTransfer = binaryTransferService.createBinaryTransfer(key);
+      binaryTransferService.setData(dataTransfer, mpf.getBytes());
       return imagePreviewPaneServiceProxy.uploadImage(runtimeId, mpf.getOriginalFilename(), dataTransfer, principal);
    }
 
@@ -196,4 +200,5 @@ public class ImagePreviewPaneController {
    }
 
    private ImagePreviewPaneServiceProxy imagePreviewPaneServiceProxy;
+   private BinaryTransferService binaryTransferService;
 }

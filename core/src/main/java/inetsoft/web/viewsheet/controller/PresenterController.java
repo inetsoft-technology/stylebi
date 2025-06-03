@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.controller;
 
 import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.factory.RemainingPath;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,9 +38,11 @@ public class PresenterController {
     * Creates a new instance of <tt>PresenterController</tt>.
     */
    @Autowired
-   public PresenterController(PresenterServiceProxy presenterServiceProxy)
+   public PresenterController(PresenterServiceProxy presenterServiceProxy,
+                              BinaryTransferService binaryTransferService)
    {
       this.presenterServiceProxy = presenterServiceProxy;
+      this.binaryTransferService = binaryTransferService;
    }
 
    /**
@@ -67,10 +70,10 @@ public class PresenterController {
       BinaryTransfer imageData = presenterServiceProxy
          .getPresenterImage(runtimeId, assembly, row, column, width, height, principal);
 
-      if(imageData.isEmpty()) {
+      if(binaryTransferService.isEmpty(imageData)) {
          response.setContentType("image/png");
          OutputStream out = response.getOutputStream();
-         imageData.writeData(out);
+         binaryTransferService.writeData(imageData, out);
          out.flush();
       }
    }
@@ -98,13 +101,14 @@ public class PresenterController {
       BinaryTransfer imageData = presenterServiceProxy
          .getPresenterImage(runtimeId, assembly, width, height,layout, layoutRegion, principal);
 
-      if(imageData.isEmpty()) {
+      if(binaryTransferService.isEmpty(imageData)) {
          response.setContentType("image/png");
          OutputStream out = response.getOutputStream();
-         imageData.writeData(out);
+         binaryTransferService.writeData(imageData, out);
          out.flush();
       }
    }
 
    private PresenterServiceProxy presenterServiceProxy;
+   private BinaryTransferService binaryTransferService;
 }

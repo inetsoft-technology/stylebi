@@ -17,7 +17,6 @@
  */
 package inetsoft.web.composer.vs.controller;
 
-import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -25,6 +24,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.*;
 import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.*;
@@ -52,11 +52,13 @@ import static inetsoft.web.viewsheet.controller.GetImageController.processImageR
 public class ExportController {
    @Autowired
    public ExportController(VSLifecycleService lifecycleService,
+                           BinaryTransferService binaryTransferService,
                            AssemblyImageServiceProxy assemblyImageServiceProxy,
                            VSExportService exportService,
                            ExportControllerServiceProxy exportControllerServiceProxy)
    {
       this.lifecycleService = lifecycleService;
+      this.binaryTransferService = binaryTransferService;
       this.serviceProxy = assemblyImageServiceProxy;
       this.exportService = exportService;
       this.exportControllerServiceProxy = exportControllerServiceProxy;
@@ -196,7 +198,7 @@ public class ExportController {
             new ExportResponse(response), result.getSuffix(), "attachment", result.getFileName(), result.getMime());
 
          BinaryTransfer data = result.getData();
-         data.writeData(response.getOutputStream());
+         binaryTransferService.writeData(data, response.getOutputStream());
       }
    }
 
@@ -320,6 +322,7 @@ public class ExportController {
    }
 
    private final VSLifecycleService lifecycleService;
+   private final BinaryTransferService binaryTransferService;
    private final AssemblyImageServiceProxy serviceProxy;
    private final VSExportService exportService;
    private final ExportControllerServiceProxy exportControllerServiceProxy;
