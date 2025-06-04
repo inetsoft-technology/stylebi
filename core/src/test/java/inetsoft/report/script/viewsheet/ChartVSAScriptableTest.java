@@ -26,6 +26,7 @@ import inetsoft.graph.element.LineElement;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.region.ChartConstants;
 import inetsoft.report.script.*;
 import inetsoft.test.*;
 import inetsoft.uql.viewsheet.*;
@@ -47,10 +48,10 @@ import static org.mockito.MockitoAnnotations.openMocks;
 
 @SreeHome(importResources = "ChartVSAScriptableTest.vso")
 public class ChartVSAScriptableTest {
-   private ViewsheetSandbox viewsheetSandbox, sandbox;
+   private ViewsheetSandbox viewsheetSandbox;
    private ChartVSAScriptable chartVSAScriptable, chartVSAScriptable1;
    private ChartVSAssemblyInfo chartVSAssemblyInfo;
-   private ChartVSAssembly chartVSAssembly, chartVSAssembly1;
+   private ChartVSAssembly chartVSAssembly,  chartVSAssembly1;
    @Mock
    ViewsheetService viewsheetService;
 
@@ -124,8 +125,7 @@ public class ChartVSAScriptableTest {
    }
 
    @Test
-   void testSetFont() {
-      //Set font with valid font object
+   void testSetFontBorderFormat() {
       Font font1 = new Font("Arial", Font.PLAIN, 12);
       chartVSAScriptable.setFont(font1);
       assertEquals(font1, chartVSAScriptable.getFont());
@@ -133,9 +133,56 @@ public class ChartVSAScriptableTest {
       chartVSAScriptable.setForeground(Color.BLUE);
       assertEquals(Color.BLUE, chartVSAScriptable.getForeground());
 
+      chartVSAScriptable.setBackground(Color.WHITE);
+      assertEquals(Color.WHITE, chartVSAScriptable.getBackground());
+
+      chartVSAScriptable.setFormat("##,###.00");
+      assertEquals("##,###.00", chartVSAScriptable.getFormat());
+
+      chartVSAScriptable.setFormatExtent("0,100");
+      assertEquals("0,100", chartVSAScriptable.getFormatExtent());
+
+      chartVSAScriptable.setAlignment(ChartConstants.LEFT_ALIGNMENT);
+      assertEquals(ChartConstants.LEFT_ALIGNMENT, chartVSAScriptable.getAlignment());
+
+      Insets borders = new Insets(ChartConstants.DOT_LINE, ChartConstants.DASH_LINE, ChartConstants.THIN_LINE, ChartConstants.MEDIUM_LINE);
+      chartVSAScriptable.setBorders(borders);
+      assertEquals(borders, chartVSAScriptable.getBorders());
+
+      BorderColors borderColors = new BorderColors(Color.RED, Color.GREEN, Color.BLUE, Color.YELLOW);
+      chartVSAScriptable.setBorderColors(borderColors);
+      assertEquals(borderColors, chartVSAScriptable.getBorderColors());
+
+      chartVSAScriptable.setAlpha(20);
+      assertEquals(20, chartVSAScriptable.getAlpha());
+   }
+
+   @Test
+   void testCommonFunctions() throws Exception {
+      chartVSAScriptable.setWrapping(true);
+      assertTrue(chartVSAScriptable.isWrapping());
+
+      chartVSAScriptable.setVisible("Chart1");
+      chartVSAScriptable.setVisibleValue("yTitle");
+      assertTrue(chartVSAScriptable.isVisible());
+
+      //check single assembly positions
+      Point position = new Point(100, 100);
+      when(viewsheetSandbox.isRuntime()).thenReturn(true);
+      chartVSAScriptable.setPosition(position);
+      assertEquals(position, chartVSAScriptable.getPosition());
+
+      assertNull(chartVSAScriptable.getScaledPosition());
+      assertNull(chartVSAScriptable.getScaledSize());
+
+      chartVSAScriptable.addAction("icon1", "action1", "click");
+      chartVSAScriptable.scheduleAction(true, new Object[] {"test1@inetsoft.com"});
+
       chartVSAScriptable.setTipViewValue("this is a tip view value");
       chartVSAScriptable.setTipView("this is a tip view");
       assertEquals("this is a tip view", chartVSAScriptable.getTipView());
+
+      assertEquals(142, chartVSAScriptable.getIds().length);
    }
 
    /**
@@ -177,7 +224,7 @@ public class ChartVSAScriptableTest {
       //check geo field
       final ChartVSAssembly Map = (ChartVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly("Map");
-      ChartVSAScriptable chartVSAScriptable2 = new ChartVSAScriptable(sandbox);
+      ChartVSAScriptable chartVSAScriptable2 = new ChartVSAScriptable(viewsheetSandbox);
       chartVSAScriptable2.setAssembly(Map.getName());
 
       assertArrayEquals(new String[] {"State"},
@@ -280,14 +327,14 @@ public class ChartVSAScriptableTest {
     */
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      sandbox = rvs.getViewsheetSandbox();
+      viewsheetSandbox = rvs.getViewsheetSandbox();
       Principal principal = mock(Principal.class);
       when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
          .thenReturn(viewsheetResource.getRuntimeViewsheet());
 
       chartVSAssembly1 = (ChartVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);
-      chartVSAScriptable1 = new ChartVSAScriptable(sandbox);
+      chartVSAScriptable1 = new ChartVSAScriptable(viewsheetSandbox);
       chartVSAScriptable1.setAssembly(chartVSAssembly1.getName());
    }
    public static final String ASSET_ID = "1^128^__NULL__^ChartVSAScriptableTest";
