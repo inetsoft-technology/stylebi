@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.VSScriptableController;
 import inetsoft.web.binding.drm.*;
+import inetsoft.web.binding.model.DateRangeRefModel;
 import inetsoft.web.binding.model.GroupRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.BrowseDataController;
@@ -168,6 +169,20 @@ public class AssemblyConditionDialogController extends WorksheetController {
             preAggregateFields[idx] = groupFields[i];
          }
       }
+
+      List<DataRefModel> newPreAggregates = new ArrayList<>();
+
+      for(int i = 0; i < preAggregateFields.length; i++) {
+         DataRefModel nagg = preAggregateFields[i];
+         boolean postAgg = nagg instanceof GroupRefModel &&
+            nagg.getRefType() == DataRef.CUBE_TIME_DIMENSION;
+
+         if(!postAgg) {
+            newPreAggregates.add(nagg);
+         }
+      }
+
+      preAggregateFields = newPreAggregates.toArray(new DataRefModel[0]);
 
       for(int i = 0, j = aggregateInfo.getGroupCount(); i < aggregateInfo.getAggregateCount();
           i++, j++)
