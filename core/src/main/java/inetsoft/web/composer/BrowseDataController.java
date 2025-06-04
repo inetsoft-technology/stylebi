@@ -281,7 +281,8 @@ public class BrowseDataController {
       // the none date group column in the columnselection and lossing date option information,
       // so here add date option prefix to avoid issue (50186).
       if(column.getDataRef() instanceof DateRangeRef &&
-         ((DateRangeRef) column.getDataRef()).getDataRef() != null)
+         ((DateRangeRef) column.getDataRef()).getDataRef() != null &&
+         !(table instanceof CubeTableAssembly))
       {
          DateRangeRef range = (DateRangeRef) column.getDataRef();
          DataRef attr = range.getDataRef();
