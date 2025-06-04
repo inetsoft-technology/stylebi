@@ -1223,6 +1223,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    {
       long ts = System.currentTimeMillis();
 
+      if(initing && wbox != null) {
+         wbox.resetTableLens();
+      }
+
       if(vname != null) {
          ViewsheetSandbox box = getSandbox(vname);
 
