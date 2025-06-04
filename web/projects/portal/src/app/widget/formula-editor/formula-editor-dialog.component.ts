@@ -127,7 +127,7 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
    @Input() isCondition: boolean = false;
 
    @Input() grayedOutFields: DataRef[];
-   @Input() userAggNames: string[];
+   @Input() userAggNames: string[] = [];
    @Input() selfVisible: boolean = true;
    @Input() checkDuplicatesInColumnTree: boolean = true;
 

@@ -18,6 +18,7 @@
 package inetsoft.util.script;
 
 import inetsoft.util.CoreTool;
+import inetsoft.util.Tool;
 
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -431,6 +432,10 @@ public class CalcTextData {
    public static String substitute(String text, String old_text,
                                    String new_text, int instance_num) {
       StringBuilder data = new StringBuilder();
+
+      if(Tool.isEmptyString(old_text)) {
+         return text;
+      }
 
       String txt = text;
 

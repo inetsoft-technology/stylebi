@@ -402,6 +402,7 @@ public class IdentityService {
             DashboardRegistry.clear(identityId);
             eprovider.removeUser(identityId);
             updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
+            removeUserScopedAssets(identity);
          }
          else {
             if(!identityId.equals(oID)) {
@@ -2010,6 +2011,23 @@ public class IdentityService {
       authzProvider.removePermission(ResourceType.SECURITY_ORGANIZATION, oldOrgID);
    }
 
+   private void removeUserScopedAssets(Identity identity) {
+      if(identity == null || identity.getType() != Identity.USER) {
+         return;
+      }
+
+      final IdentityID identityID = identity.getIdentityID();
+      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+
+      IndexedStorage.Filter filter = key -> {
+         AssetEntry entry = AssetEntry.createAssetEntry(key);
+         return entry != null && Tool.equals(entry.getUser(), identityID);
+      };
+      Set<String> keys = storage.getKeys(filter, identityID.getOrgID());
+      keys.stream().forEach(key -> storage.remove(key));
+   }
+
+
    public void updateIdentityPermissions(int type, IdentityID oldName, IdentityID newName, String oldOrgId, String newOrgId, boolean doReplace) {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
       Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
@@ -2052,11 +2070,22 @@ public class IdentityService {
                for(ResourceAction action : ResourceAction.values()) {
                   if(permission != null) {
                      if(type == Identity.USER) {
+                        boolean empty = permission.isBlank();
+
                         for(IdentityID granteeName : permission.getOrgScopedUserGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                            if(oldName != null && oldName.name.equals(granteeName.name)) {
                               //rename old grantee to new name
                               updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                            }
+                        }
+
+                        // create self user created db when deleting self user.
+                        if(permission.isBlank() && !empty && oldName != null &&
+                           Tool.equals(oldName.getOrgID(), Organization.getSelfOrganizationID()) &&
+                           permissionSet.getFirst() == ResourceType.DATA_SOURCE)
+                        {
+                           DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+                           registry.removeDataSource(path);
                         }
                      }
                      else if(type == Identity.GROUP) {

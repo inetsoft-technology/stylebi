@@ -31,8 +31,6 @@ import { InteractModule } from "../../widget/interact/interact.module";
 import { PageTabService } from "../../viewer/services/page-tab.service";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { DataTipService } from "../../vsobjects/objects/data-tip/data-tip.service";
-import { PopComponentService } from "../../vsobjects/objects/data-tip/pop-component.service";
 import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.service";
 import { VSChartService } from "../../vsobjects/objects/chart/services/vs-chart.service";
 import { SlideOutService } from "../../widget/slide-out/slide-out.service";
@@ -76,8 +74,6 @@ import {
    ],
    declarations: [EmbedViewerComponent],
    providers: [
-      DataTipService,
-      PopComponentService,
       MiniToolbarService,
       VSChartService,
       SlideOutService,

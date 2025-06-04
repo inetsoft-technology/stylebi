@@ -32,7 +32,7 @@ import org.w3c.dom.NodeList;
 
 import java.awt.*;
 import java.io.*;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 
 /**
@@ -1749,6 +1749,21 @@ public class VSFormat implements XVSFormat {
       }
 
       return hash;
+   }
+
+   /**
+    * Calculate the hashcode of the format spec.
+    */
+   public int fullHashCode() {
+      return Objects.hash(dynamicValueFullHashCode(alignValue),
+         dynamicValueFullHashCode(wrapValue), bordersValue, bcolorsValue, fontValue,
+         dynamicValueFullHashCode(fmtValue), dynamicValueFullHashCode(fextValue), fg, bg, presenter,
+         gradientColorVals,dynamicValueFullHashCode(roundCornerValue));
+
+   }
+
+   private int dynamicValueFullHashCode(DynamicValue dynamicValue) {
+      return dynamicValue == null ? 0 : dynamicValue.fullHashCode();
    }
 
    /**

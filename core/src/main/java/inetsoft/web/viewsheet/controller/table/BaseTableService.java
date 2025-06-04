@@ -771,7 +771,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       int[] spanRow = new int[colCount];
       Arrays.fill(spanRow, start);
       CrossTabFilter filter = Util.getCrosstab(lens);
-      Map<VSFormat, VSFormatModel> formatModelCache = new HashMap<>();
+      Map<Integer, VSFormatModel> formatModelCache = new HashMap<>();
 
       for(int i = start; i < end; i++) {
          for(int j = 0; j < colCount; j++) {

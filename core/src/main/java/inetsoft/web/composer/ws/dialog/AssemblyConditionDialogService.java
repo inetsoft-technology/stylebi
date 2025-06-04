@@ -164,6 +164,20 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
          }
       }
 
+      List<DataRefModel> newPreAggregates = new ArrayList<>();
+
+      for(int i = 0; i < preAggregateFields.length; i++) {
+         DataRefModel nagg = preAggregateFields[i];
+         boolean postAgg = nagg instanceof GroupRefModel &&
+            nagg.getRefType() == DataRef.CUBE_TIME_DIMENSION;
+
+         if(!postAgg) {
+            newPreAggregates.add(nagg);
+         }
+      }
+
+      preAggregateFields = newPreAggregates.toArray(new DataRefModel[0]);
+
       for(int i = 0, j = aggregateInfo.getGroupCount(); i < aggregateInfo.getAggregateCount();
           i++, j++)
       {

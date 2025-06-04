@@ -479,8 +479,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
       String orgID = principal instanceof XPrincipal ? ((XPrincipal) principal).getOrgId() : null;
 
-      return SUtil.isDefaultVSGloballyVisible(principal) && !Tool.equals(orgID, currOrgID) &&
-         Organization.getDefaultOrganizationID().equals(currOrgID);
+      return !Tool.equals(orgID, currOrgID) &&
+         Organization.getDefaultOrganizationID().equals(currOrgID) && SUtil.isDefaultVSGloballyVisible(principal);
    }
 
    private boolean isNotGlobalRole(ResourceType type, IdentityID name) {

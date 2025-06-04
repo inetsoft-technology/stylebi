@@ -338,7 +338,12 @@ public class DeployService {
       boolean siteAdmin = manager.isSiteAdmin(principal);
 
       for(PartialDeploymentJarInfo.SelectedAsset entry : info.getSelectedEntries()) {
-         if(!siteAdmin && !Tool.equals(entry.getUser().orgID, manager.getCurrentOrgID())) {
+         boolean accessViolation = SUtil.isMultiTenant() ?
+            !Tool.equals(entry.getUser().orgID, manager.getCurrentOrgID()) :
+            !securityEngine.checkPermission(principal, ResourceType.EM, "*", ResourceAction.ACCESS);
+
+         if(!siteAdmin && accessViolation)
+         {
             ArrayList<String> errors = new ArrayList<>();
             errors.add(Catalog.getCatalog().getString("em.import.ignoreOtherOrgAssetsForOrgAdmin"));
             return ImportAssetResponse.builder()

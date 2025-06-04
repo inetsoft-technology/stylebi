@@ -48,7 +48,7 @@ export class ConditionList {
    edit(): void {
       const oldConditionList = this.conditionList;
 
-      this.modalService.open(this.conditionDialog, {size: "lg", backdrop: false}).result
+      this.modalService.open(this.conditionDialog, {size: "xl", backdrop: false}).result
          .then((conditionList: any[]) => {
                this.conditionListChange.emit(conditionList);
             }, () => {

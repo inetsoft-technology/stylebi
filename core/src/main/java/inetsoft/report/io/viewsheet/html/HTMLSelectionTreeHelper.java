@@ -181,7 +181,11 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
 
          slist.append("<span style='width:" + textWidth + "px;float:right;position:absolute;right:" +
             barWidth + "px;text-align:right;");
-         slist.append(vHelper.getCSSStyles(null, formatMT));
+
+         if(formatMT != null) {
+            slist.append(vHelper.getCSSStyles(null, formatMT));
+         }
+
          slist.append("'>");
          slist.append(svalue.getMeasureLabel());
          slist.append("</span>");
