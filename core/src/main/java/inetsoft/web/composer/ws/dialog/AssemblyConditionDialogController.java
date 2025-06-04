@@ -31,7 +31,6 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.VSScriptableController;
 import inetsoft.web.binding.drm.*;
-import inetsoft.web.binding.model.DateRangeRefModel;
 import inetsoft.web.binding.model.GroupRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.BrowseDataController;
