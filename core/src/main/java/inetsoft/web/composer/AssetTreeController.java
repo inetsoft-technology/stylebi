@@ -729,17 +729,8 @@ public class AssetTreeController {
       AssetEntry expandedEntry, Principal principal,
       AssetEntry.Selector assetSelector) throws Exception
    {
-      long start = System.currentTimeMillis();
-
-      try {
-         return assetRepository.getEntries(
-            expandedEntry, principal, ResourceAction.READ, assetSelector);
-      }
-      finally {
-         if(expandedEntry.getScope() == 0) {
-            System.out.println(expandedEntry.toIdentifier() + ":" +(System.currentTimeMillis() - start));
-         }
-      }
+      return assetRepository.getEntries(
+         expandedEntry, principal, ResourceAction.READ, assetSelector);
    }
 
    private AssetEntry[] getReportRepositoryChildren(
