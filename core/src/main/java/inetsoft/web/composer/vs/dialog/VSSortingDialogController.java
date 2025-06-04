@@ -28,9 +28,7 @@ import inetsoft.uql.viewsheet.CalcTableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.util.Tool;
-import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -55,13 +53,11 @@ public class VSSortingDialogController {
     */
    @Autowired
    public VSSortingDialogController(
-      VSObjectService service, VSInputService vsInputService,
-      DataRefModelFactoryService dataRefModelFactoryService, ViewsheetService viewsheetService,
+      VSObjectService service, VSInputService vsInputService, ViewsheetService viewsheetService,
       RuntimeViewsheetRef runtimeViewsheetRef, VSAssemblyInfoHandler vsAssemblyInfoHandler)
    {
       this.service = service;
       this.vsInputService = vsInputService;
-      this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
@@ -104,18 +100,19 @@ public class VSSortingDialogController {
          allColumns = (DataRef[]) Collections.list(columnSelection.getAttributes()).toArray(new DataRef[0]);
       }
 
-      for(SortRef sortRef : sortRefs) {
-         if(columnSelection == null || !containsColumn(sortRef.getDataRef(), allColumns)) {
-            continue;
+      if(columnSelection != null) {
+         for(SortRef sortRef : sortRefs) {
+            if(!containsColumn(sortRef.getDataRef(), allColumns)) {
+               continue;
+            }
+
+            VSSortRefModel sortRefModel = new VSSortRefModel();
+            sortRefModel.setName(sortRef.getDataRef().getName());
+            sortRefModel.setView(sortRef.getDataRef().toView());
+            sortRefModel.setOrder(sortRef.getOrder());
+            columnSortList.add(sortRefModel);
          }
 
-         VSSortRefModel sortRefModel = new VSSortRefModel();
-         sortRefModel.setDataRefModel(dataRefModelFactoryService.createDataRefModel(sortRef.getDataRef()));
-         sortRefModel.setOrder(sortRef.getOrder());
-         columnSortList.add(sortRefModel);
-      }
-
-      if(columnSelection != null) {
          for(int i = 0; i < columnSelection.getAttributeCount(); i++) {
             DataRef ref = columnSelection.getAttribute(i);
 
@@ -124,7 +121,8 @@ public class VSSortingDialogController {
             }
 
             VSSortRefModel sortRefModel = new VSSortRefModel();
-            sortRefModel.setDataRefModel(dataRefModelFactoryService.createDataRefModel(ref));
+            sortRefModel.setName(ref.getName());
+            sortRefModel.setView(ref.toView());
             sortRefModel.setOrder(StyleConstants.SORT_NONE);
             columnNoneList.add(sortRefModel);
          }
@@ -144,20 +142,27 @@ public class VSSortingDialogController {
                                        @Payload VSSortingDialogModel model,
                                        Principal principal,
                                        CommandDispatcher dispatcher)
-      throws Exception {
+      throws Exception
+   {
       RuntimeViewsheet rvs =
          service.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
       Viewsheet viewsheet = rvs.getViewsheet();
       CalcTableVSAssembly assembly = (CalcTableVSAssembly) viewsheet.getAssembly(objectId);
       CalcTableVSAssemblyInfo assemblyInfo = (CalcTableVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      SourceInfo sourceInfo = assemblyInfo.getSourceInfo();
+      ColumnSelection columnSelection = sourceInfo == null ? null :
+         vsInputService.getTableColumns(rvs, sourceInfo.getSource(), null, null, null,
+                                        false, false, true, false, false, true, principal);
       SortInfo sortInfo = new SortInfo();
 
-      for(VSSortRefModel vsSortRefModel : model.getVsSortingPaneModel().getColumnSortList()) {
-         SortRef sortRef = new SortRef();
-         DataRefModel dataRefModel = vsSortRefModel.getDataRefModel();
-         sortRef.setDataRef(dataRefModel.createDataRef());
-         sortRef.setOrder(vsSortRefModel.getOrder());
-         sortInfo.addSort(sortRef);
+      if(columnSelection != null) {
+         for(VSSortRefModel vsSortRefModel : model.getVsSortingPaneModel().getColumnSortList()) {
+            SortRef sortRef = new SortRef();
+            DataRef ref = columnSelection.getAttribute(vsSortRefModel.getName());
+            sortRef.setDataRef(ref);
+            sortRef.setOrder(vsSortRefModel.getOrder());
+            sortInfo.addSort(sortRef);
+         }
       }
 
       assemblyInfo.setSortInfo(sortInfo);
@@ -180,7 +185,6 @@ public class VSSortingDialogController {
 
    private final VSObjectService service;
    private final VSInputService vsInputService;
-   private final DataRefModelFactoryService dataRefModelFactoryService;
    private final ViewsheetService viewsheetService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private VSAssemblyInfoHandler vsAssemblyInfoHandler;
