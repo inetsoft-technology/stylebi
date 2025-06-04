@@ -36,6 +36,7 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.uql.xmla.CubeDate;
 import inetsoft.uql.xmla.MemberObject;
 import inetsoft.util.MessageFormat;
 import inetsoft.util.*;
@@ -464,7 +465,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          table.moreRows(Integer.MAX_VALUE);
          checkMaxRowLimit(table);
 
-         if(unit == TimeInfo.MEMBER) {
+         if(unit == TimeInfo.MEMBER || cubeData) {
             if(table.getRowCount() < 2 || table.getColCount() != 1) {
                return null;
             }
@@ -1532,6 +1533,11 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
             String str = obj == null ? CoreTool.FAKE_NULL : AbstractCondition.getValueString(obj,
                refs[idx].getDataType(), false);
             objs[idx] = obj;
+
+            if(obj instanceof CubeDate && ((CubeDate) obj).getMemberObject() != null) {
+               str = ((CubeDate) obj).getMemberObject().getCaption();
+            }
+
             vstr.append(str);
 
             if(obj instanceof MemberObject) {
