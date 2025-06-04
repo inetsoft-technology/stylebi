@@ -17,6 +17,8 @@
  */
 package inetsoft.util.log;
 
+import java.util.Objects;
+
 /**
  * Class that represents a custom log level setting.
  *
@@ -27,9 +29,10 @@ public final class LogLevelSetting implements Comparable<LogLevelSetting> {
    public LogLevelSetting() {
    }
 
-   public LogLevelSetting(LogContext context, String name, LogLevel level) {
+   public LogLevelSetting(LogContext context, String name, String orgName, LogLevel level) {
       this.context = context;
       this.name = name;
+      this.orgName = orgName;
       this.level = level;
    }
 
@@ -70,6 +73,24 @@ public final class LogLevelSetting implements Comparable<LogLevelSetting> {
    }
 
    /**
+    * Get the organization name of log resource.
+    *
+    * @return the organization name.
+    */
+   public String getOrgName() {
+      return orgName;
+   }
+
+   /**
+    * Set the organization name of log resource.
+    *
+    * @param orgName the organization name.
+    */
+   public void setOrgName(String orgName) {
+      this.orgName = orgName;
+   }
+
+   /**
     * Gets the log level.
     *
     * @return the level.
@@ -90,8 +111,8 @@ public final class LogLevelSetting implements Comparable<LogLevelSetting> {
    @Override
    public String toString() {
       return String.format(
-         "LogLevelSetting[context=%s,name=%s,level=%s]",
-         context.name(), name, level);
+         "LogLevelSetting[context=%s,name=%s,organization=%s,level=%s]",
+         context.name(), name, orgName, level);
    }
 
    @Override
@@ -105,15 +126,13 @@ public final class LogLevelSetting implements Comparable<LogLevelSetting> {
       }
 
       LogLevelSetting that = (LogLevelSetting) o;
-      return context == that.context &&
-         !(name != null ? !name.equals(that.name) : that.name != null);
+      return context == that.context && Objects.equals(name, that.name) &&
+         Objects.equals(orgName, that.orgName);
    }
 
    @Override
    public int hashCode() {
-      int result = context != null ? context.hashCode() : 0;
-      result = 31 * result + (name != null ? name.hashCode() : 0);
-      return result;
+      return 31 * Objects.hashCode(context) + Objects.hashCode(name) + Objects.hashCode(orgName);
    }
 
    @Override
@@ -134,11 +153,23 @@ public final class LogLevelSetting implements Comparable<LogLevelSetting> {
          if(name == null && o.name != null) {
             result = -1;
          }
-         else if(name != null && o.context == null) {
+         else if(name != null && o.name == null) {
             result = 1;
          }
          else if(name != null) {
             result = name.compareTo(o.name);
+         }
+      }
+
+      if(result == 0) {
+         if(orgName == null && o.orgName != null) {
+            result = -1;
+         }
+         else if(orgName != null && o.orgName == null) {
+            result = 1;
+         }
+         else if(orgName != null) {
+            result = orgName.compareTo(o.orgName);
          }
       }
 
@@ -147,5 +178,6 @@ public final class LogLevelSetting implements Comparable<LogLevelSetting> {
 
    private LogContext context = null;
    private String name = null;
+   private String orgName = null;
    private LogLevel level = null;
 }

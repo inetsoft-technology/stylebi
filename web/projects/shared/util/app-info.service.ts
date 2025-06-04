@@ -55,6 +55,10 @@ export class AppInfoService implements OnDestroy {
       return this.currentOrgInfo;
    }
 
+   getAllOrgnanizations(): Observable<string[]> {
+      return this.httpClient.get<string[]>("../api/organizations");
+   }
+
    ngOnDestroy() {
       this.currentOrgInfo.complete();
    }
