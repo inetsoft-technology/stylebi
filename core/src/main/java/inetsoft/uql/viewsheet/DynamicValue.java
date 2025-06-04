@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * Dynamic value, comtains a design time string value and a runtime value.
@@ -159,6 +160,13 @@ public class DynamicValue implements Serializable, Cloneable {
       }
 
       return hash;
+   }
+
+   /**
+    * Calculate the hashcode of the dynamic value, it contains dvalue and rvalue.
+    */
+   public int fullHashCode() {
+      return Objects.hash(dvalue, rvalue);
    }
 
    /**
