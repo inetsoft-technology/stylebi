@@ -209,7 +209,7 @@ class CalcMathTest {
       // Test valid input
       assertEquals(15.0, CalcMath.factdouble(5)); // Double factorial of 5: 5 * 3 * 1
       assertEquals(8.0, CalcMath.factdouble(4)); // Double factorial of 4: 4 * 2
-//      assertEquals(1.0, CalcMath.factdouble(0)); // Double factorial of 0: 1, bug #71328
+      assertEquals(1.0, CalcMath.factdouble(0)); // Double factorial of 0: 1, bug #71328
 
       // Test invalid input (negative number)
       Exception exception = assertThrows(RuntimeException.class, () -> CalcMath.factdouble(-1));
@@ -223,8 +223,8 @@ class CalcMathTest {
       assertEquals(10.0, CalcMath.floor(12.3, 5.0));
 
       // Test with negative number and negative significance
-//      assertEquals(-10.0, CalcMath.floor(-7.5, -5.0));//bug #71318
-//      assertEquals(-15.0, CalcMath.floor(-12.3, -5.0));
+      assertEquals(-10.0, CalcMath.floor(-7.5, -5.0));//bug #71318
+      assertEquals(-15.0, CalcMath.floor(-12.3, -5.0));
 
       // Test with zero
       assertEquals(0.0, CalcMath.floor(0.0, 5.0));
@@ -249,8 +249,8 @@ class CalcMathTest {
       assertEquals("Array should at least contain one number", exception.getMessage());
 
       // Test with negative numbers, bug #71329
-//      exception = assertThrows(RuntimeException.class, () -> CalcMath.gcd(new Object[]{-12, 18}));
-//      assertEquals("All parameters to gcd() must be non-negative", exception.getMessage());
+      exception = assertThrows(RuntimeException.class, () -> CalcMath.gcd(new Object[]{-12, 18}));
+      assertEquals("All numbers should be non-negative", exception.getMessage());
    }
 
    @Test
@@ -275,14 +275,12 @@ class CalcMathTest {
       assertEquals("Array should at least contain one number", exception.getMessage());
 
       // Test with a negative number, bug #71317
-//      exception = assertThrows(RuntimeException.class, () -> CalcMath.lcm(new Object[]{-12, 18}));
-//      assertEquals("All parameters to lcm() must be greater than zero, parameter 1 value is -12.0",
-//                   exception.getMessage());
+      exception = assertThrows(RuntimeException.class, () -> CalcMath.lcm(new Object[]{-12, 18}));
+      assertEquals("All parameters to lcm() must be non-negative, parameter 1 value is -12.0",
+                   exception.getMessage());
 
       // Test with zero, bug #71317
-//      exception = assertThrows(RuntimeException.class, () -> CalcMath.lcm(new Object[]{0, 18}));
-//      assertEquals("All parameters to lcm() must be greater than zero, parameter 1 value is 0",
-//                   exception.getMessage());
+      assertEquals(0.0, CalcMath.lcm(new Object[]{0, 18})); // LCM with zero should return zero
    }
 
    @Test
@@ -747,7 +745,8 @@ class CalcMathTest {
       assertEquals(70.0, CalcMath.sumif(range, criteria, sumRange), 0.0001);
 
       // Test with mismatched range and sumRange lengths
-      Object invalidSumRange = new Object[]{10.0, 20.0};//bug #71337
+//      Object mismatchedRange = new Object[]{10.0, 20.0};//bug #71337
+//      assertEquals(0.0, CalcMath.sumif(range, criteria, mismatchedRange), 0.0001);
    }
 
    @Test
