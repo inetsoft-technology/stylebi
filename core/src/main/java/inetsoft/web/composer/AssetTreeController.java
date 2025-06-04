@@ -169,6 +169,35 @@ public class AssetTreeController {
       @RequestBody LoadAssetTreeNodesEvent event, Principal principal)
       throws Exception
    {
+      return getNodes0(includeDatasources, includeColumns, includeWorksheets, includeViewsheets,
+         includeTableStyles, includeScripts, includeLibrary, reportRepositoryEnabled, readOnly,
+         physical, event, principal, readOnly || assetRepository.checkPermission(
+            principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)),
+            SecurityEngine.getSecurity().checkPermission(
+            principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS),
+            readOnly || assetRepository.checkPermission(
+            principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)));
+   }
+
+   /**
+    * Gets the child nodes of the specified parent node.
+    *
+    * @return the child nodes.
+    */
+   public LoadAssetTreeNodesValidator getNodes0(
+      boolean includeDatasources,
+      boolean includeColumns,
+      boolean includeWorksheets,
+      boolean includeViewsheets,
+      boolean includeTableStyles,
+      boolean includeScripts,
+      boolean includeLibrary,
+      boolean reportRepositoryEnabled,
+      boolean readOnly,
+      boolean physical,
+      LoadAssetTreeNodesEvent event, Principal principal, boolean worksheetPermission, boolean sqlEnabled, boolean viewsheetPermission)
+      throws Exception
+   {
       LoadAssetTreeNodesValidator result;
       TreeNodeModel treeNodeModel;
       Catalog catalog = Catalog.getCatalog(principal);
@@ -189,15 +218,6 @@ public class AssetTreeController {
                                  AssetEntry.Type.COLUMN,
                                  AssetEntry.Type.QUERY, AssetEntry.Type.QUERY_FOLDER,
                                  AssetEntry.Type.REPORT_COMPONENT);
-
-      boolean worksheetPermission = assetRepository.checkPermission(
-         principal, ResourceType.WORKSHEET, "*", EnumSet.of(ResourceAction.ACCESS)) ||
-         readOnly;
-      boolean viewsheetPermission = assetRepository.checkPermission(
-         principal, ResourceType.VIEWSHEET, "*", EnumSet.of(ResourceAction.ACCESS)) ||
-         readOnly;
-      boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
-         principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
 
       List<TreeNodeModel> updatedChildren = new ArrayList<>();
 
@@ -362,11 +382,12 @@ public class AssetTreeController {
 
          if(childEvent != null && child.children().isEmpty() && !child.leaf()) {
             child = TreeNodeModel.builder().from(child)
-               .addAllChildren(getNodes(includeDatasources, includeColumns,
+               .addAllChildren(getNodes0(includeDatasources, includeColumns,
                                         includeWorksheets, includeViewsheets,
                                         includeTableStyles, includeScripts, includeLibrary,
                                         reportRepositoryEnabled, readOnly,
-                                        physical, childEvent, principal)
+                                        physical, childEvent, principal, worksheetPermission,
+                                        sqlEnabled, viewsheetPermission)
                                   .treeNodeModel().children())
                .expanded(childEventOptional.isPresent())
                .build();
@@ -468,10 +489,11 @@ public class AssetTreeController {
             }
 
             if(!selectedNodeRetrieved && (foundChild || child.children().isEmpty())) {
-               List<TreeNodeModel> childNodes = getNodes(
+               List<TreeNodeModel> childNodes = getNodes0(
                   includeDatasources, includeColumns, includeWorksheets,
                   includeViewsheets, includeTableStyles, includeScripts, includeLibrary,
-                  reportRepositoryEnabled, readOnly, physical, childEvent, principal)
+                  reportRepositoryEnabled, readOnly, physical, childEvent, principal,
+                  worksheetPermission, sqlEnabled, viewsheetPermission)
                   .treeNodeModel().children();
 
                child = TreeNodeModel.builder().from(child)
