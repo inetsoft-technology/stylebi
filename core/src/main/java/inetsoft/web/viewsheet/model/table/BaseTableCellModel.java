@@ -111,7 +111,7 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
 
    public static BaseTableCellModel createTableCell(VSAssemblyInfo assemblyInfo,
                                                     VSTableLens lens, int row, int col, int spanRow,
-                                                    Map<VSFormat, VSFormatModel> formatModelCache)
+                                                    Map<Integer, VSFormatModel> formatModelCache)
    {
       FormatTableLens formatTableLens = getFormatTableLens(lens.getTable());
       Object obj = lens.getObject(row, col);
@@ -131,7 +131,7 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
 
       VSFormat vsFormat = lens.getFormat(row, col, spanRow);
       VSFormatModel vsFormatModel = formatModelCache
-         .computeIfAbsent(vsFormat, K -> new VSFormatModel(vsFormat, assemblyInfo));
+         .computeIfAbsent(vsFormat.fullHashCode(), K -> new VSFormatModel(vsFormat, assemblyInfo));
 
       if(!Tool.equals(vsFormatModel.getPadding(), lens.getInsets(row, col))) {
          vsFormatModel = new VSFormatModel(vsFormat, assemblyInfo);
@@ -289,7 +289,7 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
    public static BaseTableCellModel createFormCell(VSAssemblyInfo info,
                                                    FormTableLens formLens,
                                                    VSTableLens lens, int row, int col,
-                                                   Map<VSFormat, VSFormatModel> formatModelCache)
+                                                   Map<Integer, VSFormatModel> formatModelCache)
    {
       Object obj = lens.getObject(row, col);
       Object label = formLens.getLabel(row, col) != null ?
@@ -310,7 +310,7 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       compositeFormat.setUserDefinedFormat(vsFormat);
 
       VSFormatModel vsFormatModel = formatModelCache
-         .computeIfAbsent(vsFormat, K -> new VSFormatModel(vsFormat, info));
+         .computeIfAbsent(vsFormat.fullHashCode(), K -> new VSFormatModel(vsFormat, info));
 
       if(!Tool.equals(vsFormatModel.getPadding(), lens.getInsets(row, col))) {
          vsFormatModel = new VSFormatModel(vsFormat, info);
