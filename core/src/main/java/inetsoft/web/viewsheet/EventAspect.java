@@ -84,12 +84,14 @@ public class EventAspect {
       RuntimeViewsheetRef runtimeViewsheetRef,
       CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService,
-      VSLayoutService vsLayoutService)
+      VSLayoutService vsLayoutService,
+      EventAspectServiceProxy eventAspectServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.vsLayoutService = vsLayoutService;
+      this.eventAspectServiceProxy = eventAspectServiceProxy;
    }
 
    @PreDestroy
@@ -185,32 +187,7 @@ public class EventAspect {
          if(commandDispatcher.isPresent() && principal.isPresent() &&
             runtimeViewsheetRef.getRuntimeId() != null)
          {
-            RuntimeSheet rts = viewsheetService.getSheet(runtimeViewsheetRef.getRuntimeId(),
-               principal.get());
-
-            if(rts instanceof RuntimeViewsheet) {
-               RuntimeViewsheet rvs = (RuntimeViewsheet) rts;
-               Viewsheet vs = rvs.getViewsheet();
-               TextVSAssembly textVSAssembly = null;
-
-               if(vs != null) {
-                  textVSAssembly = vs.getWarningTextAssembly(false);
-
-                  if(textVSAssembly == null) {
-                     for(Assembly assembly : vs.getAssemblies()) {
-                        if(assembly instanceof Viewsheet) {
-                           textVSAssembly = ((Viewsheet) assembly).getWarningTextAssembly(false);
-                        }
-                     }
-                  }
-               }
-
-               if(textVSAssembly != null) {
-                  vs.adjustWarningTextPosition();
-                  coreLifecycleService.addDeleteVSObject(rvs, textVSAssembly, commandDispatcher.get());
-                  coreLifecycleService.refreshVSAssembly(rvs, textVSAssembly, commandDispatcher.get());
-               }
-            }
+            eventAspectServiceProxy.updateViewsheet(runtimeViewsheetRef.getRuntimeId(), commandDispatcher.get(), principal.get());
          }
       }
    }
@@ -673,6 +650,7 @@ public class EventAspect {
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSLayoutService vsLayoutService;
+   private final EventAspectServiceProxy eventAspectServiceProxy;
    private final Timer timer = new Timer();
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
    private String orgId;
