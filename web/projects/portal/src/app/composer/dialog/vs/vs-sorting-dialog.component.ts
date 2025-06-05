@@ -34,6 +34,8 @@ export class VSSortingDialog {
    }
 
    ok() {
-      this.onCommit.emit(this.model);
+      const result = Object.assign({}, this.model);
+      delete result.vsSortingPaneModel.columnNoneList;
+      this.onCommit.emit(result);
    }
 }
