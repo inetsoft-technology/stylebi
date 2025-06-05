@@ -2600,7 +2600,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // script will be executed before onLoad
       //executeScript((OutputVSAssembly) assembly);
 
-      Object data = getData(entry.getName());
+      Object data = getData(entry.getAbsoluteName());
       OutputVSAssemblyInfo outputInfo = (OutputVSAssemblyInfo)
          assembly.getInfo();
       BindingInfo binding = outputInfo.getBindingInfo();
