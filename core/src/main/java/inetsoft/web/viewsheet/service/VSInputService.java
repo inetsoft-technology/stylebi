@@ -543,18 +543,19 @@ public class VSInputService {
          allColumns = (DataRef[]) Collections.list(columnSelection.getAttributes()).toArray(new DataRef[0]);
       }
 
-      for(SortRef sortRef : sortRefs) {
-         if(columnSelection == null || !containsColumn(sortRef.getDataRef(), allColumns)) {
-            continue;
+      if(columnSelection != null) {
+         for(SortRef sortRef : sortRefs) {
+            if(!containsColumn(sortRef.getDataRef(), allColumns)) {
+               continue;
+            }
+
+            VSSortRefModel sortRefModel = new VSSortRefModel();
+            sortRefModel.setName(sortRef.getDataRef().getName());
+            sortRefModel.setView(sortRef.getDataRef().toView());
+            sortRefModel.setOrder(sortRef.getOrder());
+            columnSortList.add(sortRefModel);
          }
 
-         VSSortRefModel sortRefModel = new VSSortRefModel();
-         sortRefModel.setDataRefModel(dataRefModelFactoryService.createDataRefModel(sortRef.getDataRef()));
-         sortRefModel.setOrder(sortRef.getOrder());
-         columnSortList.add(sortRefModel);
-      }
-
-      if(columnSelection != null) {
          for(int i = 0; i < columnSelection.getAttributeCount(); i++) {
             DataRef ref = columnSelection.getAttribute(i);
 
@@ -563,7 +564,8 @@ public class VSInputService {
             }
 
             VSSortRefModel sortRefModel = new VSSortRefModel();
-            sortRefModel.setDataRefModel(dataRefModelFactoryService.createDataRefModel(ref));
+            sortRefModel.setName(ref.getName());
+            sortRefModel.setView(ref.toView());
             sortRefModel.setOrder(StyleConstants.SORT_NONE);
             columnNoneList.add(sortRefModel);
          }
@@ -587,14 +589,20 @@ public class VSInputService {
       Viewsheet viewsheet = rvs.getViewsheet();
       CalcTableVSAssembly assembly = (CalcTableVSAssembly) viewsheet.getAssembly(objectId);
       CalcTableVSAssemblyInfo assemblyInfo = (CalcTableVSAssemblyInfo) assembly.getVSAssemblyInfo();
+      SourceInfo sourceInfo = assemblyInfo.getSourceInfo();
+      ColumnSelection columnSelection = sourceInfo == null ? null :
+         vsColumnHandler.getTableColumns(rvs, sourceInfo.getSource(), null, null, null,
+                                        false, false, true, false, false, true, principal);
       SortInfo sortInfo = new SortInfo();
 
-      for(VSSortRefModel vsSortRefModel : model.getVsSortingPaneModel().getColumnSortList()) {
-         SortRef sortRef = new SortRef();
-         DataRefModel dataRefModel = vsSortRefModel.getDataRefModel();
-         sortRef.setDataRef(dataRefModel.createDataRef());
-         sortRef.setOrder(vsSortRefModel.getOrder());
-         sortInfo.addSort(sortRef);
+      if(columnSelection != null) {
+         for(VSSortRefModel vsSortRefModel : model.getVsSortingPaneModel().getColumnSortList()) {
+            SortRef sortRef = new SortRef();
+            DataRef ref = columnSelection.getAttribute(vsSortRefModel.getName());
+            sortRef.setDataRef(ref);
+            sortRef.setOrder(vsSortRefModel.getOrder());
+            sortInfo.addSort(sortRef);
+         }
       }
 
       assemblyInfo.setSortInfo(sortInfo);

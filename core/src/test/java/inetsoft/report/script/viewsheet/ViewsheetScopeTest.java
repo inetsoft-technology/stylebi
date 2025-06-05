@@ -19,6 +19,7 @@
 package inetsoft.report.script.viewsheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.lens.DefaultTableLens;
@@ -27,6 +28,7 @@ import inetsoft.sree.security.SRPrincipal;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
@@ -35,6 +37,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.net.URL;
+import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -268,6 +271,55 @@ public class ViewsheetScopeTest {
       viewsheetScope.refreshScriptable();
       viewsheetScope.addImage("Image1", image);
       assertEquals(1, sandbox.getViewsheet().getUploadedImageNames().length);
+   }
+
+   /**
+    * test some functions, void functions didn't check.
+    */
+   @Test
+   void testOtherFunctions() throws Exception {
+      viewsheetScope.saveWorksheet();
+      viewsheetScope.addVariable("testVar", "testValue");
+      viewsheetScope.removeVariable("testVar");
+      viewsheetScope.addAction("icon1", "showMessage","click");
+      viewsheetScope.isCancelled();
+
+      //test delayVisibility
+      VSAScriptable mockScriptable1 = mock(VSAScriptable.class);
+      when(mockScriptable1.getAssembly()).thenReturn("TableView1");
+      viewsheetScope.delayVisibility(1000, new Object[] { mockScriptable1});
+
+      //test resetChartScriptable
+      ChartVSAssembly mockChartAssembly = mock(ChartVSAssembly.class);
+      when(mockChartAssembly.getName()).thenReturn("chart1");
+      viewsheetScope.resetChartScriptable(mockChartAssembly);
+
+      // test getVSAScriptable
+      assertInstanceOf(TableVSAScriptable.class, viewsheetScope.getVSAScriptable("TableView1"));
+
+      // test prepareVariables and getvariableScriptable
+      Principal principal = (Principal)viewsheetScope.getVariableScriptable().get("__principal__", null);
+      assertEquals("INETSOFT_SYSTEM~;~host-org", principal.getName());
+      viewsheetScope.prepareVariables(null);
+      Object[] paras = (Object[])viewsheetScope.getVariableScriptable().get("parameterNames", null);
+      assertArrayEquals(new Object[] {"__principal__", "_GROUPS_", "_USER_", "_ROLES_"},  paras);
+
+      //test execute with a scriptable
+      viewsheetScope.execute("visible=false", viewsheetScope.getVSAScriptable("TableView1"), false);
+   }
+
+   @Test
+   void testSomeGet() {
+      assertNull(viewsheetScope.get("event", null));
+      assertEquals(FormTableRow.OLD, viewsheetScope.get("OLD", null));
+      assertEquals(FormTableRow.CHANGED, viewsheetScope.get("CHANGED", null));
+      assertEquals(FormTableRow.ADDED, viewsheetScope.get("ADDED", null));
+      assertEquals(FormTableRow.DELETED, viewsheetScope.get("DELETED", null));
+
+      assertEquals(19, viewsheetScope.getIds().length);
+
+      ViewsheetScope viewsheetScope1 = (ViewsheetScope)viewsheetScope.clone();
+      assertEquals("ViewsheetScope", viewsheetScope1.getClassName());
    }
 
    private static OpenViewsheetEvent createOpenViewsheetEvent() {
