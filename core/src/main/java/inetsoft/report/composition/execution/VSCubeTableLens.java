@@ -50,8 +50,19 @@ public class VSCubeTableLens extends DefaultTableFilter
     * @param columns the corresponding table column selection.
     */
    public VSCubeTableLens(TableLens lens, ColumnSelection columns) {
+      this(lens, columns, false);
+   }
+
+   /**
+    * Create a copy of a table lens.
+    * @param lens contained base table lens.
+    * @param columns the corresponding table column selection.
+    * @param metadata true if using metadata, false otherwise.
+    */
+   public VSCubeTableLens(TableLens lens, ColumnSelection columns, boolean metadata) {
       super(lens);
       this.columns = columns;
+      this.metadata = metadata;
 
       dimtypes = new int[lens.getColCount()];
 
@@ -216,7 +227,12 @@ public class VSCubeTableLens extends DefaultTableFilter
       Object obj = super.getObject(r, c);
 
       if(r < getHeaderRowCount()) {
-         // dimension name should be kept for headers
+         // Dimension name should be kept for headers, except in metadata mode.
+         // In metadata mode, brackets `[` and `]` should be removed from headers
+         // to match the binding column.
+         if(metadata) {
+            return getDisplayFullValue(Tool.toString(obj));
+         }
       }
       else if(obj instanceof MemberObject || obj instanceof String) {
          return getDisplayValue(obj, dimtypes[c]);
@@ -316,4 +332,5 @@ public class VSCubeTableLens extends DefaultTableFilter
 
    private ColumnSelection columns;
    private int[] dimtypes;
+   private boolean metadata;
 }
