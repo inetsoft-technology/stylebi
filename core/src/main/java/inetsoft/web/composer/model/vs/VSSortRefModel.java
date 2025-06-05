@@ -18,16 +18,23 @@
 package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import inetsoft.web.binding.drm.DataRefModel;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class VSSortRefModel {
-   public DataRefModel getDataRefModel() {
-      return dataRefModel;
+   public String getName() {
+      return name;
    }
 
-   public void setDataRefModel(DataRefModel dataRefModel) {
-      this.dataRefModel = dataRefModel;
+   public void setName(String name) {
+      this.name = name;
+   }
+
+   public String getView() {
+      return view;
+   }
+
+   public void setView(String view) {
+      this.view = view;
    }
 
    public int getOrder() {
@@ -38,6 +45,7 @@ public class VSSortRefModel {
       this.order = order;
    }
 
-   private DataRefModel dataRefModel;
+   private String name;
+   private String view;
    private int order;
 }
