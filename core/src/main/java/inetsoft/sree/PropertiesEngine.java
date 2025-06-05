@@ -655,7 +655,7 @@ public class PropertiesEngine {
          logManager.setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
       }
       
-      logManager.setLevel("inetsoft_audit", LogLevel.INFO);
+//      logManager.setLevel("inetsoft_audit", LogLevel.INFO);
       logManager.setLevel("org.apache.ignite", LogLevel.WARN);
 
       reloadLoggingFramework();
