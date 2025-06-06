@@ -53,7 +53,7 @@ export class AddLoggingLevelDialogComponent implements OnInit {
       this.form = fb.group({
          context: ["", Validators.required],
          name: ["", Validators.required],
-         orgName: [""],
+         orgName: ["", Validators.required],
          level: ["", Validators.required]
       });
    }
@@ -63,6 +63,7 @@ export class AddLoggingLevelDialogComponent implements OnInit {
          this.model = <LogLevelDTO> {
             context: "DASHBOARD",
             name: "dashboard1",
+            orgName: "Host Organization",
             level: "info"
          };
 
