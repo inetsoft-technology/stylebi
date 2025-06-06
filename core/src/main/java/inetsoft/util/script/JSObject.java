@@ -81,6 +81,10 @@ public class JSObject extends NativeJavaObject {
 
    @Override
    public Object get(String name, Scriptable start) {
+      if(name.equals("getClass") || name.equals("getClassLoader")) {
+         throw new RuntimeException("getClass/getClassLoader is prohibited");
+      }
+
       Object value = super.get(name, start);
 
       // fix for CategoricalShapeFrame.init() ambiguity
