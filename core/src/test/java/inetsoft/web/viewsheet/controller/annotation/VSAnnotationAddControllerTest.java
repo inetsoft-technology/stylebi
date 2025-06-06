@@ -27,11 +27,12 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.BaseAnnotationVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.viewsheet.event.annotation.AddAnnotationEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
-import org.mockito.ArgumentCaptor;
+import org.mockito.*;
 
 import java.security.Principal;
 import java.util.List;
@@ -43,6 +44,11 @@ import static org.mockito.Mockito.*;
 class VSAnnotationAddControllerTest {
    @BeforeEach
    void setUp() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
       runtimeViewsheetRef = mock(RuntimeViewsheetRef.class);
       coreLifecycleService = mock(CoreLifecycleService.class);
       viewsheetService = mock(ViewsheetService.class);
@@ -65,10 +71,15 @@ class VSAnnotationAddControllerTest {
       when(viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal)).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(viewsheet.getAssemblies(anyBoolean())).thenReturn(new Assembly[]{});
-      when(viewsheet.getViewsheetInfo()).thenReturn(new ViewsheetInfo());
+      when(viewsheet.getViewsheetInfo()).thenReturn(mock(ViewsheetInfo.class));
       when(securityEngine.getSecurityProvider()).thenReturn(mock(SecurityProvider.class));
       when(principal.getName()).thenReturn("test user");
       when(securityEngine.isActiveUser(principal)).thenReturn(true);
+
+      VSAnnotationAddService addService = new VSAnnotationAddService(service, annotationService);
+      doReturn(addService)
+         .when(spyContext)
+         .getSpringBean(VSAnnotationAddService.class);
    }
 
    @AfterEach
@@ -82,6 +93,7 @@ class VSAnnotationAddControllerTest {
       rvs = null;
       viewsheet = null;
       service = null;
+      staticConfigurationContext.close();
    }
 
    @Test
@@ -173,6 +185,7 @@ class VSAnnotationAddControllerTest {
       assertEquals(annotationNames.get(0), annotations.get(0).getAbsoluteName());
    }
 
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private CoreLifecycleService coreLifecycleService;
    private ViewsheetService viewsheetService;
