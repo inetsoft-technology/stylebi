@@ -25,6 +25,7 @@ import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRefServiceProxy;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
 import org.slf4j.LoggerFactory;
@@ -217,7 +218,7 @@ public class ServiceProxyContext {
 
    public RuntimeViewsheetRef createRuntimeViewsheetRef() {
       return new RuntimeViewsheetRef(ConfigurationContext.getContext()
-                                        .getSpringBean(ViewsheetService.class));
+                                        .getSpringBean(RuntimeViewsheetRefServiceProxy.class));
    }
 
    @SuppressWarnings("unchecked")
