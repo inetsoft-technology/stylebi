@@ -148,8 +148,11 @@ public enum LogContext {
          MDC.remove(LogContext.USER.name());
          MDC.remove(LogContext.GROUP.name());
          MDC.remove(LogContext.ROLE.name());
+         MDC.remove(LogContext.ORGANIZATION.name());
       }
       else {
+         MDC.put(LogContext.ORGANIZATION.name(), ((XPrincipal) user).getOrgId());
+
          boolean enterprise = LicenseManager.getInstance().isEnterprise();
          IdentityID userIdentity = IdentityID.getIdentityIDFromKey(user.getName());
 
