@@ -50,6 +50,7 @@ public class RuntimeViewsheetManager {
       String sessionId = getSessionId(user);
 
       lock.lock();
+
       try {
          openSheets.computeIfAbsent(sessionId, k -> new HashSet<>()).add(runtimeId);
       }
@@ -62,6 +63,7 @@ public class RuntimeViewsheetManager {
       String sessionId = getSessionId(user);
 
       lock.lock();
+
       try {
          Set<String> sheets = openSheets.get(sessionId);
 
@@ -83,6 +85,7 @@ public class RuntimeViewsheetManager {
       Set<String> sheetsToClose;
 
       lock.lock();
+
       try {
          sheetsToClose = openSheets.remove(sessionId);
       }

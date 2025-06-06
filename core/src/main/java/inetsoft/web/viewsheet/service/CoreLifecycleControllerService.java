@@ -569,32 +569,6 @@ public class CoreLifecycleControllerService {
       public void setAuditFinish(boolean auditFinish) {
          this.auditFinish = auditFinish;
       }
-   }
-
-   public static final class ProcessSheetResult implements Serializable {
-      public String id;
-      public boolean auditFinish;
-
-      public ProcessSheetResult(String id, boolean auditFinish) {
-         this.id = id;
-         this.auditFinish = auditFinish;
-      }
-
-      public String getId() {
-         return id;
-      }
-
-      public void setId(String id) {
-         this.id = id;
-      }
-
-      public boolean getAuditFinish() {
-         return auditFinish;
-      }
-
-      public void setAuditFinish(boolean auditFinish) {
-         this.auditFinish = auditFinish;
-      }
 
       public Set<String> getDispatchPermissions() {
          return dispatchPermissions;
