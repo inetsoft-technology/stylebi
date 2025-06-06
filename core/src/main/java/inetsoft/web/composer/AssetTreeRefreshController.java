@@ -19,12 +19,12 @@ package inetsoft.web.composer;
 
 import inetsoft.report.LibManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.util.Debouncer;
-import inetsoft.util.DefaultDebouncer;
+import inetsoft.util.*;
 import inetsoft.web.composer.model.AssetChangeEventModel;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,6 +67,7 @@ public class AssetTreeRefreshController {
 
    @SubscribeMapping("/asset-changed")
    public void subscribeToTopic(Principal principal) {
+      currentPrincipal = principal;
       destination = SUtil.getUserDestination(principal);
       assetRepository.addAssetChangeListener(listener);
       LibManager.getManager().addActionListener(libraryListener);
@@ -111,6 +112,12 @@ public class AssetTreeRefreshController {
       }
 
       private boolean canSendEvent(AssetChangeEvent event) {
+         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(currentPrincipal);
+
+         if(event.getAssetEntry() != null && !Tool.equals(currentOrgID, event.getAssetEntry().getOrgID())) {
+            return false;
+         }
+
          return event.isRoot() && event.getChangeType() != AssetChangeEvent.AUTO_SAVE_ADD &&
             (event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED &&
                event.getAssetEntry().getParent() != null ||
@@ -160,6 +167,7 @@ public class AssetTreeRefreshController {
       }
    };
 
+   private Principal currentPrincipal;
    final private Debouncer<String> debouncer = new DefaultDebouncer<>(false);
    private static final String TABLE_STYLE = "Table Style";
    private static final String SCRIPT = "Script Function";
