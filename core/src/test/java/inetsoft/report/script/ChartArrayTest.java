@@ -79,6 +79,16 @@ public class ChartArrayTest {
       assertEquals("[field]", chartArray.getDisplaySuffix());
    }
 
+   @Test
+   void testSetGet() {
+      MergedChartInfo mockVSChartInfo = mock(MergedChartInfo.class);
+      chartArray = implementedChartArray("colorFrame", mockVSChartInfo);
+      assertNull(chartArray.getIds());
+
+      chartArray.put("title", null, "Test Chart Title");
+      assertTrue(chartArray.has("title", null));
+   }
+
    private ChartArray implementedChartArray(String property, ChartInfo chartInfo) {
       chartArray = new ChartArray(property, Object.class) {
          @Override
