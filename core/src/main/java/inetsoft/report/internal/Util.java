@@ -1898,45 +1898,6 @@ public class Util implements inetsoft.report.StyleConstants {
    }
 
    /**
-    * Get the browsed data of a column in a table.
-    * @param table the specified table.
-    * @param column the name of the specified column.
-    * @return the browsed data if any, <tt>null</tt> otherwise.
-    */
-   public static BrowseDataModel getBrowsedData(XTable table, String column) {
-      if(table == null) {
-         return null;
-      }
-
-      int col = findColumn(table, column);
-
-      if(col < 0) {
-         return null;
-      }
-
-      TableLens lens = (TableLens) table;
-      lens = new ColumnMapFilter(lens, new int[] {col});
-      lens = new DistinctTableLens(lens);
-      lens = new SortFilter(lens, new int[] {0});
-
-      lens.moreRows(Integer.MAX_VALUE);
-      int count = lens.getRowCount() - lens.getHeaderRowCount() -
-         lens.getTrailerRowCount();
-
-      if(count <= 0) {
-         return null;
-      }
-
-      Object[] data = new Object[count];
-
-      for(int i = 0; i < count; i++) {
-         data[i] = lens.getObject(lens.getHeaderRowCount() + i, 0);
-      }
-
-      return BrowseDataModel.builder().values(data).build();
-   }
-
-   /**
     * Get a table lens to get pure data.
     */
    public static TableLens getDataTable(TableFilter filter) {
