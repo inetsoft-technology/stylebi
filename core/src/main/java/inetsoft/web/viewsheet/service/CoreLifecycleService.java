@@ -104,26 +104,41 @@ public class CoreLifecycleService {
       CoreLifecycleControllerService.ProcessSheetResult result = null;
 
       if(id != null && id.length() > 0) {
-         result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, bookmarkIndex, drillFrom,
+         if(runtimeViewsheetRef != null) {
+            runtimeViewsheetRef.setRuntimeId(id);
+         }
+
+         if(runtimeViewsheetManager != null) {
+            runtimeViewsheetManager.sheetOpened(user, id);
+         }
+
+         result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer,
                                                  uri, variables, event, dispatcher, user);
          id = result.getId();
-      }
 
-      if(id == null || id.length() == 0) {
+         if(id != null && id.length() > 0) {
+            dispatcher.sendCommand(null, new SetRuntimeIdCommand(id, result.getDispatchPermissions()));
+         }
+      }
+      else {
          id = engine.openViewsheet(entry, user, viewer);
-         result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, vsID, bookmarkIndex, drillFrom,
-                                             uri, variables, event, dispatcher, user);
+         result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer,
+                                                 uri, variables, event, dispatcher, user);
          nid = result.getId();
       }
 
       result.setId(nid == null ? id : nid);
 
-      if(runtimeViewsheetRef != null) {
+      if(runtimeViewsheetRef != null && result.getId() != null) {
          runtimeViewsheetRef.setRuntimeId(result.getId());
       }
 
-      if(runtimeViewsheetManager != null) {
+      if(runtimeViewsheetManager != null && result.getId() != null) {
          runtimeViewsheetManager.sheetOpened(user, result.getId());
+      }
+
+      if(result.getId() != null && result.getId().length() > 0) {
+         dispatcher.sendCommand(null, new SetRuntimeIdCommand(result.getId(), result.getDispatchPermissions()));
       }
 
       return result;

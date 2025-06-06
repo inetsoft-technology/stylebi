@@ -38,8 +38,12 @@ import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
 import inetsoft.web.embed.EmbedAssemblyInfo;
+import inetsoft.web.messaging.MessageAttributes;
+import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
@@ -56,7 +60,8 @@ public class CoreLifecycleControllerService {
                                          DataRefModelFactoryService dataRefModelFactoryService,
                                          VSCompositionService vsCompositionService,
                                          CoreLifecycleService coreLifecycleService,
-                                         VSBookmarkService vsBookmarkService)
+                                         VSBookmarkService vsBookmarkService,
+                                         RuntimeViewsheetRef runtimeViewsheetRef)
    {
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
@@ -64,14 +69,14 @@ public class CoreLifecycleControllerService {
       this.dataRefModelFactoryService = dataRefModelFactoryService;
       this.vsCompositionService = vsCompositionService;
       this.vsBookmarkService = vsBookmarkService;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public ProcessSheetResult handleOpenedSheet(@ClusterProxyKey String id, String eid, String execSessionId, String vsID,
-                                  String bookmarkIndex, String drillFrom, String uri, VariableTable variables,
+                                  String bookmarkIndex, String drillFrom, AssetEntry entry, boolean viewer, String uri, VariableTable variables,
                                   OpenViewsheetEvent event, CommandDispatcher dispatcher, Principal user) throws Exception
    {
-      ChangedAssemblyList clist = coreLifecycleService.createList(true, event, dispatcher, null, uri);
       RuntimeViewsheet rvs2 = null;
       RuntimeViewsheet rvs = null;
 
@@ -79,13 +84,27 @@ public class CoreLifecycleControllerService {
          rvs = viewsheetService.getViewsheet(id, user);
       }
       catch(Exception e) {
-         //if getViewsheet fails, return null to open and call proxy with correct id
-         return new ProcessSheetResult(null, false);
+         id = viewsheetService.openViewsheet(entry, user, viewer);
+         rvs = viewsheetService.getViewsheet(id, user);
+      }
+
+      //manually add to header inside proxy
+      final MessageAttributes messageAttributes = MessageContextHolder.getMessageAttributes();
+      final StompHeaderAccessor headerAccessor = messageAttributes.getHeaderAccessor();
+
+      if(headerAccessor.getNativeHeader("sheetRuntimeId") == null) {
+         headerAccessor.setNativeHeader("sheetRuntimeId", id);
+      }
+
+      if(runtimeViewsheetRef != null) {
+         runtimeViewsheetRef.setRuntimeId(id);
       }
 
       if(vsID != null) {
          rvs2 = viewsheetService.getViewsheet(vsID, user);
       }
+
+      ChangedAssemblyList clist = coreLifecycleService.createList(true, event, dispatcher, null, uri);
 
       rvs.getEntry().setProperty("bookmarkIndex", bookmarkIndex);
       // optimization, this shouldn't be needed for new vs since the
@@ -231,7 +250,7 @@ public class CoreLifecycleControllerService {
          auditFinish = processSheet(rvs, event, uri, dispatcher, rvs.getAssetRepository(), user);
       }
 
-      return new ProcessSheetResult(id, auditFinish);
+      return new ProcessSheetResult(id, auditFinish, coreLifecycleService.getPermissions(rvs, user));
    }
 
    private boolean processSheet(RuntimeViewsheet rvs, OpenViewsheetEvent event, String linkUri,
@@ -523,6 +542,38 @@ public class CoreLifecycleControllerService {
    public static final class ProcessSheetResult implements Serializable {
       private String id;
       private boolean auditFinish;
+      private Set<String> dispatchPermissions;
+
+      public ProcessSheetResult(String id, boolean auditFinish, Set<String> dispatchPermissions) {
+         this.id = id;
+         this.auditFinish = auditFinish;
+         this.dispatchPermissions = dispatchPermissions;
+      }
+
+      public ProcessSheetResult(String id, boolean auditFinish) {
+         this(id, auditFinish, null);
+      }
+
+      public String getId() {
+         return id;
+      }
+
+      public void setId(String id) {
+         this.id = id;
+      }
+
+      public boolean getAuditFinish() {
+         return auditFinish;
+      }
+
+      public void setAuditFinish(boolean auditFinish) {
+         this.auditFinish = auditFinish;
+      }
+   }
+
+   public static final class ProcessSheetResult implements Serializable {
+      public String id;
+      public boolean auditFinish;
 
       public ProcessSheetResult(String id, boolean auditFinish) {
          this.id = id;
@@ -544,6 +595,14 @@ public class CoreLifecycleControllerService {
       public void setAuditFinish(boolean auditFinish) {
          this.auditFinish = auditFinish;
       }
+
+      public Set<String> getDispatchPermissions() {
+         return dispatchPermissions;
+      }
+
+      public void setDispatchPermissions(Set<String> dispatchPermissions) {
+         this.dispatchPermissions = dispatchPermissions;
+      }
    }
 
    private final ViewsheetService viewsheetService;
@@ -552,4 +611,5 @@ public class CoreLifecycleControllerService {
    private final DataRefModelFactoryService dataRefModelFactoryService;
    private final VSCompositionService vsCompositionService;
    private final VSBookmarkService vsBookmarkService;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
 }
