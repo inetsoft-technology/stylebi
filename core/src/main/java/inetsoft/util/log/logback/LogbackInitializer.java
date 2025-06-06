@@ -59,7 +59,6 @@ public class LogbackInitializer implements LogInitializer {
       context.getLogger("inetsoft.util.Plugins").setLevel(Level.INFO);
       context.getLogger("inetsoft.util.Drivers").setLevel(Level.INFO);
       context.getLogger("inetsoft.shell.setup").setLevel(Level.INFO);
-//      context.getLogger("inetsoft_audit").setLevel(Level.INFO);
    }
 
    @Override
