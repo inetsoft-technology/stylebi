@@ -26,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 public class LibScriptableTest {
-
    private LibScriptable libScriptable;
    private Scriptable mockScriptable;
 
