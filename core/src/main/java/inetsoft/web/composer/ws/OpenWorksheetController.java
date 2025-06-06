@@ -110,7 +110,7 @@ public class OpenWorksheetController extends WorksheetController {
             commandDispatcher);
 
       getRuntimeViewsheetRef().setRuntimeId(runtimeId);
-      runtimeViewsheetManager.sheetOpened(runtimeId);
+      runtimeViewsheetManager.sheetOpened(principal, runtimeId);
 
       if(entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
          VSEventUtil.deleteAutoSavedFile(entry, principal);
@@ -147,7 +147,7 @@ public class OpenWorksheetController extends WorksheetController {
       OpenWorksheetCommand command = new OpenWorksheetCommand();
       command.setWorksheet(worksheet);
       getRuntimeViewsheetRef().setRuntimeId(runtimeId);
-      runtimeViewsheetManager.sheetOpened(runtimeId);
+      runtimeViewsheetManager.sheetOpened(principal, runtimeId);
       commandDispatcher.sendCommand(command);
       commandDispatcher.sendCommand(new WSInitCommand(principal));
    }

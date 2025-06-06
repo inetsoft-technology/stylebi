@@ -111,10 +111,13 @@ public class ScheduleViewsheetService {
       String execSessionId =
          XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
-      return CommandDispatcher.withDummyDispatcher(principal, d -> coreLifecycleService.openViewsheet(
+      return CommandDispatcher.withDummyDispatcher(principal, d -> {
+         CoreLifecycleControllerService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
          engine, openViewsheetEvent, principal, null, null, entry, d, null,
          null, true, openViewsheetEvent.getDrillFrom(), vt,
-         openViewsheetEvent.getFullScreenId(), execSessionId));
+         openViewsheetEvent.getFullScreenId(), execSessionId);
+         return result.id;
+      });
    }
 
    public void closeViewsheet(String runtimeId, Principal principal) {
