@@ -273,13 +273,11 @@ public class RuntimeSheetTransformController implements MessageListener {
       Assembly[] allAssemblies = sheet.getSheet().getAssemblies();
 
       for(Assembly assembly : allAssemblies) {
-         if(!(assembly instanceof MirrorAssembly)) {
+         if(!(assembly instanceof MirrorAssembly massembly)) {
             continue;
          }
 
-         MirrorAssembly massembly = (MirrorAssembly) assembly;
-
-         if(Tool.equals(massembly.getEntry().toIdentifier(), oldName)) {
+         if(massembly.getEntry() != null && Tool.equals(massembly.getEntry().toIdentifier(), oldName)) {
             return true;
          }
       }
