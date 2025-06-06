@@ -18,6 +18,8 @@
 package inetsoft.uql.util;
 
 import inetsoft.graph.data.*;
+import inetsoft.report.TableFilter;
+import inetsoft.report.TableLens;
 import inetsoft.report.filter.DefaultComparer;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.uql.XTable;
@@ -241,6 +243,23 @@ public class XTableDataSet extends AbstractDataSet implements AttributeDataSet {
       obj.comparer = this.comparer.clone();
 
       return obj;
+   }
+
+   @Override
+   protected boolean isDynamicColumns() {
+      if(data != null) { // use the correct variable
+         TableLens temp = (TableLens) data;
+         while(temp instanceof TableFilter) {
+            if(data.isDynamicColumns()) {
+               return true;
+            }
+            temp = ((TableFilter) temp).getTable();
+         }
+         if(temp != null) {
+            return temp.isDynamicColumns();
+         }
+      }
+      return false;
    }
 
    private final XTable data; // table data
