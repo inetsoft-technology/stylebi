@@ -20,8 +20,7 @@ package inetsoft.util.log;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
-import inetsoft.sree.security.SecurityEngine;
-import inetsoft.sree.security.SecurityProvider;
+import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.*;
@@ -176,6 +175,14 @@ public final class LogManager implements AutoCloseable, MessageListener {
     * @return the log level or <tt>Level.OFF</tt> if the default should be used.
     */
    private LogLevel getContextLevel(LogContext context, String name) {
+      if(!SUtil.isMultiTenant() && name != null) {
+         int orgIndex = name.lastIndexOf(Organization.getDefaultOrganizationID());
+
+         if(orgIndex > 0) {
+            name = name.substring(0, orgIndex - 1);
+         }
+      }
+
       return contextLevels.get(context).get(name);
    }
 
