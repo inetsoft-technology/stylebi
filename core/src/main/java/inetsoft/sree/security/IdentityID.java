@@ -112,9 +112,16 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
       }
    }
 
+   public String getLabelWithCaretDelimiter() {
+      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      return enterprise ?
+         Tool.buildString(name, "^", orgID == null ? GLOBAL_ORG_KEY : orgID) : name;
+   }
+
    public String getLabel() {
       boolean enterprise = LicenseManager.getInstance().isEnterprise();
-      return enterprise ? (name + "(" + (orgID == null ? GLOBAL_ORG_KEY : orgID) + ")") : name;
+      return enterprise ?
+         Tool.buildString(name, "(", orgID == null ? GLOBAL_ORG_KEY : orgID, ")") : name;
    }
 
    @Override
