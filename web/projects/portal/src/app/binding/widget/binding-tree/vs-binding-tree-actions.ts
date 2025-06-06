@@ -323,6 +323,7 @@ export class VSBindingTreeActions extends ContextMenuActions {
          dialog.createCalcField = true;
          dialog.vsId = this.runtimeId;
          dialog.availableFields = <DataRef[]> fieldsInfo.aggregateFields;
+         dialog.userAggNames = <string[]> fieldsInfo.userAggNames;
          dialog.columns = <DataRef[]> fieldsInfo.columnFields;
          dialog.aggregates = <DataRef[]> fieldsInfo.aggregateFields;
          dialog.selfVisible = false;
