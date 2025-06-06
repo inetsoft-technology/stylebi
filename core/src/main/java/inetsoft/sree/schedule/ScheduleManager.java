@@ -1041,6 +1041,36 @@ public class ScheduleManager {
             changedTasks.add(task);
          }
 
+         //completion condition relies on user name, change if user changes
+         for(int c = 0; c < task.getConditionCount(); c++) {
+            ScheduleCondition condition = task.getCondition(c);
+
+            if(condition instanceof CompletionCondition) {
+               CompletionCondition completeCondition = (CompletionCondition) condition;
+               String taskName = completeCondition.getTaskName();
+               String userName = taskName.substring(0,taskName.indexOf(":"));
+
+               if(Tool.equals(userName, oname.getName()) ||
+                  Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
+               {
+                  completeCondition.setTaskName(taskName.replace(oname.getName(), name));
+               }
+            }
+         }
+
+         Enumeration<String> taskDependencies = task.getDependency();
+
+         while(taskDependencies.hasMoreElements()) {
+            String taskDep = taskDependencies.nextElement();
+            String userName = taskDep.substring(0, taskDep.indexOf(":"));
+
+            if(Tool.equals(userName, oname.getName()) ||
+               Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
+            {
+               task.renameDependency(taskDep, taskDep.replace(oname.getName(), name));
+            }
+         }
+
          for(int j = 0; j < task.getActionCount(); j++) {
             ScheduleAction action = task.getAction(j);
             updateNotifications(action, id, task, changedTasks);
