@@ -44,8 +44,7 @@ import inetsoft.report.script.viewsheet.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.VariableTable;
-import inetsoft.uql.asset.Assembly;
-import inetsoft.uql.asset.BoundTableAssembly;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -192,6 +191,9 @@ public class VGraphPair {
             }
             catch(MessageException messageException) {
                throw messageException;
+            }
+            catch(DynamicColumnNotFoundException de) {
+               throw de;
             }
             catch(Exception e) {
                if(LOG.isDebugEnabled()) {
@@ -399,6 +401,9 @@ public class VGraphPair {
                // initialize flag - changed by script in structure or not
                cscript = isChangedByScript0(nset, this.data, egraph, oegraph);
                isChanged = needGenerateNewGraph(ainfo, oinfo, cdesc);
+            }
+            catch(DynamicColumnNotFoundException de) {
+               throw de;
             }
             catch(Exception ex) {
                // if the script changes binding (e.g. setColorField),

@@ -32,6 +32,7 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.*;
 import inetsoft.report.internal.binding.ExpertNamedGroupInfo;
 import inetsoft.report.lens.AbstractTableLens;
+import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.DateRangeRef;
@@ -1937,6 +1938,23 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
    @Override
    public String toString() {
       return super.toString() + "(" + data.getRowCount() + ")";
+   }
+
+   @Override
+   protected boolean isDynamicColumns() {
+      if(data != null) { // use the correct variable
+         TableLens temp = data;
+         while(temp instanceof TableFilter) {
+            if(data instanceof XNodeTableLens ? ((XNodeTableLens)data).isDynamicColumns() : data.isDynamicColumns()) {
+               return true;
+            }
+            temp = ((TableFilter) temp).getTable();
+         }
+         if(temp != null) {
+            return temp.isDynamicColumns();
+         }
+      }
+      return false;
    }
 
    /**

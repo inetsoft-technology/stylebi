@@ -20,6 +20,7 @@ package inetsoft.graph.data;
 import com.inetsoft.build.tern.TernMethod;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.coord.Coordinate;
+import inetsoft.uql.asset.DynamicColumnNotFoundException;
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -524,7 +525,12 @@ public abstract class AbstractDataSet implements DataSet {
       int idx = indexOfHeader(col, true);
 
       if(idx < 0) {
-         throw new ColumnNotFoundException("Column not found: " + col + " in " + getHeadersStr());
+         if(isDynamicColumns()) {
+            throw new DynamicColumnNotFoundException("Dynamic Column not found, ignore") ;
+         }
+         else {
+            throw new ColumnNotFoundException("Column not found: " + col + " in " + getHeadersStr());
+         }
       }
 
       if(idx < getColCount0()) {
@@ -1601,6 +1607,10 @@ public abstract class AbstractDataSet implements DataSet {
       finally {
          subDataSetsLock.readLock().unlock();
       }
+   }
+
+   protected boolean isDynamicColumns() {
+      return false;
    }
 
    private String getHeadersStr() {

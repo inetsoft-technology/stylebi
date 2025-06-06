@@ -2056,7 +2056,7 @@ public class CoreTool {
     */
    public static boolean matchEmail(String email) {
       String emailRegex = "^[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*@[\\w\\d\\-\\+_]+(\\.[\\w\\d\\-\\+_]+)*$";
-      return Pattern.compile(emailRegex).matcher(email).matches();
+      return Pattern.compile(emailRegex).matcher(email.trim()).matches();
    }
 
    /**
