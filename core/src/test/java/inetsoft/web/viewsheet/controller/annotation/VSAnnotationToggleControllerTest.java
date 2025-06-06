@@ -23,10 +23,13 @@ import inetsoft.sree.UserEnv;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.viewsheet.event.annotation.ToggleAnnotationStatusEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.security.Principal;
 
@@ -37,6 +40,12 @@ import static org.mockito.Mockito.*;
 class VSAnnotationToggleControllerTest {
    @BeforeEach
    void setUp() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+
       runtimeViewsheetRef = mock(RuntimeViewsheetRef.class);
       coreLifecycleService = mock(CoreLifecycleService.class);
       viewsheetService = mock(ViewsheetService.class);
@@ -53,6 +62,12 @@ class VSAnnotationToggleControllerTest {
                                     viewsheetService,
                                     securityEngine,
                                     sharedFilterService);
+
+      VSAnnotationToggleService vsAnnotationToggleService =
+         new VSAnnotationToggleService(service);
+      doReturn(vsAnnotationToggleService)
+         .when(spyContext)
+            .getSpringBean(VSAnnotationToggleService.class);
 
       // stub method calls
       when(viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal)).thenReturn(rvs);
@@ -101,4 +116,5 @@ class VSAnnotationToggleControllerTest {
    private RuntimeViewsheet rvs;
    private VSObjectService service;
    private SharedFilterService sharedFilterService;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 }
