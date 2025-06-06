@@ -28,6 +28,7 @@ import {
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AssetEntry } from "../../../../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../../../../shared/data/asset-type";
+import { Tool } from "../../../../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../../../../common/util/component-tool";
 import { GuiTool } from "../../../../../../../common/util/gui-tool";
 import { DragService } from "../../../../../../../widget/services/drag.service";
@@ -246,7 +247,8 @@ export class FieldsPaneComponent implements OnInit {
          }
 
          if(duplicateFields.length > 0) {
-            const message: string = "_#(js:designer.qb.jdbc.addFieldOnlyOnce)";
+            const message: string =
+               Tool.formatCatalogString("_#(js:designer.qb.jdbc.addFieldOnlyOnce)", [duplicateFields.join("; ")]);
             ComponentTool.showMessageDialog(this.modalService, "Warning", message);
          }
 
