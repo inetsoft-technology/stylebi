@@ -286,7 +286,7 @@ class CalcTextDataTest {
       assertEquals(-1, CalcTextData.search("z", "Hello", 1)); // 'z' is not in "Hello"
 
       // Test with special characters
-//      assertEquals(4, CalcTextData.search("$", "He$lo", 1)); // bug #71357
+      assertEquals(4, CalcTextData.search("\\$", "He\\$lo", 1)); // bug #71357
    }
 
    @Test
@@ -307,7 +307,7 @@ class CalcTextDataTest {
       assertEquals("Hello Java", CalcTextData.substitute("Hello Java", "Python", "World", 1));
 
       // Test with an empty string for old_text
-//      assertEquals("Hello Java", CalcTextData.substitute("Hello Java", "", "World", 1)); //bug #71361
+      assertEquals("Hello Java", CalcTextData.substitute("Hello Java", "", "World", 1)); //bug #71361
 
       // Test with an empty string for new_text
       assertEquals("Hello ", CalcTextData.substitute("Hello Java", "Java", "", 1));
