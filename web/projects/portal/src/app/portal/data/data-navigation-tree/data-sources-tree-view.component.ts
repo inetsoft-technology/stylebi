@@ -408,7 +408,6 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
     * Get root node for dataset/datasources tree
     */
    getDataNavigationTree(type?: string): void {
-      console.trace("=======getDataNavigationTree============")
       this._oldRootNode = Tool.clone(this.rootNode);
       this.loading = true;
       this.httpClient.get<TreeNodeModel>("../api/portal/data/tree")
