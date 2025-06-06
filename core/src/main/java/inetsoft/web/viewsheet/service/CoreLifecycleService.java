@@ -106,24 +106,24 @@ public class CoreLifecycleService {
       if(id != null && id.length() > 0) {
          result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, bookmarkIndex, drillFrom,
                                                  uri, variables, event, dispatcher, user);
-         id = result.id;
+         id = result.getId();
       }
 
       if(id == null || id.length() == 0) {
          id = engine.openViewsheet(entry, user, viewer);
          result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, vsID, bookmarkIndex, drillFrom,
                                              uri, variables, event, dispatcher, user);
-         nid = result.id;
+         nid = result.getId();
       }
 
-      result.id = nid == null ? id : nid;
+      result.setId(nid == null ? id : nid);
 
       if(runtimeViewsheetRef != null) {
-         runtimeViewsheetRef.setRuntimeId(result.id);
+         runtimeViewsheetRef.setRuntimeId(result.getId());
       }
 
       if(runtimeViewsheetManager != null) {
-         runtimeViewsheetManager.sheetOpened(user, result.id);
+         runtimeViewsheetManager.sheetOpened(user, result.getId());
       }
 
       return result;

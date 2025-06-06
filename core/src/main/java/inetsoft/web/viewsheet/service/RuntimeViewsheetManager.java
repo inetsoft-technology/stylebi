@@ -21,17 +21,16 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.AssetEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Component that ensures that open viewsheets are closed when the client that opened them
@@ -50,15 +49,20 @@ public class RuntimeViewsheetManager {
    public void sheetOpened(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      synchronized(lock) {
+      lock.lock();
+      try {
          openSheets.computeIfAbsent(sessionId, k -> new HashSet<>()).add(runtimeId);
+      }
+      finally {
+         lock.unlock();
       }
    }
 
    public void sheetClosed(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      synchronized(lock) {
+      lock.lock();
+      try {
          Set<String> sheets = openSheets.get(sessionId);
 
          if(sheets != null) {
@@ -69,14 +73,21 @@ public class RuntimeViewsheetManager {
             }
          }
       }
+      finally {
+         lock.unlock();
+      }
    }
 
    public void sessionEnded(Principal user) {
       String sessionId = getSessionId(user);
       Set<String> sheetsToClose;
 
-      synchronized(lock) {
+      lock.lock();
+      try {
          sheetsToClose = openSheets.remove(sessionId);
+      }
+      finally {
+         lock.unlock();
       }
 
       if(sheetsToClose != null) {
@@ -107,5 +118,5 @@ public class RuntimeViewsheetManager {
    private final ViewsheetService viewsheetService;
    private final WorksheetService worksheetService;
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);
-   private final Object lock = new Object();
+   private final Lock lock = new ReentrantLock();
 }
