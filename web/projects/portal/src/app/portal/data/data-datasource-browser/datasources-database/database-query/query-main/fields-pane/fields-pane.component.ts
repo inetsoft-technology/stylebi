@@ -246,8 +246,7 @@ export class FieldsPaneComponent implements OnInit {
          }
 
          if(duplicateFields.length > 0) {
-            const message: string =
-               "_#(js:designer.qb.jdbc.addFieldOnlyOnce)" + "_*" + duplicateFields.join("; ");
+            const message: string = "_#(js:designer.qb.jdbc.addFieldOnlyOnce)";
             ComponentTool.showMessageDialog(this.modalService, "Warning", message);
          }
 
