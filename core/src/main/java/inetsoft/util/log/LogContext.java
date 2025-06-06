@@ -152,19 +152,25 @@ public enum LogContext {
       else {
          boolean enterprise = LicenseManager.getInstance().isEnterprise();
          IdentityID userIdentity = IdentityID.getIdentityIDFromKey(user.getName());
-         String name = userIdentity != null ? userIdentity.getLabel() : user.getName();
 
-         MDC.put(LogContext.USER.name(), name);
+         if(userIdentity == null) {
+            userIdentity = IdentityID.getIdentityIDFromKey(user.getName());
+         }
+
+         MDC.put(LogContext.USER.name(), userIdentity.getLabelWithCaretDelimiter());
 
          if(user instanceof XPrincipal principal) {
+            IdentityID finalUserIdentity = userIdentity;
             String groups = String.join(",",
                                         Arrays.stream(principal.getGroups())
                                            .map(g -> enterprise ?
-                                              new IdentityID(g, userIdentity.getOrgID()).getLabel() : g)
+                                              new IdentityID(g, finalUserIdentity.getOrgID())
+                                                 .getLabelWithCaretDelimiter() : g)
                                            .toArray(String[]::new));
             String roles = String.join(",",
                                        Arrays.stream(principal.getRoles())
-                                          .map(r -> enterprise ? r.getLabel() : r.getName())
+                                          .map(r -> enterprise ?
+                                             r.getLabelWithCaretDelimiter() : r.getName())
                                           .toArray(String[]::new));
 
             if(!groups.equals("")) {
