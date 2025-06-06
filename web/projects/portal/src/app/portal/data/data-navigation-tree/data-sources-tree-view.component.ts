@@ -202,12 +202,6 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
             () => this.zone.run(() => this.getDataNavigationTree()), 600, []);
       }));
 
-      this.assetClientService.connect();
-      this.subscriptions.add(this.assetClientService.assetChanged.subscribe(() => {
-         this.debounceService.debounce("refreshDataTree",
-            () => this.zone.run(() => this.getDataNavigationTree()), 600, []);
-      }));
-
       this.subscriptions.add(this.dataFolderService.mvChanged.subscribe(() => {
          this.debounceService.debounce("refreshDataTree",
             () => this.zone.run(() => this.getDataNavigationTree()), 600, []);
