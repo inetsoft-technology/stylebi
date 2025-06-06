@@ -745,8 +745,8 @@ class CalcMathTest {
       assertEquals(70.0, CalcMath.sumif(range, criteria, sumRange), 0.0001);
 
       // Test with mismatched range and sumRange lengths
-//      Object mismatchedRange = new Object[]{10.0, 20.0};//bug #71337
-//      assertEquals(0.0, CalcMath.sumif(range, criteria, mismatchedRange), 0.0001);
+      Object mismatchedRange = new Object[]{10.0, 20.0};//bug #71337
+      assertEquals(0.0, CalcMath.sumif(range, criteria, mismatchedRange), 0.0001);
    }
 
    @Test
