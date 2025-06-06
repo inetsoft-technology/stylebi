@@ -67,7 +67,7 @@ export class AddLoggingLevelDialogComponent implements OnInit {
          };
 
          if(this.enterprise && this.isMultiTenant) {
-            this.model.orgName = "Host Organization";
+            this.model.orgName = this.organizations[0];
          }
 
          this.title = "_#(js:Add Logging Level)";
