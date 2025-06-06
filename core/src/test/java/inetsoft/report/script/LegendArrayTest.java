@@ -29,12 +29,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LegendArrayTest {
-
    private  LegendArray legendArray;
    private ChartInfo mockChartInfo;
-
    private LegendsDescriptor mockLegendsDescriptor;
-
    private ChartRef xRef = mock(ChartRef.class);
    private ChartRef yRef = mock(ChartRef.class);
 

@@ -34,8 +34,7 @@ import static org.mockito.Mockito.when;
 
 public class ValueOfColumnTest {
    private  ValueOfColumn valueOfColumn;
-  private VSDataSet vsDataSet;
-
+   private VSDataSet vsDataSet;
 
    @Test
    void testSetGet() {
