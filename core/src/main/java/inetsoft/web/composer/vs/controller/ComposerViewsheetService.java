@@ -95,7 +95,7 @@ public class ComposerViewsheetService {
       AssetEntry entry = rvs.getEntry();
       SetRuntimeIdCommand runtimeIdCommand = new SetRuntimeIdCommand();
       runtimeIdCommand.setRuntimeId(runtimeId);
-      runtimeViewsheetManager.sheetOpened(runtimeId);
+      runtimeViewsheetManager.sheetOpened(principal, runtimeId);
       commandDispatcher.sendCommand(runtimeIdCommand);
       coreLifecycleService.setViewsheetInfo(rvs, linkUri, commandDispatcher);
 
@@ -202,11 +202,11 @@ public class ComposerViewsheetService {
 
       if(bindingId != null) {
          viewsheetService.closeViewsheet(bindingId, principal);
-         runtimeViewsheetManager.sheetClosed(bindingId);
+         runtimeViewsheetManager.sheetClosed(principal, bindingId);
       }
 
       viewsheetService.closeViewsheet(runtimeId, principal);
-      runtimeViewsheetManager.sheetClosed(runtimeId);
+      runtimeViewsheetManager.sheetClosed(principal, runtimeId);
       Profile.getInstance().removeProfileData(rid);
       VSEventUtil.deleteAutoSavedFile(rvs.getEntry(), principal);
       AssetEntry entry = rvs.getEntry();
@@ -272,7 +272,7 @@ public class ComposerViewsheetService {
             RuntimeViewsheet rvs2 = viewsheetService.getViewsheet(id, principal);
             rvs2.setSocketSessionId(dispatcher.getSessionId());
             rvs2.setSocketUserName(dispatcher.getUserName());
-            runtimeViewsheetManager.sheetOpened(id);
+            runtimeViewsheetManager.sheetOpened(principal, id);
             SetRuntimeIdCommand command = new SetRuntimeIdCommand();
             command.setRuntimeId(id);
             dispatcher.sendCommand(command);

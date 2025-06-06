@@ -23,20 +23,30 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
+import inetsoft.web.binding.command.SetGrayedOutFieldsCommand;
+import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
 import inetsoft.web.embed.EmbedAssemblyInfo;
+import inetsoft.web.messaging.MessageAttributes;
+import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 
+import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
@@ -46,18 +56,27 @@ import java.util.List;
 public class CoreLifecycleControllerService {
 
    public CoreLifecycleControllerService(ViewsheetService viewsheetService,
-                                         CoreLifecycleService coreLifecycleService)
+                                         AssetRepository assetRepository,
+                                         DataRefModelFactoryService dataRefModelFactoryService,
+                                         VSCompositionService vsCompositionService,
+                                         CoreLifecycleService coreLifecycleService,
+                                         VSBookmarkService vsBookmarkService,
+                                         RuntimeViewsheetRef runtimeViewsheetRef)
    {
       this.viewsheetService = viewsheetService;
       this.coreLifecycleService = coreLifecycleService;
+      this.assetRepository = assetRepository;
+      this.dataRefModelFactoryService = dataRefModelFactoryService;
+      this.vsCompositionService = vsCompositionService;
+      this.vsBookmarkService = vsBookmarkService;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public String handleOpenedSheet(@ClusterProxyKey String id, String eid, String execSessionId, String vsID,
-                                 AssetEntry entry, boolean viewer, String bookmarkIndex, String drillFrom, String uri, VariableTable variables,
-                                 OpenViewsheetEvent event, CommandDispatcher dispatcher, Principal user) throws Exception
+   public ProcessSheetResult handleOpenedSheet(@ClusterProxyKey String id, String eid, String execSessionId, String vsID,
+                                  String bookmarkIndex, String drillFrom, AssetEntry entry, boolean viewer, String uri, VariableTable variables,
+                                  OpenViewsheetEvent event, CommandDispatcher dispatcher, Principal user) throws Exception
    {
-      ChangedAssemblyList clist = coreLifecycleService.createList(true, event, dispatcher, null, uri);
       RuntimeViewsheet rvs2 = null;
       RuntimeViewsheet rvs = null;
 
@@ -65,13 +84,27 @@ public class CoreLifecycleControllerService {
          rvs = viewsheetService.getViewsheet(id, user);
       }
       catch(Exception e) {
-         //if getViewsheet fails, return null to open and call proxy with correct id
-         return null;
+         id = viewsheetService.openViewsheet(entry, user, viewer);
+         rvs = viewsheetService.getViewsheet(id, user);
+      }
+
+      //manually add to header inside proxy
+      final MessageAttributes messageAttributes = MessageContextHolder.getMessageAttributes();
+      final StompHeaderAccessor headerAccessor = messageAttributes.getHeaderAccessor();
+
+      if(headerAccessor.getNativeHeader("sheetRuntimeId") == null) {
+         headerAccessor.setNativeHeader("sheetRuntimeId", id);
+      }
+
+      if(runtimeViewsheetRef != null) {
+         runtimeViewsheetRef.setRuntimeId(id);
       }
 
       if(vsID != null) {
          rvs2 = viewsheetService.getViewsheet(vsID, user);
       }
+
+      ChangedAssemblyList clist = coreLifecycleService.createList(true, event, dispatcher, null, uri);
 
       rvs.getEntry().setProperty("bookmarkIndex", bookmarkIndex);
       // optimization, this shouldn't be needed for new vs since the
@@ -211,7 +244,143 @@ public class CoreLifecycleControllerService {
          dispatcher.sendCommand(command);
       }
 
-      return id;
+      boolean auditFinish = true;
+
+      if(id != null) {
+         auditFinish = processSheet(rvs, event, uri, dispatcher, rvs.getAssetRepository(), user);
+      }
+
+      return new ProcessSheetResult(id, auditFinish, coreLifecycleService.getPermissions(rvs, user));
+   }
+
+   private boolean processSheet(RuntimeViewsheet rvs, OpenViewsheetEvent event, String linkUri,
+                                CommandDispatcher dispatcher, AssetRepository assetRepository, Principal principal) throws Exception {
+      boolean auditFinish = true;
+      coreLifecycleService.setExportType(rvs, dispatcher);
+      coreLifecycleService.setPermission(rvs, principal, dispatcher);
+
+      if(event.getBookmarkName() != null && event.getBookmarkUser() != null) {
+         IdentityID bookmarkUser = IdentityID.getIdentityIDFromKey(event.getBookmarkUser());
+         VSBookmarkInfo openedBookmark = rvs.getOpenedBookmark();
+
+         // Bug #66887, only open bookmark if it's different from the currently opened bookmark
+         // prevents the default bookmark from loading twice
+         if(openedBookmark == null ||
+            !(Tool.equals(openedBookmark.getName(), event.getBookmarkName()) &&
+               Tool.equals(openedBookmark.getOwner(), bookmarkUser)))
+         {
+            vsBookmarkService.processBookmark(
+               rvs.getID(), rvs, linkUri, principal, event.getBookmarkName(),
+               bookmarkUser, event, dispatcher);
+         }
+      }
+
+      if(rvs != null) {
+         auditFinish = shouldAuditFinish(rvs.getViewsheetSandbox());
+
+         if(event.getPreviousUrl() != null) {
+            rvs.setPreviousURL(event.getPreviousUrl());
+         }
+         // drill from exist? it is the previous viewsheet
+         else if(event.getDrillFrom() != null) {
+            RuntimeViewsheet drvs =
+               viewsheetService.getViewsheet(event.getDrillFrom(), principal);
+            AssetEntry dentry = drvs.getEntry();
+            String didentifier = dentry.toIdentifier();
+            String purl = linkUri + "app/viewer/view/" + didentifier +
+               "?rvid=" + event.getDrillFrom();
+            rvs.setPreviousURL(purl);
+         }
+
+         String url = rvs.getPreviousURL();
+
+         if(url != null) {
+            SetPreviousUrlCommand command = new SetPreviousUrlCommand();
+            command.setPreviousUrl(url);
+            dispatcher.sendCommand(command);
+         }
+
+         VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+
+         if(context.isCheckTrap()) {
+            context.checkTrap(null, null);
+            DataRef[] refs = context.getGrayedFields();
+
+            if(refs.length > 0) {
+               DataRefModel[] refsModel = new DataRefModel[refs.length];
+
+               for(int i = 0; i < refs.length; i++) {
+                  refsModel[i] = dataRefModelFactoryService.createDataRefModel(refs[i]);
+               }
+
+               SetGrayedOutFieldsCommand command = new SetGrayedOutFieldsCommand(refsModel);
+               dispatcher.sendCommand(command);
+            }
+         }
+
+         Viewsheet vs = rvs.getViewsheet();
+         Assembly[] assemblies = vs.getAssemblies();
+
+         // fix bug1309250160380, fix AggregateInfo for CrosstabVSAssembly
+         for(Assembly assembly : assemblies) {
+            if(assembly instanceof CrosstabVSAssembly) {
+               VSEventUtil.fixAggregateInfo(
+                  (CrosstabVSAssembly) assembly, rvs, assetRepository, principal);
+            }
+         }
+
+         // fix z-index. flash may use a different z-index structure so we should eliminate
+         // duplicate values (which may happen for group containers).
+         vsCompositionService.shrinkZIndex(vs, dispatcher);
+      }
+
+      return auditFinish;
+   }
+
+   private boolean shouldAuditFinish(ViewsheetSandbox viewsheetSandbox) {
+      try {
+         Viewsheet vs = viewsheetSandbox.getViewsheet();
+         ViewsheetInfo vsInfo = vs == null ? null : vs.getViewsheetInfo();
+
+         if(vsInfo != null && vsInfo.isDisableParameterSheet()) {
+            return true;
+         }
+
+         return shouldAuditFinish0(viewsheetSandbox);
+      }
+      catch(Exception e) {
+         // In case there are any issues/errors in checking the Variables for
+         // this Viewsheet, just swallow the exception and continue on with the
+         // previous logic. There is no reason to display this error to the end-user.
+      }
+
+      return true;
+   }
+
+   private boolean shouldAuditFinish0(ViewsheetSandbox viewsheetSandbox) {
+      VariableTable vars = new VariableTable();
+      AssetQuerySandbox abox = viewsheetSandbox.getAssetQuerySandbox();
+      UserVariable[] params = abox.getAllVariables(vars);
+
+      if(params != null && params.length > 0) {
+         return false;
+      }
+
+      ViewsheetSandbox[] sandboxes = viewsheetSandbox.getSandboxes();
+
+      if(sandboxes != null) {
+         for(ViewsheetSandbox sandbox : sandboxes) {
+            if(viewsheetSandbox == sandbox) {
+               continue;
+            }
+
+            if(!shouldAuditFinish0(sandbox)) {
+               return false;
+            }
+         }
+      }
+
+      return true;
    }
 
    private void executeVariablesQuery(RuntimeViewsheet rvs, ViewsheetSandbox vbox)
@@ -370,6 +539,51 @@ public class CoreLifecycleControllerService {
       return dataObjs;
    }
 
+   public static final class ProcessSheetResult implements Serializable {
+      private String id;
+      private boolean auditFinish;
+      private Set<String> dispatchPermissions;
+
+      public ProcessSheetResult(String id, boolean auditFinish, Set<String> dispatchPermissions) {
+         this.id = id;
+         this.auditFinish = auditFinish;
+         this.dispatchPermissions = dispatchPermissions;
+      }
+
+      public ProcessSheetResult(String id, boolean auditFinish) {
+         this(id, auditFinish, null);
+      }
+
+      public String getId() {
+         return id;
+      }
+
+      public void setId(String id) {
+         this.id = id;
+      }
+
+      public boolean getAuditFinish() {
+         return auditFinish;
+      }
+
+      public void setAuditFinish(boolean auditFinish) {
+         this.auditFinish = auditFinish;
+      }
+
+      public Set<String> getDispatchPermissions() {
+         return dispatchPermissions;
+      }
+
+      public void setDispatchPermissions(Set<String> dispatchPermissions) {
+         this.dispatchPermissions = dispatchPermissions;
+      }
+   }
+
    private final ViewsheetService viewsheetService;
    private final CoreLifecycleService coreLifecycleService;
+   private final AssetRepository assetRepository;
+   private final DataRefModelFactoryService dataRefModelFactoryService;
+   private final VSCompositionService vsCompositionService;
+   private final VSBookmarkService vsBookmarkService;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
 }

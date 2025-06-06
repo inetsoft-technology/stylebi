@@ -54,7 +54,7 @@ public class VSWizardDialogController {
       vsWizardDialogServiceProxy.createRuntimeSheet(runtimeId, linkUri, dispatcher, principal);
 
       if(runtimeViewsheetManager != null) {
-         runtimeViewsheetManager.sheetOpened(runtimeId);
+         runtimeViewsheetManager.sheetOpened(principal, runtimeId);
       }
 
       if(runtimeViewsheetRef != null) {
@@ -74,7 +74,7 @@ public class VSWizardDialogController {
 
    @LoadingMask
    @MessageMapping("/vswizard/dialog/update-runtimeid")
-   public void updateRuntimeId(@Payload UpdateRuntimeIdEvent event, CommandDispatcher dispatcher) {
+   public void updateRuntimeId(@Payload UpdateRuntimeIdEvent event, CommandDispatcher dispatcher, Principal principal) {
       String id = event.getRuntimeId();
 
       if(runtimeViewsheetRef != null) {
@@ -82,7 +82,7 @@ public class VSWizardDialogController {
       }
 
       if(runtimeViewsheetManager != null) {
-         runtimeViewsheetManager.sheetOpened(id);
+         runtimeViewsheetManager.sheetOpened(principal, id);
       }
    }
 

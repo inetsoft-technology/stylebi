@@ -55,7 +55,7 @@ public class CloseWorksheetService extends WorksheetControllerService {
       }
 
       getWorksheetEngine().closeWorksheet(runtimeId, principal);
-      runtimeViewsheetManager.sheetClosed(runtimeId);
+      runtimeViewsheetManager.sheetClosed(principal, runtimeId);
       AssetEntry entry = rws.getEntry();
       VSEventUtil.deleteAutoSavedFile(entry, principal);
       AssetRepository rep = AssetUtil.getAssetRepository(false);
