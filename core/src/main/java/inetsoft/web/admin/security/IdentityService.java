@@ -2046,6 +2046,7 @@ public class IdentityService {
 
          if(permissionSetList != null) {
             for(Tuple4<ResourceType, String, String, Permission> permissionSet : permissionSetList) {
+               ResourceType resourceType = permissionSet.getFirst();
                String resourceOrgID = permissionSet.getSecond();
                String path = permissionSet.getThird();
                Permission permission = permissionSet.getForth();
@@ -2064,7 +2065,7 @@ public class IdentityService {
                }
 
                if(containsOrgID(path, oldName.getOrgID()) && newName == null) {
-                  aprovider.removePermission(permissionSet.getFirst(), path, resourceOrgID);
+                  aprovider.removePermission(resourceType, path, resourceOrgID);
                }
 
                for(ResourceAction action : ResourceAction.values()) {
@@ -2079,13 +2080,11 @@ public class IdentityService {
                            }
                         }
 
-                        // create self user created db when deleting self user.
+                        // remove self user created resources when deleting self user.
                         if(permission.isBlank() && !empty && oldName != null &&
-                           Tool.equals(oldName.getOrgID(), Organization.getSelfOrganizationID()) &&
-                           permissionSet.getFirst() == ResourceType.DATA_SOURCE)
+                           Tool.equals(oldName.getOrgID(), Organization.getSelfOrganizationID()))
                         {
-                           DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-                           registry.removeDataSource(path);
+                           removeSelfResource(resourceType, path);
                         }
                      }
                      else if(type == Identity.GROUP) {
@@ -2128,6 +2127,19 @@ public class IdentityService {
                updatePermission(aprovider, permissionSet, oldOrgName, newOrgName, oldOrgId, newOrgId, doReplace, type);
             }
          }
+      }
+   }
+
+   private void removeSelfResource(ResourceType resourceType, String path) {
+      if(Tool.isEmptyString(path)) {
+         return;
+      }
+
+      if(resourceType == ResourceType.DATA_SOURCE) {
+         DataSourceRegistry.getRegistry().removeDataSource(path);
+      }
+      else if(resourceType == ResourceType.DATA_SOURCE_FOLDER) {
+         DataSourceRegistry.getRegistry().removeDataSourceFolder(path);
       }
    }
 
