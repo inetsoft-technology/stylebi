@@ -18,9 +18,10 @@
 package inetsoft.web.composer;
 
 import inetsoft.report.internal.LicenseException;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
 import inetsoft.sree.web.SessionLicenseManager;
 import inetsoft.sree.web.SessionLicenseService;
+import inetsoft.web.composer.model.ComposerAccessModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,8 +31,15 @@ import java.security.Principal;
 
 @RestController
 public class ComposerAccessController {
-   @GetMapping("api/composerLicenseCheck")
-   public boolean checkComposerLicense(Principal principal) throws Exception {
+   @GetMapping("/api/composerAccessCheck")
+   public ComposerAccessModel checkComposerAccess(Principal principal) {
+      return ComposerAccessModel.builder()
+         .licensed(isLicensed(principal))
+         .permitted(isPermitted(principal))
+         .build();
+   }
+
+   private boolean isLicensed(Principal principal) {
       SessionLicenseManager manager = SessionLicenseService.getViewerLicenseService();
 
       if(manager != null) {
@@ -46,6 +54,17 @@ public class ComposerAccessController {
       }
 
       return true;
+   }
+
+   private boolean isPermitted(Principal principal) {
+      try {
+         return SecurityEngine.getSecurity().checkPermission(
+            principal, ResourceType.COMPOSER, "*", ResourceAction.ACCESS);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to check composer permission for {}", principal, e);
+         return false;
+      }
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(ComposerAccessController.class);

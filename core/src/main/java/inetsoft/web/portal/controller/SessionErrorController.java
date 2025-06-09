@@ -39,31 +39,34 @@ public class SessionErrorController {
       String title = catalog.getString("Error");
 
       switch(path) {
-         case NO_COMPOSER_LICENSE:
-            error = catalog.getString("composer.license.error");
-            break;
-         case INVALID_LICENSE:
-            error = catalog.getString("dhtmlservice.invalidkey.componentError");
-            break;
-         case REMOTE_DEVELOPER_LICENSE:
-            error = catalog.getString("common.sree.license");
-            break;
-         case SESSIONS_EXCEEDED:
-            error = catalog.getString("common.sessionsExceed");
-            title = catalog.getString("common.sessionsExceedTitle");
-            break;
-         case NAMED_USER_WITHOUT_SECURITY:
-            error = catalog.getString("common.namedUserWithoutSecurity");
-            break;
-         case GOOGLE_USER_SIGN_UP_DENIED:
-            error = catalog.getString("common.noPermission");
-            break;
-         case USER_INACTIVE:
-            error = catalog.getString("em.common.security.user.inactive");
-            break;
-         default:
-            error = "";
-            break;
+      case NO_COMPOSER_LICENSE:
+         error = catalog.getString("composer.license.error");
+         break;
+      case NO_COMPOSER_PERMISSION:
+         error = catalog.getString("composer.permission.error");
+         break;
+      case INVALID_LICENSE:
+         error = catalog.getString("dhtmlservice.invalidkey.componentError");
+         break;
+      case REMOTE_DEVELOPER_LICENSE:
+         error = catalog.getString("common.sree.license");
+         break;
+      case SESSIONS_EXCEEDED:
+         error = catalog.getString("common.sessionsExceed");
+         title = catalog.getString("common.sessionsExceedTitle");
+         break;
+      case NAMED_USER_WITHOUT_SECURITY:
+         error = catalog.getString("common.namedUserWithoutSecurity");
+         break;
+      case GOOGLE_USER_SIGN_UP_DENIED:
+         error = catalog.getString("common.noPermission");
+         break;
+      case USER_INACTIVE:
+         error = catalog.getString("em.common.security.user.inactive");
+         break;
+      default:
+         error = "";
+         break;
       }
 
       final String contactAdmin = catalog.getString("common.contactAdmin");
@@ -76,6 +79,7 @@ public class SessionErrorController {
    }
 
    public static final String NO_COMPOSER_LICENSE = "no-composer-license";
+   public static final String NO_COMPOSER_PERMISSION = "no-composer-permission";
    public static final String INVALID_LICENSE = "invalid-license";
    public static final String REMOTE_DEVELOPER_LICENSE = "remote-developer-license";
    public static final String SESSIONS_EXCEEDED = "sessions-exceeded";

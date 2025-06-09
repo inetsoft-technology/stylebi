@@ -22,20 +22,31 @@ import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 
 const NO_COMPOSER_LICENSE_URL = "../error/no-composer-license";
+const NO_COMPOSER_ACCESS_URL = "../error/no-composer-permission";
+
+export interface ComposerAccessModel {
+   licensed: boolean;
+   permitted: boolean;
+}
 
 @Injectable()
 export class CanActivateComposerService implements CanActivate {
    constructor(private http: HttpClient) {}
 
    canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      let result = this.http.get("../api/composerLicenseCheck").pipe(map((valid: boolean) => {
-         if(!valid) {
-            window.location.replace(NO_COMPOSER_LICENSE_URL);
-         }
+      return this.http.get<ComposerAccessModel>("../api/composerAccessCheck")
+         .pipe(map(model => {
+            if(!model.licensed) {
+               window.location.replace(NO_COMPOSER_LICENSE_URL);
+               return false;
+            }
 
-         return valid;
-      }));
+            if(!model.permitted) {
+               window.location.replace(NO_COMPOSER_ACCESS_URL);
+               return false;
+            }
 
-      return result;
+            return true;
+         }));
    }
 }
