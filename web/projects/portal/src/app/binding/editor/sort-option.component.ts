@@ -401,6 +401,10 @@ export class SortOption implements OnInit {
                this.valueLabelList = this.valueLabelList == null ? [] : this.valueLabelList;
                let existingList = null;
 
+               if(this.valueLabelList.length > 5001) {
+                  this.valueLabelList = this.valueLabelList.slice(0, 5001);
+               }
+
                if(this.dimension.manualOrder) {
                   existingList = this.dimension.manualOrder
                      .map(v => v || "")
