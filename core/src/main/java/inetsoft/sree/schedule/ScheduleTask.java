@@ -1562,6 +1562,13 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       return threadPool;
    }
 
+   public void renameDependency(String oldName, String newName) {
+      int index = dependency.indexOf(oldName);
+      if(index >= 0) {
+         dependency.set(index, newName);
+      }
+   }
+
    private static ExecutorService threadPool;
 
    private static final class GroupedThreadFactory implements ThreadFactory {

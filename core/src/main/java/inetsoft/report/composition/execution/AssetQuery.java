@@ -2838,11 +2838,17 @@ public abstract class AssetQuery extends PreAssetQuery {
                   }
 
                   if(!(baseRef instanceof CalculateRef)) {
-                     String msg = Catalog.getCatalog().getString(
-                        "viewer.worksheet.columnMissing", column.getAttribute());
+                     if(box.getViewsheetSandbox().isRuntime()) {
+                        LOG.warn(Catalog.getCatalog().getString(
+                           "viewer.worksheet.columnMissing", column.getAttribute()));
+                     }
+                     else {
+                        String msg = Catalog.getCatalog().getString(
+                           "viewer.worksheet.columnMissing", column.getAttribute());
 
-                     // VSQueryController.runQuery will update the columns in tabular assembly.
-                     CoreTool.addUserMessage(msg);
+                        // VSQueryController.runQuery will update the columns in tabular assembly.
+                        CoreTool.addUserMessage(msg);
+                     }
                   }
                }
 

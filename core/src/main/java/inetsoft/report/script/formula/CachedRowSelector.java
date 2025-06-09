@@ -35,25 +35,15 @@ class CachedRowSelector extends AbstractGroupRowSelector {
    /**
     * Get a selector for the table and groups.
     */
-   public static CachedRowSelector getSelector(
-      XTable table, Map specs)
-   {
-      Vector key = new Vector();
-      key.add(table);
-      key.add(specs.keySet());
+   public static CachedRowSelector getSelector(XTable table, Map specs) {
+      CachedRowSelectorRef ref;
 
-      CachedRowSelector selector;
-
-      synchronized(selectorcache) {
-         selector = (CachedRowSelector) selectorcache.get(key);
-
-         if(selector == null) {
-            selector = new CachedRowSelector(table, specs);
-            selectorcache.put(key, selector);
-         }
+      synchronized(selectorCache) {
+         SelectorKey key = new SelectorKey(table, specs.keySet());
+         ref = selectorCache.computeIfAbsent(key, k -> new CachedRowSelectorRef(table, specs));
       }
 
-      return selector;
+      return ref.get();
    }
 
    /**
@@ -256,11 +246,55 @@ class CachedRowSelector extends AbstractGroupRowSelector {
       private int baseIdx; // all set() must be >= baseIdx
    }
 
+   private static class SelectorKey {
+      private final XTable table;
+      private final Set groupKeys;
+
+      SelectorKey(XTable table, Set groupKeys) {
+         this.table = table;
+         this.groupKeys = new HashSet(groupKeys);
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         if(!(obj instanceof SelectorKey)) {
+            return false;
+         }
+
+         SelectorKey other = (SelectorKey) obj;
+         return table == other.table && groupKeys.equals(other.groupKeys);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(System.identityHashCode(table), groupKeys);
+      }
+   }
+
+   private static final class CachedRowSelectorRef {
+      CachedRowSelectorRef(XTable table, Map specs) {
+         this.table = table;
+         this.specs = specs;
+      }
+
+      public synchronized CachedRowSelector get() {
+         if(selector == null) {
+            selector = new CachedRowSelector(table, specs);
+         }
+
+         return selector;
+      }
+
+      private final XTable table;
+      private final Map specs;
+      private volatile CachedRowSelector selector;
+   }
+
    private XTable table;
    private Map groupspecs;
    private RangeBitSet currGroup; // current group rows
    private Map<Tuple, BitSet> groupmap = new Object2ObjectOpenHashMap<>(); // Vector values -> BitSet
    private ReentrantLock procLock = new ReentrantLock();
-   // Vector of [XTable, Set] -> CachedRowSelector
-   private static final DataCache selectorcache = new DataCache(20, 60000);
+   // HashMap with custom SelectorKey ([XTable, Set]) -> CachedRowSelectorRef
+   private static final HashMap<SelectorKey, CachedRowSelectorRef> selectorCache = new HashMap<>();
 }

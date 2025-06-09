@@ -32,8 +32,7 @@ import inetsoft.report.lens.CrossJoinCellCountBeyondLimitException;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.XCube;
-import inetsoft.uql.asset.ConfirmException;
-import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
@@ -239,6 +238,25 @@ public class VSChartAreasController {
                .build();
             dispatcher.sendCommand(absoluteName, command);
          }
+      }
+      catch(DynamicColumnNotFoundException de) {
+         SetChartAreasCommand command = SetChartAreasCommand.builder()
+            .invalid(false)
+            .verticallyResizable(false)
+            .horizontallyResizable(false)
+            .maxHorizontalResize(1)
+            .maxVerticalResize(1)
+            .legendOption(0)
+            .initialWidthRatio(1)
+            .initialHeightRatio(1)
+            .widthRatio(1)
+            .heightRatio(1)
+            .resized(false)
+            .changedByScript(false)
+            .completed(true)
+            .noData(true)
+            .build();
+         dispatcher.sendCommand(absoluteName, command);
       }
       catch(Exception e) {
          if(pair != null && pair.isCancelled()) {
