@@ -1832,6 +1832,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          String embeddedName = name.substring(index + 1);
          box.processChange(embeddedName, hint, clist, type);
+         name = name.substring(0, index);
       }
 
       if((hint & VSAssembly.OUTPUT_DATA_CHANGED) == VSAssembly.OUTPUT_DATA_CHANGED) {
