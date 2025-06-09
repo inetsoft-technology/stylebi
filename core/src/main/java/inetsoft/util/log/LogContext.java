@@ -116,7 +116,7 @@ public enum LogContext {
    }
 
    private String fixOrgScopeResourceName(String name) {
-      if(!SUtil.isMultiTenant() || Tool.equals(ORGANIZATION.getPrefix(), getPrefix()) ||
+      if(Tool.equals(ORGANIZATION.getPrefix(), getPrefix()) ||
          Tool.equals(CATEGORY.getPrefix(), getPrefix()))
       {
          return name;

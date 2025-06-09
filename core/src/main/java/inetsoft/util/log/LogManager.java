@@ -175,14 +175,6 @@ public final class LogManager implements AutoCloseable, MessageListener {
     * @return the log level or <tt>Level.OFF</tt> if the default should be used.
     */
    private LogLevel getContextLevel(LogContext context, String name) {
-      if(!SUtil.isMultiTenant() && name != null) {
-         int orgIndex = name.lastIndexOf(Organization.getDefaultOrganizationID());
-
-         if(orgIndex > 0) {
-            name = name.substring(0, orgIndex - 1);
-         }
-      }
-
       return contextLevels.get(context).get(name);
    }
 
