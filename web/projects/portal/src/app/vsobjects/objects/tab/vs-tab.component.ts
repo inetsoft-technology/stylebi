@@ -120,7 +120,6 @@ export class VSTab extends NavigationComponent<VSTabModel> implements OnChanges,
          this.vsInfo.vsObjects
             .filter(obj => obj.absoluteName == this.model.selected && obj.objectType == "VSChart")
             .forEach(obj => (<VSChartModel> obj).chartSelection.regions = []);
-         console.log("change:", this.vsInfo);
          this.viewsheetClientService.sendEvent(target, event);
       }
 
