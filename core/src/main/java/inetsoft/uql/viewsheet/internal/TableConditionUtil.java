@@ -496,7 +496,7 @@ public class TableConditionUtil {
          }
 
          // number in xmla query causes exception, needs to be string
-         if(xmla) {
+         if(xmla && !(val instanceof Date)) {
             val = Tool.toString(val);
          }
 
