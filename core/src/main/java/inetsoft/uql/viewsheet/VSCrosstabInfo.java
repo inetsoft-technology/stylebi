@@ -433,7 +433,10 @@ public class VSCrosstabInfo implements AssetObject, DateComparisonBinding {
       boolean find = false;
 
       for(DataRef dataRef : rows) {
-         if(Tool.equals(columnName, dataRef.getName())) {
+         if(Tool.equals(columnName, dataRef.getName()) ||
+            (dataRef instanceof VSDimensionRef &&
+               Tool.equals(columnName, ((VSDimensionRef) dataRef).getFullName())))
+         {
             find = true;
             return find;
          }
