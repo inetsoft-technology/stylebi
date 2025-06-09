@@ -229,7 +229,7 @@ public class TabularUtil {
                         val = XUtil.replaceEnvVariable((String) val);
                      }
 
-                     val = XUtil.replaceVariable((String) val, vars);
+                     val = XUtil.replaceVariable((String) val, vars, true);
                   }
 
                   prop.setValue(bean, val);

@@ -17,6 +17,7 @@
  */
 package inetsoft.graph.data;
 
+import inetsoft.uql.asset.DynamicColumnNotFoundException;
 import inetsoft.util.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -82,6 +83,11 @@ public class SortedDataSet extends AbstractDataSetFilter {
       int cidx = base.indexOfHeader(col);
 
       if(cidx < 0) {
+
+         if(isDynamicColumns()) {
+            throw new DynamicColumnNotFoundException("Dynamic Column not found, ignore");
+         }
+
          LOG.warn("Column not found: " + col);
          throw new MessageException(Catalog.getCatalog().getString(
             "common.invalidTableColumn", col));
