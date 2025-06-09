@@ -53,7 +53,7 @@
        outOfZone (onDragover)="onDragOver($event)" (onScroll)="onScroll($event)"
        [class.disabled]="disabled"
        [class.grayed-out-field]="disabled">
-    <div [style.height.px]="virtualTop"></div>
+    <div [style.height.px]="useVirtualScroll ? virtualTop : 0"></div>
     <ng-container *ngIf="useVirtualScroll && !outerScrollContainer">
       <div [style.height.px]="virtualMid">
         <tree-node [node]="root" [showRoot]="showRoot" [draggable]="draggable" [tree]="treeRef"
@@ -87,6 +87,6 @@
                  (onContextmenu)="onContextmenu.emit([$event[0], $event[1], selectedNodes])">
       </tree-node>
     </ng-container>
-    <div [style.height.px]="getVirtualBottom()"></div>
+    <div [style.height.px]="useVirtualScroll ? getVirtualBottom() : 0"></div>
   </div>
 </div>
