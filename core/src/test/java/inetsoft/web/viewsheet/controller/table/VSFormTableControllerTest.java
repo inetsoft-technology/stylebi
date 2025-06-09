@@ -26,14 +26,14 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.viewsheet.event.table.ChangeFormTableCellInputEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
@@ -47,8 +47,24 @@ class VSFormTableControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+
       VSFormTableServiceProxy serviceProxy = new VSFormTableServiceProxy();
+      VSFormTableService vsFormTableService = new VSFormTableService(viewsheetService, coreLifecycleService);
+      doReturn(vsFormTableService)
+         .when(spyContext)
+         .getSpringBean(VSFormTableService.class);
+
       controller = new VSFormTableController(serviceProxy, runtimeViewsheetRef);
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    // Empty input is valid, set form object to data
@@ -88,6 +104,6 @@ class VSFormTableControllerTest {
    @Mock Viewsheet viewsheet;
    @Mock CommandDispatcher commandDispatcher;
    @Mock Principal principal;
-
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
    private VSFormTableController controller;
 }
