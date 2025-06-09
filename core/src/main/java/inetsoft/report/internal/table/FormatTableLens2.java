@@ -116,8 +116,7 @@ public class FormatTableLens2 extends FormatTableLens {
    @Override
    public Format getCellFormat(int r, int c, boolean cellOnly) {
       checkInit();
-      TableFormat colf = r == 0 ? super.getColTableFormat(c) :
-         getColTableFormat(c);
+      TableFormat colf = r < getHeaderRowCount() ? null : getColTableFormat(c);
       TableFormat rowf = getRowTableFormat(r);
       TableFormat cellf = getCellTableFormat(r, c);
       Format defaultformat = table.getDefaultFormat(r, c);
