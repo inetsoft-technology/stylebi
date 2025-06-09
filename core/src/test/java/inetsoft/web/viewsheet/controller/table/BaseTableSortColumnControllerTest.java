@@ -27,15 +27,15 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.TableVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TableVSAssemblyInfo;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.event.table.SortColumnEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
+import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -54,8 +54,26 @@ class BaseTableSortColumnControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext  spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+
       BaseTableSortColumnServiceProxy service = new BaseTableSortColumnServiceProxy();
+
+      BaseTableSortColumnService baseTableSortColumnService = new BaseTableSortColumnService(coreLifecycleService,
+                                                                                             viewsheetService, bindingFactory);
+      doReturn(baseTableSortColumnService)
+         .when(spyContext)
+         .getSpringBean(BaseTableSortColumnService.class);
+
       controller = new BaseTableSortColumnController(runtimeViewsheetRef, service);
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    // Bug #17147 Create new sort info when sort event multi flag is false
@@ -110,6 +128,7 @@ class BaseTableSortColumnControllerTest {
    @Mock CommandDispatcher commandDispatcher;
    @Mock Principal principal;
    @Mock ViewsheetSandbox box;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 
    private BaseTableSortColumnController controller;
 }
