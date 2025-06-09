@@ -20,24 +20,23 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.WorksheetService;
-import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.XPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.annotation.Scope;
-import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Component that ensures that open viewsheets are closed when the client that opened them
  * is closed,
  */
 @Component
-@Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class RuntimeViewsheetManager {
    @Autowired
    public RuntimeViewsheetManager(ViewsheetService viewsheetService,
@@ -47,23 +46,55 @@ public class RuntimeViewsheetManager {
       this.worksheetService = worksheetService;
    }
 
-   public void sheetOpened(String runtimeId) {
-      synchronized(openSheets) {
-         openSheets.add(runtimeId);
+   public void sheetOpened(Principal user, String runtimeId) {
+      String sessionId = getSessionId(user);
+
+      lock.lock();
+
+      try {
+         openSheets.computeIfAbsent(sessionId, k -> new HashSet<>()).add(runtimeId);
+      }
+      finally {
+         lock.unlock();
       }
    }
 
-   public void sheetClosed(String runtimeId) {
-      synchronized(openSheets) {
-         openSheets.remove(runtimeId);
+   public void sheetClosed(Principal user, String runtimeId) {
+      String sessionId = getSessionId(user);
+
+      lock.lock();
+
+      try {
+         Set<String> sheets = openSheets.get(sessionId);
+
+         if(sheets != null) {
+            sheets.remove(runtimeId);
+
+            if(sheets.isEmpty()) {
+               openSheets.remove(sessionId);
+            }
+         }
+      }
+      finally {
+         lock.unlock();
       }
    }
 
    public void sessionEnded(Principal user) {
-      synchronized(openSheets) {
-         for(Iterator<String> i = openSheets.iterator(); i.hasNext(); ) {
-            String runtimeId = i.next();
+      String sessionId = getSessionId(user);
+      Set<String> sheetsToClose;
 
+      lock.lock();
+
+      try {
+         sheetsToClose = openSheets.remove(sessionId);
+      }
+      finally {
+         lock.unlock();
+      }
+
+      if(sheetsToClose != null) {
+         for(String runtimeId : sheetsToClose) {
             try {
                viewsheetService.closeViewsheet(runtimeId, user);
             }
@@ -78,15 +109,17 @@ public class RuntimeViewsheetManager {
                   LOG.warn("Failed to close viewsheet: {}, {}", runtimeId, e.getMessage());
                }
             }
-
-            i.remove();
          }
       }
    }
 
-   private final Set<String> openSheets = new HashSet<>();
-   private final Map<String, AssetEntry> openWorksheets = new HashMap<>();
+   private String getSessionId(Principal user) {
+      return user != null && user instanceof XPrincipal ? ((XPrincipal) user).getSessionID() : "unknown-session";
+   }
+
+   private final Map<String, Set<String>> openSheets = new HashMap<>();
    private final ViewsheetService viewsheetService;
    private final WorksheetService worksheetService;
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);
+   private final Lock lock = new ReentrantLock();
 }

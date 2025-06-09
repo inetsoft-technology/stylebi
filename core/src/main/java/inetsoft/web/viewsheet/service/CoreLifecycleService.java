@@ -84,14 +84,14 @@ public class CoreLifecycleService {
       this.serviceProxy = serviceProxy;
    }
 
-   public String openViewsheet(ViewsheetService engine, OpenViewsheetEvent event,
-                               Principal user, String uri, String eid, AssetEntry entry,
-                               CommandDispatcher dispatcher,
-                               RuntimeViewsheetRef runtimeViewsheetRef,
-                               RuntimeViewsheetManager runtimeViewsheetManager,
-                               boolean viewer, String drillFrom, VariableTable variables,
-                               String fullScreenId, String execSessionId)
-      throws Exception
+   public CoreLifecycleControllerService.ProcessSheetResult openViewsheet(ViewsheetService engine,
+                                                                          OpenViewsheetEvent event,
+                                                                          Principal user, String uri, String eid, AssetEntry entry,
+                                                                          CommandDispatcher dispatcher,
+                                                                          RuntimeViewsheetRef runtimeViewsheetRef,
+                                                                          RuntimeViewsheetManager runtimeViewsheetManager,
+                                                                          boolean viewer, String drillFrom, VariableTable variables,
+                                                                          String fullScreenId, String execSessionId) throws Exception
    {
       String vsID = entry.getProperty("vsID");
       String id = Tool.byteDecode(fullScreenId);
@@ -101,37 +101,47 @@ public class CoreLifecycleService {
       entry.setProperty("vsID", null);
       entry.setProperty("bookmarkIndex", null);
       String nid = null;
+      CoreLifecycleControllerService.ProcessSheetResult result = null;
 
       if(id != null && id.length() > 0) {
-
          if(runtimeViewsheetRef != null) {
             runtimeViewsheetRef.setRuntimeId(id);
          }
 
          if(runtimeViewsheetManager != null) {
-            runtimeViewsheetManager.sheetOpened(id);
+            runtimeViewsheetManager.sheetOpened(user, id);
          }
 
-        id = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, entry, viewer, bookmarkIndex, drillFrom,
-                                            uri, variables, event, dispatcher, user);
-      }
+         result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer,
+                                                 uri, variables, event, dispatcher, user);
+         id = result.getId();
 
-      if(id == null || id.length() == 0) {
+         if(id != null && id.length() > 0) {
+            dispatcher.sendCommand(null, new SetRuntimeIdCommand(id, result.getDispatchPermissions()));
+         }
+      }
+      else {
          id = engine.openViewsheet(entry, user, viewer);
-
-         if(runtimeViewsheetRef != null) {
-            runtimeViewsheetRef.setRuntimeId(id);
-         }
-
-         if(runtimeViewsheetManager != null) {
-            runtimeViewsheetManager.sheetOpened(id);
-         }
-
-         nid = serviceProxy.handleOpenedSheet(id, eid, execSessionId, vsID, entry, viewer, bookmarkIndex, drillFrom,
-                                             uri, variables, event, dispatcher, user);
+         result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer,
+                                                 uri, variables, event, dispatcher, user);
+         nid = result.getId();
       }
 
-      return nid == null ? id : nid;
+      result.setId(nid == null ? id : nid);
+
+      if(runtimeViewsheetRef != null && result.getId() != null) {
+         runtimeViewsheetRef.setRuntimeId(result.getId());
+      }
+
+      if(runtimeViewsheetManager != null && result.getId() != null) {
+         runtimeViewsheetManager.sheetOpened(user, result.getId());
+      }
+
+      if(result.getId() != null && result.getId().length() > 0) {
+         dispatcher.sendCommand(null, new SetRuntimeIdCommand(result.getId(), result.getDispatchPermissions()));
+      }
+
+      return result;
    }
 
    public boolean waitForMV(ConfirmException e, RuntimeViewsheet rvs,

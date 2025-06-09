@@ -21,7 +21,6 @@ import inetsoft.web.viewsheet.event.TouchAssetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.LinkUri;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
@@ -30,26 +29,19 @@ import java.security.Principal;
 
 @Controller
 public class TouchAssetController {
+
+   public TouchAssetController(RuntimeViewsheetRef runtimeViewsheetRef, TouchAssetServiceProxy touchAssetServiceProxy) {
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.touchAssetServiceProxy = touchAssetServiceProxy;
+   }
+
    @MessageMapping("/composer/touch-asset")
    public void touchAsset(@Payload TouchAssetEvent event, Principal principal,
                           CommandDispatcher commandDispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      touchAssetServiceProxy.touchAsset(runtimeViewsheetRef.getRuntimeId(), event, principal,
-                                        commandDispatcher, linkUri);
-   }
-
-   @Autowired
-   protected void setRuntimeViewsheetRef(
-      RuntimeViewsheetRef runtimeViewsheetRef)
-   {
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
-   }
-
-   @Autowired
-   protected void setTouchAssetServiceProxy(TouchAssetServiceProxy touchAssetServiceProxy)
-   {
-      this.touchAssetServiceProxy = touchAssetServiceProxy;
+         touchAssetServiceProxy.touchAsset(runtimeViewsheetRef.getRuntimeId(), event, principal,
+                                           commandDispatcher, linkUri);
    }
 
    private RuntimeViewsheetRef runtimeViewsheetRef;
