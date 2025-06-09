@@ -133,6 +133,20 @@ public class PropertiesController {
    }
 
    private void removeLogLevel(String property) {
+      String value = SreeEnv.getProperty(property);
+
+      if(Tool.isEmptyString(property) || !property.startsWith("log.") ||
+         !property.contains(".level.") || value.equals("off"))
+      {
+         return;
+      }
+
+      String[] propertyParts = property.split("\\.");
+
+      if(propertyParts.length < 4) {
+         return;
+      }
+
       LogManager logManager = LogManager.getInstance();
       List<LogLevelSetting> logLevels = logManager.getContextLevels();
 
