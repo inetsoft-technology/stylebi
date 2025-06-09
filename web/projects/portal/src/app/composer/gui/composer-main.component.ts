@@ -1945,9 +1945,12 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    saveScriptAs(script: ScriptModel, close: boolean = false) {
-      this.saveScriptModel = new SaveScriptDialogModel(script.label);
       const entry = createAssetEntry(script.id);
       this.defaultFolder = entry ? AssetEntryHelper.getParent(entry) : null;
+      this.saveScriptModel = {
+         name: script.label,
+         identifier: entry.identifier
+      };
 
       this.modalService.open(this.saveScriptDialog, { backdrop: "static" }).result
          .then((result) => {
