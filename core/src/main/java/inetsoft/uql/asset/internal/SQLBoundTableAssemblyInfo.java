@@ -66,6 +66,19 @@ public class SQLBoundTableAssemblyInfo extends BoundTableAssemblyInfo {
       return this.query;
    }
 
+   public String getOriginalName() {
+      return originalName;
+   }
+
+   public void setOriginalName(String originalName) {
+      this.originalName = originalName;
+   }
+
+   @Override
+   public String getAbsoluteName() {
+      return getOriginalName();
+   }
+
    /**
     * Write contents.
     * @param writer the specified writer.
@@ -136,6 +149,7 @@ public class SQLBoundTableAssemblyInfo extends BoundTableAssemblyInfo {
    }
 
    private JDBCQuery query;
+   private String originalName;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(SQLBoundTableAssemblyInfo.class);
