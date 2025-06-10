@@ -701,6 +701,13 @@ public class TestCluster implements Cluster {
          V oldValue = delegate.put(key, value);
 
          if(oldValue == null) {
+            // don't fire event when initing visual security providers, else will cause dead lock
+            // like: sree init -> log -> init security engine(locked) -> init&save visual security -> PutBlobTask
+            // -> LocalKeyValueStorage.entryAdded(new thread) -> log -> init security engine(blocked)
+            if("virtual_security.xml".equals(key)) {
+               return value;
+            }
+
             fireEntryAdded(() -> new EntryEvent<>(name, key, null, value));
          }
          else {

@@ -1223,6 +1223,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    {
       long ts = System.currentTimeMillis();
 
+      if(initing && wbox != null) {
+         wbox.resetTableLens();
+      }
+
       if(vname != null) {
          ViewsheetSandbox box = getSandbox(vname);
 
@@ -1828,6 +1832,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          String embeddedName = name.substring(index + 1);
          box.processChange(embeddedName, hint, clist, type);
+         name = name.substring(0, index);
       }
 
       if((hint & VSAssembly.OUTPUT_DATA_CHANGED) == VSAssembly.OUTPUT_DATA_CHANGED) {
@@ -2600,7 +2605,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // script will be executed before onLoad
       //executeScript((OutputVSAssembly) assembly);
 
-      Object data = getData(entry.getName());
+      Object data = getData(entry.getAbsoluteName());
       OutputVSAssemblyInfo outputInfo = (OutputVSAssemblyInfo)
          assembly.getInfo();
       BindingInfo binding = outputInfo.getBindingInfo();

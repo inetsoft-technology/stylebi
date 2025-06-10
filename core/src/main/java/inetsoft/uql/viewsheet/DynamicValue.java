@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * Dynamic value, comtains a design time string value and a runtime value.
@@ -31,7 +32,7 @@ import java.io.Serializable;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-public class DynamicValue implements Serializable, Cloneable {
+public class DynamicValue implements Serializable, Cloneable, FullHashObject {
    /**
     * Constructor.
     */
@@ -149,6 +150,22 @@ public class DynamicValue implements Serializable, Cloneable {
    }
 
    /**
+    * Check if equals another object.
+    * @param obj the specified object to compare.
+    * @return <tt>true</tt> if equals, <tt>false</tt> otherwise.
+    */
+   @Override
+   public boolean fullEquals(FullHashObject obj) {
+      if(!equals(obj)) {
+         return false;
+      }
+
+      DynamicValue dval2 = (DynamicValue) obj;
+
+      return Tool.equals(dval2.rvalue, dval2.rvalue);
+   }
+
+   /**
     * Calculate the hashcode of the dynamic value.
     */
    public int hashCode() {
@@ -159,6 +176,14 @@ public class DynamicValue implements Serializable, Cloneable {
       }
 
       return hash;
+   }
+
+   /**
+    * Calculate the hashcode of the dynamic value, it contains dvalue and rvalue.
+    */
+   @Override
+   public int fullHashCode() {
+      return Objects.hash(dvalue, rvalue);
    }
 
    /**

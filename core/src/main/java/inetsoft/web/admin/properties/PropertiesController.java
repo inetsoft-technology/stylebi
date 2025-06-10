@@ -21,8 +21,11 @@ import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.log.*;
 import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.security.PropertyModel;
 import inetsoft.web.security.DeniedMultiTenancyOrgUser;
@@ -31,6 +34,7 @@ import inetsoft.web.viewsheet.Audited;
 
 import java.io.IOException;
 import java.security.Principal;
+import java.util.List;
 import java.util.Properties;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +53,7 @@ public class PropertiesController {
                                  String property)
       throws IOException
    {
+      removeLogLevel(property);
       SreeEnv.remove(property);
       SreeEnv.save();
    }
@@ -125,6 +130,45 @@ public class PropertiesController {
       properties.remove("log.level.inetsoft.storage.aws.org.apache");
       properties.remove("log.level.inetsoft.web.portal.controller.ControllerErrorHandler");
       properties.remove("log.level.inetsoft_audit");
+   }
+
+   private void removeLogLevel(String property) {
+      String value = SreeEnv.getProperty(property);
+
+      if(Tool.isEmptyString(property) || !property.startsWith("log.") ||
+         !property.contains(".level.") || value.equals("off"))
+      {
+         return;
+      }
+
+      String[] propertyParts = property.split("\\.");
+
+      if(propertyParts.length < 4) {
+         return;
+      }
+
+      LogManager logManager = LogManager.getInstance();
+      List<LogLevelSetting> logLevels = logManager.getContextLevels();
+
+      boolean found = logLevels.stream().anyMatch(logLevel -> {
+         String name = logLevel.getName();
+
+         if(logLevel.getOrgName() != null) {
+            String orgId = SecurityEngine.getSecurity()
+               .getSecurityProvider()
+               .getOrgIdFromName(logLevel.getOrgName());
+            name = Tool.buildString(name, "^", orgId);
+         }
+
+         return property.equals("log." + logLevel.getContext().name() + ".level." + name);
+      });
+
+      if(found) {
+         String[] parts = property.split("\\.");
+         LogContext logContext = LogContext.valueOf(parts[1]);
+         String name = parts[parts.length - 1];
+         logManager.setContextLevel(logContext, name, null);
+      }
    }
 
    @Autowired

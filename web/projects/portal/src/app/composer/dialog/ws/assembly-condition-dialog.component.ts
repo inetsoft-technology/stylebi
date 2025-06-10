@@ -25,6 +25,7 @@ import { ConditionValueType } from "../../../common/data/condition/condition-val
 import { JunctionOperator } from "../../../common/data/condition/junction-operator";
 import { JunctionOperatorType } from "../../../common/data/condition/junction-operator-type";
 import { DataRef } from "../../../common/data/data-ref";
+import { DataRefType } from "../../../common/data/data-ref-type";
 import { XSchema } from "../../../common/data/xschema";
 import { isValidConditionList } from "../../../common/util/condition.util";
 import { LocalStorage } from "../../../common/util/local-storage.util";
@@ -270,6 +271,11 @@ export class AssemblyConditionDialog implements OnInit {
             // check if the condition belongs to the post-aggregate conditions
             else if(condition.field.classType === "AggregateRef"
                || condition.field.formulaName)
+            {
+               this.addCondition(condition, this.model.postAggregateConditionList);
+            }
+            else if(condition.field.classType === "GroupRef" &&
+               condition.field.refType == DataRefType.CUBE_TIME_DIMENSION)
             {
                this.addCondition(condition, this.model.postAggregateConditionList);
             }

@@ -206,30 +206,31 @@ export class VPMConditionItemPane implements OnInit, OnChanges {
       if(!!this.condition.value1?.field && !Tool.isEquals(this.condition.value1?.field,
          this.oldCondition.value1?.field))
       {
-         if(!!this.condition.value2 && this.condition.value2.type == ClauseValueTypes.VALUE) {
-            this.condition.value2.expression = null;
+         if(!!this.condition.value2) {
+            this.resetCondition(null, this.condition.value2, true);
          }
 
-         if(!!this.condition.value3 && this.condition.value3.type == ClauseValueTypes.VALUE) {
-            this.condition.value3.expression = null;
+         if(!!this.condition.value3) {
+            this.resetCondition(null, this.condition.value3, true);
          }
       }
       else if(!!this.condition.value2?.field && !Tool.isEquals(this.condition.value2?.field,
          this.oldCondition.value2?.field))
       {
-         if(!!this.condition.value1 && this.condition.value1.type == ClauseValueTypes.VALUE) {
-            this.condition.value1.expression = null;
+         if(!!this.condition.value1) {
+            this.resetCondition(null, this.condition.value1, true);
          }
       }
    }
 
-   resetCondition(valueTypes: string[], valueModel: ClauseValueModel) {
+   resetCondition(valueTypes: string[], valueModel: ClauseValueModel, force?: boolean) {
       let find = !!valueTypes && valueTypes.some((type) => type == ClauseValueTypes.SESSION_DATA);
 
-      if(valueModel.type == ClauseValueTypes.SESSION_DATA && !find) {
+      if(valueModel.type == ClauseValueTypes.SESSION_DATA && !find || force) {
          valueModel.type = ClauseValueTypes.VALUE;
          valueModel.expression = undefined;
          valueModel.field = null;
+         valueModel.query = null;
       }
    }
 

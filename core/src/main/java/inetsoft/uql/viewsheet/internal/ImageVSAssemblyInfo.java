@@ -359,6 +359,7 @@ public class ImageVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
       writer.print(" dynamic=\"" + dynamic + "\"");
       writer.print(" animateGIF=\"" + animateGIF + "\"");
       writer.print(" islocked=\"" + getLocked() + "\"");
+
       if(imageAlphaValue != null && imageAlphaValue.getDValue() != null) {
          writer.print(" imageAlphaValue=\"" + imageAlphaValue.getDValue() + "\"");
       }
@@ -387,6 +388,7 @@ public class ImageVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
       dynamic = "true".equals(Tool.getAttribute(elem, "dynamic"));
       animateGIF = "true".equals(Tool.getAttribute(elem, "animateGIF"));
       islocked = "true".equals(Tool.getAttribute(elem, "islocked"));
+
       if(Tool.getAttribute(elem, "imageAlphaValue") != null) {
          imageAlphaValue.setDValue(Tool.getAttribute(elem, "imageAlphaValue"));
       }
@@ -722,7 +724,6 @@ public class ImageVSAssemblyInfo extends ClickableOutputVSAssemblyInfo
 
    private Boolean islocked = false;
    private DynamicValue imageValue;
-   private DynamicValue alphaValue = new DynamicValue();
    private DynamicValue imageAlphaValue = new DynamicValue();
    private boolean dynamic;
    private boolean animateGIF;

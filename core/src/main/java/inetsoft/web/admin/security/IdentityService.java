@@ -402,6 +402,7 @@ public class IdentityService {
             DashboardRegistry.clear(identityId);
             eprovider.removeUser(identityId);
             updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
+            removeUserScopedAssets(identity);
          }
          else {
             if(!identityId.equals(oID)) {
@@ -2010,6 +2011,23 @@ public class IdentityService {
       authzProvider.removePermission(ResourceType.SECURITY_ORGANIZATION, oldOrgID);
    }
 
+   private void removeUserScopedAssets(Identity identity) {
+      if(identity == null || identity.getType() != Identity.USER) {
+         return;
+      }
+
+      final IdentityID identityID = identity.getIdentityID();
+      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+
+      IndexedStorage.Filter filter = key -> {
+         AssetEntry entry = AssetEntry.createAssetEntry(key);
+         return entry != null && Tool.equals(entry.getUser(), identityID);
+      };
+      Set<String> keys = storage.getKeys(filter, identityID.getOrgID());
+      keys.stream().forEach(key -> storage.remove(key));
+   }
+
+
    public void updateIdentityPermissions(int type, IdentityID oldName, IdentityID newName, String oldOrgId, String newOrgId, boolean doReplace) {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
       Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
@@ -2028,6 +2046,7 @@ public class IdentityService {
 
          if(permissionSetList != null) {
             for(Tuple4<ResourceType, String, String, Permission> permissionSet : permissionSetList) {
+               ResourceType resourceType = permissionSet.getFirst();
                String resourceOrgID = permissionSet.getSecond();
                String path = permissionSet.getThird();
                Permission permission = permissionSet.getForth();
@@ -2046,17 +2065,26 @@ public class IdentityService {
                }
 
                if(containsOrgID(path, oldName.getOrgID()) && newName == null) {
-                  aprovider.removePermission(permissionSet.getFirst(), path, resourceOrgID);
+                  aprovider.removePermission(resourceType, path, resourceOrgID);
                }
 
                for(ResourceAction action : ResourceAction.values()) {
                   if(permission != null) {
                      if(type == Identity.USER) {
+                        boolean empty = permission.isBlank();
+
                         for(IdentityID granteeName : permission.getOrgScopedUserGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                            if(oldName != null && oldName.name.equals(granteeName.name)) {
                               //rename old grantee to new name
                               updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action);
                            }
+                        }
+
+                        // remove self user created resources when deleting self user.
+                        if(permission.isBlank() && !empty && oldName != null &&
+                           Tool.equals(oldName.getOrgID(), Organization.getSelfOrganizationID()))
+                        {
+                           removeSelfResource(resourceType, path);
                         }
                      }
                      else if(type == Identity.GROUP) {
@@ -2099,6 +2127,19 @@ public class IdentityService {
                updatePermission(aprovider, permissionSet, oldOrgName, newOrgName, oldOrgId, newOrgId, doReplace, type);
             }
          }
+      }
+   }
+
+   private void removeSelfResource(ResourceType resourceType, String path) {
+      if(Tool.isEmptyString(path)) {
+         return;
+      }
+
+      if(resourceType == ResourceType.DATA_SOURCE) {
+         DataSourceRegistry.getRegistry().removeDataSource(path);
+      }
+      else if(resourceType == ResourceType.DATA_SOURCE_FOLDER) {
+         DataSourceRegistry.getRegistry().removeDataSourceFolder(path);
       }
    }
 

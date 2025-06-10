@@ -1518,6 +1518,16 @@ public class CoreLifecycleService {
                   addDeleteVSObject(rvs, child, dispatcher);
                }
             }
+            else if(info instanceof TabVSAssemblyInfo) {
+               String selectedAssembly = ((TabVSAssemblyInfo) info).getSelected();
+
+               if(!Tool.isEmptyString(selectedAssembly)) {
+                  VSAssembly child = rvs.getViewsheet().getAssembly(selectedAssembly);
+                  VSAssemblyInfo childInfo = VSEventUtil.getAssemblyInfo(rvs, child);
+                  child.setVSAssemblyInfo(childInfo);
+                  addDeleteVSObject(rvs, child, dispatcher);
+               }
+            }
          }
          finally {
             box.unlockWrite();

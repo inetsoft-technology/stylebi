@@ -33,7 +33,7 @@
         <button class="sort-button sort-descending-icon" *ngSwitchCase="SortEnum.DESC"
                 title="_#(Descending)"
              (click)="_col.order = SortEnum.NONE; move(_i, model.columnSortList, model.columnNoneList);" style="padding: 0px"></button>
-        <div style="padding-left: 6px">{{_col.dataRefModel.view || _col.dataRefModel.name}}</div>
+        <div style="padding-left: 6px">{{_col.view || _col.name}}</div>
       </div>
       <div *ngFor="let _col of model.columnNoneList; let _i = index" class="sort-row p-1 mb-1 bd-gray"
            [class.selected]="_col == selectedField"
@@ -42,7 +42,7 @@
         <button class="sort-button sort-icon icon-size-sm"
                 title="_#(Sort)"
                 (click)="_col.order = SortEnum.ASC; move(_i, model.columnNoneList, model.columnSortList);" style="padding: 0px"></button>
-        <div style="padding-left: 6px">{{_col.dataRefModel.view || _col.dataRefModel.name}} </div>
+        <div style="padding-left: 6px">{{_col.view || _col.name}} </div>
       </div>
     </div>
     <ng-container largeFieldButtons>

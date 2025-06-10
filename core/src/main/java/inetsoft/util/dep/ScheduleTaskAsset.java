@@ -336,6 +336,12 @@ public class ScheduleTaskAsset extends AbstractXAsset {
 
       AssetEntry folderEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
                                               path, null);
+      importScheduleFolder(folderEntry, indexedStorage, owner);
+   }
+
+   private void importScheduleFolder(AssetEntry folderEntry,
+                                     IndexedStorage indexedStorage, IdentityID owner) throws Exception
+   {
       String folderID = folderEntry.toIdentifier();
       AssetFolder folderAsset = (AssetFolder) indexedStorage.getXMLSerializable(folderID, null);
 
@@ -344,12 +350,14 @@ public class ScheduleTaskAsset extends AbstractXAsset {
          folderAsset.setOwner(owner);
       }
 
-      String parentPath = path.indexOf('/') != -1 ? path.substring(0, path.indexOf('/')) : "/";
-      AssetEntry parentEntry = new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, parentPath, null);
+      AssetEntry parentEntry = folderEntry.getParent();
+
+      if(!indexedStorage.contains(parentEntry.toIdentifier())) {
+         importScheduleFolder(parentEntry, indexedStorage, owner);
+      }
+
       AssetFolder parentFolder =
          (AssetFolder) indexedStorage.getXMLSerializable(parentEntry.toIdentifier(), null);
-
       parentFolder.addEntry(folderEntry);
       indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), parentFolder);
       indexedStorage.putXMLSerializable(folderID, folderAsset);

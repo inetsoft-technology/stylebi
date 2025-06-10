@@ -154,7 +154,7 @@ public class CrosstabDrillHandler
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(
          runtimeViewsheetRef.getRuntimeId(), principal);
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VSTableLens lens = box.getVSTableLens(table.getName(), false);
+      VSTableLens lens = box.getVSTableLens(table.getAbsoluteName(), false);
 
       for(String field : drillFilterAction.getFields()) { // for chart
          drillAllField(true, drillFilterAction.isDrillUp(), field,

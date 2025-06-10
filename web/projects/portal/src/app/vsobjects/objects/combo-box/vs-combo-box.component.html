@@ -46,13 +46,20 @@
      [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
      [class.prevent-drag]="firefox">
   <ng-container *ngIf="!model.calendar">
-    <select #selection class="ps-1"
+    <select #selection class="ps-1" *ngIf="!model?.labels?.length <= 500"
             [attr.aria-label]="model.absoluteName + ' _#(ComboBox)'"
             [ngModel]="model.selectedLabel" (ngModelChange)="onChange($event)"
             [style.text-align-last]="model.objectFormat.hAlign"
             [style.background-color]="model.objectFormat.background == '' ? 'transparent' : model.objectFormat.background">
       <option [value]="entry" *ngFor="let entry of model.labels">{{entry}}</option>
     </select>
+    <div #selection class="virtual-scroll-combo-box" *ngIf="!model?.labels?.length > 500"
+         (click)="toggleDropdown()"
+         [style.background-color]="model.objectFormat.background || 'transparent'"
+         [fixedDropdown]="dropdownOptions" dropdownPlacement="bottom">
+      {{ model.selectedLabel }}
+      <span class="dropdown-icon span-as-dropdown"></span>
+    </div>
     <div class="select-moving-label">{{model.selectedLabel}}</div>
     <input #comboBoxInput *ngIf="model.editable"
            class="standard-input" [ngModel]="model.selectedLabel"
@@ -80,6 +87,19 @@
        aria-haspopup="true" [attr.aria-label]="model.absoluteName + ' _#(Date Input)'"
        [fixedDropdown]="dropdownCalendar" [autoClose]="false" dropdownPlacement="bottom"></i>
   </ng-container>
+
+  <ng-template #dropdownOptions>
+    <div class="dropdown-container" [style.min-width.px]="model.objectFormat.width">
+      <cdk-virtual-scroll-viewport [itemSize]="35" class="dropdown-viewport">
+        <div class="dropdown-item"
+             *cdkVirtualFor="let entry of model.labels"
+             (click)="selectItem(entry)"
+             [class.selected]="entry === model.selectedLabel">
+          {{ entry }}
+        </div>
+      </cdk-virtual-scroll-viewport>
+    </div>
+  </ng-template>
 
   <ng-template #dropdownCalendar>
     <div class="dropdown-datepicker">

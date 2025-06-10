@@ -3931,6 +3931,10 @@ public final class XUtil {
     * Replace variable in a string with its value.
     */
    public static String replaceVariable(String str, VariableTable vars) {
+      return replaceVariable(str, vars, false);
+   }
+
+   public static String replaceVariable(String str, VariableTable vars, boolean doEncode) {
       if(str != null) {
          int st;
          int ed;
@@ -3953,11 +3957,20 @@ public final class XUtil {
 
                         for(int i = 0; i < len; i++) {
                            String s = Tool.toString(Array.get(obj, i));
+
+                           if(doEncode) {
+                              s = Tool.encodeURL(s);
+                           }
+
                            varValue = varValue == null ? s : varValue + "," + s;
                         }
                      }
                      else {
                         varValue = obj.toString();
+
+                        if(doEncode) {
+                           varValue = Tool.encodeURL(varValue);
+                        }
                      }
                   }
                }

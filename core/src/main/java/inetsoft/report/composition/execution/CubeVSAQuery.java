@@ -29,6 +29,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.xmla.XMLAUtil;
 import inetsoft.util.Catalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -422,7 +423,7 @@ public abstract class CubeVSAQuery extends DataVSAQuery {
          table = getBaseTable(table);
       }
 
-      return new VSCubeTableLens(lens, table.getColumnSelection(true));
+      return new VSCubeTableLens(lens, table.getColumnSelection(true), XMLAUtil.isMetadata(box));
    }
 
    /**

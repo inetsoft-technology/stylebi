@@ -70,7 +70,7 @@ export class SchemaColumnComponent implements OnInit, AfterViewInit, OnDestroy {
    ngOnInit(): void {
       this.tableColumn = {column: this.column, table: this.schemaTable.name};
       this.columnHeader = this.schemaTable.colInfos
-         .find(colInfo => colInfo.name == this.column.name).header;
+         .find(colInfo => colInfo.name == this.column.name)?.header || this.column.name;
 
       this.connSub = this.schemaThumbnailService.getConnectingColumnSubject()
          .subscribe((tableColumn) => {

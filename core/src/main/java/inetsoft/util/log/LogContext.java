@@ -116,7 +116,7 @@ public enum LogContext {
    }
 
    private String fixOrgScopeResourceName(String name) {
-      if(!SUtil.isMultiTenant() || Tool.equals(ORGANIZATION.getPrefix(), getPrefix()) ||
+      if(Tool.equals(ORGANIZATION.getPrefix(), getPrefix()) ||
          Tool.equals(CATEGORY.getPrefix(), getPrefix()))
       {
          return name;
@@ -148,23 +148,32 @@ public enum LogContext {
          MDC.remove(LogContext.USER.name());
          MDC.remove(LogContext.GROUP.name());
          MDC.remove(LogContext.ROLE.name());
+         MDC.remove(LogContext.ORGANIZATION.name());
       }
       else {
+         MDC.put(LogContext.ORGANIZATION.name(), ((XPrincipal) user).getOrgId());
+
          boolean enterprise = LicenseManager.getInstance().isEnterprise();
          IdentityID userIdentity = IdentityID.getIdentityIDFromKey(user.getName());
-         String name = userIdentity != null ? userIdentity.getLabel() : user.getName();
 
-         MDC.put(LogContext.USER.name(), name);
+         if(userIdentity == null) {
+            userIdentity = IdentityID.getIdentityIDFromKey(user.getName());
+         }
+
+         MDC.put(LogContext.USER.name(), userIdentity.getLabelWithCaretDelimiter());
 
          if(user instanceof XPrincipal principal) {
+            IdentityID finalUserIdentity = userIdentity;
             String groups = String.join(",",
                                         Arrays.stream(principal.getGroups())
                                            .map(g -> enterprise ?
-                                              new IdentityID(g, userIdentity.getOrgID()).getLabel() : g)
+                                              new IdentityID(g, finalUserIdentity.getOrgID())
+                                                 .getLabelWithCaretDelimiter() : g)
                                            .toArray(String[]::new));
             String roles = String.join(",",
                                        Arrays.stream(principal.getRoles())
-                                          .map(r -> enterprise ? r.getLabel() : r.getName())
+                                          .map(r -> enterprise ?
+                                             r.getLabelWithCaretDelimiter() : r.getName())
                                           .toArray(String[]::new));
 
             if(!groups.equals("")) {

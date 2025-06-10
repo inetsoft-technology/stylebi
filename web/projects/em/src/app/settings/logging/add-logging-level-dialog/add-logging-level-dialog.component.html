@@ -31,13 +31,20 @@
         <mat-option value="ROLE">_#(Role)</mat-option>
         <mat-option value="SCHEDULE_TASK">_#(Schedule Task)</mat-option>
         <mat-option value="CATEGORY">_#(Log Category)</mat-option>
-        <mat-option *ngIf="enterprise" value="ORGANIZATION">_#(Organization)</mat-option>
+        <mat-option *ngIf="enterprise && isMultiTenant" value="ORGANIZATION">_#(Organization)</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="accent">
+    <mat-form-field appearance="outline" color="accent" *ngIf="isNameFieldVisible()">
       <mat-label>_#(Name):</mat-label>
       <input matInput placeholder="_#(Name)" formControlName="name" (change)="onFormChanged()">
       <mat-error *ngIf="form.controls.name?.errors?.required">_#(enter.name)</mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent" *ngIf="isOrganizationFieldVisible()">
+      <mat-label>_#(Organization):</mat-label>
+      <mat-select formControlName="orgName" (selectionChange)="onFormChanged()">
+        <mat-option *ngFor="let org of organizations" [value]="org">{{org}}</mat-option>
+      </mat-select>
+      <mat-error *ngIf="form.controls.orgName?.errors?.required">_#(add.log.selectOneOrg)</mat-error>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent">
       <mat-label>_#(Level):</mat-label>

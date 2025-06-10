@@ -342,6 +342,14 @@ public class CrosstabVSAQuery extends AbstractCrosstabVSAQuery {
       return cols;
    }
 
+   protected VSAssembly getAssembly() {
+      if(!(getViewsheet().getAssembly(vname) instanceof CrosstabVSAssembly)) {
+         return null;
+      }
+
+      return getViewsheet().getAssembly(vname);
+   }
+
    private boolean columnLimit = true;
 
    public static class CrossTabSortFilter extends SortFilter {

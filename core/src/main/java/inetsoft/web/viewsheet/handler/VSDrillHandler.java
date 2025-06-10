@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.handler;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.XCube;
 import inetsoft.uql.asset.internal.ConditionUtil;
 import inetsoft.uql.erm.DataRef;
@@ -159,8 +160,24 @@ public class VSDrillHandler {
             if(Objects.equals(inetsoft.uql.asset.internal.ConditionUtil.getAssemblySource(targetAssembly),
                ConditionUtil.getAssemblySource(assembly)))
             {
+
+               CrosstabVSAssemblyInfo ocinfo = null;
+
+               if(assembly instanceof CrosstabVSAssembly) {
+                  ocinfo = (CrosstabVSAssemblyInfo) assembly.getVSAssemblyInfo().clone();
+               }
+
                getDrillHandle(assembly).processDrillAction(
                   assembly, drillFilterAction, targetAssembly, dispatcher, linkUri, principal);
+
+               if(ocinfo != null) {
+                  TableHighlightAttr highlight =
+                     ((CrosstabVSAssemblyInfo) assembly.getVSAssemblyInfo()).getHighlightAttr();
+
+                  if(highlight != null) {
+                     VSUtil.syncCrosstabPath((CrosstabVSAssembly) assembly, ocinfo, false, highlight.getHighlightMap());
+                  }
+               }
             }
          }
       }

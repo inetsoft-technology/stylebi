@@ -16,7 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Inject, OnInit } from "@angular/core";
-import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import {
+   UntypedFormBuilder,
+   UntypedFormGroup,
+   Validators
+} from "@angular/forms";
 import { Tool } from "../../../../../../shared/util/tool";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogConfig, MatDialogRef } from "@angular/material/dialog";
 import { LogLevelDTO } from "../LogLevelDTO";
@@ -31,6 +35,8 @@ export class AddLoggingLevelDialogComponent implements OnInit {
    index: number;
    loggingLevels: LogLevelDTO[];
    enterprise: boolean;
+   isMultiTenant: boolean;
+   organizations: string[];
    model: LogLevelDTO;
    title: string;
    form: UntypedFormGroup;
@@ -42,9 +48,12 @@ export class AddLoggingLevelDialogComponent implements OnInit {
       this.index = data.index;
       this.loggingLevels = data.loggingLevels;
       this.enterprise = data.enterprise;
+      this.isMultiTenant = data.isMultiTenant;
+      this.organizations = data.organizations;
       this.form = fb.group({
          context: ["", Validators.required],
          name: ["", Validators.required],
+         orgName: [""],
          level: ["", Validators.required]
       });
    }
@@ -57,6 +66,10 @@ export class AddLoggingLevelDialogComponent implements OnInit {
             level: "info"
          };
 
+         if(this.enterprise && this.isMultiTenant) {
+            this.model.orgName = this.organizations[0];
+         }
+
          this.title = "_#(js:Add Logging Level)";
       }
       else {
@@ -64,15 +77,41 @@ export class AddLoggingLevelDialogComponent implements OnInit {
          this.title = "_#(js:Edit Logging Level)";
       }
 
+      if(this.model.context == "ORGANIZATION" && !this.model.orgName) {
+         this.model.orgName = this.model.name;
+      }
+
       this.form.get("context").setValue(this.model.context);
       this.form.get("name").setValue(this.model.name);
+      this.form.get("orgName").setValue(this.model.orgName);
       this.form.get("level").setValue(this.model.level);
    }
 
    onFormChanged() {
       this.model.context = this.form.get("context").value;
-      this.model.name = this.form.get("name").value.trim();
+
+      if(this.model.context == "CATEGORY") {
+         this.form.get("orgName").setValue(null);
+      }
+
+      if(this.model.context == "ORGANIZATION") {
+         this.model.name = this.form.get("orgName").value;
+         this.model.orgName = this.model.name;
+      }
+      else {
+         this.model.name = this.form.get("name").value.trim();
+         this.model.orgName = this.form.get("orgName").value;
+      }
+
       this.model.level = this.form.get("level").value;
+   }
+
+   isOrganizationFieldVisible() {
+      return this.enterprise && this.isMultiTenant && this.model.context != "CATEGORY";
+   }
+
+   isNameFieldVisible() {
+      return this.model.context != "ORGANIZATION";
    }
 
    ok(): void {
@@ -90,7 +129,7 @@ export class AddLoggingLevelDialogComponent implements OnInit {
          for(let i = 0; i < this.loggingLevels.length; i++) {
             const level: LogLevelDTO = this.loggingLevels[i];
 
-            if(this.model.name === level.name && this.model.context === level.context) {
+            if(this.model.name === level.name && this.model.context === level.context && this.model.orgName === level.orgName) {
                copyIndex = i;
             }
          }
