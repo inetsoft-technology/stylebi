@@ -28,6 +28,7 @@ import {
    NgbTooltipModule,
    NgbTypeaheadModule
 } from "@ng-bootstrap/ng-bootstrap";
+import { ScrollingModule } from "@angular/cdk/scrolling";
 import { CkeditorWrapperModule } from "../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
 import { FeatureFlagsModule } from "../../../../shared/feature-flags/feature-flags.module";
 import { AngularResizeEventModule } from "../../../../shared/resize-event/angular-resize-event.module";
@@ -275,7 +276,8 @@ import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
       NgbDropdownModule,
       MiniToolbarModule,
       SimpleTableModule,
-      CkeditorWrapperModule
+      CkeditorWrapperModule,
+      ScrollingModule
    ],
    declarations: [
       VsToolbarButtonDirective,
