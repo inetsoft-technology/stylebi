@@ -17,9 +17,11 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.uql.viewsheet.FullHashObject;
 import inetsoft.util.Tool;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * For some attributes which cannot use DynamicValue to hold the dynamic value
@@ -28,7 +30,7 @@ import java.io.Serializable;
  * @version 10.3
  * @author InetSoft Technology Corp
  */
-public class ClazzHolder<T> implements Cloneable, Serializable {
+public class ClazzHolder<T> implements Cloneable, Serializable, FullHashObject {
    /**
     * Get the dynamic value.
     * @return the dynamic value object.
@@ -89,6 +91,30 @@ public class ClazzHolder<T> implements Cloneable, Serializable {
       }
 
       return hash;
+   }
+
+   /**
+    * Calculate the hashcode of the dynamic value.
+    */
+   @Override
+   public int fullHashCode() {
+      return Objects.hash(dvalue, rvalue);
+   }
+
+   /**
+    * Indicates whether some other object is "equal to" this one.
+    * @return true if this object is the same as the obj argument,
+    *          false otherwise.
+    */
+   @Override
+   public boolean fullEquals(FullHashObject obj) {
+      if(!equals(obj)) {
+         return false;
+      }
+
+      ClazzHolder<?> holder = (ClazzHolder<?>) obj;
+
+      return Tool.equals(rvalue, holder.rvalue);
    }
 
    /**
