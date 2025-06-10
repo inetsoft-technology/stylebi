@@ -5230,6 +5230,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       mirror.setProperty(VS_MIRROR_TABLE, "true");
       ws.addAssembly(mirror);
 
+      if(table.getInfo() instanceof SQLBoundTableAssemblyInfo) {
+         ((SQLBoundTableAssemblyInfo) table.getInfo()).setOriginalName(tname);
+      }
+
       return true;
    }
 
