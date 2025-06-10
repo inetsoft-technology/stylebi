@@ -168,6 +168,7 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    minDate: NgbDateStruct = this.defaultMinDate;
    maxDate: NgbDateStruct = this.defaultMaxDate;
    firstDayOfWeek: number = 1;
+   isDropdownOpen = false;
 
    selectedDate: {
       year: number,
@@ -188,7 +189,6 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    // even afater mouse is released. check if this is necessary after interactjs has
    // be upgraded (12.3)
    firefox: boolean = GuiTool.isFF();
-
    constructor(private socket: ViewsheetClientService,
                private formDataService: CheckFormDataService,
                private formInputService: FormInputService,
@@ -229,6 +229,15 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
       if(this.submittedForm) {
          this.submittedForm.unsubscribe();
       }
+   }
+
+   toggleDropdown() {
+      this.isDropdownOpen = !this.isDropdownOpen;
+   }
+
+   selectItem(entry: string) {
+      this.isDropdownOpen = false;
+      this.onChange(entry);
    }
 
    getLabelIndex(label: string): number {
