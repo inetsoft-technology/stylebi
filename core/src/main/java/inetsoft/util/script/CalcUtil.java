@@ -126,6 +126,8 @@ public class CalcUtil {
       end.setTime(end_date);
 
       convertToUsNasd(start, end);
+      start_date.setTime(start.getTime().getTime());
+      end_date.setTime(end.getTime().getTime());
    }
 
    /**
@@ -155,6 +157,8 @@ public class CalcUtil {
       end.setTime(end_date);
 
       convertToEuropean(start, end);
+      start_date.setTime(start.getTime().getTime());
+      end_date.setTime(end.getTime().getTime());
    }
 
    /**
