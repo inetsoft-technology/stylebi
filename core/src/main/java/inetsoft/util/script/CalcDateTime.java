@@ -177,11 +177,11 @@ public class CalcDateTime {
 
       //European method.
       if(method != null && (Boolean) method) {
-         CalcUtil.convertToUsNasd(start, end);
+         CalcUtil.convertToEuropean(start, end);
       }
       //U.S. (NASD) method
       else {
-         CalcUtil.convertToEuropean(start, end);
+         CalcUtil.convertToUsNasd(start, end);
       }
 
       return CalcUtil.get30_360Days(start, end);
