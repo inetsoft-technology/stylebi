@@ -435,19 +435,22 @@ public class CalcDateTime {
     * 0:00:00 (12:00:00 AM) to 23:59:59 (11:59:59 P.M.).
     */
    public static double time(int hour, int minute, int second) {
-      hour = hour % 24;
-      minute = minute % 60;
-      second = second % 60;
+      int totalSeconds = hour * 3600 + minute * 60 + second;
+      totalSeconds = totalSeconds % (24 * 60 * 60);
+
+      hour = totalSeconds / 3600;
+      minute = (totalSeconds % 3600) / 60;
+      second = totalSeconds % 60;
 
       Calendar start = CoreTool.calendar.get();
       start.clear();
-      start.set(Calendar.HOUR, 0);
+      start.set(Calendar.HOUR_OF_DAY, 0);
       start.set(Calendar.MINUTE, 0);
       start.set(Calendar.SECOND, 0);
 
       Calendar cal = CoreTool.calendar2.get();
       cal.clear();
-      cal.set(Calendar.HOUR, hour);
+      cal.set(Calendar.HOUR_OF_DAY, hour);
       cal.set(Calendar.MINUTE, minute);
       cal.set(Calendar.SECOND, second);
 
