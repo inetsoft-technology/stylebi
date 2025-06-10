@@ -2034,7 +2034,7 @@ public class CalcFinancial {
          throw new RuntimeException("Period must be greater than or equal to 1");
       }
 
-      if(period < 0) {
+      if(period <= 0) {
          throw new RuntimeException("Period should be greater than 0");
       }
 
