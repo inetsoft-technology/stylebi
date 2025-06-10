@@ -42,7 +42,7 @@ import java.util.List;
  * @version 8.5
  * @author InetSoft Technology Corp
  */
-public class VSFormat implements XVSFormat {
+public class VSFormat implements XVSFormat, FullHashObject {
    /**
     * Date format type.
     */
@@ -1754,16 +1754,61 @@ public class VSFormat implements XVSFormat {
    /**
     * Calculate the hashcode of the format spec.
     */
+   @Override
    public int fullHashCode() {
-      return Objects.hash(dynamicValueFullHashCode(alignValue),
-         dynamicValueFullHashCode(wrapValue), bordersValue, bcolorsValue, fontValue,
-         dynamicValueFullHashCode(fmtValue), dynamicValueFullHashCode(fextValue), fg, bg, presenter,
-         gradientColorVals,dynamicValueFullHashCode(roundCornerValue));
+      return Objects.hash(getFullHashCode(alignValue), getFullHashCode(wrapValue),
+         bordersValue.fullHashCode(), bcolorsValue.fullHashCode(), fontValue,
+         getFullHashCode(fmtValue), getFullHashCode(fextValue), fg, bg, presenter,
+         gradientColorVals, getFullHashCode(roundCornerValue));
 
    }
 
-   private int dynamicValueFullHashCode(DynamicValue dynamicValue) {
-      return dynamicValue == null ? 0 : dynamicValue.fullHashCode();
+   /**
+    * Check if equals another objects.
+    * @param obj the specified object.
+    * @return <tt>true</tt> if equals, <tt>false</tt> otherwise.
+    */
+   @Override
+   public boolean fullEquals(FullHashObject obj) {
+      if(!(obj instanceof VSFormat)) {
+         return false;
+      }
+
+      VSFormat vfmt = (VSFormat) obj;
+
+      return equalsFullHashObject(bgval, vfmt.bgval) &&
+         equalsFullHashObject(fgval, vfmt.fgval) &&
+         equalsFullHashObject(bcolorsValue, vfmt.bcolorsValue) &&
+         equalsFullHashObject(bcolorsValue, vfmt.bcolorsValue) &&
+         equalsFullHashObject(fontValue, vfmt.fontValue) &&
+         equalsFullHashObject(fmtValue, vfmt.fmtValue) &&
+         equalsFullHashObject(fextValue, vfmt.fextValue) &&
+         equalsFullHashObject(wrapValue, vfmt.wrapValue) &&
+         Tool.equals(span, vfmt.span) &&
+         Tool.equals(bg, vfmt.bg) &&
+         Tool.equals(fg, vfmt.fg) &&
+         equalsFullHashObject(alphaValue, vfmt.alphaValue) &&
+         equalsFullHashObject(presenter, vfmt.presenter) &&
+         equalsFullHashObject(gradientColorVals, vfmt.gradientColorVals) &&
+         equalsFullHashObject(roundCornerValue, vfmt.roundCornerValue) &&
+         equalsFullHashObject(alignValue, vfmt.alignValue) &&
+         (getPropDefined() == vfmt.getPropDefined());
+   }
+
+   private boolean equalsFullHashObject(FullHashObject value0, FullHashObject value1) {
+      if(value0 == value1) {
+         return true;
+      }
+
+      if(value0 == null || value1 == null) {
+         return false;
+      }
+
+      return value0.fullEquals(value1);
+   }
+
+   private int getFullHashCode(FullHashObject fullHashObject) {
+      return fullHashObject == null ? 0 : fullHashObject.fullHashCode();
    }
 
    /**
