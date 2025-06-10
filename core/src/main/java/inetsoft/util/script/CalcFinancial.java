@@ -637,7 +637,7 @@ public class CalcFinancial {
 
       // ChrisS bug1403015689632 2014-6-19
       // Enforce limits on period/life parameters
-      enforcePeriodLifeLimits(period, life);
+      enforcePeriodLifeLimits(period, life, true);
 
       double rate = 1 - Math.pow((salvage / cost), (1 / life));
 
@@ -693,7 +693,7 @@ public class CalcFinancial {
 
       // ChrisS bug1403015689632 2014-6-19
       // Enforce limits on period/life parameters
-      enforcePeriodLifeLimits(period, life);
+      enforcePeriodLifeLimits(period, life, true);
 
       double total = 0;
 
@@ -2019,15 +2019,25 @@ public class CalcFinancial {
          ((pr / 100) + (A / B * rate)) * (B / DSM);
    }
 
+   private static void enforcePeriodLifeLimits(double period, double life) {
+      enforcePeriodLifeLimits(period, life, false);
+   }
+
    // ChrisS bug1403015689632 2014-6-19
    // Enforce limits on period/life parameters
-   private static void enforcePeriodLifeLimits(double period, double life) {
+   private static void enforcePeriodLifeLimits(double period, double life, boolean periodGtEOne) {
       if(life < 1) {
          throw new RuntimeException("Life should be greater than 0");
       }
-      if(period < 1) {
+
+      if(periodGtEOne && period < 1) {
+         throw new RuntimeException("Period must be greater than or equal to 1");
+      }
+
+      if(period < 0) {
          throw new RuntimeException("Period should be greater than 0");
       }
+
       if(period > life) {
          throw new RuntimeException("Period should be less than Life");
       }
