@@ -66,8 +66,10 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
    public AbstractCrosstabVSAQuery(ViewsheetSandbox box, String crosstab, boolean detail) {
       super(box, crosstab, detail);
 
-      CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
-      groupInfo = cassembly.getAggregateInfo();
+      if(getAssembly() != null) {
+         CrosstabDataVSAssembly cassembly = (CrosstabDataVSAssembly) getAssembly();
+         groupInfo = cassembly.getAggregateInfo();
+      }
    }
 
    /**
