@@ -215,6 +215,21 @@ public final class LogManager implements AutoCloseable, MessageListener {
       return result;
    }
 
+   /**
+    * Removes all log level entries that do not belong to the default organization
+    * from each context's level mapping.
+    */
+   public void clearNonDefaultOrgLogLevels() {
+      for(LogContext logContext : contextLevels.keySet()) {
+         if(logContext == LogContext.CATEGORY) {
+            continue;
+         }
+
+         Map<String, LogLevel> levelMap = contextLevels.get(logContext);
+         levelMap.keySet().removeIf(key -> !key.endsWith(Organization.getDefaultOrganizationID()));
+      }
+   }
+
    private LogLevelSetting buildLogLevelSetting(LogContext context, Map.Entry<String, LogLevel> entry,
                                                 SecurityProvider provider)
    {
