@@ -35,6 +35,7 @@ import inetsoft.util.ObjectWrapper;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.factory.RemainingPath;
 import jakarta.servlet.http.HttpServletResponse;
+import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +45,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.security.Principal;
 
@@ -179,10 +181,18 @@ public class PresenterController {
          }
       }
 
+      // ImageIO.write causes some problem with the state of Spring's async response output stream.
+      // This may be do to some reset to an earlier position in the stream or the like. It does not
+      // attempt to close the underlying stream, so that is not the problem. Writing it first to an
+      // in-memory buffer prevents this problem and presenter images should be relatively small, so
+      // this should not have a significant impact.
+      ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+      CoreTool.writePNG(image, buffer);
       response.setContentType("image/png");
-      OutputStream out = response.getOutputStream();
-      CoreTool.writePNG(image, out);
-      out.flush();
+
+      try(OutputStream out = response.getOutputStream()) {
+         IOUtils.write(buffer.toByteArray(), out);
+      }
    }
 
    /**

@@ -18,6 +18,7 @@
 import { DOCUMENT } from "@angular/common";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import {
+   AfterContentInit,
    AfterViewChecked,
    AfterViewInit,
    ChangeDetectorRef,
@@ -239,6 +240,13 @@ const BOOKMARK_URIS = {
    "delete-matched": "vs/bookmark/delete-matched-bookmarks"
 };
 
+export interface ScrollViewportRect {
+   top: number;
+   left: number;
+   width: number;
+   height: number;
+}
+
 @Component({
    selector: "viewer-app",
    templateUrl: "viewer-app.component.html",
@@ -287,7 +295,7 @@ const BOOKMARK_URIS = {
    ]
 })
 export class ViewerAppComponent extends CommandProcessor implements OnInit, AfterViewInit,
-   AfterViewChecked, OnDestroy
+   AfterViewChecked, AfterContentInit, OnDestroy
 {
    @ViewChild("exportDialog") exportDialog: TemplateRef<any>;
    @ViewChild("emailDialog") emailDialog: TemplateRef<any>;
@@ -387,6 +395,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    vsObjectActions: AbstractVSActions<any>[] = [];
    updateEnabled: boolean;
    touchInterval: number;
+   virtualScroll = false;
    viewsheetBackground: string;
    backgroundImage: SafeStyle;
    backgroundImageRepeat: string;
@@ -454,6 +463,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    pageControlStartY: number = 0;
    buttonSize: number = 80;
    embed: boolean;
+   scrollViewport: ScrollViewportRect;
 
    textLimitConfirmed: boolean = false;
    columnLimitConfirmed: boolean = false;
@@ -658,6 +668,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       }
    }
 
+   ngAfterContentInit(): void {
+      this.scrollViewport = this.getScrollViewport();
+   }
+
    ngAfterViewChecked(): void {
       this.setViewerToolbarDefinitions();
    }
@@ -810,6 +824,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    onViewerRootResizeEvent() {
+      this.updateScrollViewport();
+
       // need to check if viewer root has changed size, binding to window resize is not
       // enough as the viewer root can be resized by other methods
       if(this._active && this.scaleToScreen && this.viewerRoot && this.appSize &&
@@ -2479,6 +2495,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.accessible = command.info["accessible"];
       this.fitToWidth = command.info["fitToWidth"];
       this.balancePadding = command.info["balancePadding"];
+      this.virtualScroll = command.info["virtualScroll"];
 
       if(command.info["hasWatermark"]) {
          const imageUrl = "url('assets/elastic_watermark.png')";
@@ -3345,6 +3362,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this._scrollTop = event.target.scrollTop;
       }
 
+      this.updateScrollViewport();
       this.showHints();
    }
 
@@ -3985,5 +4003,24 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             this.dataTipService.isDataTipVisible(this.dataTipService.dataTipName)) ||
          (!!this.popComponentService.getPopComponent() &&
             this.popComponentService.isPopComponentVisible(this.popComponentService.getPopComponent()));
+   }
+
+   private updateScrollViewport(): void {
+      this.debounceService.debounce(this.runtimeId + "_scrollViewport", () => {
+         this.scrollViewport = this.getScrollViewport();
+      }, 50, []);
+   }
+
+   private getScrollViewport(): ScrollViewportRect {
+      if(!!this.viewerRoot?.nativeElement) {
+         return {
+            top: this.viewerRoot.nativeElement.scrollTop,
+            left: this.viewerRoot.nativeElement.scrollLeft,
+            width: this.viewerRoot.nativeElement.clientWidth,
+            height: this.viewerRoot.nativeElement.clientHeight
+         };
+      }
+
+      return { top: 0, left: 0, width: 0, height: 0 };
    }
 }
