@@ -20,6 +20,7 @@ package inetsoft.report.filter;
 import inetsoft.report.Comparer;
 import inetsoft.util.Tool;
 
+import java.nio.charset.StandardCharsets;
 import java.text.Collator;
 
 /**
@@ -75,7 +76,19 @@ public class TextComparer implements Comparer {
          v2 = v2 != null ? v2.toString() : null;
       }
 
+      if(v1 == v2) {
+         return 0;
+      }
+
       if(collator != null) {
+         if(v1 instanceof String && v2 instanceof String &&
+            isAsciiOnly((String) v1) && isAsciiOnly((String) v2))
+         {
+            // If both strings are ASCII only, we can use the default comparison
+            // which is faster than using a collator.
+            return Tool.compare(v1, v2, caseSensitive, true);
+         }
+
          try {
             return collator.compare((String) v1, (String) v2);
          }
@@ -87,6 +100,15 @@ public class TextComparer implements Comparer {
       }
 
       return Tool.compare(v1, v2, caseSensitive, true);
+   }
+
+   private boolean isAsciiOnly(String str) {
+      if (str == null) {
+         return false;
+      }
+
+      byte[] bytes = str.getBytes(StandardCharsets.US_ASCII);
+      return bytes.length == str.length();
    }
 
    /**
