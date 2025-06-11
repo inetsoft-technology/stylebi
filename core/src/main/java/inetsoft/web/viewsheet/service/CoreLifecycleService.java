@@ -1521,7 +1521,7 @@ public class CoreLifecycleService {
             else if(info instanceof TabVSAssemblyInfo) {
                String selectedAssembly = ((TabVSAssemblyInfo) info).getSelected();
 
-               if(!Tool.isEmptyString(selectedAssembly)) {
+               if(!Tool.isEmptyString(selectedAssembly) && !info.getViewsheet().isEmbedded()) {
                   VSAssembly child = rvs.getViewsheet().getAssembly(selectedAssembly);
                   VSAssemblyInfo childInfo = VSEventUtil.getAssemblyInfo(rvs, child);
                   child.setVSAssemblyInfo(childInfo);
