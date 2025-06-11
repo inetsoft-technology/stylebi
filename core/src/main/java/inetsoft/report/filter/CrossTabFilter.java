@@ -5516,7 +5516,7 @@ public class CrossTabFilter extends AbstractTableLens
       if(sc == null) {
          return sections;
       }
-      
+
       sections.sort(sc);
       return sections;
    }
@@ -6174,6 +6174,10 @@ public class CrossTabFilter extends AbstractTableLens
                (!Tool.isNumberClass(table.getColType(col0)) ||
                (level & SortOrder.PART_DATE_GROUP) == 0))
             {
+               continue;
+            }
+
+            if(Tool.isDateClass(table.getColType(col0)) && level == 0) {
                continue;
             }
 
