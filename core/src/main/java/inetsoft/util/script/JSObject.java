@@ -39,6 +39,10 @@ public class JSObject extends NativeJavaObject {
    public JSObject(Scriptable scope, Object javaObject, Class staticType) {
       super(scope, javaObject, staticType);
 
+      if(javaObject instanceof java.lang.Runtime || java.lang.Runtime.class.equals(staticType)) {
+         throw new RuntimeException("Java Runtime is prohibited.");
+      }
+
       if(javaObject != null) {
          cls = javaObject.getClass();
       }
@@ -81,8 +85,10 @@ public class JSObject extends NativeJavaObject {
 
    @Override
    public Object get(String name, Scriptable start) {
-      if(name.equals("getClass") || name.equals("getClassLoader")) {
-         throw new RuntimeException("getClass/getClassLoader is prohibited");
+      if(name.equals("getClass") || name.equals("getClassLoader") ||
+         name.equals("class") || name.equals("classLoader"))
+      {
+         throw new RuntimeException(name + " is prohibited");
       }
 
       Object value = super.get(name, start);
