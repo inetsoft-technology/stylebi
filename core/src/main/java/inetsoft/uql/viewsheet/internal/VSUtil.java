@@ -1187,7 +1187,7 @@ public final class VSUtil {
       Object img;
 
       try {
-         if(path.indexOf("://") > 0) {
+         if(path != null && path.indexOf("://") > 0) {
             iloc = new ImageLocation(".");
             iloc.setPath(path);
             iloc.setPathType(ImageLocation.IMAGE_URL);
