@@ -132,7 +132,8 @@ public abstract class ChartVSSelectionUtil {
 
             if(cinfo.getChartType() == GraphTypes.CHART_SUNBURST ||
                cinfo.getChartType() == GraphTypes.CHART_CIRCLE_PACKING ||
-               cinfo.getChartType() == GraphTypes.CHART_ICICLE)
+               cinfo.getChartType() == GraphTypes.CHART_ICICLE ||
+               cinfo.getChartType() == GraphTypes.CHART_TREEMAP)
             {
                treeFields = new HashSet<>();
                ChartRef[] treeDims = cinfo.getRTGroupFields();
@@ -402,7 +403,8 @@ public abstract class ChartVSSelectionUtil {
 
             if(cinfo.getChartType() == GraphTypes.CHART_SUNBURST ||
                cinfo.getChartType() == GraphTypes.CHART_CIRCLE_PACKING ||
-               cinfo.getChartType() == GraphTypes.CHART_ICICLE)
+               cinfo.getChartType() == GraphTypes.CHART_ICICLE ||
+               cinfo.getChartType() == GraphTypes.CHART_TREEMAP)
             {
                addMeasuresToSelection(selection, points, lens, headers, header, false);
             }
