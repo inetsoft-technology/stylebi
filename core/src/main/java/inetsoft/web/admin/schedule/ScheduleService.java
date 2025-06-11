@@ -1747,8 +1747,8 @@ public class ScheduleService {
          dumpException = false;
       }
       else {
-         String taskNameForLog = LicenseManager.getInstance().isEnterprise() ?
-            taskName : SUtil.getTaskNameWithoutOrg(taskName);
+         String taskNameForLog =
+            Tool.buildString(SUtil.getTaskNameWithoutOrg(taskName), "^", currentOrgID);
          MDC.put("SCHEDULE_TASK", taskNameForLog);
          String withoutOrg = SUtil.getTaskNameWithoutOrg(taskName);
 
