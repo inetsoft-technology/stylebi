@@ -78,10 +78,11 @@ public class ValueOfColumnTest {
       valueOfColumn = new ValueOfColumn("id", "sum(id)");
       valueOfColumn.setChangeType(ValueOfCalc.PREVIOUS_YEAR);
       valueOfColumn.setDim("date");
+
       DefaultTableLens tb = new DefaultTableLens ( new Object[][]{
          { "date", "id"},
-         { new Date(2021-1900, 0, 0), 4},
-         { new Date(2022-1900, 0, 0), 3}
+         { toDate("2021-01-01"), 4},
+         { toDate("2022-01-01"), 3}
       });
 
       vsDataSet = createVSDataSet(tb, "date");
