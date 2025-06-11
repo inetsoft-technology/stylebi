@@ -556,10 +556,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                   }
 
                   String taskId = getTaskId();
-                  String taskNameWithoutOrg = SUtil.getTaskNameWithoutOrg(taskId);
-                  taskId = !LicenseManager.getInstance().isEnterprise() ? taskNameWithoutOrg :
-                     Tool.buildString(taskNameWithoutOrg, "^",
-                                      OrganizationManager.getInstance().getCurrentOrgID());
+                  taskId = SUtil.getTaskNameForLogging(taskId);
                   MDC.put("SCHEDULE_TASK", taskId);
                   act.run(principal);
                   MDC.remove("SCHEDULE_TASK");

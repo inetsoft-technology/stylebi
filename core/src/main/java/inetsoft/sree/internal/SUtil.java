@@ -2983,6 +2983,34 @@ public class SUtil {
    }
 
    /**
+    * Gets the task name for logging.
+    */
+   public static String getTaskNameForLogging(String taskId) {
+      if(Tool.isEmptyString(taskId)) {
+         return taskId;
+      }
+      else if(!taskId.contains(":")) {
+         return Tool.buildString(taskId, "^", OrganizationManager.getInstance().getCurrentOrgID());
+      }
+
+      int index = taskId.indexOf(':');
+      String userPart = taskId.substring(0, index);
+      String taskName = taskId.substring(index + 1);
+      String userName = userPart;
+      String orgId = Organization.getDefaultOrganizationID();
+
+      if(userPart.contains(IdentityID.KEY_DELIMITER)) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(userPart);
+         userName = identityID.getName();
+         orgId = identityID.getOrgID();
+      }
+
+      String finalTaskName = Tool.buildString(userName, ":", taskName);
+      return LicenseManager.getInstance().isEnterprise() ?
+         Tool.buildString(finalTaskName, "^", orgId) : finalTaskName;
+   }
+
+   /**
     * Gets the task name that does not contain organization info.
     */
    public static String getTaskOrgName(String taskFullName, Principal principal) {

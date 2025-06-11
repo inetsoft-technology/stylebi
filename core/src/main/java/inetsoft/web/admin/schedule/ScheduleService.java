@@ -1748,8 +1748,7 @@ public class ScheduleService {
       }
       else {
          String taskNameWithoutOrg = SUtil.getTaskNameWithoutOrg(taskName);
-         String taskNameForLog = !LicenseManager.getInstance().isEnterprise() ?
-            taskNameWithoutOrg : Tool.buildString(taskNameWithoutOrg, "^", currentOrgID);
+         String taskNameForLog = SUtil.getTaskNameForLogging(taskName);
          MDC.put("SCHEDULE_TASK", taskNameForLog);
 
          if(task != null && !task.isEnabled()) {
