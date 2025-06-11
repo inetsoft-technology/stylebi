@@ -17,7 +17,6 @@
  */
 package inetsoft.report.composition.execution;
 
-import com.sun.jdi.Mirror;
 import inetsoft.mv.*;
 import inetsoft.mv.formula.CompositeVarianceFormula;
 import inetsoft.mv.trans.NamedGroupTransformer;
