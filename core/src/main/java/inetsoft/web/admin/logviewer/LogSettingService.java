@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.logviewer;
 
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -199,6 +200,10 @@ public class LogSettingService {
    }
 
    private String fixLogName(String name, String orgName, LogContext context, SecurityProvider provider) {
+      if(!LicenseManager.getInstance().isEnterprise()) {
+         return name;
+      }
+
       String orgId = null;
 
       if(!Tool.isEmptyString(orgName)) {
