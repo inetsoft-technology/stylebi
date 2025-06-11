@@ -450,11 +450,6 @@ public class GroupedThread extends Thread {
          if(context != null) {
             key = context.name();
             value = context.getRecordName(record);
-
-            if(context == LogContext.QUERY) {
-               String[] parts = value.split("\\.");
-               value = parts.length == 2 ? parts[1] : value;
-            }
          }
       }
       else if(record instanceof QueryRecord) {
