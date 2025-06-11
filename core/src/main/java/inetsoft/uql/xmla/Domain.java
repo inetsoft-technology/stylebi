@@ -116,8 +116,10 @@ public class Domain implements XDomain, XMLFragment {
          return;
       }
 
-      if(space.isDirectory("cubeCache")) {
-         String[] files = space.list("cubeCache");
+      String cacheDir = XMLAUtil.getCacheDir();
+
+      if(space.isDirectory(cacheDir)) {
+         String[] files = space.list(cacheDir);
 
          if(files != null) {
             String prefix = getDataSource()
@@ -127,7 +129,7 @@ public class Domain implements XDomain, XMLFragment {
 
             for(String file : files) {
                if(file.startsWith(prefix)) {
-                  space.delete("cubeCache", file);
+                  space.delete(cacheDir, file);
                }
             }
          }
