@@ -2260,6 +2260,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return;
       }
 
+      if(!(vs.getAssembly(entry) instanceof DataVSAssembly)) {
+         return;
+      }
+
       DataVSAssembly assembly = (DataVSAssembly) vs.getAssembly(entry);
       String dtname = assembly.getName();
       AssemblyEntry tentry = new AssemblyEntry(dtname, Viewsheet.TABLE_VIEW_ASSET);
@@ -5674,7 +5678,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          if(result instanceof TableLens) {
             result = new TextSizeLimitTableLens((TableLens) result, Util.getOrganizationMaxCellSize());
          }
-         
+
          execTS = System.currentTimeMillis();
       }
       finally {
