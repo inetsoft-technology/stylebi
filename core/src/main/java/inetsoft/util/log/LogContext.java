@@ -116,7 +116,8 @@ public enum LogContext {
    }
 
    private String fixOrgScopeResourceName(String name) {
-      if(Tool.equals(ORGANIZATION.getPrefix(), getPrefix()) ||
+      if(!LicenseManager.getInstance().isEnterprise() ||
+         Tool.equals(ORGANIZATION.getPrefix(), getPrefix()) ||
          Tool.equals(CATEGORY.getPrefix(), getPrefix()))
       {
          return name;
@@ -148,10 +149,15 @@ public enum LogContext {
          MDC.remove(LogContext.USER.name());
          MDC.remove(LogContext.GROUP.name());
          MDC.remove(LogContext.ROLE.name());
-         MDC.remove(LogContext.ORGANIZATION.name());
+
+         if(LicenseManager.getInstance().isEnterprise()) {
+            MDC.remove(LogContext.ORGANIZATION.name());
+         }
       }
       else {
-         MDC.put(LogContext.ORGANIZATION.name(), ((XPrincipal) user).getOrgId());
+         if(LicenseManager.getInstance().isEnterprise()) {
+            MDC.put(LogContext.ORGANIZATION.name(), ((XPrincipal) user).getOrgId());
+         }
 
          boolean enterprise = LicenseManager.getInstance().isEnterprise();
          IdentityID userIdentity = IdentityID.getIdentityIDFromKey(user.getName());
