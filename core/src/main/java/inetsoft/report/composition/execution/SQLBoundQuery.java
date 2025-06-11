@@ -197,7 +197,7 @@ public class SQLBoundQuery extends BoundQuery {
             worksheetName = worksheetName.substring(0, worksheetName.indexOf('^'));
          }
 
-         String name = Tool.buildString(worksheetName, ".", table.getInfo().getAbsoluteName());
+         String name = Tool.buildString(worksheetName, ".", table.getProperty("queryOriginalName"));
          return Collections.singleton(LogContext.QUERY.getRecord(name));
       }
       else if(xquery != null) {
