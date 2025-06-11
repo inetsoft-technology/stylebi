@@ -289,20 +289,20 @@ public class CalcFinancialTest {
    @Test
    void testCoupdaybs() {
       // Test valid input with annual frequency, bug #71383
-//      assertEquals(1, CalcFinancial.coupdaybs(
-//         toDate("2023-01-01T00:00"),
-//         toDate("2023-12-31T00:00"),
-//         1,
-//         0
-//      ));
+      assertEquals(1, CalcFinancial.coupdaybs(
+         toDate("2023-01-01T00:00"),
+         toDate("2023-12-31T00:00"),
+         1,
+         0
+      ));
 
       // Test valid input with semi-annual frequency
-//      assertEquals(1, CalcFinancial.coupdaybs(
-//         toDate("2023-01-01T00:00"),
-//         toDate("2023-06-30T00:00"),
-//         2,
-//         0
-//      ));
+      assertEquals(1, CalcFinancial.coupdaybs(
+         toDate("2023-01-01T00:00"),
+         toDate("2023-06-30T00:00"),
+         2,
+         0
+      ));
 
       // Test invalid frequency
       Exception exception1 = assertThrows(RuntimeException.class, () ->
@@ -604,7 +604,7 @@ public class CalcFinancialTest {
       Exception exception2 = assertThrows(RuntimeException.class, () ->
          CalcFinancial.ddb(1000.0, 100.0, 5.0, 0.0, 2.0)
       );
-      assertEquals("Period should be greater than 0", exception2.getMessage());
+      assertEquals("Period must be greater than or equal to 1", exception2.getMessage());
 
       // Test case: Invalid period (greater than life)
       Exception exception3 = assertThrows(RuntimeException.class, () ->
@@ -1278,7 +1278,7 @@ public class CalcFinancialTest {
       assertEquals("Life should be greater than 0", exception2.getMessage());
 
       // Test case 4: Period less than 1, bug #71399
-//      assertEquals(171.82, CalcFinancial.syd(1000.0, 100.0, 10.0, 0.5), 0.01);
+      assertEquals(171.82, CalcFinancial.syd(1000.0, 100.0, 10.0, 0.5), 0.01);
    }
 
    @Test
