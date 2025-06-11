@@ -19,6 +19,7 @@ package inetsoft.uql.xmla;
 
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
@@ -527,7 +528,7 @@ public class XMLAUtil {
       DataSpace space = DataSpace.getDataSpace();
       String file = cacheKey + ".cube.cache";
       String folder = getCachedFolder(cacheKey);
-      return space.exists(cachedir + folder, file);
+      return space.exists(getCacheDir() + folder, file);
    }
 
    /**
@@ -544,7 +545,7 @@ public class XMLAUtil {
       Object cached = null;
       DataSpace space = DataSpace.getDataSpace();
       String file = cacheKey + ".cube.cache";
-      String folder = cachedir + getCachedFolder(cacheKey);
+      String folder = getCacheDir() + getCachedFolder(cacheKey);
 
       try(ObjectInputStream stream = createObjectInput(space.getInputStream(folder, file))) {
          if(stream == null) {
@@ -582,7 +583,7 @@ public class XMLAUtil {
       }
 
       DataSpace space = DataSpace.getDataSpace();
-      String folder = cachedir + getCachedFolder(cacheKey);
+      String folder = getCacheDir() + getCachedFolder(cacheKey);
       String file = cacheKey + ".cube.cache";
 
       try(DataSpace.Transaction tx = space.beginTransaction();
@@ -947,6 +948,10 @@ public class XMLAUtil {
       }
 
       return false;
+   }
+
+   public static String getCacheDir() {
+      return Tool.buildString(OrganizationManager.getInstance().getCurrentOrgID(), "/", cachedir);
    }
 
    /**
