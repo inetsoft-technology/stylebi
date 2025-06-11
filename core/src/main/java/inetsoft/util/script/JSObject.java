@@ -249,7 +249,7 @@ public class JSObject extends NativeJavaObject {
                Number x = (Number) get(obj, "x");
                Number y = (Number) get(obj, "y");
                Number width = (Number) get(obj, "width");
-               Number height = (Number) get(obj, "x");
+               Number height = (Number) get(obj, "height");
 
                if(stype != null && stype.equals("ellipse")) {
                   return new Ellipse2D.Double(x.intValue(), y.intValue(),
