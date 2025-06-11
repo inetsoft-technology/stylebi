@@ -133,7 +133,6 @@ public class VSCrosstabDefaultRecommendationFactory implements VSCrosstabRecomme
       return Arrays.stream(refs)
          .filter(ref -> ref instanceof VSDimensionRef)
          .map(ref -> (VSDimensionRef) ref)
-         .filter(dimRef -> dimRef.getGroupType() != null)
          .peek(dimRef -> dimRef.setGroupType(String.valueOf(NamedRangeRef.DATA_GROUP)))
          .toArray(DataRef[]::new);
    }
