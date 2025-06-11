@@ -116,8 +116,9 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
     */
    @Override
    public void runNow(String taskName) throws RemoteException {
-      String taskNameForLog = Tool.buildString(
-         SUtil.getTaskNameWithoutOrg(taskName), "^", OrganizationManager.getInstance().getCurrentOrgID());
+      String taskNameWithoutOrg = SUtil.getTaskNameWithoutOrg(taskName);
+      String taskNameForLog = !LicenseManager.getInstance().isEnterprise() ? taskNameWithoutOrg :
+         Tool.buildString(taskNameWithoutOrg, "^", OrganizationManager.getInstance().getCurrentOrgID());
       MDC.put("SCHEDULE_TASK", taskNameForLog);
       LOG.debug(
          "Received start task [" + taskNameForLog + "] request on " +
