@@ -706,6 +706,11 @@ public class XNodeTableLens extends AbstractTableLens
       return type != null ? type : table == null ? null : table.getReportType();
    }
 
+   @Override
+   public boolean isDynamicColumns() {
+      return delegate.getNode() != null && "true".equals(delegate.getNode().getAttribute("dynamicColumns"));
+   }
+
    public String toString() {
       return super.toString() + "[" + table + "]";
    }

@@ -2848,6 +2848,8 @@ public abstract class AbstractVSExporter implements VSExporter {
     * @param exprow inset row or column.
     */
    private void insert(VSAssembly obj, Dimension size, int more, boolean exprow) {
+      int omore = more;
+
       if(more > 0) {
          more = getMore(exprow ? rmap : cmap, obj, size, more, exprow);
       }
@@ -2858,7 +2860,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       addMore(exprow ? rmap : cmap, obj, size, more, exprow);
       Dimension oldSize = getViewsheetSize(obj.getViewsheet(), true);
-      moveAssemblies(obj, size, more, exprow);
+      moveAssemblies(obj, size, omore, more, exprow);
       addGrid(obj, size, more, exprow);
       expandParent(obj.getViewsheet(), oldSize, exprow);
    }
@@ -2870,7 +2872,7 @@ public abstract class AbstractVSExporter implements VSExporter {
     * @param more move row/column count.
     * @param exprow to move row or column direction.
     */
-   protected void moveAssemblies(VSAssembly obj, Dimension size, int more, boolean exprow) {
+   protected void moveAssemblies(VSAssembly obj, Dimension size, int omore, int more, boolean exprow) {
       Viewsheet vs = obj == null ? null : obj.getViewsheet();
 
       if(vs == null) {
@@ -2892,6 +2894,12 @@ public abstract class AbstractVSExporter implements VSExporter {
             objs[i] instanceof AnnotationRectangleVSAssembly)
          {
             continue;
+         }
+
+         if(objs[i] instanceof SelectionListVSAssembly ||
+            objs[i] instanceof SelectionTreeVSAssembly)
+         {
+            more = omore;
          }
 
          Point p2 = objs[i].getPixelOffset();
@@ -2999,7 +3007,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       //addMore(expanded, vs, osize, more, exprow);
-      moveAssemblies(vs, osize, more, exprow);
+      moveAssemblies(vs, osize, more, more, exprow);
       Dimension posize = getViewsheetSize(pvs, true);
       addGrid(vs, osize, more, exprow);
       expandParent(pvs, posize, exprow);

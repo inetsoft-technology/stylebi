@@ -19,12 +19,12 @@ package inetsoft.web.composer;
 
 import inetsoft.report.LibManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.util.Debouncer;
-import inetsoft.util.DefaultDebouncer;
+import inetsoft.util.*;
 import inetsoft.web.composer.model.AssetChangeEventModel;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -46,6 +46,7 @@ import java.security.Principal;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 @Controller
 public class AssetTreeRefreshController {
@@ -130,9 +131,15 @@ public class AssetTreeRefreshController {
    }
 
    private void sendMessages(AssetChangeEventModel eventModel) {
+      sendMessages(eventModel, p -> true);
+   }
+
+   private void sendMessages(AssetChangeEventModel eventModel, Predicate<Principal> cond) {
       for(Principal user : subscriptions.values()) {
-         messagingTemplate.convertAndSendToUser(
-            SUtil.getUserDestination(user), "/asset-changed", eventModel);
+         if(cond.test(user)) {
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(user), "/asset-changed", eventModel);
+         }
       }
    }
 
@@ -155,9 +162,16 @@ public class AssetTreeRefreshController {
                .build();
 
             debouncer.debounce("change" + (event.getAssetEntry().getParent() != null ?
-               event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS, () -> sendMessages(eventModel)
+               event.getAssetEntry().getParent().toIdentifier() : ""), 2, TimeUnit.SECONDS,
+                               () -> sendMessages(eventModel, u -> isSameOrg(event, u))
             );
          }
+      }
+
+      private boolean isSameOrg(AssetChangeEvent event, Principal user) {
+         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(user);
+         return event.getAssetEntry() == null ||
+            Tool.equals(currentOrgID, event.getAssetEntry().getOrgID());
       }
 
       private boolean canSendEvent(AssetChangeEvent event) {

@@ -20,7 +20,10 @@ package inetsoft.web.composer;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.execution.*;
+import inetsoft.report.filter.ColumnMapFilter;
+import inetsoft.report.filter.SortFilter;
 import inetsoft.report.internal.Util;
+import inetsoft.report.lens.DistinctTableLens;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -709,7 +712,7 @@ public class BrowseDataController {
             return null;
          }
 
-         BrowseDataModel data = Util.getBrowsedData(lens, column.getName());
+         BrowseDataModel data = getBrowsedData(lens, column.getName());
          final Object[] values = data != null ? data.values() : null;
 
          // try browsing data after grouping and aggregation is performed
@@ -720,7 +723,7 @@ public class BrowseDataController {
                return null;
             }
 
-            data = Util.getBrowsedData(lens, column.getName());
+            data = getBrowsedData(lens, column.getName());
          }
 
          return data;
@@ -754,6 +757,48 @@ public class BrowseDataController {
       }
 
       return false;
+   }
+
+   /**
+    * Get the browsed data of a column in a table.
+    * @param table the specified table.
+    * @param column the name of the specified column.
+    * @return the browsed data if any, <tt>null</tt> otherwise.
+    */
+   private static BrowseDataModel getBrowsedData(XTable table, String column) {
+      if(table == null) {
+         return null;
+      }
+
+      int col = Util.findColumn(table, column);
+
+      if(col < 0) {
+         return null;
+      }
+
+      TableLens lens = (TableLens) table;
+      lens = new ColumnMapFilter(lens, new int[] { col});
+      lens = new DistinctTableLens(lens);
+      lens = new SortFilter(lens, new int[] { 0});
+
+      lens.moreRows(MAX_ROW_COUNT);
+      int count = Math.min(lens.getRowCount() - lens.getHeaderRowCount() -
+                              lens.getTrailerRowCount(), MAX_ROW_COUNT);
+
+      if(count <= 0) {
+         return null;
+      }
+
+      Object[] data = new Object[count];
+
+      for(int i = 0; i < count; i++) {
+         data[i] = lens.getObject(lens.getHeaderRowCount() + i, 0);
+      }
+
+      return BrowseDataModel.builder()
+         .values(data)
+         .dataTruncated(lens.moreRows(MAX_ROW_COUNT))
+         .build();
    }
 
    public String getName() {

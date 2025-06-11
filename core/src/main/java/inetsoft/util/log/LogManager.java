@@ -20,8 +20,7 @@ package inetsoft.util.log;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
-import inetsoft.sree.security.SecurityEngine;
-import inetsoft.sree.security.SecurityProvider;
+import inetsoft.sree.security.*;
 import inetsoft.util.*;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.*;
@@ -214,6 +213,21 @@ public final class LogManager implements AutoCloseable, MessageListener {
       }
 
       return result;
+   }
+
+   /**
+    * Removes all log level entries that do not belong to the default organization
+    * from each context's level mapping.
+    */
+   public void clearNonDefaultOrgLogLevels() {
+      for(LogContext logContext : contextLevels.keySet()) {
+         if(logContext == LogContext.CATEGORY) {
+            continue;
+         }
+
+         Map<String, LogLevel> levelMap = contextLevels.get(logContext);
+         levelMap.keySet().removeIf(key -> !key.endsWith(Organization.getDefaultOrganizationID()));
+      }
    }
 
    private LogLevelSetting buildLogLevelSetting(LogContext context, Map.Entry<String, LogLevel> entry,

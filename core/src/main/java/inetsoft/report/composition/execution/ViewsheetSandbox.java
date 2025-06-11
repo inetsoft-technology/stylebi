@@ -1832,6 +1832,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          String embeddedName = name.substring(index + 1);
          box.processChange(embeddedName, hint, clist, type);
+         name = name.substring(0, index);
       }
 
       if((hint & VSAssembly.OUTPUT_DATA_CHANGED) == VSAssembly.OUTPUT_DATA_CHANGED) {
@@ -2259,6 +2260,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          return;
       }
 
+      if(!(vs.getAssembly(entry) instanceof DataVSAssembly)) {
+         return;
+      }
+
       DataVSAssembly assembly = (DataVSAssembly) vs.getAssembly(entry);
       String dtname = assembly.getName();
       AssemblyEntry tentry = new AssemblyEntry(dtname, Viewsheet.TABLE_VIEW_ASSET);
@@ -2604,7 +2609,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // script will be executed before onLoad
       //executeScript((OutputVSAssembly) assembly);
 
-      Object data = getData(entry.getName());
+      Object data = getData(entry.getAbsoluteName());
       OutputVSAssemblyInfo outputInfo = (OutputVSAssemblyInfo)
          assembly.getInfo();
       BindingInfo binding = outputInfo.getBindingInfo();
@@ -5693,7 +5698,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          if(result instanceof TableLens) {
             result = new TextSizeLimitTableLens((TableLens) result, Util.getOrganizationMaxCellSize());
          }
-         
+
          execTS = System.currentTimeMillis();
       }
       finally {

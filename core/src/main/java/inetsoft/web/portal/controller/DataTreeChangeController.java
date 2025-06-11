@@ -51,13 +51,13 @@ public class DataTreeChangeController {
    @PostConstruct
    public void addListeners() {
       assetRepository.addAssetChangeListener(this.assetListener);
-      DataSourceRegistry.getRegistry().addModifiedListener(this.dataSourceListener);
+      DataSourceRegistry.getRegistry().addRefreshedListener(this.dataSourceListener);
    }
 
    @PreDestroy
    public void removeListeners() {
       assetRepository.removeAssetChangeListener(this.assetListener);
-      DataSourceRegistry.getRegistry().removeModifiedListener(this.dataSourceListener);
+      DataSourceRegistry.getRegistry().removeRefreshedListener(this.dataSourceListener);
    }
 
    @SubscribeMapping(CHANGE_TOPIC)

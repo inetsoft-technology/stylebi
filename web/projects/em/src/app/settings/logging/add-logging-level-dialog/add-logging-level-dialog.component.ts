@@ -66,11 +66,19 @@ export class AddLoggingLevelDialogComponent implements OnInit {
             level: "info"
          };
 
+         if(this.enterprise && this.isMultiTenant) {
+            this.model.orgName = this.organizations[0];
+         }
+
          this.title = "_#(js:Add Logging Level)";
       }
       else {
          this.model = Tool.clone(this.loggingLevels[this.index]);
          this.title = "_#(js:Edit Logging Level)";
+      }
+
+      if(this.model.context == "ORGANIZATION" && !this.model.orgName) {
+         this.model.orgName = this.model.name;
       }
 
       this.form.get("context").setValue(this.model.context);
@@ -82,18 +90,28 @@ export class AddLoggingLevelDialogComponent implements OnInit {
    onFormChanged() {
       this.model.context = this.form.get("context").value;
 
-      if(this.model.context == "CATEGORY" || this.model.context == "ORGANIZATION") {
+      if(this.model.context == "CATEGORY") {
          this.form.get("orgName").setValue(null);
       }
 
-      this.model.name = this.form.get("name").value.trim();
-      this.model.orgName = this.form.get("orgName").value;
+      if(this.model.context == "ORGANIZATION") {
+         this.model.name = this.form.get("orgName").value;
+         this.model.orgName = this.model.name;
+      }
+      else {
+         this.model.name = this.form.get("name").value.trim();
+         this.model.orgName = this.form.get("orgName").value;
+      }
+
       this.model.level = this.form.get("level").value;
    }
 
    isOrganizationFieldVisible() {
-      return this.enterprise && this.isMultiTenant && this.model.context != "CATEGORY" &&
-         this.model.context !== "ORGANIZATION";
+      return this.enterprise && this.isMultiTenant && this.model.context != "CATEGORY";
+   }
+
+   isNameFieldVisible() {
+      return this.model.context != "ORGANIZATION";
    }
 
    ok(): void {

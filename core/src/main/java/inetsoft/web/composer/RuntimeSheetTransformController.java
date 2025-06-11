@@ -285,7 +285,7 @@ public class RuntimeSheetTransformController implements MessageListener {
             continue;
          }
 
-         if(Tool.equals(massembly.getEntry().toIdentifier(), oldName)) {
+         if(massembly.getEntry() != null && Tool.equals(massembly.getEntry().toIdentifier(), oldName)) {
             return true;
          }
       }

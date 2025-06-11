@@ -2865,6 +2865,7 @@ public class SUtil {
 
       if(!Tool.equals(oldValue, multiTenant + "")) {
          LicenseManager.getInstance().updateNamedUserKeys();
+         LogManager.getInstance().clearNonDefaultOrgLogLevels();
       }
    }
 

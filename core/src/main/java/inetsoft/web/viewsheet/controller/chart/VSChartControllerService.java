@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -226,7 +227,7 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
          VSAssembly vsAssembly = rvs.getViewsheet().getAssembly(priorAssembly);
 
          if(vsAssembly != null) {
-            reloadVSAssembly(vsAssembly, rvs, uri, dispatcher, true);
+            reloadVSAssembly(vsAssembly, rvs, uri, dispatcher, true, null);
 
             if(vsAssembly instanceof ChartVSAssembly) {
                VSChartEvent event = new VSChartEvent();
@@ -244,7 +245,8 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
 
          Arrays.stream(rvs.getViewsheet().getAssemblies())
             .filter(a -> a != null && !Tool.equals(a.getAbsoluteName(), priorAssembly))
-            .forEach(a -> reloadVSAssembly((VSAssembly) a, rvs, uri, dispatcher, refreshOthersData));
+            .forEach(a -> reloadVSAssembly((VSAssembly) a,
+                                           rvs, uri, dispatcher, refreshOthersData, priorAssembly));
       }
       finally {
          box.unlockRead();
@@ -252,8 +254,21 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
    }
 
    private void reloadVSAssembly(VSAssembly assembly, RuntimeViewsheet rvs, String uri,
-                                 CommandDispatcher dispatcher, boolean refreshData)
+                                 CommandDispatcher dispatcher, boolean refreshData,
+                                 String priorAssembly)
    {
+      if(assembly instanceof Viewsheet) {
+         Assembly[] assemblies = ((Viewsheet) assembly).getAssemblies();
+
+         for(Assembly ass : assemblies) {
+            if(!(ass instanceof VSAssembly) || Tool.equals(ass.getAbsoluteName(), priorAssembly)) {
+               continue;
+            }
+
+            reloadVSAssembly((VSAssembly) ass, rvs, uri, dispatcher, refreshData, priorAssembly);
+         }
+      }
+
       try {
          coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher);
 

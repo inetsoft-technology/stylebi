@@ -279,4 +279,8 @@ public interface XTable extends Serializable, Cloneable {
       // should override if needed.
       return null;
    }
+
+   default boolean isDynamicColumns() {
+      return false;
+   }
 }

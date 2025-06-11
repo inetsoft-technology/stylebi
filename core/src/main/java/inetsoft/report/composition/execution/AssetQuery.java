@@ -1592,7 +1592,8 @@ public abstract class AssetQuery extends PreAssetQuery {
             getDefaultMetaInfo(rangeRef, column)));
       }
       else {
-         Class<?> clazz = Tool.getDataClass(column.getDataType());
+         String dtype = useDoubleDataType(getTable(), column) ? XSchema.DOUBLE : column.getDataType();
+         Class<?> clazz = Tool.getDataClass(dtype);
 
          if(column.getDataRef() != null && column.getDataRef().isDataTypeSet()) {
             // column.getDataRef() is the expression ref so it's type should be used. (50644)
@@ -1604,6 +1605,86 @@ public abstract class AssetQuery extends PreAssetQuery {
       }
 
       ids.add(getAttributeString(column));
+   }
+
+   public boolean useDoubleDataType(TableAssembly table, ColumnRef column) {
+      if(column == null || !XSchema.isNumericType(column.getDataType())) {
+         return false;
+      }
+
+      if(!(table instanceof ComposedTableAssembly) || !table.getName().startsWith(Assembly.TABLE_VS)) {
+         return false;
+      }
+
+      // don't need to check current aggregates since they are come from vs binding.
+      return appliedPercentageOption(table, column, true);
+   }
+
+   private boolean appliedPercentageOption(TableAssembly table, ColumnRef column,
+                                           boolean ignoreAggregateCheck)
+   {
+      if(table == null) {
+         return false;
+      }
+
+      AggregateInfo aggregateInfo = ignoreAggregateCheck ? null : table.getAggregateInfo();
+      AggregateRef[] aggrs = aggregateInfo == null ? null : aggregateInfo.getAggregates();
+      DataRef ref = column.getDataRef();
+      String originName = column.getName();
+
+      if(ref instanceof AliasDataRef) {
+         DataRef oref = ((AliasDataRef) ref).getDataRef();
+         originName = oref != null ? oref.getAttribute() : originName;
+      }
+
+      if(aggrs != null) {
+         for(AggregateRef aggr : aggrs) {
+            DataRef dataRef = aggr.getDataRef();
+
+            if(dataRef instanceof ColumnRef) {
+               ColumnRef columnRef = (ColumnRef) dataRef;
+
+               if(!Tool.equals(column.getName(), columnRef.getName()) &&
+                  !Tool.equals(originName, columnRef.getName()))
+               {
+                  continue;
+               }
+
+               int percentageOption = aggr.getPercentageOption();
+
+               return percentageOption == XConstants.PERCENTAGE_OF_GROUP ||
+                  percentageOption == XConstants.PERCENTAGE_OF_GRANDTOTAL;
+            }
+         }
+      }
+
+      if(!(table instanceof ComposedTableAssembly)) {
+         return false;
+      }
+
+      String[] tableNames = ((ComposedTableAssembly) table).getTableNames();
+
+      if(tableNames == null || tableNames.length == 0) {
+         return false;
+      }
+
+      Worksheet ws = table.getWorksheet();
+
+      for(String tableName : tableNames) {
+         Assembly assembly = ws.getAssembly(tableName);
+
+         if(!(assembly instanceof TableAssembly)) {
+            continue;
+         }
+
+         TableAssembly tableAssembly = (TableAssembly) assembly;
+
+         if(appliedPercentageOption(tableAssembly, column, false)) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    // add date comparison special expression meta info.
@@ -2838,11 +2919,17 @@ public abstract class AssetQuery extends PreAssetQuery {
                   }
 
                   if(!(baseRef instanceof CalculateRef)) {
-                     String msg = Catalog.getCatalog().getString(
-                        "viewer.worksheet.columnMissing", column.getAttribute());
+                     if(box.getViewsheetSandbox().isRuntime()) {
+                        LOG.warn(Catalog.getCatalog().getString(
+                           "viewer.worksheet.columnMissing", column.getAttribute()));
+                     }
+                     else {
+                        String msg = Catalog.getCatalog().getString(
+                           "viewer.worksheet.columnMissing", column.getAttribute());
 
-                     // VSQueryController.runQuery will update the columns in tabular assembly.
-                     CoreTool.addUserMessage(msg);
+                        // VSQueryController.runQuery will update the columns in tabular assembly.
+                        CoreTool.addUserMessage(msg);
+                     }
                   }
                }
 

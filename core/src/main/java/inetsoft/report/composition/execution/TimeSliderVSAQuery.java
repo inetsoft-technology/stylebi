@@ -36,8 +36,7 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.uql.xmla.CubeDate;
-import inetsoft.uql.xmla.MemberObject;
+import inetsoft.uql.xmla.*;
 import inetsoft.util.MessageFormat;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
@@ -648,7 +647,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       TableLens lens = super.getTableLens(table);
 
       if(lens != null && !isWorksheetCube() && AssetUtil.isCubeTable(table)) {
-         lens = new VSCubeTableLens(lens, table.getColumnSelection(true));
+         lens = new VSCubeTableLens(lens, table.getColumnSelection(true), XMLAUtil.isMetadata(box));
       }
 
       Object min = tinfo.getMin();

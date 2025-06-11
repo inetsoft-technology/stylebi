@@ -19,6 +19,7 @@ package inetsoft.web.vswizard.recommender.object;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.NamedRangeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
@@ -117,14 +118,27 @@ public class VSCrosstabDefaultRecommendationFactory implements VSCrosstabRecomme
       addHierarchyCol(rows, cols, groups, hierarchy, temporaryInfo);
       addNoHierarchyCol(rows, cols, groups, hierarchy, temporaryInfo, autoOrder, dimensions);
 
-      while(rows.remove(null)) {
+      rows.removeIf(Objects::isNull);
+      cols.removeIf(Objects::isNull);
+
+      crosstabInfo.setDesignRowHeaders(fixGroupType(rows.toArray(new DataRef[rows.size()])));
+      crosstabInfo.setDesignColHeaders(fixGroupType(cols.toArray(new DataRef[cols.size()])));
+   }
+
+   private DataRef[] fixGroupType(DataRef[] refs) {
+      if (refs == null || refs.length == 0) {
+         return refs;
       }
 
-      while(cols.remove(null)) {
-      }
-
-      crosstabInfo.setDesignRowHeaders(rows.toArray(new DataRef[rows.size()]));
-      crosstabInfo.setDesignColHeaders(cols.toArray(new DataRef[cols.size()]));
+      return Arrays.stream(refs)
+         .filter(ref -> ref instanceof VSDimensionRef)
+         .map(ref -> (VSDimensionRef) ref)
+         .peek(dimRef -> {
+            if(dimRef.getGroupType() != null) {
+               dimRef.setGroupType(String.valueOf(NamedRangeRef.DATA_GROUP));
+            }
+         })
+         .toArray(DataRef[]::new);
    }
 
    private void fixAggregates(VSCrosstabInfo crosstabInfo, VSChartInfo temp) {
