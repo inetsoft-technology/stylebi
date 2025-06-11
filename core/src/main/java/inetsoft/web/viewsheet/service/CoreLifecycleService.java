@@ -1866,7 +1866,16 @@ public class CoreLifecycleService {
    public void removeVSAssemblies(RuntimeViewsheet rvs, String uri, CommandDispatcher dispatcher,
                                   boolean replace, boolean layout, boolean fireEvent,
                                   VSAssembly ...assemblies)
-      throws Exception {
+      throws Exception
+   {
+      removeVSAssemblies(rvs, uri, dispatcher, replace, layout, fireEvent, true, assemblies);
+   }
+
+   public void removeVSAssemblies(RuntimeViewsheet rvs, String uri, CommandDispatcher dispatcher,
+                                  boolean replace, boolean layout, boolean fireEvent,
+                                  boolean refreshData, VSAssembly ...assemblies)
+      throws Exception
+   {
       final String id = rvs.getID();
       Viewsheet vs = rvs.getViewsheet();
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
@@ -2226,7 +2235,7 @@ public class CoreLifecycleService {
       }
 
       // reprocess associated assemblies
-      if(!relatedSelections.isEmpty()) {
+      if(refreshData && !relatedSelections.isEmpty()) {
          try {
             int hint = VSAssembly.OUTPUT_DATA_CHANGED;
 
