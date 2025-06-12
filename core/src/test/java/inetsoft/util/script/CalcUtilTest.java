@@ -92,18 +92,24 @@ public class CalcUtilTest {
                    "US_NASD_30_360 basis failed");
 
       // Test case 2: ACTUAL_ACTUAL basis
+      Date startDate1 = toDate("2023-01-01T00:00:00");
+      Date endDate1 = toDate("2023-12-31T00:00:00");
       basis = 1; // ACTUAL_ACTUAL
-      assertEquals(364, CalcUtil.getDayCountBasisDays(startDate, endDate, basis),
+      assertEquals(364, CalcUtil.getDayCountBasisDays(startDate1, endDate1, basis),
                    "ACTUAL_ACTUAL basis failed");
 
       // Test case 3: ACTUAL_360 basis
+      Date startDate2 = toDate("2023-01-01T00:00:00");
+      Date endDate2 = toDate("2023-12-31T00:00:00");
       basis = 2; // ACTUAL_360
-      assertEquals(364, CalcUtil.getDayCountBasisDays(startDate, endDate, basis),
+      assertEquals(364, CalcUtil.getDayCountBasisDays(startDate2, endDate2, basis),
                    "ACTUAL_360 basis failed");
 
       // Test case 4: ACTUAL_365 basis
+      Date startDate3 = toDate("2023-01-01T00:00:00");
+      Date endDate3 = toDate("2023-12-31T00:00:00");
       basis = 3; // ACTUAL_365
-      assertEquals(364, CalcUtil.getDayCountBasisDays(startDate, endDate, basis),
+      assertEquals(364, CalcUtil.getDayCountBasisDays(startDate3, endDate3, basis),
                    "ACTUAL_365 basis failed");
 
       // Test case 5: EUROPEAN_30_360 basis
@@ -254,7 +260,7 @@ public class CalcUtilTest {
    /**
     * @param localDateTime an ISO-8601 datetime string, e.g. 2007-12-03T10:15:30
     *
-    * @return the corresponding date in the default time zone.
+    * @return the corresponding date in the utc time zone.
     */
    private java.util.Date toDate(String localDateTime) {
       return java.util.Date.from(LocalDateTime.parse(localDateTime)
