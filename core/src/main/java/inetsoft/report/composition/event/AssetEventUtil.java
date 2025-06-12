@@ -1997,21 +1997,8 @@ public class AssetEventUtil {
       AssetQuery query = AssetQuery.createAssetQuery(
          tassembly, AssetQuerySandbox.RUNTIME_MODE, box, false, -1L, true, false);
       VariableTable vtable = (VariableTable) box.getVariableTable().clone();
-      TableLens table = null;
-
-      try {
-         if(ws != null) {
-            ws.getWorksheetInfo().setTempMaxRow(BrowseDataController.MAX_ROW_COUNT);
-         }
-
-         table = query.getTableLens(vtable);
-      }
-      finally {
-         if(ws != null) {
-            ws.getWorksheetInfo().setTempMaxRow(-1);
-         }
-      }
-
+      vtable.put("browse_maxrows", BrowseDataController.MAX_ROW_COUNT);
+      TableLens table = query.getTableLens(vtable);
       int index = vattr == null ? 0 : AssetUtil.findColumn(table, vcol);
 
       // table changed? return
