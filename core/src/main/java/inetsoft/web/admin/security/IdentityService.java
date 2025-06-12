@@ -48,6 +48,7 @@ import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.util.css.CSSDictionary;
+import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoriteList;
@@ -447,6 +448,7 @@ public class IdentityService {
                FSService.clearServerNodeCache(orgID);
                XJobPool.resetOrgCache(orgID);
                RepletRegistry.clearOrgCache(orgID);
+               LogManager.getInstance().removeOrgLogLevels(orgID);
             }
 
             // deleting current organization should reset curOrg
@@ -460,6 +462,7 @@ public class IdentityService {
             if(!identityId.equals(oID)) {
                eprovider.copyOrganization(oldOrg, (Organization) identity, id, identity.getName(),
                   this, themeService, ThreadContext.getContextPrincipal(), true);
+               LogManager.getInstance().renameOrgLogLevels(oId, id);
             }
 
             // Update current orgID
