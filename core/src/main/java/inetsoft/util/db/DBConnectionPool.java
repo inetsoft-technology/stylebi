@@ -95,7 +95,10 @@ public abstract class DBConnectionPool {
          ds.setTransactionIsolation(config.getTransactionIsolationLevel().levelName());
       }
 
-      ds.setAutoCommit(false);
+      if(!(url != null && url.startsWith("jdbc:databricks:"))) {
+         ds.setAutoCommit(false);
+      }
+
       String dbStr = Tool.convertUserParameter(defaultdb);
 
       // postgres driver starts a new transaction in Connection.isValid(), causing a
