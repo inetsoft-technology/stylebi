@@ -101,10 +101,10 @@ public class CalcDateTimeTest {
       // Test Case 1: Valid dates using U.S. (NASD) method
       Date startDate = toDate("2023-01-01T00:00");
       Date endDate = toDate("2023-12-31T00:00");
-//      assertEquals(360, CalcDateTime.days360(startDate, endDate, false));//bug #71413
+      assertEquals(360, CalcDateTime.days360(startDate, endDate, false));//bug #71413
 
       // Test Case 2: Valid dates using European method
-//      assertEquals(359, CalcDateTime.days360(startDate, endDate, true));//bug #71413
+      assertEquals(359, CalcDateTime.days360(startDate, endDate, true));//bug #71413
 
       // Test Case 3: Start date is after end date
       assertEquals(-1, CalcDateTime.days360(endDate, startDate, false));
@@ -356,8 +356,8 @@ public class CalcDateTimeTest {
       assertEquals(0.6463541, result, 0.0000001);
 
       // Test Case 2: Time values exceeding range
-//      result = CalcDateTime.time(25, 70, 80);
-//      assertEquals(0.0912037, result, 0.0000001); //bug #71436
+      result = CalcDateTime.time(25, 70, 80);
+      assertEquals(0.0912037, result, 0.0000001); //bug #71436
 
       // Test Case 3: Time values at boundary
       result = CalcDateTime.time(0, 0, 0);
