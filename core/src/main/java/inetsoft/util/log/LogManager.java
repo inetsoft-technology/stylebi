@@ -220,13 +220,67 @@ public final class LogManager implements AutoCloseable, MessageListener {
     * from each context's level mapping.
     */
    public void clearNonDefaultOrgLogLevels() {
+      removeOrgLogLevels(null);
+   }
+
+   public void removeOrgLogLevels(String orgId) {
       for(LogContext logContext : contextLevels.keySet()) {
          if(logContext == LogContext.CATEGORY) {
             continue;
          }
 
-         Map<String, LogLevel> levelMap = contextLevels.get(logContext);
-         levelMap.keySet().removeIf(key -> !key.endsWith(Organization.getDefaultOrganizationID()));
+         Map<String, LogLevel> levelsMap = contextLevels.get(logContext);
+
+         levelsMap.keySet().removeIf(key -> {
+            if(!Tool.isEmptyString(orgId)) {
+               return key.endsWith(orgId);
+            }
+            else {
+               return !key.endsWith(Organization.getDefaultOrganizationID());
+            }
+         });
+      }
+   }
+
+   public void renameOrgLogLevels(String oldOrgId, String newOrgId) {
+      if(Tool.isEmptyString(oldOrgId) || Tool.isEmptyString(newOrgId) ||
+         Tool.equals(oldOrgId, newOrgId))
+      {
+         return;
+      }
+
+      for(LogContext logContext : contextLevels.keySet()) {
+         if(logContext == LogContext.CATEGORY) {
+            continue;
+         }
+
+         Map<String, LogLevel> levelsMap = contextLevels.get(logContext);
+         Map<String, LogLevel> removedLevelsMap = new HashMap<>();
+
+         levelsMap.entrySet().removeIf(entry -> {
+            String key = entry.getKey();
+
+            if(key.endsWith(oldOrgId)) {
+               removedLevelsMap.put(key, entry.getValue());
+               return true;
+            }
+
+            return false;
+         });
+
+         for(Map.Entry<String, LogLevel> entry : removedLevelsMap.entrySet()) {
+            String key = entry.getKey();
+            LogLevel level = entry.getValue();
+
+            if(logContext == LogContext.ORGANIZATION) {
+               levelsMap.put(newOrgId, level);
+            }
+            else {
+               String newKey =
+                  Tool.buildString(key.substring(0, key.lastIndexOf("^")), "^", newOrgId);
+               levelsMap.put(newKey, level);
+            }
+         }
       }
    }
 
