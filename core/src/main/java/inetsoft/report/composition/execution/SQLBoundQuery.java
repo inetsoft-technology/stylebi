@@ -18,6 +18,7 @@
 package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.ColumnRef;
@@ -188,7 +189,17 @@ public class SQLBoundQuery extends BoundQuery {
    @Override
    protected Collection<?> getLogRecord() {
       if(table != null) {
-         String name = Tool.buildString(MDC.get(LogContext.WORKSHEET.name()), ".", table.getAbsoluteName());
+         String worksheetName = MDC.get(LogContext.WORKSHEET.name());
+
+         if(LicenseManager.getInstance().isEnterprise() && worksheetName != null &&
+            worksheetName.contains("^"))
+         {
+            worksheetName = worksheetName.substring(0, worksheetName.indexOf('^'));
+         }
+
+         String queryName = table.getProperty("queryOriginalName") != null ?
+            table.getProperty("queryOriginalName") : table.getAbsoluteName();
+         String name = Tool.buildString(worksheetName, ".", queryName);
          return Collections.singleton(LogContext.QUERY.getRecord(name));
       }
       else if(xquery != null) {
