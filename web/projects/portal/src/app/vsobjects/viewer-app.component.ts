@@ -340,6 +340,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() hideToolbar: boolean = false;
    @Input() hideMiniToolbar: boolean = false;
    @Input() globalLoadingIndicator: boolean = false;
+   @Input() viewerOffsetFunc: () => { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number };
    @Output() onAnnotationChanged = new EventEmitter<boolean>();
    @Output() runtimeIdChange = new EventEmitter<string>();
    @Output() socket = new EventEmitter<ViewsheetClientService>();
@@ -2948,18 +2949,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    setDataTipOffsets(): { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number } {
-      if(this.embed) {
-         const el = document.documentElement;
-         const rect = el.getBoundingClientRect();
-
-         return {
-            x: rect.x,
-            y: rect.y,
-            width: rect.width,
-            height: rect.height,
-            scrollLeft: el.scrollLeft || document.body.scrollLeft,
-            scrollTop: el.scrollTop || document.body.scrollTop
-         };
+      if(this.viewerOffsetFunc) {
+         return this.viewerOffsetFunc();
       }
 
       let originRect = this.viewerRoot.nativeElement.getBoundingClientRect();
@@ -4003,6 +3994,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             this.dataTipService.isDataTipVisible(this.dataTipService.dataTipName)) ||
          (!!this.popComponentService.getPopComponent() &&
             this.popComponentService.isPopComponentVisible(this.popComponentService.getPopComponent()));
+   }
+
+   public clearDataTipPopComponents(): void {
+      this.dataTipService.hideDataTip(true);
+      this.popComponentService.hidePopComponent();
    }
 
    private updateScrollViewport(): void {
