@@ -3381,7 +3381,9 @@ public class JDBCHandler extends XHandler {
       }
 
       try {
-         conn.setAutoCommit(false);
+         if(!(url != null && url.startsWith("jdbc:databricks:"))) {
+            conn.setAutoCommit(false);
+         }
       }
       catch(Exception ex) {
          LOG.debug("Failed to disable auto-commit", ex);
