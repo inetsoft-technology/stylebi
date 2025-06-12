@@ -469,6 +469,7 @@ public class CoreLifecycleService {
 
          infoMap.put("accessible", accessible);
          infoMap.put("messageLevels", vsInfo.getMessageLevels());
+         infoMap.put("virtualScroll", "true".equals(SreeEnv.getProperty("viewsheet.virtual.scroll")));
 
          command.setInfo(infoMap);
          // TODO populate assemblyInfo with values from vs.getViewsheetInfo()

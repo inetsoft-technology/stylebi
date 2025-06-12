@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
+   ChangeDetectionStrategy,
+   ChangeDetectorRef,
    Component,
    EventEmitter,
    Input,
@@ -27,7 +29,9 @@ import {
 } from "@angular/core";
 import { Observable } from "rxjs";
 import { Tool } from "../../../../../../shared/util/tool";
+import { Dimension } from "../../../common/data/dimension";
 import { HyperlinkViewModel } from "../../../common/data/hyperlink-model";
+import { Rectangle } from "../../../common/data/rectangle";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { UpdateZIndexesCommand } from "../../../composer/gui/vs/command/update-zindexes-command";
 import { ActionsContextmenuComponent } from "../../../widget/fixed-dropdown/actions-contextmenu.component";
@@ -49,12 +53,10 @@ import { VSViewsheetModel } from "../../model/vs-viewsheet-model";
 import { VSUtil } from "../../util/vs-util";
 import { NavigationComponent } from "../abstract-nav-component";
 import { DataTipService } from "../data-tip/data-tip.service";
+import { DateTipHelper } from "../data-tip/date-tip-helper";
 import { PopComponentService } from "../data-tip/pop-component.service";
 import { NavigationKeys } from "../navigation-keys";
-import { Rectangle } from "../../../common/data/rectangle";
 import { SelectionMobileService } from "../selection/services/selection-mobile.service";
-import { Dimension } from "../../../common/data/dimension";
-import { DateTipHelper } from "../data-tip/date-tip-helper";
 
 declare const window: any;
 
@@ -62,6 +64,7 @@ declare const window: any;
    selector: "vs-viewsheet",
    templateUrl: "vs-viewsheet.component.html",
    styleUrls: ["vs-viewsheet.component.scss"],
+   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implements OnChanges, OnDestroy {
    @Input() deployed: boolean;
@@ -101,7 +104,8 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
                protected dataTipService: DataTipService,
                zone: NgZone,
                private popComponentService: PopComponentService,
-               private selectionMobileService: SelectionMobileService)
+               private selectionMobileService: SelectionMobileService,
+               private changeDetector: ChangeDetectorRef)
    {
       super(viewsheetClientService, zone, contextProvider, dataTipService);
       this.preview = this.contextProvider.preview;
@@ -181,6 +185,8 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             break;
          }
       }
+
+      this.changeDetector.detectChanges();
    }
 
    public processRefreshEmbeddedVSCommand(command: RefreshEmbeddedVSCommand): void {
@@ -193,10 +199,13 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             this.vsObjectActions.splice(i, 1);
          }
       }
+
+      this.changeDetector.detectChanges();
    }
 
    public processRefreshVSObjectCommand(command: RefreshVSObjectCommand): void {
       this.applyRefreshObject(command.info, command.info.absoluteName);
+      this.changeDetector.detectChanges();
    }
 
    private applyRefreshObject(vsObject: VSObjectModel, name: string): boolean {
@@ -241,6 +250,8 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             break;
          }
       }
+
+      this.changeDetector.detectChanges();
    }
    /**
     * Updates the z-indexes of the listed assemblies.
@@ -257,6 +268,8 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             this.vsObjectActions[idx] = this.actionFactory.createActions(object);
          }
       }
+
+      this.changeDetector.detectChanges();
    }
 
    openViewsheet(): void {

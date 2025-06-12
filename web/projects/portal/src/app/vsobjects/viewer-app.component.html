@@ -430,7 +430,9 @@
         [hideMiniToolbar]="hideMiniToolbar"
         [globalLoadingIndicator]="globalLoadingIndicator"
         (onSubmit)="submitData()"
-        (onLoadingStateChanged)="onLoadingStateChanged.emit($event)">
+        (onLoadingStateChanged)="onLoadingStateChanged.emit($event)"
+        [virtualScrolling]="virtualScroll && !(scaleToScreen && !fitToWidth && !showScroll && !embed)"
+        [scrollViewport]="scrollViewport">
       </vs-object-container>
     </div>
   </div>
