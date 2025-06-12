@@ -31,14 +31,16 @@ public class TimeoutContext extends Context {
 
    public TimeoutContext() {
       super(ContextFactory.getGlobal());
+      setClassShutter(new SecureClassShutter());
    }
 
    /**
     * Create a context.
     */
    public static Context enter() {
-      Context cx = Context.getCurrentContext() != null || timeout == 0 && stackDepth == 0 ?
-         Context.enter() : ContextFactory.getGlobal().enterContext(new TimeoutContext());
+      Context cx = Context.getCurrentContext() != null || timeout == 0 && stackDepth == 0
+         ? SecureClassShutter.createSecureContext()
+         : ContextFactory.getGlobal().enterContext(new TimeoutContext());
 
       // @by billh, fix customer bug bug1306850196268
       // do not change optimization level for time out, otherwise the result

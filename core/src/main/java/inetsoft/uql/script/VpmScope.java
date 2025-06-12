@@ -22,7 +22,6 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.ConfigurationContext;
-import inetsoft.util.Tool;
 import inetsoft.util.script.*;
 import org.mozilla.javascript.*;
 import org.slf4j.Logger;
@@ -51,7 +50,7 @@ public class VpmScope extends ScriptableObject {
    {
       Object script = null;
       ScriptEnv senv = ScriptEnvRepository.getScriptEnv();
-      Context cx = Context.enter();
+      Context cx = SecureClassShutter.createSecureContext();
       Scriptable root = getRoot();
       root.put("vpm", root, scope);
       scope.setParentScope(root);
@@ -80,7 +79,7 @@ public class VpmScope extends ScriptableObject {
          cx.exit();
       }
 
-      cx = Context.enter();
+      cx = SecureClassShutter.createSecureContext();
 
       // execute the script object
       try {
