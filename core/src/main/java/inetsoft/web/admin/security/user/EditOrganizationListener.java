@@ -18,6 +18,8 @@
 
 package inetsoft.web.admin.security.user;
 
+import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityProvider;
 import inetsoft.util.Catalog;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
@@ -41,11 +43,14 @@ public class EditOrganizationListener implements EventListener {
    }
 
    private String getMessage(EditOrganizationEvent event) {
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      String fromOrgName = provider.getOrgNameFromID(event.getFromOrgID());
+
       if(event.getStatus() == EditOrganizationEvent.STARTED) {
-         return catalog.getString("em.cloneOrg.started", event.getToOrgID(), event.getFromOrgID());
+         return catalog.getString("em.cloneOrg.started", event.getToOrgID(), fromOrgName);
       }
       else if(event.getStatus() == EditOrganizationEvent.FINSHED) {
-         return catalog.getString("em.cloneOrg.finished", event.getToOrgID(), event.getFromOrgID());
+         return catalog.getString("em.cloneOrg.finished", event.getToOrgID(), fromOrgName);
       }
 
       return null;
