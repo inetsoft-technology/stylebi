@@ -755,6 +755,11 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
             data = processor.getData();
 
+            if(userMessage == null) {
+               userMessage = processor.getUserMessage();
+               Tool.addUserMessage(userMessage);
+            }
+
             if(key != null && data != null) {
                if(data instanceof TableFilter2) {
                   data = (TableLens) ((TableFilter2) data).clone();
