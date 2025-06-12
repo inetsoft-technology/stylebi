@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
+   AfterViewInit,
    ChangeDetectorRef,
    Component,
    ElementRef,
@@ -27,38 +28,40 @@ import {
    SimpleChanges,
    ViewChild
 } from "@angular/core";
-import { Subject ,  Subscription ,  Observable } from "rxjs";
+import { Observable, Subject, Subscription } from "rxjs";
+import { Tool } from "../../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
+import { Dimension } from "../../common/data/dimension";
 import { Rectangular } from "../../common/data/rectangle";
 import { GuiTool } from "../../common/util/gui-tool";
+import { ViewsheetClientService } from "../../common/viewsheet-client";
 import { PlaceholderDragElementModel } from "../../widget/placeholder-drag-element/placeholder-drag-element-model";
+import { ScaleService } from "../../widget/services/scale/scale-service";
 import { AbstractVSActions } from "../action/abstract-vs-actions";
 import { ContextProvider } from "../context-provider.service";
 import { ViewsheetInfo } from "../data/viewsheet-info";
 import { BaseTableModel } from "../model/base-table-model";
+import { FocusObjectEventModel } from "../model/focus-object-event-model";
 import { GuideBounds } from "../model/layout/guide-bounds";
 import { VSChartModel } from "../model/vs-chart-model";
 import { VSObjectModel } from "../model/vs-object-model";
+import { VSSelectionBaseModel } from "../model/vs-selection-base-model";
 import { VSUtil } from "../util/vs-util";
+import { ScrollViewportRect } from "../viewer-app.component";
 import { AdhocFilterService } from "./data-tip/adhoc-filter.service";
 import { DataTipService } from "./data-tip/data-tip.service";
+import { DateTipHelper } from "./data-tip/date-tip-helper";
 import { PopComponentService } from "./data-tip/pop-component.service";
 import { MiniToolbarService } from "./mini-toolbar/mini-toolbar.service";
 import { NavigationKeys } from "./navigation-keys";
-import { FocusObjectEventModel } from "../model/focus-object-event-model";
-import { ScaleService } from "../../widget/services/scale/scale-service";
 import { SelectionBaseController } from "./selection/selection-base-controller";
-import { VSSelectionBaseModel } from "../model/vs-selection-base-model";
-import { Tool } from "../../../../../shared/util/tool";
-import { Dimension } from "../../common/data/dimension";
-import { DateTipHelper } from "./data-tip/date-tip-helper";
 
 @Component({
    selector: "vs-object-container",
    templateUrl: "vs-object-container.component.html",
    styleUrls: ["vs-object-container.component.scss"]
 })
-export class VSObjectContainer implements OnChanges, OnDestroy {
+export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    @Input() public vsInfo: ViewsheetInfo;
    @Input() public vsObjectActions: AbstractVSActions<any>[];
    @Input() public activeName: string;
@@ -76,6 +79,7 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
    @Input() submitted: Subject<boolean>;
    @Input() hideMiniToolbar: boolean = false;
    @Input() globalLoadingIndicator: boolean = false;
+   @Input() virtualScrolling = false;
    @Output() public openContextMenu = new EventEmitter<{
       actions: AbstractVSActions<any>,
       event: MouseEvent
@@ -120,6 +124,22 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
       return this._keyNavigation;
    }
 
+   @Input()
+   get scrollViewport(): ScrollViewportRect {
+      return this._scrollViewport;
+   }
+
+   set scrollViewport(value: ScrollViewportRect) {
+      if(!value && !!this._scrollViewport || !!value && !this._scrollViewport ||
+         !!value && !!this._scrollViewport && (value.top !== this._scrollViewport.top ||
+         value.left !== this._scrollViewport.left || value.width !== this._scrollViewport.width ||
+         value.height !== this._scrollViewport.height))
+      {
+         this._scrollViewport = value;
+         this.updateRendered();
+      }
+   }
+
    public menuActions: AssemblyActionGroup[];
    public placeholderDragElementModel: PlaceholderDragElementModel = <PlaceholderDragElementModel> {
       top: 0,
@@ -140,6 +160,8 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
    mobile: boolean = GuiTool.isMobileDevice();
    private scale: number;
    private popDimDrew: boolean;
+   private renderedObjects = new Map<string, boolean>();
+   private _scrollViewport: ScrollViewportRect;
 
    constructor(public miniToolbarService: MiniToolbarService,
                protected dataTipService: DataTipService,
@@ -148,7 +170,8 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
                protected popService: PopComponentService,
                private changeDetectorRef: ChangeDetectorRef,
                private scaleService: ScaleService,
-               private element: ElementRef)
+               private element: ElementRef,
+               private viewsheetClient: ViewsheetClientService)
    {
       this.subscriptions.add(this.scaleService.getScale()
          .subscribe((scale) => this.scale = scale));
@@ -156,6 +179,10 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
       this.subscriptions.add(this.popService.componentPop.subscribe((name) => {
          this.resetAssemblyAction(name);
       }));
+   }
+
+   ngAfterViewInit(): void {
+      this.updateRendered();
    }
 
    ngOnChanges(changes: SimpleChanges) {
@@ -175,6 +202,8 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
 
          this.containerBounds = this.containerRef.getBoundingClientRect();
       }
+
+      this.updateRendered();
    }
 
    ngOnDestroy() {
@@ -604,5 +633,67 @@ export class VSObjectContainer implements OnChanges, OnDestroy {
 
    onMouseEnter(vsObject: VSObjectModel, event: any): void {
       this.miniToolbarService.handleMouseEnter(vsObject?.absoluteName, event);
+   }
+   isObjectRendered(vsObject: VSObjectModel) {
+      return !this.virtualScrolling || this.renderedObjects.get(vsObject.absoluteName) === true;
+   }
+
+   private updateRendered(): void {
+      if(this.virtualScrolling && !!this.scrollViewport &&
+         this.isRectInitialized(this.scrollViewport))
+      {
+         this.vsInfo.vsObjects.forEach((vsObject, index) => {
+            const rendered = this.renderedObjects.get(vsObject.absoluteName);
+
+            if(!rendered) {
+               const height = ((vsObject as any).objectHeight as number) || vsObject.objectFormat.height;
+               const rect = {
+                  top: this.getVsObjectPosition(vsObject, index, true),
+                  left: this.getVsObjectPosition(vsObject, index, false),
+                  width: this.getActualWidth(vsObject),
+                  height
+               };
+
+               if(this.isRectInitialized(rect)) {
+                  const newRendered = this.isInScrollViewport(rect);
+
+                  if(newRendered && rendered != undefined &&
+                     (vsObject.objectType === "VSCalcTable" ||
+                        vsObject.objectType === "VSCrosstab"  ||
+                        vsObject.objectType === "VSTable" ||
+                        vsObject.objectType === "VSViewsheet"))
+                  {
+                     const event = {
+                        vsRuntimeId: this.vsInfo.runtimeId,
+                        assemblyName: vsObject.absoluteName
+                     };
+                     this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", event);
+                  }
+
+                  this.renderedObjects.set(vsObject.absoluteName, newRendered);
+               }
+            }
+         });
+      }
+   }
+
+   private isRectInitialized(rect: ScrollViewportRect): boolean {
+      return rect.top > 0 || rect.left > 0 || rect.width > 0 || rect.height > 0;
+   }
+
+   private isInScrollViewport(bounds: ScrollViewportRect): boolean {
+      if(bounds.left + bounds.width < this.scrollViewport.left ||
+         this.scrollViewport.left + this.scrollViewport.width < bounds.left)
+      {
+         return false;
+      }
+
+      if(bounds.top + bounds.height < this.scrollViewport.top ||
+         this.scrollViewport.top + this.scrollViewport.height < bounds.top)
+      {
+         return false;
+      }
+
+      return true;
    }
 }

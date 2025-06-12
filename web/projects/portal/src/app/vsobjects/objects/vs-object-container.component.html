@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <ng-container *ngFor="let vsObject of vsInfo.vsObjects; let i = index; trackBy:trackByName">
-  <div [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'">
+  <div *ngIf="isObjectRendered(vsObject); else notRendered" [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'">
     <div class="focus-assembly {{getAssemblyAsClass(vsObject)}}"
          [id]="getAssemblyDivId(vsObject)"
          VSDataTip [dataTipName]="vsObject.absoluteName"
@@ -323,6 +323,23 @@
                   [keyNavigation]="keyNavigation" [forceHide]="toolbarForceHidden(vsObject)">
     </mini-toolbar>
   </div>
+  <ng-template #notRendered>
+    <div [class.non-rendered-placeholder]="vsObject.visible"
+         [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'"
+         [style.width.px]="getActualWidth(vsObject)"
+         [style.height.px]="vsObject.objectHeight || vsObject.objectFormat.height"
+         [style.top.px]="getVsObjectPosition(vsObject, i, true)"
+         [style.left.px]="getVsObjectPosition(vsObject, i, false)"
+         [style.z-index]="zIndex(vsObject) + 1"
+    >
+      <div *ngIf="vsObject.visible" class="nrp-content">
+        <span class="nrp-label">
+          <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i><br>
+          _#(Loading data)...
+        </span>
+      </div>
+    </div>
+  </ng-template>
 </ng-container>
 <placeholder-drag-element [model]="placeholderDragElementModel" #placeholderDragElement></placeholder-drag-element>
 <ng-container *ngIf="showingPopUpOrDataTip() && (containerBounds || embeddedVSBounds)">
