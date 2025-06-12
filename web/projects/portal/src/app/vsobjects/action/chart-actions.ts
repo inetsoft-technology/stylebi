@@ -90,7 +90,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
             enabled: () => true,
             visible: () => !this.preview && !this.isPopComponent() && !this.mobileDevice &&
                this.isActionVisibleInViewer("Format") && !this.annotationsSelected &&
-               !this.showFormatPaneDisabled()
+               !this.showFormatPaneDisabled() && !this.embed
          },
          {
             id: () => "chart hide-title",

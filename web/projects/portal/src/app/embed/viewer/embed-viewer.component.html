@@ -18,12 +18,13 @@
 
 <div #embedViewer class="embed-viewer"
      [class.data-tip-pop-component-visible]="dataTipPopComponentVisible">
-  <viewer-app *ngIf="assetId && connected && !showError"
+  <viewer-app #viewerApp *ngIf="assetId && connected && !showError"
               [assetId]="assetId"
               [queryParameters]="queryParams"
               [hideToolbar]="hideToolbar"
               [hideMiniToolbar]="hideMiniToolbar"
               [globalLoadingIndicator]="globalLoadingIndicator"
+              [viewerOffsetFunc]="viewerOffsetFunc"
               (onEmbedError)="onEmbedError($event)"
               (onLoadingStateChanged)="onLoadingStateChanged($event)"
               (onDataTipPopComponentVisible)="onDataTipPopComponentVisible($event)">

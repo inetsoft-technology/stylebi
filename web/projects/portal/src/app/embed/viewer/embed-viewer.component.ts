@@ -21,6 +21,7 @@ import {
    ChangeDetectorRef,
    Component,
    ElementRef,
+   HostListener,
    Injector,
    Input,
    OnDestroy,
@@ -43,6 +44,7 @@ import { DialogService } from "../../widget/slide-out/dialog-service.service";
 import { TooltipService } from "../../widget/tooltip/tooltip.service";
 import { ShadowDomService } from "../shadow-dom.service";
 import { EMBED_VIEWER_URL_MATCHER } from "./embed-viewer-url-matcher";
+import { ViewerAppComponent } from "../../vsobjects/viewer-app.component";
 
 declare const window: any;
 
@@ -103,6 +105,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    dataTipPopComponentVisible: boolean;
    private loadingSet: Set<string> = new Set<string>();
    @ViewChild("embedViewer") embedViewer: ElementRef;
+   @ViewChild("viewerApp") viewerApp: ViewerAppComponent;
 
    private subscriptions: Subscription = new Subscription();
 
@@ -191,6 +194,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
       this.showError = !!message;
 
       if(this.showError) {
+         this.loading = false;
          console.error(message);
       }
    }
@@ -222,5 +226,23 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
 
    onDataTipPopComponentVisible(visible: boolean) {
       this.dataTipPopComponentVisible = visible;
+   }
+
+   viewerOffsetFunc = () => {
+      let embedViewerRect = this.embedViewer.nativeElement.getBoundingClientRect();
+
+      return {
+         x: embedViewerRect.left,
+         y: embedViewerRect.top,
+         width: window.innerWidth - embedViewerRect.left,
+         height: window.innerHeight - embedViewerRect.top,
+         scrollLeft: 0,
+         scrollTop: 0
+      };
+   };
+
+   @HostListener("mouseleave", ["$event"])
+   onMouseLeave(event: MouseEvent): void {
+      this.viewerApp?.clearDataTipPopComponents();
    }
 }

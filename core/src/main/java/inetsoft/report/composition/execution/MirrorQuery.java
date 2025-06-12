@@ -235,6 +235,8 @@ public class MirrorQuery extends AssetQuery {
          return null;
       }
 
+      table = new TableFilter2(table);
+
       for(int i = 0; i < table.getColCount(); i++) {
          String header = AssetUtil.format(XUtil.getHeader(table, i));
          String originalIdentifier = table.getColumnIdentifier(i);
