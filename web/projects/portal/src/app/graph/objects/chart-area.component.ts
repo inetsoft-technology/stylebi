@@ -24,7 +24,7 @@ import {
    OnChanges,
    OnDestroy, OnInit,
    Output,
-   QueryList,
+   QueryList, Renderer2,
    SimpleChanges,
    ViewChild,
    ViewChildren
@@ -101,6 +101,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    @Input() isDataTip: boolean = false;
    @Input() pan: boolean = false;
    @Input() dateComparisonDefined: boolean = false;
+   @ViewChild("axisResize") axisResize_: ElementRef;
    onTitle: boolean = false;
 
    panMode: boolean = false;
@@ -110,6 +111,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    mobileDevice: boolean = GuiTool.isMobileDevice();
    imageError: boolean = false;
    _selected: boolean;
+   axisResizeLabel: string;
    private clearCanvasSubscription: Subscription;
    private scrollTopSubscription: Subscription;
    private scrollLeftSubscription: Subscription;
@@ -197,6 +199,10 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
 
    get vsChartModel(): VSChartModel {
       return this._model as VSChartModel;
+   }
+
+   get axisResize(): ElementRef {
+      return this.axisResize_;
    }
 
    paintNoDataChart(): boolean {
@@ -293,7 +299,8 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
                private dndService: DndService,
                private scaleService: ScaleService,
                private changeDetectorRef: ChangeDetectorRef,
-               private pagingControlService: PagingControlService)
+               private pagingControlService: PagingControlService,
+               protected renderer: Renderer2)
    {
    }
 
@@ -631,9 +638,19 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
          clientY: event.clientY - this.clientRect.top
       });
 
+      this.clearAxisResizeTip();
       this.areaResizeInfo = null;
       this.detectChanges();
    }
+
+   clearAxisResizeTip() {
+      this.renderer.setStyle(this.axisResize.nativeElement, "left", "unset");
+      this.renderer.setStyle(this.axisResize.nativeElement, "right", "0");
+      this.renderer.setStyle(this.axisResize.nativeElement, "top", "unset");
+      this.renderer.setStyle(this.axisResize.nativeElement, "bottom", "0");
+      this.renderer.setStyle(this.axisResize.nativeElement, "visibility", "hidden");
+   }
+
 
    /**
     * Emit the resized legend boundary with its start and end position so the legend resize
@@ -653,6 +670,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       });
 
       this.areaResizeInfo = null;
+      this.clearAxisResizeTip();
       this.detectChanges();
    }
 
@@ -683,6 +701,18 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       event.stopPropagation();
       let mouseX: number = event.clientX;
       let mouseY: number = event.clientY;
+      let resizeTop = event.clientY;
+      let resizeLeft = event.clientX;
+      const label = this.axisResize.nativeElement.querySelector(".resize-label");
+
+      this.renderer.setStyle(label, "top", "unset");
+      this.renderer.setStyle(label, "left", "unset");
+
+      if(this.resizeLineTop != 0 || this.resizeLineLeft != 0) {
+         this.renderer.setStyle(this.axisResize.nativeElement, "left", resizeLeft + "px");
+         this.renderer.setStyle(this.axisResize.nativeElement, "top", resizeTop + "px");
+         this.renderer.setStyle(this.axisResize.nativeElement, "visibility", "visible");
+      }
 
       if(this.resizeVertical) {
          // For axis area/legend just check max and min position which are relative to entire chart
@@ -692,6 +722,11 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
          mouseX = mouseX < this.areaResizeInfo.minPosition ?
             this.areaResizeInfo.minPosition : mouseX;
          this.resizeLineLeft = mouseX;
+
+         if(this.resizeLineLeft != 0) {
+            this.axisResizeLabel = Math.floor(this.resizeLineLeft) + "";
+            this.renderer.setStyle(label, "left", mouseX + "px");
+         }
       }
       else {
          mouseY = mouseY - this.clientRect.top;
@@ -700,7 +735,14 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
          mouseY = mouseY < this.areaResizeInfo.minPosition ?
             this.areaResizeInfo.minPosition : mouseY;
          this.resizeLineTop = mouseY;
+
+         if(this.resizeLineTop != 0) {
+            this.axisResizeLabel = Math.floor(this.resizeLineTop) + "";
+            this.renderer.setStyle(label, "top", mouseY + "px");
+         }
       }
+
+      label.innerHTML = this.axisResizeLabel;
 
       this.detectChanges();
    }
