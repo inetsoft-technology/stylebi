@@ -677,7 +677,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
          parentNode = this.root;
       }
 
-      data = compareType === "column" ? {table: data.table, attribute: data.attribute} : data;
+      data = compareType === "column" ? {table: data.table, attribute: data.attribute, entity: data.entity} : data;
 
       for(let node of parentNode.children) {
          if(this.nodeEquals(this.getNodeData(node, compareType), data)) {
@@ -699,7 +699,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
       switch (compareType) {
          case "column":
             let table = VSUtil.getTableName(node.data.table);
-            return {table: table, attribute: node.data.attribute};
+            return {table: table, attribute: node.data.attribute, entity: node.data.entity};
          case "data":
             return node.data;
          case "label":
