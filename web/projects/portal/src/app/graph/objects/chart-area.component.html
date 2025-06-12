@@ -255,6 +255,9 @@
            [style.left.px]="resizeVertical ? resizeLineLeft : 0">
         </div>
         <ng-content></ng-content>
+        <div #axisResize class="axis-resize-handle">
+          <div class="resize-label">{{axisResizeLabel}}</div>
+        </div>
       </div>
     </div>
   </div>

@@ -181,3 +181,18 @@
 .chart-container:not(:hover) chart-nav-bar {
   visibility: hidden;
 }
+
+.axis-resize-handle {
+  background-color: gray;
+  z-index: 999;
+  visibility: hidden;
+}
+.resize-label {
+  position: absolute;
+  min-width: 40px;
+  min-height: 20px;
+  background: gray;
+  color: white;
+  vertical-align: middle;
+  text-align: center;
+}
