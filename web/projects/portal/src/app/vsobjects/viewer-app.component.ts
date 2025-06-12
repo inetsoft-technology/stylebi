@@ -4007,7 +4007,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    private updateScrollViewport(): void {
       this.debounceService.debounce(this.runtimeId + "_scrollViewport", () => {
-         this.scrollViewport = this.getScrollViewport();
+         this.zone.run(() => this.scrollViewport = this.getScrollViewport());
       }, 50, []);
    }
 

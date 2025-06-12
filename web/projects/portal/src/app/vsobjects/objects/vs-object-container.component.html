@@ -324,7 +324,7 @@
     </mini-toolbar>
   </div>
   <ng-template #notRendered>
-    <div class="non-rendered-placeholder"
+    <div [class.non-rendered-placeholder]="vsObject.visible"
          [style.display]="isMaxModeHidden(vsObject) ? 'none' : 'block'"
          [style.width.px]="getActualWidth(vsObject)"
          [style.height.px]="vsObject.objectHeight || vsObject.objectFormat.height"
@@ -332,7 +332,7 @@
          [style.left.px]="getVsObjectPosition(vsObject, i, false)"
          [style.z-index]="zIndex(vsObject) + 1"
     >
-      <div class="nrp-content">
+      <div *ngIf="vsObject.visible" class="nrp-content">
         <span class="nrp-label">
           <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i><br>
           _#(Loading data)...

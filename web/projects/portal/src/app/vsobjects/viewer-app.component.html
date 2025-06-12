@@ -431,7 +431,7 @@
         [globalLoadingIndicator]="globalLoadingIndicator"
         (onSubmit)="submitData()"
         (onLoadingStateChanged)="onLoadingStateChanged.emit($event)"
-        [virtualScrolling]="virtualScroll"
+        [virtualScrolling]="virtualScroll && !(scaleToScreen && !fitToWidth && !showScroll && !embed)"
         [scrollViewport]="scrollViewport">
       </vs-object-container>
     </div>
