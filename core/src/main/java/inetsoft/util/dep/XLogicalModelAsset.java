@@ -99,7 +99,7 @@ public class XLogicalModelAsset extends AbstractXAsset implements
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       if(getDataSource() == null || getModelName() == null ||
          getModel() == null)
       {

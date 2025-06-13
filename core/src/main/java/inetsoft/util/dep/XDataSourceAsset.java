@@ -95,7 +95,7 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> allDependencies) {
       String additionalDS = getAdditionalDatasource();
       String ds = getDatasource();
       List<XAssetDependency> list = new ArrayList<>();
