@@ -665,7 +665,7 @@ public class ResourcePermissionService {
                identity = globalID;
             }
 
-            boolean roleIsSiteAdmin = Arrays.stream(
+            boolean roleIsSiteAdmin = role != null && Arrays.stream(
                   provider.getAllRoles(new IdentityID[]{ role.getIdentityID() }))
                .anyMatch(provider::isSystemAdministratorRole);
             boolean userIsAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
