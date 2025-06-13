@@ -150,6 +150,10 @@ export class BackupFileComponent implements OnDestroy {
                return true;
             }
 
+            if((type & RepositoryEntryType.CUBE) == RepositoryEntryType.CUBE) {
+               return false;
+            }
+
             return (type & RepositoryEntryType.FOLDER) != RepositoryEntryType.FOLDER &&
                (type & RepositoryEntryType.TRASHCAN) != RepositoryEntryType.TRASHCAN &&
                node.data.path.indexOf(Tool.RECYCLE_BIN) != 0 &&
