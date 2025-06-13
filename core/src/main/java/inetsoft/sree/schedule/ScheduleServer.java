@@ -26,6 +26,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.RMICallThread;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.*;
 import inetsoft.util.health.HealthService;
 import inetsoft.util.health.HealthStatus;
@@ -115,8 +116,7 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
     */
    @Override
    public void runNow(String taskName) throws RemoteException {
-      String taskNameForLog = LicenseManager.getInstance().isEnterprise() ?
-         taskName : SUtil.getTaskNameWithoutOrg(taskName);
+      String taskNameForLog = SUtil.getTaskNameForLogging(taskName);
       MDC.put("SCHEDULE_TASK", taskNameForLog);
       LOG.debug(
          "Received start task [" + taskNameForLog + "] request on " +
