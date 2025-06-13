@@ -343,7 +343,7 @@ public class DeployService {
       boolean siteAdmin = manager.isSiteAdmin(principal);
 
       for(PartialDeploymentJarInfo.SelectedAsset entry : info.getSelectedEntries()) {
-         boolean accessViolation = SUtil.isMultiTenant() ?
+         boolean accessViolation = SUtil.isMultiTenant() ? entry.getUser() != null &&
             !Tool.equals(entry.getUser().orgID, manager.getCurrentOrgID()) :
             !securityEngine.checkPermission(principal, ResourceType.EM, "*", ResourceAction.ACCESS);
 
