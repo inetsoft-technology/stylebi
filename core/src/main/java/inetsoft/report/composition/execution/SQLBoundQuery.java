@@ -197,6 +197,10 @@ public class SQLBoundQuery extends BoundQuery {
          String name = table.getProperty("logRecordName") != null ?
             table.getProperty("logRecordName") : null;
 
+         if(name == null) {
+            return Collections.emptySet();
+         }
+
          return Collections.singleton(LogContext.QUERY.getRecord(name));
       }
       else if(xquery != null) {
