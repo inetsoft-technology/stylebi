@@ -58,8 +58,11 @@ public class ComposerAccessController {
 
    private boolean isPermitted(Principal principal) {
       try {
-         return SecurityEngine.getSecurity().checkPermission(
-            principal, ResourceType.COMPOSER, "*", ResourceAction.ACCESS);
+         SecurityEngine engine = SecurityEngine.getSecurity();
+         return engine.checkPermission(
+               principal, ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS) ||
+            engine.checkPermission(
+               principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
       }
       catch(Exception e) {
          LOG.warn("Failed to check composer permission for {}", principal, e);
