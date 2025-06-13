@@ -1915,7 +1915,7 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
    private ConditionList removeAggregateCondition(ConditionList conds,
                                                   AggregateInfo ainfo)
    {
-      if(getCubeType(getAssembly()) != null || ainfo == null || ainfo.isEmpty() ||
+      if(ainfo == null || ainfo.isEmpty() ||
          ainfo.getAggregateCount() == 0 || !ainfo.isAggregated())
       {
          return conds;
