@@ -78,12 +78,14 @@ export class AddLoggingLevelDialogComponent implements OnInit {
       }
 
       if(this.model.context == "ORGANIZATION" && !this.model.orgName) {
-         this.model.orgName = this.model.name;
+         this.form.get("orgName").setValue(this.model.name);
+      }
+      else {
+         this.form.get("orgName").setValue(this.model.orgName);
       }
 
       this.form.get("context").setValue(this.model.context);
       this.form.get("name").setValue(this.model.name);
-      this.form.get("orgName").setValue(this.model.orgName);
       this.form.get("level").setValue(this.model.level);
    }
 
@@ -96,7 +98,7 @@ export class AddLoggingLevelDialogComponent implements OnInit {
 
       if(this.model.context == "ORGANIZATION") {
          this.model.name = this.form.get("orgName").value;
-         this.model.orgName = this.model.name;
+         this.model.orgName = null;
       }
       else {
          this.model.name = this.form.get("name").value.trim();
