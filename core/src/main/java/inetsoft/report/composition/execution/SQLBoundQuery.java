@@ -62,6 +62,11 @@ public class SQLBoundQuery extends BoundQuery {
       this.oquery = (JDBCQuery) nquery.clone();
       this.xquery = (JDBCQuery) nquery.clone();
 
+      if(box.getWSEntry() != null) {
+         table.setProperty("logRecordName", Tool.buildString(box.getWSEntry().getPath(), ".",
+                           getTableDescription(table.getName())));
+      }
+
       if(nquery != null) {
          nquery.setName(box.getWSName() + "." +
                         getTableDescription(table.getName()));
@@ -189,17 +194,9 @@ public class SQLBoundQuery extends BoundQuery {
    @Override
    protected Collection<?> getLogRecord() {
       if(table != null) {
-         String worksheetName = MDC.get(LogContext.WORKSHEET.name());
+         String name = table.getProperty("logRecordName") != null ?
+            table.getProperty("logRecordName") : null;
 
-         if(LicenseManager.getInstance().isEnterprise() && worksheetName != null &&
-            worksheetName.contains("^"))
-         {
-            worksheetName = worksheetName.substring(0, worksheetName.indexOf('^'));
-         }
-
-         String queryName = table.getProperty("queryOriginalName") != null ?
-            table.getProperty("queryOriginalName") : table.getAbsoluteName();
-         String name = Tool.buildString(worksheetName, ".", queryName);
          return Collections.singleton(LogContext.QUERY.getRecord(name));
       }
       else if(xquery != null) {
