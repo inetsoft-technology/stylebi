@@ -449,7 +449,7 @@ public class AssetUtil {
       int type = source.getType();
 
       if(type == SourceInfo.MODEL || type == SourceInfo.PHYSICAL_TABLE ||
-        type == SourceInfo.DATASOURCE)
+        type == SourceInfo.DATASOURCE || type == (SourceInfo.DATASOURCE | SourceInfo.CUBE))
       {
          String name = source.getPrefix();
          XRepository repository = XFactory.getRepository();
