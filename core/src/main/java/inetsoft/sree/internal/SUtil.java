@@ -2196,10 +2196,10 @@ public class SUtil {
     * @param asset the specified esset.
     * @param list the specified container.
     */
-   private static void getXAssetDependencies(XAsset asset,
+   public static void getXAssetDependencies(XAsset asset,
                                              List<XAssetDependency> list)
    {
-      XAssetDependency[] dependencies = asset.getDependencies();
+      XAssetDependency[] dependencies = asset.getDependencies(list);
 
       for(int i = 0; i < dependencies.length; i++) {
          XAssetDependency dependency = dependencies[i];

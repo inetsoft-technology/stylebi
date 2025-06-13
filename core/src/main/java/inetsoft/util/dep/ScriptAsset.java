@@ -68,7 +68,7 @@ public class ScriptAsset extends AbstractXAsset {
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       List<XAssetDependency> deps = new ArrayList<>();
       final LibManager manager = LibManager.getManager();
 

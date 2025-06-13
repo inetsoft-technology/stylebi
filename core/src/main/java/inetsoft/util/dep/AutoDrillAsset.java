@@ -18,18 +18,14 @@
 package inetsoft.util.dep;
 
 import inetsoft.uql.*;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
 
 import java.util.List;
 
 public interface AutoDrillAsset extends XAsset {
    default void getAutoDrillDependency(XMetaInfo metaInfo,
-                                       List<XAssetDependency> dependencies, String fromDesc,
-                                       String modelName)
+                                       List<XAssetDependency> dependencies, String fromDesc)
    {
       XDrillInfo drillInfo = metaInfo == null ? null : metaInfo.getXDrillInfo();
 
@@ -57,38 +53,12 @@ public interface AutoDrillAsset extends XAsset {
          if(path.getLinkType() == DrillPath.VIEWSHEET_LINK) {
             String vsIdentifier = path.getLink();
             AssetEntry entry = AssetEntry.createAssetEntry(vsIdentifier);
-
-            if(!hasCycleDependency(entry, modelName)) {
-               String desc = generateDescription(catalog, fromDesc,
-                                                 catalog.getString("common.xasset.viewsheet", entry.getPath()));
-               dependencies.add(new XAssetDependency(new ViewsheetAsset(entry), this,
-                                                     XAssetDependency.VIEWSHEET_LINK, desc));
-            }
+            String desc = generateDescription(catalog, fromDesc,
+               catalog.getString("common.xasset.viewsheet", entry.getPath()));
+            dependencies.add(new XAssetDependency(new ViewsheetAsset(entry), this,
+                                                  XAssetDependency.VIEWSHEET_LINK, desc));
          }
       }
-   }
-
-   private boolean hasCycleDependency(AssetEntry entry, String modelName) {
-      if(modelName == null) {
-         return false;
-      }
-
-      try {
-         AssetRepository engine = AssetUtil.getAssetRepository(false);
-         Viewsheet sheet = (Viewsheet) engine.getSheet(entry, null, false, AssetContent.ALL);
-         AssetEntry baseEntry = sheet.getBaseEntry();
-
-         if(baseEntry != null && baseEntry.isLogicModel() &&
-            Tool.equals(baseEntry.getName(), modelName))
-         {
-            return true;
-         }
-      }
-      catch(Exception ignore) {
-         // no-op
-      }
-
-      return false;
    }
 
    /**

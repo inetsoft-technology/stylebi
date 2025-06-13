@@ -22,6 +22,7 @@ import inetsoft.sree.security.Resource;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 
 /**
  * Table style asset represents a table style type asset.
@@ -55,7 +56,7 @@ public class EmbeddedDataAsset extends AbstractXAsset {
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       return new XAssetDependency[0];
    }
 

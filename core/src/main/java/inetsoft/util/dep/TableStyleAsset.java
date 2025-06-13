@@ -25,6 +25,7 @@ import inetsoft.util.Tool;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 
@@ -61,7 +62,7 @@ public class TableStyleAsset extends AbstractXAsset {
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       return new XAssetDependency[0];
    }
 
