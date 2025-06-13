@@ -30,8 +30,8 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import org.mozilla.javascript.Context;
 import org.mozilla.javascript.*;
+import org.mozilla.javascript.Context;
 import org.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +43,6 @@ import java.net.URL;
 import java.text.*;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -80,7 +79,7 @@ public class JavaScriptEngine {
     * Initialize the script runtime environment.
     */
    public void init(Map vars) throws Exception {
-      Context cx = Context.enter();
+      Context cx = SecureClassShutter.createSecureContext();
       Scriptable globalscope = initScope();
 
       if(topscope == null) {
@@ -583,7 +582,7 @@ public class JavaScriptEngine {
     * Evaluate a Javascript command.
     */
    public Object evaluate(String cmd) throws Exception {
-      Context cx = Context.enter();
+      Context cx = SecureClassShutter.createSecureContext();
       Object val = cx.evaluateString(topscope, cmd, "<cmd>", 1, null);
 
       Context.exit();
@@ -599,7 +598,7 @@ public class JavaScriptEngine {
     * @return Javascript object for an element or null.
     */
    public Scriptable getScriptable(Object id, Scriptable scope) {
-      Context.enter();
+      SecureClassShutter.createSecureContext();
       scope = (scope == null) ? topscope : scope;
 
       try {
@@ -638,7 +637,7 @@ public class JavaScriptEngine {
     * Find all functions in the current runtime.
     */
    public static Set getAllFunctions(JavaScriptEngine engine, boolean fieldOnly) {
-      Context cx = Context.enter();
+      Context cx = SecureClassShutter.createSecureContext();
       Set funcs = new HashSet();
       Set proc = new HashSet(); // processed objects
       Scriptable scope = engine.getScriptable(null, null);
@@ -826,7 +825,7 @@ public class JavaScriptEngine {
     * added '()' at the end.
     */
    public Object[] getIds(Object id, Scriptable scope, boolean parent) {
-      Context cx = Context.enter();
+      Context cx = SecureClassShutter.createSecureContext();
       Scriptable obj = getScriptable(id, scope);
       HashSet ids = new HashSet();
 
@@ -850,7 +849,7 @@ public class JavaScriptEngine {
     */
    public Object[] getDisplayNames(Object id, Scriptable scope, boolean parent)
    {
-      Context cx = Context.enter();
+      Context cx = SecureClassShutter.createSecureContext();
       Scriptable obj = getScriptable(id, scope);
       HashSet ids = new HashSet();
 
@@ -873,7 +872,7 @@ public class JavaScriptEngine {
     * added '()' at the end.
     */
    public Object[] getNames(Object id, Scriptable scope, boolean parent) {
-      Context cx = Context.enter();
+      Context cx = SecureClassShutter.createSecureContext();
       Scriptable obj = getScriptable(id, scope);
       HashSet ids = new HashSet();
 
@@ -1804,7 +1803,7 @@ public class JavaScriptEngine {
          return;
       }
 
-      Context cx = Context.enter();
+      Context cx = SecureClassShutter.createSecureContext();
 
       try {
          if(obj instanceof Undefined) {
