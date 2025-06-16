@@ -204,7 +204,7 @@ public class UploadService {
 
       try {
          localFile = processLocalFile(info, f -> {
-            if(!Files.exists(f)) {
+            if(!Files.exists(f) || !f.toFile().exists() || f.toFile().length() == 0) {
                try(InputStream in = blobStorage.getInputStream(info.blob);
                    OutputStream out = Files.newOutputStream(f))
                {
