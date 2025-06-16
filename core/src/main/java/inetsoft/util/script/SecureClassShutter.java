@@ -233,10 +233,6 @@ public class SecureClassShutter implements ClassShutter {
          try {
             // Set the class shutter
             cx.setClassShutter(new SecureClassShutter());
-
-            // Additional security settings
-            //cx.setOptimizationLevel(-1); // Disable optimization for security
-            //cx.setLanguageVersion(org.mozilla.javascript.Context.VERSION_ES6);
          }
          catch(Exception e) {
             org.mozilla.javascript.Context.exit();
