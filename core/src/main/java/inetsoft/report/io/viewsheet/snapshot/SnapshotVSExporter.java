@@ -214,7 +214,7 @@ public class SnapshotVSExporter {
    private void getDependencies(List<XAssetDependency> list, XAsset asset,
       Map<XAsset, String[]> depAssetsMap) throws Exception
    {
-      XAssetDependency[] dependencies = asset.getDependencies();
+      XAssetDependency[] dependencies = asset.getDependencies(list);
 
       for(XAssetDependency adependency : dependencies) {
          if(!list.contains(adependency)) {

@@ -75,7 +75,7 @@ public class VirtualPrivateModelAsset extends AbstractXAsset implements FolderCh
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       if(getDataSource() == null || getVPM() == null) {
          return new XAssetDependency[0];
       }

@@ -53,7 +53,7 @@ public class DeviceAsset extends AbstractXAsset {
    }
 
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       return new XAssetDependency[0];
    }
 

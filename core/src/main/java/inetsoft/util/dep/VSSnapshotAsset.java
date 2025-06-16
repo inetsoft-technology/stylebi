@@ -23,6 +23,8 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.util.TransformerManager;
 
+import java.util.List;
+
 /**
  * VSSnapshotAsset represents a snaphot type asset.
  *
@@ -56,7 +58,7 @@ public class VSSnapshotAsset extends AbstractSheetAsset {
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       AssetRepository engine = AssetUtil.getAssetRepository(false);
       VSSnapshot snap = (VSSnapshot) getCurrentSheet(engine);
 

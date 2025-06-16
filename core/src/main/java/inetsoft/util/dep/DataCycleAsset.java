@@ -27,6 +27,7 @@ import org.owasp.encoder.Encode;
 import org.w3c.dom.*;
 
 import java.io.*;
+import java.util.List;
 import java.util.Vector;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
@@ -66,7 +67,7 @@ public class DataCycleAsset extends AbstractXAsset {
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       return new XAssetDependency[0];
    }
 

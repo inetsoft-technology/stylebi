@@ -79,7 +79,7 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       List<XAssetDependency> dependencies = new ArrayList<>();
       Set<Hyperlink> hyperlinks = new HashSet<>();
       Set<String> assetKeys = null;
@@ -133,7 +133,7 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
                getQueryDependency(entry0, dependencies);
             }
             else if(entry0.isLogicModel()) {
-               getModelDependency(entry0, dependencies);
+               getModelDependency(entry0, dependencies, list);
             }
             else if(entry0.isPhysicalTable()) {
                getPhyDependency(entry0, dependencies);
@@ -637,7 +637,9 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
    /**
     * Get vs-logical model dependency.
     */
-   protected void getModelDependency(AssetEntry entry0, List<XAssetDependency> dependencies) {
+   protected void getModelDependency(AssetEntry entry0, List<XAssetDependency> dependencies,
+                                     List<XAssetDependency> list)
+   {
       String desc = generateDescription(entry.getDescription(), entry0.getDescription());
       String dataSource = entry0.getProperty("prefix");
       String source = entry0.getProperty("source");
@@ -645,13 +647,16 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
       XLogicalModelAsset[] res = XLogicalModelAsset.getAssets(dataSource + "^" + source);
 
       for(XLogicalModelAsset lasset : res) {
-         dependencies.add(
-            new XAssetDependency(lasset, this, XAssetDependency.VIEWSHEET_XLOGICALMODEL, desc));
-         addDependencies(lasset, dependencies);
-         List<Hyperlink> drillLinks = lasset.getDrillLinks();
-         Hyperlink[] links = new Hyperlink[drillLinks.size()];
-         drillLinks.toArray(links);
-         SUtil.processAssetlinkDependencies(links, this, dependencies);
+         XAssetDependency newDependency = new XAssetDependency(lasset, this, XAssetDependency.VIEWSHEET_XLOGICALMODEL, desc);
+
+         if(list.stream().noneMatch((dependency) -> dependency.getDependedXAsset().equals(lasset))) {
+            dependencies.add(newDependency);
+            addDependencies(lasset, dependencies, list, newDependency);
+            List<Hyperlink> drillLinks = lasset.getDrillLinks();
+            Hyperlink[] links = new Hyperlink[drillLinks.size()];
+            drillLinks.toArray(links);
+            SUtil.processAssetlinkDependencies(links, this, dependencies);
+         }
       }
    }
 
@@ -751,6 +756,23 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
       for(int i = 0; i < deps.length; i++) {
          if(!dependencies.contains(deps[i])) {
             dependencies.add(deps[i]);
+         }
+      }
+   }
+
+   private void addDependencies(XAsset asset, List dependencies, List<XAssetDependency> list,
+                                XAssetDependency newDependency)
+   {
+      List<XAssetDependency> newList = new ArrayList<>(list);
+      newList.add(newDependency);
+      SUtil.getXAssetDependencies(asset, newList);
+
+      for(int i = 0; i < newList.size(); i++) {
+         if(!dependencies.contains(newList.get(i)) &&
+            !list.contains(newList.get(i)) &&
+            !newList.get(i).equals(newDependency))
+         {
+            dependencies.add(newList.get(i));
          }
       }
    }

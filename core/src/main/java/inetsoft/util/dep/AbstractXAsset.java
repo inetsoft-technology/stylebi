@@ -249,7 +249,7 @@ public abstract class AbstractXAsset implements XAsset {
     * Process local query.
     */
    protected void processLocalXAsset(XAsset xasset, String desc, List<XAssetDependency> deps) {
-      XAssetDependency[] dependencies = xasset.getDependencies();
+      XAssetDependency[] dependencies = xasset.getDependencies(deps);
 
       for(XAssetDependency dependency : dependencies) {
          // enhance description

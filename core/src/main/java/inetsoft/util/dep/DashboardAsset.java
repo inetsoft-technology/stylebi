@@ -70,7 +70,7 @@ public class DashboardAsset extends AbstractXAsset {
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       List<XAssetDependency> dependencies = new ArrayList<>();
       ids = new HashMap<>();
       DashboardRegistry registry = DashboardRegistry.getRegistry(user);
