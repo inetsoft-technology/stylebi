@@ -98,6 +98,18 @@ export class TipPane implements OnDestroy {
       }
    }
 
+   get selectedTipView(): any {
+      return this.model.popComponents.includes(this.model.tipView) ? this.model.tipView : null;
+   }
+
+   onTipViewChange(newValue: any): void {
+      if(newValue !== null) {
+         this.model.tipView = newValue;
+      }
+
+      this.dataTipChanged();
+   }
+
    dataTipChanged(): void {
       if(this.model.tipView == "null") {
          this.model.tipView = null;
