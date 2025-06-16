@@ -222,7 +222,7 @@ public class JavaScriptEngine {
             "inetsoft", "inetsoft.graph", "inetsoft.report",
             "inetsoft.report.painter", "inetsoft.report.lens",
             "inetsoft.report.filter", "inetsoft.uql",
-            "inetsoft.util.audit.templates");
+            "inetsoft.util.audit.templates", "inetsoft.analytic.composition.event");
          // this allows common com. and org. packages
          ContextJavaPackage compkg = new ContextJavaPackage("com");
          ContextJavaPackage orgpkg = new ContextJavaPackage("org");

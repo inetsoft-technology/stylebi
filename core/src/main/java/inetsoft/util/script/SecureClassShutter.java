@@ -172,8 +172,11 @@ public class SecureClassShutter implements ClassShutter {
       String[] javaPkgs = {"java.awt", "java.text", "java.util"};
       String[] inetsoftPkgs = {
          "inetsoft.graph", "inetsoft.report", "inetsoft.report.painter", "inetsoft.report.lens",
-         "inetsoft.report.filter", "inetsoft.uql", "inetsoft.util.audit.templates"};
-      String[] customPkgs = SreeEnv.getProperty("javascript.java.packages", "").split(",");
+         "inetsoft.report.filter", "inetsoft.uql", "inetsoft.util.audit.templates",
+         "inetsoft.analytic.composition.event"
+      };
+      String customPkgProp = SreeEnv.getProperty("javascript.java.packages", "");
+      String[] customPkgs = customPkgProp.isEmpty() ? new String[0] : customPkgProp.split(",");
       String[] comOrgPkgs = {"com", "org"};
       boolean comOrg = "true".equals(SreeEnv.getProperty("javascript.java.com_org", "true"));
       String[][] allDefault = comOrg
