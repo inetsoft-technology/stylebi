@@ -840,6 +840,10 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
     * Open the input name dialog and create a new folder with specified name.
     */
    addFolder(): void {
+      if(!this.isFolderEditable) {
+         return;
+      }
+
       const config = this.addFolderConfig;
 
       const dialog = ComponentTool.showDialog(this.modalService, InputNameDialog,
