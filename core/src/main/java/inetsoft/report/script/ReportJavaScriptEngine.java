@@ -98,7 +98,7 @@ public class ReportJavaScriptEngine extends JavaScriptEngine {
     * Initialize the script runtime environment for a report.
     */
    public void init(ReportSheet report, Map vars) throws Exception {
-      Context cx = Context.enter();
+      Context cx = SecureClassShutter.createSecureContext();
       Scriptable globalscope = initScope();
 
       // scopes are organized as:
@@ -279,7 +279,7 @@ public class ReportJavaScriptEngine extends JavaScriptEngine {
     */
    @Override
    public Scriptable getScriptable(Object id, Scriptable scope) {
-      Context.enter();
+      SecureClassShutter.createSecureContext();
       scope = (scope == null) ? rscope : scope;
 
       try {
