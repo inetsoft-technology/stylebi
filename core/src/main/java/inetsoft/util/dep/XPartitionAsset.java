@@ -76,7 +76,7 @@ public class XPartitionAsset extends AbstractXAsset implements FolderChangeableA
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       if(getDataSource() == null || getPartition() == null) {
          return new XAssetDependency[0];
       }

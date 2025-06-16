@@ -80,7 +80,7 @@ public class WorksheetAsset extends AbstractSheetAsset implements
     * @return an array of XAssetDependency.
     */
    @Override
-   public XAssetDependency[] getDependencies() {
+   public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       List<XAssetDependency> dependencies = new ArrayList<>();
       engine = engine == null ?
          AssetUtil.getAssetRepository(false) : engine;
@@ -268,7 +268,7 @@ public class WorksheetAsset extends AbstractSheetAsset implements
       String fromDesc = getPath();
 
       for(int i = 0; i < selection.getColumnCount(); i++) {
-         getAutoDrillDependency(selection.getXMetaInfo(i), dependencies, fromDesc, null);
+         getAutoDrillDependency(selection.getXMetaInfo(i), dependencies, fromDesc);
       }
    }
 

@@ -21,6 +21,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Resource;
 
 import java.io.*;
+import java.util.List;
 
 /**
  * XAsset describes replets, datasources, worksheets etc. as assets, and
@@ -39,7 +40,7 @@ public interface XAsset extends Cloneable, Serializable {
     * Get all dependencies of this asset.
     * @return an array of XAssetDependency.
     */
-   XAssetDependency[] getDependencies();
+   XAssetDependency[] getDependencies(List<XAssetDependency> list);
 
    /**
     * Get the path of this asset.
