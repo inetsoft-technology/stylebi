@@ -3042,10 +3042,13 @@ public abstract class AssetQuery extends PreAssetQuery {
     * @return the max row count table lens.
     */
    protected TableLens getMaxRowsTableLens(TableLens base, VariableTable vars) throws Exception {
-      int max = getMaxRows(true);
+      int max = 0;
 
       if(vars != null && vars.get(BROWSE_MAXROWS) != null) {
          max = (int) vars.get(BROWSE_MAXROWS);
+      }
+      else {
+         max = getMaxRows(true);
       }
 
       if(isQueryMergeable(false) || max <= 0) {
