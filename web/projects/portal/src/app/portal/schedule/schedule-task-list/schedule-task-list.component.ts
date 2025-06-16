@@ -345,6 +345,10 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    editTask(task: ScheduleTaskModel): void {
+      if(!task.editable || !task.canDelete) {
+         return;
+      }
+
       this.navigateToTaskEditor(this.getTaskName(task));
    }
 
