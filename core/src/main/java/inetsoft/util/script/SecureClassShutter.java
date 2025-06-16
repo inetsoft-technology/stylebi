@@ -1,6 +1,9 @@
 package inetsoft.util.script;
 
+import inetsoft.sree.SreeEnv;
 import org.mozilla.javascript.ClassShutter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -98,7 +101,10 @@ public class SecureClassShutter implements ClassShutter {
       "java.text.DecimalFormat",
       "java.text.NumberFormat",
       "java.math.BigDecimal",
-      "java.math.BigInteger"
+      "java.math.BigInteger",
+      "java.sql.Date",
+      "java.sql.Time",
+      "java.sql.Timestamp"
    ));
 
    @Override
@@ -106,6 +112,11 @@ public class SecureClassShutter implements ClassShutter {
       // Null or empty class names are not allowed
       if(className == null || className.isEmpty()) {
          return false;
+      }
+
+      // Allow explicitly safe classes
+      if(ALLOWED_CLASSES.contains(className)) {
+         return true;
       }
 
       // Block dangerous packages
@@ -157,8 +168,27 @@ public class SecureClassShutter implements ClassShutter {
          return isBasicTextClass(className);
       }
 
-      // Block everything else by default (fail-safe approach)
-      logSecurityViolation("Blocked unknown class", className);
+      // apply the same logic as in JavaScriptEngine.initScope
+      String[] javaPkgs = {"java.awt", "java.text", "java.util"};
+      String[] inetsoftPkgs = {
+         "inetsoft.graph", "inetsoft.report", "inetsoft.report.painter", "inetsoft.report.lens",
+         "inetsoft.report.filter", "inetsoft.uql", "inetsoft.util.audit.templates"};
+      String[] customPkgs = SreeEnv.getProperty("javascript.java.packages", "").split(",");
+      String[] comOrgPkgs = {"com", "org"};
+      boolean comOrg = "true".equals(SreeEnv.getProperty("javascript.java.com_org", "true"));
+      String[][] allDefault = comOrg
+         ? new String[][] {javaPkgs, inetsoftPkgs, customPkgs, comOrgPkgs}
+         : new String[][] {javaPkgs, inetsoftPkgs, customPkgs};
+
+      for(String[] pkgs : allDefault) {
+         for(String pkg : pkgs) {
+            if(className.startsWith(pkg)) {
+               return true;
+            }
+         }
+      }
+
+      logSecurityViolation("Package not on whitelist", className);
       return false;
    }
 
@@ -190,10 +220,7 @@ public class SecureClassShutter implements ClassShutter {
    }
 
    private void logSecurityViolation(String reason, String className) {
-      // Log security violations for monitoring
-      System.err.println("SECURITY WARNING: " + reason + " - " + className);
-      // You might want to use a proper logging framework here
-      // logger.warn("Security violation: {} - {}", reason, className);
+      LOG.warn("Security violation: {} - {}", reason, className);
    }
 
    /**
@@ -220,28 +247,5 @@ public class SecureClassShutter implements ClassShutter {
       return cx;
    }
 
-   /* Example usage method
-    public static void main(String[] args) {
-       org.mozilla.javascript.Context cx = createSecureContext();
-       try {
-          org.mozilla.javascript.Scriptable scope = cx.initStandardObjects();
-
-          // This should work - basic operations
-          Object result1 = cx.evaluateString(scope, "var x = 'Hello World'; x.length;", "test", 1, null);
-          System.out.println("Safe operation result: " + result1);
-
-          // This should be blocked - trying to access System
-          try {
-             cx.evaluateString(scope, "java.lang.System.exit(0);", "test", 1, null);
-             System.out.println("ERROR: Security bypass detected!");
-          }
-          catch(Exception e) {
-            System.out.println("Security working: " + e.getMessage());
-          }
-       }
-       finally {
-         org.mozilla.javascript.Context.exit();
-       }
-    }
-    */
+   private static final Logger LOG = LoggerFactory.getLogger(SecureClassShutter.class);
 }
