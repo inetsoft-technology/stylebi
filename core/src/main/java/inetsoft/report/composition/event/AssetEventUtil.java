@@ -1997,7 +1997,7 @@ public class AssetEventUtil {
       AssetQuery query = AssetQuery.createAssetQuery(
          tassembly, AssetQuerySandbox.RUNTIME_MODE, box, false, -1L, true, false);
       VariableTable vtable = (VariableTable) box.getVariableTable().clone();
-      vtable.put(AssetQuery.BROWSE_MAXROWS, BrowseDataController.MAX_ROW_COUNT);
+      vtable.put(AssetQuery.BROWSE_MAXROWS, BrowseDataController.MAX_ROW_COUNT + 1);
       TableLens table = query.getTableLens(vtable);
       int index = vattr == null ? 0 : AssetUtil.findColumn(table, vcol);
 
