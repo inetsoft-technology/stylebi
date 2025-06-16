@@ -1747,13 +1747,12 @@ public class ScheduleService {
          dumpException = false;
       }
       else {
-         String taskNameForLog = LicenseManager.getInstance().isEnterprise() ?
-            taskName : SUtil.getTaskNameWithoutOrg(taskName);
+         String taskNameWithoutOrg = SUtil.getTaskNameWithoutOrg(taskName);
+         String taskNameForLog = SUtil.getTaskNameForLogging(taskName);
          MDC.put("SCHEDULE_TASK", taskNameForLog);
-         String withoutOrg = SUtil.getTaskNameWithoutOrg(taskName);
 
          if(task != null && !task.isEnabled()) {
-            errorMsg = catalog.getString("em.scheduler.startDisabledTask", withoutOrg);
+            errorMsg = catalog.getString("em.scheduler.startDisabledTask", taskNameWithoutOrg);
          }
          else {
             try {
@@ -1762,7 +1761,7 @@ public class ScheduleService {
             catch(Throwable ex) {
                LOG.debug("Failed to run task {}: {}", taskNameForLog, ex.getMessage(), ex);
                errorMsg =
-                  catalog.getString("em.scheduler.startFailed", withoutOrg);
+                  catalog.getString("em.scheduler.startFailed", taskNameWithoutOrg);
             }
          }
 

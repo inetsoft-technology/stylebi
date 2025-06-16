@@ -272,6 +272,7 @@ public class CoreLifecycleService {
 
          infoMap.put("accessible", accessible);
          infoMap.put("messageLevels", vsInfo.getMessageLevels());
+         infoMap.put("virtualScroll", "true".equals(SreeEnv.getProperty("viewsheet.virtual.scroll")));
 
          command.setInfo(infoMap);
          // TODO populate assemblyInfo with values from vs.getViewsheetInfo()
@@ -1243,7 +1244,7 @@ public class CoreLifecycleService {
             else if(info instanceof TabVSAssemblyInfo) {
                String selectedAssembly = ((TabVSAssemblyInfo) info).getSelected();
 
-               if(!Tool.isEmptyString(selectedAssembly)) {
+               if(!Tool.isEmptyString(selectedAssembly) && !info.getViewsheet().isEmbedded()) {
                   VSAssembly child = rvs.getViewsheet().getAssembly(selectedAssembly);
                   VSAssemblyInfo childInfo = VSEventUtil.getAssemblyInfo(rvs, child);
                   child.setVSAssemblyInfo(childInfo);
@@ -1588,7 +1589,16 @@ public class CoreLifecycleService {
    public void removeVSAssemblies(RuntimeViewsheet rvs, String uri, CommandDispatcher dispatcher,
                                   boolean replace, boolean layout, boolean fireEvent,
                                   VSAssembly ...assemblies)
-      throws Exception {
+      throws Exception
+   {
+      removeVSAssemblies(rvs, uri, dispatcher, replace, layout, fireEvent, true, assemblies);
+   }
+
+   public void removeVSAssemblies(RuntimeViewsheet rvs, String uri, CommandDispatcher dispatcher,
+                                  boolean replace, boolean layout, boolean fireEvent,
+                                  boolean refreshData, VSAssembly ...assemblies)
+      throws Exception
+   {
       final String id = rvs.getID();
       Viewsheet vs = rvs.getViewsheet();
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
@@ -1948,7 +1958,7 @@ public class CoreLifecycleService {
       }
 
       // reprocess associated assemblies
-      if(!relatedSelections.isEmpty()) {
+      if(refreshData && !relatedSelections.isEmpty()) {
          try {
             int hint = VSAssembly.OUTPUT_DATA_CHANGED;
 

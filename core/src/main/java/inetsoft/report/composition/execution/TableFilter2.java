@@ -656,19 +656,8 @@ public class TableFilter2 extends AbstractTableLens
     */
    @Override
    public String getColumnIdentifier(int col) {
-      return table.getColumnIdentifier(col);
-   }
-
-   /**
-    * Set the column identifier of a column.
-    * @param col the specified column index.
-    * @param identifier the column indentifier of the column. The identifier
-    * might be different from the column name, for it may contain more
-    * locating information than the column name.
-    */
-   @Override
-   public void setColumnIdentifier(int col, String identifier) {
-      table.setColumnIdentifier(col, identifier);
+      String identifier = super.getColumnIdentifier(col);
+      return identifier == null ? table.getColumnIdentifier(col) : identifier;
    }
 
    // SortedTable interface, allows sorting info to be passed up

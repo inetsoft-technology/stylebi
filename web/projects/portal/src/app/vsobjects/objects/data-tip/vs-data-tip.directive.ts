@@ -184,7 +184,7 @@ export class VSDataTipDirective implements DoCheck {
             this.renderer.setStyle(nativeElement, "position", "absolute");
             // background set on the server so alpha can be applied to all backgrounds
             //this.renderer.setStyle(nativeElement, "background", "rgba(245,245,245,1.0)");
-            this.renderer.setStyle(nativeElement, "z-index", this.popZIndex + 9999);
+            this.renderer.setStyle(nativeElement, "z-index", this.popZIndex + 99999);
             this.createOutsideClickListener();
          }
          else {

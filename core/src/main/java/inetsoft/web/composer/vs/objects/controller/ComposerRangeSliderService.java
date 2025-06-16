@@ -87,7 +87,7 @@ public class ComposerRangeSliderService {
       info.setEditable(assembly.isEditable());
       VSEventUtil.copyFormat(assembly, newAssembly);
       initCellFormat(newAssembly);
-      coreLifecycleService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
+      coreLifecycleService.removeVSAssemblies(rvs, linkUri, dispatcher, false, false, false, false, assembly);
       containerAssembly.setAssemblies(assemblies);
       viewsheet.addAssembly(newAssembly);
       coreLifecycleService.addDeleteVSObject(rvs, newAssembly, dispatcher);

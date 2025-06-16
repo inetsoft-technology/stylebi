@@ -856,13 +856,12 @@ public class LibManager implements AutoCloseable {
    public static final class Reference extends SingletonManager.Reference<LibManager> {
       @Override
       public LibManager get(Object ... parameters) {
-         boolean doInit = false;
          lock.lock();
 
          try {
             if(manager == null) {
-               doInit = true;
                manager = new LibManager(new NoopLibrarySecurity());
+               manager.init(null);
             }
             else {
                // Init storage for org if it isn't initialized yet
@@ -871,10 +870,6 @@ public class LibManager implements AutoCloseable {
          }
          finally {
             lock.unlock();
-         }
-
-         if(doInit) {
-            manager.init(null);
          }
 
          return manager;
