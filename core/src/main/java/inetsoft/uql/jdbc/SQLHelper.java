@@ -297,6 +297,9 @@ public class SQLHelper implements KeywordProvider {
       else if(dx.getURL() != null && dx.getURL().contains("jdbc:sqlite")) {
          type = "Sqlite";
       }
+      else if(dx.getURL() != null && dx.getURL().contains("jdbc:databricks")) {
+         type = "databricks";
+      }
       else if(dx.getDatabaseType() == JDBCDataSource.JDBC_ODBC) {
          String product = dx.getProductName();
 
