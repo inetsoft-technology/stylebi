@@ -87,6 +87,9 @@
   <helper type="exasol" class="inetsoft.uql.jdbc.ExasolHelper">
     <maxidentifier>128</maxidentifier>
   </helper>
+  <helper type="databricks" class="inetsoft.uql.jdbc.DatabricksHelper">
+    <maxidentifier>128</maxidentifier>
+  </helper>
 
   <!--row limit-->
    <unsupported type="default" op="maxrows"/>
