@@ -318,6 +318,14 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
    }
 
+   public void listBlobs(String outputFile, String orgID)  throws IOException {
+      BlobStorage<Metadata> storage = getMetadataStorage(orgID);
+
+      if(storage != null) {
+         storage.listBlobs(outputFile);
+      }
+   }
+
    @Override
    public long size() {
       return getMetadataStorage(null).stream()

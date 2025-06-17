@@ -20,8 +20,9 @@ package inetsoft.storage.fs;
 import inetsoft.storage.BlobEngine;
 import inetsoft.util.Tool;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.*;
+import java.util.stream.Stream;
 
 /**
  * {@code FilesystemBlobEngine} is an implementation of {@link BlobEngine} that stores blobs to a
@@ -78,6 +79,17 @@ public class FilesystemBlobEngine implements BlobEngine {
    @Override
    public void delete(String id, String digest) throws IOException {
       Files.delete(getPath(id, digest));
+   }
+
+   @Override
+   public void list(String id, PrintWriter writer) throws IOException {
+      Path storagePath = base.resolve(id);
+
+      try (Stream<Path> paths = Files.walk(storagePath)) {
+         paths.filter(Files::isRegularFile)
+            .map(base::relativize)
+            .forEach(writer::println);
+      }
    }
 
    private Path getPath(String id, String digest) {
