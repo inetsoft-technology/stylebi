@@ -125,7 +125,7 @@
     </div>
     <div class="form-row-float-label row form-group" [style.display]="_model.securityEnabled ? null : 'none'">
       <div class="col form-floating">
-          <input class="form-control" [(ngModel)]="_model.ownerAlias ? _model.ownerAlias : _model.owner"
+          <input class="form-control" [ngModel]="_model.ownerAlias ? _model.ownerAlias : _model.owner"
                  [disabled]="true" [ngModelOptions]="{standalone: true}">
           <label>_#(Owner)</label>
       </div>
