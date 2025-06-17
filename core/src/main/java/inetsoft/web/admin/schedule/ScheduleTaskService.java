@@ -183,8 +183,6 @@ public class ScheduleTaskService {
       throws Exception
    {
       taskName = Tool.byteDecode(taskName);
-
-      RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
       ScheduleTask task = scheduleManager.getScheduleTask(taskName);
 
       if(!canDeleteTask(task, principal)) {
@@ -204,21 +202,18 @@ public class ScheduleTaskService {
          return false;
       }
 
+      if(OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         return true;
+      }
+
       RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
 
       if(engine != null && !engine.hasTaskPermission(task, principal)) {
          return false;
       }
 
-      OrganizationManager organizationManager = OrganizationManager.getInstance();
-
-      if(organizationManager.isSiteAdmin(principal) || organizationManager.isOrgAdmin(principal)) {
-         return true;
-      }
-
       return principal != null &&
-         (Tool.equals(principal.getName(), task.getOwner()) ||
-            !scheduleManager.isDeleteOnlyByOwner(task, principal));
+         (Tool.equals(principal.getName(), task.getOwner()) || !scheduleManager.isDeleteOnlyByOwner(task, principal));
    }
 
    /**
