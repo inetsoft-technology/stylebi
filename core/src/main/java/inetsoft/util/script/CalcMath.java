@@ -1023,7 +1023,7 @@ public class CalcMath {
          condScript = cx.compileReader(scope, new StringReader(cond), "<condition>", 1, null);
       }
       catch(Exception e) {
-         throw new RuntimeException("Invalid Search Criteria specified !");
+         throw new RuntimeException("Invalid Search Criteria specified !", e);
       }
 
       double sum = 0;

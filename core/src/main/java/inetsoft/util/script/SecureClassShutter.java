@@ -232,15 +232,12 @@ public class SecureClassShutter implements ClassShutter {
    public static org.mozilla.javascript.Context createSecureContext() {
       org.mozilla.javascript.Context cx = org.mozilla.javascript.Context.enter();
 
-      if(!(cx instanceof TimeoutContext)) { // TimeoutContext sets SecureClassShutter in constructor
-         try {
-            // Set the class shutter
-            cx.setClassShutter(new SecureClassShutter());
-         }
-         catch(Exception e) {
-            org.mozilla.javascript.Context.exit();
-            throw e;
-         }
+      try {
+         // Set the class shutter
+         cx.setClassShutter(new SecureClassShutter());
+      }
+      catch(SecurityException ignore) {
+         // already set in a previous invocation on this thread
       }
 
       return cx;
