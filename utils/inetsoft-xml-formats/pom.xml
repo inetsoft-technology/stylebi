@@ -34,7 +34,7 @@
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <poi.version>5.2.5</poi.version>
+    <poi.version>5.4.0</poi.version>
     <batik.version>1.17</batik.version>
     <xerces.version>2.12.2</xerces.version>
   </properties>
