@@ -17,7 +17,6 @@
  */
 package inetsoft.report.composition.execution;
 
-import inetsoft.mv.UDFUtil;
 import inetsoft.report.Comparer;
 import inetsoft.report.TableLens;
 import inetsoft.report.filter.*;
@@ -33,6 +32,8 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
 /**
@@ -141,10 +142,15 @@ public class PostProcessor {
          }
       }
 
+      Pattern fieldPattern = Pattern.compile("^field\\[(?:'|\")([^'\"]+)(?:'|\")\\]$");
       String[] aliases = Arrays.stream(formulas)
-         .map(f -> UDFUtil.extractUDF(f))
-         .filter(map -> map != null && "alias".equals(map.get("name")))
-         .map(map -> map.get("column"))
+         .filter(Objects::nonNull)
+         .map(String::trim)
+         .map(f -> {
+            Matcher matcher = fieldPattern.matcher(f);
+            return matcher.matches() ? matcher.group(1) : null;
+         })
+         .filter(Objects::nonNull)
          .toArray(String[]::new);
 
       // optimization, all expressions are aliases, just use a column map
