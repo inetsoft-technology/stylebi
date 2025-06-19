@@ -215,7 +215,7 @@ public class ExcelTableHelper extends VSTableHelper {
          startY = PoiExcelVSUtil.ceilY(startY);
       }
 
-      boolean dispValue = fmtPattern != null && !"General".equals(fmtPattern) &&
+      boolean dispValue = (dispObj instanceof Number) || fmtPattern != null && !"General".equals(fmtPattern) &&
          !"@".equals(fmtPattern) && !(dispObj instanceof String) && !(dispObj instanceof Character);
       PoiExcelVSUtil.writeTableCell(startX, startY, bounds, irow, icol, format,
                                     dispText, dispObj, sheet, book,
