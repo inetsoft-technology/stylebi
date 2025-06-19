@@ -183,6 +183,7 @@ public class ScheduleTaskService {
       throws Exception
    {
       taskName = Tool.byteDecode(taskName);
+
       RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
       ScheduleTask task = scheduleManager.getScheduleTask(taskName);
 
