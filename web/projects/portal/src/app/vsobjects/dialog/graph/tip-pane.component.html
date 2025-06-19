@@ -69,7 +69,7 @@
         </div>
       </div>
       <div class="col">
-        <select class="form-control" [(ngModel)]="model.tipView" (change)="dataTipChanged()"
+        <select class="form-control" [ngModel]="selectedTipView" (ngModelChange)="onTipViewChange($event)"
                 [disabled]="!model.tipOption || !model.dataViewEnabled">
           <option [value]="null">_#(None)</option>
           <option *ngFor="let component of model.popComponents" [value]="component">
