@@ -105,9 +105,8 @@ export class TipPane implements OnDestroy {
    onTipViewChange(newValue: any): void {
       if(newValue !== null) {
          this.model.tipView = newValue;
+         this.dataTipChanged();
       }
-
-      this.dataTipChanged();
    }
 
    dataTipChanged(): void {
