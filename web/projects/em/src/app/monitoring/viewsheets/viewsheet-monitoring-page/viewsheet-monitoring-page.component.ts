@@ -100,7 +100,18 @@ export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
       this.subscriptions.add(
          this.monitoringDataService.getMonitoringData("/viewsheets/executing")
             .subscribe((viewsheets: ViewsheetMonitoringTableModel[]) => {
-               this.executingViewsheets = viewsheets;
+               const seen = new Set<string>();
+               this.executingViewsheets = viewsheets.filter(vs => {
+                  //remove exact duplicates
+                  let id = vs.id+vs.name+vs.user+vs.age+vs.thread+vs.dateAccessed;
+
+                  if(seen.has(id)) {
+                     return false;
+                  }
+
+                  seen.add(id);
+                  return true;
+               });;
 
                if(this.executingTableInfo) {
                   this.executingTableInfo.title = this.executingTableTitle;
@@ -112,7 +123,18 @@ export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
       this.subscriptions.add(
          this.monitoringDataService.getMonitoringData("/viewsheets/open")
          .subscribe((viewsheets: ViewsheetMonitoringTableModel[]) => {
-               this.openViewsheets = viewsheets;
+            const seen = new Set<string>();
+            this.openViewsheets = viewsheets.filter(vs => {
+                  //remove exact duplicates
+                  let id = vs.id+vs.name+vs.user+vs.age+vs.thread+vs.dateAccessed;
+
+                  if(seen.has(id)) {
+                     return false;
+                  }
+
+                  seen.add(id);
+                  return true;
+               });
 
                if(this.openTableInfo) {
                   this.openTableInfo.title = this.openTableTitle;
