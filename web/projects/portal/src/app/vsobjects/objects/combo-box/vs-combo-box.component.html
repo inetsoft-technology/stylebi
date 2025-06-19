@@ -46,14 +46,14 @@
      [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
      [class.prevent-drag]="firefox">
   <ng-container *ngIf="!model.calendar">
-    <select #selection class="ps-1" *ngIf="!model?.labels?.length <= 500"
+    <select #selection class="ps-1" *ngIf="model?.labels?.length <= 500"
             [attr.aria-label]="model.absoluteName + ' _#(ComboBox)'"
             [ngModel]="model.selectedLabel" (ngModelChange)="onChange($event)"
             [style.text-align-last]="model.objectFormat.hAlign"
             [style.background-color]="model.objectFormat.background == '' ? 'transparent' : model.objectFormat.background">
       <option [value]="entry" *ngFor="let entry of model.labels">{{entry}}</option>
     </select>
-    <div #selection class="virtual-scroll-combo-box" *ngIf="!model?.labels?.length > 500"
+    <div #selection class="virtual-scroll-combo-box" *ngIf="model?.labels?.length > 500"
          (click)="toggleDropdown()"
          [style.background-color]="model.objectFormat.background || 'transparent'"
          [fixedDropdown]="dropdownOptions" dropdownPlacement="bottom">
