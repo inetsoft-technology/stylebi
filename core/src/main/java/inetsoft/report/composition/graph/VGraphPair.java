@@ -2240,7 +2240,7 @@ public class VGraphPair {
     * Get the image for the specified legend.
     * @param isTitle true if paint title.
     */
-   private Graphics2D getLegendGraphic(int idx, boolean isTitle, int row, int col, double titleHeight) {
+   private Graphics2D getLegendGraphic(int idx, boolean isTitle, int row, int col, double tileHeight) {
       final VGraph vgraph = this.vgraph;
       // use the real size legend to paint
       final Legend legend = vgraph.getLegendGroup() == null ?
@@ -2270,7 +2270,7 @@ public class VGraphPair {
       LegendSpec spec = legend.getVisualFrame().getLegendSpec();
 
       SVGSupport.getInstance().setCanvasSize(
-         g, new Dimension((int) bounds.getWidth(), (int) Math.min(titleHeight, 1024)));
+         g, new Dimension((int) bounds.getWidth(), (int) Math.min(tileHeight, 1024)));
       // background for legend is drawn in gui instead of in image. force it to
       // not draw in legend so semi-transparent colors aren't on top of each other
       legend.setPaintBackground(false);
