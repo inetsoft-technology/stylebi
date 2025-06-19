@@ -3802,7 +3802,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          setMeasureNames(mheaders);
          this.cgroup = cgroup;
          groups = new HashMap<>();
-         this.cube = cube;
+         setCube(cube);
       }
 
       /**
@@ -3826,7 +3826,7 @@ public abstract class AssetQuery extends PreAssetQuery {
        */
       @Override
       protected void resetOrder(List<GroupNode> nodes0, List<GroupNode> nodes1, int gidx) {
-         if(!cube) {
+         if(!isCube()) {
             return;
          }
 
@@ -3843,7 +3843,6 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       private ConditionGroup cgroup;
       private Map<Integer, DataRef> groups;
-      private final boolean cube;
    }
 
    /**

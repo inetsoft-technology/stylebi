@@ -1710,7 +1710,7 @@ public class SummaryFilter extends AbstractGroupedTable
          // fix bug1261032688280
          // not date type, not part date level?
          if(!dcol[col] && !(Tool.isNumberClass(table.getColType(col)) &&
-            (level & SortOrder.PART_DATE_GROUP) != 0))
+            (level & SortOrder.PART_DATE_GROUP) != 0) || isCube())
          {
             minfos[col] = null;
             continue;
@@ -2335,6 +2335,14 @@ public class SummaryFilter extends AbstractGroupedTable
     */
    public boolean isSortTopN() {
       return sortTopN;
+   }
+
+   public boolean isCube() {
+      return cube;
+   }
+
+   public void setCube(boolean cube) {
+      this.cube = cube;
    }
 
    // base class for MergedGroupNode and UnionGroupNode
@@ -3327,6 +3335,7 @@ public class SummaryFilter extends AbstractGroupedTable
    private static final String TOTAL_LABEL = Catalog.getCatalog().getString("Total");
 
    private XSwappableTable sumrows = null;
+   private boolean cube = false;
    private TableLens table;
    private boolean def;
    private final int[] cols; // sorting columns
