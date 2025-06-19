@@ -492,7 +492,7 @@ public class AssemblyImageService {
     * Get chart image.
     */
    private Graphics2D getChartSVG(String aname, int row, int col, int index, VGraphPair pair,
-                                     ViewsheetSandbox box, String name, double titleHeight)
+                                     ViewsheetSandbox box, String name, double tileHeight)
    {
       Graphics2D image = null;
 
@@ -577,7 +577,7 @@ public class AssemblyImageService {
          image = pair.getLegendTitleGraphic(index, row, col);
       }
       else if("legend_content".equals(aname)) {
-         image = pair.getLegendContentGraphic(index, row, col, titleHeight);
+         image = pair.getLegendContentGraphic(index, row, col, tileHeight);
       }
 
       return image;
