@@ -226,9 +226,11 @@ public class JDBCUtil {
                   (String) root.getAttribute("catalogSep"), xds,
                   stable.getCatalog(), stable.getSchema());
                String sourceName = SQLTypes.getSQLTypes(xds).getQualifiedName(table, xds);
+               String dataSourceName = sql.getDataSource() != null ?
+                  sql.getDataSource().getFullName() : null;
                BiFunction<String, String, Boolean> vpmHiddenCols = VpmProcessor.getInstance()
                   .getHiddenColumnsSelector(
-                     new String[] { sourceName }, new String[0], sql.getDataSource().getFullName(),
+                     new String[] { sourceName }, new String[0], dataSourceName,
                      null, null, principal);
                table.setAttribute("supportCatalog", root.getAttribute("supportCatalog"));
                XTypeNode cols = getTableColumns(table, repository, session, xds);
