@@ -1182,35 +1182,19 @@ public final class VSUtil {
    }
 
    private static byte[] getSVGImageBytes(String path) {
-      InputStream input = null;
-      ImageLocation iloc;
-      Object img;
-
-      try {
-         if(path != null && path.indexOf("://") > 0) {
-            iloc = new ImageLocation(".");
-            iloc.setPath(path);
-            iloc.setPathType(ImageLocation.IMAGE_URL);
-            img = new URL(path);
-            input = ((URL) img).openStream();
-         }
-
-         if(input != null) {
-            SVGSupport svg = SVGSupport.getInstance();
-            byte[] buf = svg.transcodeSVGImage(svg.createSVGDocument(input));
-
-            return buf;
-         }
+      if(path == null || path.indexOf("://") <= 0) {
+         return null;
       }
-      catch(Throwable ex) {// ignore, may not be a resource
+
+      try(InputStream input = new URL(path).openStream()) {
+         SVGSupport svg = SVGSupport.getInstance();
+         return svg.transcodeSVGImage(svg.createSVGDocument(input));
+      } 
+      catch(IOException ex) {
+         LOG.debug("Failed to read the SVG image", ex);
       }
-      finally {
-         try {
-            input.close();
-         }
-         catch(Exception ex) {
-            LOG.debug("Failed to close input stream", ex);
-         }
+      catch(Exception ex) {
+         LOG.debug("An unexpected error occurred", ex);
       }
 
       return null;
