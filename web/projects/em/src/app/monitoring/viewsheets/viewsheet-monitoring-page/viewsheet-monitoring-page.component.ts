@@ -103,7 +103,7 @@ export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
                const seen = new Set<string>();
                this.executingViewsheets = viewsheets.filter(vs => {
                   //remove exact duplicates
-                  let id = vs.id+vs.name+vs.user+vs.age+vs.thread+vs.dateAccessed;
+                  let id = vs.id + vs.name + vs.user + vs.age + vs.thread + vs.dateAccessed;
 
                   if(seen.has(id)) {
                      return false;
@@ -126,7 +126,7 @@ export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
             const seen = new Set<string>();
             this.openViewsheets = viewsheets.filter(vs => {
                   //remove exact duplicates
-                  let id = vs.id+vs.name+vs.user+vs.age+vs.thread+vs.dateAccessed;
+                  let id = vs.id + vs.name + vs.user + vs.age + vs.thread + vs.dateAccessed;
 
                   if(seen.has(id)) {
                      return false;
