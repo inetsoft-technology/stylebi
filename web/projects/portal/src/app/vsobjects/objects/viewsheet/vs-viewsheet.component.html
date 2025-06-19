@@ -31,7 +31,8 @@
       <i class="viewsheet-link viewsheet-icon" [style.height.px]="iconHeight"></i>
     </a>
   </div>
-  <div *ngIf="composer" class="composer-overlay" [style.z-index]="getOverlayZIndex()"></div>
+  <div *ngIf="composer" class="composer-overlay"
+       [class.top-level-composer-overlay]="!embeddedVS"></div>
   <div class="embedded-viewsheet"
        *ngIf="vsInfo0"
        [class.prevent-scroll]="maxMode"
