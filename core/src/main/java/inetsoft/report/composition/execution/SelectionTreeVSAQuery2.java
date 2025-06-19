@@ -508,7 +508,7 @@ public class SelectionTreeVSAQuery2 extends SelectionTreeVSAQuery {
     * Get selection value data by the data type.
     */
    @Override
-   protected Object getSelectionValueData(SelectionValue svalue, DataRef ref) {
+   protected Object getSelectionValueData(SelectionValue svalue, DataRef ref, int rtype) {
       SelectionTreeVSAssembly assembly =
          (SelectionTreeVSAssembly) getAssembly();
       SelectionTreeVSAssemblyInfo sinfo =
