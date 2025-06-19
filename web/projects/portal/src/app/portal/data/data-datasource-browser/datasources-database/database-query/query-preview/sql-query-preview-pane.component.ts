@@ -91,6 +91,9 @@ export class SqlQueryPreviewPaneComponent implements OnDestroy, OnInit {
                   ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", errorMsg);
                }
             );
+      },
+      () => {
+         this.previewPending = false;
       });
    }
 
