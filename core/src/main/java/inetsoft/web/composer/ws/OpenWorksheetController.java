@@ -89,13 +89,24 @@ public class OpenWorksheetController extends WorksheetController {
       ThreadContext.setPrincipal(principal);
       String id = event.id();
       AssetEntry entry = AssetEntry.createAssetEntry(id);
+      String entryPath;
 
       if(entry == null || entry.getType() != AssetEntry.Type.WORKSHEET) {
          return;
       }
 
+      if(entry.getScope() == AssetRepository.USER_SCOPE &&
+         entry.getUser() != null && entry.getPath() != null)
+      {
+         String userName = entry.getUser().getName();
+         entryPath = userName + "/" + entry.getPath();
+      }
+      else {
+         entryPath = entry.getPath();
+      }
+
       GroupedThread.withGroupedThread(groupedThread -> {
-         groupedThread.addRecord(LogContext.WORKSHEET, entry.getPath());
+         groupedThread.addRecord(LogContext.WORKSHEET, entryPath);
       });
 
       if(!event.openAutoSavedFile()) {

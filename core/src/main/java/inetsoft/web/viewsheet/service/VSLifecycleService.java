@@ -117,8 +117,9 @@ public class VSLifecycleService {
                entryPath = entry.getPath();
             }
 
-            if(entry.getScope() == AssetRepository.USER_SCOPE) {
-               entryPath = Tool.MY_DASHBOARD + "/" + entryPath;
+            if(entry.getScope() == AssetRepository.USER_SCOPE && entry.getUser() != null) {
+               String userName = entry.getUser().getName();
+               entryPath = userName + "/" + entryPath;
             }
 
             ((GroupedThread) Thread.currentThread())
