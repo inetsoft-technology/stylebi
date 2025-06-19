@@ -147,7 +147,9 @@ export class DataQueryModelService {
       };
    }
 
-   getVariables(runtimeId: string, nSqlString: string, callback: () => void): void {
+   getVariables(runtimeId: string, nSqlString: string, callback: () => void,
+                cancelCallBack?: () => void): void
+   {
       let params = new HttpParams().set("runtimeId", runtimeId);
 
       if(!!nSqlString) {
@@ -185,7 +187,7 @@ export class DataQueryModelService {
             };
 
             const dialog: VariableInputDialog = ComponentTool.showDialog<VariableInputDialog>(
-                  this.modalService, VariableInputDialog, onCommit);
+                  this.modalService, VariableInputDialog, onCommit, null, cancelCallBack);
             dialog.model = <VariableInputDialogModel>{varInfos: vars};
          });
    }
