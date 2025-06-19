@@ -187,7 +187,7 @@ public class ScheduleTaskService {
       RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
       ScheduleTask task = scheduleManager.getScheduleTask(taskName);
 
-      if(engine != null && task != null && !engine.hasTaskPermission(task, principal)) {
+      if(!canDeleteTask(task, principal)) {
          throw new SecurityException(String.format("Unauthorized access to resource \"%s\" by %s",
             task, principal));
       }
@@ -197,6 +197,28 @@ public class ScheduleTaskService {
       int index = taskName.indexOf(":");
       String label = index != -1 ? taskName.substring(index + 1) : taskName;
       return createTaskDialogModel(taskName, label, zoneName, principal, em);
+   }
+
+   public boolean canDeleteTask(ScheduleTask task, Principal principal) {
+      if(task == null) {
+         return false;
+      }
+
+      RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
+
+      if(engine != null && !engine.hasTaskPermission(task, principal)) {
+         return false;
+      }
+
+      OrganizationManager organizationManager = OrganizationManager.getInstance();
+
+      if(organizationManager.isSiteAdmin(principal) || organizationManager.isOrgAdmin(principal)) {
+         return true;
+      }
+
+      return principal != null &&
+         (Tool.equals(principal.getName(), task.getOwner()) ||
+            !scheduleManager.isDeleteOnlyByOwner(task, principal));
    }
 
    /**

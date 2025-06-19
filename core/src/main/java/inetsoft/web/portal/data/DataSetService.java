@@ -43,6 +43,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.FileNotFoundException;
+import java.lang.SecurityException;
 import java.security.Principal;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
@@ -695,6 +696,13 @@ public class DataSetService {
 
       if(!assetRepository.containsEntry(parentEntry)) {
          throw new FileNotFoundException(parentEntry.getPath());
+      }
+
+      if(!securityProvider.checkPermission(principal, ResourceType.ASSET,
+                                           parentEntry.getPath(), ResourceAction.WRITE))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "Permission denied to write " + parentEntry.getPath()));
       }
 
       Date date = new Date();
