@@ -746,6 +746,9 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
             if(VSUtil.matchRefName(rankname, oname)) {
                dref.setRankingColValue(VSUtil.getMatchRefName(rankname, nname));
             }
+            else if(rankname != null && rankname.endsWith(": " + oname)) {
+               dref.setRankingColValue(rankname.substring(0, rankname.length() - oname.length()) + nname);
+            }
          }
 
          DataRef[] rows = cinfo.getDesignRowHeaders();
@@ -760,6 +763,9 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
 
             if(VSUtil.matchRefName(rankname, oname)) {
                dref.setRankingColValue(VSUtil.getMatchRefName(rankname, nname));
+            }
+            else if(rankname != null && rankname.endsWith(": " + oname)) {
+               dref.setRankingColValue(rankname.substring(0, rankname.length() - oname.length()) + nname);
             }
          }
       }
