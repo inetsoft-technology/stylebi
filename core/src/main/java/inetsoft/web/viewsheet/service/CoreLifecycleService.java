@@ -1500,34 +1500,15 @@ public class CoreLifecycleService {
                tfmt.getDefaultFormat().setBackgroundValue(Color.WHITE.getRGB() + "");
             }
 
-            if(info instanceof GroupContainerVSAssemblyInfo) {
-               String groupName = info.getAbsoluteName();
-               int prefixIndex = groupName.lastIndexOf('.');
-               String prefix = prefixIndex < 0 ? null : groupName.substring(0, prefixIndex + 1);
-
-               // when a group container's visibility is changed at runtime (e.g. in a script),
-               // the children have not been added in the client. need to call addDeleteVSObject
-               // to make sure they are added to the client app if necessary.
-               for(String childName : ((GroupContainerVSAssemblyInfo) info).getAssemblies()) {
-                  if(prefix != null && !childName.startsWith(prefix)) {
-                     childName = prefix + childName;
-                  }
-
-                  VSAssembly child = rvs.getViewsheet().getAssembly(childName);
-                  VSAssemblyInfo childInfo = VSEventUtil.getAssemblyInfo(rvs, child);
-                  child.setVSAssemblyInfo(childInfo);
-                  addDeleteVSObject(rvs, child, dispatcher);
-               }
-            }
-            else if(info instanceof TabVSAssemblyInfo) {
-               String selectedAssembly = ((TabVSAssemblyInfo) info).getSelected();
-
-               if(!Tool.isEmptyString(selectedAssembly) && !info.getViewsheet().isEmbedded()) {
-                  VSAssembly child = rvs.getViewsheet().getAssembly(selectedAssembly);
-                  VSAssemblyInfo childInfo = VSEventUtil.getAssemblyInfo(rvs, child);
-                  child.setVSAssemblyInfo(childInfo);
-                  addDeleteVSObject(rvs, child, dispatcher);
-               }
+            // when a group container's visibility is changed at runtime (e.g. in a script),
+            // the children have not been added in the client. need to call addDeleteVSObject
+            // to make sure they are added to the client app if necessary.
+            if(info instanceof GroupContainerVSAssemblyInfo ||
+               info instanceof TabVSAssemblyInfo)
+            {
+               Object linkUri = box.getVariableTable().get("__LINK_URI__");
+               addContainerVSObject(rvs, assembly, linkUri == null ? "" : linkUri.toString(),
+                                    dispatcher, new ArrayList<>());
             }
          }
          finally {
