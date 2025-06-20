@@ -30,8 +30,8 @@ import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
 import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import org.mozilla.javascript.Context;
 import org.mozilla.javascript.*;
+import org.mozilla.javascript.Context;
 import org.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +43,6 @@ import java.net.URL;
 import java.text.*;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -80,24 +79,23 @@ public class JavaScriptEngine {
     * Initialize the script runtime environment.
     */
    public void init(Map vars) throws Exception {
-      Context cx = Context.enter();
-      Scriptable globalscope = initScope();
+      try(Context cx = SecureClassShutter.createSecureContext()) {
+         Scriptable globalscope = initScope();
 
-      if(topscope == null) {
-         topscope = new EngineScope();
+         if(topscope == null) {
+            topscope = new EngineScope();
+         }
+
+         topscope.setParentScope(globalscope);
+
+         // initialize script variables
+         Iterator names = vars.keySet().iterator();
+
+         while(names.hasNext()) {
+            String name = (String) names.next();
+            put(name, vars.get(name));
+         }
       }
-
-      topscope.setParentScope(globalscope);
-
-      // initialize script variables
-      Iterator names = vars.keySet().iterator();
-
-      while(names.hasNext()) {
-         String name = (String) names.next();
-         put(name, vars.get(name));
-      }
-
-      Context.exit();
    }
 
    /**
@@ -223,7 +221,7 @@ public class JavaScriptEngine {
             "inetsoft", "inetsoft.graph", "inetsoft.report",
             "inetsoft.report.painter", "inetsoft.report.lens",
             "inetsoft.report.filter", "inetsoft.uql",
-            "inetsoft.util.audit.templates");
+            "inetsoft.util.audit.templates", "inetsoft.analytic.composition.event");
          // this allows common com. and org. packages
          ContextJavaPackage compkg = new ContextJavaPackage("com");
          ContextJavaPackage orgpkg = new ContextJavaPackage("org");
@@ -583,12 +581,10 @@ public class JavaScriptEngine {
     * Evaluate a Javascript command.
     */
    public Object evaluate(String cmd) throws Exception {
-      Context cx = Context.enter();
-      Object val = cx.evaluateString(topscope, cmd, "<cmd>", 1, null);
-
-      Context.exit();
-
-      return unwrap(val);
+      try(Context cx = SecureClassShutter.createSecureContext()) {
+         Object val = cx.evaluateString(topscope, cmd, "<cmd>", 1, null);
+         return unwrap(val);
+      }
    }
 
    /**
@@ -599,10 +595,9 @@ public class JavaScriptEngine {
     * @return Javascript object for an element or null.
     */
    public Scriptable getScriptable(Object id, Scriptable scope) {
-      Context.enter();
       scope = (scope == null) ? topscope : scope;
 
-      try {
+      try(Context cx = SecureClassShutter.createSecureContext()) {
          if(id == null) {
             return scope;
          }
@@ -622,9 +617,6 @@ public class JavaScriptEngine {
 
          return null;
       }
-      finally {
-         Context.exit();
-      }
    }
 
    /**
@@ -638,46 +630,46 @@ public class JavaScriptEngine {
     * Find all functions in the current runtime.
     */
    public static Set getAllFunctions(JavaScriptEngine engine, boolean fieldOnly) {
-      Context cx = Context.enter();
-      Set funcs = new HashSet();
-      Set proc = new HashSet(); // processed objects
-      Scriptable scope = engine.getScriptable(null, null);
+      try(Context cx = SecureClassShutter.createSecureContext()) {
+         Set funcs = new HashSet();
+         Set proc = new HashSet(); // processed objects
+         Scriptable scope = engine.getScriptable(null, null);
 
-      if(scope != null && !fieldOnly) {
-         findFunctions(scope, funcs, proc, true);
-         findFunctions(scope.getParentScope(), funcs, proc, false); // topscope
-      }
+         if(scope != null && !fieldOnly) {
+            findFunctions(scope, funcs, proc, true);
+            findFunctions(scope.getParentScope(), funcs, proc, false); // topscope
+         }
 
-      try {
-         findFunctions(engine.initScope(), funcs, proc, false); // globalscope
-      }
-      catch(Exception ex) {
-         LOG.error(
-                     "Failed to find functions in global scope", ex);
-      }
+         try {
+            findFunctions(engine.initScope(), funcs, proc, false); // globalscope
+         }
+         catch(Exception ex) {
+            LOG.error(
+               "Failed to find functions in global scope", ex);
+         }
 
-      try {
-         // find all element types
-         Field[] fields = JavaScriptEngine.class.getDeclaredFields();
+         try {
+            // find all element types
+            Field[] fields = JavaScriptEngine.class.getDeclaredFields();
 
-         for(int i = 0; i < fields.length; i++) {
-            if(Modifier.isStatic(fields[i].getModifiers()) &&
-               fields[i].getName().endsWith("Prototype")) {
-               Object obj = fields[i].get(null);
+            for(int i = 0; i < fields.length; i++) {
+               if(Modifier.isStatic(fields[i].getModifiers()) &&
+                  fields[i].getName().endsWith("Prototype"))
+               {
+                  Object obj = fields[i].get(null);
 
-               if(obj instanceof Scriptable) {
-                  findFunctions((Scriptable) obj, funcs, proc, false);
+                  if(obj instanceof Scriptable) {
+                     findFunctions((Scriptable) obj, funcs, proc, false);
+                  }
                }
             }
          }
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to find static functions", ex);
-      }
+         catch(Exception ex) {
+            LOG.error("Failed to find static functions", ex);
+         }
 
-      Context.exit();
-
-      return funcs;
+         return funcs;
+      }
    }
 
    /**
@@ -826,18 +818,17 @@ public class JavaScriptEngine {
     * added '()' at the end.
     */
    public Object[] getIds(Object id, Scriptable scope, boolean parent) {
-      Context cx = Context.enter();
-      Scriptable obj = getScriptable(id, scope);
-      HashSet ids = new HashSet();
+      try(Context cx = SecureClassShutter.createSecureContext()) {
+         Scriptable obj = getScriptable(id, scope);
+         HashSet ids = new HashSet();
 
-      findIds(obj, ids, new HashSet(), parent, ID);
+         findIds(obj, ids, new HashSet(), parent, ID);
 
-      Object[] idarr = ids.toArray(new Object[ids.size()]);
+         Object[] idarr = ids.toArray(new Object[ids.size()]);
 
-      Arrays.sort(idarr);
-      Context.exit();
-
-      return idarr;
+         Arrays.sort(idarr);
+         return idarr;
+      }
    }
 
    /**
@@ -850,18 +841,17 @@ public class JavaScriptEngine {
     */
    public Object[] getDisplayNames(Object id, Scriptable scope, boolean parent)
    {
-      Context cx = Context.enter();
-      Scriptable obj = getScriptable(id, scope);
-      HashSet ids = new HashSet();
+      try(Context cx = SecureClassShutter.createSecureContext()) {
+         Scriptable obj = getScriptable(id, scope);
+         HashSet ids = new HashSet();
 
-      findIds(obj, ids, new HashSet(), parent, ID_DISPLAY_NAME);
+         findIds(obj, ids, new HashSet(), parent, ID_DISPLAY_NAME);
 
-      Object[] idarr = ids.toArray(new Object[ids.size()]);
+         Object[] idarr = ids.toArray(new Object[ids.size()]);
 
-      Arrays.sort(idarr);
-      Context.exit();
-
-      return idarr;
+         Arrays.sort(idarr);
+         return idarr;
+      }
    }
 
    /**
@@ -873,18 +863,17 @@ public class JavaScriptEngine {
     * added '()' at the end.
     */
    public Object[] getNames(Object id, Scriptable scope, boolean parent) {
-      Context cx = Context.enter();
-      Scriptable obj = getScriptable(id, scope);
-      HashSet ids = new HashSet();
+      try(Context cx = SecureClassShutter.createSecureContext()) {
+         Scriptable obj = getScriptable(id, scope);
+         HashSet ids = new HashSet();
 
-      findIds(obj, ids, new HashSet(), parent, ID_NAME);
+         findIds(obj, ids, new HashSet(), parent, ID_NAME);
 
-      Object[] idarr = ids.toArray(new Object[ids.size()]);
+         Object[] idarr = ids.toArray(new Object[ids.size()]);
 
-      Arrays.sort(idarr);
-      Context.exit();
-
-      return idarr;
+         Arrays.sort(idarr);
+         return idarr;
+      }
    }
 
    /**
@@ -1804,9 +1793,7 @@ public class JavaScriptEngine {
          return;
       }
 
-      Context cx = Context.enter();
-
-      try {
+      try(Context cx = SecureClassShutter.createSecureContext()) {
          if(obj instanceof Undefined) {
             return;
          }
@@ -1840,9 +1827,6 @@ public class JavaScriptEngine {
                }
             }
          }
-      }
-      finally {
-         Context.exit();
       }
    }
 

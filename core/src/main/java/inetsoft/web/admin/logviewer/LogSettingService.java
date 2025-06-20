@@ -210,9 +210,11 @@ public class LogSettingService {
          orgId = provider.getOrgIdFromName(orgName);
       }
 
-      if(Tool.isEmptyString(orgId) && context != LogContext.ORGANIZATION &&
-         context != LogContext.CATEGORY)
-      {
+      if(context == LogContext.ORGANIZATION) {
+         return provider.getOrgIdFromName(name);
+      }
+
+      if(Tool.isEmptyString(orgId) && context != LogContext.CATEGORY) {
          orgId = Organization.getDefaultOrganizationID();
       }
 

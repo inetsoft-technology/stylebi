@@ -3042,7 +3042,14 @@ public abstract class AssetQuery extends PreAssetQuery {
     * @return the max row count table lens.
     */
    protected TableLens getMaxRowsTableLens(TableLens base, VariableTable vars) throws Exception {
-      int max = getMaxRows(true);
+      int max = 0;
+
+      if(vars != null && vars.get(BROWSE_MAXROWS) != null) {
+         max = (int) vars.get(BROWSE_MAXROWS);
+      }
+      else {
+         max = getMaxRows(true);
+      }
 
       if(isQueryMergeable(false) || max <= 0) {
          return base;
@@ -3795,7 +3802,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          setMeasureNames(mheaders);
          this.cgroup = cgroup;
          groups = new HashMap<>();
-         this.cube = cube;
+         setCube(cube);
       }
 
       /**
@@ -3819,7 +3826,7 @@ public abstract class AssetQuery extends PreAssetQuery {
        */
       @Override
       protected void resetOrder(List<GroupNode> nodes0, List<GroupNode> nodes1, int gidx) {
-         if(!cube) {
+         if(!isCube()) {
             return;
          }
 
@@ -3836,7 +3843,6 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       private ConditionGroup cgroup;
       private Map<Integer, DataRef> groups;
-      private final boolean cube;
    }
 
    /**
@@ -4519,6 +4525,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    private Map<Tuple, Class> colTypes = new ConcurrentHashMap<>();
 
    static final String DESIGN_TABLE = AssetQuery.class.getName() + ".designTable";
+   public static final String BROWSE_MAXROWS = "browse_maxrows";
    public static ThreadLocal<Boolean> THROW_EXECUTE_EXCEPTION = ThreadLocal.withInitial(() -> Boolean.FALSE);
    private static final Logger LOG = LoggerFactory.getLogger(AssetQuery.class);
 }

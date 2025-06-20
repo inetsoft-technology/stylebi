@@ -187,7 +187,7 @@ public class StackTextFrame extends TextFrame implements CategoricalFrame {
     * @return the row indexes of the same key.
     */
    @TernMethod
-   public int[] getStackRowIndexes(int index) {
+   public int[] getStackRowIndexes(Integer index) {
       Set<Object> keys = stackmap.keySet();
 
       for(Object key : keys) {

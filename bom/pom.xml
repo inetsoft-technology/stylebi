@@ -30,7 +30,7 @@
   <name>StyleBI Dependency BOM</name>
 
   <properties>
-    <avro.version>1.11.3</avro.version>
+    <avro.version>1.11.4</avro.version>
     <groovy.version>4.0.25</groovy.version>
     <ignite.version>2.17.0</ignite.version>
     <jackson.version>2.18.2</jackson.version>
@@ -416,7 +416,7 @@
       <dependency>
         <groupId>commons-beanutils</groupId>
         <artifactId>commons-beanutils</artifactId>
-        <version>1.9.4</version>
+        <version>1.11.0</version>
         <exclusions>
           <exclusion>
             <groupId>commons-logging</groupId>
@@ -700,14 +700,14 @@
         <groupId>org.apache.sshd</groupId>
         <artifactId>sshd-common</artifactId>
         <!-- CVE-2023-35887 -->
-        <version>2.9.3</version>
+        <version>2.12.0</version>
       </dependency>
 
       <dependency>
         <groupId>org.apache.sshd</groupId>
         <artifactId>sshd-core</artifactId>
         <!-- CVE-2023-35887 -->
-        <version>2.9.3</version>
+        <version>2.12.0</version>
       </dependency>
 
       <dependency>
@@ -792,7 +792,7 @@
       <dependency>
         <groupId>org.eclipse.jgit</groupId>
         <artifactId>org.eclipse.jgit</artifactId>
-        <version>6.8.0.202311291450-r</version>
+        <version>6.10.1.202505221210-r</version>
         <exclusions>
           <exclusion>
             <groupId>com.jcraft</groupId>

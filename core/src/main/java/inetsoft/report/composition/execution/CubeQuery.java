@@ -246,6 +246,14 @@ public class CubeQuery extends AssetQuery {
 
          if(item.getAttribute() instanceof ColumnRef) {
             column = (ColumnRef) item.getAttribute();
+
+            if(column.getDataRef() instanceof RangeRef) {
+               DataRef dataRef = ((RangeRef) column.getDataRef()).getDataRef();
+
+               if(dataRef instanceof AttributeRef) {
+                  column = new ColumnRef(dataRef);
+               }
+            }
          }
          else if(item.getAttribute() instanceof GroupRef){
             GroupRef gref = (GroupRef) item.getAttribute();

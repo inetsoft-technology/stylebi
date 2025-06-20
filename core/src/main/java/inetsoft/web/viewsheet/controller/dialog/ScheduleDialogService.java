@@ -31,6 +31,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.schema.UserVariable;
@@ -283,6 +284,16 @@ public class ScheduleDialogService {
    public Void scheduleVS(@ClusterProxyKey String id, ScheduleDialogModel value,
                           Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Schedule", ResourceAction.READ) ||
+         !SecurityEngine.getSecurity().checkPermission(
+            principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
+      {
+         Catalog catalog = Catalog.getCatalog();
+         throw new SecurityException(catalog.getString("em.common.security.no.permission",
+                                                       catalog.getString("scheduler")));
+      }
+
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
       AssetEntry entry = rvs.getEntry();

@@ -2225,22 +2225,22 @@ public class VGraphPair {
     * @param idx legend index.
     */
    public Graphics2D getLegendTitleGraphic(int idx, int row, int col) {
-      return getLegendGraphic(idx, true, row, col);
+      return getLegendGraphic(idx, true, row, col, 0);
    }
 
    /**
     * Get the image for the specified legend.
     * @param idx legend index.
     */
-   public Graphics2D getLegendContentGraphic(int idx, int row, int col) {
-      return getLegendGraphic(idx, false, row, col);
+   public Graphics2D getLegendContentGraphic(int idx, int row, int col, double height) {
+      return getLegendGraphic(idx, false, row, col, height);
    }
 
    /**
     * Get the image for the specified legend.
     * @param isTitle true if paint title.
     */
-   private Graphics2D getLegendGraphic(int idx, boolean isTitle, int row, int col) {
+   private Graphics2D getLegendGraphic(int idx, boolean isTitle, int row, int col, double tileHeight) {
       final VGraph vgraph = this.vgraph;
       // use the real size legend to paint
       final Legend legend = vgraph.getLegendGroup() == null ?
@@ -2270,7 +2270,7 @@ public class VGraphPair {
       LegendSpec spec = legend.getVisualFrame().getLegendSpec();
 
       SVGSupport.getInstance().setCanvasSize(
-         g, new Dimension((int) bounds.getWidth(), (int) Math.min(bounds.getHeight(), 1024)));
+         g, new Dimension((int) bounds.getWidth(), (int) Math.min(tileHeight, 1024)));
       // background for legend is drawn in gui instead of in image. force it to
       // not draw in legend so semi-transparent colors aren't on top of each other
       legend.setPaintBackground(false);

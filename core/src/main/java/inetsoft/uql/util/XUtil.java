@@ -3757,7 +3757,10 @@ public final class XUtil {
             // @by jasonshobe, fix bug1400096326732: don't check permissions if
             // being invoked from report (preserve b.c. after bug1368179287358)
             if(!reportScript) {
-               if(!noPermission && entry.getScope() != AssetRepository.REPORT_SCOPE) {
+               IdentityID userID = user instanceof SRPrincipal ? ((SRPrincipal) user).getClientUserID() : null;
+               boolean userAsset = entry.getScope() == AssetRepository.USER_SCOPE && Tool.equals(entry.getUser(), userID);
+
+               if(!noPermission && !userAsset && entry.getScope() != AssetRepository.REPORT_SCOPE) {
                   try {
                      AssetEntry parent = entry;
 

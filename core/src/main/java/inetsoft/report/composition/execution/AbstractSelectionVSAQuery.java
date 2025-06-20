@@ -351,7 +351,7 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
          return;
       }
 
-      Object obj = getSelectionValueData(svalue, ref);
+      Object obj = getSelectionValueData(svalue, ref, rtype);
 
       // if the format doesn't have dynamic value, no need to make a copy
       if(dynamic) {
@@ -370,33 +370,31 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       Format fmt = TableFormat.getFormat(vfmt.getFormat(), vfmt.getFormatExtent(), locale);
       fmt = fmt == null ? svalue.getDefaultFormat() : fmt;
 
-      if((rtype & DataRef.CUBE) == 0) {
-         // format value into a label
-         if(fmt == null ||
-            (fmt instanceof DateFormat && !(obj instanceof Date)))
-         {
-            String label = Tool.toString(getSelectionValueData(svalue, ref));
+      // format value into a label
+      if(fmt == null ||
+         (fmt instanceof DateFormat && !(obj instanceof Date)))
+      {
+         String label = Tool.toString(getSelectionValueData(svalue, ref, rtype));
 
-            if(!"".equals(label.trim())) {
-               svalue.setLabel(label);
-            }
+         if(!"".equals(label.trim())) {
+            svalue.setLabel(label);
          }
-         else if(obj != null) {
+      }
+      else if(obj != null) {
+         try {
+            String label = null;
+
             try {
-               String label = null;
-
-               try {
-                  label = fmt.format(obj);
-               }
-               catch(NumberFormatException ex) {
-                  label = Tool.toString(obj);
-               }
-
-               svalue.setLabel(label);
+               label = fmt.format(obj);
             }
-            catch(Exception ex) {
-               LOG.info("Failed to format label value: " + obj, ex);
+            catch(NumberFormatException ex) {
+               label = Tool.toString(obj);
             }
+
+            svalue.setLabel(label);
+         }
+         catch(Exception ex) {
+            LOG.info("Failed to format label value: " + obj, ex);
          }
       }
 
@@ -406,9 +404,17 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
    /**
     * Get selection value data by the data type.
     */
-   protected Object getSelectionValueData(SelectionValue svalue, DataRef ref) {
+   protected Object getSelectionValueData(SelectionValue svalue, DataRef ref, int rtype) {
       String dtype = ref.getDataType();
-      String value = svalue.getValue();
+      String value = null;
+
+      if((rtype & DataRef.CUBE) == 0) {
+         value = svalue.getValue();
+      }
+      else {
+         value = svalue.getOriginalLabel();
+      }
+
       return Tool.getData(dtype, value, true);
    }
 

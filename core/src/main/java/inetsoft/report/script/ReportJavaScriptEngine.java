@@ -98,54 +98,53 @@ public class ReportJavaScriptEngine extends JavaScriptEngine {
     * Initialize the script runtime environment for a report.
     */
    public void init(ReportSheet report, Map vars) throws Exception {
-      Context cx = Context.enter();
-      Scriptable globalscope = initScope();
+      try(Context cx = SecureClassShutter.createSecureContext()) {
+         Scriptable globalscope = initScope();
 
-      // scopes are organized as:
-      //   report global scope  -- prototype: --> global scope --> CALC
-      //         |                                    \
-      //    report scope                             CALC
-      //
-      // CALC functions can be accessed as CALC.func(), or func() if it's
-      // not hidden by other symbols in the lower scopes
+         // scopes are organized as:
+         //   report global scope  -- prototype: --> global scope --> CALC
+         //         |                                    \
+         //    report scope                             CALC
+         //
+         // CALC functions can be accessed as CALC.func(), or func() if it's
+         // not hidden by other symbols in the lower scopes
 
-      // create a scope for the report so the global vars (vars used without
-      // being declared) are not mixed
-      ScriptableObject reportglobal = new ScriptableObject() {
-         @Override
-         public String getClassName() {
-            return "ReportGlobal";
+         // create a scope for the report so the global vars (vars used without
+         // being declared) are not mixed
+         ScriptableObject reportglobal = new ScriptableObject() {
+            @Override
+            public String getClassName() {
+               return "ReportGlobal";
+            }
+         };
+
+         reportglobal.setPrototype(globalscope);
+
+         if(topscope == null) {
+            topscope = createEngineScope(report, this);
          }
-      };
 
-      reportglobal.setPrototype(globalscope);
+         // this may be changed by bean, reset to top global scope
+         topscope.setParentScope(reportglobal);
 
-      if(topscope == null) {
-         topscope = createEngineScope(report, this);
+         rscope = cx.newObject(topscope);
+         rscope.setParentScope(topscope);
+         // make sure functions can access report functions (e.g. runQuery)
+         LibScriptable lib = new LibScriptable(rscope);
+         // this is needed so runQuery() can be accessed in lib functions
+         lib.setPrototype(null);
+         rscope.setPrototype(lib);
+
+         // initialize script variables
+         Iterator names = vars.keySet().iterator();
+
+         while(names.hasNext()) {
+            String name = (String) names.next();
+            put(name, vars.get(name));
+         }
+
+         topscope.put("report", topscope, rscope);
       }
-
-      // this may be changed by bean, reset to top global scope
-      topscope.setParentScope(reportglobal);
-
-      rscope = cx.newObject(topscope);
-      rscope.setParentScope(topscope);
-      // make sure functions can access report functions (e.g. runQuery)
-      LibScriptable lib = new LibScriptable(rscope);
-      // this is needed so runQuery() can be accessed in lib functions
-      lib.setPrototype(null);
-      rscope.setPrototype(lib);
-
-      // initialize script variables
-      Iterator names = vars.keySet().iterator();
-
-      while(names.hasNext()) {
-         String name = (String) names.next();
-         put(name, vars.get(name));
-      }
-
-      topscope.put("report", topscope, rscope);
-
-      Context.exit();
    }
 
    /**
@@ -279,10 +278,9 @@ public class ReportJavaScriptEngine extends JavaScriptEngine {
     */
    @Override
    public Scriptable getScriptable(Object id, Scriptable scope) {
-      Context.enter();
-      scope = (scope == null) ? rscope : scope;
+      try(Context cx = SecureClassShutter.createSecureContext()) {
+         scope = (scope == null) ? rscope : scope;
 
-      try {
          if(id == null) {
             return scope;
          }
@@ -301,9 +299,6 @@ public class ReportJavaScriptEngine extends JavaScriptEngine {
          }
 
          return null;
-      }
-      finally {
-         Context.exit();
       }
    }
 

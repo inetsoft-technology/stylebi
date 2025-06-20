@@ -394,7 +394,7 @@ public class OfflineExcelTableHelper extends ExcelTableHelper {
                                  VSCompositeFormat parentformat, Rectangle rec,
                                  String cellFormat, int[] columnPixelW, Insets padding)
    {
-      boolean dispValue = cellFormat != null && !"General".equals(cellFormat) &&
+      boolean dispValue = (dispObj instanceof Number) || cellFormat != null && !"General".equals(cellFormat) &&
          !"@".equals(cellFormat) && !(dispObj instanceof String) && !(dispObj instanceof Character);
 
       if(dispObj instanceof Painter && dispText != null) {

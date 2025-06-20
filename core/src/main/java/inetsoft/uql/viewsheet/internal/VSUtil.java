@@ -62,6 +62,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.AuditRecordUtils;
 import inetsoft.util.audit.BookmarkRecord;
 import inetsoft.util.graphics.SVGSupport;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.binding.dnd.BindingDropTarget;
 import inetsoft.web.binding.handler.CrosstabConstants;
 import inetsoft.web.viewsheet.model.table.DrillLevel;
@@ -79,6 +80,7 @@ import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.lang.reflect.Array;
+import java.net.URL;
 import java.security.Principal;
 import java.text.SimpleDateFormat;
 import java.util.List;
@@ -1158,6 +1160,9 @@ public final class VSUtil {
       else if(path.startsWith("java:presenter:")) {
          buf = getImageBytes(getPresenterImage(path, width, height, fmt), 72);
       }
+      else if(path.endsWith(".svg")) {
+         buf = getSVGImageBytes(path);
+      }
       else {
          buf = vs.getUploadedImageBytes(path);
 
@@ -1174,6 +1179,25 @@ public final class VSUtil {
       }
 
       return buf;
+   }
+
+   private static byte[] getSVGImageBytes(String path) {
+      if(path == null || path.indexOf("://") <= 0) {
+         return null;
+      }
+
+      try(InputStream input = new URL(path).openStream()) {
+         SVGSupport svg = SVGSupport.getInstance();
+         return svg.transcodeSVGImage(svg.createSVGDocument(input));
+      } 
+      catch(IOException ex) {
+         LOG.debug("Failed to read the SVG image", ex);
+      }
+      catch(Exception ex) {
+         LOG.debug("An unexpected error occurred", ex);
+      }
+
+      return null;
    }
 
    /**

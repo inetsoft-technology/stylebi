@@ -68,7 +68,9 @@ public class ViewsheetAsset2 extends ViewsheetAsset {
     * Get vs-logical model dependency.
     */
    @Override
-   protected void getModelDependency(AssetEntry wentry, List<XAssetDependency> dependencies) {
+   protected void getModelDependency(AssetEntry wentry, List<XAssetDependency> dependencies,
+                                     List<XAssetDependency> list)
+   {
       convertQTL(wentry, dependencies);
    }
 
