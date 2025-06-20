@@ -27,12 +27,14 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@Lazy(false)
 public class ViewsheetMonitorController extends AbstractMonitoringController {
    @Autowired
    public ViewsheetMonitorController(ViewsheetService viewsheetService,
