@@ -81,9 +81,24 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
       authenticationService.addSessionListener(this);
 
       this.sessions = Caffeine.newBuilder()
-         .expireAfterAccess(this.defaultMaxInactiveInterval, TimeUnit.SECONDS)
          .maximumSize(getMaxActiveSessions())
          .removalListener(this)
+         .expireAfter(new Expiry<String, Session>() {
+            @Override
+            public long expireAfterCreate(String key, Session value, long currentTime) {
+               return TimeUnit.SECONDS.toNanos(getSessionTimeout());
+            }
+
+            @Override
+            public long expireAfterUpdate(String key, Session value, long currentTime, long currentDuration) {
+               return currentDuration;
+            }
+
+            @Override
+            public long expireAfterRead(String key, Session value, long currentTime, long currentDuration) {
+               return TimeUnit.SECONDS.toNanos(getSessionTimeout());
+            }
+         })
          .build();
    }
 
