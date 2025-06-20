@@ -691,9 +691,16 @@ public class DataSourceBrowserService {
                if(!((ds instanceof ListedDataSource) || ds instanceof TabularDataSource ||
                   ds.getType().startsWith(SourceInfo.REST_PREFIX)))
                {
-                  RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
-                     oname, ds.getFullName());
-                  RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+                  if(ds instanceof XMLADataSource) {
+                     RenameDependencyInfo dinfo = DependencyTransformer.createCubeDependencyInfo(
+                        oname, ds.getFullName());
+                     RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+                  }
+                  else {
+                     RenameDependencyInfo dinfo = DependencyTransformer.createDependencyInfo(
+                        oname, ds.getFullName());
+                     RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
+                  }
                }
 
                repository.updateDataSource(ds, oname, false);
