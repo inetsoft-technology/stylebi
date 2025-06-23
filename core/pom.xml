@@ -601,12 +601,6 @@
     </dependency>
 
     <dependency>
-      <groupId>org.webjars.npm</groupId>
-      <artifactId>rapidoc</artifactId>
-      <scope>compile</scope>
-    </dependency>
-
-    <dependency>
       <groupId>org.webjars</groupId>
       <artifactId>bootstrap</artifactId>
       <scope>compile</scope>
