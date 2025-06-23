@@ -22,8 +22,8 @@ import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.GroupContainerVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.factory.RemainingPath;
@@ -181,10 +181,10 @@ public class GroupContainerPropertyDialogController {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(
          runtimeViewsheetRef.getRuntimeId(), principal);
       Viewsheet vs = rvs.getViewsheet();
-      GroupContainerVSAssembly imageAssembly =
+      GroupContainerVSAssembly containerAssembly =
          (GroupContainerVSAssembly) vs.getAssembly(objectId);
       GroupContainerVSAssemblyInfo info =
-         (GroupContainerVSAssemblyInfo) imageAssembly.getVSAssemblyInfo();
+         (GroupContainerVSAssemblyInfo) Tool.clone(containerAssembly.getVSAssemblyInfo());
       GroupContainerGeneralPaneModel groupContainerGeneralPane =
          value.getGroupContainerGeneralPane();
       GeneralPropPaneModel generalPropPane = groupContainerGeneralPane.getGeneralPropPane();
@@ -229,11 +229,11 @@ public class GroupContainerPropertyDialogController {
 
       if(sizePositionPaneModel.getLeft() >= 0 && sizePositionPaneModel.getTop() >= 0) {
          dialogService.setContainerPosition(info, sizePositionPaneModel,
-                                            imageAssembly.getAssemblies(), vs);
+                                            containerAssembly.getAssemblies(), vs);
 
          ChangedAssemblyList clist = this.coreLifecycleService.createList(false, commandDispatcher, rvs, linkUri);
          this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher,
-                                                 imageAssembly.getAbsoluteName(), clist);
+                                                   containerAssembly.getAbsoluteName(), clist);
       }
 
       info.setScriptEnabled(vsAssemblyScriptPane.scriptEnabled());
