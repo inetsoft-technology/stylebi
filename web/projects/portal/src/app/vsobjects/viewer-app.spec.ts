@@ -17,7 +17,14 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { Component, EventEmitter, NgModule, NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
+import {
+   Component,
+   EventEmitter,
+   NgModule,
+   NO_ERRORS_SCHEMA,
+   Renderer2,
+   ViewContainerRef
+} from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { BrowserModule, By, Title } from "@angular/platform-browser";
 import { Router } from "@angular/router";
@@ -139,6 +146,7 @@ describe("ViewerApp Unit Tests", () => {
    let miniToolbarService: any;
    let featureFlagsService: any;
    let assetLoadingService: any;
+   let viewContainerRef: any;
 
    beforeEach(async(() => {
       formDataService = {
@@ -266,6 +274,9 @@ describe("ViewerApp Unit Tests", () => {
          isLoading: jest.fn(),
          setLoading: jest.fn()
       };
+      viewContainerRef = {
+         element: jest.fn(),
+      };
 
       TestBed.configureTestingModule({
          imports: [
@@ -306,6 +317,7 @@ describe("ViewerApp Unit Tests", () => {
             { provide: MiniToolbarService, useValue: miniToolbarService },
             { provide: FeatureFlagsService, useValue: featureFlagsService },
             { provide: AssetLoadingService, useValue: assetLoadingService },
+            { provide: ViewContainerRef, useValue: viewContainerRef },
             AppInfoService
          ],
          declarations: [
@@ -361,7 +373,7 @@ describe("ViewerApp Unit Tests", () => {
          firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService, featureFlagsService,
-         assetLoadingService);
+         assetLoadingService, viewContainerRef);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");
