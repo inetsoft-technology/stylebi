@@ -44,6 +44,10 @@ export class FullScreenService implements OnDestroy {
       fscreen.requestFullscreen(window.document.documentElement);
    }
 
+   enterFullScreenForElement(target: Element): void {
+      fscreen.requestFullscreen(target);
+   }
+
    exitFullScreen(): void {
       fscreen.exitFullscreen();
    }
