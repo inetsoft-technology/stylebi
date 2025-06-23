@@ -1637,29 +1637,30 @@ public final class Tool extends CoreTool {
    private static String getLockFile(String path) {
       FileSystemService fileSystemService = FileSystemService.getInstance();
       File pathFile = fileSystemService.getFile(path);
+      File homeFile = fileSystemService.getFile(ConfigurationContext.getContext().getHome());
+
+      Path pathPath;
+      Path homePath;
 
       try {
-         path = pathFile.getCanonicalPath();
+         pathPath = pathFile.getCanonicalFile().toPath().normalize();
       }
-      catch(Exception ex) {
-         path = pathFile.getAbsolutePath();
+      catch(IOException ex) {
+         pathPath = pathFile.getAbsoluteFile().toPath().normalize();
       }
-
-      String home = ConfigurationContext.getContext().getHome();
-      File homeFile = fileSystemService.getFile(home);
 
       try {
-         home = homeFile.getCanonicalPath();
+         homePath = homeFile.getCanonicalFile().toPath().normalize();
       }
-      catch(Exception ex) {
-         home = homeFile.getAbsolutePath();
-      }
-
-      if(path.startsWith(home)) {
-         return path.substring(home.length());
+      catch(IOException ex) {
+         homePath = homeFile.getAbsoluteFile().toPath().normalize();
       }
 
-      return path;
+      if(pathPath.startsWith(homePath)) {
+         return homePath.relativize(pathPath).toString();
+      }
+
+      return pathPath.toString();
    }
 
    /**
