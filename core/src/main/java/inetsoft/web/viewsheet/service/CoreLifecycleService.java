@@ -2285,16 +2285,52 @@ public class CoreLifecycleService {
       }
 
       List<Assembly> list = new ArrayList<>();
+      Set<String> vsNames = new HashSet<>();
       VSEventUtil.getAssembliesInContainer(vs, assembly, list);
 
       for(Assembly assemblyItem : list) {
          VSAssembly child = (VSAssembly) assemblyItem;
+
+         // Ensure that parent viewsheet assemblies are added before their children
+         addContainerObjectParent(child, list, processed, vsNames, rvs, uri, dispatcher);
          addDeleteVSObject(rvs, child, dispatcher);
 
          if(!processed.contains(child.getAbsoluteName())) {
             loadTableLens(rvs, child.getAbsoluteName(), uri, dispatcher);
             processed.add(child);
          }
+      }
+   }
+
+   private void addContainerObjectParent(VSAssembly child, List<Assembly> list,
+                                         List<Object> processed, Set<String> vsNames,
+                                         RuntimeViewsheet rvs, String uri,
+                                         CommandDispatcher dispatcher) throws Exception
+   {
+      String vsName = child.getViewsheet().getVSAssemblyInfo().getAbsoluteName();
+
+      if(vsName != null && !vsNames.contains(vsName)) {
+         vsNames.add(vsName);
+
+         for(Assembly assemblyItem : list) {
+            VSAssembly assemblyItem0 = (VSAssembly) assemblyItem;
+
+            if(assemblyItem0.getName().equals(vsName)) {
+               addContainerObjectParent(assemblyItem0, list, processed, vsNames, rvs, uri, dispatcher);
+               addDeleteVSObject(rvs, assemblyItem0, dispatcher);
+
+               if(!processed.contains(assemblyItem0.getAbsoluteName())) {
+                  loadTableLens(rvs, assemblyItem0.getAbsoluteName(), uri, dispatcher);
+                  processed.add(assemblyItem0);
+               }
+
+               break;
+            }
+         }
+      }
+
+      if(child instanceof Viewsheet) {
+         vsNames.add(child.getAbsoluteName());
       }
    }
 
