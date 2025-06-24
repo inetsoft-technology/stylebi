@@ -52,7 +52,8 @@ public class EMScheduleBatchActionController {
                                           ContentRepositoryTreeService contentRepositoryTreeService,
                                           SecurityEngine securityEngine,
                                           ViewsheetService viewsheetService,
-                                          ScheduleTaskActionServiceProxy actionServiceProxy)
+                                          ScheduleTaskActionServiceProxy actionServiceProxy,
+                                          EMScheduleTaskActionServiceProxy emActionServiceProxy)
    {
       this.assetRepository = assetRepository;
       this.scheduleService = scheduleService;
@@ -62,6 +63,7 @@ public class EMScheduleBatchActionController {
       this.securityEngine = securityEngine;
       this.viewsheetService = viewsheetService;
       this.actionServiceProxy = actionServiceProxy;
+      this.emActionServiceProxy = emActionServiceProxy;
    }
 
    @GetMapping("/api/em/schedule/batch-action/scheduled-tasks")
@@ -141,7 +143,7 @@ public class EMScheduleBatchActionController {
             String runtimeId = viewsheetService.openViewsheet(entry, null, false);
             List<String> vsParameters =
                actionServiceProxy.getViewsheetParameters(runtimeId, principal);
-            viewsheetService.closeViewsheet(identifier, null);
+            emActionServiceProxy.closeViewsheet(identifier, null);
             parameterNames.addAll(vsParameters);
             parameterNames.addAll(findVariablesInScheduleAction((ViewsheetAction) action));
          }
@@ -331,5 +333,6 @@ public class EMScheduleBatchActionController {
    private final SecurityEngine securityEngine;
    private final ViewsheetService viewsheetService;
    private final ScheduleTaskActionServiceProxy actionServiceProxy;
+   private final EMScheduleTaskActionServiceProxy emActionServiceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(EMScheduleBatchActionController.class);
 }

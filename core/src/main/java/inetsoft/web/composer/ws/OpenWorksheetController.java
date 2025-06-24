@@ -29,7 +29,7 @@ import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.model.ws.WorksheetModel;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
+import inetsoft.web.composer.ws.assembly.WorksheetEventService;
 import inetsoft.web.composer.ws.command.OpenWorksheetCommand;
 import inetsoft.web.composer.ws.command.WSInitCommand;
 import inetsoft.web.composer.ws.event.OpenSheetEventValidator;
@@ -45,7 +45,6 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.File;
 import java.security.Principal;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -53,10 +52,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class OpenWorksheetController extends WorksheetController {
    @Autowired
    public OpenWorksheetController(RuntimeViewsheetManager runtimeViewsheetManager,
-                                  AssetRepository assetRepository)
+                                  AssetRepository assetRepository,
+                                  WorksheetEventService eventService)
    {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.assetRepository = assetRepository;
+      this.eventService = eventService;
    }
 
    @PostMapping("api/ws/open")
@@ -113,12 +114,11 @@ public class OpenWorksheetController extends WorksheetController {
          assetRepository.clearCache(entry);
       }
 
-      WorksheetService engine = getWorksheetEngine();
       entry.setProperty("openAutoSaved", event.openAutoSavedFile() + "");
       entry.setProperty("gettingStarted", event.gettingStartedWs() + "");
-      String runtimeId = WorksheetEventUtil
-         .openWorksheet(engine, principal, entry, event.openAutoSavedFile(), event.createQuery(),
-            commandDispatcher);
+      String runtimeId = eventService.openWorksheet(
+         principal, entry, event.openAutoSavedFile(), event.createQuery(),
+         commandDispatcher);
 
       getRuntimeViewsheetRef().setRuntimeId(runtimeId);
       runtimeViewsheetManager.sheetOpened(principal, runtimeId);
@@ -260,5 +260,6 @@ public class OpenWorksheetController extends WorksheetController {
 
    private final RuntimeViewsheetManager runtimeViewsheetManager;
    private final AssetRepository assetRepository;
+   private final WorksheetEventService eventService;
    private static final Logger LOG = LoggerFactory.getLogger(OpenWorksheetController.class);
 }

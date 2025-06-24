@@ -24,17 +24,14 @@ import inetsoft.report.composition.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.viewsheet.TextVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.script.ScriptException;
-import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.composer.vs.controller.VSLayoutServiceProxy;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
@@ -84,7 +81,7 @@ public class EventAspect {
       RuntimeViewsheetRef runtimeViewsheetRef,
       CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService,
-      VSLayoutService vsLayoutService,
+      VSLayoutServiceProxy vsLayoutService,
       EventAspectServiceProxy eventAspectServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
@@ -102,11 +99,10 @@ public class EventAspect {
    /**
     * Post process event methods.
     *
-    * @throws Throwable if the method invocation failed.
     */
    @AfterReturning("@annotation(Undoable) && within(inetsoft.web..*)")
    @Order(1)
-   public void postProcess(JoinPoint joinPoint) throws Throwable {
+   public void postProcess(JoinPoint joinPoint) {
       Object[] args = joinPoint.getArgs();
       String id = this.runtimeViewsheetRef.getRuntimeId();
       CommandDispatcher commandDispatcher = null;
@@ -121,9 +117,8 @@ public class EventAspect {
          }
       }
 
-      RuntimeSheet rs = viewsheetService.getSheet(id, principal);
       this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-      this.vsLayoutService.makeUndoable(rs, commandDispatcher, null);
+      this.vsLayoutService.makeUndoable(id, principal, commandDispatcher, null);
    }
 
    @Before("@annotation(InitWSExecution) && within(inetsoft.web..*)")
@@ -155,7 +150,7 @@ public class EventAspect {
    }
 
    @AfterReturning("@annotation(InitWSExecution) && within(inetsoft.web..*)")
-   public void clearWSExecution(JoinPoint joinPoint) throws Throwable {
+   public void clearWSExecution(JoinPoint joinPoint) {
       WSExecution.setAssetQuerySandbox(null);
    }
 
@@ -196,7 +191,7 @@ public class EventAspect {
       for(MessageCommand.Type type : MessageCommand.Type.values()) {
          final List<UserMessage> messages = Tool.getUserMessages(type);
 
-         if(messages.size() > 0) {
+         if(!messages.isEmpty()) {
             for(UserMessage message : messages) {
                final MessageCommand messageCommand = MessageCommand.fromUserMessage(message);
                messageCommand.setAssemblyName(assemblyName);
@@ -210,7 +205,7 @@ public class EventAspect {
 
    @Around("@annotation(Audited) && within(inetsoft.web..*)")
    public Object handleAudit(ProceedingJoinPoint pjp) throws Throwable {
-      ActionRecord record = null;
+      ActionRecord record;
 
       MethodSignature signature = (MethodSignature) pjp.getSignature();
       Audited annotation = signature.getMethod().getAnnotation(Audited.class);
@@ -218,11 +213,11 @@ public class EventAspect {
       String actionName = null;
       String actionError = null;
 
-      if(!annotation.objectName().isEmpty()) {
+      if(annotation != null && !annotation.objectName().isEmpty()) {
          objectName = annotation.objectName();
       }
 
-      if(!annotation.actionName().isEmpty()) {
+      if(annotation != null && !annotation.actionName().isEmpty()) {
          actionName = annotation.actionName();
       }
 
@@ -240,9 +235,8 @@ public class EventAspect {
                   objectParameters.add(objectNameTuple);
                }
                else if(SUtil.isEmptyString(actionName)
-                       && paramAnnotations[i][j] instanceof AuditActionName)
+                       && paramAnnotations[i][j] instanceof AuditActionName actionAnnotation)
                {
-                  AuditActionName actionAnnotation = (AuditActionName) paramAnnotations[i][j];
                   Object arg = pjp.getArgs()[i];
 
                   if(actionAnnotation.value().isEmpty()) {
@@ -254,8 +248,7 @@ public class EventAspect {
                      actionName = expr.getValue(context, String.class);
                   }
                }
-               else if(paramAnnotations[i][j] instanceof AuditActionError) {
-                  AuditActionError actionErrorAnnotation = (AuditActionError) paramAnnotations[i][j];
+               else if(paramAnnotations[i][j] instanceof AuditActionError actionErrorAnnotation) {
                   Object arg = pjp.getArgs()[i];
 
                   if(arg == null) {
@@ -276,7 +269,7 @@ public class EventAspect {
             }
          }
 
-         if(objectParameters.size() > 0) {
+         if(!objectParameters.isEmpty()) {
             objectName = processAnnotationOrder(objectParameters);
          }
 
@@ -300,7 +293,8 @@ public class EventAspect {
       }
 
       record = SUtil.getActionRecord(
-         SUtil.getUserName(principal), actionName, objectName, annotation.objectType(),
+         SUtil.getUserName(principal), actionName, objectName,
+         Objects.requireNonNull(annotation).objectType(),
          new Timestamp(System.currentTimeMillis()), actionError, principal, false);
 
       Object result;
@@ -371,7 +365,7 @@ public class EventAspect {
             objName = expr.getValue(context, String.class);
          }
 
-         if(StringUtils.isEmpty(objName)) {
+         if(!StringUtils.hasText(objName)) {
             continue;
          }
 
@@ -417,9 +411,7 @@ public class EventAspect {
          commandDispatcher.ifPresent(dispatcher -> {
             boolean mvHandled = false;
             for(Exception ex : exceptions) {
-               if(ex instanceof ConfirmException) {
-                  ConfirmException e = (ConfirmException) ex;
-
+               if(ex instanceof ConfirmException e) {
                   if(!(e.getEvent() instanceof CheckMissingMVEvent)) {
                      sendMessage(e, MessageCommand.Type.CONFIRM, dispatcher);
                   }
@@ -428,8 +420,7 @@ public class EventAspect {
                      mvHandled = true;
                   }
                }
-               else if(ex instanceof MessageException) {
-                  MessageException e = (MessageException) ex;
+               else if(ex instanceof MessageException e) {
                   sendMessage(e, MessageCommand.Type.fromCode(e.getWarningLevel()), dispatcher);
                }
                else if(ex instanceof ScriptException ||
@@ -458,8 +449,9 @@ public class EventAspect {
 
    @Around("@annotation(LoadingMask) && within(inetsoft.web..*)")
    public Object clearLoadingMask(ProceedingJoinPoint pjp) throws Throwable {
-      boolean force = ((MethodSignature) pjp.getSignature()).getMethod()
-         .getAnnotation(LoadingMask.class).value();
+      LoadingMask mask = ((MethodSignature) pjp.getSignature()).getMethod()
+         .getAnnotation(LoadingMask.class);
+      boolean force = mask != null && mask.value();
 
       Optional<VSRefreshEvent> refreshEvent =
          Arrays.stream(pjp.getArgs())
@@ -649,7 +641,7 @@ public class EventAspect {
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
-   private final VSLayoutService vsLayoutService;
+   private final VSLayoutServiceProxy vsLayoutService;
    private final EventAspectServiceProxy eventAspectServiceProxy;
    private final Timer timer = new Timer();
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();

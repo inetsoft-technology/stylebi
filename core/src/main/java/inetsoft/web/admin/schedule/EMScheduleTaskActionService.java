@@ -51,6 +51,12 @@ public class EMScheduleTaskActionService {
       return assemblies;
    }
 
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void closeViewsheet(@ClusterProxyKey String id, Principal user) throws Exception {
+      viewsheetService.closeViewsheet(id, user);
+      return null;
+   }
+
    private final ScheduleTaskActionService actionService;
    private final ScheduleTaskActionServiceProxy actionServiceProxy;
    private final ViewsheetService viewsheetService;

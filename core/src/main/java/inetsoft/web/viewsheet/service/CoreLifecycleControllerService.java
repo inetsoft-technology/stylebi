@@ -43,6 +43,7 @@ import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 
@@ -84,6 +85,7 @@ public class CoreLifecycleControllerService {
          rvs = viewsheetService.getViewsheet(id, user);
       }
       catch(Exception e) {
+         LoggerFactory.getLogger(getClass()).warn("Missing viewsheet {}", id, new Exception("Stack trace"));
          id = viewsheetService.openViewsheet(entry, user, viewer);
          rvs = viewsheetService.getViewsheet(id, user);
       }

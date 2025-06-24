@@ -624,6 +624,12 @@ public class ScheduleTaskActionService {
       return builder.build();
    }
 
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void closeViewsheet(@ClusterProxyKey String id, Principal user) throws Exception {
+      viewsheetService.closeViewsheet(id, user);
+      return null;
+   }
+
    private final AnalyticRepository analyticRepository;
    private final ScheduleManager scheduleManager;
    private final ScheduleService scheduleService;

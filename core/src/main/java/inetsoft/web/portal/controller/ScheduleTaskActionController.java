@@ -174,7 +174,7 @@ public class ScheduleTaskActionController {
       AssetEntry entry = AssetEntry.createAssetEntry(id);
       String runtimeId = viewsheetService.openViewsheet(entry, null, false);
       boolean hasPrintLayout = scheduleTaskActionServiceProxy.hasPrintLayout(runtimeId, principal);
-      viewsheetService.closeViewsheet(id, principal);
+      scheduleTaskActionServiceProxy.closeViewsheet(id, principal);
 
       return hasPrintLayout;
    }
@@ -200,7 +200,7 @@ public class ScheduleTaskActionController {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
       String runtimeId = viewsheetService.openViewsheet(entry, null, false);
       List<ScheduleAlertModel> highlights = scheduleTaskActionServiceProxy.getViewsheetHighlights(runtimeId, principal);
-      viewsheetService.closeViewsheet(identifier, principal);
+      scheduleTaskActionServiceProxy.closeViewsheet(identifier, principal);
       return highlights;
    }
 
@@ -226,7 +226,7 @@ public class ScheduleTaskActionController {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
       String runtimeId = viewsheetService.openViewsheet(entry, null, false);
       List<String> params = scheduleTaskActionServiceProxy.getViewsheetParameters(runtimeId, principal);
-      viewsheetService.closeViewsheet(identifier, null);
+      scheduleTaskActionServiceProxy.closeViewsheet(identifier, null);
       return params;
    }
 
@@ -248,7 +248,7 @@ public class ScheduleTaskActionController {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
       String runtimeId = viewsheetService.openViewsheet(entry, null, false);
       List<String> assemblies = scheduleTaskActionServiceProxy.getViewsheetTableDataAssemblies(runtimeId, principal);
-      viewsheetService.closeViewsheet(identifier, null);
+      scheduleTaskActionServiceProxy.closeViewsheet(identifier, null);
       return assemblies;
    }
 
