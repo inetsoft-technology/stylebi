@@ -2268,9 +2268,10 @@ public class VGraphPair {
       double height = vgraph.getSize().getHeight();
       final Graphics2D g = SVGSupport.getInstance().createSVGGraphics();
       LegendSpec spec = legend.getVisualFrame().getLegendSpec();
+      double gheight = tileHeight > 0 ? Math.min(tileHeight, 1024) : 1024;
 
       SVGSupport.getInstance().setCanvasSize(
-         g, new Dimension((int) bounds.getWidth(), (int) Math.min(tileHeight, 1024)));
+         g, new Dimension((int) bounds.getWidth(), (int) gheight));
       // background for legend is drawn in gui instead of in image. force it to
       // not draw in legend so semi-transparent colors aren't on top of each other
       legend.setPaintBackground(false);
