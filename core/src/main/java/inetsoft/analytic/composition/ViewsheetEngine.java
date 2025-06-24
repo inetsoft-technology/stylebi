@@ -324,17 +324,8 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       try {
          // @by yuz, fix bug1246261678219, should use viewer any time
          entry.setProperty("viewer", "" + viewer);
-         id = openSheet(entry, user);
-
-         if(user != null) {
-            RuntimeViewsheet rvs = getViewsheet(id, user);
-
-            // add user to var table so the query key used for caching would match
-            // the subsequent queries where the user is in vars.
-            if(rvs != null) {
-               rvs.getViewsheetSandbox().getVariableTable().put("__principal__", user);
-            }
-         }
+         OpenViewsheetTask task = new OpenViewsheetTask(entry, user, getNextID(entry, user));
+         id = Cluster.getInstance().affinityCall(CACHE_NAME, task.id, task);
       }
       finally {
          entry.setProperty("viewer",  null);
@@ -852,5 +843,35 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       private final Task<T> task;
+   }
+
+   private static final class OpenViewsheetTask implements AffinityCallable<String> {
+      public OpenViewsheetTask(AssetEntry entry, Principal user, String id) {
+         this.entry = entry;
+         this.user = user;
+         this.id = id;
+      }
+
+      @Override
+      public String call() throws Exception {
+         ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
+         String rid = engine.openSheet(entry, user, id);
+
+         if(user != null) {
+            RuntimeViewsheet rvs = engine.getViewsheet(rid, user);
+
+            // add user to var table so the query key used for caching would match
+            // the subsequent queries where the user is in vars.
+            if(rvs != null) {
+               rvs.getViewsheetSandbox().getVariableTable().put("__principal__", user);
+            }
+         }
+
+         return rid;
+      }
+
+      private final AssetEntry entry;
+      private final Principal user;
+      private final String id;
    }
 }

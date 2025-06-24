@@ -112,18 +112,21 @@ public class CoreLifecycleService {
             runtimeViewsheetManager.sheetOpened(user, id);
          }
 
-         result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer,
-                                                 uri, variables, event, dispatcher, user);
+         result = serviceProxy.handleOpenedSheet(
+            id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer, uri, variables,
+            event, dispatcher, user);
          id = result.getId();
 
-         if(id != null && id.length() > 0) {
-            dispatcher.sendCommand(null, new SetRuntimeIdCommand(id, result.getDispatchPermissions()));
+         if(id != null && !id.isEmpty()) {
+            dispatcher.sendCommand(
+               null, new SetRuntimeIdCommand(id, result.getDispatchPermissions()));
          }
       }
       else {
          id = engine.openViewsheet(entry, user, viewer);
-         result = serviceProxy.handleOpenedSheet(id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer,
-                                                 uri, variables, event, dispatcher, user);
+         result = serviceProxy.handleOpenedSheet(
+            id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer, uri, variables,
+            event, dispatcher, user);
          nid = result.getId();
       }
 
@@ -137,8 +140,9 @@ public class CoreLifecycleService {
          runtimeViewsheetManager.sheetOpened(user, result.getId());
       }
 
-      if(result.getId() != null && result.getId().length() > 0) {
-         dispatcher.sendCommand(null, new SetRuntimeIdCommand(result.getId(), result.getDispatchPermissions()));
+      if(result.getId() != null && !result.getId().isEmpty()) {
+         dispatcher.sendCommand(
+            null, new SetRuntimeIdCommand(result.getId(), result.getDispatchPermissions()));
       }
 
       return result;
@@ -147,7 +151,9 @@ public class CoreLifecycleService {
    public boolean waitForMV(ConfirmException e, RuntimeViewsheet rvs,
                             CommandDispatcher commandDispatcher)
    {
-      if(e.getLevel() != ConfirmException.PROGRESS || !(e.getEvent() instanceof CheckMissingMVEvent)) {
+      if(e.getLevel() != ConfirmException.PROGRESS ||
+         !(e.getEvent() instanceof CheckMissingMVEvent))
+      {
          return false;
       }
 

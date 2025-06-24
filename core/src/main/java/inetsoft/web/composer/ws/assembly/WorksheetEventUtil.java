@@ -28,8 +28,6 @@ import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.ws.TableAssemblyOperatorModel;
-import inetsoft.web.composer.model.ws.WorksheetModel;
-import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.command.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -39,8 +37,8 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.Point2D;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 public class WorksheetEventUtil {
    /**
@@ -228,7 +226,6 @@ public class WorksheetEventUtil {
     *  @param rws       runtime worksheet.
     * @param name      the specified assembly name.
     * @param recursive touch dependency or not.
-    * @param principal
     */
    public static void refreshAssembly(
       RuntimeWorksheet rws, String name,
@@ -245,7 +242,6 @@ public class WorksheetEventUtil {
     * @param oldName           specified old assembly name.
     * @param recursive         touch dependency or not.
     * @param commandDispatcher command dispatcher.
-    * @param principal
     */
    public static void refreshAssembly(
       RuntimeWorksheet rws, String newName, String oldName, boolean recursive,
@@ -262,7 +258,6 @@ public class WorksheetEventUtil {
     * @param recursive         touch dependency or not.
     * @param assemblyDeps      the assembly-dependings map, or null if this is the root assembly
     * @param commandDispatcher command dispatcher.
-    * @param principal
     */
    private static void refreshAssembly(
       RuntimeWorksheet rws, String newName, String oldName,
@@ -281,7 +276,6 @@ public class WorksheetEventUtil {
     * @param recursive         touch dependency or not.
     * @param assemblyDeps      the assembly-dependings map, or null if this is the root assembly
     * @param commandDispatcher command dispatcher.
-    * @param principal
     */
    private static void refreshAssembly(
       RuntimeWorksheet rws, String newName, String oldName,
@@ -358,7 +352,7 @@ public class WorksheetEventUtil {
          }
       }
 
-      commandDispatcher.sendCommand(command);
+      Objects.requireNonNull(commandDispatcher).sendCommand(command);
 
       if(recursive) {
          ws.checkDependencies();
@@ -384,7 +378,7 @@ public class WorksheetEventUtil {
             dependencies.remove(assembly.getAbsoluteName());
 
             // If there are still blocking dependencies, do not refresh.
-            if(dependencies.size() > 0) {
+            if(!dependencies.isEmpty()) {
                continue;
             }
 
@@ -493,8 +487,7 @@ public class WorksheetEventUtil {
             if(val == null) {
                valueString = "";
             }
-            else if(val instanceof Object[]) {
-               Object[] vals = (Object[]) val;
+            else if(val instanceof Object[] vals) {
                final StringBuilder valueStringBuilder = new StringBuilder();
 
                for(Object o : vals) {
@@ -503,7 +496,7 @@ public class WorksheetEventUtil {
 
                valueString = valueStringBuilder.toString();
 
-               if(valueString.length() > 0) {
+               if(!valueString.isEmpty()) {
                   valueString = valueString.substring(0, valueString.length() - 1);
                   valueString = "[" + valueString + "]";
                }
@@ -516,14 +509,14 @@ public class WorksheetEventUtil {
             // ignore
          }
 
-         info.setMessage("".equals(valueString) ? var.toString() :
+         info.setMessage(valueString.isEmpty() ? var.toString() :
                             var.toString() + "\n" + Catalog.getCatalog().
                                getString("viewer.viewsheet.variable.currentValue",
                                          valueString));
 
          // expand the size to show the current value
          if(size.equals(new Dimension(AssetUtil.defw, 2 * AssetUtil.defh)) &&
-            !"".equals(valueString))
+            !valueString.isEmpty())
          {
             info.setPixelSize(new Dimension(2 * AssetUtil.defw, 3 * AssetUtil.defh));
          }
@@ -532,8 +525,7 @@ public class WorksheetEventUtil {
          info.setMessage(null);
       }
 
-      if(assembly instanceof TableAssembly) {
-         TableAssembly table = (TableAssembly) assembly;
+      if(assembly instanceof TableAssembly table) {
          TableAssemblyInfo tinfo = table.getTableInfo();
 
          // fix aggregate defined
@@ -567,8 +559,7 @@ public class WorksheetEventUtil {
          tinfo.setSortDefined(!table.getSortInfo().isEmpty());
       }
 
-      if(assembly instanceof EmbeddedTableAssembly) {
-         EmbeddedTableAssembly etable = (EmbeddedTableAssembly) assembly;
+      if(assembly instanceof EmbeddedTableAssembly etable) {
          XTable data = etable instanceof SnapshotEmbeddedTableAssembly
             ? ((SnapshotEmbeddedTableAssembly) etable).getTable()
             : etable.getEmbeddedData();
@@ -654,7 +645,6 @@ public class WorksheetEventUtil {
     * Refresh worksheet.
     *
     * @param rws the specified runtime worksheet.
-    * @param principal
     */
    public static void refreshWorksheet(
       RuntimeWorksheet rws, WorksheetService worksheetService,
@@ -667,7 +657,6 @@ public class WorksheetEventUtil {
     * Refresh worksheet.
     *  @param rws     the specified runtime worksheet.
     * @param initing <tt>true</tt> if is an initing worksheet.
-    * @param principal
     */
    public static void refreshWorksheet(
       RuntimeWorksheet rws, WorksheetService worksheetService, boolean initing,
@@ -681,7 +670,6 @@ public class WorksheetEventUtil {
     *  @param rws     the specified runtime worksheet.
     * @param initing <tt>true</tt> if is an initing worksheet.
     * @param reset   <tt>true</tt> to reset cached data.
-    * @param principal
     */
    public static void refreshWorksheet(
       RuntimeWorksheet rws, WorksheetService worksheetService,
@@ -739,7 +727,6 @@ public class WorksheetEventUtil {
     *  @param rws      the specified runtime worksheet.
     * @param assembly the specified assembly.
     * @param commandDispatcher the command dispatcher.
-    * @param principal
     */
    public static void createAssembly(
       RuntimeWorksheet rws, WSAssembly assembly, CommandDispatcher commandDispatcher,
@@ -891,154 +878,6 @@ public class WorksheetEventUtil {
       }
    }
 
-   /**
-    * Open worksheet.
-    * @param engine the specified worksheet engine.
-    * @param user the specified user.
-    * @param entry the specified worksheet entry.
-    * @param openAutoSaved whether the worksheet getting opened is autosaved.
-    * @param commandDispatcher the specified command dispatcher.
-    *
-    * @return the runtime id of the open worksheet
-    */
-   public static String openWorksheet(
-      WorksheetService engine, Principal user, AssetEntry entry, boolean openAutoSaved,
-      CommandDispatcher commandDispatcher) throws Exception
-   {
-      return openWorksheet(engine, user, entry, openAutoSaved, false, commandDispatcher);
-   }
-
-   /**
-    * Open worksheet.
-    * @param engine the specified worksheet engine.
-    * @param user the specified user.
-    * @param entry the specified worksheet entry.
-    * @param openAutoSaved whether the worksheet getting opened is autosaved.
-    * @param commandDispatcher the specified command dispatcher.
-    *
-    * @return the runtime id of the open worksheet
-    */
-   public static String openWorksheet(
-      WorksheetService engine, Principal user, AssetEntry entry, boolean openAutoSaved,
-      boolean gettingStartedCreateQuery, CommandDispatcher commandDispatcher) throws Exception
-   {
-      String id = engine.openWorksheet(entry, user);
-      RuntimeWorksheet rws = engine.getWorksheet(id, user);
-      fixWorksheetMode(rws);
-      clearGettingStatedRuntimeWs(rws, gettingStartedCreateQuery);
-
-      List errors = (List) AssetRepository.ASSET_ERRORS.get();
-
-      String label, alias = entry.getAlias();
-
-      if(alias != null && alias.length() > 0) {
-         label = alias;
-      }
-      else {
-         label = entry.getName();
-      }
-
-      if(openAutoSaved) {
-         rws.setSavePoint(-1);
-      }
-
-      WorksheetModel worksheet = new WorksheetModel();
-      worksheet.setId(entry.toIdentifier());
-      worksheet.setRuntimeId(id);
-      worksheet.setLabel(label);
-      worksheet.setNewSheet("true".equals(entry.getProperty("openAutoSaved")));
-      worksheet.setType("worksheet");
-      worksheet.setCurrent(rws.getCurrent());
-      worksheet.setSavePoint(rws.getSavePoint());
-      worksheet.setSingleQuery(rws.getWorksheet().getWorksheetInfo().isSingleQueryMode());
-
-      OpenWorksheetCommand command = new OpenWorksheetCommand();
-      command.setWorksheet(worksheet);
-      commandDispatcher.sendCommand(command);
-      commandDispatcher.sendCommand(new WSInitCommand(user));
-
-      resetTableModes(rws);
-      refreshWorksheet(rws, engine, commandDispatcher, user);
-
-      Worksheet ws = rws.getWorksheet();
-      String[] levels = null;
-
-      if(ws != null) {
-         WorksheetInfo wsInfo = ws.getWorksheetInfo();
-
-         if(wsInfo != null) {
-            levels = wsInfo.getMessageLevels();
-         }
-      }
-
-      WSSetMessageLevelsCommand messageLevelsCommand = new WSSetMessageLevelsCommand();
-      messageLevelsCommand.setMessageLevels(levels);
-      commandDispatcher.sendCommand(messageLevelsCommand);
-
-      if(!openAutoSaved && rws.getWorksheet() != null) {
-         rws.replaceCheckpoint(rws.getWorksheet().prepareCheckpoint());
-      }
-
-      if(errors != null && errors.size() > 0) {
-         StringBuilder sb = new StringBuilder();
-
-         for(int i = 0; i < errors.size(); i++) {
-            if(i > 0) {
-               sb.append(", ");
-            }
-
-            sb.append(errors.get(i));
-         }
-
-         sb.append("(").append(entry.getDescription()).append(")");
-
-         errors.clear();
-
-         String msg = Catalog.getCatalog().getString(
-            "common.mirrorAssemblies.updateFailed", sb.toString());
-         MessageCommand messageCommand = new MessageCommand();
-         messageCommand.setMessage(msg);
-         messageCommand.setType(MessageCommand.Type.ERROR);
-         commandDispatcher.sendCommand(messageCommand);
-      }
-
-      if(ws != null) {
-         WorksheetInfo worksheetInfo = ws.getWorksheetInfo();
-         Assembly[] assemblies = ws.getAssemblies();
-
-         if(worksheetInfo.isSingleQueryMode() && assemblies != null && assemblies.length == 1) {
-            Assembly assembly = assemblies[0];
-
-            if(assembly instanceof SQLBoundTableAssembly) {
-               WSEditAssemblyCommand editAssemblyCommand = WSEditAssemblyCommand.builder()
-                  .assembly(WSAssemblyModelFactory.createModelFrom((WSAssembly) assembly, rws, user))
-                  .build();
-               commandDispatcher.sendCommand(editAssemblyCommand);
-            }
-         }
-      }
-
-      return id;
-   }
-
-   private static void fixWorksheetMode(RuntimeWorksheet rws) {
-      Worksheet worksheet = rws.getWorksheet();
-      Assembly[] assemblies = worksheet.getAssemblies();
-      WorksheetInfo worksheetInfo = worksheet.getWorksheetInfo();
-
-      if(worksheetInfo.isSingleQueryMode()) {
-         if(assemblies == null) {
-            return;
-         }
-
-         if(assemblies.length > 1 ||
-            !(assemblies[0] instanceof SQLBoundTableAssembly))
-         {
-            worksheetInfo.setMashupMode();
-         }
-      }
-   }
-
    public static void updateWorksheetMode(RuntimeWorksheet rws) {
       Worksheet worksheet = rws.getWorksheet();
       Assembly[] assemblies = worksheet.getAssemblies();
@@ -1048,49 +887,6 @@ public class WorksheetEventUtil {
          assemblies[0] instanceof SQLBoundTableAssembly)
       {
          worksheetInfo.setSingleQueryMode();
-      }
-   }
-
-   private static void clearGettingStatedRuntimeWs(RuntimeWorksheet rws,
-                                                   boolean gettingStartedCreateQuery)
-   {
-      if(rws == null || !rws.isGettingStarted()) {
-         return;
-      }
-
-      Worksheet worksheet = rws.getWorksheet();
-      WorksheetInfo worksheetInfo = worksheet.getWorksheetInfo();
-      Assembly[] assemblies = worksheet.getAssemblies();
-
-      if(gettingStartedCreateQuery && worksheetInfo.isSingleQueryMode() && assemblies != null &&
-         assemblies.length == 1)
-      {
-         return;
-      }
-
-      if(assemblies == null || assemblies.length == 0) {
-         return;
-      }
-
-      for(Assembly assembly : assemblies) {
-         worksheet.removeAssembly(assembly);
-      }
-   }
-
-   /**
-    * Reset the table modes of the worksheet to design mode.
-    *
-    * @param rws the worksheet to reset the tables of
-    */
-   private static void resetTableModes(RuntimeWorksheet rws) {
-      final Worksheet worksheet = rws.getWorksheet();
-      final TableAssembly[] tables = Arrays.stream(worksheet.getAssemblies())
-         .filter(TableAssembly.class::isInstance)
-         .map(TableAssembly.class::cast)
-         .toArray(TableAssembly[]::new);
-
-      for(TableAssembly table : tables) {
-         TableModeService.setDefaultTableMode(table, rws.getAssetQuerySandbox());
       }
    }
 
@@ -1119,7 +915,7 @@ public class WorksheetEventUtil {
 
       // clone the condition
       for(int i = 0; i < builtin.length; i++) {
-         builtin[i] = (DateCondition) builtin[i].clone();
+         builtin[i] = builtin[i].clone();
       }
 
       ArrayList<DateRangeAssembly> daterange = new ArrayList<>();
@@ -1178,8 +974,7 @@ public class WorksheetEventUtil {
     * @return the mode of the table assembly.
     */
    public static int getMode(TableAssembly table) {
-      if(table instanceof ComposedTableAssembly) {
-         ComposedTableAssembly cTable = (ComposedTableAssembly) table;
+      if(table instanceof ComposedTableAssembly cTable) {
 
          if(cTable.isComposed() && !cTable.isRuntime() && cTable.isHierarchical()) {
             cTable.setLiveData(true);
@@ -1343,27 +1138,24 @@ public class WorksheetEventUtil {
       Worksheet ws = rws.getWorksheet();
       AssemblyRef[] arr = ws.getDependings(assembly.getAssemblyEntry());
 
-      if(!(assembly instanceof SnapshotEmbeddedTableAssembly)) {
+      if(!(assembly instanceof SnapshotEmbeddedTableAssembly snap)) {
          return;
       }
-
-      SnapshotEmbeddedTableAssembly snap = (SnapshotEmbeddedTableAssembly) assembly;
 
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
       ColumnSelection cols = snap.getColumnSelection();
       String tableName = snap.getName();
 
-      for(int i = 0; i < arr.length; i++) {
-         AssemblyEntry entry = arr[i].getEntry();
+      for(AssemblyRef assemblyRef : arr) {
+         AssemblyEntry entry = assemblyRef.getEntry();
          WSAssembly ass = (WSAssembly) ws.getAssembly(entry.getName());
 
-         if(ass instanceof RelationalJoinTableAssembly) {
-            RelationalJoinTableAssembly join = (RelationalJoinTableAssembly) ass;
+         if(ass instanceof RelationalJoinTableAssembly join) {
             syncColumnDataTypes(join.getTableInfo().getPublicColumnSelection(), tableName, cols);
             syncColumnDataTypes(join.getTableInfo().getPrivateColumnSelection(), tableName, cols);
             clearDataCache(join, box);
             WorksheetEventUtil.refreshAssembly(rws, ass.getAbsoluteName(), null, true, null,
-               commandDispatcher, principal, refreshOperators);
+                                               commandDispatcher, principal, refreshOperators);
          }
       }
    }

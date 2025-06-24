@@ -210,7 +210,7 @@ public class EMScheduleTaskActionController {
       AssetEntry entry = AssetEntry.createAssetEntry(id);
       String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
       boolean hasPrintLayout = actionServiceProxy.hasPrintLayout(runtimeId, principal);
-      viewsheetService.closeViewsheet(id, principal);
+      emActionService.closeViewsheet(id, principal);
 
       return hasPrintLayout;
    }
@@ -233,7 +233,7 @@ public class EMScheduleTaskActionController {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
       String runtimeId = viewsheetService.openViewsheet(entry, principal, false);
       List<ScheduleAlertModel> highlights = actionServiceProxy.getViewsheetHighlights(runtimeId, principal);
-      viewsheetService.closeViewsheet(identifier, principal);
+      emActionService.closeViewsheet(identifier, principal);
 
       return HighlightListModel.builder()
          .highlights(highlights)
@@ -258,7 +258,7 @@ public class EMScheduleTaskActionController {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
       String runtimeId = viewsheetService.openViewsheet(entry, null, false);
       List<String> params = actionServiceProxy.getViewsheetParameters(runtimeId, principal);
-      viewsheetService.closeViewsheet(identifier, null);
+      emActionService.closeViewsheet(identifier, null);
       return ViewsheetParametersModel.builder()
          .parameters(params)
          .build();

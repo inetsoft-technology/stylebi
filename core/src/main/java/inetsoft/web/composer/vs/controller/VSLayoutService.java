@@ -17,10 +17,11 @@
  */
 package inetsoft.web.composer.vs.controller;
 
+import inetsoft.analytic.composition.ViewsheetEngine;
+import inetsoft.cluster.*;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.report.Margin;
-import inetsoft.report.composition.RuntimeSheet;
-import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.*;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
@@ -41,8 +42,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
-import java.util.List;
+import java.security.Principal;
 import java.util.*;
+import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,6 +54,7 @@ import static inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo.DOUBLE_CALE
 /**
  * A service for updating all layouts of viewsheet when assemblies change.
  */
+@ClusterProxy
 @Service
 public class VSLayoutService {
    @Autowired
@@ -76,9 +79,7 @@ public class VSLayoutService {
    }
 
    public List<VSAssemblyLayout> getVSAssemblyLayouts(AbstractLayout layout, int region) {
-      if(layout instanceof PrintLayout) {
-         PrintLayout playout = (PrintLayout) layout;
-
+      if(layout instanceof PrintLayout playout) {
          if(region == HEADER) {
             return playout.getHeaderLayouts();
          }
@@ -99,9 +100,7 @@ public class VSLayoutService {
    public void setVSAssemblyLayouts(AbstractLayout layout, List<VSAssemblyLayout> layouts,
                                     int region)
    {
-      if(layout instanceof PrintLayout) {
-         PrintLayout playout = (PrintLayout) layout;
-
+      if(layout instanceof PrintLayout playout) {
          if(region == HEADER) {
             playout.setHeaderLayouts(layouts);
          }
@@ -171,11 +170,11 @@ public class VSLayoutService {
                                                 boolean existAssembly)
    {
       Point position = new Point(event.getxOffset(), event.getyOffset());
-      VSAssemblyLayout layout = null;
+      VSAssemblyLayout layout;
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       info.setLayoutVisible(assembly.isVisible() ? VSAssembly.ALWAYS_SHOW : VSAssembly.ALWAYS_HIDE);
 
-      Dimension size = null;
+      Dimension size;
 
       if(info instanceof TabVSAssemblyInfo) {
          size = getVSTabSize(viewsheet, assembly);
@@ -211,7 +210,7 @@ public class VSLayoutService {
       int maxHeight = 0;
 
       for(String name: paneNames) {
-         VSAssembly child = (VSAssembly) vs.getAssembly(name);
+         VSAssembly child = vs.getAssembly(name);
 
          if(child != null) {
             Dimension objsize = vs.getPixelSize(child.getVSAssemblyInfo());
@@ -309,16 +308,14 @@ public class VSLayoutService {
             .stream()
             .filter(l -> l.getName().equals(name))
             .findFirst()
-            .map(l -> (AbstractLayout) l);
+            .map(ViewsheetLayout.class::cast);
       }
    }
 
    public final Optional<VSAssemblyLayout> findAssemblyLayout(AbstractLayout layout,
                                                               String name, int region)
    {
-      if(layout instanceof PrintLayout) {
-         PrintLayout printLayout = (PrintLayout) layout;
-
+      if(layout instanceof PrintLayout printLayout) {
          if(region == HEADER) {
             return printLayout.getHeaderLayouts()
                .stream()
@@ -388,13 +385,14 @@ public class VSLayoutService {
       dispatcher.sendCommand(command);
    }
 
+   @SuppressWarnings("rawtypes")
    public final VSLayoutObjectModel createObjectModel(RuntimeViewsheet rvs,
                                                       VSAssemblyLayout assemblyLayout,
                                                       VSObjectModelFactoryService objectModelService)
    {
       String name = assemblyLayout.getName();
       Viewsheet vs = rvs.getViewsheet();
-      VSAssembly assembly0 = (VSAssembly) vs.getAssembly(name);
+      VSAssembly assembly0 = vs.getAssembly(name);
       VSAssembly assembly = assembly0 != null ? (VSAssembly) assembly0.clone() : null;
       List<VSObjectModel> childModels = new ArrayList<>();
 
@@ -470,21 +468,18 @@ public class VSLayoutService {
          return supportTableLayout(vs.getAssembly(selected));
       }
 
-      if(assembly instanceof Viewsheet) {
-         Viewsheet embedded = (Viewsheet) assembly;
+      if(assembly instanceof Viewsheet embedded) {
          Assembly[] assemblies = embedded.getAssemblies(true);
 
-         return Arrays.stream(assemblies).filter(item -> supportTableLayout((VSAssembly) item))
-            .findAny()
-            .isPresent();
+         return Arrays.stream(assemblies)
+            .anyMatch(item -> supportTableLayout((VSAssembly) item));
       }
 
       if(assembly instanceof GroupContainerVSAssembly) {
          String[] names = ((GroupContainerVSAssembly) assembly).getAssemblies();
 
-         return Arrays.stream(names).filter(name -> supportTableLayout(vs.getAssembly(name)))
-            .findAny()
-            .isPresent();
+         return Arrays.stream(names)
+            .anyMatch(name -> supportTableLayout(vs.getAssembly(name)));
       }
 
       return assembly instanceof TableDataVSAssembly;
@@ -495,13 +490,12 @@ public class VSLayoutService {
     */
    public void sortAssemblyLayouts(List<VSAssemblyLayout> layouts) {
       VSAssemblyLayoutComparator comparator = new VSAssemblyLayoutComparator();
-      Collections.sort(layouts, comparator);
+      layouts.sort(comparator);
    }
 
    public List<VSAssemblyLayout> getSortAssemblyLayouts(List<VSAssemblyLayout> list) {
-      List<VSAssemblyLayout> copy = new ArrayList<>();
-      copy.addAll(list);
-      Collections.sort(copy, new VSAssemblyLayoutComparator());
+      List<VSAssemblyLayout> copy = new ArrayList<>(list);
+      copy.sort(new VSAssemblyLayoutComparator());
       return copy;
    }
 
@@ -518,18 +512,17 @@ public class VSLayoutService {
       List<VSAssemblyLayout> sortedLayouts = getSortAssemblyLayouts(layouts);
       List<VSAssemblyLayout> pageBreaks = getSortedPageBreaks(vs, sortedLayouts);
 
-      if(pageBreaks == null || pageBreaks.size() == 0) {
+      if(pageBreaks == null || pageBreaks.isEmpty()) {
          return;
       }
 
-      for(int i = 0; i < pageBreaks.size(); i++) {
-         fixAssemblyLayoutsPosition(vs, pLayout, sortedLayouts, pageBreaks.get(i), MOVE_ACTION);
+      for(VSAssemblyLayout pageBreak : pageBreaks) {
+         fixAssemblyLayoutsPosition(vs, pLayout, sortedLayouts, pageBreak, MOVE_ACTION);
       }
    }
 
    /**
     * Refresh the layout objects position after adding new assembly layout.
-    * @param vs
     * @param pLayout        the current print layout.
     * @param addedLayout    the new added assembly layout.
     * @return true if the layout position be refreshed, else false.
@@ -627,7 +620,6 @@ public class VSLayoutService {
     * move down more when it cross two page after moving down.
     *
     *
-    * @param vs
     * @param pLayout          the current print layout.
     * @param sortedLayouts    the vs assembly layouts which sorted by ascending in y.
     * @param currentLayout    the target assembly layout to fix position.
@@ -646,7 +638,7 @@ public class VSLayoutService {
 
       int pageNum = getPageNumber(currentLayout, pageSize);
       List<VSAssemblyLayout> pageBreaks = getSortedPageBreaks(vs, sortedLayouts);
-      Rectangle pRect = null;
+      Rectangle pRect;
 
       for(int i = 0; i < pageBreaks.size(); i++) {
          if(getPageNumber(pageBreaks.get(i), pageSize) != pageNum ||
@@ -728,9 +720,9 @@ public class VSLayoutService {
    {
       List<VSAssemblyLayout> list = new ArrayList<>();
 
-      for(int i = 0; i < sortedLayouts.size(); i++) {
-         if(isPageBreak(sortedLayouts.get(i))) {
-            list.add(sortedLayouts.get(i));
+      for(VSAssemblyLayout sortedLayout : sortedLayouts) {
+         if(isPageBreak(sortedLayout)) {
+            list.add(sortedLayout);
          }
       }
 
@@ -799,7 +791,7 @@ public class VSLayoutService {
          return -1;
       }
 
-      return (int) Math.ceil(y / pageHeight);
+      return (int) Math.ceil(y / (float) pageHeight);
    }
 
    /**
@@ -813,7 +805,7 @@ public class VSLayoutService {
       }
 
       Point pos = layout.getPosition();
-      return (int) Math.ceil(pos.y / pageSize.height);
+      return (int) Math.ceil(pos.y / (float) pageSize.height);
    }
 
    /**
@@ -866,6 +858,7 @@ public class VSLayoutService {
          .collect(Collectors.toList());
    }
 
+   @SuppressWarnings("rawtypes")
    private void getChildAssemblies(ContainerVSAssembly assembly, RuntimeViewsheet rvs,
                                    List<VSObjectModel> childModels,
                                    VSObjectModelFactoryService objectModelService)
@@ -874,7 +867,7 @@ public class VSLayoutService {
       String[] names = assembly.getAbsoluteAssemblies();
 
       for(String assemblyName : names) {
-         VSAssembly childAssembly = (VSAssembly) vs.getAssembly(assemblyName);
+         VSAssembly childAssembly = vs.getAssembly(assemblyName);
          childModels.add(objectModelService.createModel(childAssembly, rvs));
 
          if(childAssembly instanceof TabVSAssembly ||
@@ -892,7 +885,7 @@ public class VSLayoutService {
    {
       return vsAssemblyLayouts.stream()
          .filter(l -> viewsheet.getAssembly(l.getName()) != null &&
-            ((VSAssembly) viewsheet.getAssembly(l.getName())).getContainer() == null ||
+            viewsheet.getAssembly(l.getName()).getContainer() == null ||
             l instanceof VSEditableAssemblyLayout)
          .collect(Collectors.toList());
    }
@@ -922,6 +915,7 @@ public class VSLayoutService {
       height -= !horizontal ? top + bottom : left + right;
 
       if(horizontal) {
+         //noinspection ReassignedVariable
          pageSize.setSize(height, width);
       }
       else {
@@ -948,6 +942,15 @@ public class VSLayoutService {
       return psize;
    }
 
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void makeUndoable(@ClusterProxyKey String id, Principal principal,
+                            CommandDispatcher dispatcher, String focusedLayoutName)
+   {
+      RuntimeSheet rs = ViewsheetEngine.getViewsheetEngine().getSheet(id, principal);
+      makeUndoable(rs, dispatcher, focusedLayoutName);
+      return null;
+   }
+
    public void makeUndoable(RuntimeSheet rs, CommandDispatcher dispatcher,
                             String focusedLayoutName)
    {
@@ -955,9 +958,9 @@ public class VSLayoutService {
          return;
       }
 
-      if(rs instanceof RuntimeViewsheet && focusedLayoutName != null &&
-         !Catalog.getCatalog().getString("Master").equals(focusedLayoutName)) {
-         RuntimeViewsheet rvs = (RuntimeViewsheet) rs;
+      if(rs instanceof RuntimeViewsheet rvs && focusedLayoutName != null &&
+         !Catalog.getCatalog().getString("Master").equals(focusedLayoutName))
+      {
          LayoutInfo info = rvs.getViewsheet().getLayoutInfo();
          AbstractLayout abstractLayout;
 

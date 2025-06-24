@@ -28,6 +28,8 @@ import inetsoft.web.viewsheet.event.*;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.owasp.encoder.Encode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -117,6 +119,11 @@ public class ComposerViewsheetController {
     */
    @MessageMapping("composer/viewsheet/close")
    public void closeViewsheet(@Payload CloseSheetEvent event, Principal principal) throws Exception {
+      if(runtimeViewsheetRef.getRuntimeId() == null) {
+         LOG.warn("Attempted to close viewsheet without runtime ID");
+         return;
+      }
+
       composerViewsheetService.closeViewsheet(runtimeViewsheetRef.getRuntimeId(), event, principal);
    }
 
@@ -228,4 +235,5 @@ public class ComposerViewsheetController {
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
    private final ComposerViewsheetServiceProxy composerViewsheetService;
+   private static final Logger LOG = LoggerFactory.getLogger(ComposerViewsheetController.class);
 }

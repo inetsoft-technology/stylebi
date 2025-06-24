@@ -19,8 +19,12 @@ package inetsoft.web.messaging;
 
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.sree.internal.cluster.AffinityCallable;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
@@ -47,8 +51,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       switchToHostOrgForGlobalShareAsset(attributes, principal);
       ThreadContext.setContextPrincipal(principal);
 
-      if(Thread.currentThread() instanceof GroupedThread) {
-         GroupedThread groupedThread = (GroupedThread) Thread.currentThread();
+      if(Thread.currentThread() instanceof GroupedThread groupedThread) {
          groupedThread.setPrincipal(principal);
          addViewsheetRecord(groupedThread);
       }
@@ -69,8 +72,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       MessageContextHolder.setMessageAttributes(null);
       OrganizationContextHolder.clear();
 
-      if(Thread.currentThread() instanceof GroupedThread) {
-         GroupedThread groupedThread = (GroupedThread) Thread.currentThread();
+      if(Thread.currentThread() instanceof GroupedThread groupedThread) {
          groupedThread.setPrincipal(null);
          groupedThread.removeRecords();
       }
@@ -87,20 +89,25 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       List<String> id = MessageContextHolder.currentMessageAttributes()
          .getHeaderAccessor().getNativeHeader("sheetRuntimeId");
 
-      if(id != null && id.size() > 0) {
+      if(id != null && !id.isEmpty()) {
          Principal principal =
             MessageContextHolder.getMessageAttributes().getHeaderAccessor().getUser();
 
          try {
-            thread.addRecord(LogContext.DASHBOARD,
-               ViewsheetEngine.getViewsheetEngine()
-                  .getSheet(id.get(0), principal).getEntry().getPath());
+            String runtimeId = id.getFirst();
+
+            if(runtimeId != null) {
+               GetViewsheetEntryTask task = new GetViewsheetEntryTask(runtimeId, principal);
+               AssetEntry entry = Cluster.getInstance().affinityCall(
+                  WorksheetEngine.CACHE_NAME, runtimeId, task);
+               thread.addRecord(LogContext.DASHBOARD, entry.getPath());
+            }
          }
          catch(ExpiredSheetException | InvalidUserException e) {
             // ignore
          }
          catch(Exception e) {
-            LOG.warn("Failed to get runtime viewsheet " + id, e);
+            LOG.warn("Failed to get runtime viewsheet {}", id, e);
          }
       }
    }
@@ -115,13 +122,47 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
                                                    Principal principal)
    {
       final StompHeaderAccessor headerAccessor = attributes.getHeaderAccessor();
-      boolean shouldSwitch = VSUtil.switchToHostOrgForGlobalShareAsset(
-         headerAccessor.getFirstNativeHeader("sheetRuntimeId"), principal);
+      String runtimeId = headerAccessor.getFirstNativeHeader("sheetRuntimeId");
 
-      if(shouldSwitch) {
-         OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
+      if(runtimeId != null) {
+         boolean shouldSwitch = Cluster.getInstance().affinityCall(
+            WorksheetEngine.CACHE_NAME, runtimeId, new SwitchToHostOrgTask(runtimeId, principal));
+
+         if(shouldSwitch) {
+            OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
+         }
       }
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MessageScopeInterceptor.class);
+
+   private static final class SwitchToHostOrgTask implements AffinityCallable<Boolean> {
+      public SwitchToHostOrgTask(String id, Principal principal) {
+         this.id = id;
+         this.principal = principal;
+      }
+
+      @Override
+      public Boolean call() {
+         return VSUtil.switchToHostOrgForGlobalShareAsset(id, principal);
+      }
+
+      private final String id;
+      private final Principal principal;
+   }
+
+   private static final class GetViewsheetEntryTask implements AffinityCallable<AssetEntry> {
+      public GetViewsheetEntryTask(String id, Principal principal) {
+         this.id = id;
+         this.principal = principal;
+      }
+
+      @Override
+      public AssetEntry call() {
+         return ViewsheetEngine.getViewsheetEngine().getSheet(id, principal).getEntry();
+      }
+
+      private final String id;
+      private final Principal principal;
+   }
 }

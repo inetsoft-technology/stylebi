@@ -21,8 +21,7 @@ import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.SheetLibraryEngine;
 import inetsoft.report.composition.execution.BoundTableHelper;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.internal.cluster.DistributedLong;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XPrincipal;
@@ -322,7 +321,9 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    public String openWorksheet(AssetEntry entry, Principal user)
       throws Exception
    {
-      return openSheet(entry, user);
+      String id = getNextID(entry, user);
+      OpenWorksheetTask task = new OpenWorksheetTask(entry, user, id);
+      return Cluster.getInstance().affinityCall(CACHE_NAME, id, task);
    }
 
    /**
@@ -333,7 +334,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * @return the sheet id.
     */
    @SuppressWarnings("UnnecessaryContinue")
-   protected final String openSheet(AssetEntry entry, Principal user)
+   protected final String openSheet(AssetEntry entry, Principal user, String sheetId)
       throws Exception
    {
       boolean permission = !"true".equals(entry.getProperty("isDashboard"));
@@ -463,15 +464,14 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          }
       }
 
-      String id = getNextID(entry, user);
-      rs.setID(id);
-      amap.put(id, rs);
+      rs.setID(sheetId);
+      amap.put(sheetId, rs);
 
       if(LOG.isDebugEnabled()) {
-         LOG.debug("Opened runtime sheet {} on {}", id, Cluster.getInstance().getLocalMember());
+         LOG.debug("Opened runtime sheet {} on {}", sheetId, Cluster.getInstance().getLocalMember());
       }
 
-      return id;
+      return sheetId;
    }
 
    /**
@@ -521,7 +521,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       Catalog catalog = Catalog.getCatalog();
 
       if(rs == null) {
-         LOG.debug("Worksheet/viewsheet has expired: " + id);
+         LOG.debug("Worksheet/viewsheet has expired: {}", id, new Exception("Stack trace"));
          throw new ExpiredSheetException(id, user);
       }
 
@@ -1205,6 +1205,24 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       public ViewsheetException(String message) {
          super(message, LogLevel.WARN, false);
       }
+   }
+
+   private static final class OpenWorksheetTask implements AffinityCallable<String> {
+      public OpenWorksheetTask(AssetEntry entry, Principal user, String id) {
+         this.entry = entry;
+         this.user = user;
+         this.id = id;
+      }
+
+      @Override
+      public String call() throws Exception {
+         WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
+         return engine.openSheet(entry, user, id);
+      }
+
+      private final AssetEntry entry;
+      private final Principal user;
+      private final String id;
    }
 
    public static final String INVALID_VIEWSHEET =
