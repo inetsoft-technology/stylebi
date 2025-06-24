@@ -607,12 +607,6 @@
     </dependency>
 
     <dependency>
-      <groupId>org.webjars.npm</groupId>
-      <artifactId>rapidoc</artifactId>
-      <scope>compile</scope>
-    </dependency>
-
-    <dependency>
       <groupId>org.webjars</groupId>
       <artifactId>bootstrap</artifactId>
       <scope>compile</scope>
@@ -956,15 +950,25 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-javadoc-plugin</artifactId>
         <version>3.6.3</version>
+        <executions>
+          <execution>
+            <id>generate-javadoc-jar</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
         <configuration>
+          <attach>true</attach>
           <doclint>none</doclint>
           <quiet>true</quiet>
           <additionalJOption>--allow-script-in-comments</additionalJOption>
           <detectJavaApiLink>true</detectJavaApiLink>
-          <windowtitle>StyleBI API, 2024</windowtitle>
-          <attach>true</attach>
+          <windowtitle>StyleBI API, 1.0.0</windowtitle>
+          <doctitle>StyleBI API, 1.0.0</doctitle>
+          <sourcepath>src/main/java;target/generated-sources/annotations;target/generated-sources/antlr;target/generated-sources/javacc</sourcepath>
           <sourceFileIncludes>
-            <include>inetsoft/client/*.java</include>
             <include>inetsoft/graph/*.java</include>
             <include>inetsoft/graph/aesthetic/*.java</include>
             <include>inetsoft/graph/coord/*.java</include>
@@ -1004,19 +1008,11 @@
             <include>inetsoft/uql/text/*FileInfo.java</include>
             <include>inetsoft/uql/text/TextOutput.java</include>
             <include>inetsoft/util/config/*.java</include>
-            <include>inetsoft/web/api/**/*.java</include>
             <include>inetsoft/web/security/*Filter.java</include>
             <include>inetsoft/web/security/Authenticat*.java</include>
           </sourceFileIncludes>
           <sourceFileExcludes>
-            <exclude>inetsoft/client/SupportClientService.java</exclude>
             <exclude>inetsoft/sree/RepletEngine.java</exclude>
-            <exclude>inetsoft/uql/corba/**/*</exclude>
-            <exclude>inetsoft/uql/ejb/**/*</exclude>
-            <exclude>inetsoft/uql/sap/**/*"</exclude>
-            <exclude>inetsoft/web/api/**/*Controller.java</exclude>
-            <exclude>inetsoft/web/api/**/*Service.java</exclude>
-            <exclude>inetsoft/web/api/support/*.java</exclude>
           </sourceFileExcludes>
         </configuration>
       </plugin>
