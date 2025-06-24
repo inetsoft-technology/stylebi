@@ -38,7 +38,7 @@ import {
    Renderer2,
    TemplateRef,
    ViewChild,
-   ViewChildren
+   ViewChildren, ViewContainerRef
 } from "@angular/core";
 import { DomSanitizer, SafeStyle, Title } from "@angular/platform-browser";
 import { Router } from "@angular/router";
@@ -511,7 +511,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private selectionMobileService: SelectionMobileService,
                private miniToolbarService: MiniToolbarService,
                private featureFlagService: FeatureFlagsService,
-               private assetLoadingService: AssetLoadingService)
+               private assetLoadingService: AssetLoadingService,
+               private viewContainerRef: ViewContainerRef)
    {
       super(viewsheetClient, zone, true);
       tooltipConfig.tooltipClass = "top-tooltip";
@@ -1890,7 +1891,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    private applyFullScreen(fullScreen: boolean): void {
       if(fullScreen) {
-         this.fullScreenService.enterFullScreen();
+         this.fullScreenService.enterFullScreenForElement(this.viewContainerRef.element.nativeElement);
       }
       else {
          this.fullScreenService.exitFullScreen();
