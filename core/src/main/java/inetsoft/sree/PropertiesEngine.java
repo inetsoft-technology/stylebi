@@ -51,7 +51,6 @@ public class PropertiesEngine {
     * @return the PropertiesEngine instance.
     */
    public static PropertiesEngine getInstance() {
-      checkScriptThread();
       return SingletonManager.getInstance(PropertiesEngine.class);
    }
 
