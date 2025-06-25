@@ -192,7 +192,7 @@ class JSObjectTest {
       assertEquals(10, ellipse2D.x, 0.01);
       assertEquals(20, ellipse2D.y, 0.01);
       assertEquals(30, ellipse2D.width, 0.01);
-//      assertEquals(40, ellipse2D.height, 0.01); //bug #71459
+      assertEquals(40, ellipse2D.height, 0.01); //bug #71459
 
       // Test with NativeObject for Rectangle
       NativeObject rectangleObject = new NativeObject();
@@ -206,7 +206,7 @@ class JSObjectTest {
       assertEquals(50, rect.x);
       assertEquals(60, rect.y);
       assertEquals(70, rect.width);
-//      assertEquals(80, rect.height); //bug #71459
+      assertEquals(80, rect.height); //bug #71459
 
       // Test with array for Circle
       Object[] circleArray = { 15.0, 25.0, 35.0 };
