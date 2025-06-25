@@ -110,8 +110,10 @@ public class ContextJavaPackage extends NativeJavaPackage {
       if(sreePackage.equals(newPackage)) {
          final String javaPackages = SreeEnv.getProperty("javascript.java.packages", "");
          final List<String> packages = Arrays.asList(javaPackages.split(","));
+         final String sreeSubPackage = sreePackage + ".";
+         boolean find = packages.stream().anyMatch(pkg -> pkg.equals(sreePackage) || pkg.startsWith(sreeSubPackage));
 
-         if(!packages.contains(sreePackage)) {
+         if(!find) {
             return Scriptable.NOT_FOUND;
          }
       }

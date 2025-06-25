@@ -22,12 +22,14 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.util.*;
 import inetsoft.util.log.*;
 import inetsoft.util.log.logback.LogbackUtil;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +51,7 @@ public class PropertiesEngine {
     * @return the PropertiesEngine instance.
     */
    public static PropertiesEngine getInstance() {
+      checkScriptThread();
       return SingletonManager.getInstance(PropertiesEngine.class);
    }
 
@@ -195,6 +198,7 @@ public class PropertiesEngine {
     * Set the value of a property.
     */
    public void setProperty(String name, String val) {
+      checkScriptThread();
       init();
       Properties prop = getInternalProperties();
       name = fixPropertyNameCase(name);
@@ -284,6 +288,7 @@ public class PropertiesEngine {
     * @param level   the new level.
     */
    public void setLogLevel(LogContext context, String name, LogLevel level) {
+      checkScriptThread();
       String property;
 
       if(context == LogContext.CATEGORY) {
@@ -936,6 +941,8 @@ public class PropertiesEngine {
     * specified by the argument.
     */
    public void save() throws IOException {
+      checkScriptThread();
+
       if(getInternalProperties() == null) {
          init();
       }
@@ -985,6 +992,12 @@ public class PropertiesEngine {
 
    public void removePropertyChangeListener(String propertyName, PropertyChangeListener listener) {
       support.removePropertyChangeListener(propertyName, listener);
+   }
+
+   public static void checkScriptThread() {
+      if(JavaScriptEngine.isScriptThread()) {
+         throw new RuntimeException(new SecurityException(Catalog.getCatalog().getString("js.envs.blocked")));
+      }
    }
 
    private final KeyValueStorage.Listener<String> changeListener = new KeyValueStorage.Listener<String>() {

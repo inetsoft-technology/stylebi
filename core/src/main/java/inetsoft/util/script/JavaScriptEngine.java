@@ -438,6 +438,7 @@ public class JavaScriptEngine {
          return null;
       }
 
+      Catalog catalog = Catalog.getCatalog();
       ClassLoader loader = Thread.currentThread().getContextClassLoader();
       Thread.currentThread().setContextClassLoader(getClass().getClassLoader());
       Context cx = TimeoutContext.enter();
@@ -518,10 +519,10 @@ public class JavaScriptEngine {
 
          for(int i = 0; i < elines.size(); i++) {
             if(i > 0) {
-               linemsg.append(" " + Catalog.getCatalog().getString("called from line"));
+               linemsg.append(" " + catalog.getString("called from line"));
             }
             else {
-               linemsg.append(" " + Catalog.getCatalog().getString("at line"));
+               linemsg.append(" " + catalog.getString("at line"));
             }
 
             linemsg.append(" " + elines.elementAt(i));
@@ -553,6 +554,10 @@ public class JavaScriptEngine {
    public static Scriptable getExecScriptable() {
       Stack<Scriptable> stack = execScriptable.get();
       return stack.isEmpty() ? null : stack.peek();
+   }
+
+   public static boolean isScriptThread() {
+      return getExecScriptable() != null;
    }
 
    /**
