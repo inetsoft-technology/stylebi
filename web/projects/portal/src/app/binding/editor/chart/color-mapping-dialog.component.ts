@@ -38,8 +38,23 @@ export class ColorMappingDialog implements OnInit {
    @Output() onCommit: EventEmitter<ColorMap[]> = new EventEmitter<ColorMap[]>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    dimensionData: ValueLabelModel[] = [];
+   _truncatedDimensionData: ValueLabelModel[];
 
    constructor(private modalService: NgbModal) {
+   }
+
+   get truncatedDimensionData(): ValueLabelModel[] {
+      if(!this.dimensionData) {
+         return [];
+      }
+
+      if(!!this._truncatedDimensionData) {
+         return this._truncatedDimensionData;
+      }
+
+      this._truncatedDimensionData =
+         this.dimensionData.length > 5000 ? this.dimensionData.slice(0, 5000) : this.dimensionData;
+      return this._truncatedDimensionData;
    }
 
    get currentColorMaps(): ColorMap[] {

@@ -35,13 +35,13 @@
             </button>
           </div>
           <div class="col">
-            <select class="form-control" *ngIf="dimensionData.length > 0"
+            <select class="form-control" *ngIf="truncatedDimensionData?.length > 0"
                     [(ngModel)]="colorMap.option" [ngModelOptions]="{standalone: true}">
               <option [value]="data.value"
-                      *ngFor="let data of dimensionData">{{data.label}}
+                      *ngFor="let data of truncatedDimensionData">{{data.label}}
               </option>
             </select>
-            <input class="form-control" *ngIf="dimensionData.length == 0"
+            <input class="form-control" *ngIf="truncatedDimensionData?.length == 0"
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="colorMap.option">
           </div>
@@ -61,6 +61,9 @@
       </form>
     </div>
   <div *ngIf="!isValid" class="alert alert-danger">_#(viewer.nameValid)</div>
+  </div>
+  <div class="alert alert-danger" *ngIf="dimensionData?.length > 5000">
+    _#(viewer.colormapping.truncated)
   </div>
   <div class="modal-footer" *ngIf="model">
     <div class="col-1 btn-reset">
