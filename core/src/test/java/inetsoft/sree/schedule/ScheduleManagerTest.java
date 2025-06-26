@@ -26,8 +26,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.io.IOException;
 import java.util.*;
@@ -41,6 +40,7 @@ import static org.mockito.Mockito.*;
  *  archiveRenamed: useless, ignore
  */
 @SreeHome
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class ScheduleManagerTest {
    private  ScheduleManager scheduleManager;
 
@@ -138,8 +138,6 @@ public class ScheduleManagerTest {
 
       } catch(Exception e) {
          e.printStackTrace();
-      }  finally {
-         clearAllTask("host-org");  //clear env
       }
    }
 
@@ -179,8 +177,6 @@ public class ScheduleManagerTest {
 
       } catch(Exception e) {
          e.printStackTrace();
-      } finally {
-         clearAllTask("host-org");  //clear env
       }
    }
 
@@ -220,8 +216,6 @@ public class ScheduleManagerTest {
 
       } catch (Exception e) {
          e.printStackTrace();
-      } finally {
-         clearAllTask("host-org");  //clear env
       }
    }
 
@@ -274,8 +268,6 @@ public class ScheduleManagerTest {
 
       } catch(Exception e) {
          e.printStackTrace();
-      } finally {
-         clearAllTask("host-org");  //clear env
       }
    }
 
@@ -319,8 +311,6 @@ public class ScheduleManagerTest {
 
       }catch(Exception e) {
          e.printStackTrace();
-      } finally {
-         clearAllTask("host-org");  //clear env
       }
    }
 
@@ -358,8 +348,6 @@ public class ScheduleManagerTest {
 
       }catch(Exception e) {
          e.printStackTrace();
-      } finally {
-         clearAllTask("host-org");  //clear env
       }
    }
 
@@ -398,7 +386,7 @@ public class ScheduleManagerTest {
          it -> {
             try {
                if(!Arrays.asList(internalTaskNames).contains(it.getName())) {
-                  scheduleManager.removeScheduleTask(it.getName(), admin, true);
+                  scheduleManager.removeScheduleTask(it.getName(), admin, false);
                }
             } catch (Exception e) {
                 throw new RuntimeException(e);
