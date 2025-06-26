@@ -197,7 +197,10 @@ public class VSChartDataHandler {
       AssetQuery query = AssetQuery.createAssetQuery(
          table, AssetQuerySandbox.RUNTIME_MODE, abox, false, -1L, true, false);
       VariableTable vars = abox.getVariableTable();
-      TableLens data = query.getTableLens(vars);
+      VariableTable clone = vars.clone();
+      // 5002 should match the limit in manual order dialog
+      clone.put(AssetQuery.BROWSE_MAXROWS, 5002);
+      TableLens data = query.getTableLens(clone);
       data = AssetQuery.shuckOffFormat(data);
 
       if(assembly != null && !"".equals(noEmpty)) {
