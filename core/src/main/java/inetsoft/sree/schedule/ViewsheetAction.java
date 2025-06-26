@@ -494,6 +494,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          ThreadContext.setContextPrincipal(principal);
          this.principal = principal;
          id = runViewsheetAction(principal);
+         System.err.println("====RunViewsheet fnished========" + id);
       }
       finally {
          closeViewsheet(id, principal);
