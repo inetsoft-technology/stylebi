@@ -2919,7 +2919,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                   }
 
                   if(!(baseRef instanceof CalculateRef)) {
-                     if(box.getViewsheetSandbox().isRuntime()) {
+                     if(box.getViewsheetSandbox() != null && box.getViewsheetSandbox().isRuntime()) {
                         LOG.warn(Catalog.getCatalog().getString(
                            "viewer.worksheet.columnMissing", column.getAttribute()));
                      }
