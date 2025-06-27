@@ -43,15 +43,14 @@ public class PermissionChecker {
     */
    public boolean checkPermission(Identity identity, Permission permission,
                                   ResourceAction action, boolean recursive) {
-      this.info = new ArrayList<>();
       String orgID = identity != null ? identity.getOrganizationID() :
          OrganizationManager.getInstance().getCurrentOrgID();
       boolean useAnd = "true".equals(andCond.get());
       boolean userGroupPermission = checkUserGroupPermission(identity,
-         permission, action, recursive, info);
-      boolean organizationPermission = checkUserGroupOrganizationPermission(identity, permission, action, info);
+         permission, action, recursive, new HashSet<>());
+      boolean organizationPermission = checkUserGroupOrganizationPermission(identity, permission, action);
       boolean rolePermission = checkRolePermission(identity, permission, action,
-         recursive, info);
+         recursive, new HashSet<>());
       boolean isUserGroupEmpty =
          isEmptyPermission(permission, Identity.USER, action, orgID) &&
          isEmptyPermission(permission, Identity.GROUP, action, orgID);
@@ -72,16 +71,14 @@ public class PermissionChecker {
 
    private boolean checkUserGroupOrganizationPermission(Identity identity,
                                                         Permission permission,
-                                                        ResourceAction action,
-                                                        ArrayList<Identity> info) {
+                                                        ResourceAction action)
+   {
       if(identity == null || (identity.getType() != Identity.USER &&
          identity.getType() != Identity.ORGANIZATION &&
          identity.getType() != Identity.GROUP))
       {
          return false;
       }
-
-      info.add(identity);
 
       String orgId = identity.getOrganizationID();
 
@@ -106,7 +103,7 @@ public class PermissionChecker {
    private boolean checkUserGroupPermission(Identity identity,
                                             Permission permission,
                                             ResourceAction action, boolean recursive,
-                                            List<Identity> info)
+                                            Set<String> identitiesChecked)
    {
       if(identity == null || (identity.getType() != Identity.USER &&
          identity.getType() != Identity.GROUP))
@@ -114,12 +111,8 @@ public class PermissionChecker {
          return false;
       }
 
-      if(info.contains(identity)) {
-         throw new RuntimeException("too much recursion, the identity's " +
-            "parent identity should not be itself");
-      }
-
-      info.add(identity);
+      identitiesChecked.add(getIdentityIdentifier(identity.getType(), identity.getName(),
+                                                  identity.getOrganizationID()));
 
       String orgId = identity.getOrganizationID();
 
@@ -140,10 +133,16 @@ public class PermissionChecker {
          }
 
          for(String groupName : groups) {
+            if(identitiesChecked.contains(getIdentityIdentifier(Identity.GROUP, groupName,
+                                                                identity.getOrganizationID())))
+            {
+               continue;
+            }
+
             IdentityID groupID = new IdentityID(groupName, identity.getOrganizationID());
             Group group = provider.getGroup(groupID);
             group = group == null ? new Group(groupID) : group;
-            result = checkUserGroupPermission(group, permission, action, true, info);
+            result = checkUserGroupPermission(group, permission, action, true, identitiesChecked);
 
             if(result) {
                break;
@@ -151,31 +150,22 @@ public class PermissionChecker {
          }
       }
 
-      if(!result) {
-         info.remove(identity);
-      }
-
       return result;
    }
 
    private boolean checkRolePermission(Identity identity, Permission permission,
                                        ResourceAction action, boolean recursive,
-                                       List<Identity> info)
+                                       Set<String> identitiesChecked)
    {
       if(identity == null) {
          return false;
       }
 
+      identitiesChecked.add(getIdentityIdentifier(identity.getType(), identity.getName(),
+                                                  identity.getOrganizationID()));
       boolean isRole = identity.getType() == Identity.ROLE;
 
       if(isRole) {
-         if(info.contains(identity)) {
-            throw new RuntimeException("too much recursion, the identity's " +
-               "parent identity should not be itself");
-         }
-
-         info.add(identity);
-
          String orgId = identity.getOrganizationID();
 
          if(permission.check(identity, orgId, action)) {
@@ -211,9 +201,15 @@ public class PermissionChecker {
          }
 
          for(IdentityID roleID : roles) {
+            if(identitiesChecked.contains(getIdentityIdentifier(Identity.ROLE, roleID.getName(),
+                                                                roleID.getOrgID()))) {
+               continue;
+            }
+
             Role role = provider.getRole(roleID);
             role = role == null ? new Role(roleID) : role;
-            result = checkRolePermission(role, permission, action, true, info);
+
+            result = checkRolePermission(role, permission, action, true, identitiesChecked);
 
             if(result) {
                break;
@@ -222,21 +218,22 @@ public class PermissionChecker {
 
          if(!result) {
             for(String groupName : groups) {
+               if(identitiesChecked.contains(getIdentityIdentifier(Identity.GROUP, groupName,
+                                                                   identity.getOrganizationID())))
+               {
+                  continue;
+               }
+
                IdentityID groupID = new IdentityID(groupName, identity.getOrganizationID());
                Group group = provider.getGroup(groupID);
                group = group == null ? new Group(groupID) : group;
-               result = checkRolePermission(group, permission, action, true, info);
+               result = checkRolePermission(group, permission, action, true, identitiesChecked);
 
                if(result) {
                   break;
                }
             }
          }
-
-      }
-
-      if(isRole && !result) {
-         info.remove(identity);
       }
 
       return result;
@@ -268,14 +265,10 @@ public class PermissionChecker {
       return identities == null || identities.isEmpty();
    }
 
-   /**
-    * Get permission path.
-    */
-   public Identity[] getPath() {
-      return info.toArray(new Identity[0]);
+   private String getIdentityIdentifier(int type, String identityName, String orgId) {
+      return type + "-" + identityName + "-" + orgId;
    }
 
    private SecurityProvider provider;
-   private ArrayList<Identity> info;
    private static SreeEnv.Value andCond = new SreeEnv.Value("permission.andCondition", 10000);
 }
