@@ -85,10 +85,6 @@ public class VSChartBrushController extends VSChartController<VSChartBrushEvent>
             LOG.error("Failed to brush: " + e, e);
             throw new RuntimeException(e);
          }
-         finally {
-            // clear chart loading mask after brush finished
-            dispatcher.sendCommand(event.getChartName(), new ClearChartLoadingCommand());
-         }
       });
    }
 

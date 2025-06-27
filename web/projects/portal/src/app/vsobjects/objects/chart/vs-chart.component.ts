@@ -142,6 +142,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       return this._selected;
    }
 
+   @Input() viewsheetLoading: boolean = false;
    @Output() public onOpenEditPane = new EventEmitter<any>();
    @Output() public maxModeChange = new EventEmitter<{assembly: string, maxMode: boolean}>();
    @Output() public onOpenFormatPane = new EventEmitter<VSChartModel>();
