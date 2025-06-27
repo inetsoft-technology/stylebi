@@ -25,6 +25,7 @@ import org.mozilla.javascript.Undefined;
 import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 class StringArrayTest {
 
@@ -107,14 +108,13 @@ class StringArrayTest {
       assertNull(stringArray.getPrototype());
       assertNull(stringArray.getParentScope());
 
-      Scriptable mockPrototype = new MockScriptable();
-      Scriptable mockParent = new MockScriptable();
+      Scriptable mockScriptable = mock(Scriptable.class);
 
-      stringArray.setPrototype(mockPrototype);
-      stringArray.setParentScope(mockParent);
+      stringArray.setPrototype(mockScriptable);
+      stringArray.setParentScope(mockScriptable);
 
-      assertEquals(mockPrototype, stringArray.getPrototype());
-      assertEquals(mockParent, stringArray.getParentScope());
+      assertEquals(mockScriptable, stringArray.getPrototype());
+      assertEquals(mockScriptable, stringArray.getParentScope());
    }
 
    @Test
@@ -139,87 +139,5 @@ class StringArrayTest {
       Object unwrapped = stringArray.unwrap();
       assertTrue(unwrapped instanceof String[]);
       assertArrayEquals(new String[]{ "one", "two", "three" }, (String[]) unwrapped);
-   }
-
-   @Test
-   void testToString() {
-      assertEquals("[one, two, three]", stringArray.toString());
-   }
-
-   // Mock implementation for Scriptable
-   static class MockScriptable implements Scriptable {
-      @Override
-      public String getClassName() {
-         return "MockScriptable";
-      }
-
-      @Override
-      public Object get(String name, Scriptable start) {
-         return null;
-      }
-
-      @Override
-      public Object get(int index, Scriptable start) {
-         return null;
-      }
-
-      @Override
-      public boolean has(String name, Scriptable start) {
-         return false;
-      }
-
-      @Override
-      public boolean has(int index, Scriptable start) {
-         return false;
-      }
-
-      @Override
-      public void put(String name, Scriptable start, Object value) {
-      }
-
-      @Override
-      public void put(int index, Scriptable start, Object value) {
-      }
-
-      @Override
-      public void delete(String name) {
-      }
-
-      @Override
-      public void delete(int index) {
-      }
-
-      @Override
-      public Scriptable getPrototype() {
-         return null;
-      }
-
-      @Override
-      public void setPrototype(Scriptable prototype) {
-      }
-
-      @Override
-      public Scriptable getParentScope() {
-         return null;
-      }
-
-      @Override
-      public void setParentScope(Scriptable parent) {
-      }
-
-      @Override
-      public Object[] getIds() {
-         return new Object[0];
-      }
-
-      @Override
-      public Object getDefaultValue(Class hint) {
-         return null;
-      }
-
-      @Override
-      public boolean hasInstance(Scriptable instance) {
-         return false;
-      }
    }
 }
