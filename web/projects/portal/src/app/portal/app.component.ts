@@ -17,7 +17,7 @@
  */
 import { DOCUMENT } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
-import { AfterViewInit, Component, Inject, OnDestroy, OnInit } from "@angular/core";
+import { Component, Inject, OnDestroy, OnInit } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -54,7 +54,7 @@ declare const window: any;
    templateUrl: "app.component.html",
    styleUrls: ["app.component.scss"]
 })
-export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
+export class PortalAppComponent implements OnInit, OnDestroy {
    PortalTabs = PortalTabs;
    model: PortalModel;
    portalTabs: PortalTab[];
@@ -172,10 +172,6 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
                this.model.elasticLicenseExhausted = gracePeriod;
             }
          });
-   }
-
-   ngAfterViewInit(): void {
-      this.showGettingStarted();
    }
 
    ngOnDestroy(): void {
