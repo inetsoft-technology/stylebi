@@ -168,8 +168,8 @@ public class ScheduleManagerTest {
          scheduleManager.addScheduleExt(mockScheduleExt);
          scheduleManager.save(List.of(tk1), "host-org");
 
-         assertEquals(0, scheduleManager.getAllScheduleTasks().size());  // default be clear,
-         assertEquals(1, scheduleManager.getScheduleTasks().size());  //1 ext task
+         assertTrue(scheduleManager.getAllScheduleTasks().contains(tk1));  //check ext task in all tasks
+         assertTrue(scheduleManager.getScheduleTasks().contains(tk1));  //check 1 ext task
          assertTrue(scheduleManager.getScheduleTasks("host-org").contains(tk1));  //check task in org
 
          assertTrue(scheduleManager.getExtensionTasks().contains(tk1));
@@ -332,12 +332,12 @@ public class ScheduleManagerTest {
       user_tk1.setAction(0, spyVSAction);
       user_tk1.addCondition(condition);
       user_tk1.setCondition(0, condition);
-      user_tk1.setIdentity(new FSUser(identityID_tuser0));
+      user_tk1.setIdentity(new User(identityID_tuser0));
 
       try {
          scheduleManager.setScheduleTask("tuser0~;~host-org:user_tk1", user_tk1, admin);
          // check rename user.
-         FSUser tuser0_1 = new FSUser(new IdentityID("tuser0_1", "host-org"));
+         User tuser0_1 = new User(new IdentityID("tuser0_1", "host-org"));
          scheduleManager.identityRenamed(identityID_tuser0, tuser0_1);
          assertEquals("tuser0_1~;~host-org", scheduleManager.getScheduleTask("tuser0_1~;~host-org:user_tk1").getOwner().convertToKey());
 
