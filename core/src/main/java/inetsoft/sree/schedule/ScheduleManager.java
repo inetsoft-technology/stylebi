@@ -1054,6 +1054,7 @@ public class ScheduleManager {
                   Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
                {
                   completeCondition.setTaskName(taskName.replace(oname.getName(), name));
+                  changedTasks.add(task);
                }
             }
          }
