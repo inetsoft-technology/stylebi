@@ -140,4 +140,9 @@ class StringArrayTest {
       assertTrue(unwrapped instanceof String[]);
       assertArrayEquals(new String[]{ "one", "two", "three" }, (String[]) unwrapped);
    }
+
+   @Test
+   void testToString() {
+      assertEquals("[one, two, three]", stringArray.toString());
+   }
 }
