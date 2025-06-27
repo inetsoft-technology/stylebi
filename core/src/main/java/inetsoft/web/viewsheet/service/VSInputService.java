@@ -476,7 +476,10 @@ public class VSInputService {
             }
 
             vsObjectService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher, true);
-            vsObjectService.layoutViewsheet(rvs, linkUri, dispatcher);
+
+            if(info.isRefresh()) {
+               vsObjectService.layoutViewsheet(rvs, linkUri, dispatcher);
+            }
          }
       }
 
