@@ -2268,7 +2268,7 @@ public class VGraphPair {
       double height = vgraph.getSize().getHeight();
       final Graphics2D g = SVGSupport.getInstance().createSVGGraphics();
       LegendSpec spec = legend.getVisualFrame().getLegendSpec();
-      double gheight = tileHeight > 0 ? Math.min(tileHeight, 1024) : 1024;
+      double gheight = tileHeight > 0 ? Math.min(tileHeight, 1024) : bounds.getHeight();
 
       SVGSupport.getInstance().setCanvasSize(
          g, new Dimension((int) bounds.getWidth(), (int) gheight));
