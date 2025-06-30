@@ -701,11 +701,15 @@ public final class LogManager implements AutoCloseable, MessageListener {
          .filter((node) -> (!scheduler && !Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler")))
             || (scheduler && Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"))))
          .collect(Collectors.toList());
+      String logFileIp  = extractIPFromLogName(fileName);
+      List<String> targetNodes = selectedNodes.stream()
+         .filter(node -> Tool.equals(logFileIp, extractIpFromNodeName(node)))
+         .collect(Collectors.toList());
 
-      if(!selectedNodes.isEmpty()) {
+      if(!targetNodes.isEmpty()) {
          RotateLogMessage rotateLogMessage = new RotateLogMessage();
          rotateLogMessage.setId(UUID.randomUUID().toString());
-         CountDownLatch latch = new CountDownLatch(selectedNodes.size());
+         CountDownLatch latch = new CountDownLatch(targetNodes.size());
          MessageListener listener = event -> {
             if(event.getMessage() instanceof RotateLogCompleteMessage) {
                RotateLogCompleteMessage message = (RotateLogCompleteMessage) event.getMessage();
@@ -717,10 +721,9 @@ public final class LogManager implements AutoCloseable, MessageListener {
          };
 
          cluster.addMessageListener(listener);
-         String logFileIp = extractIPFromLogName(fileName);
 
          try {
-            for(String node : selectedNodes) {
+            for(String node : targetNodes) {
                // Bug #68658, only rotate log file for selected node.
                if(!Tool.equals(logFileIp, extractIpFromNodeName(node))) {
                   continue;
