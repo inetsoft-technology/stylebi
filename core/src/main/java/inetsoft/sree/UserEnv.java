@@ -68,6 +68,7 @@ public class UserEnv {
     * Set a property for a user.
     */
    public static void setProperty(Principal user, String name, Object val) {
+      PropertiesEngine.checkScriptThread();
       Map<String, Object> prop = init(user);
       Object oldValue;
 
@@ -402,6 +403,8 @@ public class UserEnv {
     * Save user properties.
     */
    public static void save(Principal user, Map<String, Object> prop) throws Exception {
+      PropertiesEngine.checkScriptThread();
+
       if(!supportedUser(user)) {
          return;
       }

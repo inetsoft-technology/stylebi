@@ -1,5 +1,6 @@
 package inetsoft.util.script;
 
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import org.mozilla.javascript.ClassShutter;
 import org.slf4j.Logger;
@@ -104,18 +105,45 @@ public class SecureClassShutter implements ClassShutter {
       "java.math.BigInteger",
       "java.sql.Date",
       "java.sql.Time",
-      "java.sql.Timestamp"
+      "java.sql.Timestamp",
+      "inetsoft.sree.web.HttpServiceRequest",
+      "inetsoft.sree.security.DestinationUserNameProviderPrincipal",
+      "inetsoft.util.XTimestamp"
    ));
 
+   private static final String[] ALLOWED_INETSOFT_PKGS = {
+      "inetsoft.graph",
+      "inetsoft.report",
+      "inetsoft.sree.script",
+      "inetsoft.uql",
+      "inetsoft.util.audit.templates",
+      "inetsoft.util.script",
+      "inetsoft.analytic.composition.event"
+   };
+   private static final Set<String> PRIMITIVE_ARRAY_SIGNATURES = new HashSet<>(Arrays.asList(
+      "[B", // byte[]
+      "[S", // short[]
+      "[I", // int[]
+      "[J", // long[]
+      "[F", // float[]
+      "[D", // double[]
+      "[C", // char[]
+      "[Z" // boolean[]
+   ));
    @Override
    public boolean visibleToScripts(String className) {
       // Null or empty class names are not allowed
       if(className == null || className.isEmpty()) {
          return false;
       }
-
+      // allow sql if form is enabled.
+      if(className.startsWith("java.sql") &&
+         LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM))
+      {
+         return true;
+      }
       // Allow explicitly safe classes
-      if(ALLOWED_CLASSES.contains(className)) {
+      if(ALLOWED_CLASSES.contains(className) || isPrimitiveArrayType(className)) {
          return true;
       }
 
@@ -134,16 +162,7 @@ public class SecureClassShutter implements ClassShutter {
       }
 
       // Block array classes of dangerous types
-      if(className.startsWith("[L") && className.endsWith(";")) {
-         String arrayType = className.substring(2, className.length() - 1);
-         if(!visibleToScripts(arrayType)) {
-            logSecurityViolation("Blocked array type access", className);
-            return false;
-         }
-      }
-
-      // Allow explicitly safe classes
-      if(ALLOWED_CLASSES.contains(className)) {
+      if(isAllowedObjectArray(className)) {
          return true;
       }
 
@@ -170,18 +189,13 @@ public class SecureClassShutter implements ClassShutter {
 
       // apply the same logic as in JavaScriptEngine.initScope
       String[] javaPkgs = {"java.awt", "java.text", "java.util"};
-      String[] inetsoftPkgs = {
-         "inetsoft.graph", "inetsoft.report", "inetsoft.report.painter", "inetsoft.report.lens",
-         "inetsoft.report.filter", "inetsoft.uql", "inetsoft.util.audit.templates",
-         "inetsoft.analytic.composition.event"
-      };
       String customPkgProp = SreeEnv.getProperty("javascript.java.packages", "");
       String[] customPkgs = customPkgProp.isEmpty() ? new String[0] : customPkgProp.split(",");
       String[] comOrgPkgs = {"com", "org"};
       boolean comOrg = "true".equals(SreeEnv.getProperty("javascript.java.com_org", "true"));
       String[][] allDefault = comOrg
-         ? new String[][] {javaPkgs, inetsoftPkgs, customPkgs, comOrgPkgs}
-         : new String[][] {javaPkgs, inetsoftPkgs, customPkgs};
+         ? new String[][] {javaPkgs, ALLOWED_INETSOFT_PKGS, customPkgs, comOrgPkgs}
+         : new String[][] {javaPkgs, ALLOWED_INETSOFT_PKGS, customPkgs};
 
       for(String[] pkgs : allDefault) {
          for(String pkg : pkgs) {
@@ -193,6 +207,58 @@ public class SecureClassShutter implements ClassShutter {
 
       logSecurityViolation("Package not on whitelist", className);
       return false;
+   }
+
+   private boolean isPrimitiveArrayType(String className) {
+      if(PRIMITIVE_ARRAY_SIGNATURES.contains(className)) {
+         return true;
+      }
+
+      int idx = className.indexOf("[");
+
+      if(idx == -1) {
+         return false;
+      }
+
+      int dimension = 0;
+
+      while(dimension < className.length() && className.charAt(dimension) == '[') {
+         dimension++;
+      }
+
+      // Multidimensional array
+      if(className.length() == dimension + 1) {
+         return PRIMITIVE_ARRAY_SIGNATURES.contains(className.substring(dimension));
+      }
+
+      return false;
+   }
+
+   private boolean isAllowedObjectArray(String className) {
+      String componentType = className;
+      boolean objArray = false;
+
+      while (componentType.startsWith("[")) {
+         if (componentType.startsWith("[L")) {
+            componentType = componentType.substring(2);
+
+            if(!componentType.endsWith(";")) {
+               break;
+            }
+
+            objArray = true;
+            componentType = componentType.substring(0, componentType.length() - 1);
+
+            if(!visibleToScripts(componentType)) {
+               logSecurityViolation("Blocked array type access", className);
+               return false;
+            }
+            break;
+         }
+         componentType = componentType.substring(1);
+      }
+
+      return objArray;
    }
 
    private boolean isBasicJavaLangClass(String className) {
@@ -208,7 +274,6 @@ public class SecureClassShutter implements ClassShutter {
          !className.contains("prefs") &&
          !className.contains("jar") &&
          !className.contains("zip") &&
-         !className.contains("stream") &&
          !className.contains("ServiceLoader");
    }
 
