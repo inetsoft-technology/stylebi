@@ -208,6 +208,12 @@ public class EMScheduleController {
       return scheduleService.getUsersModel(principal, true);
    }
 
+   @GetMapping("/api/em/schedule/task-names")
+   public ScheduleTaskNamesModel getScheduleTaskNamesModel(@PermissionUser Principal principal) throws Exception
+   {
+      return scheduleService.getScheduleTaskNamesModel(principal);
+   }
+
    @Secured(
       @RequiredPermission(
          resourceType = ResourceType.EM_COMPONENT,

@@ -21,7 +21,9 @@ import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { ScheduleTaskNamesService } from "../../../../../../../shared/schedule/schedule-task-names.service";
 import { CompletionConditionEditorComponent } from "./completion-condition-editor.component";
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 
 describe("CompletionConditionEditorComponent", () => {
    let component: CompletionConditionEditorComponent;
@@ -34,11 +36,13 @@ describe("CompletionConditionEditorComponent", () => {
             ReactiveFormsModule,
             NoopAnimationsModule,
             MatFormFieldModule,
-            MatSelectModule
+            MatSelectModule,
+            HttpClientTestingModule
          ],
          declarations: [
             CompletionConditionEditorComponent
          ],
+         providers: [ScheduleTaskNamesService],
          schemas: [
             NO_ERRORS_SCHEMA
          ]

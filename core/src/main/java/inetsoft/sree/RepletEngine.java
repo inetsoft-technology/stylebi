@@ -455,26 +455,41 @@ public class RepletEngine extends AbstractAssetEngine
     * @return whether or not the task can be seen
     */
    public boolean hasTaskPermission(ScheduleTask task, Principal principal) {
+      boolean isOwner = Tool.equals(principal.getName(), task.getOwner().convertToKey());
+
+      if(isOwner) {
+         return true;
+      }
+
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       boolean principalHasPermission =
          checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.READ) &&
          checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.WRITE) &&
          checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.DELETE) &&
          pId != null && pId.orgID.equals(task.getOwner().orgID);
-      boolean isOwner = Tool.equals(principal.getName(), task.getOwner().convertToKey());
+
+      if(principalHasPermission) {
+         return true;
+      }
+
       boolean internalTaskPermission = ScheduleManager.isInternalTask(task.getTaskId()) &&
          checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.READ) &&
          XPrincipal.SYSTEM.equals(task.getOwner().name);
-      boolean isOwnerAdmin = task.getOwner() != null && checkPermission(
-         principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
-      boolean isShareRole = ScheduleManager.getScheduleManager()
-         .hasShareGroupPermission(task, principal);
 
-      if(ScheduleManager.isInternalTask(task.getTaskId())) {
+      if(internalTaskPermission || ScheduleManager.isInternalTask(task.getTaskId())) {
          return internalTaskPermission;
       }
 
-      return principalHasPermission || isOwner  || isOwnerAdmin || isShareRole;
+      boolean isOwnerAdmin = task.getOwner() != null && checkPermission(
+         principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
+
+      if(isOwnerAdmin) {
+         return true;
+      }
+
+      boolean isShareRole = ScheduleManager.getScheduleManager()
+         .hasShareGroupPermission(task, principal);
+      return isShareRole;
    }
 
    public boolean taskHasShareGroupPermission(IdentityID owner, Principal principal) {

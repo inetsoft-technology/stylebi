@@ -46,8 +46,10 @@ import {
    TimeRange
 } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
+import { ScheduleTaskNamesService } from "../../../../../../../shared/schedule/schedule-task-names.service";
 import { TimeZoneService } from "../../../../../../../shared/schedule/time-zone.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
+import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { LocalStorage } from "../../../../common/util/local-storage.util";
@@ -226,13 +228,16 @@ export class TaskConditionPane implements OnInit, OnChanges {
    hourlyCondition: TimeConditionModel;
    runOnceCondition: TimeConditionModel;
 
+   allTasks: NameLabelTuple[] = [];
+
    get showMeridian(): boolean {
       return this.model && this.model.twelveHourSystem;
    }
 
    constructor(private http: HttpClient,
                private modalService: NgbModal,
-               private timeZoneService: TimeZoneService)
+               private timeZoneService: TimeZoneService,
+               private scheduleTaskNamesService: ScheduleTaskNamesService)
    {
    }
 
@@ -325,6 +330,22 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    ngOnInit(): void {
+      this.scheduleTaskNamesService.getAllTasks().subscribe((allTasks) => {
+         if(!!allTasks) {
+            this.allTasks = allTasks.filter((val) => val.name != this.oldTaskName);
+
+            if(this.selectedOption == "CompletionCondition") {
+               let taskName = (<CompletionConditionModel>this.condition).taskName;
+
+               if(!taskName || !this.allTasks.find(task => task.name == taskName))
+               {
+                  (<CompletionConditionModel>this.condition).taskName =
+                     this.allTasks.length > 0 ? this.allTasks[0].name : null;
+               }
+            }
+         }
+      });
+
       if(!this.date) {
          const date = new Date();
          this.date = <NgbDateStruct> {
@@ -845,12 +866,12 @@ export class TaskConditionPane implements OnInit, OnChanges {
          const completionCondition = this.condition as CompletionConditionModel;
          let taskName = (<CompletionConditionModel> this.condition).taskName;
 
-         if(this.model.allTasks) {
-            if(!taskName || !this.model.allTasks.find(task =>
+         if(this.allTasks) {
+            if(!taskName || !this.allTasks.find(task =>
                task.name == (<CompletionConditionModel> this.condition).taskName))
             {
                (<CompletionConditionModel> this.condition).taskName =
-                  this.model.allTasks.length > 0 ? this.model.allTasks[0].name : null;
+                  this.allTasks.length > 0 ? this.allTasks[0].name : null;
             }
          }
          else {
@@ -1279,5 +1300,9 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
    private isTimeCondition(condition: ScheduleConditionModel): boolean {
       return condition && condition.conditionType == "TimeCondition";
+   }
+
+   get loadingTasks(): boolean {
+      return this.scheduleTaskNamesService.isLoading;
    }
 }

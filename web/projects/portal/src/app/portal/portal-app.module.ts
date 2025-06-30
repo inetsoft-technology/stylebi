@@ -32,6 +32,7 @@ import {
 import { MonitoringDataService } from "../../../../em/src/app/monitoring/monitoring-data.service";
 import { CkeditorWrapperModule } from "../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
 import { FeatureFlagsModule } from "../../../../shared/feature-flags/feature-flags.module";
+import { ScheduleTaskNamesService } from "../../../../shared/schedule/schedule-task-names.service";
 import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
 import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
@@ -397,6 +398,7 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       DataModelBrowserService,
       MoveAssetDialogDataConfig,
       ScheduleUsersService,
+      ScheduleTaskNamesService,
       {
          provide: PORTAL,
          useValue: true

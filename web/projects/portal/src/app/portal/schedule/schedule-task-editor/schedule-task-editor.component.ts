@@ -35,6 +35,7 @@ import {
    TimeConditionModel,
    TimeConditionType
 } from "../../../../../../shared/schedule/model/time-condition-model";
+import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
@@ -69,7 +70,8 @@ export class ScheduleTaskEditorComponent implements OnInit {
                private modalService: NgbModal,
                formBuilder: UntypedFormBuilder,
                private usersService: ScheduleUsersService,
-               private timeZoneService: TimeZoneService)
+               private timeZoneService: TimeZoneService,
+               private scheduleTaskNamesService: ScheduleTaskNamesService)
    {
       this.form = formBuilder.group({
          "name": ["", Validators.compose([Validators.required, FormValidators.invalidTaskName])]
@@ -80,6 +82,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
    }
 
    ngOnInit(): void {
+      this.scheduleTaskNamesService.loadScheduleTaskNames();
       this.route.paramMap.pipe(
          switchMap((params: ParamMap) => {
             const options = {
