@@ -382,6 +382,10 @@ class DefaultConnectionPoolFactory implements ConnectionPoolFactory {
          if(password != null) {
             properties.setProperty("password", password);
          }
+
+         if(url != null && url.startsWith("jdbc:clickhouse:")) {
+            properties.setProperty("result_overflow_mode", "break");
+         }
       }
 
       @Override

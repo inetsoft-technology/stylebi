@@ -45,6 +45,7 @@ import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.content.repository.model.SelectedAssetModel;
 import inetsoft.web.admin.deploy.DeployService;
 import inetsoft.web.admin.deploy.DeployUtil;
+import inetsoft.web.admin.model.NameLabelTuple;
 import inetsoft.web.admin.presentation.PresentationFormatsSettingsService;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
@@ -2041,6 +2042,29 @@ public class ScheduleService {
 
    List<ServerLocation> getServerLocations(Catalog catalog) {
       return SUtil.getServerLocations();
+   }
+
+   public ScheduleTaskNamesModel getScheduleTaskNamesModel(Principal principal) {
+      ScheduleTaskNamesModel.Builder builder = ScheduleTaskNamesModel.builder();
+
+      try {
+         Vector<ScheduleTask> tasks = getScheduleTasks(null, null, true, principal);
+         tasks.stream()
+            .map(this::createTaskTuple)
+            .forEach(builder::addAllTasks);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to get schedule tasks", e);
+      }
+
+      return builder.build();
+   }
+
+   private NameLabelTuple createTaskTuple(ScheduleTask task) {
+      return NameLabelTuple.builder()
+         .name(task.getTaskId())
+         .label(task.toView(SecurityEngine.getSecurity().isSecurityEnabled(), true))
+         .build();
    }
 
    private final AnalyticRepository analyticRepository;

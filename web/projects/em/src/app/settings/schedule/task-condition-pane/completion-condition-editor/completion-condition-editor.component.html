@@ -25,6 +25,7 @@
         </ng-container>
       </mat-select>
       <mat-error>_#(viewer.schedule.condition.chainedValid)</mat-error>
+      <mat-spinner *ngIf="loadingTasks" mode="indeterminate" diameter="17" matSuffix></mat-spinner>
     </mat-form-field>
   </mat-card-content>
 </mat-card>

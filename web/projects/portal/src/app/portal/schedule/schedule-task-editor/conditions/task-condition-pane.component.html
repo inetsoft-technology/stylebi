@@ -436,13 +436,13 @@
       <!-- Chained -->
       <div *ngIf="condition?.conditionType == 'CompletionCondition'" class="container-fluid mt-2">
         <form [formGroup]="form">
-          <div class="form-row-float-label row">
+          <div class="form-row-float-label row completion-condition-row">
             <div class="col form-floating">
                 <select class="form-control scheduler-form" id="taskName"
                         formControlName="task"
                         [(ngModel)]="completionCondition.taskName"
                         [class.is-invalid]="!form.controls['task'].valid">
-                  <ng-container *ngFor="let task of model.allTasks">
+                  <ng-container *ngFor="let task of allTasks">
                     <option *ngIf="task.name !== taskName" [value]="task.name">{{ task.label }}</option>
                   </ng-container>
                 </select>
@@ -451,6 +451,9 @@
                       *ngIf="form && !!form.controls['task'] && form.controls['task'].errors">
                   _#(viewer.schedule.condition.chainedValid)
                 </span>
+            </div>
+            <div *ngIf="loadingTasks" class="loading-icon-container">
+              <i class="loading-icon--spin icon-size-large loading-icon" aria-hidden="true"></i>
             </div>
           </div>
         </form>
