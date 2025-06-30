@@ -80,6 +80,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    @Input() hideMiniToolbar: boolean = false;
    @Input() globalLoadingIndicator: boolean = false;
    @Input() virtualScrolling = false;
+   @Input() viewsheetLoading = false;
    @Output() public openContextMenu = new EventEmitter<{
       actions: AbstractVSActions<any>,
       event: MouseEvent
