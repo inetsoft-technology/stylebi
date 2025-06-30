@@ -22,6 +22,7 @@ import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.ServiceLoader;
 
@@ -72,6 +73,16 @@ public interface BlobEngine extends AutoCloseable {
     * @throws IOException if an I/O error occurs.
     */
    void delete(String id, String digest) throws IOException;
+
+   /**
+    * List all the blobs from storage.
+    *
+    * @param id     the unique identifier of the storage.
+    *
+    * @throws IOException if an I/O error occurs.
+    */
+   default void list(String id, PrintWriter writer) throws IOException {
+   }
 
    @Override
    default void close() throws Exception {
