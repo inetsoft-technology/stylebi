@@ -271,15 +271,6 @@ public class ScheduleTaskService {
          .map(condition -> scheduleConditionService.getConditionModel(condition, principal))
          .forEach(builder::addConditions);
 
-      // the completion task can not defined on itself
-      Vector<ScheduleTask> tasks =
-         scheduleService.getScheduleTasks(null, null, true, principal);
-
-      tasks.stream()
-         .filter(t -> !taskId.equals(t.getTaskId()))
-         .map(this::createTaskTuple)
-         .forEach(builder::addAllTasks);
-
       String timeProp = SreeEnv.getProperty("format.time");
 
       if(timeProp == null || "".equals(timeProp)) {
@@ -291,13 +282,6 @@ public class ScheduleTaskService {
       return builder
          .timeProp(timeProp)
          .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12hours"))
-         .build();
-   }
-
-   private NameLabelTuple createTaskTuple(ScheduleTask task) {
-      return NameLabelTuple.builder()
-         .name(task.getTaskId())
-         .label(task.toView(SecurityEngine.getSecurity().isSecurityEnabled(), true))
          .build();
    }
 

@@ -36,6 +36,7 @@ import { HttpParamsCodecInterceptor } from "../../../portal/src/app/common/servi
 import { RequestedWithInterceptor } from "../../../portal/src/app/common/services/requested-with-interceptor";
 import { DownloadModule } from "../../../shared/download/download.module";
 import { FeatureFlagsModule } from "../../../shared/feature-flags/feature-flags.module";
+import { ScheduleTaskNamesService } from "../../../shared/schedule/schedule-task-names.service";
 import { ScheduleUsersService } from "../../../shared/schedule/schedule-users.service";
 import { SsoHeartbeatInterceptor } from "../../../shared/sso/sso-heartbeat-interceptor";
 import { SsoHeartbeatService } from "../../../shared/sso/sso-heartbeat.service";
@@ -91,7 +92,8 @@ export const httpInterceptorProviders = [
    providers: [
       SsoHeartbeatService,
       httpInterceptorProviders,
-      ScheduleUsersService
+      ScheduleUsersService,
+      ScheduleTaskNamesService
    ],
    declarations: [
       AppComponent,

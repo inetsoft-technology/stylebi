@@ -18,6 +18,7 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
 import { CompletionConditionModel } from "../../../../../../../shared/schedule/model/completion-condition-model";
+import { ScheduleTaskNamesService } from "../../../../../../../shared/schedule/schedule-task-names.service";
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { TaskConditionChanges } from "../task-condition-pane.component";
 
@@ -28,7 +29,6 @@ import { TaskConditionChanges } from "../task-condition-pane.component";
 })
 export class CompletionConditionEditorComponent implements OnInit {
    @Input() originalTaskName: string = null;
-   @Input() allTasks: NameLabelTuple[] = [];
    @Output() modelChanged = new EventEmitter<TaskConditionChanges>();
 
    @Input()
@@ -43,23 +43,28 @@ export class CompletionConditionEditorComponent implements OnInit {
 
    form: UntypedFormGroup;
    private _condition: CompletionConditionModel;
+   allTasks: NameLabelTuple[] = [];
 
-   constructor(fb: UntypedFormBuilder) {
+   constructor(fb: UntypedFormBuilder, private scheduleTaskNamesService: ScheduleTaskNamesService) {
       this.form = fb.group({
          task: ["", [Validators.required]]
       });
    }
 
    ngOnInit() {
-      if(!!!this.condition?.taskName && this.allTasks) {
-         let fistTask = this.allTasks.find(task => task?.name != this.originalTaskName);
+      this.scheduleTaskNamesService.getAllTasks().subscribe((allTasks) => {
+         this.allTasks = allTasks;
 
-         if(fistTask) {
-            this.condition.taskName = fistTask.name;
-            this.form.setValue({ task: fistTask.name });
-            this.fireModelChanged();
+         if(!!!this.condition?.taskName && this.allTasks) {
+            let firstTask = this.allTasks.find(task => task?.name != this.originalTaskName);
+
+            if(firstTask) {
+               this.condition.taskName = firstTask.name;
+               this.form.setValue({ task: firstTask.name });
+               this.fireModelChanged();
+            }
          }
-      }
+      });
 
       if(!this.form.valid) {
          //propogate an initial invalid state caused by resource visibility
@@ -73,5 +78,9 @@ export class CompletionConditionEditorComponent implements OnInit {
          valid: this.form.valid,
          model: this.condition
       });
+   }
+
+   get loadingTasks(): boolean {
+      return this.scheduleTaskNamesService.isLoading;
    }
 }

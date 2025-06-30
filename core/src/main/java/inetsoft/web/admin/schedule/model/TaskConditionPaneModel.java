@@ -20,11 +20,9 @@ package inetsoft.web.admin.schedule.model;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.util.Tool;
-import inetsoft.web.admin.model.NameLabelTuple;
 import org.immutables.value.Value;
 
-import java.util.List;
-import java.util.TimeZone;
+import java.util.*;
 
 /**
  * Data transfer object that represents the {@link TaskConditionPaneModel} for the
@@ -41,7 +39,6 @@ public interface TaskConditionPaneModel {
    List<ScheduleConditionModel> conditions();
    List<String> userDefinedClasses();
    List<String> userDefinedClassLabels();
-   List<NameLabelTuple> allTasks();
    boolean twelveHourSystem();
 
    @Value.Default
