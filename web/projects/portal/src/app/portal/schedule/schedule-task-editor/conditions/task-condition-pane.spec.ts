@@ -27,6 +27,7 @@ import {
    TimeConditionModel,
    TimeConditionType
 } from "../../../../../../../shared/schedule/model/time-condition-model";
+import { ScheduleTaskNamesService } from "../../../../../../../shared/schedule/schedule-task-names.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { DateValueEditorComponent } from "../../../../widget/date-type-editor/date-value-editor.component";
@@ -85,7 +86,8 @@ describe("Task Condition Pane Unit Test", () => {
             },
             {
                provide: HttpClient, useValue: httpService
-            }
+            },
+            ScheduleTaskNamesService
          ]
       });
       TestBed.compileComponents();

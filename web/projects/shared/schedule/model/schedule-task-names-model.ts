@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,16 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NameLabelTuple } from "../../util/name-label-tuple";
-import { ScheduleConditionModel } from "./schedule-condition-model";
 
-export interface TaskConditionPaneModel {
-   conditions: ScheduleConditionModel[];
-   timeProp: string;
-   twelveHourSystem: boolean;
-   userDefinedClasses: string[];
-   userDefinedClassLabels: string[];
-   timeZoneOffset?: number;
-   serverTimeZoneId?: string;
-   taskDefaultTime?: boolean;
+import { NameLabelTuple } from "../../util/name-label-tuple";
+
+export interface ScheduleTaskNamesModel {
+   allTasks: NameLabelTuple[];
 }

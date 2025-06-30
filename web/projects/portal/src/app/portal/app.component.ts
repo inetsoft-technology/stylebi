@@ -17,7 +17,7 @@
  */
 import { DOCUMENT } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
-import { AfterViewInit, Component, Inject, OnDestroy, OnInit } from "@angular/core";
+import { Component, Inject, OnDestroy, OnInit } from "@angular/core";
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -54,7 +54,7 @@ declare const window: any;
    templateUrl: "app.component.html",
    styleUrls: ["app.component.scss"]
 })
-export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
+export class PortalAppComponent implements OnInit, OnDestroy {
    PortalTabs = PortalTabs;
    model: PortalModel;
    portalTabs: PortalTab[];
@@ -70,6 +70,7 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
    private licenseInfo: LicenseInfo;
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
    private destroy$ = new Subject<void>();
+   private isGettingStartedShown: boolean = false;
 
    get openComposerEnabled(): boolean {
       return this.model.composerEnabled;
@@ -95,7 +96,10 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
       ngbDatepickerConfig.maxDate = { year: 2099, month: 12, day: 31 };
 
       this.routeSubscription = currentRouteService.currentUrl.subscribe(
-         (url) => this.currentUrl = url
+         (url) => {
+            this.currentUrl = url;
+            this.showGettingStarted();
+         }
       );
    }
 
@@ -170,14 +174,6 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
          });
    }
 
-   ngAfterViewInit(): void {
-      this.http.get(PORTAL_CHECK_SHOW_GETTING_STARTED_URI).subscribe((result) => {
-         if("false" != result) {
-            this.gettingStartedService.start(result == "force");
-         }
-      });
-   }
-
    ngOnDestroy(): void {
       if(this.routeSubscription) {
          this.routeSubscription.unsubscribe();
@@ -186,6 +182,21 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
 
       this.destroy$.next();
       this.destroy$.unsubscribe();
+   }
+
+   showGettingStarted(): void {
+      if(!this.currentUrl || !this.currentUrl.startsWith("/portal/tab/report") ||
+         this.isGettingStartedShown)
+      {
+         return;
+      }
+
+      this.http.get(PORTAL_CHECK_SHOW_GETTING_STARTED_URI).subscribe((result) => {
+         if("false" != result) {
+            this.isGettingStartedShown = true;
+            this.gettingStartedService.start(result == "force");
+         }
+      });
    }
 
    refreshCreationPermissions() {

@@ -1700,10 +1700,13 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          }
 
          if(isExportAllTabbedTables()) {
+            String exportedAssembly = isMatchLayout() ? null : assembly.getSelected();
             String[] assemblies = assembly.getAssemblies();
 
             for(String cassemblyName : assemblies) {
-               writeAllExpandTable(vs.getAssembly(cassemblyName));
+               if(!Tool.equals(exportedAssembly, cassemblyName)) {
+                  writeAllExpandTable(vs.getAssembly(cassemblyName));
+               }
             }
          }
       }
@@ -2481,7 +2484,7 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
             else {
                end = htmlContent.length();
             }
-            
+
             if(end > 0) {
                end = "font-size:".equals(attrName) ? end - 2: end;
             }

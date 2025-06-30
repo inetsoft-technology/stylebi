@@ -38,6 +38,16 @@
 }
 
 .composer-overlay {
+  z-index: 9997;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.top-level-composer-overlay {
+  z-index: 9998;
   position: absolute;
   top: 0;
   left: 0;

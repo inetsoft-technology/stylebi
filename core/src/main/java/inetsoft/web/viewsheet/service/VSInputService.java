@@ -2884,7 +2884,11 @@ public class VSInputService {
          // fix bug1368262989004, fix this bug same as bug1366884826731, now
          // no matter process share filter whether success or not, we should
          // also execute, or some dependency assembly will not refresh.
-         if(info.isSubmitOnChange() && info.isRefresh()) {
+         if(info.isSubmitOnChange()) {
+            if(Arrays.asList(assemblyNames).contains(info.getAbsoluteName())) {
+               box.processChange(assembly.getAbsoluteName(), VSAssembly.INPUT_DATA_CHANGED, clist);
+            }
+
             for(Assembly a : vs.getAssemblies()) {
                if(isAssemblyReferenced(assembly, a)) {
                   // Bug #71186, execute dynamic values
@@ -2897,7 +2901,10 @@ public class VSInputService {
             }
 
             vsObjectService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher, true);
-            vsObjectService.layoutViewsheet(rvs, linkUri, dispatcher);
+
+            if(info.isRefresh()) {
+               vsObjectService.layoutViewsheet(rvs, linkUri, dispatcher);
+            }
          }
       }
 

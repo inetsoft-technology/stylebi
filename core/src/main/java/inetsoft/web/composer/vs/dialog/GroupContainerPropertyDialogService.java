@@ -25,6 +25,7 @@ import inetsoft.uql.viewsheet.GroupContainerVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.GroupContainerVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.service.*;
@@ -56,10 +57,10 @@ public class GroupContainerPropertyDialogService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      GroupContainerVSAssembly imageAssembly =
+      GroupContainerVSAssembly containerAssembly =
          (GroupContainerVSAssembly) vs.getAssembly(objectId);
       GroupContainerVSAssemblyInfo info =
-         (GroupContainerVSAssemblyInfo) imageAssembly.getVSAssemblyInfo();
+         (GroupContainerVSAssemblyInfo) Tool.clone(containerAssembly.getVSAssemblyInfo());
 
       GroupContainerPropertyDialogModel groupContainerPropertyDialog =
          new GroupContainerPropertyDialogModel();
@@ -85,7 +86,7 @@ public class GroupContainerPropertyDialogService {
       }
 
       sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setContainer(imageAssembly.getContainer() != null);
+      sizePositionPaneModel.setContainer(containerAssembly.getContainer() != null);
 
       BasicGeneralPaneModel basicGeneralPaneModel = new BasicGeneralPaneModel();
       generalPropPaneModel.setBasicGeneralPaneModel(basicGeneralPaneModel);

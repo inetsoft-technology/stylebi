@@ -2479,6 +2479,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             this.selectedActions = null;
          }
       }
+
+      if(this.globalLoadingIndicator) {
+         this.onLoadingStateChanged.emit({name: command.name, loading: false});
+      }
    }
 
    // noinspection JSUnusedGlobalSymbols

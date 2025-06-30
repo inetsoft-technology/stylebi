@@ -33,6 +33,7 @@ import {
    TimeConditionModel,
    TimeConditionType
 } from "../../../../../../shared/schedule/model/time-condition-model";
+import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
 import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -158,7 +159,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
                private router: Router, private route: ActivatedRoute,
                private snackBar: MatSnackBar, formBuilder: UntypedFormBuilder,
                private pageTitle: PageHeaderService,
-               private timeZoneService: TimeZoneService)
+               private timeZoneService: TimeZoneService,
+               private scheduleTaskNamesService: ScheduleTaskNamesService)
    {
       this.form = formBuilder.group({
          "taskName": ["", [Validators.required, FormValidators.invalidTaskName]]
@@ -166,6 +168,7 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
    }
 
    ngOnInit() {
+      this.scheduleTaskNamesService.loadScheduleTaskNames();
       this.route.params.subscribe(params => {
          let taskParams = new HttpParams().set("taskName", params.task);
 
