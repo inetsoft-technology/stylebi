@@ -801,7 +801,8 @@ public class CoreLifecycleService {
 
          // don't scale viewsheet in design mode or if height or width is set to 0
          if(vsinfo != null && vsinfo.isScaleToScreen() && rvs.isRuntime() &&
-            height != 0 && width != 0 && rvs.getEmbedAssemblyInfo() == null)
+            (height != 0 || vsinfo.isFitToWidth()) && width != 0 &&
+            rvs.getEmbedAssemblyInfo() == null)
          {
             // if not initializing a viewsheet then always apply scale
             boolean applyScale = !initing || vsinfo.isDisableParameterSheet();
