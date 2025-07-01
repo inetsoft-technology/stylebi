@@ -42,20 +42,20 @@
             _#(Add)
           </a>
         </li>
-        <li class="dropdown-item" [class.disabled]="!model.editable || !selectedDashboard || selectedDashboard.type === 'g'"
+        <li class="dropdown-item" [class.disabled]="editDeleteDashboardDisabled()"
             (click)="editDashboard(selectedDashboard)"
             enterClick tabindex="-1" role="menuitem"
-            [attr.aria-disabled]="!model.editable || !selectedDashboard || selectedDashboard.type === 'g'">
+            [attr.aria-disabled]="editDeleteDashboardDisabled()">
           <i class="edit-icon icon-size-medium" aria-hidden="true"></i>
           <a class="p-2">
             _#(Edit)
           </a>
         </li>
         <li class="dropdown-item"
-            [class.disabled]="!model.editable || !selectedDashboard || selectedDashboard.type === 'g'"
+            [class.disabled]="editDeleteDashboardDisabled()"
             (click)="deleteDashboard()"
             enterClick tabindex="-1" role="menuitem"
-            [attr.aria-disabled]="!model.editable || !selectedDashboard || selectedDashboard.type === 'g'">
+            [attr.aria-disabled]="editDeleteDashboardDisabled()">
           <i class="trash-icon icon-size-medium" aria-hidden="true"></i>
           <a class="p-2">
             _#(Delete)
