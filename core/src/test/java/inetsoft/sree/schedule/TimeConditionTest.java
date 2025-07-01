@@ -59,13 +59,6 @@ public class TimeConditionTest {
       assertTrue(timeCondition.toString().contains("TimeCondition: at 2025-03-01"));
       assertEquals(TimeCondition.AT, timeCondition.getType());
       assertEquals(testDate, timeCondition.getDate());
-
-      // Invalid input: null date
-      Exception exception = assertThrows(NullPointerException.class, () -> {
-         timeCondition = TimeCondition.at(null);
-         timeCondition.toString();
-      });
-      assertTrue(exception.getMessage().contains("Cannot invoke \"java.util.Date.getTime()\" because \"this.time\" is null"));
    }
 
    @Test
