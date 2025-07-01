@@ -471,7 +471,7 @@ public class ComposerAdhocFilterController {
          }
       }
 
-      vs.addAssembly(vsassembly);
+      vs.addAssembly(vsassembly, false);
       coreLifecycleService.addDeleteVSObject(rvs, vsassembly, dispatcher);
    }
 
@@ -756,7 +756,7 @@ public class ComposerAdhocFilterController {
          }
       }
 
-      info.setZIndex(object.getVSAssemblyInfo().getZIndex() + 1);
+      info.setZIndex(getFilterZIndex(object));
       int width =
          containerInfo.getLayoutSize() != null && containerInfo.isVisible() ?
          containerInfo.getLayoutSize().width : 2 * AssetUtil.defw;
@@ -770,6 +770,31 @@ public class ComposerAdhocFilterController {
 
       fixFilterPosition(object, moved);
    }
+
+   private int getFilterZIndex(VSAssembly object) {
+      if(object == null) {
+         return -1;
+      }
+
+      Viewsheet vs = object.getViewsheet();
+      int zindex = object.getVSAssemblyInfo().getZIndex();
+
+      if(vs.isMaxMode()) {
+         if(object instanceof TableDataVSAssembly) {
+            return ((TableDataVSAssembly) object).getTableDataVSAssemblyInfo().getMaxModeZIndex() + 1;
+         }
+         else if(object instanceof ChartVSAssembly) {
+            return ((ChartVSAssemblyInfo) object.getVSAssemblyInfo()).getMaxModeZIndex() + 1;
+         }
+
+         if(vs.isEmbedded()) {
+            return vs.getZIndex() + zindex + 1;
+         }
+      }
+
+      return zindex + 1000;
+   }
+
 
    private void saveFormats(VSAssembly moved) {
       VSAssemblyInfo info = moved.getVSAssemblyInfo();

@@ -31,6 +31,7 @@ import { ViewConstants } from "./view-constants";
 interface ViewsheetRouteDataModel {
    scaleToScreen: boolean;
    fitToWidth: boolean;
+   hasBaseEntry: boolean;
 }
 
 @Injectable()
@@ -73,6 +74,7 @@ export class ViewDataResolver implements Resolve<ViewData> {
             runtimeId: routeQueryParamMap.get("runtimeId"),
             collapseTree: routeQueryParamMap.get("collapseTree") == "true",
             previousSnapshots: routeQueryParamMap.getAll(ViewConstants.PRE_SNAPSHOT_PARAM_NAME),
+            hasBaseEntry: routeParamMap.get("hasBaseEntry") == "true"
          };
 
          this.editDataService.data = data;
@@ -118,6 +120,7 @@ export class ViewDataResolver implements Resolve<ViewData> {
             map(model => {
                data.scaleToScreen = model.scaleToScreen;
                data.fitToWidth = model.fitToWidth;
+               data.hasBaseEntry = model.hasBaseEntry;
                return data;
             })
          );

@@ -2492,13 +2492,11 @@ public class VsToReportConverter {
       }
 
       Viewsheet vs = assembly.getViewsheet();
-      Assembly[] vsasemblies = vs.getAssemblies(true, true);
+      Assembly[] vsasemblies = vs.getAssemblies(false, true);
 
       // vsasemblies is sorted by zindex, so convert container's sub assemblies
       // by the assembly order in vsasemblies.
       for(int i = 0; i < vsasemblies.length; i++) {
-         String viewsheetName = ((VSAssemblyInfo) vsasemblies[i].getInfo()).getViewsheet().getName();
-
          if(Tool.contains(assemblies, vsasemblies[i].getName())) {
             VSAssembly sub = (VSAssembly) vsasemblies[i];
             VSAssembly container = sub.getContainer();
@@ -2513,9 +2511,6 @@ public class VsToReportConverter {
             }
 
             convertVSAssembly(sub, sectionname);
-         }
-         else if(Tool.contains(assemblies, viewsheetName)) {
-            convertVSAssembly((VSAssembly) vsasemblies[i], sectionname);
          }
       }
    }

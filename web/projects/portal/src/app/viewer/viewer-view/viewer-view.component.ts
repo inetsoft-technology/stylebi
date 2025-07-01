@@ -77,6 +77,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    inDashboard = false;
    fullScreenId: string;
    tabBarHeight: number = 0;
+   hasBaseEntry: boolean = false;
    public modified: boolean = false;
    private subscriptions: Subscription = new Subscription();
 
@@ -120,6 +121,7 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
          this.fullScreen = data.viewData.fullScreen;
          this.dashboardName = data.viewData.dashboardName;
          this.fullScreenId = data.viewData.fullScreenId;
+         this.hasBaseEntry = data.viewData.hasBaseEntry;
          this.modified = false;
       }));
 
@@ -276,8 +278,8 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       };
 
       const params = this.dashboardName ?
-         {assetId: this.assetId, dashboardName: this.dashboardName} :
-         {assetId: this.assetId, isMetadata: isMetadata};
+         {assetId: this.assetId, dashboardName: this.dashboardName, hasBaseEntry: this.hasBaseEntry} :
+         {assetId: this.assetId, isMetadata: isMetadata, hasBaseEntry: this.hasBaseEntry};
 
       this.router.navigate(["/viewer/edit", params], navigationExtras)
          .catch((error: any) => {

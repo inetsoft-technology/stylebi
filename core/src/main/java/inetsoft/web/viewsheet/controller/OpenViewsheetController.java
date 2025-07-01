@@ -83,16 +83,19 @@ public class OpenViewsheetController {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
       Viewsheet vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
          entry, principal, false, AssetContent.CONTEXT);
+      boolean hasBaseEntry = false;
 
       if(vs != null) {
          ViewsheetInfo info = vs.getViewsheetInfo();
          scaleToScreen = info.isScaleToScreen();
          fitToWidth = info.isFitToWidth();
+         hasBaseEntry = vs.getBaseEntry() != null;
       }
 
       return ViewsheetRouteDataModel.builder()
          .scaleToScreen(scaleToScreen)
          .fitToWidth(fitToWidth)
+         .hasBaseEntry(hasBaseEntry)
          .build();
    }
 
