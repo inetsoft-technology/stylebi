@@ -98,7 +98,7 @@ public class UploadController {
    private boolean checkPermission(Principal principal) {
       try {
          return securityEngine.checkPermission(
-            principal, ResourceType.EM, "*", ResourceAction.ACCESS) ||
+            principal, ResourceType.EM, "*", ResourceAction.ACCESS) &&
             securityEngine.checkPermission(
                principal, ResourceType.UPLOAD_DRIVERS, "*", ResourceAction.ACCESS);
       }
