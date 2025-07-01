@@ -128,7 +128,7 @@ export class VsBookmarkPaneComponent implements OnInit {
    }
 
    deleteBookmarks(): void {
-      if(!this.principal) {
+      if(!this.principal || this.addBookmarkDisabled) {
          return;
       }
 
