@@ -34,6 +34,7 @@ export interface WorksheetBrowserInfo {
    deletable: boolean;
    materialized: boolean;
    canMaterialize: boolean;
+   canWorksheet: boolean;
    parentPath?: string;
    parentFolderCount?: number;
    hasSubFolder?: number;
