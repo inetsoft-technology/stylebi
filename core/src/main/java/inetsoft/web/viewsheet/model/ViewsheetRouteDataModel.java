@@ -27,6 +27,7 @@ import org.immutables.value.Value;
 public interface ViewsheetRouteDataModel {
    boolean scaleToScreen();
    boolean fitToWidth();
+   boolean hasBaseEntry();
 
    static Builder builder() {
       return new Builder();

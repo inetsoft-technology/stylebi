@@ -217,7 +217,7 @@ public class ScheduleTaskService {
       }
 
       return principal != null &&
-         (Tool.equals(principal.getName(), task.getOwner()) ||
+         (OrganizationManager.getInstance().isSiteAdmin(principal) || Tool.equals(principal.getName(), task.getOwner()) ||
             !scheduleManager.isDeleteOnlyByOwner(task, principal));
    }
 
