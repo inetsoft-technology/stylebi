@@ -62,7 +62,7 @@ export class TopNEditor implements OnChanges {
 
    ngOnChanges(changes: SimpleChanges) {
       if(changes.hasOwnProperty("value")) {
-         if(this.value != null) {
+         if(this.value) {
             this.n = this.value.n;
             this.dataRef = this.value.dataRef;
          }
