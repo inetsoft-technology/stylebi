@@ -18,6 +18,7 @@
 package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -181,8 +182,17 @@ public class EMScheduleTaskController {
       throws Exception
    {
       final ToggleTaskResponse.Builder builder = ToggleTaskResponse.builder();
+      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
 
       for(String name : list.taskNames()) {
+         ScheduleTask task = scheduleManager.getScheduleTask(name);
+
+         if(!(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_TASK, name,
+               ResourceAction.WRITE) || (task != null && ScheduleManager.hasShareGroupPermission(task, principal))))
+         {
+            return builder.build();
+         }
+
          boolean enabled = !scheduleTaskService.isTaskEnabled(name);
          scheduleTaskService.setTaskEnabled(name, enabled, principal);
       }
