@@ -367,7 +367,7 @@
   </form>
 </div>
 <div class="modal-footer">
-  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!!form && !form.valid || isEmptyTable()" #okButton>_#(Finish)</button>
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled()" #okButton>_#(Finish)</button>
   <button type="button" class="btn btn-default" (click)="cancel()">_#(Cancel)</button>
 </div>
 
