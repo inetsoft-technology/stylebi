@@ -23,6 +23,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleCondition;
 import inetsoft.sree.schedule.TimeCondition;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -75,6 +76,12 @@ public class ScheduleCycleService {
    public ScheduleCycleDialogModel getDialogModel(String cycleName, Principal principal)
       throws Exception
    {
+      if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
+                                         cycleName, ResourceAction.ACCESS))
+      {
+         throw new SecurityException(catalog.getString("em.scheduler.cycle.unauthorized", cycleName));
+      }
+
       int index = cycleName.indexOf(":");
       String label = index != -1 ? cycleName.substring(index + 1) : cycleName;
       String zoneName = Calendar.getInstance().getTimeZone().getDisplayName();
@@ -191,6 +198,13 @@ public class ScheduleCycleService {
 
       try {
          String oldName = model.name();
+
+         if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
+                                            oldName, ResourceAction.ACCESS))
+         {
+            catalog.getString("em.scheduler.cycle.unauthorized", oldName);
+         }
+
          String newName = model.label();
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
          IdentityID identity = IdentityID.getIdentityIDFromKey(principal.getName());
