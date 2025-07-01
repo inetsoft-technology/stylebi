@@ -267,7 +267,7 @@ export class CalcTableActions extends BaseTableActions<VSCalcTableModel> {
             label: () => "_#(js:composer.vs.action.helperText.menuAction.table)",
             icon: () => "edit-icon",
             enabled: () => false,
-            visible: () => true,
+            visible: () => this.menuActionHelperTextVisible,
             classes: () => "helper-text"
          }
       ]));
