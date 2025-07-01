@@ -169,6 +169,12 @@ public class OpenWorksheetController extends WorksheetController {
       String forbiddenMsg = "";
 
       try {
+         if(!SecurityEngine.getSecurity().checkPermission(
+            user, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS))
+         {
+            return Catalog.getCatalog().getString("composer.ws.noPermission");
+         }
+
          Worksheet sheet = (Worksheet)
             assetRepository.getSheet(entry, user, false, AssetContent.NO_DATA);
 

@@ -37,4 +37,5 @@ export interface ViewData {
    collapseTree?: boolean;
    scaleToScreen?: boolean;
    fitToWidth?: boolean;
+   hasBaseEntry?: boolean;
 }

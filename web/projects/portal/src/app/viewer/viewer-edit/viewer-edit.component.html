@@ -1,3 +1,4 @@
+
 <!--
   ~ This file is part of StyleBI.
   ~ Copyright (C) 2024  InetSoft Technology
@@ -24,7 +25,7 @@
       [variableValues]="viewData.variableValues"
       [assetId]="viewData.assetId"
       [linkUri]="viewData.linkUri"
-      [viewer]="true" [isCube]="isCube"
+      [viewer]="true" [isCube]="isCube || !viewData?.hasBaseEntry"
       (onCloseBindingPane)="closeEditor()"
       (onOpenWizardPane)="openWizardPane($event)">
    </vs-binding-pane>

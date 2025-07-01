@@ -4048,7 +4048,14 @@ public final class VSEventUtil {
    }
 
    public static void removeVSObject(RuntimeViewsheet rvs, String assembly,
-                                     CommandDispatcher dispatcher) {
+                                     CommandDispatcher dispatcher)
+   {
+      removeVSObject(rvs, assembly, dispatcher, false);
+   }
+
+   public static void removeVSObject(RuntimeViewsheet rvs, String assembly,
+                                     CommandDispatcher dispatcher, boolean convert)
+   {
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly vsAssembly = vs.getAssembly(assembly);
       vs.removeAssembly(assembly);
@@ -4058,7 +4065,7 @@ public final class VSEventUtil {
       command.setName(assembly);
       ContainerVSAssembly container = (ContainerVSAssembly) vsAssembly.getContainer();
 
-      if(container != null) {
+      if(container != null && !convert) {
          container.removeAssembly(assembly);
       }
 

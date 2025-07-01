@@ -114,7 +114,11 @@ public abstract class TableMetaData implements Cloneable {
     * Dispose the table meta data.
     */
    public void dispose() {
-      // do nothing
+      disposed = true;
+   }
+
+   public boolean isDisposed() {
+      return disposed;
    }
 
    /**
@@ -133,6 +137,7 @@ public abstract class TableMetaData implements Cloneable {
    }
 
    private String name; // table name
+   private boolean disposed = false;
    private static final Logger LOG =
       LoggerFactory.getLogger(TableMetaData.class);
 }
