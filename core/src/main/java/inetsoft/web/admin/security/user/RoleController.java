@@ -73,7 +73,6 @@ public class RoleController {
    {
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
             "*", ResourceAction.ADMIN))
-
       {
          return null;
       }
