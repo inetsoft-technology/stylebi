@@ -937,6 +937,12 @@ public class RuntimeViewsheet extends RuntimeSheet {
       return bookmarksMap.get(user.convertToKey());
    }
 
+   public void resetUserBookmark(String user) {
+      if(bookmarksMap.containsKey(user)) {
+         bookmarksMap.remove(user);
+      }
+   }
+
    /**
     * set specified user bookmark.
     */
