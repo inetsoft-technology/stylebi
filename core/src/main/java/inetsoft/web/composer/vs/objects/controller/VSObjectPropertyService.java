@@ -1555,10 +1555,10 @@ public class VSObjectPropertyService {
          String[] assemblies = ((GroupContainerVSAssemblyInfo) vsInfo).getAbsoluteAssemblies();
 
          for(int i = 0; i < assemblies.length; i++) {
-            VSAssembly vsAssembly = ((VSAssembly) vs.getAssembly(assemblies[i]));
-
-            if(vsAssembly != null && supportAsDataTip(vs, vsAssembly, name, originalName,  true)) {
-               return true;
+            VSAssembly vsAssembly = vs.getAssembly(assemblies[i]);
+            
+            if(vsAssembly != null && !supportAsDataTip(vs, vsAssembly, name, originalName,  true)) {
+               return false;
             }
          }
 
