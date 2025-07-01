@@ -451,6 +451,8 @@ public class ComposerBindingController {
       else if(info instanceof TimeSliderVSAssemblyInfo && ref != null) {
          String title = ref.getName();
          TimeSliderVSAssemblyInfo assemblyinfo = (TimeSliderVSAssemblyInfo) info;
+         TimeInfo oldTimeInfo =
+            assemblyinfo.getTimeInfo() != null ? (TimeInfo) assemblyinfo.getTimeInfo().clone() : null;
          DataRef[] dataRefs = bindings.stream()
                                       .map(bindingService::createDataRef)
                                       .toArray(DataRef[]::new);
@@ -491,6 +493,10 @@ public class ComposerBindingController {
          assemblyinfo.setTimeInfo(tinfo);
          assemblyinfo.setTableName(table);
          assemblyinfo.setTitleValue(title);
+
+         if(!Tool.equals(oldTimeInfo, tinfo)) {
+            assemblyinfo.setTimeSliderSelection(new TimeSliderSelection());
+         }
 
          if(bindings != null && bindings.size() > 0) {
             String sourceType = bindings.get(0).getProperty("type");

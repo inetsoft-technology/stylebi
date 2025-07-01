@@ -372,6 +372,8 @@ public class RangeSliderPropertyDialogController {
                             RangeSliderDataPaneModel rangeSliderDataPaneModel,
                             RangeSliderSizePaneModel rangeSliderSizePaneModel)
    {
+      TimeInfo oldTimeInfo =
+         assemblyInfo.getTimeInfo() != null ? (TimeInfo) assemblyInfo.getTimeInfo().clone() : null;
       OutputColumnRefModel[] columns = rangeSliderDataPaneModel.getSelectedColumns();
 
       if(rangeSliderDataPaneModel.isComposite()) {
@@ -448,6 +450,10 @@ public class RangeSliderPropertyDialogController {
       }
 
       assemblyInfo.setSubmitOnChangeValue(rangeSliderSizePaneModel.isSubmitOnChange());
+
+      if(!Tool.equals(oldTimeInfo, assemblyInfo.getTimeInfo())) {
+         assemblyInfo.setTimeSliderSelection(new TimeSliderSelection());
+      }
    }
 
    private final VSObjectPropertyService vsObjectPropertyService;
