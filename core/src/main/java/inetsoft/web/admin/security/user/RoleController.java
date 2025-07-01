@@ -71,6 +71,12 @@ public class RoleController {
    public EditRolePaneModel createRole(HttpServletRequest req, Principal principal,
                                        @DecodePathVariable("provider") String providerName)
    {
+      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+            "*", ResourceAction.ADMIN))
+      {
+         return null;
+      }
+
       ActionRecord actionRecord =
          SUtil.getActionRecord(req, ActionRecord.ACTION_NAME_CREATE,
                                null, ActionRecord.OBJECT_TYPE_USERPERMISSION);
