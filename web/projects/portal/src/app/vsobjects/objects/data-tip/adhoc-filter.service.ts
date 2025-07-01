@@ -29,6 +29,8 @@ export class AdhocFilterService {
    private listener = null;
    private filterName: string = null;
 
+   private close: any = null;
+
 
    constructor(private renderer: Renderer2,
                private changeRef: ChangeDetectorRef,
@@ -44,6 +46,7 @@ export class AdhocFilterService {
    {
       this._adhocFilterShowing = true;
       this.filterName = absoluteName;
+      this.close = closed;
 
       this.listener = this.renderer.listen("document", "click", (event: MouseEvent) => {
          if(!elementRef.nativeElement.contains(event.target) &&
@@ -52,7 +55,6 @@ export class AdhocFilterService {
             (!acceptClose || acceptClose()))
          {
             this.hideAdhocFilter();
-            closed();
          }
       });
 
@@ -77,5 +79,6 @@ export class AdhocFilterService {
       this.listener();
       this._adhocFilterShowing = false;
       this.filterName = null;
+      this.close();
    }
 }
