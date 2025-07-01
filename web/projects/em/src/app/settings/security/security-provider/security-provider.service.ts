@@ -72,8 +72,9 @@ export class SecurityProviderService {
 
    getAuthenticationModel(form: UntypedFormGroup): AuthenticationProviderModel {
       const name = form.value["providerName"].trim();
+      const oldName = form.value["oldName"];
       const type = form.value["providerType"];
-      let model: AuthenticationProviderModel = {providerName: name, providerType: type};
+      let model: AuthenticationProviderModel = {providerName: name, oldName: oldName, providerType: type};
       let sysAdminRoles: string;
       let orgAdminRoles: string;
 
