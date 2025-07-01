@@ -471,8 +471,8 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
 
          this.onLinkClicked.emit({
             hyperlinks: this.cell.hyperlinks,
-            xPos: event.pageX,
-            yPos: event.pageY,
+            xPos: event.clientX,
+            yPos: event.clientY,
             numLinks: this.numLinks
          });
       }
