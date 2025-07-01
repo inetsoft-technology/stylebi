@@ -2469,6 +2469,12 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       resetCorners();
 
+      for(Assembly assembly : getAssemblies()) {
+         if(assembly instanceof ContainerVSAssembly) {
+            ((ContainerVSAssembly) assembly).layout();
+         }
+      }
+
       if(isEmbedded()) {
          info.setPixelSize(getSize0());
       }
