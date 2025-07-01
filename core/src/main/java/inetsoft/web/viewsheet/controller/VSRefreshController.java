@@ -403,6 +403,34 @@ public class VSRefreshController {
       updateUndoState(rvs, dispatcher);
    }
 
+   @MessageMapping("/vs/refresh/assembly/view")
+   public void refreshVsAssemblyView(RefreshVSAssemblyEvent event,
+                                     CommandDispatcher dispatcher,
+                                     @LinkUri String linkUri,
+                                     Principal principal)
+      throws Exception
+   {
+      String runtimeId = event.getVsRuntimeId();
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+      if(rvs == null) {
+         return;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs.getAssembly(event.getAssemblyName());
+
+      if(assembly != null) {
+         coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
+
+         if(assembly instanceof TableDataVSAssembly) {
+            int rows = Math.max(assembly.getPixelSize().height / 16, 100);
+            BaseTableController.loadTableData(
+               rvs, assembly.getAbsoluteName(), 0, 0, rows, linkUri, dispatcher);
+         }
+      }
+   }
+
    /**
     * Refresh the assembly and reset dependencies.
     * @param rvs runtime viewsheet.
