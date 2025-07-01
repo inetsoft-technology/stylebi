@@ -188,6 +188,12 @@ public class JDBCUtil {
                tables[i].getCatalog(), tables[i].getSchema());
             name = getUpperCaseName(tnode, name.toString(), sql);
             SelectTable ntable = sql.addTable(alias, name, loc, scroll);
+
+            // table already exists
+            if(ntable == null) {
+               continue;
+            }
+
             ntable.setCatalog(tables[i].getCatalog());
             ntable.setSchema(tables[i].getSchema());
          }
