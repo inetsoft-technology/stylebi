@@ -938,7 +938,6 @@ public class RuntimeViewsheet extends RuntimeSheet {
    public void removeBookmark(String name, IdentityID user, boolean checkLock)
       throws Exception
    {
-      updateVSBookmark();
       String lockKey = VSBookmark.getLockKey(entry.toIdentifier(), user.convertToKey());
       Cluster cluster = Cluster.getInstance();
       cluster.lockKey(lockKey);
@@ -966,6 +965,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          bookmark.removeBookmark(name);
          AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
          rep.setVSBookmark(entry, bookmark, new XPrincipal(user));
+         updateVSBookmark();
          // delete the all locks of this bookmark
          unLockBookmark(name, user);
       }
