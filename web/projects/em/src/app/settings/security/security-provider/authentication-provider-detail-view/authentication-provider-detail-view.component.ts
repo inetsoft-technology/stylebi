@@ -51,6 +51,7 @@ export class AuthenticationProviderDetailViewComponent implements OnInit, OnDest
 
       if(this.form && model?.providerName) {
          this.providerName = this.model.providerName;
+         this.oldName = this.model.oldName;
          this.providerType = this.model.providerType;
       }
    }
@@ -101,6 +102,7 @@ export class AuthenticationProviderDetailViewComponent implements OnInit, OnDest
       this.form = new UntypedFormGroup({
          providerName: new UntypedFormControl("", [Validators.required,
             FormValidators.containsSpecialCharsForCommonName]),
+         oldName: new UntypedFormControl(""),
          providerType: new UntypedFormControl(SecurityProviderType.FILE, [Validators.required])
       });
 
@@ -125,6 +127,14 @@ export class AuthenticationProviderDetailViewComponent implements OnInit, OnDest
 
    get providerName(): string {
       return this.form.get("providerName").value;
+   }
+
+   set oldName(name: string) {
+      this.form.get("oldName").setValue(name);
+   }
+
+   get oldName(): string {
+      return this.form.get("oldName").value;
    }
 
    set providerType(type: SecurityProviderType) {
