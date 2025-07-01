@@ -128,6 +128,7 @@ export class TaskOptionsPane {
    private _model: TaskOptionsPaneModel;
    private owners: IdentityIdWithLabel[];
    public adminName: string = "";
+   public isAdminNameLoading: boolean = true;
    private _executeAs: string;
    public groupErrorState = new GroupErrorState();
    public static DEFAULT_LOCALE: string = "Default";
@@ -164,6 +165,7 @@ export class TaskOptionsPane {
       usersService.getAdminName().subscribe(
          value => {
             this.adminName = value;
+            this.isAdminNameLoading = false;
             this.updateDisabledState();
          }
       );

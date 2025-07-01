@@ -91,7 +91,7 @@
           <mat-error *ngIf="optionsForm.controls['owner'].errors && optionsForm.controls['owner'].errors['invalid']">
             _#(Invalid user)
           </mat-error>
-          <mat-spinner matSuffix *ngIf="adminName == ''" mode="indeterminate" diameter="17"></mat-spinner>
+          <mat-spinner matSuffix *ngIf="isAdminNameLoading" mode="indeterminate" diameter="17"></mat-spinner>
         </mat-form-field>
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Execute As)</mat-label>
@@ -99,7 +99,7 @@
                  formControlName="executeAs"
                  (change)="fireModelChanged()">
           <div class="flex-row" matSuffix>
-            <mat-spinner *ngIf="adminName == ''" mode="indeterminate" diameter="17"></mat-spinner>
+            <mat-spinner *ngIf="isAdminNameLoading" mode="indeterminate" diameter="17"></mat-spinner>
             <button mat-icon-button (click)="openExecuteAsDialog()" matTooltip="_#(Select User)" [disabled]="!adminName">
               <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
             </button>
