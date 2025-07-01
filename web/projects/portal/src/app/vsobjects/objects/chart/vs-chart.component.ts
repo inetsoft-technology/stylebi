@@ -88,6 +88,7 @@ import { ShowHyperlinkService } from "../../show-hyperlink.service";
 import { ViewerResizeService } from "../../util/viewer-resize.service";
 import { VSUtil } from "../../util/vs-util";
 import { AbstractVSObject } from "../abstract-vsobject.component";
+import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { SelectableObject } from "../selectable-object";
 import { DetailDndInfo } from "../table/detail-dnd-info";
@@ -369,7 +370,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                private tabService: VSTabService,
                protected zone: NgZone,
                private richTextService: RichTextService,
-               private fullScreenService: FullScreenService)
+               private fullScreenService: FullScreenService,
+               private adhocFilterService: AdhocFilterService)
    {
       super(viewsheetClient, zone, contextProvider, dataTipService);
       this.resetShowEmptyAreaStatus();
@@ -553,6 +555,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       }, 100);
 
       this.dataTipService.hideDataTip();
+      this.adhocFilterService.hideAdhocFilter();
       this.model.selectedAnnotations = [];
    }
 
@@ -561,6 +564,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       this.viewsheetClient.sendEvent(CHART_MAX_MODE_URL, chartEvent);
       this.maxModeChange.emit({assembly: this.model.absoluteName, maxMode: false});
       this.dataTipService.hideDataTip();
+      this.adhocFilterService.hideAdhocFilter();
       this.onScroll(new Point(0, 0));
    }
 
