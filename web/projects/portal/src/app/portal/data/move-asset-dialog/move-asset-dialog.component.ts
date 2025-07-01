@@ -63,7 +63,8 @@ export class MoveAssetDialogComponent implements OnInit {
       editable: false,
       deletable: false,
       materialized: false,
-      canMaterialize: false
+      canMaterialize: false,
+      canWorksheet: false
    };
 
    constructor(private httpClient: HttpClient,
