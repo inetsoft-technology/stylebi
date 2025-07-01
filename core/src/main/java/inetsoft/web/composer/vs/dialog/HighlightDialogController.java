@@ -627,9 +627,26 @@ public class HighlightDialogController {
             .orElse(null);
       }
 
+      final String finalColName = colName;
+
+      if(ref == null) {
+         // make sure it's axis and not a node. (56974)
+         if(isAxis) {
+            List<VSDataRef> fields = new ArrayList<>(Arrays.asList(chartInfo.getXFields()));
+            fields.addAll(Arrays.asList(chartInfo.getYFields()));
+
+            ref = (ChartRef) fields.stream()
+               .filter(f -> f.getFullName().equals(finalColName))
+               .findFirst().orElse(null);
+         }
+         else {
+            ref = chartInfo.getFieldByName(colName, false);
+         }
+      }
+
       // relation highlights defined on source/target instead of textfield, which is
       // shared by source and target.
-      if(GraphTypeUtil.isWordCloud(chartInfo) || isText) {
+      if(ref != null && (GraphTypeUtil.isWordCloud(chartInfo) || isText)) {
          AestheticRef aref = null;
          boolean noTextBinding = chartInfo instanceof RelationChartInfo &&
             Tool.equals(ref, ((RelationChartInfo) chartInfo).getSourceField());
@@ -643,8 +660,6 @@ public class HighlightDialogController {
             ref = (ChartRef) aref.getDataRef();
          }
       }
-
-      final String finalColName = colName;
 
       if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !isAxis) {
          ChartRef[] groups = chartInfo.getGroupFields();
@@ -687,20 +702,6 @@ public class HighlightDialogController {
 
          if(ref == null && isSameRef(field, colName)) {
             ref = field;
-         }
-      }
-
-      if(ref == null) {
-         // make sure it's axis and not a node. (56974)
-         if(isAxis) {
-            List<VSDataRef> fields = new ArrayList<>(Arrays.asList(chartInfo.getXFields()));
-            fields.addAll(Arrays.asList(chartInfo.getYFields()));
-            ref = (ChartRef) fields.stream()
-               .filter(f -> f.getFullName().equals(finalColName))
-               .findFirst().orElse(null);
-         }
-         else {
-            ref = chartInfo.getFieldByName(colName, false);
          }
       }
 
