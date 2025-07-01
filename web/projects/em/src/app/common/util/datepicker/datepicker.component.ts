@@ -65,7 +65,7 @@ export class DatepickerComponent implements OnInit, OnDestroy {
       }
 
       if(this.form && oldValue?.getTime() != _date?.getTime()) {
-         this.form.controls["date"].setValue(this.dateDayjs);
+         this.form.controls["date"].setValue(this.dateDayjs, {emitEvent: false});
       }
    }
 
