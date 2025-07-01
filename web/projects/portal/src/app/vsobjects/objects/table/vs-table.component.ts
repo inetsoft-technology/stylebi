@@ -73,6 +73,7 @@ import { ShowHyperlinkService } from "../../show-hyperlink.service";
 import { CheckFormDataService } from "../../util/check-form-data.service";
 import { ViewerResizeService } from "../../util/viewer-resize.service";
 import { VSUtil } from "../../util/vs-util";
+import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { BaseTable } from "./base-table";
 import { PopComponentService } from "../data-tip/pop-component.service";
@@ -282,12 +283,13 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
                zone: NgZone,
                protected tabService: VSTabService,
                @Optional() viewerResizeService: ViewerResizeService,
-               private richTextService: RichTextService)
+               private richTextService: RichTextService,
+               protected adhocFilterService: AdhocFilterService)
    {
       super(viewsheetClient, dropdownService, downloadService, renderer,
             changeDetectorRef, contextProvider, formDataService, debounceService,
             scaleService, hyperlinkService, http, dataTipService, popComponentService,
-            pagingControlService, zone, tabService, viewerResizeService);
+            pagingControlService, zone, tabService, viewerResizeService, adhocFilterService);
    }
 
    public ngOnInit(): void {
