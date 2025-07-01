@@ -656,6 +656,14 @@ public class UserTreeService {
     * Create a new user
     */
    EditUserPaneModel createUser(String providerName, String parentGroup, Principal principal) {
+      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+
+      if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+            "*", ResourceAction.ADMIN))
+      {
+         return null;
+      }
+
       ActionRecord actionRecord = SUtil.getActionRecord(
          principal, ActionRecord.ACTION_NAME_CREATE, null,
          ActionRecord.OBJECT_TYPE_USERPERMISSION);
