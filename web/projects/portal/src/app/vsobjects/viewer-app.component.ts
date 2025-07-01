@@ -653,7 +653,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          console.error("The runtime or asset identifier must be provided");
       }
 
-      if(this.viewerRoot?.nativeElement) {
+      if(this.viewerRoot?.nativeElement && !this.isIframe) {
          this.zone.runOutsideAngular(() => {
             new ResizeSensor(this.viewerRoot.nativeElement, () => {
                this.onViewerRootResizeEvent();
@@ -1351,6 +1351,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                      this.emailDialogModel = null;
                   }
                );
+
+               this.zone.run(() => {
+                  this.changeDetectorRef.detectChanges();
+               });
             },
             (err) => {
                this.waiting = false;
@@ -2769,6 +2773,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       contextmenu.sourceEvent = event;
       contextmenu.actions = actions;
       event.preventDefault();
+
+      this.zone.run(() => {
+         this.changeDetectorRef.detectChanges();
+      });
+
       return dropdownRef;
    }
 
@@ -3299,6 +3308,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    shareLink(): void {
+      if(this.isShareLinkDisabled()) {
+         return;
+      }
+
       const options: SlideOutOptions = {backdrop: "static", popup: true};
       this.dialogService.open(this.shareLinkDialog, options).result.then(
          () => {
@@ -3434,7 +3447,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    isEditVisible(): boolean {
-      return !this.isPermissionForbidden("Edit") && !this.mobileDevice &&
+      return !this.embed && !this.isPermissionForbidden("Edit") && !this.mobileDevice &&
          !this.preview && !this.linkView && this.editable && !this.fullScreen;
    }
 
@@ -3513,7 +3526,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    bookmarksVisible(): boolean {
-      if(this.snapshot || this.isPermissionForbidden("Bookmark")) {
+      if(this.snapshot || this.isPermissionForbidden("Bookmark") ||
+         this.embed && this.vsBookmarkList.length <= 1)
+      {
          return false;
       }
 
