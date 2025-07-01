@@ -355,6 +355,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Output() onEmbedError = new EventEmitter<string>();
    @Output() onLoadingStateChanged = new EventEmitter<{ name: string, loading: boolean }>();
    @Output() onDataTipPopComponentVisible = new EventEmitter<boolean>();
+   @Output() onViewerSizeChanged = new EventEmitter<{width: number, height: number}>();
 
    @Input()
    get runtimeId(): string {
@@ -3169,6 +3170,27 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          }
 
          this.notifyParentFrame();
+      }
+
+      if(this.embed && this.allAssemblyBounds && (!this.scaleToScreen || this.fitToWidth)) {
+         let height = this.allAssemblyBounds.bottom;
+
+         if(this.hasBottomPadding) {
+            height += this.allAssemblyBounds.top;
+         }
+
+         if(!!this.viewerToolbar) {
+            const rect = this.viewerToolbar.nativeElement.getBoundingClientRect();
+            height += rect.height;
+         }
+
+         let width = this.allAssemblyBounds.right;
+
+         if(this.hasRightPadding) {
+            width += this.allAssemblyBounds.left;
+         }
+
+         this.onViewerSizeChanged.emit({width: this.fitToWidth ? null : width, height: height});
       }
    }
 

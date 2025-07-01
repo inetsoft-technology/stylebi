@@ -103,6 +103,8 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    showError: boolean;
    loading: boolean;
    dataTipPopComponentVisible: boolean;
+   width: number;
+   height: number;
    private loadingSet: Set<string> = new Set<string>();
    @ViewChild("embedViewer") embedViewer: ElementRef;
    @ViewChild("viewerApp") viewerApp: ViewerAppComponent;
@@ -244,5 +246,10 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    @HostListener("mouseleave", ["$event"])
    onMouseLeave(event: MouseEvent): void {
       this.viewerApp?.clearDataTipPopComponents();
+   }
+
+   onViewerSizeChanged(size: {width: number, height: number}) {
+      this.width = size.width;
+      this.height = size.height;
    }
 }
