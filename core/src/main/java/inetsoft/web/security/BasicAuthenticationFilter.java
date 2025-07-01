@@ -161,9 +161,28 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                   boolean loginAs = "on".equals(SreeEnv.getProperty("login.loginAs"))
                      && !provider.isVirtual();
                   Cookie[] cookies = ((HttpServletRequest) request).getCookies();
-                  String recordedOrgID = cookies == null ? Organization.getDefaultOrganizationID() :
+                  Cookie orgCookie = cookies == null ? null :
                      Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
-                        .map(Cookie::getValue).findFirst().orElse(Organization.getDefaultOrganizationID());
+                        .findFirst().orElse(null);
+
+                  if(orgCookie == null) {
+                     String orgID = httpRequest.getHeader("Organization-ID");
+
+                     if(orgID != null) {
+                        orgCookie = new Cookie(ORG_COOKIE, orgID);
+                        final String sameSite = SreeEnv.getProperty("same.site", "Lax");
+
+                        if(isSecurityAllowIframe() || "none".equalsIgnoreCase(sameSite)) {
+                           orgCookie.setAttribute("SameSite", "None");
+                           orgCookie.setSecure(true);
+                        }
+
+                        ((HttpServletResponse) response).addCookie(orgCookie);
+                     }
+                  }
+
+                  String recordedOrgID = orgCookie == null ?
+                     Organization.getDefaultOrganizationID() : orgCookie.getValue();
 
                   if(!SUtil.isMultiTenant()) {
                      recordedOrgID = Organization.getDefaultOrganizationID();
