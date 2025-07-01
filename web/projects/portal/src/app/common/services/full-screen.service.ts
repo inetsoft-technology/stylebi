@@ -16,7 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { EventEmitter, Injectable, OnDestroy } from "@angular/core";
+import { NgbModalConfig } from "@ng-bootstrap/ng-bootstrap";
 import fscreen from "fscreen";
+import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
+import { DialogService } from "../../widget/slide-out/dialog-service.service";
+import { TooltipService } from "../../widget/tooltip/tooltip.service";
 
 declare const window;
 
@@ -24,12 +28,20 @@ declare const window;
 export class FullScreenService implements OnDestroy {
    private readonly listener = (event) => this.onFullScreenChange(event);
    fullScreenChange = new EventEmitter<any>();
+   tooltipServiceContainer: Element;
+   dropdownServiceContainer: Element;
+   modalServiceContainer: string | HTMLElement;
+   dialogServiceContainer: string | HTMLElement;
 
    get fullScreenMode(): boolean {
       return !!fscreen.fullscreenElement;
    }
 
-   constructor() {
+   constructor(private modalConfig: NgbModalConfig,
+               private dialogService: DialogService,
+               private dropdownService: FixedDropdownService,
+               private tooltipService: TooltipService)
+   {
       fscreen.addEventListener("fullscreenchange", this.listener);
    }
 
@@ -46,10 +58,32 @@ export class FullScreenService implements OnDestroy {
 
    enterFullScreenForElement(target: Element): void {
       fscreen.requestFullscreen(target);
+      this.setContainersToTarget(target);
    }
 
    exitFullScreen(): void {
       fscreen.exitFullscreen();
+      this.setContainersToTarget(null);
+   }
+
+   setContainersToTarget(target: Element) {
+      if(target != null) {
+         this.tooltipServiceContainer = this.tooltipService.container;
+         this.dialogServiceContainer = this.dialogService.container;
+         this.dropdownServiceContainer = this.dropdownService.container;
+         this.modalServiceContainer = this.modalConfig.container;
+
+         this.tooltipService.container = target;
+         this.dropdownService.container = target;
+         this.dialogService.container = <HTMLElement> target;
+         this.modalConfig.container = <HTMLElement> target;
+      }
+      else {
+         this.tooltipService.container = this.tooltipServiceContainer;
+         this.dropdownService.container = this.dropdownServiceContainer;
+         this.dialogService.container = this.dialogServiceContainer;
+         this.modalConfig.container = this.modalServiceContainer;
+      }
    }
 
    private onFullScreenChange(event: any): void {
