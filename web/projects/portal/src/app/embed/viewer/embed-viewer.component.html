@@ -17,7 +17,9 @@
   -->
 
 <div #embedViewer class="embed-viewer"
-     [class.data-tip-pop-component-visible]="dataTipPopComponentVisible">
+     [class.data-tip-pop-component-visible]="dataTipPopComponentVisible"
+     [style.width.px]="width ? width : null"
+     [style.height.px]="height ? height : null">
   <viewer-app #viewerApp *ngIf="assetId && connected && !showError"
               [assetId]="assetId"
               [queryParameters]="queryParams"
@@ -27,7 +29,8 @@
               [viewerOffsetFunc]="viewerOffsetFunc"
               (onEmbedError)="onEmbedError($event)"
               (onLoadingStateChanged)="onLoadingStateChanged($event)"
-              (onDataTipPopComponentVisible)="onDataTipPopComponentVisible($event)">
+              (onDataTipPopComponentVisible)="onDataTipPopComponentVisible($event)"
+              (onViewerSizeChanged)="onViewerSizeChanged($event)">
   </viewer-app>
   <div *ngIf="showError" class="error-viewer txt-danger">
     <span class="error-label">
