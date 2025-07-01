@@ -380,6 +380,22 @@ public class RuntimeViewsheet extends RuntimeSheet {
          try {
             vs.update(getAssetRepository(), null, getUser());
             box.resetRuntime();
+
+            VSBookmarkInfo openedBookmark = getOpenedBookmark();
+
+            if(openedBookmark != null &&
+               !VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName()) &&
+               !VSBookmark.INITIAL_STATE.equals(openedBookmark.getName()) &&
+               containsEmbeddedVs(vs))
+            {
+               try {
+                  gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner());
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to go to bookmark after reset", e);
+               }
+            }
+
             initViewsheet(vs, true);
             lastReset = System.currentTimeMillis();
          }
@@ -387,6 +403,25 @@ public class RuntimeViewsheet extends RuntimeSheet {
             box.unlockWrite();
          }
       }
+   }
+
+   /**
+    * Check if the viewsheet contains embedded viewsheet.
+    * @param viewsheet
+    * @return
+    */
+   private boolean containsEmbeddedVs(Viewsheet viewsheet) {
+      if(viewsheet == null) {
+         return false;
+      }
+
+      for(Assembly assembly : viewsheet.getAssemblies()) {
+         if(assembly instanceof Viewsheet) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -900,6 +935,12 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       return bookmarksMap.get(user.convertToKey());
+   }
+
+   public void resetUserBookmark(String user) {
+      if(bookmarksMap.containsKey(user)) {
+         bookmarksMap.remove(user);
+      }
    }
 
    /**
