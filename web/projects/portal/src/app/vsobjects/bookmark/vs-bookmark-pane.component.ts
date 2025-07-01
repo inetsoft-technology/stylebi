@@ -127,6 +127,14 @@ export class VsBookmarkPaneComponent implements OnInit {
       return bookmark.label?.toLowerCase().includes(this.searchString.trim().toLowerCase());
    }
 
+   deleteBookmarks(): void {
+      if(!this.principal || this.addBookmarkDisabled) {
+         return;
+      }
+
+      this.onDeleteBookmarks.emit();
+   }
+
    resetSearchMode() {
       this.searchString = null;
    }
