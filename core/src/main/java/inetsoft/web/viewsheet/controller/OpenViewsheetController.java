@@ -21,12 +21,12 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.LicenseException;
-import inetsoft.sree.security.OrganizationManager;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
-import inetsoft.util.MessageException;
+import inetsoft.util.Catalog;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
@@ -132,6 +132,14 @@ public class OpenViewsheetController {
                              @LinkUri String linkUri)
       throws Exception
    {
+      if(!event.isViewer() &&
+         !SecurityEngine.getSecurity().checkPermission(principal,
+                                                       ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.dashboard.authorization.permissionDenied"));
+      }
+
       if(licenseService.isCpuUnlicensed()) {
          throw new LicenseException(licenseService.getCpuUnlicensedMSG());
       }

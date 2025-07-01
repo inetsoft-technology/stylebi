@@ -518,7 +518,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * @param touch <code>true</code> to update the access time and heartbeat.
     * @return the runtime sheet if any.
     */
-   protected final RuntimeSheet getSheet(String id, Principal user, boolean touch) {
+   public final RuntimeSheet getSheet(String id, Principal user, boolean touch) {
       RuntimeSheet rs = amap.get(id);
       Catalog catalog = Catalog.getCatalog();
 
