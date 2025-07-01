@@ -39,7 +39,7 @@
             <i role="button" class="btn py-1 new-worksheet-icon"
                *ngIf="!selectionOn"
                title="_#(New Worksheet)"
-               [class.disabled]="!isFolderEditable || !worksheetAccess"
+               [class.disabled]="!worksheetAccess"
                (click)="newWorksheet()">
             </i>
             <i role="button" class="btn py-1 folder-plus-icon"
