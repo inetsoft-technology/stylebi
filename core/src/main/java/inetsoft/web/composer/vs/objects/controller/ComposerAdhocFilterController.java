@@ -767,6 +767,8 @@ public class ComposerAdhocFilterController {
       else {
          moved.setPixelSize(new Dimension(width, 6 * AssetUtil.defh));
       }
+
+      fixFilterPosition(object, moved);
    }
 
    private void saveFormats(VSAssembly moved) {
@@ -954,6 +956,24 @@ public class ComposerAdhocFilterController {
       VSEventUtil.removeVSObject(rvs, oname, dispatcher);
 
       return hint;
+   }
+
+   private void fixFilterPosition(VSAssembly assembly, VSAssembly filter) {
+      if(assembly instanceof ChartVSAssembly &&
+         ((ChartVSAssemblyInfo) assembly.getVSAssemblyInfo()).getMaxSize() != null)
+      {
+         Dimension maxSize = ((ChartVSAssemblyInfo) assembly.getVSAssemblyInfo()).getMaxSize();
+         Point offset = filter.getPixelOffset();
+         Dimension size = filter.getPixelSize();
+
+         if(offset.x + size.width > maxSize.width) {
+            offset.x = Math.max(0, maxSize.width - size.width);
+         }
+
+         if(offset.y + size.height > maxSize.height) {
+            offset.y = Math.max(0, maxSize.height - size.height);
+         }
+      }
    }
 
    private final ViewsheetService viewsheetService;
