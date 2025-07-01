@@ -2680,4 +2680,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       let assetEntry: AssetEntry = createAssetEntry(this.vs.id);
       return assetEntry?.organization != this.orgInfo?.key;
    }
+
+   isFilterInMaxModeView(vsObject: VSObjectModel): boolean {
+      return !!this.maxModeAssembly && (<any> vsObject).adhocFilter;
+   }
 }
