@@ -1903,7 +1903,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
          let placement: string;
 
          // change placement if the tooltip is out of bounds
-         if(x <= (window.innerWidth || document.documentElement.clientWidth)) {
+         if(x <= (window.innerWidth || document.documentElement.clientWidth) && !this.model.maxMode) {
             placement = "right";
          }
          else {
