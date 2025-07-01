@@ -372,10 +372,18 @@ export class DataFolderBrowserComponent extends CommandProcessor implements OnIn
       }
    }
 
+   get newWorksheetDisabled(): boolean {
+      return !this.isFolderEditable || !this.worksheetAccess;
+   }
+
    /**
     * Open the composer to new dataset page.
     */
    newWorksheet(): void {
+      if(this.newWorksheetDisabled) {
+         return;
+      }
+
       const folderId: string = this.currentFolderPath.length
          ? this.currentFolderPath[this.currentFolderPath.length - 1].id
          : "1^1^__NULL__^" + this.currentFolderPathString;
