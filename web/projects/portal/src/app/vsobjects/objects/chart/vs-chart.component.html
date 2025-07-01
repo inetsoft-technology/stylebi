@@ -182,7 +182,7 @@
                    (mouseSelect)="selectAnnotation($event)">
     </vs-annotation>
   </ng-container>
-  <vs-loading-display *ngIf="model && model?.sourceType != -1 && chartLoading && chartLoadingIcon && (isBinding || !model.maxMode) && !globalLoadingIndicator"
+  <vs-loading-display *ngIf="model && model?.sourceType != -1 && chartLoading && chartLoadingIcon && !globalLoadingIndicator && !viewsheetLoading"
                       [allowInteraction]="true"
                       [assemblyLoading]="true"></vs-loading-display>
 </div>
