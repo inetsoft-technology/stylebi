@@ -140,7 +140,6 @@ public class DataSetService {
                  .deletable(false)
                  .materialized(false)
                  .canMaterialize(false)
-                 .canWorksheet(false)
                  .hasSubFolder(hasSubDataSetFolder(privateWsFolder, movingFolders, principal))
                  .workSheetType(-1)
                  .build());
@@ -234,7 +233,6 @@ public class DataSetService {
          .deletable(false)
          .materialized(false)
          .canMaterialize(false)
-         .canWorksheet(false)
          .hasSubFolder(hasSubDataSetFolder(privateWsFolder, null, principal))
          .workSheetType(-1)
          .build();
@@ -422,7 +420,6 @@ public class DataSetService {
          .deletable(admin || checkAssetPermission(principal, entry, ResourceAction.DELETE))
          .materialized(false)
          .canMaterialize(false)
-         .canWorksheet(false)
          .parentPath(parentPath)
          .hasSubFolder(hasSubDataSetFolder(entry, movingFolders, principal))
          .workSheetType(-1)
@@ -466,8 +463,6 @@ public class DataSetService {
       boolean canMaterialize = SreeEnv.getBooleanProperty("ws.mv.enabled") &&
          editable && securityProvider.checkPermission(principal, ResourceType.MATERIALIZATION,
                                                       "*", ResourceAction.ACCESS);
-      boolean canWorksheet = securityProvider.checkPermission(
-         principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
       String modifiedDateLabel = entry.getModifiedDate() == null ? "" :
          new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getModifiedDate());
       String createdDateLabel = entry.getCreatedDate() == null ? "" :
@@ -504,7 +499,6 @@ public class DataSetService {
          .deletable(deletable)
          .materialized(AssetTreeController.getMaterialized(entry, principal))
          .canMaterialize(canMaterialize)
-         .canWorksheet(canWorksheet)
          .parentPath(parentPath)
          .hasSubFolder(hasSubDataSetFolder(entry, movingFolders, principal))
          .workSheetType(getWorksheetType(entry))
@@ -704,8 +698,9 @@ public class DataSetService {
          throw new FileNotFoundException(parentEntry.getPath());
       }
 
-      if(!securityProvider.checkPermission(principal, ResourceType.ASSET,
-                                           parentEntry.getPath(), ResourceAction.WRITE))
+      if(scope != AssetRepository.USER_SCOPE &&
+         !securityProvider.checkPermission(principal, ResourceType.ASSET,
+         parentEntry.getPath(), ResourceAction.WRITE))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
             "Permission denied to write " + parentEntry.getPath()));
