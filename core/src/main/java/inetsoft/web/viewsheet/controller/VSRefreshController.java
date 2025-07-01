@@ -46,6 +46,8 @@ import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -421,12 +423,17 @@ public class VSRefreshController {
       VSAssembly assembly = vs.getAssembly(event.getAssemblyName());
 
       if(assembly != null) {
-         coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
+         try {
+            coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
 
-         if(assembly instanceof TableDataVSAssembly) {
-            int rows = Math.max(assembly.getPixelSize().height / 16, 100);
-            BaseTableController.loadTableData(
-               rvs, assembly.getAbsoluteName(), 0, 0, rows, linkUri, dispatcher);
+            if(assembly instanceof TableDataVSAssembly) {
+               int rows = Math.max(assembly.getPixelSize().height / 16, 100);
+               BaseTableController.loadTableData(
+                  rvs, assembly.getAbsoluteName(), 0, 0, rows, linkUri, dispatcher);
+            }
+         }
+         catch(ExpiredSheetException e) {
+            LOG.warn("Viewsheet [{}] is expired.", runtimeId);
          }
       }
    }
@@ -528,4 +535,6 @@ public class VSRefreshController {
    private final VSChartDataHandler chartDataHandler;
    private final ParameterService parameterService;
    private final ConcurrentMap<String, Boolean> pending = new ConcurrentHashMap<>();
+
+   private static final Logger LOG = LoggerFactory.getLogger(VSRefreshController.class);
 }
