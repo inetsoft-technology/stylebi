@@ -99,7 +99,7 @@ public class ScheduleTaskConditionService {
       }
 
       String saveTaskName = ScheduleManager.hasShareGroupPermission(task, principal) ?
-         taskName : decodedTaskName;
+         Tool.byteDecode(taskName) : decodedTaskName;
 
       for(int i = 0; i < items.length; i++) {
          int index = items[i];
