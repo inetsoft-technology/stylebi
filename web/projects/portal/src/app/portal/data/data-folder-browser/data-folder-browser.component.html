@@ -39,7 +39,7 @@
             <i role="button" class="btn py-1 new-worksheet-icon"
                *ngIf="!selectionOn"
                title="_#(New Worksheet)"
-               [class.disabled]="!worksheetAccess"
+               [class.disabled]="newWorksheetDisabled"
                (click)="newWorksheet()">
             </i>
             <i role="button" class="btn py-1 folder-plus-icon"
@@ -76,7 +76,7 @@
             <div class="dropdown-menu" ngbDropdownMenu>
               <button *ngIf="!selectionOn" class="dropdown-item"
                       title="_#(New Worksheet)"
-                      [disabled]="!isFolderEditable || !worksheetAccess"
+                      [disabled]="newWorksheetDisabled"
                       (click)="newWorksheet()">_#(New Worksheet)
               </button>
               <button *ngIf="!selectionOn" class="dropdown-item"

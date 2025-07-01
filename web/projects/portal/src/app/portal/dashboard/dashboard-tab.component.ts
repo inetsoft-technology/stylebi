@@ -170,6 +170,10 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
    }
 
    editDashboard(dashboard: DashboardModel) {
+      if(dashboard && this.editDeleteDashboardDisabled()) {
+         return;
+      }
+
       const dialog = ComponentTool.showDialog(this.modalService, EditDashboardDialog, (result: DashboardModel) => {
             this.updateModel().subscribe((model) => {
                if(model.dashboards.length > 0) {
@@ -188,6 +192,10 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
    }
 
    deleteDashboard() {
+      if(this.editDeleteDashboardDisabled()) {
+         return;
+      }
+
       const msg = "_#(js:em.common.dashboardDelete)";
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", msg).then(
          (result: string) => {
@@ -214,6 +222,10 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
                   });
             }
          });
+   }
+
+   editDeleteDashboardDisabled(): boolean {
+      return !this.model.editable || !this.selectedDashboard || this.selectedDashboard.type === "g";
    }
 
    openArrangeDashboardDialog(): void {

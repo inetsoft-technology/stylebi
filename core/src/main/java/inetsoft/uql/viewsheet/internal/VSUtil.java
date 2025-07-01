@@ -8640,6 +8640,28 @@ public final class VSUtil {
       return flyovers;
    }
 
+   /**
+    * Update an annotation z-index if the annotation is for assembly of embedded vs.
+    *
+    * @param parentAssembly      the parent assembly of the annotation.
+    * @param annotation          the annotation assembly
+    */
+   public static void updateEmbeddedVSAnnotationZIndex(final AnnotationVSAssembly annotation,
+                                                       final VSAssembly parentAssembly)
+   {
+      if(annotation == null || parentAssembly == null) {
+         return;
+      }
+
+      if(annotation.getViewsheet() == parentAssembly.getViewsheet()) {
+         return;
+      }
+
+      if(annotation.getZIndex() < parentAssembly.getZIndex()) {
+         annotation.setZIndex(parentAssembly.getZIndex() + VSUtil.getZIndexGap(parentAssembly));
+      }
+   }
+
    public static boolean hideActionsForHostAssets(AssetEntry entry, Principal principal) {
       if(entry == null || principal == null) {
          return false;

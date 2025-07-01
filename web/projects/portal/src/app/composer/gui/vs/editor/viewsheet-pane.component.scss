@@ -150,6 +150,11 @@ div.vs-pane .bl-selected {
   z-index: 1000;
 }
 
+.max-mode-view-filter {
+  position: fixed;
+  z-index: 9910 !important;
+}
+
 .javascript-icon {
   cursor: pointer;
 }
