@@ -105,8 +105,9 @@ export class PluginsViewComponent implements OnInit, AfterViewInit, OnDestroy {
       this.fileChooser.uploadFiles().subscribe(
          (id) => this.savePlugins(id),
          (error) => {
-            this.snackBar.open("_#(js:em.data.databases.installError)", null, {duration: Tool.SNACKBAR_DURATION});
-            console.log("Failed to install plugin(s): ", error);
+            const message = error.error?.message?.includes("permission") ? error.error?.message :
+               "_#(em.data.databases.installError)";
+            this.snackBar.open(message, null, {duration: Tool.SNACKBAR_DURATION});
             return throwError(error);
          }
       );
