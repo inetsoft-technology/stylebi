@@ -247,13 +247,32 @@ public abstract class VSChartController<T extends VSChartEvent> {
             }
          }
 
-         Arrays.stream(rvs.getViewsheet().getAssemblies())
-            .filter(a -> a != null && !Tool.equals(a.getAbsoluteName(), priorAssembly))
-            .forEach(a -> reloadVSAssembly((VSAssembly) a,
-                                           rvs, uri, dispatcher, refreshOthersData, priorAssembly));
+         reloadOtherAssemblies(rvs, rvs.getViewsheet(), priorAssembly, uri, dispatcher, refreshOthersData);
       }
       finally {
          box.unlockRead();
+      }
+   }
+
+   private void reloadOtherAssemblies(RuntimeViewsheet rvs, Viewsheet vs, String priorAssembly,
+                                      String uri, CommandDispatcher dispatcher,
+                                      boolean refreshData)
+   {
+      Assembly[] assemblies = vs.getAssemblies();
+      
+      for(int i = 0; i < assemblies.length; i++) {
+         Assembly other = assemblies[i];
+         
+         if(other instanceof Viewsheet) {
+            reloadOtherAssemblies(rvs, (Viewsheet) other, priorAssembly, uri, dispatcher, refreshData);
+            continue;
+         }
+         
+         if(Tool.equals(other.getAbsoluteName(), priorAssembly)) {
+            continue;
+         }
+         
+         reloadVSAssembly((VSAssembly) other, rvs, uri, dispatcher, refreshData, priorAssembly);
       }
    }
 
