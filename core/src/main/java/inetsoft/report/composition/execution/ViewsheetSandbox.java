@@ -6567,6 +6567,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       if(vsAssemblyBinding) {
          name = VSUtil.getVSAssemblyBinding(name);
+
+         Viewsheet viewsheet = getViewsheet();
+
+         if(viewsheet != null && !Tool.isEmptyString(viewsheet.getAbsoluteName())) {
+            String vsName = viewsheet.getAbsoluteName();
+            Viewsheet mainViewsheet = getMainViewsheet(viewsheet);
+
+            if(mainViewsheet.getAssembly(vsName + "." + name) != null) {
+               name = vsName + "." + name;
+            }
+         }
       }
 
       TableLens lens = getFormTableLens(name);
@@ -6587,6 +6598,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return lens;
+   }
+
+   private Viewsheet getMainViewsheet(Viewsheet viewsheet) {
+      while(viewsheet != null) {
+         Viewsheet parent = viewsheet.getViewsheet();
+
+         if(parent == null) {
+            return viewsheet;
+         }
+
+         viewsheet = parent;
+      }
+
+      return null;
    }
 
    /**
