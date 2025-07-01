@@ -1188,7 +1188,6 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
       if(!!existModel) {
          model = existModel;
-
       }
 
       this.vs.vsObjects.forEach((vsObject, idx) => {
