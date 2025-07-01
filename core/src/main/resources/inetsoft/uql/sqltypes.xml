@@ -30,4 +30,5 @@
   <types type="h2" class="inetsoft.uql.jdbc.util.H2SQLTypes"/>
   <types type="mongo" class="inetsoft.uql.jdbc.util.MongoSQLTypes"/>
   <types type="sqlite" class="inetsoft.uql.jdbc.util.SqliteSQLTypes"/>
+  <types type="clickhouse" class="inetsoft.uql.jdbc.util.ClickHouseSQLTypes"/>
 </config>
