@@ -500,7 +500,7 @@ public class VSBookmarkController {
 
       for(VSBookmarkInfo vsBookmarkInfo : bookmarks) {
          if(vsBookmarkInfo.getName().equals(VSBookmark.HOME_BOOKMARK)) {
-            allBookmarks.add(VSBookmarkInfoModel.builder()
+            allBookmarks.add(0, VSBookmarkInfoModel.builder()
                                 .name(vsBookmarkInfo.getName())
                                 .type(VSBookmarkInfo.ALLSHARE)
                                 .owner(IdentityID.getIdentityIDFromKey(principal.getName()))
