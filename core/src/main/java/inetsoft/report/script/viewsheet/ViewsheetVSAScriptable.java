@@ -88,8 +88,9 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
       return null;
    }
 
-   protected VSAssemblyInfo getVSAssemblyInfo() {
-      return super.getVSAssemblyInfo();
+   @Override
+   protected VSAssembly getVSAssembly() {
+      return box.getViewsheet();
    }
 
    /**
