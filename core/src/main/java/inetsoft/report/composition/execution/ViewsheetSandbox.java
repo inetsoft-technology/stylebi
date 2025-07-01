@@ -5443,6 +5443,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(index >= 0) {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          name = name.substring(index + 1);
+
+         if(disposed) {
+            return;
+         }
+
          box.updateAssembly(name);
          return;
       }
@@ -6219,6 +6224,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(index >= 0) {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          name = name.substring(index + 1);
+
+         if(disposed) {
+            return null;
+         }
+
          return box.getVGraphPair(name, init, maxsize, export, scaleFont, forceExpand, ignoreSize);
       }
 
