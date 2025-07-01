@@ -832,6 +832,7 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
             if(assembly instanceof AnnotationVSAssembly) {
                ((BaseAnnotationVSAssemblyInfo) info).addAnnotation(
                   assembly.getName());
+               VSUtil.updateEmbeddedVSAnnotationZIndex((AnnotationVSAssembly) assembly, this);
             }
 
             // always set the data type annotation assembly visible to false
