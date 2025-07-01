@@ -18,6 +18,7 @@
 
 package inetsoft.web.viewsheet.controller;
 
+import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.command.OpenComposerAssetCommand;
 import inetsoft.web.composer.vs.command.OpenComposerCommand;
@@ -40,9 +41,13 @@ import static inetsoft.web.viewsheet.service.ComposerClientService.COMMANDS_TOPI
 @Controller
 public class ComposerController {
    @Autowired
-   public ComposerController(SimpMessagingTemplate simpMessagingTemplate, ComposerClientService composerClientService) {
+   public ComposerController(SimpMessagingTemplate simpMessagingTemplate,
+                             ComposerClientService composerClientService,
+                             SecurityProvider securityProvider)
+   {
       this.simpMessagingTemplate = simpMessagingTemplate;
       this.composerClientService = composerClientService;
+      this.securityProvider = securityProvider;
    }
 
    @MessageMapping("/composer/editViewsheet")
@@ -86,8 +91,10 @@ public class ComposerController {
       String httpSessionId =
          headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString();
       String simpSessionId = ComposerClientService.getFirstSimpSessionId(httpSessionId);
+      boolean canWorksheet = securityProvider.checkPermission(
+         principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
 
-      if(simpSessionId == null) {
+      if(canWorksheet && simpSessionId == null) {
          OpenComposerCommand openComposerCommand = OpenComposerCommand.builder()
             .vsId(event.getWsId())
             .build();
@@ -96,7 +103,8 @@ public class ComposerController {
       }
 
       MessageCommand command = new MessageCommand();
-      command.setMessage(Catalog.getCatalog().getString("composer.openWorksheetRepeatedly"));
+      command.setMessage(Catalog.getCatalog().getString(canWorksheet?
+         "composer.openWorksheetNoPermission" : "composer.openWorksheetRepeatedly"));
       commandDispatcher.sendCommand(command);
       SimpMessageHeaderAccessor msgHeaderAccessor = SimpMessageHeaderAccessor
          .create(SimpMessageType.MESSAGE);
@@ -151,4 +159,5 @@ public class ComposerController {
 
    private final SimpMessagingTemplate simpMessagingTemplate;
    private final ComposerClientService composerClientService;
+   private final SecurityProvider securityProvider;
 }
