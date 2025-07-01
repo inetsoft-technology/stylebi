@@ -279,18 +279,20 @@ public final class LogManager implements AutoCloseable, MessageListener {
    {
       String name = entry.getKey();
       LogLevel level = entry.getValue();
-      String orgId = null;
       String orgName = null;
-      int idx = name.lastIndexOf("^");
 
       if(context == LogContext.ORGANIZATION) {
          orgName = provider.getOrgNameFromID(name);
          name = orgName;
       }
-      else if(idx != -1) {
-         orgId = name.substring(idx + 1);
-         orgName = provider.getOrgNameFromID(orgId);
-         name = name.substring(0, idx);
+      else {
+         int idx = name.lastIndexOf("^");
+
+         if(idx != -1) {
+            String orgId = name.substring(idx + 1);
+            orgName = provider.getOrgNameFromID(orgId);
+            name = name.substring(0, idx);
+         }
       }
 
       return new LogLevelSetting(context, name, orgName, level);
