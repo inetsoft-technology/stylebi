@@ -1556,13 +1556,9 @@ public class VSObjectPropertyService {
 
          for(int i = 0; i < assemblies.length; i++) {
             VSAssembly vsAssembly = vs.getAssembly(assemblies[i]);
-
-            if(vsAssembly instanceof Viewsheet) {
+            
+            if(vsAssembly != null && !supportAsDataTip(vs, vsAssembly, name, originalName,  true)) {
                return false;
-            }
-
-            if(vsAssembly != null && supportAsDataTip(vs, vsAssembly, name, originalName,  true)) {
-               return true;
             }
          }
 
