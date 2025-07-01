@@ -671,7 +671,9 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
                      this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", event);
                   }
 
-                  this.renderedObjects.set(vsObject.absoluteName, newRendered);
+                  if(newRendered) {
+                     this.renderedObjects.set(vsObject.absoluteName, newRendered);
+                  }
                }
             }
          });
