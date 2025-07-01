@@ -1868,7 +1868,7 @@ public class CoreLifecycleService {
 
       final Viewsheet gvs = vs; // global viewsheet
       String name0 = assemblies[0].getAbsoluteName();
-      final int dot = name0.indexOf('.');
+      final int dot = name0.lastIndexOf('.');
 
       if(dot >= 0) {
          String bname = name0.substring(0, dot);
