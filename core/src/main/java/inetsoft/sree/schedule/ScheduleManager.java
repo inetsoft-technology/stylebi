@@ -1069,6 +1069,7 @@ public class ScheduleManager {
                Tool.equals(IdentityID.getIdentityIDFromKey(userName).name, oname.getName()))
             {
                task.renameDependency(taskDep, taskDep.replace(oname.getName(), name));
+               changedTasks.add(task);
             }
          }
 
