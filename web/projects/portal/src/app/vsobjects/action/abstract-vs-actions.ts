@@ -457,6 +457,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    }
 
    protected createDefaultAnnotationMenuActions(): AssemblyActionGroup {
+      if(this.embed) {
+         return new AssemblyActionGroup([]);
+      }
+
       return new AssemblyActionGroup([
          {
             id: () => "annotation edit" + this.selectedAnnotationName,
@@ -498,6 +502,10 @@ export abstract class AbstractVSActions<T extends VSObjectModel> extends Assembl
    protected get inContainer(): boolean {
       return this.model.containerType === "VSSelectionContainer" ||
          this.model.containerType === "VSTab";
+   }
+
+   protected get menuActionHelperTextVisible(): boolean {
+      return !this.embed || this.embed && !this.annotationsSelected;
    }
 
    private hideMiniToolbar() {

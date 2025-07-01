@@ -180,7 +180,7 @@ export class EmbedChartActions extends ChartActions {
             label: () => "_#(js:composer.vs.action.helperText.menuAction.chart)",
             icon: () => "edit-icon",
             enabled: () => false,
-            visible: () => true,
+            visible: () => this.menuActionHelperTextVisible,
             classes: () => "helper-text"
          }
       ]));

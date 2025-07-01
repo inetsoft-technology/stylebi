@@ -39,29 +39,32 @@ export class AnnotationActions extends AbstractVSActions<VSAnnotationModel> impl
    }
 
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {
-      groups.push(new AssemblyActionGroup([
-         {
-            id: () => "annotation edit" + this.model.absoluteName,
-            label: () => "_#(js:Edit)",
-            icon: () => "edit-icon",
-            enabled: () => true,
-            visible: () => !this.mobileDevice
-         },
-         {
-            id: () => "annotation format" + this.model.absoluteName,
-            label: () => "_#(js:Format)",
-            icon: () => "paint-brush-icon",
-            enabled: () => true,
-            visible: () => !this.mobileDevice
-         },
-         {
-            id: () => "annotation remove" + this.model.absoluteName,
-            label: () => "_#(js:Remove)",
-            icon: () => "trash-icon",
-            enabled: () => true,
-            visible: () => !this.mobileDevice
-         }
-      ]));
+      if(!this.embed) {
+         groups.push(new AssemblyActionGroup([
+            {
+               id: () => "annotation edit" + this.model.absoluteName,
+               label: () => "_#(js:Edit)",
+               icon: () => "edit-icon",
+               enabled: () => true,
+               visible: () => !this.mobileDevice
+            },
+            {
+               id: () => "annotation format" + this.model.absoluteName,
+               label: () => "_#(js:Format)",
+               icon: () => "paint-brush-icon",
+               enabled: () => true,
+               visible: () => !this.mobileDevice
+            },
+            {
+               id: () => "annotation remove" + this.model.absoluteName,
+               label: () => "_#(js:Remove)",
+               icon: () => "trash-icon",
+               enabled: () => true,
+               visible: () => !this.mobileDevice
+            }
+         ]));
+      }
+
       return super.createMenuActions(groups);
    }
 }
