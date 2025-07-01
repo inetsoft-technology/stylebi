@@ -56,8 +56,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.security.Principal;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -330,6 +329,7 @@ public class VSExportService {
       String suffix = getSuffix(format);
 
       PrintLayout printLayout = null;
+      bookmarks = filterBookmarks(bookmarks, rvs, principal);
 
       try {
          if(previewPrintLayout) {
@@ -364,6 +364,41 @@ public class VSExportService {
                                                rvs.getViewsheetSandbox());
          }
       }
+   }
+
+   private String[] filterBookmarks(String[] bookmarks, RuntimeViewsheet rvs, Principal principal) {
+      if(bookmarks == null || bookmarks.length == 0) {
+         return new String[0];
+      }
+
+      if(rvs.getEntry() == null) {
+         return bookmarks;
+      }
+
+      VSBookmarkInfo[] allBookmarks =
+         VSUtil.getBookmarks(rvs.getEntry().toIdentifier(),
+         IdentityID.getIdentityIDFromKey(principal.getName()));
+      List<String> allBookmarkNames = new ArrayList<>();
+
+      for(VSBookmarkInfo vsBookmarkInfo : allBookmarks) {
+         if(vsBookmarkInfo.getName().equals(VSBookmark.HOME_BOOKMARK)) {
+            allBookmarkNames.add(Catalog.getCatalog().getString(vsBookmarkInfo.getName()));
+         }
+         else if(vsBookmarkInfo.getOwner() == null ||
+            vsBookmarkInfo.getOwner().equals(principal.getName()))
+         {
+            allBookmarkNames.add(vsBookmarkInfo.getName());
+         }
+         else {
+            allBookmarkNames.add(vsBookmarkInfo.getName() + "(" +
+                                    VSUtil.getUserAlias(vsBookmarkInfo.getOwner()) + ")");
+         }
+      }
+
+      return Arrays.stream(bookmarks)
+         .filter(Objects::nonNull)
+         .filter(b -> allBookmarkNames.contains(b))
+         .toArray(String[]::new);
    }
 
    /**
