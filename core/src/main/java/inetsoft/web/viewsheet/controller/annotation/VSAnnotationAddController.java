@@ -123,6 +123,7 @@ public class VSAnnotationAddController {
       // Create annotation
       final AnnotationVSAssembly annotation =
          (AnnotationVSAssembly) VSEventUtil.createVSAssembly(rvs, Viewsheet.ANNOTATION_ASSET);
+      VSUtil.updateEmbeddedVSAnnotationZIndex(annotation, parentAssembly);
       assert annotation != null;
       final AnnotationVSAssemblyInfo ainfo =
          (AnnotationVSAssemblyInfo) annotation.getVSAssemblyInfo();
