@@ -815,7 +815,8 @@ public class DataSetService {
                ActionRecord.OBJECT_TYPE_FOLDER, new Timestamp(System.currentTimeMillis()),
                ActionRecord.ACTION_STATUS_SUCCESS, actionMessage);
 
-            if(!securityProvider.checkPermission(principal, ResourceType.ASSET,
+            if(scope != AssetRepository.USER_SCOPE &&
+               !securityProvider.checkPermission(principal, ResourceType.ASSET,
                                                 items[i].getPath(), ResourceAction.WRITE))
             {
                String label = items[i].getPath();
