@@ -110,6 +110,8 @@ public interface WorksheetService {
     */
    RuntimeSheet getSheet(String id, Principal user);
 
+   RuntimeSheet getSheet(String id, Principal user, boolean touch);
+
    /**
     * Save the worksheet.
     * @param ws the specified worksheet.
