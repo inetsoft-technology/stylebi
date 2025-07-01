@@ -259,15 +259,19 @@ public abstract class VSChartController<T extends VSChartEvent> {
                                       boolean refreshData)
    {
       Assembly[] assemblies = vs.getAssemblies();
+      
       for(int i = 0; i < assemblies.length; i++) {
          Assembly other = assemblies[i];
+         
          if(other instanceof Viewsheet) {
             reloadOtherAssemblies(rvs, (Viewsheet) other, priorAssembly, uri, dispatcher, refreshData);
             continue;
          }
+         
          if(Tool.equals(other.getAbsoluteName(), priorAssembly)) {
             continue;
          }
+         
          reloadVSAssembly((VSAssembly) other, rvs, uri, dispatcher, refreshData, priorAssembly);
       }
    }
