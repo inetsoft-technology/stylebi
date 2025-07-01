@@ -211,7 +211,7 @@
                     _#(Delete)
                   </button>
                   <button class="dropdown-item" *ngIf="datasource.type?.name =='DATABASE' || datasource.type?.name == 'DATA_SOURCE'"
-                          [disabled]="!datasource.queryCreatable || !datasource.childrenCreatable"
+                          [disabled]="!datasource.queryCreatable"
                           (click)="createQuery(datasource)">
                     _#(New Query)
                   </button>
