@@ -126,6 +126,14 @@ public abstract class XTableNode extends XNode {
     * datasource supports such a call
     */
    public void cancel() {
+      this.hasCanceled = true;
+   }
+
+   /**
+    * Whether table is canceled.
+    */
+   public boolean isCanceled() {
+      return hasCanceled;
    }
 
    /**
@@ -160,4 +168,5 @@ public abstract class XTableNode extends XNode {
    }
 
    private int amax;
+   private boolean hasCanceled;
 }
