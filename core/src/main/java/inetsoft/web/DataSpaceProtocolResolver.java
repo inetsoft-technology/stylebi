@@ -53,11 +53,7 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
          file = path.substring(index + 1);
       }
 
-      if(dataSpace.exists(dir, file)) {
-         return new DataSpaceResource(dir, file, dataSpace);
-      }
-
-      return null;
+      return new DataSpaceResource(dir, file, dataSpace);
    }
 
    private static final String PROTOCOL = "dataspace:";
@@ -89,7 +85,7 @@ public class DataSpaceProtocolResolver implements ProtocolResolver {
 
       @Override
       public boolean isReadable() {
-         return true;
+         return exists();
       }
 
       @Override
