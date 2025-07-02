@@ -5069,7 +5069,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Object obj = dmap.get(name, type);
 
-      if(AssetDataCache.isDebugData() || isDataExpired(name, type)) {
+      if(AssetDataCache.isDebugData() || isDataExpired(name, type) ||
+         obj instanceof TableLens lens && AssetDataCache.isCancelled(lens))
+      {
          obj = null;
       }
 
