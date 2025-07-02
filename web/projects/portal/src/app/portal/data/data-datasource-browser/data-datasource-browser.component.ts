@@ -462,7 +462,8 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    isDataSource(datasource: DataSourceInfo): boolean {
       return !!datasource && !!datasource.type
          && (datasource.type.name === PortalDataType.DATABASE ||
-         datasource.type.name === PortalDataType.XMLA_SOURCE);
+            datasource.type.name === PortalDataType.DATA_SOURCE ||
+            datasource.type.name === PortalDataType.XMLA_SOURCE);
    }
 
    toggleSearch(event: any) {
