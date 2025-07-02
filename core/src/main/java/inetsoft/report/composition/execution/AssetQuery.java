@@ -2956,6 +2956,14 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
       }
 
+      if(cols.size() != selection.getAttributeCount() && base.isDynamicColumns()) {
+         // Bug #71756, for tables with dynamic columns (e.g. JSON data), the runtime data may be
+         // different structurally from that originally bound due to parameterization. If the base
+         // table does not contain all of the columns from the saved selection, just return the
+         // entire base table as-is.
+         return base;
+      }
+
       int[] carr = cols.stream().mapToInt(i -> i).toArray();
       return PostProcessor.mapColumn(base, carr);
    }
