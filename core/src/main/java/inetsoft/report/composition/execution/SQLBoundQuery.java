@@ -21,8 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
-import inetsoft.uql.asset.ColumnRef;
-import inetsoft.uql.asset.SQLBoundTableAssembly;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.JDBCQuery;
@@ -61,10 +60,24 @@ public class SQLBoundQuery extends BoundQuery {
       this.nquery = ((SQLBoundTableAssemblyInfo) table.getInfo()).getQuery();
       this.oquery = (JDBCQuery) nquery.clone();
       this.xquery = (JDBCQuery) nquery.clone();
+      AssetEntry wsEntry = box.getWSEntry();
 
-      if(box.getWSEntry() != null) {
-         table.setProperty("logRecordName", Tool.buildString(box.getWSEntry().getPath(), ".",
-                           getTableDescription(table.getName())));
+      if(wsEntry != null) {
+         String entryPath;
+
+         if(wsEntry.getScope() == AssetRepository.USER_SCOPE &&
+            wsEntry.getUser() != null && wsEntry.getPath() != null)
+         {
+            String userName = wsEntry.getUser().getName();
+            entryPath = Tool.buildString(userName, "/", box.getWSEntry().getPath(), ".",
+               getTableDescription(table.getName()));
+         }
+         else {
+            entryPath = Tool.buildString(box.getWSEntry().getPath(), ".",
+               getTableDescription(table.getName()));
+         }
+
+         table.setProperty("logRecordName", entryPath);
       }
 
       if(nquery != null) {
