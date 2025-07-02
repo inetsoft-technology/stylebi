@@ -18,6 +18,7 @@
 package inetsoft.uql.jdbc.util;
 
 import inetsoft.analytic.composition.ViewsheetEngine;
+import inetsoft.report.internal.Util;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.ResourceAction;
@@ -948,7 +949,8 @@ public class JDBCUtil {
 
          if(!jdbcDataSource.isUseCredentialId()) {
             result.getAuthentication().setUserName(jdbcDataSource.getUser());
-            result.getAuthentication().setPassword(jdbcDataSource.getPassword());
+            result.getAuthentication().setPassword(
+               Tool.isEmptyString(jdbcDataSource.getPassword()) ? "" : Util.PLACEHOLDER_PASSWORD);
          }
          else {
             result.getAuthentication().setCredentialId(jdbcDataSource.getCredentialId());
