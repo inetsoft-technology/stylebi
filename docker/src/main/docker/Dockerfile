@@ -16,7 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-FROM ${docker.base.image}
+FROM eclipse-temurin:21.0.7_6-jdk
 
 ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=50.0'
 ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC'
@@ -25,7 +25,6 @@ ENV JAVA_CODECACHE_OPTS='-XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize
 ENV JAVA_NETWORK_OPTS='-Djava.net.preferIPv4Stack=true'
 ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs'
 ENV JAVA_CLASSPATH=''
-ENV INETSOFT_SERVER_MAIN='inetsoft.web.InetsoftApplication'
 
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends fonts-dejavu \
@@ -43,9 +42,6 @@ RUN apt-get update \
   && chown -R inetsoft:inetsoft /var/lib/inetsoft \
   && fc-cache
 
-COPY --chown=inetsoft:inetsoft files/ /usr/local/inetsoft/
-RUN chmod +x /usr/local/inetsoft/bin/*
-
 EXPOSE 1099
 EXPOSE 5701
 EXPOSE 8080
@@ -53,5 +49,3 @@ EXPOSE 8081
 
 WORKDIR /var/lib/inetsoft
 USER inetsoft
-
-ENTRYPOINT ["/usr/local/inetsoft/bin/entrypoint.sh"]
