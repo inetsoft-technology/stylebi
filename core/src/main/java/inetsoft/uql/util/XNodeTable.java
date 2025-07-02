@@ -96,7 +96,7 @@ public class XNodeTable implements XTable {
       }
 
       // only mark as cancelled if not completed.
-      cancelled = delegate.getRowCount() >= 0;
+      cancelled = cancelled || delegate.getRowCount() >= 0;
 
       if(root instanceof XTableNode) {
          ((XTableNode) root).cancel();
@@ -107,7 +107,7 @@ public class XNodeTable implements XTable {
       // cancelled table to be shared, we check here to make sure the
       // cancelled flag is really meaningful
       if(delegate instanceof XSwappableTable) {
-         cancelled = !((XSwappableTable) delegate).isCompleted();
+         cancelled = cancelled || !((XSwappableTable) delegate).isCompleted();
          ((XSwappableTable) delegate).complete();
       }
    }
@@ -609,6 +609,8 @@ public class XNodeTable implements XTable {
 
       // Load from table node
       private void loadTable0() {
+         boolean baseTableCancelBreakLoad = false;
+
          try {
             int result = 0;
             XTableNode table = this.tableNode;
@@ -619,7 +621,9 @@ public class XNodeTable implements XTable {
                setXMetaInfo(table.getName(i), table.getXMetaInfo(i));
             }
 
-            while(!cancelled && table.next()) {
+            boolean hasNext = false;
+
+            while(!cancelled && (hasNext = table.next())) {
                for(int i = 0; i < count; i++) {
                   Object obj = table.getObject(i);
                   row[i] = obj;
@@ -632,6 +636,10 @@ public class XNodeTable implements XTable {
                }
             }
 
+            if(!hasNext && table.isCanceled()) {
+               baseTableCancelBreakLoad = true;
+            }
+
             amax = table.getAppliedMaxRows();
 
             table.close();
@@ -642,6 +650,11 @@ public class XNodeTable implements XTable {
          }
          finally {
             complete();
+
+            if(!baseTableCancelBreakLoad) {
+               cancelled = true;
+            }
+
             LOG.debug("Query data finished loading: {}", getRowCount());
          }
       }

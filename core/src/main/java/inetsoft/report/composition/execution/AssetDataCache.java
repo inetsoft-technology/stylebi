@@ -121,7 +121,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    }
 
    // Check if table or sub-table cancelled
-   private static boolean isCancelled(TableLens lens) {
+   public static boolean isCancelled(TableLens lens) {
       if(lens instanceof CancellableTableLens && ((CancellableTableLens) lens).isCancelled()) {
          return true;
       }

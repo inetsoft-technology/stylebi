@@ -203,7 +203,7 @@ public class CompositeTableNode extends XTableNode {
       int count = getColCount();
       Object[] row = new Object[count];
 
-      while(xtable.next() && !cancelled) {
+      while(xtable.next() && !isCanceled()) {
          if((maxrows > 0 && cnt == maxrows)) {
             amax = maxrows;
             break;
@@ -223,7 +223,7 @@ public class CompositeTableNode extends XTableNode {
          throw new UnsupportedOperationException("Max rows reached");
       }
 
-      if(cancelled) { // start the loading thread
+      if(isCanceled()) { // start the loading thread
          complete();
          // cached in parse
          throw new UnsupportedOperationException("Operation cancelled");
@@ -247,14 +247,6 @@ public class CompositeTableNode extends XTableNode {
       }
 
       return false;
-   }
-
-   /**
-    * Cancel the loading of a table.
-    */
-   @Override
-   public void cancel() {
-      cancelled = true;
    }
 
    final class XSwappableTable2 extends XSwappableTable {
@@ -295,6 +287,5 @@ public class CompositeTableNode extends XTableNode {
    private int idx;
    private int maxrows;
    private int amax;
-   private boolean cancelled;
    private boolean disposed;
 }
