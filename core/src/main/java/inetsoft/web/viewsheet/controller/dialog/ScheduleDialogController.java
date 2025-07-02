@@ -406,7 +406,7 @@ public class ScheduleDialogController {
       {
          Catalog catalog = Catalog.getCatalog(principal);
          MessageCommand messageCommand = new MessageCommand();
-         messageCommand.setMessage(catalog.getString("common.nopermission"));
+         messageCommand.setMessage(catalog.getString("em.schedule.task.noExpandPermission"));
          messageCommand.setType(MessageCommand.Type.ERROR);
          commandDispatcher.sendCommand(messageCommand);
          return;
