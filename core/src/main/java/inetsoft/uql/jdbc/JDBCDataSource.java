@@ -128,6 +128,8 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
     */
    public static final int JDBC_NORMAL = 0x13;
 
+   public static final int JDBC_CLICKHOUSE = 0x14;
+
    /**
     * Normal jdbc odbc data source.
     */
@@ -202,6 +204,8 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
    public static final String SNOWFLAKE = "SNOWFLAKE";
 
    public static final String MONGO = "MONGO";
+
+   public static final String CLICKHOUSE = "CLICKHOUSE";
 
    /**
     * Table name option as catalog.schema.table.
@@ -733,6 +737,8 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          return SNOWFLAKE;
       case JDBC_MONGO:
          return MONGO;
+      case JDBC_CLICKHOUSE:
+         return CLICKHOUSE;
       default:
          return ODBC;
       }
@@ -1210,6 +1216,13 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
 
       if(type) {
          setDatabaseType(JDBC_MONGO);
+         return;
+      }
+
+      type = urlLower.startsWith("jdbc:clickhouse:") || driverLower.equals("com.clickhouse.jdbc.DriverV1");
+
+      if(type) {
+         setDatabaseType(JDBC_CLICKHOUSE);
          return;
       }
 

@@ -108,4 +108,7 @@
     <jdbcdriver name="Exasol" driver="com.exasol.jdbc.EXADriver"
                 url="jdbc:exa:&lt;hostname>:&lt;port>"/>
   </jdbcdrivers>
+  <jdbcdriver name="ClickHouse" driver="com.clickhouse.jdbc.DriverV1"
+              url="jdbc:clickhouse://&lt;host>:&lt;port>">
+  </jdbcdriver>
 </config>

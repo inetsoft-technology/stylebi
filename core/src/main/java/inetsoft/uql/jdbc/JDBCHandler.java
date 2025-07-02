@@ -1717,12 +1717,13 @@ public class JDBCHandler extends XHandler {
       }
 
       boolean mysql5 = isMySQL5(meta);
+      boolean clickHouse = xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE;
       boolean sqlServer = xds.getDatabaseType() == JDBCDataSource.JDBC_SQLSERVER;
 
       // if user is not supported, don't qualify the name with database
       // @by jasons, except for MySQL 5, which switches the semantics of
       //             catalog and schema
-      if(schema || mysql5) {
+      if(schema || mysql5 || clickHouse) {
          try {
             catalog = meta.supportsCatalogsInDataManipulation();
          }
@@ -3017,6 +3018,11 @@ public class JDBCHandler extends XHandler {
          root.setAttribute("catalog", cat);
          root.setAttribute("catalogSep", mtype.getAttribute("catalogSep"));
          root.setAttribute("schema", user);
+
+         if(xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
+            root.setAttribute("supportCatalog", "" + catalog);
+         }
+
          root.addChild(resultParam);
          isSynonym = true;
 
