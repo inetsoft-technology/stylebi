@@ -182,10 +182,11 @@ public class ScheduleTaskController {
       ScheduleTask task = scheduleManager.getScheduleTask(taskName);
 
       if(!(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_TASK, taskName,
-            ResourceAction.WRITE) || (task != null && ScheduleManager.hasShareGroupPermission(task, principal))))
+            ResourceAction.WRITE) || (task != null && scheduleTaskService.canDeleteTask(task, principal))))
       {
          return;
       }
+
       boolean enabled = !scheduleTaskService.isTaskEnabled(taskName);
       scheduleTaskService.setTaskEnabled(taskName, enabled, principal);
    }
