@@ -47,7 +47,12 @@ public interface WorksheetBrowserInfo {
    boolean deletable();
    boolean materialized();
    boolean canMaterialize();
-   boolean canWorksheet();
+
+   @Value.Default
+   default boolean canWorksheet() {
+      return false;
+   }
+
    @Nullable
    String parentPath();
    boolean hasSubFolder();
