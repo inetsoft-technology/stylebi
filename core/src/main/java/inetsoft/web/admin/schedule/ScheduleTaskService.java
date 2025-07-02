@@ -237,7 +237,7 @@ public class ScheduleTaskService {
       }
 
       return principal != null &&
-         (Tool.equals(principal.getName(), task.getOwner()) ||
+         (Tool.equals(principal.getName(), task.getOwner().convertToKey()) ||
             !scheduleManager.isDeleteOnlyByOwner(task, principal));
    }
 
