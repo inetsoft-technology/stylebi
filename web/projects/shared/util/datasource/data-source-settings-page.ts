@@ -306,7 +306,8 @@ export abstract class DataSourceSettingsPage implements OnInit {
    }
 
    testDatabase(): void {
-      let params = new HttpParams().set("path", this.primaryDatabasePath);
+      let path = !!this.primaryDatabasePath ? this.primaryDatabasePath : this.model?.path;
+      let params = new HttpParams().set("path", !!path ? path : "");
       this.http.post<ConnectionStatus>(TEST_ADDITIONAL, this.database, {params}).pipe(
          catchError((error: HttpErrorResponse) => {
             if(this.showTestMessage) {

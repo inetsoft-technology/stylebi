@@ -3402,6 +3402,7 @@ public class Util implements inetsoft.report.StyleConstants {
 
    private static final Font WATER_FONT = new StyleFont(StyleFont.DEFAULT_FONT_FAMILY, Font.BOLD, 22);
    public static final String DATE_PART_COLUMN = "date_part_column";
+   public static final String PLACEHOLDER_PASSWORD = "**********";
 
    private static final int MAX_ROW_COUNT = 0;
    private static final int MAX_COLUMN_COUNT = 200;
