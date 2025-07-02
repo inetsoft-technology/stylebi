@@ -415,7 +415,8 @@ public abstract class DatasourcesBaseService {
 
       if(newSrc != null) {
          if(oldSrc == null) {
-            throw new FileNotFoundException(oldName);
+            throw new MessageException(Catalog.getCatalog().getString(
+               "data.datasources.saveDataSourceLost"));
          }
 
          if(newSrc instanceof AdditionalConnectionDataSource &&
