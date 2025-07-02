@@ -814,6 +814,10 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    public moveTasks(): void {
+      if(this.showTasksAsList || !this.removeEnable()) {
+         return;
+      }
+
       let moveFolderRequest: PortalMoveTaskFolderRequest = <PortalMoveTaskFolderRequest>{
          target: null,
          tasks: this.getSelectedTaskModels(),
