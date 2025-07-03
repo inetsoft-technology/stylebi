@@ -18,6 +18,7 @@
 package inetsoft.web.admin.schedule;
 
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.sree.*;
@@ -947,7 +948,7 @@ public class ScheduleService {
             .bundledAsZip(abstractAction.isCompressFile())
             .useCredential(abstractAction.isUseCredential())
             .secretId(abstractAction.isUseCredential() ? abstractAction.getSecretId() : null)
-            .password(!abstractAction.isUseCredential() ? abstractAction.getPassword() : null)
+            .password(!abstractAction.isUseCredential() ? Util.PLACEHOLDER_PASSWORD : null)
             .attachmentName(abstractAction.getAttachmentName())
             .htmlMessage(abstractAction.isMessageHtml())
             .message(abstractAction.getMessage())
@@ -1221,6 +1222,8 @@ public class ScheduleService {
 
             Arrays.stream(viewsheetAction.getSaveFormats())
                .forEach(format -> viewsheetAction.setFilePath(format, (ServerPathInfo) null));
+            Map<Integer, ServerPathInfo> clone = new HashMap<>();
+            clone.putAll(viewsheetAction.getFilePathsMap());
 
             if(Tool.defaultIfNull(actionModel.saveToServerEnabled(), false)) {
                String[] saveFormats = actionModel.saveFormats();
@@ -1231,12 +1234,18 @@ public class ScheduleService {
                for(int i = 0; i < saveFormats.length; i++) {
                   int format = Integer.parseInt(saveFormats[i]);
                   ServerPathInfoModel pModel = serverFilePaths.get(i);
+                  String password = pModel.password();
+
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+                     ServerPathInfo oldInfo = clone.get(format);
+                     password = oldInfo != null ? oldInfo.getPassword() : password;
+                  }
 
                   if(pModel.ftp()) {
-                     info = new ServerPathInfo(pModel);
+                     info = new ServerPathInfo(pModel.path(), pModel.username(), password);
                   }
                   else {
-                     info = new ServerPathInfo(filePaths.get(i), null, null);
+                     info = new ServerPathInfo(pModel.path(), null, null);
                   }
 
                   viewsheetAction.setFilePath(format, info);
@@ -1390,8 +1399,17 @@ public class ScheduleService {
          backupAction.setAssets(deployService.getEntryAssets(backupActionModel.assets(), principal));
          backupAction.setPaths(Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ? backupActionModel
             .backupPath() : null);
-         backupAction.setServerPaths(Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ?
-            new ServerPathInfo(backupActionModel.backupServerPath()) : null);
+         ServerPathInfo oldServerPath = backupAction.getServerPath();
+         ServerPathInfo newServerPathInfo = Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ?
+            new ServerPathInfo(backupActionModel.backupServerPath()) : null;
+
+         if(oldServerPath != null && newServerPathInfo != null &&
+            Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()))
+         {
+            newServerPathInfo.setPassword(oldServerPath.getPassword());
+         }
+
+         backupAction.setServerPaths(newServerPathInfo);
          action = backupAction;
       }
       else if("BatchAction".equals(model.actionType())) {

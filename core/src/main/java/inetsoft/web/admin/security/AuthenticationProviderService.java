@@ -19,6 +19,7 @@ package inetsoft.web.admin.security;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
@@ -597,7 +598,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
          String password = Objects.requireNonNull(model.dbProviderModel()).password();
 
          // Replace placeholder password with real password
-         if(password.equals(DatabaseAuthenticationProvider.PLACEHOLDER_PASSWORD) &&
+         if(password.equals(Util.PLACEHOLDER_PASSWORD) &&
             model.oldName() != null)
          {
             AuthenticationProvider oldProvider = getProviderByName(model.oldName());

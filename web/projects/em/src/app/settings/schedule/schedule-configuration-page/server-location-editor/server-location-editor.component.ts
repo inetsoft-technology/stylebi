@@ -39,6 +39,7 @@ export class ServerLocationEditorComponent implements OnInit {
    form: UntypedFormGroup;
    FeatureFlagValue = FeatureFlagValue;
    cloudSecrets: boolean;
+   oldPasswordKey: string;
 
    constructor(private dialogRef: MatDialogRef<ServerLocationEditorComponent>,
                @Inject(MAT_DIALOG_DATA) data: ServerLocationData, fb: UntypedFormBuilder)
@@ -67,6 +68,7 @@ export class ServerLocationEditorComponent implements OnInit {
       }
 
       this.cloudSecrets = data.cloudSecrets;
+      this.oldPasswordKey = data.location?.pathInfoModel?.oldPasswordKey;
    }
 
    ngOnInit(): void {
@@ -80,7 +82,8 @@ export class ServerLocationEditorComponent implements OnInit {
          secretId: formValue.useSecretId ? formValue.secretId : null,
          username: !formValue.useSecretId ? formValue.username : null,
          password: !formValue.useSecretId ? formValue.password : null,
-         ftp: !!formValue.ftp
+         ftp: !!formValue.ftp,
+         oldPasswordKey: this.oldPasswordKey
       };
       let result: ServerLocation = {
          path: formValue.path,
