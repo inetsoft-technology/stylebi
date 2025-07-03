@@ -480,6 +480,9 @@ public class DataSetService {
          }
       }
 
+      boolean canWorksheet = securityProvider.checkPermission(
+         principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
+
       return WorksheetBrowserInfo.builder()
          .name(entry.getAlias() == null || entry.getAlias().isEmpty() ?
                   entry.getName() : entry.getAlias())
@@ -499,6 +502,7 @@ public class DataSetService {
          .deletable(deletable)
          .materialized(AssetTreeController.getMaterialized(entry, principal))
          .canMaterialize(canMaterialize)
+         .canWorksheet(canWorksheet)
          .parentPath(parentPath)
          .hasSubFolder(hasSubDataSetFolder(entry, movingFolders, principal))
          .workSheetType(getWorksheetType(entry))
