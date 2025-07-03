@@ -21,6 +21,7 @@ import {
 } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { MatSnackBar } from "@angular/material/snack-bar";
+import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 import {
    DataSourceEditorModel,
    DataSourceSettingsPage
@@ -45,8 +46,8 @@ export class RepositoryDataSourceSettingsPageComponent extends DataSourceSetting
    @Output() unsavedChanges = new EventEmitter<boolean>();
    private _oldModel: DataSourceEditorModel;
 
-   constructor(http: HttpClient, private snackBar: MatSnackBar) {
-      super(http);
+   constructor(http: HttpClient, private snackBar: MatSnackBar, stompClient: StompClientService) {
+      super(http, stompClient);
    }
 
    ngOnChanges(changes: SimpleChanges) {
