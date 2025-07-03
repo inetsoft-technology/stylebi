@@ -19,6 +19,7 @@ package inetsoft.web.admin.schedule.model;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.schedule.ServerPathInfo;
 import org.immutables.value.Value;
 
@@ -41,6 +42,9 @@ public abstract class ServerPathInfoModel {
    public abstract String password();
 
    @Nullable
+   public abstract String oldPasswordKey();
+
+   @Nullable
    public abstract String secretId();
 
    @Value.Default
@@ -52,6 +56,7 @@ public abstract class ServerPathInfoModel {
    public boolean ftp() {
       return false;
    }
+
 
    public static Builder builder() {
       return new Builder();
@@ -68,7 +73,7 @@ public abstract class ServerPathInfoModel {
          }
          else {
             username(info.getUsername());
-            password(info.getPassword());
+            password(Util.PLACEHOLDER_PASSWORD);
          }
 
          return this;
