@@ -1321,6 +1321,10 @@ export class EditableObjectContainer extends AbstractActionComponent
          || this.vsObject.objectType == "VSSubmit";
    }
 
+   isFadeAssembly(): boolean {
+      return !this.vsObject.active || !this.vsObject.visible && !(<any> this.vsObject).adhocFilter;
+   }
+
    isPreventResize(): boolean {
       return this.vsObject.interactionDisabled ||
          this.isViewsheet() || this.vsObject.objectType == "VSGroupContainer" ||

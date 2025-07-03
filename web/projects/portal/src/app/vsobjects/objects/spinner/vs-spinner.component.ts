@@ -113,6 +113,7 @@ implements OnInit, OnChanges, OnDestroy
    }
 
    onClick(event: MouseEvent) {
+      event.stopPropagation();
       this.validate();
       this.spinnerClicked.emit(this.model.absoluteName);
       this.unappliedChange = true;

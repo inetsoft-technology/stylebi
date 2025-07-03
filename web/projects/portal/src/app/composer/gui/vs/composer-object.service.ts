@@ -497,7 +497,7 @@ export class ComposerObjectService {
             highest = Math.max(highest, z2);
             lowest = Math.min(lowest, z2);
 
-            if(!object.covered && z2 > zIndex &&
+            if(!(<any>v).adhocFilter && !object.covered && z2 > zIndex &&
                this.isCovered(object.objectFormat, v.objectFormat))
             {
                object.covered = true;
