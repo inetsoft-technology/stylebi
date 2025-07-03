@@ -76,7 +76,7 @@ public class ColumnCache {
       }
 
       HashMap<Object, Object> map = new HashMap<>();
-      boolean dateCol = option != DateRangeRef.NONE_DATE_GROUP && XSchema.isDateType(type);
+      boolean dateCol = option != DateRangeRef.NONE_DATE_GROUP;
 
       // fix date value by dlevel.
       if(dateCol) {
