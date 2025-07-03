@@ -71,6 +71,7 @@ import { VSRefreshEvent } from "../../vsobjects/event/vs-refresh-event";
 import { DebounceService } from "../../widget/services/debounce.service";
 import { InteractService } from "../../widget/interact/interact.service";
 import { EmbedErrorCommand } from "../embed-error-command";
+import { AdhocFilterService } from "../../vsobjects/objects/data-tip/adhoc-filter.service";
 
 const OPEN_VS_URI: string = "/events/open";
 const CLOSE_VIEWSHEET_SOCKET_URI: string = "/events/composer/viewsheet/close";
@@ -90,7 +91,8 @@ declare const window: any;
       DialogService,
       FixedDropdownService,
       InteractService,
-      DebounceService
+      DebounceService,
+      AdhocFilterService
    ]
 })
 export class EmbedChartComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
