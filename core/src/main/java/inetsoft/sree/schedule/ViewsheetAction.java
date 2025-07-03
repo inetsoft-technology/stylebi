@@ -1776,6 +1776,10 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       return filePaths.get(format);
    }
 
+   public Map<Integer, ServerPathInfo> getFilePathsMap() {
+      return this.filePaths;
+   }
+
    /**
     * Gets a list of all the formats in which the viewsheet will be saved.
     *

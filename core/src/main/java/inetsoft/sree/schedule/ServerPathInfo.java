@@ -18,6 +18,7 @@
 package inetsoft.sree.schedule;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.HttpXMLSerializable;
 import inetsoft.util.PasswordEncryption;
 import inetsoft.util.Tool;
@@ -54,7 +55,10 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
          }
          else {
             this.username = model.username();
-            this.password = model.password();
+
+            if(!Util.PLACEHOLDER_PASSWORD.equals(model.password())) {
+               this.password = model.password();
+            }
          }
       }
 
