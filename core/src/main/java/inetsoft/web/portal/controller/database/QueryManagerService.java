@@ -1413,13 +1413,17 @@ public class QueryManagerService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
       JDBCQuery query = runtimeQuery.getQuery();
-      JDBCQuery nquery = query.clone();
-      UniformSQL nsql = new UniformSQL();
-      nquery.setSQLDefinition(nsql);
-      nsql.setParseSQL(false);
-      nsql.setSQLString(!StringUtils.isEmpty(nSqlString) ? nSqlString : query.getSQLAsString());
+
+      if(!StringUtils.isEmpty(nSqlString)) {
+         query = query.clone();
+         UniformSQL nsql = new UniformSQL();
+         query.setSQLDefinition(nsql);
+         nsql.setParseSQL(false);
+         nsql.setSQLString(!StringUtils.isEmpty(nSqlString) ? nSqlString : query.getSQLAsString());
+      }
+
       XDataService service = XFactory.getDataService();
-      UserVariable[] vars = service.getQueryParameters(principal.getName(), nquery, true);
+      UserVariable[] vars = service.getQueryParameters(principal.getName(), query, true);
 
       if(vars == null) {
          return null;
