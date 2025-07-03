@@ -1006,7 +1006,8 @@ public class IdentityService {
 
       Properties properties = SreeEnv.getProperties();
       Set<Object> orgProperties = properties.keySet().stream()
-         .filter(prop -> ((String) prop).startsWith(prefix))
+         .filter(prop -> ((String) prop).startsWith(prefix) || ((String) prop).startsWith("log.")
+            && ((String) prop).endsWith("^" + orgID))
          .collect(Collectors.toSet());
 
       for(Object orgProp : orgProperties) {
