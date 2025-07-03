@@ -32,7 +32,7 @@ import java.util.List;
  * @version 12.2, 4/14/2016
  * @author InetSoft Technology Corp
  */
-public class NthMostFrequentFormula 
+public class NthMostFrequentFormula
    implements Formula, MergeableFormula<NthMostFrequentFormula>
 {
    /**
@@ -81,7 +81,7 @@ public class NthMostFrequentFormula
     */
    @Override
    public void addValue(float v) {
-      addValue(v);
+      addValue((double) v);
    }
 
    /**
@@ -89,7 +89,7 @@ public class NthMostFrequentFormula
     */
    @Override
    public void addValue(long v) {
-      addValue(v);
+      addValue((double) v);
    }
 
    /**
@@ -97,7 +97,7 @@ public class NthMostFrequentFormula
     */
    @Override
    public void addValue(int v) {
-      addValue(v);
+      addValue((double) v);
    }
 
    /**
@@ -105,7 +105,7 @@ public class NthMostFrequentFormula
     */
    @Override
    public void addValue(short v) {
-      addValue(v);
+      addValue((double) v);
    }
 
    /**
