@@ -70,6 +70,16 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       return mode;
    }
 
+   public static boolean fixSubQueryMetadataState(AbstractTableAssembly table, boolean metadata) {
+      AggregateInfo aggInfo = table.getAggregateInfo();
+
+      if(metadata && aggInfo != null && aggInfo.isCrosstab()) {
+         metadata = false;
+      }
+
+      return metadata;
+   }
+
    /**
     * Create an asset query.
     */

@@ -125,8 +125,8 @@ public class MirrorQuery extends AssetQuery {
          }
       }
 
-      this.query = AssetQuery.createAssetQuery(mirror, fixSubQueryMode(mode),
-                                               box, true, ts, false, metadata);
+      this.query = AssetQuery.createAssetQuery(mirror, fixSubQueryMode(mode), box, true, ts, false,
+                                               fixSubQueryMetadataState(table, metadata));
       this.query.setSubQuery(true);
       this.query.plan = this.plan;
       this.query.parentSQLExpressions.addAll(getSQLExpressions());
