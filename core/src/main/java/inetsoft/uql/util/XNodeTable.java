@@ -651,7 +651,7 @@ public class XNodeTable implements XTable {
          finally {
             complete();
 
-            if(!baseTableCancelBreakLoad) {
+            if(baseTableCancelBreakLoad) {
                cancelled = true;
             }
 
