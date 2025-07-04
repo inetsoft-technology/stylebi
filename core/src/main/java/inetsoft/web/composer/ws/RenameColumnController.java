@@ -251,6 +251,8 @@ public class RenameColumnController extends WorksheetController {
       final ColumnRef originalCol = (ColumnRef) Tool.clone(ocolumn);
       ColumnSelection columns = table.getColumnSelection(false);
       int index = columns.indexOfAttribute(ocolumn);
+      String oldAlias = ocolumn.getAlias();
+      table.setProperty(alias + ".oldAlias", oldAlias == null ? "" : oldAlias);
 
       if(index < 0) {
          if(columns.getAttribute(ocolumn.getAttribute()) != null) {
