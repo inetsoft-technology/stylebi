@@ -156,6 +156,10 @@ export abstract class DataSourceSettingsPage implements OnInit {
       return !this.database?.authentication?.useCredentialId;
    }
 
+   isCreateDB(): boolean {
+      return false;
+   }
+
    constructor(protected http: HttpClient) {
    }
 
@@ -271,7 +275,7 @@ export abstract class DataSourceSettingsPage implements OnInit {
     * Send request to save the database on the server then close page.
     */
    saveDatabase(): void {
-      let params = new HttpParams().set("path", this.model.path);
+      let params = new HttpParams().set("path", this.model.path).set("create", this.isCreateDB());
       let settingModel = Tool.clone(this.model.settings);
 
       if(!this.needSave()) {
@@ -298,6 +302,9 @@ export abstract class DataSourceSettingsPage implements OnInit {
          }
          else if(connection && connection.status === "Duplicate Folder") {
             this.showMessage("_#(js:em.data.databases.duplicateFolder)");
+         }
+         else if(connection && connection.status === "Datasource Lost") {
+            this.showMessage("_#(js:data.datasources.saveDataSourceLost)");
          }
          else {
             this.afterDatabaseSave();
