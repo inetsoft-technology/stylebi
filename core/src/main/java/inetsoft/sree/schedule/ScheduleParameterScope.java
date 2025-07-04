@@ -236,7 +236,11 @@ public class ScheduleParameterScope extends ScriptableObject implements Cloneabl
    private Date getThisQuarter() {
       GregorianCalendar calendar = new GregorianCalendar();
       int month = calendar.get(Calendar.MONTH);
+      int dayOfMonth = calendar.get(Calendar.DAY_OF_MONTH);
+      calendar.set(Calendar.DAY_OF_MONTH, 1);
       calendar.set(Calendar.MONTH, (month / 3) * 3);
+      calendar.set(Calendar.DAY_OF_MONTH,
+         Math.min(dayOfMonth, calendar.getActualMaximum(Calendar.DAY_OF_MONTH)));
 
       return calendar.getTime();
    }
@@ -244,14 +248,20 @@ public class ScheduleParameterScope extends ScriptableObject implements Cloneabl
    private Date getLastQuarter() {
       GregorianCalendar calendar = new GregorianCalendar();
       int month = calendar.get(Calendar.MONTH);
-      int lastQuarter = ((month + 1) / 3) - 1;
+      int dayOfMonth = calendar.get(Calendar.DAY_OF_MONTH);
+      int currentQuarter = month / 3;
+      calendar.set(Calendar.DAY_OF_MONTH, 1);
 
-      if(lastQuarter == 0) {
-         lastQuarter = 4;
+      if(currentQuarter == 0) {
          calendar.add(Calendar.YEAR, -1);
+         calendar.set(Calendar.MONTH, Calendar.OCTOBER);
+      }
+      else {
+         calendar.set(Calendar.MONTH, (currentQuarter - 1) * 3);
       }
 
-      calendar.set(Calendar.MONTH, (lastQuarter - 1) * 3);
+      calendar.set(Calendar.DAY_OF_MONTH,
+         Math.min(dayOfMonth, calendar.getActualMaximum(Calendar.DAY_OF_MONTH)));
 
       return calendar.getTime();
    }
@@ -259,14 +269,19 @@ public class ScheduleParameterScope extends ScriptableObject implements Cloneabl
    private Date getNextQuarter() {
       GregorianCalendar calendar = new GregorianCalendar();
       int month = calendar.get(Calendar.MONTH);
-      int nextQuarter = ((month + 1) / 3) + 1;
+      int dayOfMonth = calendar.get(Calendar.DAY_OF_MONTH);
+      int currentQuarter = month / 3;
+      int nextQuarter = currentQuarter + 1;
+      calendar.set(Calendar.DAY_OF_MONTH, 1);
 
-      if(nextQuarter > 4) {
-         nextQuarter = 1;
+      if(nextQuarter > 3) {
+         nextQuarter = 0;
          calendar.add(Calendar.YEAR, 1);
       }
 
-      calendar.set(Calendar.MONTH, (nextQuarter - 1) * 3);
+      calendar.set(Calendar.MONTH, nextQuarter * 3);
+      calendar.set(Calendar.DAY_OF_MONTH,
+         Math.min(dayOfMonth, calendar.getActualMaximum(Calendar.DAY_OF_MONTH)));
 
       return calendar.getTime();
    }
