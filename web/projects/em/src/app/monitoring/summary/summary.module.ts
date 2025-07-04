@@ -18,6 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { AngularResizeEventModule } from "../../../../../shared/resize-event/angular-resize-event.module";
+import { DebugMonitoringPageComponent } from "./debug-monitoring-page/debug-monitoring-page.component";
 import { SummaryRoutingModule } from "./summary-routing.module";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
@@ -48,6 +49,7 @@ import { ClusterSelectorModule } from "../cluster-selector/cluster-selector.modu
       SummaryMonitoringPageComponent,
       SummaryMonitoringChartViewComponent,
       SummaryMonitoringTableViewComponent,
+      DebugMonitoringPageComponent,
    ],
    providers: [
       ClusterNodesService

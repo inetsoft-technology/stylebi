@@ -737,6 +737,14 @@ public class LibManager implements AutoCloseable {
       }
    }
 
+   public void listBlobs(String outputFile, String orgID) throws IOException {
+      BlobStorage<Metadata> storage = storages.get(getStorageId(orgID));
+
+      if(storage != null) {
+         storage.listBlobs(outputFile);
+      }
+   }
+
    private final BlobStorage.Listener<Metadata> changeListener = new BlobStorage.Listener<Metadata>() {
       @Override
       public void blobAdded(BlobStorage.Event<Metadata> event) {
