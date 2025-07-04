@@ -22,6 +22,8 @@ import inetsoft.uql.XConstants;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import it.unimi.dsi.fastutil.doubles.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -204,11 +206,17 @@ public class NthMostFrequentFormula
     */
    @Override
    public Object clone() {
-      NthMostFrequentFormula nmf = new NthMostFrequentFormula(n);
-      nmf.def = def;
-      nmf.map = new Double2IntOpenHashMap(map);
+      try {
+         NthMostFrequentFormula nmf = (NthMostFrequentFormula) super.clone();
+         nmf.def = def;
+         nmf.map = new Double2IntOpenHashMap(map);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to clone object", e);
+      }
 
-      return nmf;
+
+      return null;
    }
 
    /**
@@ -240,4 +248,6 @@ public class NthMostFrequentFormula
    private Double2IntMap map = new Double2IntOpenHashMap();
    private int n;
    private boolean def;
+
+   private static final Logger LOG = LoggerFactory.getLogger(NthMostFrequentFormula.class);
 }
