@@ -21,15 +21,15 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.uql.*;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.util.Config;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.web.admin.content.database.DatabaseDefinition;
 import inetsoft.web.admin.content.database.DriverAvailability;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.factory.RemainingPath;
-import inetsoft.web.portal.data.DataSourceBrowserService;
 import inetsoft.web.security.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -114,12 +114,12 @@ public class RepositoryDataSourcesController {
     */
    @PostMapping("/api/data/databases")
    public ConnectionStatus setDataSourceModel(@RequestParam("path") String path,
+                                              @RequestParam("create") boolean create,
                                               @RequestBody() DataSourceSettingsModel model,
                                               Principal principal)
       throws Exception
    {
       ConnectionStatus status = null;
-
       String fullPath = this.databaseDatasourcesService.getDataSourceAuditPath(path,
          model.dataSource(), principal);
 
@@ -132,6 +132,15 @@ public class RepositoryDataSourcesController {
          if(database != null) {
             actionError = Tool.equals(database.getName(), database.getOldName()) ? null :
             "new Name:" + database.getName();
+         }
+
+         if(!create) {
+            XRepository repository = XFactory.getRepository();
+            XDataSource dataSource = repository.getDataSource(path);
+
+            if(dataSource == null) {
+               return new ConnectionStatus("Datasource Lost");
+            }
          }
 
          status = databaseDatasourcesService.saveDatabase(path,
