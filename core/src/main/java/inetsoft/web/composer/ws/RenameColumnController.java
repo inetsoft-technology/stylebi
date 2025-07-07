@@ -40,6 +40,8 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Rename table column controller.
@@ -413,13 +415,22 @@ public class RenameColumnController extends WorksheetController {
                                               ColumnRef ocolumn, ColumnRef ncolumn)
    {
       final StringBuilder sb = new StringBuilder();
+      Pattern pattern = Pattern.compile("\\[[\"|']" + ocolumn.getName() + "(@.*)?]");
 
       ScriptIterator.ScriptListener listener = (ScriptIterator.Token token, ScriptIterator.Token pref, ScriptIterator.Token cref) -> {
          if(pref != null && Tool.equals(pref.val, changedTable) && token.isRef() &&
-            token.val.contains(ocolumn.getName()) && (cref == null || !"[".equals(cref.val)))
+            (cref == null || !"[".equals(cref.val)))
          {
-            String newVal = token.val.replace(ocolumn.getName(), ncolumn.getName());
-            sb.append(new ScriptIterator.Token(token.type, newVal, token.length));
+            if(token.val.equals(ocolumn.getName())) {
+               sb.append(new ScriptIterator.Token(token.type, ncolumn.getName(), token.length));
+            }
+            else if(pattern.matcher(token.val).find()) {
+               String newVal = token.val.replace(ocolumn.getName(), ncolumn.getName());
+               sb.append(new ScriptIterator.Token(token.type, newVal, token.length));
+            }
+            else {
+               sb.append(token);
+            }
          }
          else {
             sb.append(token);
