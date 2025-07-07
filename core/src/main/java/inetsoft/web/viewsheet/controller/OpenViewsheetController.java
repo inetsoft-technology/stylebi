@@ -22,12 +22,10 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.LicenseException;
 import inetsoft.sree.security.*;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
-import inetsoft.util.Catalog;
-import inetsoft.util.ThreadContext;
+import inetsoft.util.*;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
@@ -139,7 +137,7 @@ public class OpenViewsheetController {
          !SecurityEngine.getSecurity().checkPermission(principal,
                                                        ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
       {
-         throw new SecurityException(Catalog.getCatalog().getString(
+         throw new MessageException(Catalog.getCatalog().getString(
             "composer.dashboard.authorization.permissionDenied"));
       }
 
