@@ -619,19 +619,24 @@ public class AssetUtil {
       attr.setRefType(column.getRefType());
       attr.setDefaultFormula(column.getDefaultFormula());
 
-      if(column instanceof ColumnRef) {
+      if(column instanceof ColumnRef columnRef) {
          attr.setDataType(column.getDataType());
-         attr.setSqlType(((ColumnRef) column).getSqlType());
+
+         if(columnRef.isSqlTypeSet()) {
+            attr.setSqlType(columnRef.getSqlType());
+         }
       }
 
-      if(ref instanceof AttributeRef) {
-         String caption = ((AttributeRef) ref).getCaption();
+      if(ref instanceof AttributeRef attributeRef) {
+         String caption = attributeRef.getCaption();
 
          if(caption != null && caption.length() > 0) {
             attr.setCaption(caption);
          }
 
-         attr.setSqlType(((AttributeRef) ref).getSqlType());
+         if(attributeRef.isSqlTypeSet()) {
+            attr.setSqlType(((AttributeRef) ref).getSqlType());
+         }
       }
 
       return attr;
