@@ -136,6 +136,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
             boolean firstLogin = "true".equals(httpRequest.getHeader("FirstLogin"));
 
             HttpSession session = httpRequest.getSession(false);
+            String headerOrgID = httpRequest.getHeader("X-Inetsoft-Organization-ID");
 
             if(session != null) {
                Principal principal = SUtil.getPrincipal(httpRequest);
@@ -145,7 +146,8 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
 
                if(pId != null && (pId.name.equals(userKey) &&
                   (loginAsUserKey == null || loginAsUserKey.isEmpty() ||
-                     loginAsUserKey.equals(pId.convertToKey()) || loginAsUserKey.equals(pId.name))))
+                     loginAsUserKey.equals(pId.convertToKey()) || loginAsUserKey.equals(pId.name))) &&
+                  (headerOrgID == null || headerOrgID.isEmpty() || headerOrgID.equals(pId.orgID)))
                {
                   authorized = true;
                }
@@ -165,20 +167,18 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                      Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
                         .findFirst().orElse(null);
 
-                  if(orgCookie == null) {
-                     String orgID = httpRequest.getHeader("Organization-ID");
+                  if(headerOrgID != null &&
+                     (orgCookie == null || !orgCookie.getValue().equals(headerOrgID)))
+                  {
+                     orgCookie = new Cookie(ORG_COOKIE, headerOrgID);
+                     final String sameSite = SreeEnv.getProperty("same.site", "Lax");
 
-                     if(orgID != null) {
-                        orgCookie = new Cookie(ORG_COOKIE, orgID);
-                        final String sameSite = SreeEnv.getProperty("same.site", "Lax");
-
-                        if(isSecurityAllowIframe() || "none".equalsIgnoreCase(sameSite)) {
-                           orgCookie.setAttribute("SameSite", "None");
-                           orgCookie.setSecure(true);
-                        }
-
-                        ((HttpServletResponse) response).addCookie(orgCookie);
+                     if(isSecurityAllowIframe() || "none".equalsIgnoreCase(sameSite)) {
+                        orgCookie.setAttribute("SameSite", "None");
+                        orgCookie.setSecure(true);
                      }
+
+                     ((HttpServletResponse) response).addCookie(orgCookie);
                   }
 
                   String recordedOrgID = orgCookie == null ?
