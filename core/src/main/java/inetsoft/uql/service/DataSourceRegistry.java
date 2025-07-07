@@ -1863,6 +1863,7 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          AssetFolder root = getRoot(orgID);
+         LOG.debug("Data source root folder org={}: {}", orgID, root);
 
          try {
             List<AssetEntry> entries = root != null ? root.getEntries(type) : Collections.emptyList();
