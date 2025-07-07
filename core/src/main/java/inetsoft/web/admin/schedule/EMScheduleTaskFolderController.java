@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -40,10 +42,12 @@ import static inetsoft.sree.RepositoryEntry.FOLDER;
 public class EMScheduleTaskFolderController {
    @Autowired
    public EMScheduleTaskFolderController(ScheduleTaskFolderService scheduleTaskFolderService,
-                                         ScheduleService scheduleService)
+                                         ScheduleService scheduleService,
+                                         ScheduleTaskService scheduleTaskService)
    {
       this.scheduleTaskFolderService = scheduleTaskFolderService;
       this.scheduleService = scheduleService;
+      this.scheduleTaskService = scheduleTaskService;
    }
 
    @PostMapping("/api/em/schedule/add/checkDuplicate")
@@ -179,6 +183,19 @@ public class EMScheduleTaskFolderController {
            throws Exception
    {
       ScheduleTaskModel[] taskModels = request.getTasks();
+      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
+
+      for(ScheduleTaskModel taskModel : taskModels) {
+         ScheduleTask task = scheduleManager.getScheduleTask(taskModel.name());
+
+         if(!(SecurityEngine.getSecurity().checkPermission(principal,
+            ResourceType.SCHEDULE_TASK, taskModel.name(), ResourceAction.WRITE) ||
+            (task != null && scheduleTaskService.canDeleteTask(task, principal))))
+         {
+            return;
+         }
+      }
+
       String[] folders = request.getFolders();
       ContentRepositoryTreeNode target = request.getTarget();
       String pathTo = target.path();
@@ -228,6 +245,8 @@ public class EMScheduleTaskFolderController {
 
    private final ScheduleTaskFolderService scheduleTaskFolderService;
    private final ScheduleService scheduleService;
+
+   private final ScheduleTaskService scheduleTaskService;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskChangeController.class);
 
