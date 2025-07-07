@@ -190,7 +190,7 @@ public class AttributeRef extends AbstractDataRef {
     * Get the sql type.
     */
    public int getSqlType() {
-      if(sqlType == -1) {
+      if(!isSqlTypeSet()) {
          return Types.VARCHAR;
       }
 
