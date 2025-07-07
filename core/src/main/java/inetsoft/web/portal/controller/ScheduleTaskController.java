@@ -18,6 +18,8 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -176,6 +178,15 @@ public class ScheduleTaskController {
       throws Exception
    {
       taskName = Tool.byteDecode(taskName);
+      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
+      ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+
+      if(!(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_TASK, taskName,
+            ResourceAction.WRITE) || (task != null && scheduleTaskService.canDeleteTask(task, principal))))
+      {
+         return;
+      }
+
       boolean enabled = !scheduleTaskService.isTaskEnabled(taskName);
       scheduleTaskService.setTaskEnabled(taskName, enabled, principal);
    }

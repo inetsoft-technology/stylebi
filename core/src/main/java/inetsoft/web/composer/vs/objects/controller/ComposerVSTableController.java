@@ -1303,40 +1303,10 @@ public class ComposerVSTableController {
    /**
     * Keep the new assembly position in containers.
     */
-   public static int convert(RuntimeViewsheet rvs, VSAssembly assembly, String oname,
+   public static void convert(RuntimeViewsheet rvs, VSAssembly assembly, String oname,
                              CommandDispatcher dispatcher)
    {
-      int hint = 0;
-      VSAssembly container = assembly.getContainer();
-      int idx = 0;
-
-      if(container instanceof AbstractContainerVSAssembly) {
-         String[] assemblies = ((AbstractContainerVSAssembly) container).getAssemblies();
-
-         for(int i = 0; i < assemblies.length; i++) {
-            if(Tool.equals(oname, assemblies[i])) {
-               idx = i;
-               break;
-            }
-         }
-      }
-
-      VSEventUtil.removeVSObject(rvs, oname, dispatcher);
-
-      if(container instanceof AbstractContainerVSAssembly) {
-         AbstractContainerVSAssembly containerVSAssembly =
-            (AbstractContainerVSAssembly) container;
-         String[] assemblies = containerVSAssembly.getAssemblies();
-         List<String> list = new ArrayList<>(Arrays.asList(assemblies));
-         list.add(idx, oname);
-         containerVSAssembly.setAssemblies(list.toArray(new String[0]));
-      }
-
-      if(container instanceof TabVSAssembly) {
-         ((TabVSAssembly) container).setSelectedValue(oname);
-      }
-
-      return hint;
+      VSEventUtil.removeVSObject(rvs, oname, dispatcher, true);
    }
 
    /**

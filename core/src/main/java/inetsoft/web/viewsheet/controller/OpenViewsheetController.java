@@ -21,13 +21,11 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.LicenseException;
-import inetsoft.sree.security.OrganizationManager;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
-import inetsoft.util.MessageException;
-import inetsoft.util.ThreadContext;
+import inetsoft.util.*;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
@@ -83,16 +81,19 @@ public class OpenViewsheetController {
       AssetEntry entry = AssetEntry.createAssetEntry(identifier);
       Viewsheet vs = (Viewsheet) viewsheetService.getAssetRepository().getSheet(
          entry, principal, false, AssetContent.CONTEXT);
+      boolean hasBaseEntry = false;
 
       if(vs != null) {
          ViewsheetInfo info = vs.getViewsheetInfo();
          scaleToScreen = info.isScaleToScreen();
          fitToWidth = info.isFitToWidth();
+         hasBaseEntry = vs.getBaseEntry() != null;
       }
 
       return ViewsheetRouteDataModel.builder()
          .scaleToScreen(scaleToScreen)
          .fitToWidth(fitToWidth)
+         .hasBaseEntry(hasBaseEntry)
          .build();
    }
 
@@ -132,6 +133,14 @@ public class OpenViewsheetController {
                              @LinkUri String linkUri)
       throws Exception
    {
+      if(!event.isViewer() &&
+         !SecurityEngine.getSecurity().checkPermission(principal,
+                                                       ResourceType.VIEWSHEET, "*", ResourceAction.ACCESS))
+      {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "composer.dashboard.authorization.permissionDenied"));
+      }
+
       if(licenseService.isCpuUnlicensed()) {
          throw new LicenseException(licenseService.getCpuUnlicensedMSG());
       }

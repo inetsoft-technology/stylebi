@@ -18,7 +18,7 @@
 <em-editor-panel
   contentClass="tabbed-editor-panel-content"
   applyLabel="_#(Save)"
-  [applyDisabled]="!valid"
+  [applyDisabled]="!(valid && taskChanged)"
   resetLabel="_#(Close)"
   (applyClicked)="save()"
   (resetClicked)="close()"

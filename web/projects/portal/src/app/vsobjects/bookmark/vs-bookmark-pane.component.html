@@ -40,7 +40,7 @@
       </div>
       <ul class="nav nav-inline ms-auto">
          <li class="nav-item">
-            <a [ngClass]="{'disabled': addBookmarkDisabled}" class="nav-link nav-icon icon-size-medium p-2" role="button" (click)="onDeleteBookmarks.emit()"
+            <a [ngClass]="{'disabled': addBookmarkDisabled}" class="nav-link nav-icon icon-size-medium p-2" role="button" (click)="deleteBookmarks()"
                title="_#(Remove Bookmarks)" tabindex="0" aria-label="_#(Remove Bookmarks)">
                <i class="trash-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
                <span class="visually-hidden">_#(Remove Bookmarks)</span>

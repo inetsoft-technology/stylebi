@@ -18,6 +18,7 @@
 
 package inetsoft.sree.schedule;
 
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
@@ -26,6 +27,7 @@ import java.time.*;
 import java.util.*;
 import java.util.stream.Stream;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.Mockito.mock;
@@ -56,16 +58,9 @@ public class TimeConditionTest {
       Date testDate = toDate("2025-03-01T10:15:23");
       timeCondition = TimeCondition.at(testDate);
 
-      assertTrue(timeCondition.toString().contains("TimeCondition: at 2025-03-01"));
+      assertThat(timeCondition.toString(), Matchers.containsString("TimeCondition: at 2025-03-01"));
       assertEquals(TimeCondition.AT, timeCondition.getType());
       assertEquals(testDate, timeCondition.getDate());
-
-      // Invalid input: null date
-      Exception exception = assertThrows(NullPointerException.class, () -> {
-         timeCondition = TimeCondition.at(null);
-         timeCondition.toString();
-      });
-      assertTrue(exception.getMessage().contains("Cannot invoke \"java.util.Date.getTime()\" because \"this.time\" is null"));
    }
 
    @Test

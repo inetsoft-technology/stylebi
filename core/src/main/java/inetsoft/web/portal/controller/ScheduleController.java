@@ -26,8 +26,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.model.*;
-import inetsoft.web.security.RequiredPermission;
-import inetsoft.web.security.Secured;
+import inetsoft.web.security.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -269,6 +268,12 @@ public class ScheduleController {
    public UsersModel getUsersModel(Principal principal) throws Exception
    {
       return scheduleService.getUsersModel(principal);
+   }
+
+   @GetMapping("/api/portal/schedule/task-names")
+   public ScheduleTaskNamesModel getScheduleTaskNamesModel(@PermissionUser Principal principal) throws Exception
+   {
+      return scheduleService.getScheduleTaskNamesModel(principal);
    }
 
    @GetMapping("/api/portal/schedule/isSelfOrgUser")

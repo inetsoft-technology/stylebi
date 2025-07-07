@@ -1058,7 +1058,23 @@ public class DatabaseDatasourcesService {
          if(!Tool.isCloudSecrets() || !definition.getAuthentication().isUseCredentialId()) {
             xds.initCredential(true);
             xds.setUser(definition.getAuthentication().getUserName());
-            xds.setPassword(definition.getAuthentication().getPassword());
+            String oldName = definition.getOldName();
+            String password = definition.getAuthentication().getPassword();
+
+            if(!Tool.isEmptyString(oldName) && Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
+               try {
+                  path = Tool.isEmptyString(path) ? oldName : path;
+                  XDataSource dataSource = repository.getDataSource(path);
+
+                  if(dataSource instanceof JDBCDataSource) {
+                     password = ((JDBCDataSource) dataSource).getPassword();
+                  }
+               }
+               catch(Exception ignore){
+               }
+            }
+
+            xds.setPassword(password);
          }
          else {
             String credentialId = definition.getAuthentication().getCredentialId();

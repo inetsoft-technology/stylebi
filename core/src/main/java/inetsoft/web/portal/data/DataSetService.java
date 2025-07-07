@@ -463,6 +463,8 @@ public class DataSetService {
       boolean canMaterialize = SreeEnv.getBooleanProperty("ws.mv.enabled") &&
          editable && securityProvider.checkPermission(principal, ResourceType.MATERIALIZATION,
                                                       "*", ResourceAction.ACCESS);
+      boolean canWorksheet = securityProvider.checkPermission(
+         principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
       String modifiedDateLabel = entry.getModifiedDate() == null ? "" :
          new SimpleDateFormat(SreeEnv.getProperty("format.date.time")).format(entry.getModifiedDate());
       String createdDateLabel = entry.getCreatedDate() == null ? "" :
@@ -480,6 +482,9 @@ public class DataSetService {
          }
       }
 
+      boolean canWorksheet = securityProvider.checkPermission(
+         principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
+
       return WorksheetBrowserInfo.builder()
          .name(entry.getAlias() == null || entry.getAlias().isEmpty() ?
                   entry.getName() : entry.getAlias())
@@ -496,9 +501,11 @@ public class DataSetService {
          .modifiedDate(entry.getModifiedDate() == null ? 0 : entry.getModifiedDate().getTime())
          .modifiedDateLabel(modifiedDateLabel)
          .editable(editable)
+         .canWorksheet(canWorksheet)
          .deletable(deletable)
          .materialized(AssetTreeController.getMaterialized(entry, principal))
          .canMaterialize(canMaterialize)
+         .canWorksheet(canWorksheet)
          .parentPath(parentPath)
          .hasSubFolder(hasSubDataSetFolder(entry, movingFolders, principal))
          .workSheetType(getWorksheetType(entry))
@@ -698,8 +705,9 @@ public class DataSetService {
          throw new FileNotFoundException(parentEntry.getPath());
       }
 
-      if(!securityProvider.checkPermission(principal, ResourceType.ASSET,
-                                           parentEntry.getPath(), ResourceAction.WRITE))
+      if(scope != AssetRepository.USER_SCOPE &&
+         !securityProvider.checkPermission(principal, ResourceType.ASSET,
+         parentEntry.getPath(), ResourceAction.WRITE))
       {
          throw new SecurityException(Catalog.getCatalog().getString(
             "Permission denied to write " + parentEntry.getPath()));
@@ -814,7 +822,8 @@ public class DataSetService {
                ActionRecord.OBJECT_TYPE_FOLDER, new Timestamp(System.currentTimeMillis()),
                ActionRecord.ACTION_STATUS_SUCCESS, actionMessage);
 
-            if(!securityProvider.checkPermission(principal, ResourceType.ASSET,
+            if(scope != AssetRepository.USER_SCOPE &&
+               !securityProvider.checkPermission(principal, ResourceType.ASSET,
                                                 items[i].getPath(), ResourceAction.WRITE))
             {
                String label = items[i].getPath();

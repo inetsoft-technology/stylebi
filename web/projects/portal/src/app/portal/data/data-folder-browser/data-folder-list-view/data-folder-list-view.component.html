@@ -97,8 +97,8 @@
             <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
                ngbDropdownToggle (click)="clickMenu()"></i>
             <div class="dropdown-menu unhighlightable" ngbDropdownMenu (click)="clickMenu()">
-              <div *ngIf="asset.type == 'WORKSHEET' && asset.editable">
-                <button class="dropdown-item" (click)="editWorksheet.emit(asset)">
+              <div *ngIf="asset.type == 'WORKSHEET'">
+                <button class="dropdown-item" [disabled]="!asset.canWorksheet" (click)="editWorksheet.emit(asset)">
                   _#(Edit)
                 </button>
               </div>

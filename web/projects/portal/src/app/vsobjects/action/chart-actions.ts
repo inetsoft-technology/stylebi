@@ -299,7 +299,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
             label: () => "_#(js:composer.vs.action.helperText.menuAction.chart)",
             icon: () => "edit-icon",
             enabled: () => false,
-            visible: () => true,
+            visible: () => this.menuActionHelperTextVisible,
             classes: () => "helper-text"
          }
       ]));
@@ -786,7 +786,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
    }
 
    private get filterVisible(): boolean {
-      if(this.binding || this.model.maxMode || !this.model.chartSelection ||
+      if(this.binding || !this.model.chartSelection ||
          !this.model.chartSelection.regions ||
          (!this.composer || this.model.scatterMatrix) && !this.model.adhocFilterEnabled ||
          ChartTool.isRegionAreaTypePresent(this.model, this.model.chartSelection, "text") &&

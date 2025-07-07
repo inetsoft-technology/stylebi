@@ -33,7 +33,7 @@
      [style.top.px]="selectionChildModel ? 0 : vsObject.objectFormat.top - selectionBorderOffset"
      [style.z-index]="zIndex"
      [style.display]="visible ? null : 'none'"
-     [class.fade-assembly]="!vsObject.active || !vsObject.visible"
+     [class.fade-assembly]="isFadeAssembly()"
      [class.search-no-match]="searchMode && !isSearchResults"
      data-is-object-editor="true"
      [attr.data-type]="vsObject.objectType" [attr.data-name]="vsObject.absoluteName"

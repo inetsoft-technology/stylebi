@@ -60,6 +60,14 @@
     flex-direction: column;
     align-items: stretch;
   }
+
+  .completion-condition-row {
+    .loading-icon-container {
+      position: absolute;
+      left: 206px;
+      pointer-events: none;
+    }
+  }
 }
 
 .server-time-zone {

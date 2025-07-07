@@ -1163,13 +1163,13 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          }
       }
 
-      if(command.info.objectType == "VSGroupContainer") {
-         this.refreshGroupContainerOrder(command.info);
-      }
-
       if(!updated) {
          this.vs.vsObjects.push(command.info);
          this.vs.variableNames = VSUtil.getVariableList(this.vs.vsObjects, null);
+      }
+
+      if(command.info.objectType == "VSGroupContainer") {
+         this.refreshGroupContainerOrder(command.info);
       }
 
       // Update z-indexes
@@ -1184,6 +1184,11 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
     */
    private refreshGroupContainerOrder(model: VSObjectModel): void {
       let objectsCopy: VSObjectModel[] = [];
+      let existModel = this.vs.vsObjects.find((vsObject) => vsObject.absoluteName == model.absoluteName);
+
+      if(!!existModel) {
+         model = existModel;
+      }
 
       this.vs.vsObjects.forEach((vsObject, idx) => {
          if(vsObject.container == model.absoluteName &&
@@ -2674,5 +2679,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    isDefaultOrgAsset() {
       let assetEntry: AssetEntry = createAssetEntry(this.vs.id);
       return assetEntry?.organization != this.orgInfo?.key;
+   }
+
+   isFilterInMaxModeView(vsObject: VSObjectModel): boolean {
+      return !!this.maxModeAssembly && (<any> vsObject).adhocFilter;
    }
 }

@@ -45,6 +45,9 @@ public abstract class AuthenticationProviderModel {
       return true;
    }
 
+   @Nullable
+   public abstract String oldName();
+
    @JsonProperty("providerType")
    public abstract SecurityProviderType providerType();
 
@@ -106,7 +109,7 @@ public abstract class AuthenticationProviderModel {
                .useCredential(provider.isUseCredential())
                .secretId(provider.isUseCredential() ? provider.getSecretId() : null)
                .user(!provider.isUseCredential() ? provider.getDbUser() : null)
-               .password(!provider.isUseCredential() ? provider.getDbPassword() : null)
+               .password(DatabaseAuthenticationProvider.PLACEHOLDER_PASSWORD)
                .hashAlgorithm(provider.getHashAlgorithm())
                .userQuery(provider.getUserQuery())
                .userListQuery(provider.getUserListQuery())

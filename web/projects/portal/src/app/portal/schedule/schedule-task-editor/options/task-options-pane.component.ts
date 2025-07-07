@@ -188,6 +188,10 @@ export class TaskOptionsPane implements OnInit {
    }
 
    public updateExecuteAs(name: string) {
+      if(this.disableExecuteAs()) {
+         return;
+      }
+
       this.executeAsName = name;
 
       if(this.executeAsName == "" || this.executeAsName == this._model.owner) {

@@ -24,7 +24,6 @@ export interface TaskConditionPaneModel {
    twelveHourSystem: boolean;
    userDefinedClasses: string[];
    userDefinedClassLabels: string[];
-   allTasks: NameLabelTuple[];
    timeZoneOffset?: number;
    serverTimeZoneId?: string;
    taskDefaultTime?: boolean;

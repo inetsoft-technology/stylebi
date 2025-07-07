@@ -406,6 +406,23 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
       this.onCancel.emit("cancel");
    }
 
+   okDisabled(): boolean {
+      if(this.form && !this.form.valid || this.isEmptyTable()) {
+         return true;
+      }
+
+      const startTimeEnabled = this.model?.startTimeEnabled;
+      const timeRangeEnabled = this.model?.timeRangeEnabled;
+
+      if(!startTimeEnabled && !timeRangeEnabled ||
+         startTimeEnabled && this.startTimeData.startTimeSelected)
+      {
+         return false;
+      }
+
+      return timeRangeEnabled && !((this.model?.timeRanges?.length ?? 0) > 0);
+   }
+
    ok(): void {
       if(this.model.emailDeliveryEnabled) {
          if (!this.model.actionModel.emailInfoModel.emails) {

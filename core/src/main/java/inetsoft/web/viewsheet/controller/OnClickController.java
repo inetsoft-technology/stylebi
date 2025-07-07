@@ -383,11 +383,12 @@ public class OnClickController {
     * If viewsheet is embeded, get matching sandbox.
     */
    private ViewsheetSandbox getVSBox(String name, ViewsheetSandbox box0) {
-      if(name.indexOf(".") == -1) {
+      int index = name == null ? -1 : name.lastIndexOf(".");
+
+      if(index == -1) {
          return box0;
       }
 
-      int index = name.lastIndexOf(".");
       String vsName = name.substring(0, index);
       box0 = box0.getSandbox(vsName);
 

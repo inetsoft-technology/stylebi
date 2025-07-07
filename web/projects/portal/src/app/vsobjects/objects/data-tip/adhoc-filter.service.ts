@@ -26,6 +26,11 @@ import { GuiTool } from "../../../common/util/gui-tool";
 @Injectable()
 export class AdhocFilterService {
    private _adhocFilterShowing: boolean = false;
+   private listener = null;
+   private filterName: string = null;
+
+   private close: any = null;
+
 
    constructor(private renderer: Renderer2,
                private changeRef: ChangeDetectorRef,
@@ -40,29 +45,40 @@ export class AdhocFilterService {
               acceptClose: () => boolean): () => any
    {
       this._adhocFilterShowing = true;
+      this.filterName = absoluteName;
+      this.close = closed;
 
-      const listener = this.renderer.listen("document", "click", (event: MouseEvent) => {
+      this.listener = this.renderer.listen("document", "click", (event: MouseEvent) => {
          if(!elementRef.nativeElement.contains(event.target) &&
             !GuiTool.parentContainsClass(<Element> event.target, "mini-toolbar") &&
             !GuiTool.parentContainsClass(<Element> event.target, "mobile-toolbar") &&
             (!acceptClose || acceptClose()))
          {
-            const vsevent: VSObjectEvent = new VSObjectEvent(absoluteName);
-
-            // delay so change is applied before temp assembly is removed
-            setTimeout(() => {
-               this.viewsheetClient.sendEvent("/events/composer/viewsheet/moveAdhocFilter",
-                                              vsevent);
-            }, 500);
-
-            // remove the listener
-            listener();
-            closed();
-            this._adhocFilterShowing = false;
+            this.hideAdhocFilter();
          }
       });
 
       this.changeRef.detectChanges();
-      return listener;
+      return this.listener;
+   }
+
+   hideAdhocFilter() {
+      if(this.filterName == null) {
+         return;
+      }
+
+      const vsevent: VSObjectEvent = new VSObjectEvent(this.filterName);
+
+      // delay so change is applied before temp assembly is removed
+      setTimeout(() => {
+         this.viewsheetClient.sendEvent("/events/composer/viewsheet/moveAdhocFilter",
+            vsevent);
+      }, 500);
+
+      // remove the listener
+      this.listener();
+      this._adhocFilterShowing = false;
+      this.filterName = null;
+      this.close();
    }
 }

@@ -392,6 +392,10 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    public moveTasks(): void {
+      if(!this.canDelete()) {
+         return;
+      }
+
       const dialogRef = this.dialog.open(MoveTaskFolderDialogComponent, {
          role: "dialog",
          width: "750px",

@@ -190,6 +190,10 @@ public class AttributeRef extends AbstractDataRef {
     * Get the sql type.
     */
    public int getSqlType() {
+      if(!isSqlTypeSet()) {
+         return Types.VARCHAR;
+      }
+
       return sqlType;
    }
 
@@ -200,6 +204,13 @@ public class AttributeRef extends AbstractDataRef {
       sqlType = type;
    }
 
+   /**
+    * Whether the sql type is set.
+    *
+    */
+   public boolean isSqlTypeSet() {
+      return sqlType != -1;
+   }
 
    /**
     * whether is cube calculate member measure.
@@ -387,7 +398,7 @@ public class AttributeRef extends AbstractDataRef {
    private byte refType = NONE;
    private String formula = null;
    private String dtype = null;
-   private int sqlType = Types.VARCHAR;
+   private int sqlType = -1;
    private boolean cubeCalcMember;
 
    private static final Logger LOG = LoggerFactory.getLogger(AttributeRef.class);

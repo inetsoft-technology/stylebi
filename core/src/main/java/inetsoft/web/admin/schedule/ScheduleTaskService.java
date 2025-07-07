@@ -186,8 +186,11 @@ public class ScheduleTaskService {
 
       RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
       ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+      boolean canDelete = em && ScheduleManager.isInternalTask(taskName)
+         ? canDeleteInternalTask(task, principal)
+         : canDeleteTask(task, principal);
 
-      if(!canDeleteTask(task, principal)) {
+      if(!canDelete) {
          throw new SecurityException(String.format("Unauthorized access to resource \"%s\" by %s",
             task, principal));
       }
@@ -197,6 +200,23 @@ public class ScheduleTaskService {
       int index = taskName.indexOf(":");
       String label = index != -1 ? taskName.substring(index + 1) : taskName;
       return createTaskDialogModel(taskName, label, zoneName, principal, em);
+   }
+
+   public boolean canDeleteInternalTask(ScheduleTask task, Principal principal) {
+      RepletEngine engine = SUtil.getRepletEngine(analyticRepository);
+
+      if(task == null || principal == null || engine == null) {
+         return false;
+      }
+
+      OrganizationManager organizationManager = OrganizationManager.getInstance();
+
+      if(organizationManager.isSiteAdmin(principal) || organizationManager.isOrgAdmin(principal)) {
+         return true;
+      }
+
+      return engine.checkPermission(principal, ResourceType.SCHEDULE_TASK,
+         task.getName(), ResourceAction.WRITE);
    }
 
    public boolean canDeleteTask(ScheduleTask task, Principal principal) {
@@ -217,7 +237,7 @@ public class ScheduleTaskService {
       }
 
       return principal != null &&
-         (Tool.equals(principal.getName(), task.getOwner()) ||
+         (Tool.equals(principal.getName(), task.getOwner().convertToKey()) ||
             !scheduleManager.isDeleteOnlyByOwner(task, principal));
    }
 
@@ -293,15 +313,6 @@ public class ScheduleTaskService {
          .map(condition -> scheduleConditionService.getConditionModel(condition, principal))
          .forEach(builder::addConditions);
 
-      // the completion task can not defined on itself
-      Vector<ScheduleTask> tasks =
-         scheduleService.getScheduleTasks(null, null, true, principal);
-
-      tasks.stream()
-         .filter(t -> !taskId.equals(t.getTaskId()))
-         .map(this::createTaskTuple)
-         .forEach(builder::addAllTasks);
-
       String timeProp = SreeEnv.getProperty("format.time");
 
       if(timeProp == null || "".equals(timeProp)) {
@@ -313,13 +324,6 @@ public class ScheduleTaskService {
       return builder
          .timeProp(timeProp)
          .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12hours"))
-         .build();
-   }
-
-   private NameLabelTuple createTaskTuple(ScheduleTask task) {
-      return NameLabelTuple.builder()
-         .name(task.getTaskId())
-         .label(task.toView(SecurityEngine.getSecurity().isSecurityEnabled(), true))
          .build();
    }
 

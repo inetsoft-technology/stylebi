@@ -471,7 +471,7 @@ public class ComposerAdhocFilterController {
          }
       }
 
-      vs.addAssembly(vsassembly);
+      vs.addAssembly(vsassembly, false);
       coreLifecycleService.addDeleteVSObject(rvs, vsassembly, dispatcher);
    }
 
@@ -756,7 +756,7 @@ public class ComposerAdhocFilterController {
          }
       }
 
-      info.setZIndex(object.getVSAssemblyInfo().getZIndex() + 1);
+      info.setZIndex(getFilterZIndex(object));
       int width =
          containerInfo.getLayoutSize() != null && containerInfo.isVisible() ?
          containerInfo.getLayoutSize().width : 2 * AssetUtil.defw;
@@ -767,7 +767,34 @@ public class ComposerAdhocFilterController {
       else {
          moved.setPixelSize(new Dimension(width, 6 * AssetUtil.defh));
       }
+
+      fixFilterPosition(object, moved);
    }
+
+   private int getFilterZIndex(VSAssembly object) {
+      if(object == null) {
+         return -1;
+      }
+
+      Viewsheet vs = object.getViewsheet();
+      int zindex = object.getVSAssemblyInfo().getZIndex();
+
+      if(vs.isMaxMode()) {
+         if(object instanceof TableDataVSAssembly) {
+            return ((TableDataVSAssembly) object).getTableDataVSAssemblyInfo().getMaxModeZIndex() + 1;
+         }
+         else if(object instanceof ChartVSAssembly) {
+            return ((ChartVSAssemblyInfo) object.getVSAssemblyInfo()).getMaxModeZIndex() + 1;
+         }
+
+         if(vs.isEmbedded()) {
+            return vs.getZIndex() + zindex + 1;
+         }
+      }
+
+      return zindex + 1000;
+   }
+
 
    private void saveFormats(VSAssembly moved) {
       VSAssemblyInfo info = moved.getVSAssemblyInfo();
@@ -954,6 +981,24 @@ public class ComposerAdhocFilterController {
       VSEventUtil.removeVSObject(rvs, oname, dispatcher);
 
       return hint;
+   }
+
+   private void fixFilterPosition(VSAssembly assembly, VSAssembly filter) {
+      if(assembly instanceof ChartVSAssembly &&
+         ((ChartVSAssemblyInfo) assembly.getVSAssemblyInfo()).getMaxSize() != null)
+      {
+         Dimension maxSize = ((ChartVSAssemblyInfo) assembly.getVSAssemblyInfo()).getMaxSize();
+         Point offset = filter.getPixelOffset();
+         Dimension size = filter.getPixelSize();
+
+         if(offset.x + size.width > maxSize.width) {
+            offset.x = Math.max(0, maxSize.width - size.width);
+         }
+
+         if(offset.y + size.height > maxSize.height) {
+            offset.y = Math.max(0, maxSize.height - size.height);
+         }
+      }
    }
 
    private final ViewsheetService viewsheetService;

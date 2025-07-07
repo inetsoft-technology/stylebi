@@ -212,6 +212,11 @@ public class ServerFileRuntime extends TabularRuntime {
          super.cancel();
       }
 
+      @Override
+      public boolean isCanceled() {
+         return cancelled;
+      }
+
       /**
        * {@inheritDoc}
        */

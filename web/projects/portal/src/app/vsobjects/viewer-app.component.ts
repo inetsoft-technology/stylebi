@@ -355,6 +355,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Output() onEmbedError = new EventEmitter<string>();
    @Output() onLoadingStateChanged = new EventEmitter<{ name: string, loading: boolean }>();
    @Output() onDataTipPopComponentVisible = new EventEmitter<boolean>();
+   @Output() onViewerSizeChanged = new EventEmitter<{width: number, height: number}>();
 
    @Input()
    get runtimeId(): string {
@@ -653,7 +654,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          console.error("The runtime or asset identifier must be provided");
       }
 
-      if(this.viewerRoot?.nativeElement) {
+      if(this.viewerRoot?.nativeElement && !this.isIframe) {
          this.zone.runOutsideAngular(() => {
             new ResizeSensor(this.viewerRoot.nativeElement, () => {
                this.onViewerRootResizeEvent();
@@ -1351,6 +1352,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                      this.emailDialogModel = null;
                   }
                );
+
+               this.zone.run(() => {
+                  this.changeDetectorRef.detectChanges();
+               });
             },
             (err) => {
                this.waiting = false;
@@ -2479,6 +2484,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             this.selectedActions = null;
          }
       }
+
+      if(this.globalLoadingIndicator) {
+         this.onLoadingStateChanged.emit({name: command.name, loading: false});
+      }
    }
 
    // noinspection JSUnusedGlobalSymbols
@@ -2765,6 +2774,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       contextmenu.sourceEvent = event;
       contextmenu.actions = actions;
       event.preventDefault();
+
+      this.zone.run(() => {
+         this.changeDetectorRef.detectChanges();
+      });
+
       return dropdownRef;
    }
 
@@ -3157,6 +3171,27 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
          this.notifyParentFrame();
       }
+
+      if(this.embed && this.allAssemblyBounds && (!this.scaleToScreen || this.fitToWidth)) {
+         let height = this.allAssemblyBounds.bottom;
+
+         if(this.hasBottomPadding) {
+            height += this.allAssemblyBounds.top;
+         }
+
+         if(!!this.viewerToolbar) {
+            const rect = this.viewerToolbar.nativeElement.getBoundingClientRect();
+            height += rect.height;
+         }
+
+         let width = this.allAssemblyBounds.right;
+
+         if(this.hasRightPadding) {
+            width += this.allAssemblyBounds.left;
+         }
+
+         this.onViewerSizeChanged.emit({width: this.fitToWidth ? null : width, height: height});
+      }
    }
 
    /**
@@ -3295,6 +3330,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    shareLink(): void {
+      if(this.isShareLinkDisabled()) {
+         return;
+      }
+
       const options: SlideOutOptions = {backdrop: "static", popup: true};
       this.dialogService.open(this.shareLinkDialog, options).result.then(
          () => {
@@ -3430,7 +3469,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    isEditVisible(): boolean {
-      return !this.isPermissionForbidden("Edit") && !this.mobileDevice &&
+      return !this.embed && !this.isPermissionForbidden("Edit") && !this.mobileDevice &&
          !this.preview && !this.linkView && this.editable && !this.fullScreen;
    }
 
@@ -3509,7 +3548,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    bookmarksVisible(): boolean {
-      if(this.snapshot || this.isPermissionForbidden("Bookmark")) {
+      if(this.snapshot || this.isPermissionForbidden("Bookmark") ||
+         this.embed && this.vsBookmarkList.length <= 1)
+      {
          return false;
       }
 

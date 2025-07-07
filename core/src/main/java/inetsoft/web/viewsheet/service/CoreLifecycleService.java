@@ -801,7 +801,8 @@ public class CoreLifecycleService {
 
          // don't scale viewsheet in design mode or if height or width is set to 0
          if(vsinfo != null && vsinfo.isScaleToScreen() && rvs.isRuntime() &&
-            height != 0 && width != 0 && rvs.getEmbedAssemblyInfo() == null)
+            (height != 0 || vsinfo.isFitToWidth()) && width != 0 &&
+            rvs.getEmbedAssemblyInfo() == null)
          {
             // if not initializing a viewsheet then always apply scale
             boolean applyScale = !initing || vsinfo.isDisableParameterSheet();
@@ -1868,7 +1869,7 @@ public class CoreLifecycleService {
 
       final Viewsheet gvs = vs; // global viewsheet
       String name0 = assemblies[0].getAbsoluteName();
-      final int dot = name0.indexOf('.');
+      final int dot = name0.lastIndexOf('.');
 
       if(dot >= 0) {
          String bname = name0.substring(0, dot);
