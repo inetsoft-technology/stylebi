@@ -840,7 +840,7 @@ public final class VSUtil {
       aref.setRefType(column.getRefType());
       aref.setDefaultFormula(column.getDefaultFormula());
 
-      if(aref.isSqlTypeSet()) {
+      if(column.isSqlTypeSet()) {
          aref.setSqlType(column.getSqlType());
       }
 
