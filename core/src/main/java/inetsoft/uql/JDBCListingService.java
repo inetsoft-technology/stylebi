@@ -75,7 +75,9 @@ public class JDBCListingService implements DataSourceListingService {
          new HpccDataSourceListing(),
          new DrillDataSourceListing(),
          new PrestoDataSourceListing(),
-         new PhoenixDataSourceListing()
+         new PhoenixDataSourceListing(),
+         new DatabricksDataSourceListing(),
+         new ClickhouseDataSourceListing()
       );
    }
 }
