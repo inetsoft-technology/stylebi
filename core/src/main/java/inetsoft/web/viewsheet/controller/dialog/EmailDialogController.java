@@ -360,7 +360,7 @@ public class EmailDialogController {
       String body = Tool.defaultIfNull(emailPaneModel.message(), "");
       boolean isSendLink = Tool.defaultIfNull(fileFormatPaneModel.sendLink(), false);
 
-      if((fileFormatPaneModel.expandEnabled() || fileFormatPaneModel.expandSelections() ||
+      if((!fileFormatPaneModel.matchLayout() || fileFormatPaneModel.expandSelections() ||
          fileFormatPaneModel.onlyDataComponents()) &&
          !SecurityEngine.getSecurity().checkPermission(principal,
          ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ExportExpandComponents",
