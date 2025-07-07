@@ -143,20 +143,40 @@ public class PostProcessor {
       }
 
       Pattern fieldPattern = Pattern.compile("^field\\[(?:'|\")([^'\"]+)(?:'|\")\\]$");
-      String[] aliases = Arrays.stream(formulas)
-         .filter(Objects::nonNull)
-         .map(String::trim)
-         .map(f -> {
-            Matcher matcher = fieldPattern.matcher(f);
-            return matcher.matches() ? matcher.group(1) : null;
-         })
-         .filter(Objects::nonNull)
-         .toArray(String[]::new);
+      ArrayList aliasList = new ArrayList();
+
+      for(int i = 0; i < formulas.length; i++) {
+         String f = formulas[i];
+
+         if(Tool.isEmptyString(f) || f.trim().isEmpty()) {
+            continue;
+         }
+
+         f = f.trim();
+         Matcher matcher = fieldPattern.matcher(f);
+         String alias = matcher.matches() ? matcher.group(1) : null;
+
+         if(alias == null) {
+            continue;
+         }
+
+         int idx = Util.findColumn(table, alias);
+
+         if(idx < 0 || idx >= table.getColCount()) {
+            continue;
+         }
+
+         Class<?> clazz = table.getColType(idx);
+
+         if(clazz.equals(types.get(i))) {
+            aliasList.add(alias);
+         }
+      }
 
       // optimization, all expressions are aliases, just use a column map
-      if(aliases.length == formulas.length) {
+      if(aliasList.size() == formulas.length) {
          ColumnIndexMap columnIndexMap = new ColumnIndexMap(table, true);
-         int[] acols = Arrays.stream(aliases)
+         int[] acols = aliasList.stream()
                               .mapToInt(a -> Util.findColumn(columnIndexMap, a))
                               .toArray();
 
