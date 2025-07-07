@@ -481,7 +481,7 @@ public class ConditionListHandler {
    }
 
    private Object fixConditionValue(XExpression field, Object condValue) {
-      if(field == null || condValue == null) {
+      if(field == null || condValue == null || !field.isSqlTypeSet()) {
          return condValue;
       }
 

@@ -169,11 +169,23 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    }
 
    public int getSqlType() {
+      if(!isSqlTypeSet()) {
+         return Types.VARCHAR;
+      }
+
       return sqlType;
    }
 
    public void setSqlType(int sqlType) {
       this.sqlType = sqlType;
+   }
+
+   /**
+    * Whether the sql type is set.
+    *
+    */
+   public boolean isSqlTypeSet() {
+      return sqlType != -1;
    }
 
    public String toString() {
@@ -372,7 +384,7 @@ public class XExpression implements Cloneable, Serializable, XMLSerializable {
    private int quote = QUOTE_NONE;
    private Object value = "";
    private String type = FIELD;
-   private int sqlType = Types.VARCHAR;
+   private int sqlType = -1;
 
    private static Vector opList = new Vector();
    private static Vector functionNameList = new Vector();

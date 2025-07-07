@@ -4227,10 +4227,10 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             field = new XExpression(col, XExpression.FIELD);
          }
 
-         if(ref instanceof AttributeRef) {
+         if(ref instanceof AttributeRef attributeRef && attributeRef.isSqlTypeSet()) {
             field.setSqlType(((AttributeRef) ref).getSqlType());
          }
-         else if(item.getAttribute() instanceof ColumnRef) {
+         else if(item.getAttribute() instanceof ColumnRef columnRef && columnRef.isSqlTypeSet()) {
             int sqlType = ((ColumnRef) item.getAttribute()).getSqlType();
             field.setSqlType(sqlType);
          }
