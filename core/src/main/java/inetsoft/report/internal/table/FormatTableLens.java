@@ -24,6 +24,7 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.lens.AbstractTableLens;
 import inetsoft.report.lens.AttributeTableLens;
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.FixedSizeSparseMatrix;
 import inetsoft.util.SparseMatrix;
 
@@ -235,6 +236,8 @@ public abstract class FormatTableLens extends AttributeTableLens
       checkInit();
       int r2 = nextRow(r, c);
       boolean last = !moreRows(r2);
+      Point cell1 = new Point(c, r);
+      Point cell2 = new Point(c, r2);
       TableFormat colf = getColTableFormat(c);
       TableFormat rowf = (r >= 0) ? getRowTableFormat(r) : null;
       TableFormat cellf = (r >= 0) ? getCellTableFormat(r, c) : null;
@@ -242,7 +245,7 @@ public abstract class FormatTableLens extends AttributeTableLens
       TableFormat cellf2 = !last ? getCellTableFormat(r2, c) : null;
       int def = table.getRowBorder(r, c);
 
-      int line = mergeLineStyle(def,
+      int line = mergeLineStyle(def, cell1, cell2,
                                 colf == null ? null : colf.borders,
                                 rowf == null ? null : rowf.borders,
                                 cellf == null ? null : cellf.borders,
@@ -277,13 +280,15 @@ public abstract class FormatTableLens extends AttributeTableLens
       checkInit();
       int c2 = nextCol(r, c);
       boolean last = c2 >= getColCount();
+      Point cell1 = new Point(c, r);
+      Point cell2 = new Point(c2, r);
       TableFormat colf = (c >= 0) ? getColTableFormat(c) : null;
       TableFormat rowf = getRowTableFormat(r);
       TableFormat cellf = (c >= 0) ? getCellTableFormat(r, c) : null;
       TableFormat colf2 = !last ? getColTableFormat(c2) : null;
       TableFormat cellf2 = !last ? getCellTableFormat(r, c2) : null;
 
-      return mergeLineStyle(table.getColBorder(r, c),
+      return mergeLineStyle(table.getColBorder(r, c), cell1, cell2,
                             colf == null ? null : colf.borders,
                             rowf == null ? null : rowf.borders,
                             cellf == null ? null : cellf.borders,
@@ -307,12 +312,14 @@ public abstract class FormatTableLens extends AttributeTableLens
       checkInit();
       int r2 = nextRow(r, c);
       boolean last = !moreRows(r2);
+      Point cell1 = new Point(c, r);
+      Point cell2 = new Point(c, r2);
       TableFormat colf = getColTableFormat(c);
       TableFormat rowf = (r >= 0) ? getRowTableFormat(r) : null;
       TableFormat cellf = (r >= 0) ? getCellTableFormat(r, c) : null;
       TableFormat rowf2 = !last ? getRowTableFormat(r2) : null;
       TableFormat cellf2 = !last ? getCellTableFormat(r2, c) : null;
-      return mergeLineColor(table.getRowBorderColor(r, c),
+      return mergeLineColor(table.getRowBorderColor(r, c), cell1, cell2,
                             colf, rowf, cellf, rowf2, cellf2,
                             true, c < 0, r < 0, last);
    }
@@ -332,13 +339,15 @@ public abstract class FormatTableLens extends AttributeTableLens
       checkInit();
       int c2 = nextCol(r, c);
       boolean last = c2 >= getColCount();
+      Point cell1 = new Point(c, r);
+      Point cell2 = new Point(c2, r);
       TableFormat colf = (c >= 0) ? getColTableFormat(c) : null;
       TableFormat rowf = getRowTableFormat(r);
       TableFormat cellf = (c >= 0) ? getCellTableFormat(r, c) : null;
       TableFormat colf2 = !last ? getColTableFormat(c2) : null;
       TableFormat cellf2 = !last ? getCellTableFormat(r, c2) : null;
 
-      return mergeLineColor(table.getColBorderColor(r, c),
+      return mergeLineColor(table.getColBorderColor(r, c), cell1, cell2,
                             colf, rowf, cellf, colf2, cellf2,
                             false, c < 0, r < 0, last);
    }
@@ -723,7 +732,8 @@ public abstract class FormatTableLens extends AttributeTableLens
     * Merge line styles. Line styles are determined by the top and
     * bottom cells (or left and right).
     */
-   private int mergeLineStyle(int def, Insets colf, Insets rowf,
+   private int mergeLineStyle(int def, Point cell1, Point cell2,
+                              Insets colf, Insets rowf,
                               Insets cellf, Insets next1, Insets next2,
                               boolean row, boolean first, boolean last) {
       Insets top = cellf != null ? cellf : (rowf != null ? rowf : colf);
@@ -777,7 +787,7 @@ public abstract class FormatTableLens extends AttributeTableLens
          }
 
          if(topline != -1 && botline != -1) {
-            return Util.mergeLineStyle(topline, botline);
+            return getPriorityLineStyle(cell1, cell2, topline, botline);
          }
       }
       else if(top != null) {
@@ -798,11 +808,42 @@ public abstract class FormatTableLens extends AttributeTableLens
       }
    }
 
+   private int getPriorityLineStyle(Point cell1, Point cell2, int topline, int botline) {
+      int cellType1 = getCellDataPath(cell1.y, cell1.x).getType();
+      int cellType2 = getCellDataPath(cell2.y, cell2.x).getType();
+
+      if(cellType1 == cellType2) {
+         return Util.mergeLineStyle(topline, botline);
+      }
+
+      if(cellType1 == TableDataPath.DETAIL) {
+         return botline;
+      }
+      else if(cellType2 == TableDataPath.DETAIL) {
+         return topline;
+      }
+
+      if(cellType1 == TableDataPath.HEADER) {
+         return topline;
+      }
+      else if(cellType2 == TableDataPath.TRAILER) {
+         return botline;
+      }
+      else if(cellType1 == TableDataPath.TRAILER) {
+         return topline;
+      }
+      else if(cellType2 == TableDataPath.HEADER) {
+         return botline;
+      }
+
+      return Util.mergeLineStyle(topline, botline);
+   }
+
    /**
     * Merge line color. Line colors are determined by the top and
     * bottom cells (or left and right).
     */
-   private Color mergeLineColor(Color def, TableFormat colf,
+   private Color mergeLineColor(Color def, Point cell1, Point cell2, TableFormat colf,
                                 TableFormat rowf, TableFormat cellf,
                                 TableFormat next1, TableFormat next2,
                                 boolean row, boolean fcol, boolean frow,
@@ -832,7 +873,43 @@ public abstract class FormatTableLens extends AttributeTableLens
          bot = row ? next1.topBorderColor : next1.leftBorderColor;
       }
 
+      //Compare bot and top here. Pass in the indexes first.
+      if(bot != null && top != null && !bot.equals(top)) {
+         return getPriorityColor(cell1, cell2, top, bot, def);
+      }
+
       return mergeLineColor(top, bot, def);
+   }
+
+   private Color getPriorityColor(Point cell1, Point cell2, Color c1, Color c2, Color def) {
+      int cellType1 = getCellDataPath(cell1.y, cell1.x).getType();
+      int cellType2 = getCellDataPath(cell2.y, cell2.x).getType();
+
+      if(cellType1 == cellType2) {
+         return mergeLineColor(c1, c2, def);
+      }
+
+      if(cellType1 == TableDataPath.DETAIL) {
+         return c2;
+      }
+      else if(cellType2 == TableDataPath.DETAIL) {
+         return c1;
+      }
+
+      if(cellType1 == TableDataPath.HEADER) {
+         return c1;
+      }
+      else if(cellType2 == TableDataPath.TRAILER) {
+         return c2;
+      }
+      else if(cellType1 == TableDataPath.TRAILER) {
+         return c1;
+      }
+      else if(cellType2 == TableDataPath.HEADER) {
+         return c2;
+      }
+
+      return mergeLineColor(c1, c2, def);
    }
 
    /**
