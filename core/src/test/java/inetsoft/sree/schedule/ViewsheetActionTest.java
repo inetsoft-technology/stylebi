@@ -18,14 +18,20 @@
 
 package inetsoft.sree.schedule;
 
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.uql.tabular.ViewAlign;
 import inetsoft.uql.viewsheet.*;
 
+import inetsoft.util.Tool;
 import org.junit.jupiter.api.Test;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
+import java.security.Principal;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -134,5 +140,28 @@ public class ViewsheetActionTest {
                    viewsheetAction.getScheduleEmails(viewsheetSandbox));
    }
 
+   void testRunWithBK() {
+      ViewsheetAction vsActions = spy(ViewsheetAction.class);
+      RuntimeViewsheet mockRuntimeViewsheet = spy(RuntimeViewsheet.class);
+
+      try {
+         when(vsActions.getRuntimeViewsheet(admin)).thenReturn(mockRuntimeViewsheet);
+         Method method = ViewsheetAction.class.getDeclaredMethod("runViewsheetAction", Principal.class);
+         method.setAccessible(true);
+         //method.invoke(admin);
+
+         System.err.println("========" + method.invoke(admin));
+
+      }catch(Throwable e) {
+         fail("Unexpected exception: " + e.getMessage());
+      }
+
+
+   }
+
    IdentityID adminID = new IdentityID("admin", Organization.getDefaultOrganizationID());
+   SRPrincipal admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()),
+                                       new IdentityID[] { new IdentityID("Administrator", null)},
+                                       new String[] {"g0"}, "host-org",
+                                       Tool.getSecureRandom().nextLong());
 }
