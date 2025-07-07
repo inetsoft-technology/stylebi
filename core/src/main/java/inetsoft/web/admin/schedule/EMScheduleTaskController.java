@@ -188,7 +188,8 @@ public class EMScheduleTaskController {
          ScheduleTask task = scheduleManager.getScheduleTask(name);
 
          if(!(SecurityEngine.getSecurity().checkPermission(principal, ResourceType.SCHEDULE_TASK, name,
-               ResourceAction.WRITE) || (task != null && ScheduleManager.hasShareGroupPermission(task, principal))))
+            ResourceAction.WRITE) ||
+            (task != null && scheduleTaskService.canDeleteTask(task, principal))))
          {
             return builder.build();
          }
