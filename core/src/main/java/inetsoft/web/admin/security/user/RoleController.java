@@ -71,8 +71,10 @@ public class RoleController {
    public EditRolePaneModel createRole(HttpServletRequest req, Principal principal,
                                        @DecodePathVariable("provider") String providerName)
    {
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
-            "*", ResourceAction.ADMIN))
+                                           IdentityID.getIdentityRootResorucePath(currOrgId), ResourceAction.ADMIN))
       {
          return null;
       }

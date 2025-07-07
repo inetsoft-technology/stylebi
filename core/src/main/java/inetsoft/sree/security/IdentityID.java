@@ -112,6 +112,10 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
       }
    }
 
+   public static String getIdentityRootResorucePath(String orgID) {
+      return new IdentityID("*", orgID).convertToKey();
+   }
+
    public String getLabelWithCaretDelimiter() {
       boolean enterprise = LicenseManager.getInstance().isEnterprise();
       return enterprise ?
