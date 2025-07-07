@@ -839,7 +839,10 @@ public final class VSUtil {
       DataRef ref = column.getDataRef();
       aref.setRefType(column.getRefType());
       aref.setDefaultFormula(column.getDefaultFormula());
-      aref.setSqlType(column.getSqlType());
+
+      if(column.isSqlTypeSet()) {
+         aref.setSqlType(column.getSqlType());
+      }
 
       if(ref instanceof AttributeRef) {
          String caption = ((AttributeRef) ref).getCaption();
