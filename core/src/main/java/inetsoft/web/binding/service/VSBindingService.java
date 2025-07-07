@@ -523,11 +523,12 @@ public class VSBindingService {
       else if(info instanceof TimeSliderVSAssemblyInfo && ref != null) {
          String title = ref.getName();
          TimeSliderVSAssemblyInfo assemblyinfo = (TimeSliderVSAssemblyInfo) info;
+         TimeInfo oldTimeInfo =
+            assemblyinfo.getTimeInfo() != null ? (TimeInfo) assemblyinfo.getTimeInfo().clone() : null;
          DataRef[] dataRefs = bindings.stream()
             .map(this::createDataRef)
             .toArray(DataRef[]::new);
          TimeInfo tinfo;
-
 
          if(dataRefs != null && dataRefs.length > 1) {
             tinfo = new CompositeTimeInfo();
@@ -563,6 +564,10 @@ public class VSBindingService {
          assemblyinfo.setTimeInfo(tinfo);
          assemblyinfo.setTableName(table);
          assemblyinfo.setTitleValue(title);
+
+         if(!Tool.equals(oldTimeInfo, tinfo)) {
+            assemblyinfo.setTimeSliderSelection(new TimeSliderSelection());
+         }
 
          if(bindings != null && bindings.size() > 0) {
             String sourceType = bindings.get(0).getProperty("type");

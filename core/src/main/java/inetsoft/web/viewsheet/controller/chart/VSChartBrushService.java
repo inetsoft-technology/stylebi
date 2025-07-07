@@ -70,12 +70,8 @@ public class VSChartBrushService extends VSChartControllerService<VSChartBrushEv
             brush(event, chartState, linkUri, dispatcher);
          }
          catch(Exception e) {
-            LOG.error("Failed to brush: " + e, e);
+            LOG.error("Failed to brush: {}", e, e);
             throw new RuntimeException(e);
-         }
-         finally {
-            // clear chart loading mask after brush finished
-            dispatcher.sendCommand(event.getChartName(), new ClearChartLoadingCommand());
          }
       });
 

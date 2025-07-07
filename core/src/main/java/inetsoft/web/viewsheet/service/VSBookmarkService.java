@@ -451,7 +451,7 @@ public class VSBookmarkService {
 
       for(VSBookmarkInfo vsBookmarkInfo : bookmarks) {
          if(vsBookmarkInfo.getName().equals(VSBookmark.HOME_BOOKMARK)) {
-            allBookmarks.add(VSBookmarkInfoModel.builder()
+            allBookmarks.add(0, VSBookmarkInfoModel.builder()
                                 .name(vsBookmarkInfo.getName())
                                 .type(VSBookmarkInfo.ALLSHARE)
                                 .owner(IdentityID.getIdentityIDFromKey(principal.getName()))
@@ -707,6 +707,7 @@ public class VSBookmarkService {
       int height = height0 != null ? height0 : 0;
       boolean mobile = mobile0 != null && mobile0;
       Assembly[] oldArr = getAssemblies(rvs.getViewsheet());
+      rvs.resetUserBookmark(owner.convertToKey());
       boolean result = rvs.gotoBookmark(name, owner);
 
       if(!result) {

@@ -67,7 +67,7 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
       addProperty("viewsheetAlias", null);
 
       if(!ViewsheetScope.VIEWSHEET_SCRIPTABLE.equals(assembly)) {
-         ViewsheetSandbox myBox = box.getSandbox(assembly);
+         ViewsheetSandbox myBox = box.getSandbox(getVSAssembly().getAbsoluteName());
          // thisParameter points to parameters in the embedded vs instead of the containing vs
          addProperty("thisParameter", new VariableScriptable(myBox.getVariableTable()));
       }
@@ -88,8 +88,9 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
       return null;
    }
 
-   protected VSAssemblyInfo getVSAssemblyInfo() {
-      return super.getVSAssemblyInfo();
+   @Override
+   protected VSAssembly getVSAssembly() {
+      return box.getViewsheet();
    }
 
    /**

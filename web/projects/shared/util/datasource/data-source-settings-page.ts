@@ -16,11 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
-import { Directive, EventEmitter, Input, OnInit, Output } from "@angular/core";
-import { of } from "rxjs";
+import { Directive, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
+import { of, Subscription } from "rxjs";
 import { catchError } from "rxjs/operators";
 import { ResourcePermissionModel } from "../../../em/src/app/settings/security/resource-permission/resource-permission-model";
 import { ConnectionStatus } from "../../../em/src/app/settings/security/security-provider/security-provider-model/connection-status";
+import { StompClientConnection } from "../../stomp/stomp-client-connection";
+import { StompClientService } from "../../stomp/stomp-client.service";
 import { DataSourceSettingsModel } from "../model/data-source-settings-model";
 import { DatabaseDefinitionModel } from "../model/database-definition-model";
 import {
@@ -59,7 +61,7 @@ export enum TableNameOption {
 }
 
 @Directive()
-export abstract class DataSourceSettingsPage implements OnInit {
+export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
    @Input() database: DatabaseDefinitionModel;
    @Input() additionalVisible: boolean = true;
    @Input() primaryDatabasePath: string;
@@ -103,6 +105,8 @@ export abstract class DataSourceSettingsPage implements OnInit {
    databaseStatus: string = "_#(js:em.security.testlogin.note4)";
    currOrg: string;
    protected _auditPath: string;
+   private connection: StompClientConnection;
+   private subscription: Subscription = new Subscription();
 
    get isEqual(): boolean {
       return this.isDatabaseEqual() && this.isPermissionsEqual;
@@ -156,7 +160,11 @@ export abstract class DataSourceSettingsPage implements OnInit {
       return !this.database?.authentication?.useCredentialId;
    }
 
-   constructor(protected http: HttpClient) {
+   isCreateDB(): boolean {
+      return false;
+   }
+
+   constructor(protected http: HttpClient, private stompClient: StompClientService) {
    }
 
    ngOnInit() {
@@ -164,7 +172,26 @@ export abstract class DataSourceSettingsPage implements OnInit {
 
       this.http.get<string>("../api/em/navbar/organization")
          .subscribe((org) => this.currOrg = org);
+
+      this.stompClient.connect("../vs-events").subscribe(connection => {
+         this.connection = connection;
+         this.subscription.add(connection.subscribe(
+            "/user/em-plugin-changed",
+            (message) => this.refreshDrivers()));
+      });
    }
+
+    ngOnDestroy() {
+       if(this.subscription) {
+          this.subscription.unsubscribe();
+          this.subscription = null;
+       }
+
+       if(this.connection) {
+          this.connection.disconnect();
+          this.connection = null;
+       }
+    }
 
    setModel(newModel: DataSourceSettingsModel): void {
       this.database = newModel.dataSource;
@@ -271,7 +298,7 @@ export abstract class DataSourceSettingsPage implements OnInit {
     * Send request to save the database on the server then close page.
     */
    saveDatabase(): void {
-      let params = new HttpParams().set("path", this.model.path);
+      let params = new HttpParams().set("path", this.model.path).set("create", this.isCreateDB());
       let settingModel = Tool.clone(this.model.settings);
 
       if(!this.needSave()) {
@@ -299,6 +326,9 @@ export abstract class DataSourceSettingsPage implements OnInit {
          else if(connection && connection.status === "Duplicate Folder") {
             this.showMessage("_#(js:em.data.databases.duplicateFolder)");
          }
+         else if(connection && connection.status === "Datasource Lost") {
+            this.showMessage("_#(js:data.datasources.saveDataSourceLost)");
+         }
          else {
             this.afterDatabaseSave();
          }
@@ -306,7 +336,8 @@ export abstract class DataSourceSettingsPage implements OnInit {
    }
 
    testDatabase(): void {
-      let params = new HttpParams().set("path", this.primaryDatabasePath);
+      let path = !!this.primaryDatabasePath ? this.primaryDatabasePath : this.model?.path;
+      let params = new HttpParams().set("path", !!path ? path : "");
       this.http.post<ConnectionStatus>(TEST_ADDITIONAL, this.database, {params}).pipe(
          catchError((error: HttpErrorResponse) => {
             if(this.showTestMessage) {

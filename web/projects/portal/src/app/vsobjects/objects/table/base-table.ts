@@ -72,6 +72,7 @@ import { ShowHyperlinkService } from "../../show-hyperlink.service";
 import { CheckFormDataService } from "../../util/check-form-data.service";
 import { ViewerResizeService } from "../../util/viewer-resize.service";
 import { AbstractVSObject } from "../abstract-vsobject.component";
+import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { SelectableObject } from "../selectable-object";
 import { DetailDndInfo } from "./detail-dnd-info";
@@ -291,7 +292,8 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
                protected pagingControlService: PagingControlService,
                protected zone: NgZone,
                protected tabService: VSTabService,
-               @Optional() protected viewerResizeService: ViewerResizeService)
+               @Optional() protected viewerResizeService: ViewerResizeService,
+               protected adhocFilterService: AdhocFilterService)
    {
       super(viewsheetClient, zone, contextProvider, dataTipService);
       this.isBinding = contextProvider.binding;
@@ -348,6 +350,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       this.viewsheetClient.sendEvent(TABLE_MAX_MODE_URL, maxTableEvent);
       this.maxModeChange.emit({assembly: this.model.absoluteName, maxMode: true});
       this.dataTipService.hideDataTip();
+      this.adhocFilterService.hideAdhocFilter();
       this.model.selectedAnnotations = [];
    }
 
@@ -365,6 +368,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
       this.viewsheetClient.sendEvent(TABLE_MAX_MODE_URL, maxTableEvent);
       this.maxModeChange.emit({assembly: this.model.absoluteName, maxMode: false});
       this.dataTipService.hideDataTip();
+      this.adhocFilterService.hideAdhocFilter();
    }
 
    protected abstract showPagingControl(): void;
@@ -1903,7 +1907,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
          let placement: string;
 
          // change placement if the tooltip is out of bounds
-         if(x <= (window.innerWidth || document.documentElement.clientWidth)) {
+         if(x <= (window.innerWidth || document.documentElement.clientWidth) && !this.model.maxMode) {
             placement = "right";
          }
          else {

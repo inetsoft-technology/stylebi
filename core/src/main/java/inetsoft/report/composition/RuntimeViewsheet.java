@@ -456,6 +456,22 @@ public class RuntimeViewsheet extends RuntimeSheet {
          try {
             vs.update(getAssetRepository(), null, getUser());
             box.resetRuntime();
+
+            VSBookmarkInfo openedBookmark = getOpenedBookmark();
+
+            if(openedBookmark != null &&
+               !VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName()) &&
+               !VSBookmark.INITIAL_STATE.equals(openedBookmark.getName()) &&
+               containsEmbeddedVs(vs))
+            {
+               try {
+                  gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner());
+               }
+               catch(Exception e) {
+                  LOG.warn("Failed to go to bookmark after reset", e);
+               }
+            }
+
             initViewsheet(vs, true);
             lastReset = System.currentTimeMillis();
          }
@@ -463,6 +479,25 @@ public class RuntimeViewsheet extends RuntimeSheet {
             box.unlockWrite();
          }
       }
+   }
+
+   /**
+    * Check if the viewsheet contains embedded viewsheet.
+    * @param viewsheet
+    * @return
+    */
+   private boolean containsEmbeddedVs(Viewsheet viewsheet) {
+      if(viewsheet == null) {
+         return false;
+      }
+
+      for(Assembly assembly : viewsheet.getAssemblies()) {
+         if(assembly instanceof Viewsheet) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -978,6 +1013,12 @@ public class RuntimeViewsheet extends RuntimeSheet {
       return bookmarksMap.get(user.convertToKey());
    }
 
+   public void resetUserBookmark(String user) {
+      if(bookmarksMap.containsKey(user)) {
+         bookmarksMap.remove(user);
+      }
+   }
+
    /**
     * set specified user bookmark.
     */
@@ -1014,7 +1055,6 @@ public class RuntimeViewsheet extends RuntimeSheet {
    public void removeBookmark(String name, IdentityID user, boolean checkLock)
       throws Exception
    {
-      updateVSBookmark();
       String lockKey = VSBookmark.getLockKey(entry.toIdentifier(), user.convertToKey());
       Cluster cluster = Cluster.getInstance();
       cluster.lockKey(lockKey);
@@ -1042,6 +1082,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          bookmark.removeBookmark(name);
          AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
          rep.setVSBookmark(entry, bookmark, new XPrincipal(user));
+         updateVSBookmark();
          // delete the all locks of this bookmark
          unLockBookmark(name, user);
       }

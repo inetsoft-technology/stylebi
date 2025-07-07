@@ -42,10 +42,12 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.command.*;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.RefreshVSAssemblyEvent;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.service.*;
-import inetsoft.web.viewsheet.controller.table.BaseTableService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -478,6 +480,37 @@ public class VSRefreshService {
       dispatcher.sendCommand(pointCommand);
    }
 
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void refreshVsAssemblyView(@ClusterProxyKey String runtimeId, String assemblyName,
+                                     CommandDispatcher dispatcher, String linkUri,
+                                     Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+      if(rvs == null) {
+         return null;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs.getAssembly(assemblyName);
+
+      if(assembly != null) {
+         try {
+            coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
+
+            if(assembly instanceof TableDataVSAssembly) {
+               int rows = Math.max(assembly.getPixelSize().height / 16, 100);
+               BaseTableService.loadTableData(
+                  rvs, assembly.getAbsoluteName(), 0, 0, rows, linkUri, dispatcher);
+            }
+         }
+         catch(ExpiredSheetException e) {
+            LOG.warn("Viewsheet [{}] is expired.", runtimeId);
+         }
+      }
+
+      return null;
+   }
 
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
@@ -486,4 +519,6 @@ public class VSRefreshService {
    private final VSChartDataHandler chartDataHandler;
    private final ParameterService parameterService;
    private final ConcurrentMap<String, Boolean> pending = new ConcurrentHashMap<>();
+
+   private static final Logger LOG = LoggerFactory.getLogger(VSRefreshService.class);
 }

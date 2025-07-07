@@ -310,6 +310,17 @@ public class ScheduleDialogService {
       TimeConditionModel timeConditionModel = simpleScheduleDialogModel.timeConditionModel();
       String taskName = Optional.ofNullable(simpleScheduleDialogModel.taskName()).orElse("");
 
+      if(emailInfoModel != null && !emailInfoModel.matchLayout() && !SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents", ResourceAction.READ))
+      {
+         Catalog catalog = Catalog.getCatalog(principal);
+         MessageCommand messageCommand = new MessageCommand();
+         messageCommand.setMessage(catalog.getString("em.schedule.task.noExpandPermission"));
+         messageCommand.setType(MessageCommand.Type.ERROR);
+         commandDispatcher.sendCommand(messageCommand);
+         return null;
+      }
+
       if(scheduleManager.getScheduleTask(taskName) != null) {
          Catalog catalog = Catalog.getCatalog(principal);
          MessageCommand messageCommand = new MessageCommand();

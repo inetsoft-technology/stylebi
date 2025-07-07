@@ -100,6 +100,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
       AuthenticationProvider selectedProvider = getProviderByName(name);
       AuthenticationProviderModel.Builder builder = AuthenticationProviderModel.builder()
          .providerName(name)
+         .oldName(name)
          .dbProviderEnabled(enterprise)
          .customProviderEnabled(enterprise)
          .ldapProviderEnabled(!enterprise || !SUtil.isMultiTenant());
@@ -593,6 +594,21 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
          break;
       case DATABASE:
          provider = createDatabaseProvider(Objects.requireNonNull(model.dbProviderModel()));
+         String password = Objects.requireNonNull(model.dbProviderModel()).password();
+
+         // Replace placeholder password with real password
+         if(password.equals(DatabaseAuthenticationProvider.PLACEHOLDER_PASSWORD) &&
+            model.oldName() != null)
+         {
+            AuthenticationProvider oldProvider = getProviderByName(model.oldName());
+
+            if(oldProvider instanceof  DatabaseAuthenticationProvider) {
+               DatabaseAuthenticationProvider dbProvider = (DatabaseAuthenticationProvider) oldProvider;
+               String dbPassword = !dbProvider.isUseCredential() ? dbProvider.getDbPassword() : null;
+               ((DatabaseAuthenticationProvider) provider).setDbPassword(dbPassword);
+            }
+         }
+
          ((DatabaseAuthenticationProvider) provider).testConnection();
          break;
       case CUSTOM:

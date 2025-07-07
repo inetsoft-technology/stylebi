@@ -734,6 +734,10 @@ public class ViewsheetPropertyDialogService {
                   continue;
                }
 
+               if(isEmbeddedVSAssemblySourceBinding(vs, oldSourceInfo)) {
+                  continue;
+               }
+
                ((DataVSAssembly) assembly).setSourceInfo(null);
 
                // for calc table, remove its layout's cell bindings.
@@ -757,6 +761,22 @@ public class ViewsheetPropertyDialogService {
             }
          }
       }
+   }
+
+   private boolean isEmbeddedVSAssemblySourceBinding(Viewsheet vs, SourceInfo oldSourceInfo) {
+      if(oldSourceInfo.getType() != XSourceInfo.VS_ASSEMBLY) {
+         return false;
+      }
+
+      String source = VSUtil.getVSAssemblyBinding(oldSourceInfo.getSource());
+
+      if(source == null) {
+         return false;
+      }
+
+      VSAssembly sourceAssembly = vs.getAssembly(source);
+
+      return sourceAssembly != null && sourceAssembly.getViewsheet() != vs;
    }
 
    private void removeCalcBinding(CalcTableVSAssembly calc) {

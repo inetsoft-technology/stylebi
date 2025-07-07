@@ -256,7 +256,7 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
             label: () => "_#(js:composer.vs.action.helperText.menuAction.table)",
             icon: () => "edit-icon",
             enabled: () => false,
-            visible: () => true,
+            visible: () => this.menuActionHelperTextVisible,
             classes: () => "helper-text"
          }
       ]));

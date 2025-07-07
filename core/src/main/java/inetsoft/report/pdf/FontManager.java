@@ -28,6 +28,7 @@ import java.awt.*;
 import java.io.*;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Font manager loads font information from TrueType or AFM files.
@@ -91,6 +92,9 @@ public class FontManager {
       fontmap.put("helvetica", "Helvetica");
 
       refresh();
+      DataSpace.getDataSpace().addChangeListener("fonts", null, event -> {
+         debouncer.debounce("fonts", 500L, TimeUnit.MILLISECONDS, this::refresh);
+      });
    }
 
    /**
@@ -188,6 +192,7 @@ public class FontManager {
       DataSpace dataSpace = DataSpace.getDataSpace();
 
       if(dataSpace.exists(null, "fonts")) {
+         LOG.debug("Synchronizing fonts from data space");
          syncTrueTypeFonts(dataSpace, dir, null);
       }
    }
@@ -550,6 +555,7 @@ public class FontManager {
    private final Hashtable<String, File> ttFullMap = new Hashtable<>(); // full name -> file
    private final Hashtable<String, File> afmNameMap = new Hashtable<>(); // family name -> file
    private final Hashtable<String, File> afmFullMap = new Hashtable<>(); // full name -> file
+   private final Debouncer<String> debouncer = new DefaultDebouncer<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(FontManager.class);
 }

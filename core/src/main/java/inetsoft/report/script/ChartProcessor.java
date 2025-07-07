@@ -237,7 +237,7 @@ public class ChartProcessor extends ScriptableObject {
          "setContourEdgeAlpha", double.class, PlotDescriptor.class, plot);
       scriptable.addProperty("includeParentLabels", "isIncludeParentLabels",
          "setIncludeParentLabels", boolean.class, PlotDescriptor.class, plot);
-      scriptable.addProperty("ApplyAestheticsToSource", "isApplyAestheticsToSource",
+      scriptable.addProperty("applyAestheticsToSource", "isApplyAestheticsToSource",
          "setApplyAestheticsToSource", boolean.class, PlotDescriptor.class, plot);
 
       scriptable.addProperty("fillGapWithDash", "isFillGapWithDash",

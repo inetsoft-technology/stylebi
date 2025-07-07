@@ -106,6 +106,10 @@ public class VSChartAreasService {
             model = new VSChartModel.VSChartModelFactory().createModel(
                state.getAssembly(), state.getRuntimeViewsheet());
          }
+         catch(ExpiredSheetException e) {
+            LOG.warn("Viewsheet [{}] is expired.", state.getRuntimeViewsheet().getID());
+            return null;
+         }
          finally {
             box.unlockRead();
          }

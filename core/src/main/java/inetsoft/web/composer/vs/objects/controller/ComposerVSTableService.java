@@ -55,12 +55,11 @@ import inetsoft.web.viewsheet.event.table.ChangeVSTableCellsTextEvent;
 import inetsoft.web.viewsheet.handler.crosstab.CrosstabDrillHandler;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.messaging.handler.annotation.DestinationVariable;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -607,40 +606,10 @@ public class ComposerVSTableService {
    /**
     * Keep the new assembly position in containers.
     */
-   public static int convert(RuntimeViewsheet rvs, VSAssembly assembly, String oname,
-                             CommandDispatcher dispatcher)
+   public static void convert(RuntimeViewsheet rvs, VSAssembly assembly, String oname,
+                              CommandDispatcher dispatcher)
    {
-      int hint = 0;
-      VSAssembly container = assembly.getContainer();
-      int idx = 0;
-
-      if(container instanceof AbstractContainerVSAssembly) {
-         String[] assemblies = ((AbstractContainerVSAssembly) container).getAssemblies();
-
-         for(int i = 0; i < assemblies.length; i++) {
-            if(Tool.equals(oname, assemblies[i])) {
-               idx = i;
-               break;
-            }
-         }
-      }
-
-      VSEventUtil.removeVSObject(rvs, oname, dispatcher);
-
-      if(container instanceof AbstractContainerVSAssembly) {
-         AbstractContainerVSAssembly containerVSAssembly =
-            (AbstractContainerVSAssembly) container;
-         String[] assemblies = containerVSAssembly.getAssemblies();
-         List<String> list = new ArrayList<>(Arrays.asList(assemblies));
-         list.add(idx, oname);
-         containerVSAssembly.setAssemblies(list.toArray(new String[0]));
-      }
-
-      if(container instanceof TabVSAssembly) {
-         ((TabVSAssembly) container).setSelectedValue(oname);
-      }
-
-      return hint;
+      VSEventUtil.removeVSObject(rvs, oname, dispatcher, true);
    }
 
    /**

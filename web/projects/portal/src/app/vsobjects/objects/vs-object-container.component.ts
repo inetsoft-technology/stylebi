@@ -80,6 +80,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
    @Input() hideMiniToolbar: boolean = false;
    @Input() globalLoadingIndicator: boolean = false;
    @Input() virtualScrolling = false;
+   @Input() viewsheetLoading = false;
    @Output() public openContextMenu = new EventEmitter<{
       actions: AbstractVSActions<any>,
       event: MouseEvent
@@ -216,7 +217,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
 
    isAssemblyVisible(model: VSObjectModel): boolean {
       return !(this.context.viewer || this.context.preview) && !this.embeddedVS ||
-         model.visible && (!!model.container && model.active || !model.container) ||
+         model.visible && (!!model.container && model.active || !model.container) || !!(<any> model).adhocFilter ||
          this.dataTipService.isDataTipVisible(model.absoluteName) ||
          (!!model.container && this.dataTipService.isDataTipVisible(model.container));
    }
@@ -667,10 +668,12 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
                         vsRuntimeId: this.vsInfo.runtimeId,
                         assemblyName: vsObject.absoluteName
                      };
-                     this.viewsheetClient.sendEvent("/events/vs/refresh/assembly", event);
+                     this.viewsheetClient.sendEvent("/events/vs/refresh/assembly/view", event);
                   }
 
-                  this.renderedObjects.set(vsObject.absoluteName, newRendered);
+                  if(newRendered) {
+                     this.renderedObjects.set(vsObject.absoluteName, newRendered);
+                  }
                }
             }
          });

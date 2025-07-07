@@ -209,6 +209,21 @@ public class EmailDialogService {
       String subject = Tool.defaultIfNull(emailPaneModel.subject(), "");
       String body = Tool.defaultIfNull(emailPaneModel.message(), "");
       boolean isSendLink = Tool.defaultIfNull(fileFormatPaneModel.sendLink(), false);
+
+      if((!fileFormatPaneModel.matchLayout() || fileFormatPaneModel.expandSelections() ||
+         fileFormatPaneModel.onlyDataComponents()) &&
+         !SecurityEngine.getSecurity().checkPermission(principal,
+                                                       ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ExportExpandComponents",
+                                                       ResourceAction.READ))
+      {
+         return MessageDialogModel.builder()
+            .type(MessageCommand.Type.ERROR)
+            .success(false)
+            .message(Catalog.getCatalog().getString(
+               "viewer.viewsheet.email.noExpandPermission"))
+            .build();
+      }
+
       Catalog catalog = Catalog.getCatalog(principal);
 
       if(formatType == FileFormatInfo.EXPORT_TYPE_CSV) {

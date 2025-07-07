@@ -863,6 +863,10 @@ public class RealtimeTableMetaData extends TableMetaData {
          comps = new Comparator[columns.length];
 
          for(int i = 0; i < columns.length; i++) {
+            if(isDisposed()) {
+               return;
+            }
+
             ColumnMetaData cmeta = colmap.get(columns[i]);
 
             if(cmeta == null) {

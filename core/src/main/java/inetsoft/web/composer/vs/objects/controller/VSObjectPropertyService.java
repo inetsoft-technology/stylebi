@@ -1446,6 +1446,14 @@ public class VSObjectPropertyService {
             VSAssembly container = ((VSAssembly) assembly).getContainer();
             String aname = vsInfo.getAbsoluteName();
 
+            if(vsInfo instanceof GroupContainerVSAssemblyInfo) {
+               String[] groupAssemblies = ((GroupContainerVSAssemblyInfo) vsInfo).getAssemblies();
+
+               if(containsViewsheet(vs, groupAssemblies)) {
+                  continue;
+               }
+            }
+
             if(vsInfo.isEmbedded()) {
                int lastDot = aname.lastIndexOf(".");
                String containerName = aname.substring(0, lastDot);
@@ -1491,6 +1499,25 @@ public class VSObjectPropertyService {
 
       Collections.sort(result);
       return result.isEmpty() ? new String[0] : result.toArray(new String[0]);
+   }
+
+   private boolean containsViewsheet(Viewsheet vs, String[] assemblyIds) {
+      for(String assemblyId : assemblyIds) {
+         VSAssembly assembly = vs.getAssembly(assemblyId);
+
+         if(assembly instanceof Viewsheet) {
+            return true;
+         }
+         else if(assembly instanceof TabVSAssembly) {
+            String[] tabAssemblies = ((TabVSAssembly) assembly).getAssemblies();
+
+            if(containsViewsheet(vs, tabAssemblies)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    /**
@@ -1556,10 +1583,10 @@ public class VSObjectPropertyService {
          String[] assemblies = ((GroupContainerVSAssemblyInfo) vsInfo).getAbsoluteAssemblies();
 
          for(int i = 0; i < assemblies.length; i++) {
-            VSAssembly vsAssembly = ((VSAssembly) vs.getAssembly(assemblies[i]));
-
-            if(vsAssembly != null && supportAsDataTip(vs, vsAssembly, name, originalName,  true)) {
-               return true;
+            VSAssembly vsAssembly = vs.getAssembly(assemblies[i]);
+            
+            if(vsAssembly != null && !supportAsDataTip(vs, vsAssembly, name, originalName,  true)) {
+               return false;
             }
          }
 

@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div>
+<div class="vs-spinner">
   <input *ngIf="!showLabel && model"
          (click)="onClick($event)"
          (blur)="onBlur($event)"
@@ -51,8 +51,11 @@
          [style.word-wrap]="model.objectFormat.wrapping.wordWrap"
          [style.overflow]="model.objectFormat.wrapping.overflow"
          (mouseleave)="showLabel = true"
-         >
+         (mousedown)="$event.stopPropagation()">
   <div *ngIf="showLabel && model" class="text-label"
+       VSDataTip [dataTipName]="getAssemblyName()"
+       VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+       [popZIndex]="model.objectFormat.zIndex"
        [style.display]="getVisible() ? null : 'none'"
        [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
        [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"

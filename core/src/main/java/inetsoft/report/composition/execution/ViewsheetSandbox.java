@@ -5089,7 +5089,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       Object obj = dmap.get(name, type);
 
-      if(AssetDataCache.isDebugData() || isDataExpired(name, type)) {
+      if(AssetDataCache.isDebugData() || isDataExpired(name, type) ||
+         obj instanceof TableLens lens && AssetDataCache.isCancelled(lens))
+      {
          obj = null;
       }
 
@@ -5463,6 +5465,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(index >= 0) {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          name = name.substring(index + 1);
+
+         if(disposed) {
+            return;
+         }
+
          box.updateAssembly(name);
          return;
       }
@@ -6239,6 +6246,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(index >= 0) {
          ViewsheetSandbox box = getSandbox(name.substring(0, index));
          name = name.substring(index + 1);
+
+         if(disposed) {
+            return null;
+         }
+
          return box.getVGraphPair(name, init, maxsize, export, scaleFont, forceExpand, ignoreSize);
       }
 
@@ -6577,6 +6589,17 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       if(vsAssemblyBinding) {
          name = VSUtil.getVSAssemblyBinding(name);
+
+         Viewsheet viewsheet = getViewsheet();
+
+         if(viewsheet != null && !Tool.isEmptyString(viewsheet.getAbsoluteName())) {
+            String vsName = viewsheet.getAbsoluteName();
+            Viewsheet mainViewsheet = getMainViewsheet(viewsheet);
+
+            if(mainViewsheet.getAssembly(vsName + "." + name) != null) {
+               name = vsName + "." + name;
+            }
+         }
       }
 
       TableLens lens = getFormTableLens(name);
@@ -6597,6 +6620,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       }
 
       return lens;
+   }
+
+   private Viewsheet getMainViewsheet(Viewsheet viewsheet) {
+      while(viewsheet != null) {
+         Viewsheet parent = viewsheet.getViewsheet();
+
+         if(parent == null) {
+            return viewsheet;
+         }
+
+         viewsheet = parent;
+      }
+
+      return null;
    }
 
    /**

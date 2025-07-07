@@ -84,26 +84,29 @@ public class ScheduleTaskConditionService {
    public void deleteTaskCondition(String taskName, int[] items, Principal principal)
       throws Exception
    {
-      taskName = scheduleService.getTaskName(Tool.byteDecode(taskName), principal);
+      String decodedTaskName  = scheduleService.getTaskName(Tool.byteDecode(taskName), principal);
       Catalog catalog = Catalog.getCatalog(principal);
 
-      if(taskName == null || "".equals(taskName)) {
+      if(Tool.isEmptyString(decodedTaskName)) {
          throw new Exception(catalog.getString("em.scheduler.emptyTaskName"));
       }
 
-      ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+      ScheduleTask task = scheduleManager.getScheduleTask(decodedTaskName);
 
       if(task == null) {
          throw new Exception(catalog.getString(
-            "em.scheduler.taskNotFound", taskName));
+            "em.scheduler.taskNotFound", decodedTaskName));
       }
+
+      String saveTaskName = ScheduleManager.hasShareGroupPermission(task, principal) ?
+         Tool.byteDecode(taskName) : decodedTaskName;
 
       for(int i = 0; i < items.length; i++) {
          int index = items[i];
          task.removeCondition(index);
       }
 
-      scheduleService.saveTask(taskName, task, principal);
+      scheduleService.saveTask(saveTaskName, task, principal);
    }
 
    public ScheduleConditionModel[] saveTaskCondition(String taskName, String oldTaskName,

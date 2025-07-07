@@ -22,6 +22,7 @@ import { SecurityProviderType } from "./security-provider-type.enum";
 
 export interface AuthenticationProviderModel {
    providerName: string;
+   oldName?: string;
    dbProviderEnabled?: boolean;
    customProviderEnabled?: boolean;
    ldapProviderEnabled?: boolean;

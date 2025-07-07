@@ -357,7 +357,9 @@ String quoteDot(String str) {
    SQLHelper helper = SQLHelper.getSQLHelper(dx, (Principal) null);
    String quote = helper != null ? helper.getQuote() : "\"";
 
-   if(str.indexOf(".") > 0 || preferQuote && XUtil.isSpecialName(str, true, helper)) {
+   if(str.indexOf(".") > 0 || preferQuote && XUtil.isSpecialName(str, true, helper) &&
+      !XUtil.shouldNotQuote(str))
+   {
       return quote + strip(str) + quote;
    }
 

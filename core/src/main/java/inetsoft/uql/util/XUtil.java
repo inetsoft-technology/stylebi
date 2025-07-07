@@ -766,6 +766,14 @@ public final class XUtil {
       return length > 0 && Character.isDigit(str.charAt(0));
    }
 
+   public static final boolean shouldNotQuote(String str) {
+      if(str.startsWith("$(") && str.endsWith(")")) {
+         return true;
+      }
+
+      return false;
+   }
+
    /**
     * Quote one name segment.
     * @param name the specified table/column name.

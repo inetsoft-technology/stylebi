@@ -210,7 +210,7 @@ public class BrowseDataController {
          return null;
       }
 
-      String[][] data = bdata.getBrowsedData();
+      String[][] data = bdata.getBrowsedData(null, getDateOption(), false);
       data = data == null ? new String[0][0] : data;
       String[] values = data[0];
 
@@ -223,6 +223,21 @@ public class BrowseDataController {
          .values((Object[]) values)
          .labels((Object[]) labels)
          .build();
+   }
+
+   private int getDateOption() {
+      DataRef ref = column.getDataRef();
+
+      if(ref instanceof GroupRef && ((GroupRef) ref).getDataRef() instanceof ColumnRef) {
+         ColumnRef col = (ColumnRef) ((GroupRef) ref).getDataRef();
+
+         if(col.getDataRef() instanceof DateRangeRef) {
+            DateRangeRef rangeRef = (DateRangeRef) col.getDataRef();
+            return rangeRef.getDateOption();
+         }
+      }
+
+      return DateRangeRef.NONE_DATE_GROUP;
    }
 
    /**

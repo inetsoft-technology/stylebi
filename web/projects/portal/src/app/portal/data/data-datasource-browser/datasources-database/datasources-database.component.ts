@@ -35,6 +35,7 @@ import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of as observableOf, Subscription, throwError } from "rxjs";
 import { catchError, debounceTime, distinctUntilChanged, map, switchMap, tap } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
+import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 import {
    DataSourceEditorModel,
    DataSourceSettingsPage
@@ -134,9 +135,10 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
                private modalService: NgbModal,
                private featureFlagsService: FeatureFlagsService,
                private appInfoService: AppInfoService,
-               private gettingStartedService: GettingStartedService)
+               private gettingStartedService: GettingStartedService,
+               stompClient: StompClientService)
    {
-      super(httpClient);
+      super(httpClient, stompClient);
    }
 
    ngOnInit() {
@@ -212,6 +214,10 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
       this.refreshDefaultTestQuery();
    }
 
+   isCreateDB(): boolean {
+      return this.originalModel.path == "/";
+   }
+
    updateAdditionalList() {
       if(this.additionalVisible) {
          this.additionalList = [];
@@ -279,7 +285,7 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
 
    createDriver(): void {
       ComponentTool.showDialog(this.modalService, DriverWizardComponent,
-         () => this.refreshDrivers(), {size: "lg", backdrop: "static"});
+         () => {}, {size: "lg", backdrop: "static"});
    }
 
    /**

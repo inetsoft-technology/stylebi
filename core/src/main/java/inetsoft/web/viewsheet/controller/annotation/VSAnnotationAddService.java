@@ -80,6 +80,7 @@ public class VSAnnotationAddService {
       final AnnotationVSAssembly annotation =
          (AnnotationVSAssembly) VSEventUtil.createVSAssembly(rvs, Viewsheet.ANNOTATION_ASSET);
       assert annotation != null;
+      VSUtil.updateEmbeddedVSAnnotationZIndex(annotation, parentAssembly);
       final AnnotationVSAssemblyInfo ainfo =
          (AnnotationVSAssemblyInfo) annotation.getVSAssemblyInfo();
       AnnotationLineVSAssemblyInfo linfo = null;
