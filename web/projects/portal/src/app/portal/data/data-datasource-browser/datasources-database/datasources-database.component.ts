@@ -214,6 +214,10 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
       this.refreshDefaultTestQuery();
    }
 
+   isCreateDB(): boolean {
+      return this.originalModel.path == "/";
+   }
+
    updateAdditionalList() {
       if(this.additionalVisible) {
          this.additionalList = [];

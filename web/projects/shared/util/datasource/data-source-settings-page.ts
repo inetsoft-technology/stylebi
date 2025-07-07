@@ -160,6 +160,10 @@ export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
       return !this.database?.authentication?.useCredentialId;
    }
 
+   isCreateDB(): boolean {
+      return false;
+   }
+
    constructor(protected http: HttpClient, private stompClient: StompClientService) {
    }
 
@@ -294,7 +298,7 @@ export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
     * Send request to save the database on the server then close page.
     */
    saveDatabase(): void {
-      let params = new HttpParams().set("path", this.model.path);
+      let params = new HttpParams().set("path", this.model.path).set("create", this.isCreateDB());
       let settingModel = Tool.clone(this.model.settings);
 
       if(!this.needSave()) {
@@ -321,6 +325,9 @@ export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
          }
          else if(connection && connection.status === "Duplicate Folder") {
             this.showMessage("_#(js:em.data.databases.duplicateFolder)");
+         }
+         else if(connection && connection.status === "Datasource Lost") {
+            this.showMessage("_#(js:data.datasources.saveDataSourceLost)");
          }
          else {
             this.afterDatabaseSave();
