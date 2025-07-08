@@ -67,7 +67,9 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
       addProperty("viewsheetAlias", null);
 
       if(!ViewsheetScope.VIEWSHEET_SCRIPTABLE.equals(assembly)) {
-         ViewsheetSandbox myBox = box.getSandbox(getVSAssembly().getAbsoluteName());
+         String vsName =
+            getVSAssembly().getViewsheet() == null ? assembly : getVSAssembly().getAbsoluteName();
+         ViewsheetSandbox myBox = box.getSandbox(vsName);
          // thisParameter points to parameters in the embedded vs instead of the containing vs
          addProperty("thisParameter", new VariableScriptable(myBox.getVariableTable()));
       }
