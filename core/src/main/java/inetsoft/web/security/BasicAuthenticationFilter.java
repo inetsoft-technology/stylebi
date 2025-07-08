@@ -136,6 +136,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
             boolean firstLogin = "true".equals(httpRequest.getHeader("FirstLogin"));
 
             HttpSession session = httpRequest.getSession(false);
+            String headerOrgID = httpRequest.getHeader("X-Inetsoft-Organization-ID");
 
             if(session != null) {
                Principal principal = SUtil.getPrincipal(httpRequest);
@@ -145,7 +146,8 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
 
                if(pId != null && (pId.name.equals(userKey) &&
                   (loginAsUserKey == null || loginAsUserKey.isEmpty() ||
-                     loginAsUserKey.equals(pId.convertToKey()) || loginAsUserKey.equals(pId.name))))
+                     loginAsUserKey.equals(pId.convertToKey()) || loginAsUserKey.equals(pId.name))) &&
+                  (headerOrgID == null || headerOrgID.isEmpty() || headerOrgID.equals(pId.orgID)))
                {
                   authorized = true;
                }
@@ -161,9 +163,26 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                   boolean loginAs = "on".equals(SreeEnv.getProperty("login.loginAs"))
                      && !provider.isVirtual();
                   Cookie[] cookies = ((HttpServletRequest) request).getCookies();
-                  String recordedOrgID = cookies == null ? Organization.getDefaultOrganizationID() :
+                  Cookie orgCookie = cookies == null ? null :
                      Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
-                        .map(Cookie::getValue).findFirst().orElse(Organization.getDefaultOrganizationID());
+                        .findFirst().orElse(null);
+
+                  if(headerOrgID != null &&
+                     (orgCookie == null || !orgCookie.getValue().equals(headerOrgID)))
+                  {
+                     orgCookie = new Cookie(ORG_COOKIE, headerOrgID);
+                     final String sameSite = SreeEnv.getProperty("same.site", "Lax");
+
+                     if(isSecurityAllowIframe() || "none".equalsIgnoreCase(sameSite)) {
+                        orgCookie.setAttribute("SameSite", "None");
+                        orgCookie.setSecure(true);
+                     }
+
+                     ((HttpServletResponse) response).addCookie(orgCookie);
+                  }
+
+                  String recordedOrgID = orgCookie == null ?
+                     Organization.getDefaultOrganizationID() : orgCookie.getValue();
 
                   if(!SUtil.isMultiTenant()) {
                      recordedOrgID = Organization.getDefaultOrganizationID();
