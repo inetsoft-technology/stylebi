@@ -349,7 +349,7 @@ export class TableActions extends BaseTableActions<VSTableModel> {
 
    private get filterVisible(): boolean {
       return !this.binding && (!this.viewer && !this.preview || this.model.adhocFilterEnabled) &&
-         !this.model.maxMode && !this.model.titleSelected && this.oneCellSelected &&
+         !this.model.titleSelected && this.oneCellSelected &&
          !this.model.form && !this.model.embedded &&
          this.model.sourceType !== SourceInfoType.VS_ASSEMBLY;
    }

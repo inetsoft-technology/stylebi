@@ -710,7 +710,7 @@ export class CrosstabActions extends BaseTableActions<VSCrosstabModel> {
 
    private get filterVisible(): boolean {
       if(this.binding || !this.oneCellSelected || this.model.titleSelected ||
-         this.model.maxMode || !this.model.selectedRegions ||
+         !this.model.selectedRegions ||
          this.model.selectedRegions.length === 0 ||
          this.model.sourceType === SourceInfoType.VS_ASSEMBLY)
       {
