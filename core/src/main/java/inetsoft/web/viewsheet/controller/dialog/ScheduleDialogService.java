@@ -321,7 +321,12 @@ public class ScheduleDialogService {
          return null;
       }
 
-      if(scheduleManager.getScheduleTask(taskName) != null) {
+      if(emailInfoModel != null && (!emailInfoModel.matchLayout() ||
+         emailInfoModel.expandSelections() || emailInfoModel.onlyDataComponents())
+         && !SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
+         ResourceAction.READ))
+      {
          Catalog catalog = Catalog.getCatalog(principal);
          MessageCommand messageCommand = new MessageCommand();
          messageCommand.setMessage(catalog.getString("em.schedule.task.duplicateName"));

@@ -1381,7 +1381,6 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    private final Lock cacheLock = new ReentrantLock();
    private DbSecurityCache securityCache;
    private final ThreadLocal<Boolean> ignoreCache = ThreadLocal.withInitial(() -> false);
-   public static final String PLACEHOLDER_PASSWORD = "**********";
 
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationProvider.class);
 

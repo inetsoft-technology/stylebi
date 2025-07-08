@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -301,6 +302,7 @@ public class SchedulerConfigurationService {
       }
       else {
          ArrayList<String> paths = new ArrayList<>();
+         Map<String, String> oldPwdMap = getPwdMap();
 
          for(ServerLocation location : locations) {
             String path = location.path();
@@ -326,8 +328,12 @@ public class SchedulerConfigurationService {
                   else {
                      String username =
                         !Tool.isEmptyString(infoModel.username()) ? infoModel.username() : null;
-                     String password = username != null &&
-                        !Tool.isEmptyString(infoModel.password()) ? infoModel.password() : null;
+                     String password = infoModel.password();
+
+                     if(Util.PLACEHOLDER_PASSWORD.equals(password) && infoModel.oldPasswordKey() != null) {
+                        password = oldPwdMap.get(infoModel.oldPasswordKey());
+                     }
+
                      pathInfo.append(path).append("|").append(label);
 
                      if(username != null) {
@@ -346,6 +352,29 @@ public class SchedulerConfigurationService {
          String property = String.join(";", paths);
          SreeEnv.setProperty("server.save.locations", property);
       }
+   }
+
+   private Map<String, String> getPwdMap() {
+      HashMap map = new HashMap();
+      String val = SreeEnv.getProperty("server.save.locations");
+
+      if(Tool.isEmptyString(val)) {
+         return map;
+      }
+
+      String[] paths = val.split(";");
+
+      for(int i = 0; i < paths.length; i++) {
+         String path = paths[i];
+         String[] parts = path.split("\\|");
+
+         if(parts.length == 4) {
+            String pwd = parts[3];
+            map.put(Tool.buildString(parts[0], parts[1], parts[2]), pwd);
+         }
+      }
+
+      return map;
    }
 
    private final ScheduleClient scheduleClient;

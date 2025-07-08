@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.schedule;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.Builder;
 import inetsoft.report.io.ExportType;
 import inetsoft.sree.*;
@@ -25,7 +24,6 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.*;
@@ -40,7 +38,6 @@ import inetsoft.util.dep.XAsset;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.model.ExportFormatModel;
 import inetsoft.web.admin.general.model.model.SMTPAuthType;
-import inetsoft.web.admin.model.NameLabelTuple;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeConditionModel;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeRangeModel;
@@ -529,6 +526,18 @@ public class ScheduleTaskService {
                IndividualAssetBackupAction backupAction = (IndividualAssetBackupAction) action;
 
                renameBackupAction(backupAction, task.getPath(), oldTaskName, taskName);
+            }
+            else if(action instanceof ViewsheetAction) {
+               ViewsheetAction vsAction = (ViewsheetAction) action;
+
+               if((!vsAction.isMatchLayout() || vsAction.isExpandSelections() ||
+                  vsAction.isOnlyDataComponents()) &&
+                  !SecurityEngine.getSecurity().checkPermission(principal,
+                  ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
+                  ResourceAction.READ))
+               {
+                  throw new Exception(catalog.getString("em.schedule.task.noExpandPermission"));
+               }
             }
 
             if(i >= task.getActionCount()) {

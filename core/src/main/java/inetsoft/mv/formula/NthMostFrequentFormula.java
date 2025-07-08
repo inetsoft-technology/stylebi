@@ -210,11 +210,12 @@ public class NthMostFrequentFormula
          NthMostFrequentFormula nmf = (NthMostFrequentFormula) super.clone();
          nmf.def = def;
          nmf.map = new Double2IntOpenHashMap(map);
+
+         return nmf;
       }
       catch(Exception e) {
          LOG.error("Failed to clone object", e);
       }
-
 
       return null;
    }

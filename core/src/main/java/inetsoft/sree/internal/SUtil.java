@@ -3215,10 +3215,11 @@ public class SUtil {
             ServerPathInfoModel pathInfoModel = ServerPathInfoModel.builder()
                .path(path)
                .username(username)
-               .password(password)
+               .password(Util.PLACEHOLDER_PASSWORD)
                .secretId(secretId)
                .useCredential(useSecretId)
                .ftp(!Tool.isEmptyString(username) || !Tool.isEmptyString(secretId))
+               .oldPasswordKey(Tool.buildString(path, label, username))
                .build();
             locations.add(ServerLocation.builder().path(path).label(label).pathInfoModel(pathInfoModel).build());
          }
