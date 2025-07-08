@@ -566,18 +566,21 @@ public class JDBCQuery extends XQuery {
 
    private void fixUserVariables(SQLDefinition sqlDefinition) {
       if(sqlDefinition instanceof UniformSQL) {
-         fixXFilterVariable(((UniformSQL) sqlDefinition).getWhere());
-         fixXFilterVariable(((UniformSQL) sqlDefinition).getHaving());
+         fixXFilterVariable(((UniformSQL) sqlDefinition).getWhere(), sqlDefinition.getSelection());
+         fixXFilterVariable(((UniformSQL) sqlDefinition).getHaving(), sqlDefinition.getSelection());
       }
    }
 
-   private void fixXFilterVariable(XFilterNode xFilterNode) {
+   private void fixXFilterVariable(XFilterNode xFilterNode, XSelection selection) {
       if(xFilterNode == null) {
          return;
       }
 
       if(xFilterNode instanceof XBinaryCondition ) {
-         fixConditionVariable((XBinaryCondition) xFilterNode);
+         fixConditionVariable((XBinaryCondition) xFilterNode, selection);
+      }
+      else if(xFilterNode instanceof XTrinaryCondition trinaryCondition) {
+         fixConditionVariable(trinaryCondition, selection);
       }
       else if(xFilterNode instanceof XSet) {
          XSet conditions = (XSet) xFilterNode;
@@ -587,10 +590,10 @@ public class JDBCQuery extends XQuery {
             XNode condition = conditions.getChild(i);
 
             if(condition instanceof XBinaryCondition) {
-               fixConditionVariable((XBinaryCondition) condition);
+               fixConditionVariable((XBinaryCondition) condition, selection);
             }
             else if(condition instanceof XSet) {
-               fixXFilterVariable((XSet) condition);
+               fixXFilterVariable((XSet) condition, selection);
             }
          }
       }
@@ -601,8 +604,31 @@ public class JDBCQuery extends XQuery {
     * and update variable type.
     * @param condition
     */
-   private void fixConditionVariable(XBinaryCondition condition) {
-      Object value = condition.getExpression2().getValue();
+   private void fixConditionVariable(XBinaryCondition condition, XSelection selection) {
+      fixConditionVariable(condition.getExpression1(), condition.getExpression2(),
+         condition.getOp(), selection);
+   }
+
+   /**
+    * Make the variable can set multiple values when it is used in the condition that`s op is IN,
+    * and update variable type.
+    * @param condition
+    */
+   private void fixConditionVariable(XTrinaryCondition condition, XSelection selection) {
+      fixConditionVariable(condition.getExpression1(), condition.getExpression2(),
+                           condition.getOp(), selection);
+      fixConditionVariable(condition.getExpression1(), condition.getExpression3(),
+                           condition.getOp(), selection);
+   }
+
+   private void fixConditionVariable(XExpression fieldExpression, XExpression valueExpression,
+                                     String op, XSelection selection)
+   {
+      if(fieldExpression == null || valueExpression == null) {
+         return;
+      }
+
+      Object value = valueExpression.getValue();
 
       if(value instanceof String) {
          String varName = getVarName((String) value);
@@ -612,22 +638,29 @@ public class JDBCQuery extends XQuery {
          }
 
          XVariable var = getVariable(varName);
-         String type = condition.getExpression1().getType();
+         String type = fieldExpression.getType();
 
          if(var instanceof UserVariable) {
             UserVariable userVariable = (UserVariable) var;
 
-            if("IN".equals(condition.getOp())) {
+            if("IN".equals(op)) {
                userVariable.setMultipleSelection(true);
             }
 
             if(XExpression.FIELD.equals(type)) {
-               Object value1 = condition.getExpression1().getValue();
+               Object value1 = fieldExpression.getValue();
                UniformSQL uniformSQL = (UniformSQL) this.sql;
                XField field = uniformSQL.getFieldByPath((String) value1);
 
                if(field != null) {
                   userVariable.setTypeNode(XSchema.createPrimitiveType(field.getType()));
+               }
+               else if(selection != null) {
+                  String fieldType = selection.getType((String) value1);
+
+                  if(fieldType != null) {
+                     userVariable.setTypeNode(XSchema.createPrimitiveType(fieldType));
+                  }
                }
             }
          }
