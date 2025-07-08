@@ -70,16 +70,16 @@ class ModeFormulaTest {
       assertEquals(0.0, formula.getDoubleResult());
    }
 
-//   @Test
-//   void testClone() {
-//      formula.addValue(1.0);
-//      formula.addValue(2.0);
-//
-//      ModeFormula clonedFormula = (ModeFormula) formula.clone(); //bug #71786
-//      assertNotNull(clonedFormula);
-//      assertEquals(formula.getDisplayName(), clonedFormula.getDisplayName());
-//      assertEquals(formula.getResult(), clonedFormula.getResult());
-//   }
+   @Test
+   void testClone() {
+      formula.addValue(1.0);
+      formula.addValue(2.0);
+
+      ModeFormula clonedFormula = (ModeFormula) formula.clone(); //bug #71786
+      assertNotNull(clonedFormula);
+      assertEquals(formula.getDisplayName(), clonedFormula.getDisplayName());
+      assertEquals(formula.getResult(), clonedFormula.getResult());
+   }
 
    @Test
    void testGetDisplayName() {
