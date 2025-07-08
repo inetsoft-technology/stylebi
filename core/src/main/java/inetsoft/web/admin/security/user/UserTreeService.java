@@ -426,9 +426,10 @@ public class UserTreeService {
    EditGroupPaneModel createGroup(String selectedProvider, String parentGroup, Principal principal)
    {
       SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
-            "*", ResourceAction.ADMIN))
+                                           IdentityID.getIdentityRootResorucePath(currOrgId), ResourceAction.ADMIN))
       {
          return null;
       }
@@ -665,9 +666,10 @@ public class UserTreeService {
     */
    EditUserPaneModel createUser(String providerName, String parentGroup, Principal principal) {
       SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(!securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
-            "*", ResourceAction.ADMIN))
+                                           IdentityID.getIdentityRootResorucePath(currOrgId), ResourceAction.ADMIN))
       {
          return null;
       }
