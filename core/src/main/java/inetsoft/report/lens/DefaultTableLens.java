@@ -322,7 +322,7 @@ public class DefaultTableLens extends AttributeTableLens {
       insertRow(fontmap, row, n);
 
       // adjust header/trailer row count if necessary
-      if(row < getHeaderRowCount() && row + n <= getHeaderRowCount()) {
+      if(row + n <= getHeaderRowCount()) {
          setHeaderRowCount(getHeaderRowCount() + n);
       }
 
