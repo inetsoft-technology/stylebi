@@ -111,6 +111,10 @@ export abstract class AbstractVSObject<T extends VSObjectModel> extends CommandP
          if(maxObj && this.model.container && this.model.container == maxObj.absoluteName) {
             return true;
          }
+
+         if(maxObj && !!(this.model as any).adhocFilter) {
+            return true;
+         }
       }
 
       return !this.viewer && !this.embeddedVS || this.model.visible &&
