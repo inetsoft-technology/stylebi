@@ -76,8 +76,10 @@ public class ScheduleCycleService {
    public ScheduleCycleDialogModel getDialogModel(String cycleName, Principal principal)
       throws Exception
    {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
       if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
-                                         cycleName, ResourceAction.ACCESS))
+            getCyclePermissionID(cycleName, orgId), ResourceAction.ACCESS))
       {
          throw new SecurityException(catalog.getString("em.scheduler.cycle.unauthorized", cycleName));
       }
@@ -85,7 +87,6 @@ public class ScheduleCycleService {
       int index = cycleName.indexOf(":");
       String label = index != -1 ? cycleName.substring(index + 1) : cycleName;
       String zoneName = Calendar.getInstance().getTimeZone().getDisplayName();
-      String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       List<String> conditions = dataCycleManager.getConditions(cycleName, orgId).stream()
          .map(ScheduleCondition::toString)
@@ -198,15 +199,15 @@ public class ScheduleCycleService {
 
       try {
          String oldName = model.name();
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
          if(!securityEngine.checkPermission(principal, ResourceType.SCHEDULE_CYCLE,
-                                            oldName, ResourceAction.ACCESS))
+               getCyclePermissionID(oldName, orgId), ResourceAction.ACCESS))
          {
             catalog.getString("em.scheduler.cycle.unauthorized", oldName);
          }
 
          String newName = model.label();
-         String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
          IdentityID identity = IdentityID.getIdentityIDFromKey(principal.getName());
          actionRecord.setObjectName(newName);
          actionRecord.setObjectUser(identity.name);
