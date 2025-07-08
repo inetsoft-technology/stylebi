@@ -401,8 +401,11 @@ public class ScheduleDialogController {
       TimeConditionModel timeConditionModel = simpleScheduleDialogModel.timeConditionModel();
       String taskName = Optional.ofNullable(simpleScheduleDialogModel.taskName()).orElse("");
 
-      if(emailInfoModel != null && !emailInfoModel.matchLayout() && !SecurityEngine.getSecurity().checkPermission(
-         principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents", ResourceAction.READ))
+      if(emailInfoModel != null && (!emailInfoModel.matchLayout() ||
+         emailInfoModel.expandSelections() || emailInfoModel.onlyDataComponents())
+         && !SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "ScheduleExpandComponents",
+         ResourceAction.READ))
       {
          Catalog catalog = Catalog.getCatalog(principal);
          MessageCommand messageCommand = new MessageCommand();
