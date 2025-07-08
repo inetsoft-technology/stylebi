@@ -19,10 +19,12 @@ package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SingletonRunnableTask;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * {@code LoadKeyValueTask} is a cluster singleton task that loads the content of a key-value store
@@ -55,6 +57,8 @@ public class LoadKeyValueTask<T extends Serializable>
 
    @Override
    public void run() {
+      Logger logger = LoggerFactory.getLogger(LoadKeyValueTask.class);
+
       try {
          Map<String, T> map = getMap();
 
@@ -62,6 +66,14 @@ public class LoadKeyValueTask<T extends Serializable>
             Map<String, T> temp = new TreeMap<>();
             getEngine().<T>stream(getId())
                .forEach(p -> temp.put(p.getKey(), p.getValue()));
+
+            if(logger.isDebugEnabled()) {
+               String keys = temp.keySet()
+                  .stream()
+                  .sorted()
+                  .collect(Collectors.joining(";"));
+               logger.debug("Loaded keys from {}: {}", getId(), keys);
+            }
 
             if(temp.isEmpty()) {
                Class<T> valueClass = initialize(temp);
@@ -84,8 +96,7 @@ public class LoadKeyValueTask<T extends Serializable>
          }
       }
       catch(Exception e) {
-         LoggerFactory.getLogger(getClass())
-            .error("Failed to load key-value storage '{}'", getId(), e);
+         logger.error("Failed to load key-value storage '{}'", getId(), e);
       }
    }
 
