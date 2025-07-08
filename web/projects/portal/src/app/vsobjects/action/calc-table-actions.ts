@@ -92,7 +92,6 @@ export class CalcTableActions extends BaseTableActions<VSCalcTableModel> {
             enabled: () => true,
             visible: () => !this.annotationsSelected &&
                !this.binding && !this.model.titleSelected && this.oneCellSelected &&
-               !this.model.maxMode &&
                (!(this.viewer || this.preview) || this.model.adhocFilterEnabled) &&
                this.model.sourceType !== SourceInfoType.VS_ASSEMBLY &&
                this.selectedCellBindingType === 2 // not text nor formula
