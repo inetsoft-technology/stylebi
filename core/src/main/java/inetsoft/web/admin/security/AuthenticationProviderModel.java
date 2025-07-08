@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.security.AuthenticationProvider;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.sree.security.ldap.*;
@@ -109,7 +110,7 @@ public abstract class AuthenticationProviderModel {
                .useCredential(provider.isUseCredential())
                .secretId(provider.isUseCredential() ? provider.getSecretId() : null)
                .user(!provider.isUseCredential() ? provider.getDbUser() : null)
-               .password(DatabaseAuthenticationProvider.PLACEHOLDER_PASSWORD)
+               .password(Util.PLACEHOLDER_PASSWORD)
                .hashAlgorithm(provider.getHashAlgorithm())
                .userQuery(provider.getUserQuery())
                .userListQuery(provider.getUserListQuery())
