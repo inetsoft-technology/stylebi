@@ -2978,16 +2978,46 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
       }
 
+      int[] carr = cols.stream().mapToInt(i -> i).toArray();
+
       if(cols.size() != selection.getAttributeCount() && base.isDynamicColumns()) {
          // Bug #71756, for tables with dynamic columns (e.g. JSON data), the runtime data may be
          // different structurally from that originally bound due to parameterization. If the base
-         // table does not contain all of the columns from the saved selection, just return the
-         // entire base table as-is.
-         return base;
+         // table does not contain all of the columns from the saved selection, just add the
+         // missing columns to the end of the column mapping array
+         carr = addMissingColumns(carr, selection.getAttributeCount());
       }
 
-      int[] carr = cols.stream().mapToInt(i -> i).toArray();
       return PostProcessor.mapColumn(base, carr);
+   }
+
+   private int[] addMissingColumns(int[] carr, int fullSize) {
+      int[] ncarr = Arrays.copyOf(carr, fullSize);
+      int col = 0;
+
+      for(int i = carr.length; i < ncarr.length; i++) {
+         while(col < ncarr.length) {
+            boolean distinctCol = true;
+
+            for(int j = 0; j < i; j ++) {
+               if(ncarr[j] == col) {
+                  distinctCol = false;
+                  break;
+               }
+            }
+
+            if(distinctCol) {
+               ncarr[i] = col;
+               col ++;
+               break;
+            }
+            else {
+               col ++;
+            }
+         }
+      }
+
+      return ncarr;
    }
 
    /**
