@@ -482,9 +482,6 @@ public class DataSetService {
          }
       }
 
-      boolean canWorksheet = securityProvider.checkPermission(
-         principal, ResourceType.WORKSHEET, "*", ResourceAction.ACCESS);
-
       return WorksheetBrowserInfo.builder()
          .name(entry.getAlias() == null || entry.getAlias().isEmpty() ?
                   entry.getName() : entry.getAlias())
