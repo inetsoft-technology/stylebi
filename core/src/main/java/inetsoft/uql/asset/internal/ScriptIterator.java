@@ -348,6 +348,7 @@ public class ScriptIterator {
       int schar = forward ? '[' : ']';
       int echar = forward ? ']' : '[';
       int bcount = 0;
+      int bracketCount = 0;
       char[] sarr = script.toCharArray(); // optimization
 
       for(int i = forward ? pos + 1 : pos - 1; i >= 0 && i < sarr.length;
@@ -366,11 +367,20 @@ public class ScriptIterator {
             }
 
             spos = i;
+            bracketCount = 1;
+            continue;
          }
 
-         if(c == echar) {
-            epos = i;
-            break;
+         if(c == schar) {
+            bracketCount++;
+         }
+         else if (c == echar) {
+            bracketCount--;
+
+            if(bracketCount == 0) {
+               epos = i;
+               break;
+            }
          }
       }
 
@@ -389,8 +399,9 @@ public class ScriptIterator {
          return new Token(Token.DOUBLE_REF, sub.substring(1, sub.length() - 1),
                           sub.length() + bcount + 2);
       }
-
-      return null;
+      else {
+         return new Token(Token.TEXT, sub, sub.length());
+      }
    }
 
    /**
