@@ -2804,7 +2804,9 @@ public class CrossTabFilter extends AbstractTableLens
                }
             }
 
-            boolean eval = condition.evaluate(values);
+            boolean eval = !isConditionOnColHeader() ?
+               condition.evaluate(values) :
+               condition.evaluate(ArrayUtils.addAll(ctuple.getRow(), rtuple.getRow(), values));
 
             if(eval) {
                rdvec.add(rtuple);
@@ -6695,6 +6697,14 @@ public class CrossTabFilter extends AbstractTableLens
       this.calcTotal = calcTotal;
    }
 
+   public boolean isConditionOnColHeader() {
+      return conditionOnColHeader;
+   }
+
+   public void setConditionOnColHeader(boolean conditionOnColHeader) {
+      this.conditionOnColHeader = conditionOnColHeader;
+   }
+
    /**
     * Crosstab data descriptor.
     */
@@ -7201,6 +7211,7 @@ public class CrossTabFilter extends AbstractTableLens
    private int dcDataRefHeaderIndex = -1;
    private List<CalcColumn> calcs = null;
    private boolean calcTotal;
+   private boolean conditionOnColHeader = false; // Flag for applying condition to crosstab column header
    private Map<String, String> calcMeasureMap = new HashMap<>();
    private transient Map<Integer, CalcColumn> aggCalcMap = new HashMap<>();
 

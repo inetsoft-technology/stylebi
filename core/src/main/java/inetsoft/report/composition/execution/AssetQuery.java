@@ -2332,6 +2332,28 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
          }
 
+         ConditionListWrapper postConditionList = getPostConditionList();
+         AggregateInfo aggInfo = getTable().getAggregateInfo();
+
+         if(!postConditionList.isEmpty() && aggInfo != null && aggInfo.isCrosstab()) {
+            stable.setConditionOnColHeader(true);
+            stable.setCondition(new ConditionGroup(postConditionList.getConditionList(), (name) -> {
+               for(int i = 0; i < groups.length; i++) {
+                  if(groups[i].getName().equals(name)) {
+                     return i;
+                  }
+               }
+
+               for(int i = 0; i < aggregates.length; i++) {
+                  if(aggregates[i].getName().equals(name)) {
+                     return i + groups.length;
+                  }
+               }
+
+               return -1;
+            }));
+         }
+
          // apply sort order
          for(int i = 0; i < colist.size(); i++) {
             SortOrder order = colist.get(i);
