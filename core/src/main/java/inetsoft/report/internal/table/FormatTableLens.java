@@ -882,8 +882,10 @@ public abstract class FormatTableLens extends AttributeTableLens
    }
 
    private Color getPriorityColor(Point cell1, Point cell2, Color c1, Color c2, Color def) {
-      int cellType1 = getCellDataPath(cell1.y, cell1.x).getType();
-      int cellType2 = getCellDataPath(cell2.y, cell2.x).getType();
+      TableDataPath path1 = getCellDataPath(cell1.y, cell1.x);
+      TableDataPath path2 = getCellDataPath(cell2.y, cell2.x);
+      int cellType1 = path1 != null ? path1.getType() : -1;
+      int cellType2 = path2 != null ? path2.getType() : -1;
 
       if(cellType1 == cellType2) {
          return mergeLineColor(c1, c2, def);
