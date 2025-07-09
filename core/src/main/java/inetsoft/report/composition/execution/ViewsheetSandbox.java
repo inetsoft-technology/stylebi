@@ -1544,6 +1544,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       List vlist = clist.getViewList();
       List<Assembly> currentSelections = new ArrayList<>();
+      List<String> thisParameterScriptAssemblies = new ArrayList<>();
 
       // when reset assemblies, execute view here?
       for(int i = 0; i < vlist.size(); i++) {
@@ -1555,10 +1556,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
                //  If the assembly script was executed earlier before the viewsheet's onInit
                //  do not execute it again
-               if(!(info instanceof ViewsheetVSAssemblyInfo) || !(info.isScriptEnabled() && info.getScript() != null &&
+               if(!(info.isScriptEnabled() && info.getScript() != null &&
                   info.getScript().contains("thisParameter")))
                {
                   executeView(entry.getName(), false, initing);
+               }
+               else {
+                  thisParameterScriptAssemblies.add(entry.getName());
                }
 
                Assembly assembly = vs.getAssembly(entry);
@@ -1647,6 +1651,40 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             // like before.
             clist.mergeCore(clist2);
             clist.mergeFilters(clist2);
+         }
+      }
+
+      for(int i = 0; i < thisParameterScriptAssemblies.size(); i++) {
+         String assemblyName = thisParameterScriptAssemblies.get(i);
+
+         try {
+            executeView(assemblyName, false, initing);
+         }
+         catch(Exception ex) {
+            if(!(ex instanceof ConfirmException)) {
+               if(isCancelled(ts)) {
+                  LOG.debug("Viewsheet cancelled: {}, {}", vname, entry.getName(), ex);
+                  return;
+               }
+               else if(LOG.isDebugEnabled()) {
+                  LOG.warn("Failed to execute view on: {}, {}", vname, entry.getName(), ex);
+               }
+               else {
+                  LOG.warn("Failed to execute view on: {}, {} reason: {}",
+                           vname, entry.getName(), ex.getMessage());
+               }
+            }
+
+            List<Exception> exs = WorksheetService.ASSET_EXCEPTIONS.get();
+
+            if(ex instanceof ConfirmDataException && entry != null) {
+               ConfirmDataException cex2 = (ConfirmDataException) ex;
+               cex2.setName(assemblyName);
+            }
+
+            if(exs != null) {
+               exs.add(ex);
+            }
          }
       }
    }
