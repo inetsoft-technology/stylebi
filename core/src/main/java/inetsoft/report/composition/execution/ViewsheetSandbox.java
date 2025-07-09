@@ -1561,7 +1561,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                {
                   executeView(entry.getName(), false, initing);
                }
-               else {
+               else if(!(info instanceof ViewsheetVSAssemblyInfo)) {
                   thisParameterScriptAssemblies.add(entry.getName());
                }
 
