@@ -802,7 +802,8 @@ public class FormatPainterController {
 
                Integer.parseInt(p);
                return false;
-            } catch (NumberFormatException e) {
+            }
+            catch(NumberFormatException e) {
                return true;
             }
          });
@@ -832,12 +833,12 @@ public class FormatPainterController {
                   LocalDateTime.parse(p);
                   return false;
                }
-               catch (DateTimeParseException e2) {
+               catch(DateTimeParseException e2) {
                   try {
                      LocalDate.parse(p);
                      return false;
                   }
-                  catch (DateTimeParseException e3) {
+                  catch(DateTimeParseException e3) {
                      return true;
                   }
                }
