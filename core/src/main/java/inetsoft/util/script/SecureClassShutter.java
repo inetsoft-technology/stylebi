@@ -34,7 +34,13 @@ public class SecureClassShutter implements ClassShutter {
       "javax.sql",
       "org.xml.sax",
       "javax.xml",
-      "java.beans"
+      "java.beans",
+      "inetsoft.sree.security",
+      "inetsoft.report.internal.license",
+      "inetsoft.storage",
+      "inetsoft.util.config",
+      "inetsoft.util.health",
+      "inetsoft.util.log"
    ));
 
    // Specific dangerous classes that should be blocked
@@ -68,7 +74,13 @@ public class SecureClassShutter implements ClassShutter {
       "java.net.Socket",
       "java.net.ServerSocket",
       "java.net.DatagramSocket",
-      "java.net.MulticastSocket"
+      "java.net.MulticastSocket",
+      "inetsoft.util.ThreadPool",
+      "inetsoft.util.Plugins",
+      "inetsoft.util.SingletonManager",
+      "inetsoft.util.IndexStorage",
+      "inetsoft.util.XMLIndexedStorage",
+      "inetsoft.util.BlobIndexedStorage"
    ));
 
    // Safe classes that are explicitly allowed (whitelist approach for sensitive areas)
@@ -120,6 +132,7 @@ public class SecureClassShutter implements ClassShutter {
       "inetsoft.util.script",
       "inetsoft.analytic.composition.event"
    };
+
    private static final Set<String> PRIMITIVE_ARRAY_SIGNATURES = new HashSet<>(Arrays.asList(
       "[B", // byte[]
       "[S", // short[]
@@ -130,6 +143,7 @@ public class SecureClassShutter implements ClassShutter {
       "[C", // char[]
       "[Z" // boolean[]
    ));
+
    @Override
    public boolean visibleToScripts(String className) {
       // Null or empty class names are not allowed
@@ -143,7 +157,7 @@ public class SecureClassShutter implements ClassShutter {
          return true;
       }
       // Allow explicitly safe classes
-      if(ALLOWED_CLASSES.contains(className) || isPrimitiveArrayType(className)) {
+      if(ALLOWED_CLASSES.contains(className) || isPrimitiveArrayType(className) || className.startsWith("jdk.proxy")) {
          return true;
       }
 
