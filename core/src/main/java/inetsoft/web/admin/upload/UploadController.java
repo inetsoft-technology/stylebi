@@ -63,10 +63,13 @@ public class UploadController {
    @PostMapping("/api/em/upload")
    public UploadFilesResponse uploadFiles(
       @RequestParam("uploadedFiles") MultipartFile[] uploadedFiles,
+      @RequestParam("isShape") boolean isShape,
       @RequestParam(name = "id", required = false) String id,
       Principal principal) throws Exception
    {
-      if(!checkPermission(principal)) {
+      boolean isOrgAdmin = OrganizationManager.getInstance().isOrgAdmin(principal);
+
+      if((!isShape || !isOrgAdmin) && !checkPermission(principal)) {
          throw new SecurityException("You do not have permission to upload files.");
       }
 
