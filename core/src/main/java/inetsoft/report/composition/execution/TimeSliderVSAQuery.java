@@ -465,7 +465,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          checkMaxRowLimit(table);
 
          if(unit == TimeInfo.MEMBER || cubeData) {
-            if(table.getRowCount() < 2 || table.getColCount() != 1) {
+            if(table.getRowCount() < 2 || !cubeData && table.getColCount() != 1) {
                return null;
             }
 
