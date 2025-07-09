@@ -74,64 +74,63 @@ class NthMostFrequentFormulaTest {
       assertEquals(2.0, formula.getDoubleResult());
    }
 
-     //wait for bug #71764
-//   @Test
-//   void testAddValueWithObjectArray() {
-//      formula.addValue(new Object[]{1.0});
-//      formula.addValue(new Object[]{2.0});
-//      formula.addValue(new Object[]{2.0});
-//      formula.addValue(new Object[]{3.0});
-//      formula.addValue(new Object[]{3.0});
-//      formula.addValue(new Object[]{3.0});
-//
-//      assertFalse(formula.isNull());
-//      assertEquals(2.0, formula.getResult());
+   @Test
+   void testAddValueWithObjectArray() {
+      formula.addValue(new Object[]{1.0});
+      formula.addValue(new Object[]{2.0});
+      formula.addValue(new Object[]{2.0});
+      formula.addValue(new Object[]{3.0});
+      formula.addValue(new Object[]{3.0});
+      formula.addValue(new Object[]{3.0});
+
+      assertFalse(formula.isNull());
+//      assertEquals(2.0, formula.getResult()); //Bug #71806
 //      assertEquals(2.0, formula.getDoubleResult());
-//   }
-//
-//   @Test
-//   void testAddValueWithFloat() {
-//      formula.addValue(1.0f);
-//      formula.addValue(2.0f);
-//      formula.addValue(2.0f);
-//
-//      assertFalse(formula.isNull());
-//      assertEquals(2.0, formula.getResult());
-//      assertEquals(2.0, formula.getDoubleResult());
-//   }
-//
-//   @Test
-//   void testAddValueWithLong() {
-//      formula.addValue(1L);
-//      formula.addValue(2L);
-//      formula.addValue(2L);
-//
-//      assertFalse(formula.isNull());
-//      assertEquals(2.0, formula.getResult());
-//      assertEquals(2.0, formula.getDoubleResult());
-//   }
-//
-//   @Test
-//   void testAddValueWithInt() {
-//      formula.addValue(1);
-//      formula.addValue(2);
-//      formula.addValue(2);
-//
-//      assertFalse(formula.isNull());
-//      assertEquals(2.0, formula.getResult());
-//      assertEquals(2.0, formula.getDoubleResult());
-//   }
-//
-//   @Test
-//   void testAddValueWithShort() {
-//      formula.addValue((short) 1);
-//      formula.addValue((short) 2);
-//      formula.addValue((short) 2);
-//
-//      assertFalse(formula.isNull());
-//      assertEquals(2.0, formula.getResult());
-//      assertEquals(2.0, formula.getDoubleResult());
-//   }
+   }
+
+   @Test
+   void testAddValueWithFloat() {
+      formula.addValue(1.0f);
+      formula.addValue(2.0f);
+      formula.addValue(2.0f);
+
+      assertFalse(formula.isNull());
+      assertEquals(1.0, formula.getResult());
+      assertEquals(1.0, formula.getDoubleResult());
+   }
+
+   @Test
+   void testAddValueWithLong() {
+      formula.addValue(1L);
+      formula.addValue(2L);
+      formula.addValue(2L);
+
+      assertFalse(formula.isNull());
+      assertEquals(1.0, formula.getResult());
+      assertEquals(1.0, formula.getDoubleResult());
+   }
+
+   @Test
+   void testAddValueWithInt() {
+      formula.addValue(1);
+      formula.addValue(2);
+      formula.addValue(2);
+
+      assertFalse(formula.isNull());
+      assertEquals(1.0, formula.getResult());
+      assertEquals(1.0, formula.getDoubleResult());
+   }
+
+   @Test
+   void testAddValueWithShort() {
+      formula.addValue((short) 1);
+      formula.addValue((short) 2);
+      formula.addValue((short) 2);
+
+      assertFalse(formula.isNull());
+      assertEquals(1.0, formula.getResult());
+      assertEquals(1.0, formula.getDoubleResult());
+   }
 
    @Test
    void testSetDefaultResult() {
