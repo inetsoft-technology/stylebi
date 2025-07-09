@@ -809,8 +809,21 @@ public abstract class FormatTableLens extends AttributeTableLens
    }
 
    private int getPriorityLineStyle(Point cell1, Point cell2, int topline, int botline) {
-      int cellType1 = getCellDataPath(cell1.y, cell1.x).getType();
-      int cellType2 = getCellDataPath(cell2.y, cell2.x).getType();
+      TableDataPath cellDataPath1 = getCellDataPath(cell1.y, cell1.x);
+      TableDataPath cellDataPath2 = getCellDataPath(cell2.y, cell2.x);
+
+      if(cellDataPath1 == null && cellDataPath2 == null) {
+         return Util.mergeLineStyle(topline, botline);
+      }
+      else if(cellDataPath1 == null) {
+         return botline;
+      }
+      else if(cellDataPath2 == null) {
+         return topline;
+      }
+
+      int cellType1 = cellDataPath1.getType();
+      int cellType2 = cellDataPath2.getType();
 
       if(cellType1 == cellType2) {
          return Util.mergeLineStyle(topline, botline);
@@ -882,10 +895,21 @@ public abstract class FormatTableLens extends AttributeTableLens
    }
 
    private Color getPriorityColor(Point cell1, Point cell2, Color c1, Color c2, Color def) {
-      TableDataPath path1 = getCellDataPath(cell1.y, cell1.x);
-      TableDataPath path2 = getCellDataPath(cell2.y, cell2.x);
-      int cellType1 = path1 != null ? path1.getType() : -1;
-      int cellType2 = path2 != null ? path2.getType() : -1;
+      TableDataPath cellDataPath1 = getCellDataPath(cell1.y, cell1.x);
+      TableDataPath cellDataPath2 = getCellDataPath(cell2.y, cell2.x);
+
+      if(cellDataPath1 == null && cellDataPath2 == null) {
+         return mergeLineColor(c1, c2, def);
+      }
+      else if(cellDataPath1 == null) {
+         return c2;
+      }
+      else if(cellDataPath2 == null) {
+         return c1;
+      }
+
+      int cellType1 = cellDataPath1.getType();
+      int cellType2 = cellDataPath2.getType();
 
       if(cellType1 == cellType2) {
          return mergeLineColor(c1, c2, def);
