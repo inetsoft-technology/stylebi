@@ -277,7 +277,7 @@ public class PortalProfileController {
          data[r][0] = record.getCycleName();
 
          for(int i = 0; i < contexts.size(); i++) {
-            data[r][i + 1] = record.getContext(contexts.get(i));
+            data[r][i + 1] = stripOrganization(record.getContext(contexts.get(i)));
          }
 
          data[r][contexts.size() + 1] = formatter.format(record.getStartTimestamp());
@@ -286,6 +286,19 @@ public class PortalProfileController {
       }
 
       return data;
+   }
+
+   private Object stripOrganization(Object obj) {
+      if(obj instanceof String) {
+         String fullID = (String) obj;
+         int idx = fullID.lastIndexOf("^");
+
+         if(idx > 0) {
+            return fullID.substring(0,idx);
+         }
+      }
+
+      return obj;
    }
 
    private String getContextLabel(LogContext context, Catalog catalog) {
@@ -366,7 +379,7 @@ public class PortalProfileController {
             r -> getSpendTime(r.getEndTimestamp(), r.getStartTimestamp()),
             Long::sum))
          .entrySet().stream()
-         .map(e -> new Object[] { e.getKey(), e.getValue() });
+         .map(e -> new Object[] { stripOrganization(e.getKey()), e.getValue() });
    }
 
    /**
