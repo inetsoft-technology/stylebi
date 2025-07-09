@@ -299,28 +299,34 @@ public class InputVSAQuery extends VSAQuery {
       Object[] oldValues = sortByValue ? oriLabels : oriValues;
       Object[] formats = ldata.getFormats();
 
-      // create list in order to distinguish same labels
-      Set<Integer> distinguish = new HashSet<>();
+      sortValues(newOrders, values, oldOrders, oldValues, formats, oriFormats);
+   }
 
-      // sort values based on the sorted label
-      for(int i = 0; i < newOrders.length && values.length == newOrders.length;
-         i++)
-      {
-         for(int j = 0; j < oldOrders.length; j++) {
-            if(distinguish.contains(j) ||
-               !Tool.equals(newOrders[i], oldOrders[j]))
-            {
-               continue;
-            }
+   private void sortValues(Object[] newOrders, Object[] values, Object[] oldOrders,
+                           Object[] oldValues, Object[] formats, Object[] oriFormats)
+   {
 
+      if(values.length != newOrders.length) {
+         return;
+      }
+
+      Map<Object, Integer> oldOrderIndexMap = new HashMap<>(oldOrders.length);
+
+      for(int j = 0; j < oldOrders.length; j++) {
+         if (!oldOrderIndexMap.containsKey(oldOrders[j])) {
+            oldOrderIndexMap.put(oldOrders[j], j);
+         }
+      }
+
+      for(int i = 0; i < newOrders.length; i++) {
+         Integer j = oldOrderIndexMap.get(newOrders[i]);
+
+         if(j != null) {
             values[i] = oldValues[j];
 
             if(formats.length == newOrders.length) {
                formats[i] = oriFormats[j];
             }
-
-            distinguish.add(j);
-            break;
          }
       }
    }

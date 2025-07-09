@@ -101,18 +101,24 @@
   </fieldset>
   <fieldset *ngIf="showCalendar">
     <div class="form-row-float-label row">
-      <ng-container *ngIf="!model.calendar || (model.calendar && !model.embedded)">
-        <div class="col form-floating">
-            <select class="form-control defaultvalue" id="defaultvalue"
+      <div #dropDownBody class="col form-floating dropDownBody">
+        <ng-container *ngIf="!model.calendar || (model.calendar && !model.embedded)">
+            <select *ngIf="valueList?.length < 500" class="form-control defaultvalue" id="defaultvalue"
                     [disabled]="model.noDefault || !(model.query || model.embedded)"
                     [(ngModel)]="model.defaultValue">
               <ng-container *ngIf="valueList">
                 <option [value]="valueList[i].value" *ngFor="let entry of valueList; let i = index" >{{entry.formatValue}}</option>
               </ng-container>
             </select>
+            <div class="form-control virtual-scroll-combo-box dropdown-icon span-as-dropdown" *ngIf="valueList?.length > 500"
+                 [disabled]="model.noDefault || !(model.query || model.embedded)"
+                 [class.disabled]="model.noDefault || !(model.query || model.embedded)"
+                 [fixedDropdown]="dropdownOptions" dropdownPlacement="bottom">
+              {{ model.defaultValue }}
+            </div>
             <label>_#(Default Value)</label>
-        </div>
-      </ng-container>
+        </ng-container>
+      </div>
 
       <ng-container *ngIf="model.calendar && model.embedded">
         <div class="col form-floating">
@@ -155,4 +161,16 @@
 <ng-template #variableListDialog let-close="close" let-dismiss="dismiss">
   <variable-list-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
                         [model]="model.variableListDialogModel"></variable-list-dialog>
+</ng-template>
+<ng-template #dropdownOptions>
+  <div class="dropdown-container dropdown-menu show" [style.min-width.px]="dropdownMinWidth">
+    <cdk-virtual-scroll-viewport [itemSize]="35" class="dropdown-viewport">
+      <div class="dropdown-item dropdown-item-label"
+           *cdkVirtualFor="let entry of valueList"
+           (click)="model.defaultValue = entry.value"
+           [class.selected]="entry.value === model.defaultValue">
+        {{ entry.formatValue }}
+      </div>
+    </cdk-virtual-scroll-viewport>
+  </div>
 </ng-template>
