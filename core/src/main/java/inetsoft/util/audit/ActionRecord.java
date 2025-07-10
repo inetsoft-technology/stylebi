@@ -254,7 +254,7 @@ public class ActionRecord implements AuditRecord {
    }
 
    public void setScheduleUser() {
-      if(OBJECT_TYPE_TASK.equals(this.objectType)) {
+      if(OBJECT_TYPE_TASK.equals(this.objectType) || OBJECT_TYPE_FOLDER.equals(this.objectType)) {
          String user = SUtil.getTaskUser(objectName);
 
          if(Tool.isEmptyString(user)) {
