@@ -191,10 +191,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, curren
          $loginAsGroup.css("display", "none");
       }
 
-      if(event.which == 13) {
-         authenticate();
-      }
-      else {
+      if(event.which != 13) {
          userNamePristine = false;
       }
    });
@@ -206,10 +203,7 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, curren
          $loginAsGroup.css("display", "none");
       }
 
-      if(event.which == 13) {
-         authenticate();
-      }
-      else {
+      if(event.which != 13) {
          passwordPristine = false;
       }
    });
