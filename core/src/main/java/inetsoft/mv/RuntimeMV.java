@@ -22,6 +22,7 @@ import inetsoft.uql.viewsheet.Viewsheet;
 
 import java.io.Serializable;
 import java.lang.ref.WeakReference;
+import java.util.List;
 
 /**
  * RuntimeMV, the runtime mv information.
@@ -39,7 +40,9 @@ public final class RuntimeMV implements Serializable {
     * @param mv null if not physical mv but logical mv.
     */
    public RuntimeMV(AssetEntry entry, Viewsheet vs, String vassembly,
-                    String otable, String mv, boolean sub, long time) {
+                    String otable, String mv, boolean sub, long time,
+                    List<String> parentVsIds)
+   {
       super();
 
       this.entry = entry;
@@ -49,6 +52,7 @@ public final class RuntimeMV implements Serializable {
       this.mv = mv;
       this.sub = sub;
       this.time = time;
+      this.parentVsIds = parentVsIds;
    }
 
    /**
@@ -118,13 +122,19 @@ public final class RuntimeMV implements Serializable {
     * Cache key for data cache.
     */
    public String createKey() {
+      String parentVsIdsStr = parentVsIds == null ? "" : String.join("->", parentVsIds);
       // should ignore vsassembly since it just contains the vs obj name this mv is used for.
       // a mv's contents only depend on the mv file, not which vs is referencing it.
-      return "RuntimeMV<" + entry + "," + otable + "," + mv + "," + sub + "," + time + ">";
+      return "RuntimeMV<" + entry + "," + otable + "," + mv + "," + sub + "," + time + "," +
+         parentVsIdsStr + ">";
    }
 
    public boolean isWSMV() {
       return entry != null && entry.isWorksheet();
+   }
+
+   public List<String> getParentVsIds() {
+      return parentVsIds;
    }
 
    private transient WeakReference vsref;
@@ -134,4 +144,5 @@ public final class RuntimeMV implements Serializable {
    private String mv;
    private boolean sub;
    private long time = -1L;
+   private final List<String> parentVsIds;
 }

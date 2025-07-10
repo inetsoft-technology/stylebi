@@ -85,7 +85,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @param user the specified user.
     */
    public ViewsheetSandbox(Viewsheet vs, int vmode, Principal user, AssetEntry entry) {
-      this(null, vs, vmode, user, true, entry);
+      this(null, vs, vmode, user, true, entry, null);
    }
 
    /**
@@ -97,7 +97,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public ViewsheetSandbox(Viewsheet vs, int vmode, Principal user,
                            boolean reset, AssetEntry entry) {
-      this(null, vs, vmode, user, reset, entry);
+      this(null, vs, vmode, user, reset, entry, null);
    }
 
    /**
@@ -109,7 +109,9 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     * @param reset <tt>true</tt> to reset the viewsheet sandbox.
     */
    public ViewsheetSandbox(ViewsheetSandbox root, Viewsheet vs, int vmode,
-                           Principal user, boolean reset, AssetEntry entry) {
+                           Principal user, boolean reset, AssetEntry entry,
+                           List<String> parentVsIds)
+   {
       super();
 
       this.root = root == null ? this : root;
@@ -130,6 +132,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.metarep = new TableMetaDataRepository();
       this.user = user;
       this.rid = XSessionService.createSessionID(XSessionService.VIEWSHEET, null);
+      this.parentVsIds = parentVsIds;
       setViewsheet(vs, true);
 
       if(reset) {
@@ -769,7 +772,8 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   AssetQuerySandbox wbox = root.getAssetQuerySandbox();
                   VariableTable vars = wbox == null ? null : wbox.getVariableTable();
                   Hashtable selections = wbox == null ? null : wbox.getSelections();
-                  box = new ViewsheetSandbox(root, svs, vmode, getUser(), false, entry);
+                  box = new ViewsheetSandbox(root, svs, vmode, getUser(), false, entry,
+                                             computeParentVsIds(name));
 
                   if(vars != null) {
                      Enumeration iter = vars.keys();
@@ -7033,13 +7037,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          boolean hasWSMV = false;
 
          if(isMVEnabled()) {
-            smv = mgr.getSubMV(entry, tname, (XPrincipal) user);
+            smv = mgr.getSubMV(entry, tname, (XPrincipal) user, getParentVsIds());
 
             // @by larryl, not sure why we don't just use the regular MV
             // from findRuntimeMV. shouldn't be necessary
             if(smv != null) {
                RuntimeMV rmv2 = new RuntimeMV(entry, vs, "meta_" + tname, tname,
-                                              null, false, smv.getLastUpdateTime());
+                                              null, false, smv.getLastUpdateTime(),
+                                              smv.getParentVsIds());
                table.setRuntimeMV(rmv2);
             }
             // use the regular MV to run the query
@@ -7659,6 +7664,38 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       delayedVisibilityAssemblies.clear();
    }
 
+   public List<String> getParentVsIds() {
+      return parentVsIds;
+   }
+
+   private List<String> computeParentVsIds(String name) {
+      if(root == null) {
+         return null;
+      }
+
+      List<String> parentVsIds = new ArrayList<>();
+      parentVsIds.add(root.getAssetEntry().toIdentifier());
+
+      String[] parts = name.split("\\.");
+      Viewsheet vs = root.getViewsheet();
+
+      for(String part : parts) {
+         VSAssembly assembly = vs.getAssembly(part);
+
+         if(assembly instanceof Viewsheet) {
+            Viewsheet childVs = (Viewsheet) assembly;
+
+            if(childVs.getEntry() != null) {
+               parentVsIds.add(childVs.getEntry().toIdentifier());
+            }
+         }
+      }
+
+      parentVsIds.remove(parentVsIds.size() - 1);
+
+      return parentVsIds;
+   }
+
    private static final String NULL = "__null__";
    private static final ThreadLocal<Boolean> schanged = new ThreadLocal<>();
    private static final ThreadLocal<Boolean> execDValues = new ThreadLocal<>();
@@ -7722,4 +7759,5 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private Map<String, Boolean> normalColumns = new ConcurrentHashMap<>();
    private boolean binding; // true if in binding pane
    private final Map<Integer, Set<String>> delayedVisibilityAssemblies = new ConcurrentHashMap<>();
+   private final List<String> parentVsIds;
 }

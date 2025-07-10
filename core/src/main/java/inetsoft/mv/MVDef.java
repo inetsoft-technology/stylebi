@@ -308,10 +308,10 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     */
    public MVDef(String vsId, String wsId, String tname, String otname, Viewsheet vs,
                 Worksheet ws, Identity user, TransformationDescriptor desc,
-                boolean sub, boolean sonly, boolean bypass)
+                boolean sub, boolean sonly, boolean bypass, List<String> parentVsIds)
    {
       this(vsId, wsId, tname, otname, vs, ws,
-           user == null ? null : new Identity[]{ user }, desc, sub, sonly, bypass);
+           user == null ? null : new Identity[]{ user }, desc, sub, sonly, bypass, parentVsIds);
    }
 
    /**
@@ -319,7 +319,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     */
    public MVDef(String vsId, String wsId, String tname, String otname, Viewsheet vs,
                 Worksheet ws, Identity[] users, TransformationDescriptor desc,
-                boolean sub, boolean sonly, boolean bypass)
+                boolean sub, boolean sonly, boolean bypass, List<String> parentVsIds)
    {
       this.vsId = vsId;
       this.wsId = wsId;
@@ -333,6 +333,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       this.incremental = checkIncremental(ws);
       this.containerRef = new SoftReference<>(container);
       this.lastUpdateTime = System.currentTimeMillis();
+      this.parentVsIds = parentVsIds;
 
       List<MVColumn> nonum = new ArrayList<>();
 
@@ -1815,6 +1816,13 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          data.writeXML(writer);
       }
 
+      if(parentVsIds != null) {
+         String parentVsIdsStr = parentVsIds.stream()
+            .map(Tool::encodeCommas)
+            .collect(Collectors.joining(","));
+         writeCDATA(writer, "parentVsIds", parentVsIdsStr);
+      }
+
       writer.println("</MVDef>");
    }
 
@@ -1978,6 +1986,14 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          else {
             data.register(vsId);
          }
+      }
+
+      String parentVsIdsStr = Tool.getChildValueByTagName(tag, "parentVsIds");
+
+      if(parentVsIdsStr != null) {
+         this.parentVsIds = Arrays.stream(parentVsIdsStr.split(","))
+            .map(Tool::decodeCommas)
+            .collect(Collectors.toList());
       }
    }
 
@@ -2217,7 +2233,8 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          // if column size is different and contains an embedded/unpivot table then don't share
          // (52564, 60857)
          (getColumnsSize(getColumns()) == getColumnsSize(def.getColumns()) ||
-            def.isColumnsShareable(def.getBoundTable()));
+            def.isColumnsShareable(def.getBoundTable())) &&
+         Tool.equals(getParentVsIds(), def.getParentVsIds());
    }
 
    private boolean columnRefsMatch(MVDef def) {
@@ -2602,6 +2619,48 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       return vsId == null;
    }
 
+   public List<String> getParentVsIds() {
+      return parentVsIds;
+   }
+
+   public void setParentVsIds(List<String> parentVsIds) {
+      this.parentVsIds = parentVsIds;
+   }
+
+   public boolean renameParentVsId(String oldId, String newId) {
+      if(parentVsIds != null) {
+         for(int i = 0; i < parentVsIds.size(); i++) {
+            String parentId = parentVsIds.get(i);
+
+            if(parentId.equals(oldId)) {
+               parentVsIds.set(i, newId);
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   public boolean isUsedBy(String sheetId) {
+      if(sheetId == null) {
+         return false;
+      }
+
+      // if parent ids are not set then it's not an MV created with parent parameters so only
+      // check if the sheet is registered
+      if(parentVsIds == null && data != null) {
+         return data.isRegistered(sheetId);
+      }
+
+      // check only the top parent to see if it matches
+      if(parentVsIds != null && !parentVsIds.isEmpty()) {
+         return sheetId.equals(parentVsIds.get(0));
+      }
+
+      return false;
+   }
+
    /**
     * MV Container contains mv columns and worksheet.
     */
@@ -2666,6 +2725,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    private boolean incremental = false;
    private boolean shareable = true;
    private Identity[] users = null; // user of this mv
+   private List<String> parentVsIds = null; // parent vs identifiers
    private transient boolean changed = false; // check if is changed
    private transient VariableTable runtimeVariables = new VariableTable();
    private transient long lastLoad; // last refresh/fill ts

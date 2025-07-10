@@ -73,8 +73,8 @@ public class MVSupportService {
       }
 
       MVManager mgr = MVManager.getManager();
-      Map<String, MVDef> vs2def = new HashMap<>();
-      Map<String, MVDef> ws2def = new HashMap<>();
+      Map<MVCandidate, MVDef> vs2def = new HashMap<>();
+      Map<MVCandidate, MVDef> ws2def = new HashMap<>();
 
       for(String mv : mvs) {
          MVDef def = mgr.get(mv);
@@ -84,35 +84,35 @@ public class MVSupportService {
 
             if(def.isWSMV()) {
                for(String id : sheetIds) {
-                  ws2def.put(id, def);
+                  ws2def.put(new MVCandidate(id), def);
                }
             }
             else {
                for(String id : sheetIds) {
-                  vs2def.put(id, def);
+                  vs2def.put(new MVCandidate(id, def.getParentVsIds()), def);
                }
             }
          }
       }
 
-      List<String> identifiers = new ArrayList<>();
+      List<MVCandidate> candidates = new ArrayList<>();
       boolean[] expanded = new boolean[vs2def.size() + ws2def.size()];
       boolean[] bypass = new boolean[vs2def.size() + ws2def.size()];
       boolean[] full = new boolean[vs2def.size() + ws2def.size()];
       int index = 0;
 
-      for(String id : vs2def.keySet()) {
-         identifiers.add(id);
-         MVDef def = vs2def.get(id);
+      for(MVCandidate candidate : vs2def.keySet()) {
+         candidates.add(candidate);
+         MVDef def = vs2def.get(candidate);
          expanded[index] = def.getMetaData().isGroupExpanded();
          bypass[index] = def.getMetaData().isBypassVPM();
          full[index] = def.getMetaData().isFullData();
          index++;
       }
 
-      for(String id : ws2def.keySet()) {
-         identifiers.add(id);
-         MVDef def = ws2def.get(id);
+      for(MVCandidate candidate : ws2def.keySet()) {
+         candidates.add(candidate);
+         MVDef def = ws2def.get(candidate);
          expanded[index] = def.getMetaData().isGroupExpanded();
          bypass[index] = def.getMetaData().isBypassVPM();
          full[index] = def.getMetaData().isFullData();
@@ -120,19 +120,18 @@ public class MVSupportService {
       }
 
       List<UserInfo> exceptions = new ArrayList<>();
-      Map<String, StringBuffer> plans = new HashMap<>();
+      Map<MVCandidate, StringBuffer> plans = new HashMap<>();
 
       AnalysisTask task = new AnalysisTask(
-         identifiers, exceptions, plans, expanded, bypass, full, true, principal, false);
+         candidates, exceptions, plans, expanded, bypass, full, true, principal, false);
 
-      return new AnalysisResult(identifiers, null, exceptions, plans, analyzePool.submit(task));
+      return new AnalysisResult(candidates, exceptions, plans, analyzePool.submit(task));
    }
 
    /**
     * Perform the initial materialized view analysis on a viewsheet.
     *
     * @param identifiers  the viewsheet identifiers.
-    * @param paths        the viewsheet paths.
     * @param expandGroups <tt>true</tt> to expand groups to the member users.
     * @param bypassVpm    <tt>true</tt> to bypass any VPM conditions.
     * @param fullData     <tt>true</tt> to include all data.
@@ -143,9 +142,10 @@ public class MVSupportService {
     *
     * @throws Exception if the analysis failed.
     */
-   public AnalysisResult analyze(List<String> identifiers, List<String> paths,
+   public AnalysisResult analyze(List<String> identifiers,
                                  boolean expandGroups, boolean bypassVpm,
-                                 boolean fullData, Principal principal, boolean portal)
+                                 boolean fullData, Principal principal, boolean portal,
+                                 boolean applyParentVsParameters)
       throws Exception
    {
       if(!checkMVPermission(principal)) {
@@ -154,41 +154,38 @@ public class MVSupportService {
       }
 
       List<UserInfo> exceptions = new ArrayList<>();
-      Map<String, StringBuffer> plans = new HashMap<>();
+      Map<MVCandidate, StringBuffer> plans = new HashMap<>();
 
       // find nested viewsheets and add them to the lists
-      List<String> newIdentifiers = new ArrayList<>(identifiers);
-      List<String> newPaths = new ArrayList<>(paths);
+      Set<MVCandidate> candidateSet = new LinkedHashSet<>();
 
       for(String id : identifiers) {
+         candidateSet.add(new MVCandidate(id));
          AssetEntry entry = getEntry(id);
          AbstractSheet sheet = getSheet(id, entry, principal);
 
          if(sheet instanceof Viewsheet) {
-            for(AssetEntry childEntry : sheet.getOuterDependents()) {
-               if(childEntry.getType() == AssetEntry.Type.VIEWSHEET &&
-                  !newIdentifiers.contains(childEntry.toIdentifier()))
-               {
-                  if(getSheet(childEntry.toIdentifier(), childEntry, principal) == null) {
-                     continue;
+            if(applyParentVsParameters) {
+               candidateSet.addAll(getNestedViewsheetsWithParentIds((Viewsheet) sheet, id));
+            }
+            else {
+               for(AssetEntry childEntry : sheet.getOuterDependents()) {
+                  if(childEntry.getType() == AssetEntry.Type.VIEWSHEET) {
+                     candidateSet.add(new MVCandidate(childEntry.toIdentifier()));
                   }
-
-                  newIdentifiers.add(childEntry.toIdentifier());
-                  newPaths.add(childEntry.getPath());
                }
             }
          }
       }
 
-      identifiers = newIdentifiers;
-      paths = newPaths;
+      List<MVCandidate> candidates = new ArrayList<>(candidateSet);
 
       AnalysisTask task = new AnalysisTask(
-         identifiers, exceptions, plans, new boolean[] { expandGroups },
+         candidates, exceptions, plans, new boolean[] { expandGroups },
          new boolean[] { bypassVpm }, new boolean[] { fullData }, false,
          principal, portal);
 
-      return new AnalysisResult(identifiers, paths, exceptions, plans, analyzePool.submit(task));
+      return new AnalysisResult(candidates, exceptions, plans, analyzePool.submit(task));
    }
 
    /**
@@ -673,6 +670,43 @@ public class MVSupportService {
    }
 
    /**
+    * Returns a map of nested viewsheets with a list of parent id paths
+    * @param vs root viewsheet
+    * @return set
+    */
+   private static Set<MVCandidate> getNestedViewsheetsWithParentIds(Viewsheet vs, String vsId) {
+      Set<MVCandidate> result = new LinkedHashSet<>();
+      Deque<String> currentPath = new ArrayDeque<>();
+      collectNestedViewsheets(vs, vsId, currentPath, result);
+      return result;
+   }
+
+   private static void collectNestedViewsheets(Viewsheet vs, String vsId,
+                                               Deque<String> currentPath,
+                                               Set<MVCandidate> result)
+   {
+      currentPath.addLast(vsId);
+
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof Viewsheet)) {
+            continue;
+         }
+
+         Viewsheet nested = (Viewsheet) assembly;
+         AssetEntry nestedEntry = nested.getEntry();
+
+         if(nestedEntry != null) {
+            String nestedId = nestedEntry.toIdentifier();
+            List<String> parentIds = new ArrayList<>(currentPath);
+            result.add(new MVCandidate(nestedId, parentIds));
+            collectNestedViewsheets(nested, nestedId, currentPath, result);
+         }
+      }
+
+      currentPath.removeLast();
+   }
+
+   /**
     * Class that encapsulates the status of a materialized view.
     */
    public static final class MVStatus implements Comparable<MVStatus>, Serializable {
@@ -835,41 +869,30 @@ public class MVSupportService {
       /**
        * Creates a new instance of <tt>AnalysisResult</tt>.
        *
-       * @param identifiers the identifiers of the viewsheets being analyzed.
-       * @param paths       the paths to the viewsheets being analyzed.
+       * @param candidates  the candidates being analyzed.
        * @param exceptions  the users for whom the viewsheet cannot be
        *                    materialized.
        * @param plans       the materialization plans.
        * @param future      the asynchronous response for the analysis task.
        */
-      private AnalysisResult(List<String> identifiers, List<String> paths,
+      private AnalysisResult(List<MVCandidate> candidates,
                              List<UserInfo> exceptions,
-                             Map<String, StringBuffer> plans,
+                             Map<MVCandidate, StringBuffer> plans,
                              Future<List<MVStatus>> future)
       {
-         this.identifiers = identifiers;
-         this.paths = paths;
+         this.candidates = candidates;
          this.exceptions = exceptions;
          this.plans = plans;
          this.future = future;
       }
 
       /**
-       * Gets the identifiers of the viewsheets being analyzed.
+       * Gets the MV candidates being analyzed.
        *
        * @return the identifiers.
        */
-      public List<String> getIdentifiers() {
-         return identifiers;
-      }
-
-      /**
-       * Gets the paths to the viewsheets being analyzed.
-       *
-       * @return the paths.
-       */
-      public List<String> getPaths() {
-         return paths;
+      public List<MVCandidate> getCandidates() {
+         return candidates;
       }
 
       /**
@@ -896,7 +919,7 @@ public class MVSupportService {
        *
        * @return the plans.
        */
-      public Map<String, StringBuffer> getPlans() {
+      public Map<MVCandidate, StringBuffer> getPlans() {
          return plans;
       }
 
@@ -943,17 +966,16 @@ public class MVSupportService {
          }
       }
 
-      private final List<String> identifiers;
-      private final List<String> paths;
+      private final List<MVCandidate> candidates;
       private final List<UserInfo> exceptions;
-      private final Map<String, StringBuffer> plans;
+      private final Map<MVCandidate, StringBuffer> plans;
       private List<MVStatus> status;
       private Future<List<MVStatus>> future;
    }
 
    private static final class AnalysisTask implements Callable<List<MVStatus>> {
-      public AnalysisTask(List<String> identifiers, List<UserInfo> exceptions,
-                          Map<String, StringBuffer> plans, boolean[] expanded,
+      public AnalysisTask(List<MVCandidate> candidates, List<UserInfo> exceptions,
+                          Map<MVCandidate, StringBuffer> plans, boolean[] expanded,
                           boolean[] bypass, boolean[] full, boolean reanalyze,
                           Principal principal, boolean portal) throws Exception
       {
@@ -963,11 +985,11 @@ public class MVSupportService {
          this.portal = portal;
          this.principal = principal;
 
-         jobs = new AnalysisJob[identifiers.size()];
+         jobs = new AnalysisJob[candidates.size()];
 
-         for(int i = 0; i < identifiers.size(); i++) {
+         for(int i = 0; i < candidates.size(); i++) {
             int mod = i % expanded.length;
-            jobs[i] = new AnalysisJob(identifiers.get(i), expanded[mod],
+            jobs[i] = new AnalysisJob(candidates.get(i), expanded[mod],
                                       bypass[mod], full[mod], principal);
          }
       }
@@ -1009,7 +1031,7 @@ public class MVSupportService {
                plan.append(desc);
             }
 
-            plans.put(job.identifier, plan);
+            plans.put(job.candidate, plan);
          }
 
          List<MVDef> mvs = new ArrayList<>();
@@ -1044,20 +1066,20 @@ public class MVSupportService {
       private final boolean reanalyze;
       private final AnalysisJob[] jobs;
       private final List<UserInfo> exceptions;
-      private final Map<String, StringBuffer> plans;
+      private final Map<MVCandidate, StringBuffer> plans;
       private final boolean portal;
       private final Principal principal;
    }
 
    private static final class AnalysisJob {
-      public AnalysisJob(String identifier, boolean expanded, boolean bypass,
+      public AnalysisJob(MVCandidate candidate, boolean expanded, boolean bypass,
                          boolean full, Principal principal)
          throws Exception
       {
-         this.identifier = identifier;
-         this.entry = getEntry(identifier);
-         this.sheet = getSheet(identifier, entry, principal);
-         Objects.requireNonNull(sheet, "Sheet " + identifier + " is null");
+         this.candidate = candidate;
+         this.entry = getEntry(candidate.id);
+         this.sheet = getSheet(candidate.id, entry, principal);
+         Objects.requireNonNull(sheet, "Sheet " + candidate.id + " is null");
          this.expanded = expanded;
          this.bypass = bypass;
          this.full = full;
@@ -1266,7 +1288,7 @@ public class MVSupportService {
                box.setMVDisabled(true);
                box.updateAssemblies();
                analyzer = new VSMVAnalyzer(entry.toIdentifier(), (Viewsheet) sheet, identity,
-                                           box, bypass);
+                                           box, bypass, candidate.getParentIds());
             }
 
             MVDef[] mvs;
@@ -1358,12 +1380,12 @@ public class MVSupportService {
          }
 
          if(isWarned && sheet instanceof Viewsheet) {
-            saveViewsheet(identifier, principal);
+            saveViewsheet(candidate.getId(), principal);
          }
       }
 
       private Principal principal;
-      private String identifier;
+      private MVCandidate candidate;
       private AssetEntry entry;
       private AbstractSheet sheet;
       private boolean expanded;
@@ -1404,5 +1426,46 @@ public class MVSupportService {
          thread.setDaemon(true);
          return thread;
       }
+   }
+
+   public static final class MVCandidate {
+      public MVCandidate(String id) {
+         this.id = id;
+      }
+
+      public MVCandidate(String id, List<String> parentIds) {
+         this.id = id;
+         this.parentIds = parentIds;
+      }
+
+      public String getId() {
+         return id;
+      }
+
+      public List<String> getParentIds() {
+         return parentIds;
+      }
+
+      @Override
+      public boolean equals(Object o) {
+         if(this == o) {
+            return true;
+         }
+
+         if(o == null || getClass() != o.getClass()) {
+            return false;
+         }
+
+         MVCandidate that = (MVCandidate) o;
+         return Objects.equals(id, that.id) && Objects.equals(parentIds, that.parentIds);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(id, parentIds);
+      }
+
+      private String id;
+      private List<String> parentIds;
    }
 }

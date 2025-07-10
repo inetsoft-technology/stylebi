@@ -753,7 +753,7 @@ public class VSExportService {
 
             if(previewPrintLayout && rbox.getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
                exportBox = new ViewsheetSandbox(null, cviewsheet, vmode, rbox.getUser(),
-                  false,rbox.getAssetEntry());
+                  false,rbox.getAssetEntry(), null);
 
                if(exportBox.getAssetQuerySandbox() != null) {
                   exportBox.getAssetQuerySandbox().refreshVariableTable(rbox.getVariableTable());

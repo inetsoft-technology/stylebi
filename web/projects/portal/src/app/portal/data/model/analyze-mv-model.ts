@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 export class AnalyzeMVModel {
-   constructor(public fullData: boolean, public bypass: boolean, public groupExpanded: boolean) {
+   constructor(public fullData: boolean, public bypass: boolean, public groupExpanded: boolean,
+               public applyParentVsParameters: boolean)
+   {
    }
 }
