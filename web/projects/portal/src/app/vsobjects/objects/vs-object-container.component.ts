@@ -658,7 +658,7 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
                if(this.isRectInitialized(rect)) {
                   const newRendered = this.isInScrollViewport(rect);
 
-                  if(newRendered && rendered != undefined &&
+                  if(newRendered && rendered == undefined &&
                      (vsObject.objectType === "VSCalcTable" ||
                         vsObject.objectType === "VSCrosstab"  ||
                         vsObject.objectType === "VSTable" ||
