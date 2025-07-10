@@ -35,6 +35,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
@@ -69,8 +70,11 @@ import org.springframework.stereotype.Controller;
 import java.awt.*;
 import java.security.Principal;
 import java.text.Format;
+import java.time.*;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -477,6 +481,7 @@ public class FormatPainterController {
                          CommandDispatcher commandDispatcher, @LinkUri String linkUri)
       throws Exception
    {
+      Catalog catalog = Catalog.getCatalog(principal);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(
          this.runtimeViewsheetRef.getRuntimeId(), principal);
       Viewsheet viewsheet = rvs.getViewsheet();
@@ -575,14 +580,19 @@ public class FormatPainterController {
                      path = new TableDataPath(-1, TableDataPath.DETAIL);
                   }
 
-                  warnStringFormat = warnStringFormat ||
-                     isFormattedStringColumn(event, assembly, path);
-                  changeFormat(formatInfo, event.getFormat(), event.getOrigFormat(),
-                               path, event.isReset(), event.isCopyFormat());
+                  warnStringFormat = warnStringFormat || isFormattedStringColumn(event, assembly, path);
+                  VSObjectFormatInfoModel format = event.getFormat();
+
+                  //if setting a column header to a number format when not applicable, don't write format to prevent breaking later
+                  if(path.getType() == TableDataPath.HEADER) {
+                     warnStringFormat = handleHeaderFormats(event, assembly, format, path, warnStringFormat, catalog);
+                  }
+
+                  changeFormat(formatInfo, format, event.getOrigFormat(),
+                               path, event.isReset());
                }
 
                if(warnStringFormat) {
-                  Catalog catalog = Catalog.getCatalog(principal);
                   Tool.addUserMessage(new UserMessage(
                      catalog.getString("composer.stringColumnFormat"), ConfirmException.WARNING,
                      assembly.getName()));
@@ -594,7 +604,6 @@ public class FormatPainterController {
                             dataPath, event.isReset(), event.isCopyFormat());
 
                if(isFormattedStringColumn(event, assembly, dataPath)) {
-                  Catalog catalog = Catalog.getCatalog(principal);
                   Tool.addUserMessage(new UserMessage(
                      catalog.getString("composer.stringColumnFormat"), ConfirmException.WARNING,
                      assembly.getName()));
@@ -766,6 +775,90 @@ public class FormatPainterController {
          fmt.setAlignment(format.getAlign().toAlign());
          fmt.setFormat(new XFormatInfo(format.getFormat(), format.getFormatSpec()));
       }
+   }
+
+   private boolean handleHeaderFormats(FormatVSObjectEvent event, VSAssembly assembly, VSObjectFormatInfoModel format,
+                                       TableDataPath path, boolean warnStringFormat, Catalog catalog)
+   {
+      if(!XSchema.STRING.equals(path.getDataType())) {
+         return warnStringFormat;
+      }
+
+      String formatType = format.getFormat();
+      boolean badFormat = false;
+      Pattern PLACEHOLDER = Pattern.compile("\\s*Cell \\[\\d+,\\d+\\]\\s*");
+
+      if("DecimalFormat".equals(formatType)) {
+         badFormat = Arrays.stream(path.getPath()).allMatch(p -> {
+            try {
+               if(p == null || p.isEmpty()) {
+                  return false;
+               }
+
+               //ignore aggregate or other placeholder value of type Cell [x, y]
+               if(PLACEHOLDER.matcher(p).matches()) {
+                  return false;
+               }
+
+               Integer.parseInt(p);
+               return false;
+            }
+            catch(NumberFormatException e) {
+               return true;
+            }
+         });
+
+         if(!badFormat) {
+            warnStringFormat = false;
+         }
+      }
+
+      if("DateFormat".equals(formatType)) {
+         badFormat = Arrays.stream(path.getPath()).allMatch(p -> {
+            try {
+               if(p == null || p.isEmpty()) {
+                  return false;
+               }
+
+               //ignore aggregate or other placeholder value of type Cell [x, y]
+               if(PLACEHOLDER.matcher(p).matches()) {
+                  return false;
+               }
+
+               Instant.parse(p);
+               return false;
+            }
+            catch (DateTimeParseException e1) {
+               try {
+                  LocalDateTime.parse(p);
+                  return false;
+               }
+               catch(DateTimeParseException e2) {
+                  try {
+                     LocalDate.parse(p);
+                     return false;
+                  }
+                  catch(DateTimeParseException e3) {
+                     return true;
+                  }
+               }
+            }
+         });
+
+         if(!badFormat) {
+            warnStringFormat = false;
+         }
+      }
+
+      if(badFormat) {
+         event.getFormat().setFormat(null);
+         Tool.addUserMessage(new UserMessage(
+            catalog.getString("composer.invalidHeaderFormat"), ConfirmException.WARNING,
+            assembly.getName()));
+         warnStringFormat = false;
+      }
+
+      return warnStringFormat;
    }
 
    private boolean isMeasureTextBar(TableDataPath path) {
