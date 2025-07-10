@@ -2991,16 +2991,13 @@ public abstract class AssetQuery extends PreAssetQuery {
    }
 
    private void addMissingColumns(Set<Integer> cols, int fullSize) {
-      int startingSize = cols.size();
       int col = 0;
 
-      for(int i = startingSize; i < fullSize; i++) {
-         while(col < fullSize) {
-            // Add new cols to the last index in the set
-            // Existing cols preserve their index
-            cols.add(i);
-            col ++;
-         }
+      while(col < fullSize) {
+         // Add new cols to the last index in the set
+         // Existing cols preserve their index
+         cols.add(col);
+         col ++;
       }
    }
 
