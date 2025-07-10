@@ -159,7 +159,7 @@ public class SparseMatrix implements Cloneable, Serializable {
       /**
        * Set an object.
        */
-      public void set(long along, Object obj) {
+      public synchronized void set(long along, Object obj) {
          int pos = binarySearch(along);
 
          if(pos >= 0) {
