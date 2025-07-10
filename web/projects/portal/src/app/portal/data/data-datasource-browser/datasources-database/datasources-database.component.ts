@@ -215,7 +215,7 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    }
 
    isCreateDB(): boolean {
-      return this.originalModel.path == "" || this.originalModel.path == "/";
+      return this.parentPath != null || this.parentPath == "" || this.parentPath == "/";
    }
 
    updateAdditionalList() {
