@@ -159,7 +159,7 @@ public class SparseMatrix implements Cloneable, Serializable {
       /**
        * Set an object.
        */
-      public void set(long along, Object obj) {
+      public synchronized void set(long along, Object obj) {
          int pos = binarySearch(along);
 
          if(pos >= 0) {
@@ -257,6 +257,7 @@ public class SparseMatrix implements Cloneable, Serializable {
       private int usedpos = -1;
       private long[] llist;
       private List olist;
+      private Set<String> keys = new HashSet<>(); // for debugging purposes
    }
 
    // default size
@@ -264,4 +265,5 @@ public class SparseMatrix implements Cloneable, Serializable {
 
    private int size;
    private ObjectList[] olist;
+
 }
