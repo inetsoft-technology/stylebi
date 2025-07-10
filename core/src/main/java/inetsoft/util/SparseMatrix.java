@@ -265,5 +265,4 @@ public class SparseMatrix implements Cloneable, Serializable {
 
    private int size;
    private ObjectList[] olist;
-
 }
