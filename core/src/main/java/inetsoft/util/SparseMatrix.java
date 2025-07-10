@@ -257,7 +257,6 @@ public class SparseMatrix implements Cloneable, Serializable {
       private int usedpos = -1;
       private long[] llist;
       private List olist;
-      private Set<String> keys = new HashSet<>(); // for debugging purposes
    }
 
    // default size
