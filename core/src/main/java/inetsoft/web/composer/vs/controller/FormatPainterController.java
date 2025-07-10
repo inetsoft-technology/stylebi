@@ -35,6 +35,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ColorFrameWrapper;
@@ -69,8 +70,11 @@ import org.springframework.stereotype.Controller;
 import java.awt.*;
 import java.security.Principal;
 import java.text.Format;
+import java.time.*;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**

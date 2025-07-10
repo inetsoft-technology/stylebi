@@ -30,6 +30,7 @@ import inetsoft.sree.security.ldap.*;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
+import java.util.Objects;
 
 @Value.Immutable
 @JsonSerialize(as = ImmutableAuthenticationProviderModel.class)
@@ -61,6 +62,18 @@ public abstract class AuthenticationProviderModel {
    @Nullable
    public abstract CustomProviderModel customProviderModel();
 
+   public String getPassword() {
+      if(providerType() == SecurityProviderType.DATABASE) {
+         return Objects.requireNonNull(dbProviderModel()).password();
+      }
+
+      else if(providerType() == SecurityProviderType.LDAP) {
+         return Objects.requireNonNull(ldapProviderModel()).password();
+      }
+
+      return null;
+   }
+
    public static Builder builder() {
       return new Builder();
    }
@@ -75,7 +88,7 @@ public abstract class AuthenticationProviderModel {
             .hostPort(provider.getPort())
             .rootDN(provider.getRootDn())
             .adminID(provider.getLdapAdministrator())
-            .password(provider.getPassword())
+            .password(Util.PLACEHOLDER_PASSWORD)
             .userFilter(provider.getUserSearch())
             .userBase(provider.getUserBase())
             .userAttr(provider.getUserAttribute())

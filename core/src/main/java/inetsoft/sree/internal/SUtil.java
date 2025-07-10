@@ -3215,7 +3215,7 @@ public class SUtil {
             ServerPathInfoModel pathInfoModel = ServerPathInfoModel.builder()
                .path(path)
                .username(username)
-               .password(Util.PLACEHOLDER_PASSWORD)
+               .password(password == null ? null : Util.PLACEHOLDER_PASSWORD)
                .secretId(secretId)
                .useCredential(useSecretId)
                .ftp(!Tool.isEmptyString(username) || !Tool.isEmptyString(secretId))

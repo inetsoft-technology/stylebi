@@ -28,6 +28,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.ContainerVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.script.*;
+import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.mozilla.javascript.Scriptable;
 import org.mozilla.javascript.ScriptableObject;
 import org.slf4j.Logger;
@@ -347,7 +348,9 @@ public class VSAScriptable extends ScriptableObject
       VSAssembly vsobj = ViewsheetScope.VIEWSHEET_SCRIPTABLE.equals(assembly) ? vs
          : vs.getAssembly(assembly);
 
-      if(vsobj == null && !assembly.contains(CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX)) {
+      if(vsobj == null && !assembly.contains(CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX) &&
+         !WizardRecommenderUtil.isWizardTempAssembly(assembly))
+      {
          LOG.error("Script assembly is not found: " + assembly + " in " +
                       Arrays.stream(vs.getAssemblies()).map(a -> a.getName()).collect(Collectors.toSet()));
       }

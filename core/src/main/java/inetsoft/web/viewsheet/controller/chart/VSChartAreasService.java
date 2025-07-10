@@ -180,7 +180,7 @@ public class VSChartAreasService {
                model = (VSChartModel) new GraphBuilder(
                   state.getAssembly(), chartInfo, chartArea, state.getChartDescriptor(), model).build();
 
-               if(pair.isCompleted() && pair.getRealSizeVGraph() == null) {
+               if(pair.isCompleted() && pair.getRealSizeVGraph() == null && !pair.isCancelled()) {
                   model.setNoData(true);
                }
             }

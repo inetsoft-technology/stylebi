@@ -21,7 +21,7 @@ import {
    Input, OnInit,
    Output, SimpleChanges,
    TemplateRef, OnChanges,
-   ViewChild
+   ViewChild, ElementRef
 } from "@angular/core";
 import { XSchema } from "../../common/data/xschema";
 import { VariableListDialogModel } from "../../widget/dialog/variable-list-dialog/variable-list-dialog-model";
@@ -36,10 +36,12 @@ import { ComboBoxDefaultValueListModel } from "../model/combo-box-queryList-mode
 @Component({
    selector: "combo-box-editor",
    templateUrl: "combo-box-editor.component.html",
+   styleUrls: ["combo-box-editor.component.scss"]
 })
 export class ComboBoxEditor implements OnInit, OnChanges {
    @ViewChild("selectionListDialog") selectionListDialog: TemplateRef<any>;
    @ViewChild("variableListDialog") variableListDialog: TemplateRef<any>;
+   @ViewChild("dropDownBody") dropdownBody: ElementRef;
    @Input() model: ComboBoxEditorModel;
    @Input() sortType: number;
    @Input() embeddedDataDown: boolean;
@@ -336,5 +338,10 @@ export class ComboBoxEditor implements OnInit, OnChanges {
 
    private isValidDate(date: string) {
       return date != null && date !== "" && !date.startsWith("$") && !date.startsWith("=");
+   }
+
+   get dropdownMinWidth(): number {
+      return this.dropdownBody?.nativeElement?.firstElementChild
+         ? this.dropdownBody.nativeElement.firstElementChild.offsetWidth : null;
    }
 }

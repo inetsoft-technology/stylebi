@@ -65,6 +65,15 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
       super(box, chart, detail);
    }
 
+   @Override
+   protected VSAssembly getAssembly() {
+      if(assembly != null) {
+         return assembly;
+      }
+
+      return assembly = (VSAssembly) super.getAssembly().clone();
+   }
+
    /**
     * Get the data. For show detail, the detail table lens will be returned,
     * otherwise a data set will be returned if any.
@@ -2215,4 +2224,5 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
    private ConditionList zoomConds;
    private List<String> subTables = new ArrayList();
    private Map<String, String> aggr2calc = new HashMap();
+   private VSAssembly assembly;
 }

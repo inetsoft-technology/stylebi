@@ -1704,17 +1704,18 @@ public class QueryManagerService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
       JDBCQuery query = runtimeQuery.getQuery();
+
+      if(sqlString != null) {
+         parseSqlString(runtimeId, sqlString, false, true, principal);
+         query = runtimeQuery.getQuery();
+      }
+
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
 
       if(sql.isParseSQL() && !sql.isLossy()) {
          query = query.clone();
          sql = (UniformSQL) query.getSQLDefinition();
          sql.clearSQLString();
-      }
-
-      if(sqlString != null) {
-         parseSqlString(runtimeId, sqlString, false, true, principal);
-         query = runtimeQuery.getQuery();
       }
 
       VariableTable vtable = runtimeQuery.getVariables();
