@@ -57,4 +57,17 @@ public class DatabricksHelper extends SQLHelper {
    public String getQuote() {
       return "`";
    }
+
+   @Override
+   public String quotePath(String path, boolean physical, boolean force, boolean selectClause) {
+      if(selectClause && uniformSql.isDistinct() && uniformSql.getOrderByFields() != null) {
+         int lastIndex = path.lastIndexOf(".");
+
+         if(lastIndex != -1) {
+            path = path.substring(lastIndex + 1);
+         }
+      }
+
+      return super.quotePath(path, physical, force, selectClause);
+   }
 }
