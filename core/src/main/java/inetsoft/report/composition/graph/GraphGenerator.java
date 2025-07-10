@@ -229,6 +229,9 @@ public abstract class GraphGenerator {
          chart.getChartDescriptor() : chart.getRTChartDescriptor();
       this.desc0 = chart.getChartDescriptor();
       this.dateComparison = DateComparisonUtil.getDateComparison(chart, chart.getViewsheet());
+      ChartDescriptor desc = chart.getRTChartDescriptor() == null ?
+         chart.getChartDescriptor() : chart.getRTChartDescriptor();
+      desc.setSortOthersLast(info);
 
       // check for discrete measures and if found, wrap dataset with an aliased dataset.
       adata = getDiscreteMeasureDataSet(adata, this.info);
