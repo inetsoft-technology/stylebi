@@ -63,13 +63,11 @@ public class UploadController {
    @PostMapping("/api/em/upload")
    public UploadFilesResponse uploadFiles(
       @RequestParam("uploadedFiles") MultipartFile[] uploadedFiles,
-      @RequestParam("isShape") boolean isShape,
+      @RequestParam("uploadType") String uploadType,
       @RequestParam(name = "id", required = false) String id,
       Principal principal) throws Exception
    {
-      boolean isOrgAdmin = OrganizationManager.getInstance().isOrgAdmin(principal);
-
-      if((!isShape || !isOrgAdmin) && !checkPermission(principal)) {
+      if(!checkUploadPermission(principal, uploadType)) {
          throw new SecurityException("You do not have permission to upload files.");
       }
 
@@ -95,6 +93,25 @@ public class UploadController {
             .identifier(id)
             .files(names)
             .build();
+      }
+   }
+
+   private boolean checkUploadPermission(Principal principal, String uploadType)
+      throws SecurityException
+   {
+      if(uploadType.equals("driver")) {
+         return securityEngine.checkPermission(
+            principal, ResourceType.UPLOAD_DRIVERS, "*", ResourceAction.ACCESS);
+      }
+      else if(uploadType.equals("shape")) {
+         return OrganizationManager.getInstance().isSiteAdmin(principal) ||
+            OrganizationManager.getInstance().isOrgAdmin(principal);
+      }
+      else {
+         return securityEngine.checkPermission(principal, ResourceType.EM, "*",
+            ResourceAction.ACCESS) &&
+            securityEngine.checkPermission(principal, ResourceType.EM_COMPONENT,
+               "settings/content/data-space", ResourceAction.ACCESS);
       }
    }
 
