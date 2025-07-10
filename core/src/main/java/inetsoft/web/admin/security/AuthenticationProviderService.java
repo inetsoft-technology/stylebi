@@ -591,25 +591,12 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
          break;
       case LDAP:
          provider = createLDAPProvider(model.ldapProviderModel());
+         replacePlaceholderWithPassword(provider, model);
          provider.checkParameters();
          break;
       case DATABASE:
          provider = createDatabaseProvider(Objects.requireNonNull(model.dbProviderModel()));
-         String password = Objects.requireNonNull(model.dbProviderModel()).password();
-
-         // Replace placeholder password with real password
-         if(password.equals(Util.PLACEHOLDER_PASSWORD) &&
-            model.oldName() != null)
-         {
-            AuthenticationProvider oldProvider = getProviderByName(model.oldName());
-
-            if(oldProvider instanceof  DatabaseAuthenticationProvider) {
-               DatabaseAuthenticationProvider dbProvider = (DatabaseAuthenticationProvider) oldProvider;
-               String dbPassword = !dbProvider.isUseCredential() ? dbProvider.getDbPassword() : null;
-               ((DatabaseAuthenticationProvider) provider).setDbPassword(dbPassword);
-            }
-         }
-
+         replacePlaceholderWithPassword(provider, model);
          ((DatabaseAuthenticationProvider) provider).testConnection();
          break;
       case CUSTOM:
@@ -788,6 +775,28 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
                this.debouncer.debounce(((XPrincipal) sub.getUser()).getCurrentOrgId(), 1L, TimeUnit.SECONDS,
                                        () -> sendToSubscriber(sub));
             });
+      }
+   }
+
+   private void replacePlaceholderWithPassword(AuthenticationProvider provider,
+                                               AuthenticationProviderModel model)
+   {
+      String password = model.getPassword();
+
+      // Replace placeholder password with real password
+      if(Util.PLACEHOLDER_PASSWORD.equals(password) &&
+         model.oldName() != null)
+      {
+         AuthenticationProvider oldProvider = getProviderByName(model.oldName());
+
+         if(oldProvider instanceof DatabaseAuthenticationProvider dbProvider) {
+            String dbPassword = !dbProvider.isUseCredential() ? dbProvider.getDbPassword() : null;
+            ((DatabaseAuthenticationProvider) provider).setDbPassword(dbPassword);
+         }
+         else if(oldProvider instanceof LdapAuthenticationProvider) {
+            ((LdapAuthenticationProvider) provider)
+               .setPassword(((LdapAuthenticationProvider) oldProvider).getPassword());
+         }
       }
    }
 
