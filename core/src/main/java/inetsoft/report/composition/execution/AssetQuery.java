@@ -2869,7 +2869,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
       }
 
-      List<Integer> cols = new ArrayList<>();
+      Set<Integer> cols = new LinkedHashSet<>();
       AggregateInfo _ginfo = this.ginfo;
 
       // fix Bug #37218, Bug #37217,
@@ -2981,13 +2981,24 @@ public abstract class AssetQuery extends PreAssetQuery {
       if(cols.size() != selection.getAttributeCount() && base.isDynamicColumns()) {
          // Bug #71756, for tables with dynamic columns (e.g. JSON data), the runtime data may be
          // different structurally from that originally bound due to parameterization. If the base
-         // table does not contain all of the columns from the saved selection, just return the
-         // entire base table as-is.
-         return base;
+         // table does not contain all of the columns from the saved selection, just add the
+         // missing columns to the end of the column mapping array
+         addMissingColumns(cols, selection.getAttributeCount());
       }
 
       int[] carr = cols.stream().mapToInt(i -> i).toArray();
       return PostProcessor.mapColumn(base, carr);
+   }
+
+   private void addMissingColumns(Set<Integer> cols, int fullSize) {
+      int col = 0;
+
+      while(col < fullSize) {
+         // Add new cols to the last index in the set
+         // Existing cols preserve their index
+         cols.add(col);
+         col ++;
+      }
    }
 
    /**
