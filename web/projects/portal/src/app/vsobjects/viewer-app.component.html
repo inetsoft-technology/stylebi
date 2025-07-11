@@ -376,7 +376,7 @@
        [class.show-hints]="_showHints"
        [class.overflow-hide]="scaleToScreen && !fitToWidth && !showScroll && !embed"
        [class.overflow-x-hide]="scaleToScreen && fitToWidth && !showScroll && !mobileDevice && !embed"
-       [class.overflow-visible]="embed"
+       [class.overflow-visible]="!fullScreen && embed"
        [style.bottom.px]="tabsHeight"
        [style.transform]="bodyTransform"
        [attr.aria-label]="'_#(Viewsheet) ' + name"

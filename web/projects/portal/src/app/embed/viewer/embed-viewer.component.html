@@ -26,7 +26,7 @@
               [hideToolbar]="hideToolbar"
               [hideMiniToolbar]="hideMiniToolbar"
               [globalLoadingIndicator]="globalLoadingIndicator"
-              [viewerOffsetFunc]="viewerOffsetFunc"
+              [viewerOffsetFunc]="getViewerOffsetFunc()"
               (onEmbedError)="onEmbedError($event)"
               (onLoadingStateChanged)="onLoadingStateChanged($event)"
               (onDataTipPopComponentVisible)="onDataTipPopComponentVisible($event)"

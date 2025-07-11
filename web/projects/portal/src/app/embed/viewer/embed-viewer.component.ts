@@ -33,6 +33,7 @@ import { Router } from "@angular/router";
 import { NgbModal, NgbModalConfig } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject, Subscription } from "rxjs";
 import { DownloadService } from "../../../../../shared/download/download.service";
+import { FullScreenService } from "../../common/services/full-screen.service";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
@@ -123,7 +124,8 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
                private shadowDomService: ShadowDomService,
                private showHyperlinkService: ShowHyperlinkService,
                private cdRef: ChangeDetectorRef,
-               private debounceService: DebounceService)
+               private debounceService: DebounceService,
+               private fullScreenService: FullScreenService)
    {
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
       showHyperlinkService.inEmbed = true;
@@ -228,6 +230,14 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
 
    onDataTipPopComponentVisible(visible: boolean) {
       this.dataTipPopComponentVisible = visible;
+   }
+
+   getViewerOffsetFunc() {
+      if(this.fullScreenService.fullScreenMode) {
+         return null;
+      }
+
+      return this.viewerOffsetFunc;
    }
 
    viewerOffsetFunc = () => {
