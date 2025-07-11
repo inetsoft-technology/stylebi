@@ -1219,7 +1219,7 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          return;
       }
 
-      type = urlLower.startsWith("jdbc:clickhouse:") || driverLower.equals("com.clickhouse.jdbc.DriverV1");
+      type = urlLower.startsWith("jdbc:clickhouse:") || driverLower.contains("clickhouse");
 
       if(type) {
          setDatabaseType(JDBC_CLICKHOUSE);

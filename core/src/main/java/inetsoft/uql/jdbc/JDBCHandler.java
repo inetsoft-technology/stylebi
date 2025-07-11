@@ -2225,6 +2225,10 @@ public class JDBCHandler extends XHandler {
          catalogName = (String) root.getAttribute("defaultCatalog");
          escapedCatalogName = escapeSchemaName(catalogName);
       }
+      else if(xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
+         catalogName = xds.getDefaultDatabase();
+         escapedCatalogName = escapeSchemaName(catalogName);
+      }
 
       if(schemaName == null && root.getAttribute("defaultSchema") != null) {
          schemaName = (String) root.getAttribute("defaultSchema");
