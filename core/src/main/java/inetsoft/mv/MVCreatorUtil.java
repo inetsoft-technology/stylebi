@@ -877,22 +877,16 @@ public class MVCreatorUtil {
       // @see AssetQuerySandbox.getScope()
       if(entry != null && entry.isViewsheet()) {
          AssetRepository repository = AssetUtil.getAssetRepository(false);
-         Viewsheet vs = (Viewsheet) repository.getSheet(
-            entry, null, false, AssetContent.ALL);
+         List<String> parentVsIds = def.getParentVsIds();
 
-         if(vs == null) {
-            throw new RuntimeException("Viewsheet doesn't exist: " + entry);
+         // execute scripts for parent vs first and copy the parameters to the box
+         if(parentVsIds != null && !parentVsIds.isEmpty()) {
+            for(String parentVsId : parentVsIds) {
+               prepareViewsheetSandbox(repository, AssetEntry.createAssetEntry(parentVsId), box);
+            }
          }
 
-         ViewsheetSandbox vsBox = new ViewsheetSandbox(
-            vs, Viewsheet.SHEET_RUNTIME_MODE, null, false, entry);
-
-         // @by ChrisSpagnoli, for Bug #6297
-         // prepareMVCreation()/refreshVariableTable() needed to set up
-         // any script-set vars, so they can be referenced during MV creation
-         vsBox.prepareMVCreation();
-         box.refreshVariableTable(vsBox.getVariableTable());
-
+         ViewsheetSandbox vsBox = prepareViewsheetSandbox(repository, entry, box);
          box.setViewsheetSandbox(vsBox);
       }
 
@@ -943,6 +937,28 @@ public class MVCreatorUtil {
       }
 
       assembly.setProperty("no_cache", "true");
+   }
+
+   private static ViewsheetSandbox prepareViewsheetSandbox(AssetRepository repository,
+                                                           AssetEntry entry,
+                                                           AssetQuerySandbox box) throws Exception
+   {
+      Viewsheet vs = (Viewsheet) repository.getSheet(
+         entry, null, false, AssetContent.ALL);
+
+      if(vs == null) {
+         throw new RuntimeException("Viewsheet doesn't exist: " + entry);
+      }
+
+      ViewsheetSandbox vsBox = new ViewsheetSandbox(
+         vs, Viewsheet.SHEET_RUNTIME_MODE, null, false, entry);
+
+      // @by ChrisSpagnoli, for Bug #6297
+      // prepareMVCreation()/refreshVariableTable() needed to set up
+      // any script-set vars, so they can be referenced during MV creation
+      vsBox.prepareMVCreation();
+      box.refreshVariableTable(vsBox.getVariableTable());
+      return vsBox;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MVCreatorUtil.class);

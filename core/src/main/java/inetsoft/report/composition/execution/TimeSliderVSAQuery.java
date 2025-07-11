@@ -957,7 +957,8 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          MVDef def = !box.isMVEnabled() ? null :
             MVManager.getManager().findMV(box.getAssetEntry(),
                                           assembly.getTableName(),
-                                          (XPrincipal) box.getUser(), null);
+                                          (XPrincipal) box.getUser(), null,
+                                          box.getParentVsIds());
 
          if(def != null) {
             def = def.update();

@@ -2808,6 +2808,10 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                      changed = true;
                   }
 
+                  if(def.renameParentVsId(oid, entry.toIdentifier())) {
+                     changed = true;
+                  }
+
                   if(changed) {
                      mvManager.add(def);
                   }

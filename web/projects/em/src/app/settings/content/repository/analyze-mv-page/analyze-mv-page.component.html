@@ -51,6 +51,10 @@
         <mat-checkbox *ngIf="securityEnabled && groupExpandedVisible && enterprise" class="mat-checkbox-field" [disabled]="bypass"
                       [(ngModel)]="groupExpanded" title="_#(em.mv.groupExpanded)">_#(em.mv.groupExpanded)
         </mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" [(ngModel)]="applyParentVsParameters"
+                      title="_#(em.mv.applyParentVsParametersTooltip)">
+          _#(em.mv.applyParentVsParameters)
+        </mat-checkbox>
       </div>
     </mat-card-content>
   </mat-card>

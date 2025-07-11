@@ -81,7 +81,8 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
       this.analyzeMVModel = <AnalyzeMVModel> {
          fullData: true,
          bypass: false,
-         groupExpanded: false
+         groupExpanded: false,
+         applyParentVsParameters: false
       };
    }
 
@@ -100,6 +101,7 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
          expanded: this.analyzeMVModel.groupExpanded,
          full: this.analyzeMVModel.fullData,
          bypass: this.analyzeMVModel.bypass,
+         applyParentVsParameters: this.analyzeMVModel.applyParentVsParameters,
          nodes: this.selectedNodes
       };
 
@@ -124,6 +126,7 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
          expanded: this.analyzeMVModel.groupExpanded,
          full: this.analyzeMVModel.fullData,
          bypass: this.analyzeMVModel.bypass,
+         applyParentVsParameters: this.analyzeMVModel.applyParentVsParameters,
          nodes: this.selectedNodes
       };
       this.loading = true;
