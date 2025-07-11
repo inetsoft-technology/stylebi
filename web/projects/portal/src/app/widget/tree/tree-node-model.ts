@@ -42,4 +42,5 @@ export interface TreeNodeModel {
    parent?: TreeNodeModel;
    treeView?: number;
    defaultOrgAsset?: boolean;
+   expired?: boolean;
 }
