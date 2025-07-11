@@ -117,6 +117,7 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    selectedProperty: any[] = [];
    private routeParamSubscription: Subscription;
    enterprise: boolean;
+   _createDB: boolean = false;
 
    searchFunc: (text: Observable<string>) => Observable<any[]> = (text: Observable<string>) =>
       text.pipe(
@@ -154,6 +155,8 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
                const listingName = routeParams.get("listingName");
 
                if(listingName) {
+                  this._createDB = true;
+
                   return this.httpClient.get("../api/data/database/listing/"
                      + Tool.encodeURIComponentExceptSlash(listingName));
                }
@@ -215,7 +218,7 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    }
 
    isCreateDB(): boolean {
-      return this.originalModel.path == "" || this.originalModel.path == "/";
+      return this._createDB;
    }
 
    updateAdditionalList() {
