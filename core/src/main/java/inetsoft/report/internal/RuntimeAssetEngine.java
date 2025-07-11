@@ -545,6 +545,11 @@ public class RuntimeAssetEngine implements AssetRepository {
       getRepository().copyEntryProperty(entry, storage);
    }
 
+   @Override
+   public void forceTreeRefresh() {
+      getRepository().forceTreeRefresh();
+   }
+
    private WeakReference<AssetRepository> server;
    private WeakReference<AssetRepository> report;
    private AssetChangeListener listener;

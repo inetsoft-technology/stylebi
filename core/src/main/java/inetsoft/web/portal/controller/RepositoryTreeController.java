@@ -247,12 +247,22 @@ public class RepositoryTreeController {
          repositoryEntryModelFactoryService.createModel(parentEntry);
       parentEntryModel.setOp(repositoryTreeService.getSupportedOperations(parentEntry, principal));
 
-      return TreeNodeModel.builder()
-         .label(globalDefOrgFolderName)
-         .data(parentEntryModel)
-         .defaultOrgAsset(true)
-         .addChildren(getGlobalChildrenNodes(principal, isReport, isFavoritesTree, isGlobal, isPortalData, showVS))
-         .build();
+      if(!SUtil.isDefaultVSGloballyVisible()) {
+         return TreeNodeModel.builder()
+            .label(globalDefOrgFolderName)
+            .data(parentEntryModel)
+            .defaultOrgAsset(true)
+            .expired(true)
+            .build();
+      }
+      else {
+         return TreeNodeModel.builder()
+            .label(globalDefOrgFolderName)
+            .data(parentEntryModel)
+            .defaultOrgAsset(true)
+            .addChildren(getGlobalChildrenNodes(principal, isReport, isFavoritesTree, isGlobal, isPortalData, showVS))
+            .build();
+      }
    }
 
    public TreeNodeModel[] getGlobalChildrenNodes(Principal principal, boolean isReport,

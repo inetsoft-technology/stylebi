@@ -476,4 +476,9 @@ public interface AssetRepository {
     * @param storage the specified indexed storage
     */
    void copyEntryProperty(AssetEntry entry, IndexedStorage storage);
+
+   /**
+    * force Refresh of asset tree
+    */
+   void forceTreeRefresh();
 }

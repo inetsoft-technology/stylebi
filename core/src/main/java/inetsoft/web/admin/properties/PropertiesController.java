@@ -20,9 +20,9 @@ package inetsoft.web.admin.properties;
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.TableFormat;
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.SecurityEngine;
-import inetsoft.sree.security.SecurityProvider;
+import inetsoft.sree.*;
+import inetsoft.sree.security.*;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.log.*;
@@ -43,6 +43,9 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @DeniedMultiTenancyOrgUser
 public class PropertiesController {
+   @Autowired
+   private AssetRepository assetRepository;
+
    @Audited(
       actionName = ActionRecord.ACTION_NAME_DELETE,
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
@@ -56,6 +59,10 @@ public class PropertiesController {
       removeLogLevel(property);
       SreeEnv.remove(property);
       SreeEnv.save();
+
+      if(Tool.equals(property, "security.exposedefaultorgtoall")) {
+         assetRepository.forceTreeRefresh();
+      }
    }
 
    @Audited(
@@ -93,6 +100,10 @@ public class PropertiesController {
 
       if(Tool.equals(propertyName,"string.compare.casesensitive")) {
          Tool.invalidateCaseSensitive();
+      }
+
+      if(Tool.equals(propertyName, "security.exposedefaultorgtoall")) {
+         assetRepository.forceTreeRefresh();
       }
    }
 

@@ -4604,6 +4604,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          ((MetadataAwareStorage) storage).isMetadataEnabled();
    }
 
+   @Override
+   public void forceTreeRefresh() {
+      AssetEntry root = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "/", null);
+
+      fireEvent(Viewsheet.VIEWSHEET_ASSET, AssetChangeEvent.ASSET_MODIFIED, root, null, true, null, "");
+   }
+
    public static final ThreadLocal<String> LOCAL = new ThreadLocal<>();
    protected int[] scopes; // supported scopes
    protected IndexedStorage istore; // default indexed storage
