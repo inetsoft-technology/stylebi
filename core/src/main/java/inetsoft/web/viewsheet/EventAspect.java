@@ -136,22 +136,13 @@ public class EventAspect {
       MethodSignature signature = (MethodSignature) joinPoint.getSignature();
       boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
 
-      RuntimeWorksheet rws = viewsheetService.getWorksheet(id, principal);
-      MVSession session = rws.getAssetQuerySandbox().getMVSession();
-      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
-
-      // if worksheet changed, re-init sql context so change in table
-      // is reflected in spark sql
-      if(undoable && session != null) {
-         session.clearInitialized();
-      }
-
-      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+      eventAspectServiceProxy.setWSExecution(id, undoable, principal);
    }
 
    @AfterReturning("@annotation(InitWSExecution) && within(inetsoft.web..*)")
-   public void clearWSExecution(JoinPoint joinPoint) {
-      WSExecution.setAssetQuerySandbox(null);
+   public void clearWSExecution(JoinPoint joinPoint) throws Throwable {
+      String id = this.runtimeViewsheetRef.getRuntimeId();
+      eventAspectServiceProxy.clearWSExecution(id);
    }
 
    @Around("@annotation(org.springframework.messaging.handler.annotation.MessageMapping)" +
@@ -550,13 +541,13 @@ public class EventAspect {
 
    @Around("@annotation(ExecutionMonitoring) && within(inetsoft.web..*)")
    public Object addExecutionMonitoring(ProceedingJoinPoint pjp) throws Throwable {
-      viewsheetService.addExecution(this.runtimeViewsheetRef.getRuntimeId());
+      eventAspectServiceProxy.addExecutionMonitoring(this.runtimeViewsheetRef.getRuntimeId());
 
       try {
          return pjp.proceed();
       }
       finally {
-         viewsheetService.removeExecution(this.runtimeViewsheetRef.getRuntimeId());
+         eventAspectServiceProxy.removeExecutionMonitoring(this.runtimeViewsheetRef.getRuntimeId());
       }
    }
 
