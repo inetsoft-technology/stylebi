@@ -39,6 +39,11 @@ export namespace ComponentTool {
    export const MESSAGEDIALOG_MESSAGE_CONNECTION = "_*";
 
    export function showHttpError(message: string, error: HttpErrorResponse, modal: NgbModal): void {
+      if(error.status === 502 || error.status === 503) {
+         ComponentTool.showMessageDialog(modal, "_#(js:Error)", "_#(js:login.error.gateway");
+         return;
+      }
+
       let msg: string;
       let err = error.error;
 
