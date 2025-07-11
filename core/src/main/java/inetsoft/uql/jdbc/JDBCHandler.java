@@ -768,6 +768,8 @@ public class JDBCHandler extends XHandler {
                   JDBCDataSource.JDBC_SYBASE;
                boolean informix = xds.getDatabaseType() ==
                   JDBCDataSource.JDBC_INFORMIX;
+               boolean clickhouse = xds.getDatabaseType() ==
+                  JDBCDataSource.JDBC_CLICKHOUSE;
                boolean db2 = xds.getDatabaseType() == JDBCDataSource.JDBC_DB2;
                Method nameFunc = null;
 
@@ -904,6 +906,10 @@ public class JDBCHandler extends XHandler {
                            else if(db2 && val instanceof Number) {
                               ((PreparedStatement) stmt).
                                  setString(inIdx, Tool.toString(val));
+                           }
+                           else if(clickhouse && val instanceof Timestamp) {
+                              ((PreparedStatement) stmt).setObject(inIdx,
+                                  SQLTypes.convert(((Timestamp) val).toLocalDateTime(), translations));
                            }
                            else if(boolToStr && val instanceof Boolean) {
                               ((PreparedStatement) stmt).
