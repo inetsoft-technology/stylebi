@@ -1735,8 +1735,6 @@ public class CoreLifecycleService {
             List objList = vinfo.getChildAssemblies();
 
             dispatcher.sendCommand(info.getAbsoluteName(), new RefreshEmbeddedVSCommand(objList));
-            // make sure embedded vs exists before adding children
-            dispatcher.flush();
 
             for(Object assemblyObj : objList) {
                VSAssembly sassembly = (VSAssembly) assemblyObj;
