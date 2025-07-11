@@ -3190,6 +3190,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             width += this.allAssemblyBounds.left;
          }
 
+         // see GuiTool.getChartMaxModeSize, 19px is for scrollbar of table data assembly.
+         if(this.vsObjects?.length > 0 && this.vsObjects[0]?.sheetMaxMode) {
+            width += 19;
+            height += 19;
+         }
+
          this.onViewerSizeChanged.emit({width: this.fitToWidth ? null : width, height: height});
       }
    }
