@@ -1566,6 +1566,14 @@ public class UserTreeService {
       final AuthenticationProvider provider =
          authenticationProviderService.getProviderByName(providerName);
       final Role oldRole = provider.getRole(oldID);
+
+      // Bug #71826, for edge case, only reproduce when the server responds very slowly + renaming identity +
+      // quickly click "Apply" button more than once("Apply" button not quickly change to disabled
+      // becauseof the slow server response)
+      if(oldRole == null) {
+         return;
+      }
+
       final IdentityModification roleChange =
          systemAdminService.getRoleModification(oldRole, model, principal);
 
