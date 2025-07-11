@@ -40,6 +40,7 @@ export class StagedFileChooserComponent implements OnInit {
    @Input() disabled = false;
    @Input() selectButtonLabel = "_#(js:Select)";
    @Input() displayList: boolean = true;
+   @Input() uploadType: string= "driver";
 
    value: any[] = [];
    uploading = false;
@@ -75,6 +76,8 @@ export class StagedFileChooserComponent implements OnInit {
       for(let i = 0; i < this.value.length; i++) {
          data.append(`uploadedFiles`, this.value[i]);
       }
+
+      data.append("uploadType", this.uploadType);
       // const data = this.value.reduce((form, file, i) => form.append(`file${i + 1}`, file), new FormData());
       const options = { params: new HttpParams(), reportProgress: true };
       const request = new HttpRequest("POST", "../api/em/upload", data, options);

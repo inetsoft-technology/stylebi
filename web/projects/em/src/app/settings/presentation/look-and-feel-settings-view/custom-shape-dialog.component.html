@@ -5,7 +5,7 @@
     <mat-checkbox class="mat-checkbox-field" [(ngModel)]="extractArchives" title="_#(Extract archive files)">
       _#(Extract archive files)
     </mat-checkbox>
-    <em-staged-file-chooser #fileChooser [header]="uploadHeader" [displayList]="false">
+    <em-staged-file-chooser #fileChooser [header]="uploadHeader" [displayList]="false" [uploadType]="'shape'">
       <button
         mat-flat-button
         color="primary"
