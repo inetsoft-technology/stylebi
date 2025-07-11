@@ -90,6 +90,9 @@
   <helper type="databricks" class="inetsoft.uql.jdbc.DatabricksHelper">
     <maxidentifier>128</maxidentifier>
   </helper>
+  <helper type="clickhouse" class="inetsoft.uql.jdbc.ClickhouseHelper">
+    <maxidentifier>128</maxidentifier>
+  </helper>
 
   <!--row limit-->
    <unsupported type="default" op="maxrows"/>
@@ -99,6 +102,7 @@
    <unsupported type="luciddb" op="maxrows"/>
    <unsupported type="impala" op="maxrows"/>
    <unsupported type="h2" op="maxrows"/>
+  <unsupported type="clickhouse" op="maxrows"/>
 
    <!--concatenation like union/intersect/minus-->
    <unsupported type="access" op="concatenation_table"/>
