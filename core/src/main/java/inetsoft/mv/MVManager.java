@@ -134,14 +134,14 @@ public final class MVManager {
 
          if(mv != null) {
             return new RuntimeMV(entry, null, null, tname, mv.getName(),
-                                 false, mv.getLastUpdateTime());
+                                 false, mv.getLastUpdateTime(), null);
          }
          else {
             return null;
          }
       }
 
-      MVDef mv = findMV(entry, tname, user, null);
+      MVDef mv = findMV(entry, tname, user, null, vbox.getParentVsIds());
       RuntimeMV rmv = null;
 
       if(mv != null && vs != null && !isCalcFieldsValid(mv, vs)) {
@@ -149,7 +149,7 @@ public final class MVManager {
          mv = null;
       }
 
-      MVDef smv = mv != null ? null : getSubMV(entry, tname, user);
+      MVDef smv = mv != null ? null : getSubMV(entry, tname, user, vbox.getParentVsIds());
 
       if(mv != null && !mv.isSuccess()) {
          mv = null;
@@ -161,14 +161,14 @@ public final class MVManager {
 
       if(mv != null) {
          rmv = new RuntimeMV(entry, vs, vassembly, tname, mv.getName(), false,
-            mv.getLastUpdateTime());
+            mv.getLastUpdateTime(), mv.getParentVsIds());
       }
       // contains mv? mark this table as mv table
       else if(smv != null) {
          // Bug #62332, return a physical mv for association mv
          rmv = new RuntimeMV(entry, vs, vassembly, tname,
                              smv.isAssociationMV() ? smv.getName() : null, false,
-                             smv.getLastUpdateTime());
+                             smv.getLastUpdateTime(), smv.getParentVsIds());
       }
 
       // fix bug1366967696412, do not create mv for new viewsheet
@@ -453,7 +453,8 @@ public final class MVManager {
                      "admin".equals(user.getName()) &&
                      SecurityEngine.getSecurity().getSecurityProvider().isVirtual())
          ? null : new DefaultIdentity(IdentityID.getIdentityIDFromKey(user.getName()), Identity.USER);
-      VSMVAnalyzer analyzer = new VSMVAnalyzer(entry.toIdentifier(), vs, id, vbox, false);
+      VSMVAnalyzer analyzer = new VSMVAnalyzer(entry.toIdentifier(), vs, id, vbox, false,
+                                               null);
       String key = entry + ":" + user;
       boolean full = vs.getViewsheetInfo().isFullData();
 
@@ -476,7 +477,7 @@ public final class MVManager {
 
          // mv is not available for this table? don't recreate all
          if("__anyt__".equals(tname) ||
-            findMV0(defs, entry, tname, user, null) != null ||
+            findMV0(defs, entry, tname, user, null, null) != null ||
             containsSubMV0(defs, entry, tname, user))
          {
             for(MVDef mv : defs) {
@@ -519,7 +520,19 @@ public final class MVManager {
     * @param ptname the parent table name if this is a sub-table.
     */
    public MVDef findMV(AssetEntry entry, final String tname, XPrincipal user, String ptname) {
-      return findMV0(list(false), entry, tname, user, ptname);
+      return findMV(entry, tname, user, ptname, null);
+   }
+
+   /**
+    * Get the MVDef by providing viewsheet entry and table name.
+    * @param entry the viewsheet entry.
+    * @param tname the worksheet data table name.
+    * @param ptname the parent table name if this is a sub-table.
+    */
+   public MVDef findMV(AssetEntry entry, final String tname, XPrincipal user, String ptname,
+                       List<String> parentVsIds)
+   {
+      return findMV0(list(false), entry, tname, user, ptname, parentVsIds);
    }
 
    /**
@@ -535,12 +548,32 @@ public final class MVManager {
       }
 
       // sorts the mv list so that the VS MVs come first and WS MVs come last
+      // make sure that viewsheets with parent ids come first
       list.sort((mvDef1, mvDef2) -> {
-         if(mvDef1.getVsId() != null && mvDef2.getVsId() == null) {
+         boolean isVs1 = mvDef1.getVsId() != null;
+         boolean isVs2 = mvDef2.getVsId() != null;
+
+         // Viewsheet MVs come before Worksheet MVs
+         if(isVs1 && !isVs2) {
+            return -1;
+         }
+
+         if(!isVs1 && isVs2) {
             return 1;
          }
-         else if(mvDef1.getVsId() == null && mvDef2.getVsId() != null) {
-            return -1;
+
+         // Among Viewsheet MVs, those with parents come first
+         if(isVs1 && isVs2) {
+            boolean hasParents1 = mvDef1.getParentVsIds() != null;
+            boolean hasParents2 = mvDef2.getParentVsIds() != null;
+
+            if(hasParents1 && !hasParents2) {
+               return -1;
+            }
+
+            if(!hasParents1 && hasParents2) {
+               return 1;
+            }
          }
 
          return 0;
@@ -555,7 +588,8 @@ public final class MVManager {
     * Find the specified mv.
     */
    private MVDef findMV0(MVDef[] defs, AssetEntry entry, final String tname,
-                         final XPrincipal user, final String ptname)
+                         final XPrincipal user, final String ptname,
+                         List<String> parentVsIds)
    {
       if(entry == null) {
          return null;
@@ -590,6 +624,10 @@ public final class MVManager {
 
             if(sub && !ptname.equals(def.getMVTable())) {
                return false;
+            }
+
+            if(def.getParentVsIds() != null) {
+               return def.getParentVsIds().equals(parentVsIds);
             }
          }
 
@@ -667,14 +705,17 @@ public final class MVManager {
    private boolean containsSubMV0(MVDef[] defs, AssetEntry entry,
                                   final String tname, XPrincipal user)
    {
-      return getSubMV0(defs, entry, tname, user) != null;
+      return getSubMV0(defs, entry, tname, user, null) != null;
    }
 
-   public MVDef getSubMV(AssetEntry entry, String tname, XPrincipal user) {
-      return getSubMV0(list(false), entry, tname, user);
+   public MVDef getSubMV(AssetEntry entry, String tname, XPrincipal user, List<String> parentVsIds)
+   {
+      return getSubMV0(list(false), entry, tname, user, parentVsIds);
    }
 
-   private MVDef getSubMV0(MVDef[] defs, AssetEntry entry, final String tname, XPrincipal user) {
+   private MVDef getSubMV0(MVDef[] defs, AssetEntry entry, final String tname, XPrincipal user,
+                           List<String> parentVsIds)
+   {
       if(entry == null) {
          return null;
       }
@@ -698,6 +739,10 @@ public final class MVManager {
 
          if(!Tool.equals(tname, def.getBoundTable())) {
             return false;
+         }
+
+         if(def.getParentVsIds() != null) {
+            return def.getParentVsIds().equals(parentVsIds);
          }
 
          return true;
@@ -1465,7 +1510,7 @@ public final class MVManager {
    public boolean isMaterialized(String id, boolean ws, Principal user) {
       MVDef[] defs = list(true, getIsMaterializedFilter(id, ws, user), user);
       return Arrays.stream(defs)
-         .anyMatch(def -> def.isSuccess() && def.getMetaData().isRegistered(id));
+         .anyMatch(def -> def.isSuccess() && def.isUsedBy(id));
    }
 
    private MVFilter getIsMaterializedFilter(String assetIdentifier, boolean ws, Principal user) {

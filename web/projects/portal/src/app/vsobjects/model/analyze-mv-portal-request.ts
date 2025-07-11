@@ -21,5 +21,6 @@ export interface AnalyzeMVPortalRequest {
    expanded: boolean;
    bypass: boolean;
    full: boolean;
+   applyParentVsParameters: boolean;
    nodes: MVTreeModel[];
 }

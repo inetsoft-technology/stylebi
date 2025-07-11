@@ -405,8 +405,9 @@ public final class MVTransformer {
             // a physical mv? need convert it to non-physical mv
             if(rmv.isPhysical()) {
                mvtable.setRuntimeMV(new RuntimeMV(rmv.getEntry(),
-                  rmv.getViewsheet(), rmv.getVSAssembly(),
-                  rmv.getBoundTable(), null, true, rmv.getMVLastUpdateTime()));
+                                                  rmv.getViewsheet(), rmv.getVSAssembly(),
+                                                  rmv.getBoundTable(), null, true,
+                                                  rmv.getMVLastUpdateTime(), rmv.getParentVsIds()));
             }
 
             addSubMV(user, rmv, mvtable, desc, true, rmv.isPhysical());
@@ -581,18 +582,18 @@ public final class MVTransformer {
       // only use a sub-mv if there is no selection on children, otherwise
       // the selection condition would be ignored.
       MVDef def = (root || desc.isSelectionOnChildren(ptable)) ? null
-         : mgr.findMV(entry, otable, user, ptable);
+         : mgr.findMV(entry, otable, user, ptable, rmv.getParentVsIds());
 
       if(def == null && physical) {
          def = (root || desc.isSelectionOnChildren(ptable)) ? null
-            : mgr.findMV(entry, otable, user, null);
+            : mgr.findMV(entry, otable, user, null, rmv.getParentVsIds());
       }
 
       if(def != null) {
          checkColumns(def, table.getColumnSelection(true));
          String mv = def.getName();
          RuntimeMV rinfo = new RuntimeMV(entry, vs, vassembly, otable, mv, true,
-                                         def.getLastUpdateTime());
+                                         def.getLastUpdateTime(), def.getParentVsIds());
          table.setRuntimeMV(rinfo);
          return;
       }

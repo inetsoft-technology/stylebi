@@ -35,6 +35,8 @@ public interface AnalyzeMVPortalRequest {
 
    boolean full();
 
+   boolean applyParentVsParameters();
+
    List<MVTreeModel> nodes();
 
    static Builder builder() {

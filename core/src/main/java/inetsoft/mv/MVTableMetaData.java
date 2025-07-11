@@ -227,7 +227,7 @@ public final class MVTableMetaData extends TableMetaData {
          if(rmv != null && vname != null) {
             rmv = new RuntimeMV(rmv.getEntry(), rmv.getViewsheet(), vname,
                                 rmv.getBoundTable(), rmv.getMV(), rmv.isSub(),
-                                rmv.getMVLastUpdateTime());
+                                rmv.getMVLastUpdateTime(), rmv.getParentVsIds());
             table.setRuntimeMV(rmv);
          }
 

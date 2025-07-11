@@ -83,12 +83,12 @@ public class SharedMVUtil {
       shareMV(analyzedDefs);
 
       // 2: get all sheets in the analyzed mv
-      Set<String> sheetIds = getSheetIds(analyzedDefs);
+      Map<String, String> key2id = getSheetKeyToSheetIdMap(analyzedDefs);
       MVManager mgr = MVManager.getManager();
       MVDef[] storedDefs = mgr.list(false, def -> def.isWSMV() == wsMV);
 
-      // 3: build sheet name to mv def map
-      Map<String, List<MVDef>> id2defs = buildSheetIdToMVDefMap(storedDefs);
+      // 3: build sheet key (id or parent id -> id) to mv def map
+      Map<String, List<MVDef>> key2defs = buildSheetKeyToMVDefMap(storedDefs);
       boolean changed = false;
       List<MVDef> notSharedAnalyzedDef = new ArrayList<>();
 
@@ -101,8 +101,11 @@ public class SharedMVUtil {
 
          for(MVDef stored : storedDefs) {
             if(stored.isSharedBy(def)) {
-               String[] registeredSheetIds = def.getMetaData().getRegisteredSheets();
-               removeMVDefFromMap(id2defs, registeredSheetIds, stored);
+               MVDef finalDef = def;
+               String[] registeredSheetKeys = Arrays.stream(def.getMetaData().getRegisteredSheets())
+                  .map((sheetId) -> getSheetKey(sheetId, finalDef))
+                  .toArray(String[]::new);
+               removeMVDefFromMap(key2defs, registeredSheetKeys, stored);
                // add names to the shared mv def
                stored.shareMV(def);
                analyzedDefs.remove(i);
@@ -162,11 +165,10 @@ public class SharedMVUtil {
       }
 
       // 5: remove the sheet from old shared mv, cause cannot shared
+      for(Map.Entry<String, List<MVDef>> entry : key2defs.entrySet()) {
+         final String key = entry.getKey();
 
-      for(Map.Entry<String, List<MVDef>> entry : id2defs.entrySet()) {
-         final String id = entry.getKey();
-
-         if(!sheetIds.contains(id)) {
+         if(!key2id.containsKey(key)) {
             continue;
          }
 
@@ -174,7 +176,7 @@ public class SharedMVUtil {
 
          if(temp != null) {
             for(MVDef def : temp) {
-               mgr.remove(def, id);
+               mgr.remove(def, key2id.get(key));
             }
          }
       }
@@ -273,18 +275,19 @@ public class SharedMVUtil {
       shareMV(analyzedDefs);
 
       // 2: get all sheet names in the analyzed mv
-      Set<String> sheetIds = getSheetIds(analyzedDefs);
+      Map<String, String> key2id = getSheetKeyToSheetIdMap(analyzedDefs);
+      String[] sheetIds = key2id.values().toArray(new String[0]);
 
       MVManager mgr = MVManager.getManager();
       MVDef[] storedDefs = mgr.list(false, def -> def.isWSMV() == wsMV);
 
       // 3: remove all invalidation from mv defs
       for(MVDef stored : storedDefs) {
-         stored.getMetaData().validRegister(sheetIds.toArray(new String[0]));
+         stored.getMetaData().validRegister(sheetIds);
       }
 
-      // 4: build sheet name to mv def map
-      Map<String, List<MVDef>> id2defs = buildSheetIdToMVDefMap(storedDefs);
+      // 4: build sheet key to mv def map
+      Map<String, List<MVDef>> key2defs = buildSheetKeyToMVDefMap(storedDefs);
 
       // 5: remove stored mv def from the map if it can be shared
       for(int i = analyzedDefs.size() - 1; i >= 0; i--) {
@@ -292,8 +295,10 @@ public class SharedMVUtil {
 
          for(MVDef stored : storedDefs) {
             if(stored.isSharedBy(def)) {
-               String[] registeredSheetIds = def.getMetaData().getRegisteredSheets();
-               removeMVDefFromMap(id2defs, registeredSheetIds, stored);
+               String[] registeredSheetKeys = Arrays.stream(def.getMetaData().getRegisteredSheets())
+                  .map((sheetId) -> getSheetKey(sheetId, def))
+                  .toArray(String[]::new);
+               removeMVDefFromMap(key2defs, registeredSheetKeys, stored);
                analyzedDefs.remove(i);
                break;
             }
@@ -301,11 +306,10 @@ public class SharedMVUtil {
       }
 
       // 6: mark the stored mv def as invalid
+      for(Map.Entry<String, List<MVDef>> entry : key2defs.entrySet()) {
+         final String key = entry.getKey();
 
-      for(Map.Entry<String, List<MVDef>> entry : id2defs.entrySet()) {
-         final String id = entry.getKey();
-
-         if(!sheetIds.contains(id) || !id2defs.containsKey(id)) {
+         if(!key2id.containsKey(key) || !key2defs.containsKey(key)) {
             continue;
          }
 
@@ -315,7 +319,7 @@ public class SharedMVUtil {
             // only invalid if def is shareable but not shared
             .filter(MVDef::isShareable)
             .forEach(def -> {
-               def.getMetaData().invalidRegister(id);
+               def.getMetaData().invalidRegister(key2id.get(key));
                def.setChanged(true);
             });
       }
@@ -392,14 +396,15 @@ public class SharedMVUtil {
    /**
     * Build map between each viewsheet to its mv defs.
     */
-   private static Map<String, List<MVDef>> buildSheetIdToMVDefMap(MVDef[] defs) {
+   private static Map<String, List<MVDef>> buildSheetKeyToMVDefMap(MVDef[] defs) {
       Map<String, List<MVDef>> id2defs = new HashMap<>();
 
       for(MVDef def : defs) {
          String[] ids = def.getMetaData().getRegisteredSheets();
 
          for(String v : ids) {
-            List<MVDef> temp = id2defs.computeIfAbsent(v, k -> new ArrayList<>());
+            String key = getSheetKey(v, def);
+            List<MVDef> temp = id2defs.computeIfAbsent(key, k -> new ArrayList<>());
             temp.add(def);
          }
       }
@@ -410,11 +415,11 @@ public class SharedMVUtil {
    /**
     * Remove the specified mv def from the map for the given sheet names.
     */
-   private static void removeMVDefFromMap(Map<String, List<MVDef>> id2defs,
-                                          String[] sheetIds, MVDef storedDef)
+   private static void removeMVDefFromMap(Map<String, List<MVDef>> key2defs,
+                                          String[] keys, MVDef storedDef)
    {
-      for(String id : sheetIds) {
-         List<MVDef> defs = id2defs.get(id);
+      for(String key : keys) {
+         List<MVDef> defs = key2defs.get(key);
 
          if(defs != null) {
             for(int i = 0; i < defs.size(); i++) {
@@ -481,6 +486,28 @@ public class SharedMVUtil {
             }
          }
       }
+   }
+
+   private static String getSheetKey(String id, MVDef def) {
+      if(def.getParentVsIds() == null) {
+         return id;
+      }
+
+      return String.join("->", def.getParentVsIds()) + "->" + id;
+   }
+
+   /**
+    * Get all sheet names.
+    */
+   private static Map<String, String> getSheetKeyToSheetIdMap(List<MVDef> defs) {
+      Map<String, String> map = new HashMap<>();
+
+      for(MVDef def : defs) {
+          Arrays.stream(def.getMetaData().getRegisteredSheets())
+            .forEach(sheetId -> map.put(getSheetKey(sheetId, def), sheetId));
+      }
+
+      return map;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(SharedMVUtil.class);

@@ -38,16 +38,14 @@ public class PortalMVService {
                                                   Principal principal)
       throws Exception
    {
-      List<String> paths = analyzeMVPortalRequest.nodes().stream()
-         .map(MVTreeModel::path)
-         .collect(Collectors.toList());
       List<String> identifiers = analyzeMVPortalRequest.nodes().stream()
          .map(MVTreeModel::identifier)
          .collect(Collectors.toList());
 
       return support.analyze(
-         identifiers, paths, analyzeMVPortalRequest.expanded(),
-         analyzeMVPortalRequest.bypass(), analyzeMVPortalRequest.full(), principal, true);
+         identifiers, analyzeMVPortalRequest.expanded(),
+         analyzeMVPortalRequest.bypass(), analyzeMVPortalRequest.full(), principal, true,
+         analyzeMVPortalRequest.applyParentVsParameters());
    }
 
    private final MVSupportService support;

@@ -45,6 +45,11 @@ public interface AnalyzeMVRequest {
         return false;
     }
 
+    @Value.Default
+    default boolean applyParentVsParameters() {
+        return false;
+    }
+
     List<ContentRepositoryTreeNode> nodes();
 
     static AnalyzeMVRequest.Builder builder() {

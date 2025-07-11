@@ -157,14 +157,11 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    private void materialize(String assetId, MVSupportService support, Set<String> mvNames) throws Exception {
       Principal user = SUtil.getPrincipal(
          new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false);
-      String path = Objects.requireNonNull(AssetEntry.createAssetEntry(assetId)).getPath();
       List<String> identifiers = new ArrayList<>();
-      List<String> paths = new ArrayList<>();
       identifiers.add(assetId);
-      paths.add(path);
 
       MVSupportService.AnalysisResult analysisResult =
-         support.analyze(identifiers, paths, false, true, true, user, false);
+         support.analyze(identifiers, false, true, true, user, false, false);
 
       analysisResult.waitFor();
 

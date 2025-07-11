@@ -64,16 +64,13 @@ public class MVService {
             .collect(Collectors.toList());
       }
 
-      List<String> paths = nodesToAnalyze.stream()
-         .map(ContentRepositoryTreeNode::path)
-         .map(treeService::getUnscopedPath)
-         .collect(Collectors.toList());
       List<String> identifiers = nodesToAnalyze.stream()
          .map(node -> toAssetEntry(node).toIdentifier()).collect(Collectors.toList());
 
       return support.analyze(
-         identifiers, paths, analyzeMVRequest.expanded(),
-         analyzeMVRequest.bypass(), analyzeMVRequest.full(), principal, false);
+         identifiers, analyzeMVRequest.expanded(),
+         analyzeMVRequest.bypass(), analyzeMVRequest.full(), principal, false,
+         analyzeMVRequest.applyParentVsParameters());
    }
 
    public List<MaterializedModel> getMaterializedModel(List<MVSupportService.MVStatus> mvstatus0) {
@@ -173,19 +170,19 @@ public class MVService {
          }
       }
 
-      List<String> identifiers = jobs.getIdentifiers();
-      Map<String, StringBuffer> plans = jobs.getPlans();
+      List<MVSupportService.MVCandidate> candidates = jobs.getCandidates();
+      Map<MVSupportService.MVCandidate, StringBuffer> plans = jobs.getPlans();
       int idx = 1;
 
-      for(String id : identifiers) {
-         if(!sheetIds.isEmpty() && !sheetIds.contains(id)) {
+      for(MVSupportService.MVCandidate candidate : candidates) {
+         if(!sheetIds.isEmpty() && !sheetIds.contains(candidate.getId())) {
             continue;
          }
 
-         StringBuffer plan = plans.get(id);
+         StringBuffer plan = plans.get(candidate);
 
          if(plan != null) {
-            String vs = AssetEntry.createAssetEntry(id).getPath();
+            String vs = AssetEntry.createAssetEntry(candidate.getId()).getPath();
 
             if(idx != 1) {
                info.append("\n\n\n");
@@ -253,7 +250,7 @@ public class MVService {
       if(ids != null) {
          for(MVDef def : manager.list(true, null, principal)) {
             for(String sheetId : ids) {
-               if(def.getMetaData().isRegistered(sheetId)) {
+               if(def.isUsedBy(sheetId)) {
                   defs.add(def);
                   break;
                }
@@ -301,9 +298,16 @@ public class MVService {
 
    private String getSheetNames(MVDef def) {
       MVMetaData data = def.getMetaData();
+      List<String> parentVsIds = def.getParentVsIds();
+      String parentVsIdsStr = parentVsIds != null && !parentVsIds.isEmpty() ?
+         parentVsIds.stream()
+            .map(id -> AssetEntry.createAssetEntry(id).getPath())
+            .collect(Collectors.joining(" -> "))
+         : null;
       return Arrays.stream(data.getRegisteredSheets())
          .map(id -> AssetEntry.createAssetEntry(id).getPath())
          .filter(path -> (!path.startsWith(RECYCLE_BIN_FOLDER)))
+         .map(path -> parentVsIdsStr != null ? parentVsIdsStr + " -> " + path : path)
          .collect(Collectors.joining(","));
    }
 

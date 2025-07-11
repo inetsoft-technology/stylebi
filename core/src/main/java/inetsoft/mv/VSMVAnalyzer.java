@@ -47,7 +47,7 @@ public final class VSMVAnalyzer implements MVAnalyzer {
     * Create an instance of MVDef.
     */
    public VSMVAnalyzer(String vsId, Viewsheet vs, Identity user, ViewsheetSandbox box,
-                       boolean bypass)
+                       boolean bypass, List<String> parentVsIds)
    {
       super();
 
@@ -56,6 +56,7 @@ public final class VSMVAnalyzer implements MVAnalyzer {
       this.user = user;
       this.box = box;
       this.bypass = bypass;
+      this.parentVsIds = parentVsIds;
    }
 
    /**
@@ -1456,7 +1457,8 @@ public final class VSMVAnalyzer implements MVAnalyzer {
          }
 
          MVDef def = new MVDef(vsId, wsId, table.getName(), otname, vs, ws,
-                               user, desc, !root, isSelectionOnly(), bypass);
+                               user, desc, !root, isSelectionOnly(), bypass,
+                               parentVsIds);
 
          if(def.isAssociationMV() &&
             hasCalcField(((MirrorTableAssembly) table).getTableAssembly()))
@@ -1569,6 +1571,7 @@ public final class VSMVAnalyzer implements MVAnalyzer {
    private final Identity user;
    private final ViewsheetSandbox box;
    private final boolean bypass;
+   private final List<String> parentVsIds;
 
    private static final Logger LOG = LoggerFactory.getLogger(VSMVAnalyzer.class);
    private static final String SUB_QUERY = Catalog.getCatalog().getString("SubQuery Condition");

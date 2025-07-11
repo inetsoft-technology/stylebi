@@ -57,4 +57,14 @@
       </option>
     </select>
   </div>
+  <div *ngIf="!testDrive" class="form-row-float-label">
+    <div class="form-check">
+      <label class="form-check-label" title="_#(em.mv.applyParentVsParametersTooltip)">
+        <input class="form-check-input" type="checkbox"
+               [(ngModel)]="analyzeMVModel.applyParentVsParameters"
+               [ngModelOptions]="{standalone: true}" title="_#(em.mv.applyParentVsParametersTooltip)">
+        _#(em.mv.applyParentVsParameters)
+      </label>
+    </div>
+  </div>
 </fieldset>
