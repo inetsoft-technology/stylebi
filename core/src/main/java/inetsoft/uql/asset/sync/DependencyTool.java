@@ -180,8 +180,7 @@ public class DependencyTool {
       }
 
       int Ncpu = Runtime.getRuntime().availableProcessors();
-
-      return (int) (Ncpu * 0.5 * (1 + entriesCount / 100));
+      return Math.max(1, (int) (Ncpu * 0.5 * (1 + entriesCount / 100)));
    }
 
    /**
