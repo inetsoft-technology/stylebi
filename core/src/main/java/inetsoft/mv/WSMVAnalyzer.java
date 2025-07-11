@@ -77,7 +77,8 @@ public class WSMVAnalyzer implements MVAnalyzer {
          }
 
          MVDef def = new MVDef(null, wsId, table.getName(), table.getName(),
-                               null, wsWrapper, user, null, false, false, bypass);
+                               null, wsWrapper, user, null, false, false, bypass,
+                               null);
 
          if(defaultCycle != null && !defaultCycle.equals("")) {
             def.setCycle(defaultCycle);

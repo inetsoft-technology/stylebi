@@ -56,7 +56,7 @@ public class ChangePasswordController {
          SUtil.setPassword((FSUser) user, request.password());
          ((EditableAuthenticationProvider) authc).addUser(user);
          ActionRecord record = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_EDIT,
-             SUtil.getUserName(principal), ActionRecord.OBJECT_TYPE_PASSWORD);
+             user.getName(), ActionRecord.OBJECT_TYPE_PASSWORD);
          Audit.getInstance().auditAction(record, principal);
       }
       else {

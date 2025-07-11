@@ -1333,6 +1333,10 @@ public class RepletEngine extends AbstractAssetEngine
                changed = true;
             }
 
+            if(def.renameParentVsId(oentry.toIdentifier(), nentry.toIdentifier())) {
+               changed = true;
+            }
+
             if(changed) {
                manager.add(def);
             }

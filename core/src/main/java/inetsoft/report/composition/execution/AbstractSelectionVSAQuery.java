@@ -331,7 +331,7 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       String tname = assembly.getTableName();
       AssetEntry entry = box.getAssetEntry();
       XPrincipal user = (XPrincipal) box.getUser();
-      return MVManager.getManager().findMV(entry, tname, user, null) != null;
+      return MVManager.getManager().findMV(entry, tname, user, null, box.getParentVsIds()) != null;
    }
 
    /**

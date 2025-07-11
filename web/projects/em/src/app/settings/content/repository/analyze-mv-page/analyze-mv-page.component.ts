@@ -75,6 +75,7 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    fullData = true;
    bypass = false;
    groupExpanded = false;
+   applyParentVsParameters = false;
    cycles: NameLabelTuple[] = [];
    securityEnabled = false;
    enterprise: boolean;
@@ -228,6 +229,7 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
             expanded: this.groupExpanded,
             full: this.fullData,
             bypass: this.bypass,
+            applyParentVsParameters: this.applyParentVsParameters,
             nodes: this.nodesToAnalyze
          };
 
