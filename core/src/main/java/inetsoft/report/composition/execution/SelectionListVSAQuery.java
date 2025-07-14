@@ -360,18 +360,17 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
 
       refreshMeasureFormat();
       ViewsheetScope scope = box.getScope();
-      SelectionListVSAScriptable scriptable =
-         (SelectionListVSAScriptable) scope.getVSAScriptable(vname);
+
+      if(!(scope.getVSAScriptable(vname) instanceof SelectionListVSAScriptable scriptable)) {
+         return;
+      }
+
       boolean dynamic = isDynamic(vfmt.getUserDefinedFormat());
       int rtype = ref.getRefType();
 
       for(int i = 0; i < slist.getSelectionValueCount(); i++) {
          SelectionValue svalue = slist.getSelectionValue(i);
-
-         if(scriptable != null) {
-            scriptable.setCellValue(svalue.getValue());
-         }
-
+         scriptable.setCellValue(svalue.getValue());
          refreshFormat(svalue, ref, vfmt, scriptable, dynamic, rtype);
       }
    }
