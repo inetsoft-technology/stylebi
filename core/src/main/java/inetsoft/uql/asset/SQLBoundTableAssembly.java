@@ -297,8 +297,13 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
       try {
          AssetRepository rep = AssetUtil.getAssetRepository(false);
          XDataService service = XFactory.getDataService();
-         UserVariable[] vars = service.getQueryParameters(rep.getSession(),
-            getSQLBoundTableInfo().getQuery(), true);
+         JDBCQuery query = getSQLBoundTableInfo().getQuery();
+
+         if(query != null) {
+            query = query.clone();
+         }
+
+         UserVariable[] vars = service.getQueryParameters(rep.getSession(), query, true);
 
          if(vars != null) {
             for(int j = 0; j < vars.length; j++) {
