@@ -3196,8 +3196,28 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             height += 19;
          }
 
+         if(!!this.viewerToolbar) {
+            width = Math.max(width, this.getMinimumToolbarWidth(this.viewerToolbar));
+         }
+
          this.onViewerSizeChanged.emit({width: this.fitToWidth ? null : width, height: height});
       }
+   }
+
+   private getMinimumToolbarWidth(toolbar: ElementRef): number {
+      let toolbarWidth = 0;
+
+      toolbar.nativeElement.childNodes.forEach((child: HTMLElement) => {
+         if(!child?.getBoundingClientRect || !child?.getBoundingClientRect() ||
+            child?.classList?.contains("hidden-input"))
+         {
+            return;
+         }
+
+         toolbarWidth += child.getBoundingClientRect().width;
+      });
+
+      return toolbarWidth;
    }
 
    /**
