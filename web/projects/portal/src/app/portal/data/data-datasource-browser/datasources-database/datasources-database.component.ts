@@ -406,13 +406,13 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
             let message: string = "";
 
             if(this.model.settings.dataSource.name == value.trim()) {
-               message = "_#(js:common.datasource.nameInvalid)";
+               message = Tool.formatCatalogString("_#(js:common.datasource.nameInvalid)", [value]);
                duplicate = true;
             }
             else if(!!this.additionalDataSources && this.additionalDataSources.map(
                (source) => source.name).indexOf(value.trim()) != -1)
             {
-               message = "_#(js:common.datasource.nameExists)";
+               message = Tool.formatCatalogString("_#(js:common.datasource.nameExists)", [value]);
                duplicate = true;
             }
 
@@ -444,7 +444,6 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
          .subscribe((response) =>
       {
          if(!!response && !!response.datasources && response.datasources.length > 0) {
-            console.log(response.datasources.join());
             ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
                Tool.formatCatalogString("_#(js:common.datasource.connectionUsedByExtendedModel)",
                   [response.datasources.join()]))
@@ -496,13 +495,13 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
       let message: string = "";
 
       if(this.model.settings.dataSource.name == value.trim()) {
-         message = "_#(js:common.datasource.nameInvalid)";
+         message = Tool.formatCatalogString("_#(js:common.datasource.nameInvalid)", [value]);
          duplicate = true;
       }
       else if(!!this.additionalDataSources && this.getSelectedAdditional()[0].name != value.trim()
          && this.additionalDataSources.map((source) => source.name).indexOf(value.trim()) != -1)
       {
-         message = "_#(js:common.datasource.nameExists)";
+         message = Tool.formatCatalogString("_#(js:common.datasource.nameExists)", [value]);
          duplicate = true;
       }
 
