@@ -185,14 +185,16 @@ public class EMScheduleTaskFolderController {
       ScheduleTaskModel[] taskModels = request.getTasks();
       ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
 
-      for(ScheduleTaskModel taskModel : taskModels) {
-         ScheduleTask task = scheduleManager.getScheduleTask(taskModel.name());
+      if(taskModels != null) {
+         for(ScheduleTaskModel taskModel : taskModels) {
+            ScheduleTask task = scheduleManager.getScheduleTask(taskModel.name());
 
-         if(!(SecurityEngine.getSecurity().checkPermission(principal,
-            ResourceType.SCHEDULE_TASK, taskModel.name(), ResourceAction.WRITE) ||
-            (task != null && scheduleTaskService.canDeleteTask(task, principal))))
-         {
-            return;
+            if(!(SecurityEngine.getSecurity().checkPermission(principal,
+               ResourceType.SCHEDULE_TASK, taskModel.name(), ResourceAction.WRITE) ||
+               (task != null && scheduleTaskService.canDeleteTask(task, principal))))
+            {
+               return;
+            }
          }
       }
 
