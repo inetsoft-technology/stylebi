@@ -193,7 +193,7 @@ export class PluginsViewComponent implements OnInit, AfterViewInit, OnDestroy {
 
    private connectSocket(): void {
       if(!this.connecting && !this.connection) {
-         this.client.connect("../vs-events").subscribe(
+         this.client.connect("../vs-events", true).subscribe(
             (connection) => {
                this.connecting = false;
                this.connection = connection;
