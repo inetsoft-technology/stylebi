@@ -29,7 +29,7 @@ export class EmScheduleChangeService implements OnDestroy {
   onFolderChange = new EventEmitter();
 
   constructor(private stompClient: StompClientService, private zone: NgZone) {
-    this.stompClient.connect("../vs-events").subscribe(
+    this.stompClient.connect("../vs-events", true).subscribe(
        (connection) => {
          this.connection = connection;
          this.subscriptions.add(connection.subscribe(

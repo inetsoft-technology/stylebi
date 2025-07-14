@@ -50,7 +50,7 @@ export class ScheduleUsersService implements OnDestroy {
          this.url = "../api/portal/schedule/users-model";
       }
 
-      this.stompClient.connect("../vs-events", true).subscribe(connection => {
+      this.stompClient.connect("../vs-events", !portal).subscribe(connection => {
          this.connection = connection;
 
          this.subscription.add(connection.subscribe("/user/schedule/users-change",
