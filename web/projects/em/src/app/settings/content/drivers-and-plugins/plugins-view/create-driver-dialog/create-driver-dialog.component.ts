@@ -208,6 +208,7 @@ export class CreateDriverDialogComponent implements OnInit {
             params = params.set("id", this.uploadId);
          }
 
+         params = params.set("uploadType", "driver");
          const options = { params };
          id$ = this.http.post<UploadFilesResponse>("../api/em/upload", data, options)
             .pipe(map(res => res.identifier));
