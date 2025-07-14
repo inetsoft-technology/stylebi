@@ -92,7 +92,8 @@
           <sql-query-preview-pane class="tab-pane-content"
                                   [runtimeId]="runtimeId"
                                   [sqlString]="queryModel?.freeFormSQLPaneModel?.sqlString"
-                                  [tableCount]="queryModel?.linkPaneModel?.tables?.length">
+                                  [tableCount]="queryModel?.linkPaneModel?.tables?.length"
+                                  (goBackToPreviousTab)="updateTab(oldTab)">
           </sql-query-preview-pane>
         </ng-template>
       </ng-container>

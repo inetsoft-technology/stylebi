@@ -154,6 +154,7 @@ export class SimpleQueryPaneComponent {
    conditionDialogModel: VPMConditionDialogModel;
    selectedConditionIndex: number = -1;
    private _defaultTab: string = this.editTab;
+   private _oldTab: string = this._defaultTab;
 
    get defaultTab(): string {
       return this._defaultTab;
@@ -643,6 +644,11 @@ export class SimpleQueryPaneComponent {
       }
       else {
          this._defaultTab = next;
+         this._oldTab = this._defaultTab;
       }
+   }
+
+   goBackToPreviousTab(): void {
+      this._defaultTab = this._oldTab;
    }
 }

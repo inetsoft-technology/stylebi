@@ -15,7 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, ElementRef, Input, OnDestroy, OnInit } from "@angular/core";
+import {
+   Component,
+   ElementRef,
+   EventEmitter,
+   Input,
+   OnDestroy,
+   OnInit,
+   Output
+} from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Rectangle } from "../../../../../../common/data/rectangle";
 import { GuiTool } from "../../../../../../common/util/gui-tool";
@@ -35,6 +43,7 @@ export class SqlQueryPreviewPaneComponent implements OnDestroy, OnInit {
    @Input() sqlString: string;
    @Input() tableCount: number;
    @Input() sqlEdited: boolean;
+   @Output() goBackToPreviousTab = new EventEmitter<void>();
    previewPending: boolean = false;
    tableData: string[][];
    scrollbarWidth: number;
@@ -94,6 +103,7 @@ export class SqlQueryPreviewPaneComponent implements OnDestroy, OnInit {
       },
       () => {
          this.previewPending = false;
+         this.goBackToPreviousTab.emit();
       });
    }
 
