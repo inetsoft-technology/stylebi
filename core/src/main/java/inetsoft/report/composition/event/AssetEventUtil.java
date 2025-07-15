@@ -1573,7 +1573,13 @@ public class AssetEventUtil {
     * @param table the specified table.
     */
    public static void initColumnSelection(RuntimeWorksheet rws,
-                                          TableAssembly table) throws Exception {
+                                          TableAssembly table)
+      throws Exception
+   {
+      if(rws.isDisposed()) {
+         return;
+      }
+
       initColumnSelection(rws.getAssetQuerySandbox(), table);
    }
 
