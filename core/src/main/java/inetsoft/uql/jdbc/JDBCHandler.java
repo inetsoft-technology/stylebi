@@ -769,7 +769,7 @@ public class JDBCHandler extends XHandler {
                boolean informix = xds.getDatabaseType() ==
                   JDBCDataSource.JDBC_INFORMIX;
                boolean db2 = xds.getDatabaseType() == JDBCDataSource.JDBC_DB2;
-               boolean databricks = "databricks".equals(xds.getRuntimeProductName());
+               boolean databricks = "databricks".equals(SQLHelper.getProductName(xds));
                Method nameFunc = null;
 
                if(sybase && def instanceof ProcedureSQL) {
