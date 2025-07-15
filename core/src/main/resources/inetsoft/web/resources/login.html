@@ -165,9 +165,10 @@
        var sessionExpired = window.sessionStorage.getItem("inetsoftSessionExpired") == "true";
        window.sessionStorage.setItem("inetsoftSessionExpired", "false");
        var defaultErrorMessage = /*[[#{login.error.authenticationFailed}]]*/ "Authentication failed";
+       var gatewayErrorMessage = /*[[#{login.error.gateway}]]*/ "Server not available";
        var currentUser = /*[[${currentUser}]]*/ "";
        var onloadError = /*[[${onloadError}]]*/ "";
-       initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, currentUser, onloadError);
+       initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage, currentUser, onloadError);
     });
     /*]]>*/
   </script>

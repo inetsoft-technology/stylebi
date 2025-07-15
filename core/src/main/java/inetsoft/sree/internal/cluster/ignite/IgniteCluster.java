@@ -1402,8 +1402,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          ExecutorService executor = getExecutorService(Integer.MAX_VALUE);
 
          if(event.type() == EventType.EVT_NODE_JOINED) {
-            MembershipEvent membershipEvent =
-               new MembershipEvent(IgniteCluster.this, getNodeName(event.node()));
+            MembershipEvent membershipEvent = new MembershipEvent(
+               IgniteCluster.this, getNodeName(event.node()), event.node().isClient());
 
             executor.submit(() -> {
                try {
@@ -1418,17 +1418,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
          else if(event.type() == EventType.EVT_NODE_LEFT) {
             String node;
+            boolean client;
 
             if(event instanceof DiscoveryEvent discoveryEvent) {
                node = discoveryEvent.eventNode().addresses().iterator().next();
+               client = discoveryEvent.eventNode().isClient();
             }
             else {
                node = getNodeName(event.node());
+               client = event.node().isClient();
             }
 
             executor.submit(() -> {
                try {
-                  MembershipEvent membershipEvent = new MembershipEvent(IgniteCluster.this, node);
+                  MembershipEvent membershipEvent =
+                     new MembershipEvent(IgniteCluster.this, node, client);
 
                   for(inetsoft.sree.internal.cluster.MembershipListener l : membershipListeners) {
                      l.memberRemoved(membershipEvent);
