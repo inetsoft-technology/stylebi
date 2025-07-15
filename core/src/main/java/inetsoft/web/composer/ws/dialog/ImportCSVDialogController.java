@@ -227,7 +227,8 @@ public class ImportCSVDialogController extends WorksheetController {
    @ResponseBody
    public void touchFile(@PathVariable("runtimeId") String runtimeId) throws IOException {
       String cdir = FileSystemService.getInstance().getCacheDirectory();
-      fileCache.get(cdir + Tool.byteDecode(runtimeId) + "_csv");
+      runtimeId = Tool.normalizeFileName(Tool.byteDecode(runtimeId));
+      fileCache.get(cdir + runtimeId + "_csv");
    }
 
    @MessageMapping("/ws/dialog/import-csv-dialog-model")
