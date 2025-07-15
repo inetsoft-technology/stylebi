@@ -20,8 +20,7 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 // Combine commands for optimization
 public class CommandDebouncer {
@@ -96,6 +95,23 @@ public class CommandDebouncer {
 
             if(vcmd0 instanceof RemoveVSObjectCommand) {
                if(Objects.equals(name, ((RemoveVSObjectCommand) vcmd0).getName())) {
+                  pending.remove(i);
+               }
+            }
+         }
+      }
+      else if(vcmd instanceof RefreshEmbeddedVSCommand refreshCmd) {
+         wait = true;
+         Set<String> assemblies = new HashSet<>(Arrays.asList(refreshCmd.getAssemblies()));
+
+         for(int i = pending.size() - 1; i >= 0; i--) {
+            CommandDispatcher.PendingCommand cmd0 = pending.get(i);
+            ViewsheetCommand vcmd0 = cmd0.getCommand();
+
+            if(vcmd0 instanceof RefreshEmbeddedVSCommand refreshCmd0) {
+               Set<String> assemblies0 = new HashSet<>(Arrays.asList(refreshCmd0.getAssemblies()));
+
+               if(assemblies.equals(assemblies0)) {
                   pending.remove(i);
                }
             }
