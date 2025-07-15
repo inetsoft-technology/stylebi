@@ -77,6 +77,15 @@ export class ErrorHandlerService {
    }
 
    getMessage(error: HttpErrorResponse, defaultMessage: string): string {
-      return error && error.error.message ? error.error.message : defaultMessage;
+      if(!!error) {
+         if(error.status === 502 || error.status === 503) {
+            return "_#(js:login.error.gateway)";
+         }
+         else if(!!error?.error?.message) {
+            return error.error.message;
+         }
+      }
+
+      return defaultMessage;
    }
 }

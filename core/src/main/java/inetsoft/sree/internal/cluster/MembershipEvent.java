@@ -20,21 +20,28 @@ package inetsoft.sree.internal.cluster;
 import java.util.EventObject;
 
 public final class MembershipEvent extends EventObject {
-   public MembershipEvent(Object source, String member) {
+   public MembershipEvent(Object source, String member, boolean client) {
       super(source);
       this.member = member;
+      this.client = client;
    }
 
    public String getMember() {
       return member;
    }
 
+   public boolean isClient() {
+      return client;
+   }
+
    @Override
    public String toString() {
       return "MembershipEvent{" +
          "member='" + member + '\'' +
+         ", client=" + client +
          '}';
    }
 
    private final String member;
+   private final boolean client;
 }

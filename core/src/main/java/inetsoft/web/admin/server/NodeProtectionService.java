@@ -18,17 +18,24 @@
 
 package inetsoft.web.admin.server;
 
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.config.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.time.Duration;
 import java.util.ServiceLoader;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Service
-public class NodeProtectionService {
+@Lazy(false)
+public class NodeProtectionService implements MembershipListener {
 
    /**
     * Initializes the service by choosing which NodeProtector implementation to use depending on the config
@@ -44,6 +51,43 @@ public class NodeProtectionService {
                break;
             }
          }
+
+         ClusterConfig clusterConfig = InetsoftConfig.getInstance().getCluster();
+
+         if(clusterConfig != null && !clusterConfig.isClientMode() &&
+            clusterConfig.getMinSingleInstanceUptime() > 0L)
+         {
+            cluster = Cluster.getInstance();
+            minUptime = Duration.ofSeconds(clusterConfig.getMinSingleInstanceUptime());
+            cluster.addMembershipListener(this);
+            updateSingleInstance();
+         }
+      }
+   }
+
+   @PreDestroy
+   public void close() throws Exception {
+      nodeProtector.close();
+
+      if(cluster != null) {
+         cluster.removeMembershipListener(this);
+         cluster = null;
+      }
+   }
+
+   @Scheduled(fixedDelay = 30000, initialDelay = 30000)
+   public void checkSingleInstanceTimeout() {
+      if(nodeProtector != null && minUptime != null) {
+         lock.lock();
+
+         try {
+            if(instanceProtected && !sessionProtected && isMinUptimeExpired()) {
+               nodeProtector.updateNodeProtection(false);
+            }
+         }
+         finally {
+            lock.unlock();
+         }
       }
    }
 
@@ -53,7 +97,18 @@ public class NodeProtectionService {
     */
    public void updateNodeProtection(boolean enabled) {
       if(nodeProtector != null) {
-         nodeProtector.updateNodeProtection(enabled);
+         lock.lock();
+
+         try {
+            sessionProtected = enabled;
+
+            if(!instanceProtected || isMinUptimeExpired()) {
+               nodeProtector.updateNodeProtection(enabled);
+            }
+         }
+         finally {
+            lock.unlock();
+         }
       }
    }
 
@@ -62,11 +117,31 @@ public class NodeProtectionService {
     * @return  true if protection is enabled
     */
    public boolean getNodeProtection() {
-      if(nodeProtector != null) {
-         return nodeProtector.getNodeProtection();
-      }
+      return nodeProtector != null && nodeProtector.getNodeProtection();
+   }
 
-      return false;
+   private void updateSingleInstance() {
+      if(nodeProtector != null && minUptime != null) {
+         lock.lock();
+
+         try {
+            boolean singleInstance = isSingleInstance();
+
+            if(singleInstance != instanceProtected) {
+               instanceProtected = singleInstance;
+
+               if(singleInstance && !sessionProtected && !isMinUptimeExpired()) {
+                  nodeProtector.updateNodeProtection(true);
+               }
+               else if(!singleInstance && !sessionProtected) {
+                  nodeProtector.updateNodeProtection(false);
+               }
+            }
+         }
+         finally {
+            lock.unlock();
+         }
+      }
    }
 
    /**
@@ -80,11 +155,36 @@ public class NodeProtectionService {
       return 0;
    }
 
-   @PreDestroy
-   private void close() throws Exception {
-      nodeProtector.close();
+   public void memberAdded(MembershipEvent event) {
+      if(!event.isClient()) {
+         updateSingleInstance();
+      }
    }
 
-   NodeProtector nodeProtector;
-   private static final Logger LOG = LoggerFactory.getLogger(NodeProtectionService.class);
+   public void memberRemoved(MembershipEvent event) {
+      if(!event.isClient()) {
+         updateSingleInstance();
+      }
+   }
+
+   private boolean isSingleInstance() {
+      return cluster.getClusterNodes(false).size() == 1;
+   }
+
+   private Duration getUptime() {
+      RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
+      long uptimeMillis = bean.getUptime();
+      return Duration.ofMillis(uptimeMillis);
+   }
+
+   private boolean isMinUptimeExpired() {
+      return minUptime != null && getUptime().compareTo(minUptime) <= 0;
+   }
+
+   private Cluster cluster = null;
+   private Duration minUptime = null;
+   private NodeProtector nodeProtector;
+   private boolean sessionProtected = false;
+   private boolean instanceProtected = false;
+   private final Lock lock = new ReentrantLock();
 }

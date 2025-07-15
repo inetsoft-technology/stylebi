@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, currentUser, onloadError) {
+function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, gatewayErrorMessage, currentUser, onloadError) {
    var $userNameField = $("#loginUserName");
    var $userNameError = $("#userNameError");
 
@@ -142,7 +142,10 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, curren
                    responseText = jqXHR.responseText;
                 }
 
-                if(errorThrown && responseText) {
+                if(jqXHR && (jqXHR.status === 502 || jqXHR.status === 503)) {
+                   message = gatewayErrorMessage;
+                }
+                else if(errorThrown && responseText) {
                    message = errorThrown + " - " + responseText;
                 }
                 else if(errorThrown) {
