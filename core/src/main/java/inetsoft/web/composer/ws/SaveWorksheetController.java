@@ -188,9 +188,13 @@ public class SaveWorksheetController extends WorksheetController {
       Principal user, CommandDispatcher dispatcher)
       throws Exception
    {
-     if(event.confirmed()) {
-        rws.setProperty("mvconfirmed", "true");
-     }
+      if(rws.isDisposed()) {
+         return false;
+      }
+
+      if(event.confirmed()) {
+         rws.setProperty("mvconfirmed", "true");
+      }
 
       catalog = Catalog.getCatalog(user);
       AssetEntry entry = rws.getEntry();
