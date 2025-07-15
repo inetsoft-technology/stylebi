@@ -226,6 +226,19 @@ public class ClusterConfig implements Serializable {
    }
 
    /**
+    * The minimum number of seconds that the last instance should be kept up before scaling to zero.
+    *
+    * @return the minimum uptime in seconds.
+    */
+   public long getMinSingleInstanceUptime() {
+      return minSingleInstanceUptime;
+   }
+
+   public void setMinSingleInstanceUptime(long minSingleInstanceUptime) {
+      this.minSingleInstanceUptime = minSingleInstanceUptime;
+   }
+
+   /**
     * Creates the default cluster configuration.
     *
     * @return the default cluster configuration.
@@ -258,4 +271,5 @@ public class ClusterConfig implements Serializable {
    })
    private KubernetesConfig k8s;
    private int minNodes = -1;
+   private long minSingleInstanceUptime = -1;
 }

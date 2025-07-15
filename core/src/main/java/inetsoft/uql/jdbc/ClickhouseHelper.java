@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,33 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.sree.internal.cluster;
 
-import java.util.EventObject;
+package inetsoft.uql.jdbc;
 
-public final class MembershipEvent extends EventObject {
-   public MembershipEvent(Object source, String member, boolean client) {
-      super(source);
-      this.member = member;
-      this.client = client;
-   }
-
-   public String getMember() {
-      return member;
-   }
-
-   public boolean isClient() {
-      return client;
+public class ClickhouseHelper extends SQLHelper {
+   /**
+    * Creates a new instance of <tt>ClickhouseHelper</tt>.
+    */
+   public ClickhouseHelper() {
+      // default connection
    }
 
    @Override
-   public String toString() {
-      return "MembershipEvent{" +
-         "member='" + member + '\'' +
-         ", client=" + client +
-         '}';
+   public String getSQLHelperType() {
+      return "clickhouse";
    }
 
-   private final String member;
-   private final boolean client;
+   @Override
+   protected String transformDate(String str) {
+      str = str.trim();
+
+      if(str.startsWith("{ts")) {
+         return str.substring(3, str.length() -1).trim();
+      }
+      else {
+         return super.transformDate(str);
+      }
+   }
 }

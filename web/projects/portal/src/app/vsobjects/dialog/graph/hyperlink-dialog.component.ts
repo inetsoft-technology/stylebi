@@ -436,7 +436,7 @@ export class HyperlinkDialog implements OnInit {
    }
 
    getBookmark(): string {
-      if(!!this.model && this._bookmarks.length > 0) {
+      if(!!this.model && this._bookmarks.length > 0 && this.model.bookmark != null) {
          const index = this._bookmarks.map(bk => this.getBookMarkValue(bk)).indexOf(this.model.bookmark);
 
          if(index > -1) {

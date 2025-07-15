@@ -82,7 +82,7 @@ export class DatabaseQueryComponent implements OnDestroy {
       if(!!model?.freeFormSQLPaneModel.sqlString &&
          model?.freeFormSQLPaneModel.parseResult == ParseResult.PARSE_FAILED)
       {
-         this.activeTab = DatabaseQueryTabs.SQL_STRING;
+         this.updateTab(DatabaseQueryTabs.SQL_STRING)
       }
 
       this.oldSqlString = model.freeFormSQLPaneModel.sqlString;
@@ -92,6 +92,7 @@ export class DatabaseQueryComponent implements OnDestroy {
    @Input() sessionOperations: OperationModel[];
    @ViewChild("queryConditionsPane") queryConditionsPane: QueryConditionsPaneComponent;
    activeTab: string = DatabaseQueryTabs.LINKS;
+   oldTab: string = this.activeTab;
    private subscriptions: Subscription = new Subscription();
    private oldSqlString: string;
 
@@ -147,15 +148,15 @@ export class DatabaseQueryComponent implements OnDestroy {
       let nextTab = event.nextId;
 
       if(this.activeTab == DatabaseQueryTabs.FIELDS) {
-         this.updateQuery(DatabaseQueryTabs.FIELDS, () => this.activeTab = nextTab);
+         this.updateQuery(DatabaseQueryTabs.FIELDS, () => this.updateTab(nextTab));
       }
       else if(this.activeTab == DatabaseQueryTabs.CONDITIONS) {
          this.queryConditionsPane.checkDirtyConditions().then(() => {
-            this.updateQuery(DatabaseQueryTabs.CONDITIONS, () => this.activeTab = nextTab);
+            this.updateQuery(DatabaseQueryTabs.CONDITIONS, () => this.updateTab(nextTab));
          });
       }
       else if(this.activeTab == DatabaseQueryTabs.SORT) {
-         this.updateQuery(DatabaseQueryTabs.SORT, () => this.activeTab = nextTab);
+         this.updateQuery(DatabaseQueryTabs.SORT, () => this.updateTab(nextTab));
       }
       else if(this.activeTab == DatabaseQueryTabs.GROUPING) {
          this.switchFromGroupingTab(nextTab);
@@ -168,10 +169,18 @@ export class DatabaseQueryComponent implements OnDestroy {
             });
       }
       else if(this.activeTab == DatabaseQueryTabs.LINKS && nextTab == DatabaseQueryTabs.SQL_STRING) {
-         this.queryModelService.emitModelChange(() => this.activeTab = nextTab);
+         this.queryModelService.emitModelChange(() => this.updateTab(nextTab));
       }
       else {
-         this.activeTab = nextTab;
+         this.updateTab(nextTab);
+      }
+   }
+
+   updateTab(tab: string) {
+      this.activeTab = tab;
+
+      if(tab != DatabaseQueryTabs.PREVIEW) {
+         this.oldTab = this.activeTab;
       }
    }
 
@@ -207,7 +216,7 @@ export class DatabaseQueryComponent implements OnDestroy {
                   {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
             .then((response) => {
                if(response == "yes") {
-                  this.activeTab = nextTab;
+                  this.updateTab(nextTab);
                }
             });
          }
@@ -222,22 +231,22 @@ export class DatabaseQueryComponent implements OnDestroy {
             ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", msg);
          }
          else {
-            this.activeTab = nextTab;
+            this.updateTab(nextTab);
          }
       }
       else {
-         this.activeTab = nextTab;
+         this.updateTab(nextTab);
       }
    }
 
    switchFromGroupingTab(nextTab: any): void {
       if(this.validGroupBy) {
          if(this.queryGroupingPane.isGroupByPane()) {
-            this.updateQuery(DatabaseQueryTabs.GROUPING, () => this.activeTab = nextTab);
+            this.updateQuery(DatabaseQueryTabs.GROUPING, () => this.updateTab(nextTab));
          }
          else {
             this.queryGroupingPane.havingConditionsPane.checkDirtyConditions().then(() => {
-               this.updateQuery(DatabaseQueryTabs.GROUPING, () => this.activeTab = nextTab);
+               this.updateQuery(DatabaseQueryTabs.GROUPING, () => this.updateTab(nextTab));
             });
          }
       }
@@ -275,7 +284,7 @@ export class DatabaseQueryComponent implements OnDestroy {
    }
 
    public resetActiveTab(): void {
-      this.activeTab = DatabaseQueryTabs.LINKS;
+      this.updateTab(DatabaseQueryTabs.LINKS);
    }
 
    public checkQuery(): Promise<void> {

@@ -129,7 +129,8 @@
                                 [runtimeId]="runtimeId"
                                 [sqlString]="model?.sqlString"
                                 [tableCount]="tableCount"
-                                [sqlEdited]="model.sqlEdited">
+                                [sqlEdited]="model.sqlEdited"
+                                (goBackToPreviousTab)="goBackToPreviousTab()">
         </sql-query-preview-pane>
       </ng-template>
     </ng-container>

@@ -250,6 +250,10 @@ public class SaveWorksheetService extends WorksheetControllerService {
                             Principal user, CommandDispatcher dispatcher)
       throws Exception
    {
+      if(rws.isDisposed()) {
+         return false;
+      }
+
       if(event.confirmed()) {
          rws.setProperty("mvconfirmed", "true");
       }
