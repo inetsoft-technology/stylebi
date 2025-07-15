@@ -948,7 +948,9 @@ public class ScheduleService {
             .bundledAsZip(abstractAction.isCompressFile())
             .useCredential(abstractAction.isUseCredential())
             .secretId(abstractAction.isUseCredential() ? abstractAction.getSecretId() : null)
-            .password(!abstractAction.isUseCredential() ? Util.PLACEHOLDER_PASSWORD : null)
+            .password(!abstractAction.isUseCredential() ? abstractAction.getPassword() == null ? null :
+                                                          abstractAction.getPassword().isEmpty() ? "" :
+                                                          Util.PLACEHOLDER_PASSWORD : null)
             .attachmentName(abstractAction.getAttachmentName())
             .htmlMessage(abstractAction.isMessageHtml())
             .message(abstractAction.getMessage())
