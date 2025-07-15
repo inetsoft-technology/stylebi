@@ -478,7 +478,7 @@ public interface AssetRepository {
    void copyEntryProperty(AssetEntry entry, IndexedStorage storage);
 
    /**
-    * force Refresh of asset tree
+    * fire change event for globally visible default org assets on property change
     */
-   void forceTreeRefresh();
+   void fireExposeDefaultOrgPropertyChange();
 }

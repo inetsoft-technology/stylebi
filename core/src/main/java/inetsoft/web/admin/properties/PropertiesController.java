@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.properties;
 
-import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.*;
@@ -61,7 +60,7 @@ public class PropertiesController {
       SreeEnv.save();
 
       if(Tool.equals(property, "security.exposedefaultorgtoall")) {
-         assetRepository.forceTreeRefresh();
+         assetRepository.fireExposeDefaultOrgPropertyChange();
       }
    }
 
@@ -103,7 +102,7 @@ public class PropertiesController {
       }
 
       if(Tool.equals(propertyName, "security.exposedefaultorgtoall")) {
-         assetRepository.forceTreeRefresh();
+         assetRepository.fireExposeDefaultOrgPropertyChange();
       }
    }
 

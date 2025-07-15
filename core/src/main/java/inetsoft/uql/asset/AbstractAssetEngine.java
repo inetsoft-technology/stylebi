@@ -4605,7 +4605,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
 
    @Override
-   public void forceTreeRefresh() {
+   public void fireExposeDefaultOrgPropertyChange() {
       AssetEntry root = new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "/", null);
 

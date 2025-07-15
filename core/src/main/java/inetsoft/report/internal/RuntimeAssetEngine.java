@@ -546,8 +546,8 @@ public class RuntimeAssetEngine implements AssetRepository {
    }
 
    @Override
-   public void forceTreeRefresh() {
-      getRepository().forceTreeRefresh();
+   public void fireExposeDefaultOrgPropertyChange() {
+      getRepository().fireExposeDefaultOrgPropertyChange();
    }
 
    private WeakReference<AssetRepository> server;
