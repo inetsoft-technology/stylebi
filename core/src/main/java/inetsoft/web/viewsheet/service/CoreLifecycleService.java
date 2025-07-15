@@ -1685,7 +1685,10 @@ public class CoreLifecycleService {
          RemoveVSObjectCommand command = new RemoveVSObjectCommand();
          command.setName(name);
 
-         if(assembly.getContainer() instanceof CurrentSelectionVSAssembly) {
+         if(assembly.isEmbedded() && assembly.getViewsheet().isEmbedded()) {
+            dispatcher.sendCommand(assembly.getViewsheet().getAbsoluteName(), command);
+         }
+         else if(assembly.getContainer() instanceof CurrentSelectionVSAssembly) {
             // If assembly is in selection container, send event to selection container
             // to refresh child object
             dispatcher.sendCommand(assembly.getContainer().getAbsoluteName(), command);
