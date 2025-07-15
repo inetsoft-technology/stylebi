@@ -30,7 +30,6 @@ import inetsoft.web.viewsheet.model.dialog.schedule.TimeRangeModel;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
-import java.sql.Time;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -354,6 +353,9 @@ public class ScheduleConditionService {
       else if(value instanceof java.sql.Time) {
          type = XSchema.TIME;
       }
+      else if(value instanceof java.sql.Date) {
+         type = XSchema.DATE;
+      }
       else if(value instanceof Date) {
          GregorianCalendar cal = new GregorianCalendar();
          cal.setTime((Date) value);
@@ -362,13 +364,8 @@ public class ScheduleConditionService {
             cal.get(Calendar.DAY_OF_MONTH) == 1) {
             type = XSchema.TIME;
          }
-         else if(request.containsDateTime(name) || cal.get(Calendar.HOUR_OF_DAY) != 0 ||
-                 cal.get(Calendar.MINUTE) != 0 || cal.get(Calendar.SECOND) != 0)
-         {
-            type = XSchema.TIME_INSTANT;
-         }
          else {
-            type = XSchema.DATE;
+            type = XSchema.TIME_INSTANT;
          }
       }
       else if(value instanceof Object[]) {
