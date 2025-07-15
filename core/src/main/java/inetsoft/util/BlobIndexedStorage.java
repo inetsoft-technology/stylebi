@@ -76,6 +76,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    @Override
    public XMLSerializable getXMLSerializable(String key, TransformListener trans, String orgID) throws Exception {
       try {
+         if(!Tool.isEmptyString(orgID) && !cachedOrgIDs.contains(orgID)) {
+            throw new RuntimeException("The target organization does not exist: " + orgID);
+         }
+
          BlobStorage<Metadata> storage = getMetadataStorage(orgID);
          Metadata metadata = storage.getMetadata(key);
          AssetEntry entry = AssetEntry.createAssetEntry(key);
@@ -164,6 +168,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    @Override
    public Document getDocument(String key, String orgID) {
       try {
+         if(!Tool.isEmptyString(orgID) && !cachedOrgIDs.contains(orgID)) {
+            throw new RuntimeException("The target organization does not exist: " + orgID);
+         }
+
          Metadata metadata = getMetadataStorage(orgID).getMetadata(key);
 
          if(metadata.getFolder() != null) {
@@ -241,6 +249,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    public byte[] get(String key, String orgID) throws Exception {
+      if(!Tool.isEmptyString(orgID) && !cachedOrgIDs.contains(orgID)) {
+         throw new RuntimeException("The target organization does not exist: " + orgID);
+      }
+
       try(InputStream input = getMetadataStorage(orgID).getInputStream(key)) {
          return IOUtils.toByteArray(input);
       }
