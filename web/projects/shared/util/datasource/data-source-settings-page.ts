@@ -337,7 +337,8 @@ export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
 
    testDatabase(): void {
       let path = !!this.primaryDatabasePath ? this.primaryDatabasePath : this.model?.path;
-      let params = new HttpParams().set("path", !!path ? path : "");
+      let params = new HttpParams().set("path", !!path ? path : "")
+         .set("isAdditionalSource", !this.additionalVisible);
       this.http.post<ConnectionStatus>(TEST_ADDITIONAL, this.database, {params}).pipe(
          catchError((error: HttpErrorResponse) => {
             if(this.showTestMessage) {

@@ -85,9 +85,10 @@ public class DatabaseDatasourcesService {
       return driverAvailability;
    }
 
-   public ConnectionStatus testDataSourceConnection(String path, DatabaseDefinition model, Principal principal)
+   public ConnectionStatus testDataSourceConnection(String path, DatabaseDefinition model,
+                                                    Principal principal, boolean isAdditionalSource)
    {
-      JDBCDataSource jdbcDataSource = getDatabase(path, model);
+      JDBCDataSource jdbcDataSource = getDatabase(path, model, false, isAdditionalSource);
       DatabaseSettingsModel databaseSettingsModel = DatabaseSettingsModel.builder()
          .driver(jdbcDataSource.getDriver())
          .databaseURL(jdbcDataSource.getURL())
@@ -99,8 +100,9 @@ public class DatabaseDatasourcesService {
       return databaseSettingsService.testConnection(databaseSettingsModel, principal);
    }
 
-   ConnectionStatus testDataSourceConnection(String path, DataSourceSettingsModel model, Principal principal) {
-      return testDataSourceConnection(path, model.dataSource(), principal);
+   ConnectionStatus testDataSourceConnection(String path, DataSourceSettingsModel model,
+                                             Principal principal, boolean isAdditionalSource) {
+      return testDataSourceConnection(path, model.dataSource(), principal, isAdditionalSource);
    }
 
    /**
@@ -982,7 +984,7 @@ public class DatabaseDatasourcesService {
    }
 
    public String buildDatabaseCustomUrl(String path, DatabaseDefinition model) {
-      JDBCDataSource jdbcDataSource = getDatabase(path, model, true);
+      JDBCDataSource jdbcDataSource = getDatabase(path, model, true, false);
       DatabaseDefinition databaseDefinition = JDBCUtil.buildDatabaseDefinition(jdbcDataSource);
 
       return JDBCUtil.formatUrl(databaseDefinition);
@@ -1012,7 +1014,7 @@ public class DatabaseDatasourcesService {
     * @return jdbc data source object for the new connection
     */
    private JDBCDataSource getDatabase(String path, DatabaseDefinition definition) {
-      return getDatabase(path, definition, false);
+      return getDatabase(path, definition, false, false);
    }
 
    /**
@@ -1022,7 +1024,9 @@ public class DatabaseDatasourcesService {
     *
     * @return jdbc data source object for the new connection
     */
-   private JDBCDataSource getDatabase(String path, DatabaseDefinition definition, boolean buildCustomUrl) {
+   private JDBCDataSource getDatabase(String path, DatabaseDefinition definition,
+                                      boolean buildCustomUrl, boolean isAdditionalSource)
+   {
       String name = path.substring(0, path.lastIndexOf('/') + 1) + definition.getName();
       String type = definition.getType();
       DatabaseType databaseType = databaseTypeService.getDatabaseType(type);
@@ -1064,7 +1068,8 @@ public class DatabaseDatasourcesService {
             if(!Tool.isEmptyString(oldName) && Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
                try {
                   path = Tool.isEmptyString(path) ? oldName : path;
-                  XDataSource dataSource = repository.getDataSource(path);
+                  XDataSource dataSource = repository.getDataSource(isAdditionalSource ? path :
+                     path + "/" + oldName);
 
                   if(dataSource instanceof JDBCDataSource) {
                      password = ((JDBCDataSource) dataSource).getPassword();
