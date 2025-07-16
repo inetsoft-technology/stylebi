@@ -165,8 +165,9 @@ public class MVController {
             catch(Throwable e) {
                future.completeExceptionally(e);
             }
-
-            ThreadContext.setPrincipal(oPrincipal);
+            finally {
+               ThreadContext.setPrincipal(oPrincipal);
+            }
          });
       }
 
