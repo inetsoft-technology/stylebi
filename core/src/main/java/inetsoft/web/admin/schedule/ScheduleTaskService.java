@@ -233,6 +233,18 @@ public class ScheduleTaskService {
          return true;
       }
 
+      try {
+         SecurityEngine securityEngine = SecurityEngine.getSecurity();
+
+         if(securityEngine.checkPermission(principal, ResourceType.SECURITY_USER,
+                                           task.getOwner(), ResourceAction.ADMIN))
+         {
+            return true;
+         }
+      }
+      catch(Exception ignore) {
+      }
+
       return principal != null &&
          (Tool.equals(principal.getName(), task.getOwner().convertToKey()) ||
             !scheduleManager.isDeleteOnlyByOwner(task, principal));
