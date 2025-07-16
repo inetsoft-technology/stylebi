@@ -2330,7 +2330,7 @@ derived_column [JDBCSelection selection, UniformSQL sql]
               selection.setAlias(columnIdx, column);
            }
            else {
-              selection.setAlias(selection.getColumnCount() - 1, aliastmp);
+              selection.setAlias(columnIdx, aliastmp);
            }
         }
         )?
