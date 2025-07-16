@@ -909,8 +909,7 @@ public class JDBCHandler extends XHandler {
                                  setString(inIdx, Tool.toString(val));
                            }
                            else if(clickhouse && val instanceof Timestamp) {
-                              ((PreparedStatement) stmt).setObject(inIdx,
-                                  SQLTypes.convert(((Timestamp) val).toLocalDateTime(), translations));
+                              ((PreparedStatement) stmt).setObject(inIdx, Tool.toString(val));
                            }
                            else if(boolToStr && val instanceof Boolean) {
                               ((PreparedStatement) stmt).
