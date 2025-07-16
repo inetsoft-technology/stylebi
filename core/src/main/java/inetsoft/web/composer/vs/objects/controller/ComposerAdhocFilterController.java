@@ -259,7 +259,7 @@ public class ComposerAdhocFilterController {
       }
 
       DataVSAssemblyInfo info = (DataVSAssemblyInfo) assembly.getVSAssemblyInfo();
-      Point offset = null;
+      Point offset = vs.isMaxMode() ? new Point(left, top) : null;
 
       if(assembly.isEmbedded()) {
          // assembly inside embedded vs is relative to the embedded vs
@@ -269,13 +269,19 @@ public class ComposerAdhocFilterController {
          VSAssemblyInfo vsInfo = parentVS.getVSAssemblyInfo();
          Point vsPos = vsInfo.getLayoutPosition() != null ?
             vsInfo.getLayoutPosition() : vs.getPixelPosition(vsInfo);
+
+         if(offset == null) {
          offset = new Point(position.x - vsPos.x + left,
                             position.y - vsPos.y + top);
+         }
       }
       else {
          Point position = info.getLayoutPosition() != null ?
             info.getLayoutPosition() : vs.getPixelPosition(info);
+
+         if(offset == null) {
          offset = new Point(position.x + left, position.y + top);
+         }
       }
 
       boolean aggr = !forceDimension && column instanceof XAggregateRef;
@@ -348,7 +354,7 @@ public class ComposerAdhocFilterController {
          }
 
          filter.getVSAssemblyInfo().setPixelSize(filterSize);
-         filter.setZIndex(assembly.getZIndex() + 1000);
+         filter.setZIndex(getFilterZIndex(assembly));
          coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
                                       VSAssembly.VIEW_CHANGED, dispatcher);
          coreLifecycleService.execute(rvs, filter.getAbsoluteName(), linkUri,
