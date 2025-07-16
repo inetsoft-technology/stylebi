@@ -271,8 +271,8 @@ public class ComposerAdhocFilterController {
             vsInfo.getLayoutPosition() : vs.getPixelPosition(vsInfo);
 
          if(offset == null) {
-         offset = new Point(position.x - vsPos.x + left,
-                            position.y - vsPos.y + top);
+            offset = new Point(position.x - vsPos.x + left,
+                               position.y - vsPos.y + top);
          }
       }
       else {
@@ -280,7 +280,7 @@ public class ComposerAdhocFilterController {
             info.getLayoutPosition() : vs.getPixelPosition(info);
 
          if(offset == null) {
-         offset = new Point(position.x + left, position.y + top);
+            offset = new Point(position.x + left, position.y + top);
          }
       }
 
