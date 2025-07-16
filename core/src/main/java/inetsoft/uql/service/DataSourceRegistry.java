@@ -1526,15 +1526,14 @@ public class DataSourceRegistry implements MessageListener {
             }
          }
 
+         String hostOrgID = Organization.getDefaultOrganizationID();
+
          //if object is null, retry with host-org when global default visible
          if(result == null && SUtil.isDefaultVSGloballyVisible() && !ignoreGlobalShare() &&
-                              !Tool.equals(orgId, Organization.getDefaultOrganizationID())) {
-            orgId = Organization.getDefaultOrganizationID();
-            AssetEntry hentry = (AssetEntry) entry.clone();
-            hentry.setOrgID(orgId);
-
+            !Tool.equals(orgId, hostOrgID) && Tool.equals(entry.getOrgID(), hostOrgID))
+         {
             try {
-               result = indexedStorage.getXMLSerializable(hentry.toIdentifier(true), null, orgId);
+               result = indexedStorage.getXMLSerializable(identifier, null, hostOrgID);
             }
             catch(Exception e) {
                LOG.error("Failed to get object: {}", entry.getPath(), e);
