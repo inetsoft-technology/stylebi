@@ -294,13 +294,21 @@ public class IdentityService {
    }
 
    private IdentityID[] getRoleParents(IdentityID childId, IdentityID[] parentIDs, IdentityID parentID,
-                                       List<IdentityID> childrenIDs)
+                                       IdentityID oldParentID, List<IdentityID> childrenIDs,
+                                       Principal principal)
    {
       List<IdentityID> list = new ArrayList<>();
       Collections.addAll(list, parentIDs);
 
       boolean isParent = list.contains(parentID);
       boolean isChild = childrenIDs.contains(childId);
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+      if(!isChild && parentID.getOrgID() == null && !Tool.equals(currentOrgID, childId.getOrgID()))
+      {
+         isChild = list.contains(oldParentID);
+      }
+
       boolean changed = isParent != isChild;
 
       if(changed) {
@@ -1754,8 +1762,8 @@ public class IdentityService {
             continue;
          }
 
-         IdentityID[] arr = getRoleParents(pgroup.getIdentityID(), pgroup.getRoles(),
-                                           newOrgID, groupV);
+         IdentityID[] arr = getRoleParents(pgroup.getIdentityID(), pgroup.getRoles(), newOrgID,
+                                           oldOrgID, groupV, principal);
 
          if(arr != null) {
             pgroup.setRoles(arr);
@@ -1785,7 +1793,8 @@ public class IdentityService {
             continue;
          }
 
-         IdentityID[] arr = getRoleParents(puser.getIdentityID(), puser.getRoles(), newOrgID, userV);
+         IdentityID[] arr = getRoleParents(puser.getIdentityID(), puser.getRoles(), newOrgID,
+                                           oldOrgID, userV, principal);
 
          if(arr != null) {
             puser.setRoles(arr);
