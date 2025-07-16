@@ -3616,6 +3616,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          SQLLexer lexer = new SQLLexer(new StringReader(sqlstring));
          SQLParser parser = new SQLParser(lexer);
          UniformSQL sql = new UniformSQL();
+         sql.setDataSource(getDataSource());
 
          try {
             parser.direct_select_stmt_n_rows(sql);
