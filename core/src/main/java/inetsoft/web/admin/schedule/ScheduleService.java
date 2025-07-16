@@ -33,6 +33,7 @@ import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.tabular.View;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -1180,7 +1181,7 @@ public class ScheduleService {
    /**
     * Gets the ScheduleAction from the model.
     */
-   public ScheduleAction getActionFromModel(ScheduleActionModel model,
+   public ScheduleAction getActionFromModel(ScheduleActionModel model, ScheduleAction oldAction,
                                             Principal principal,
                                             String linkURI)
       throws Exception
@@ -1223,7 +1224,10 @@ public class ScheduleService {
             Arrays.stream(viewsheetAction.getSaveFormats())
                .forEach(format -> viewsheetAction.setFilePath(format, (ServerPathInfo) null));
             Map<Integer, ServerPathInfo> clone = new HashMap<>();
-            clone.putAll(viewsheetAction.getFilePathsMap());
+
+            if(oldAction instanceof ViewsheetAction oldViewsheetAction) {
+               clone.putAll(oldViewsheetAction.getFilePathsMap());
+            }
 
             if(Tool.defaultIfNull(actionModel.saveToServerEnabled(), false)) {
                String[] saveFormats = actionModel.saveFormats();
@@ -1235,10 +1239,12 @@ public class ScheduleService {
                   int format = Integer.parseInt(saveFormats[i]);
                   ServerPathInfoModel pModel = serverFilePaths.get(i);
                   String password = pModel.password();
+                  ServerPathInfo oldInfo = clone.get(format);
 
-                  if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
-                     ServerPathInfo oldInfo = clone.get(format);
-                     password = oldInfo != null ? oldInfo.getPassword() : password;
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null &&
+                     oldInfo.getUsername().equals(pModel.username()) && !clone.isEmpty())
+                  {
+                     password = oldInfo.getPassword();
                   }
 
                   if(pModel.ftp()) {
