@@ -1777,8 +1777,9 @@ public class QueryManagerService {
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       ColumnSelection columns = new ColumnSelection();
 
-      if(sql.getParseResult() == UniformSQL.PARSE_SUCCESS ||
-         sql.getParseResult() == UniformSQL.PARSE_PARTIALLY)
+      if((sql.getParseResult() == UniformSQL.PARSE_SUCCESS ||
+         sql.getParseResult() == UniformSQL.PARSE_PARTIALLY) &&
+         sql.getSelection().getColumnCount() > 0)
       {
          JDBCSelection selection = (JDBCSelection) sql.getSelection();
 
