@@ -36,7 +36,7 @@
       </div>
       <div class="form-check">
         <label class="form-check-label">
-          <input type="radio" name="vpm-andOrButtons"
+          <input type="radio" name="vpm-andOrButtons-{{uniquePageId}}"
                  class="form-check-input"
                  [(ngModel)]="conjunction.conjunction"
                  [value]="ConjunctionTypes.AND"
@@ -47,7 +47,7 @@
       </div>
       <div class="form-check">
         <label class="form-check-label">
-          <input type="radio" name="vpm-andOrButtons"
+          <input type="radio" name="vpm-andOrButtons-{{uniquePageId}}"
                  class="form-check-input"
                  [(ngModel)]="conjunction.conjunction"
                  [value]="ConjunctionTypes.OR"

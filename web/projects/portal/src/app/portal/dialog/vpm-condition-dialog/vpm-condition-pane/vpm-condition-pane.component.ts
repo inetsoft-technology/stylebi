@@ -55,6 +55,7 @@ export class VPMConditionPane implements OnInit {
    ConjunctionTypes = ConjunctionTypes;
    private _conditionList: ConditionItemModel[]; // even indexes contain conditions, odd contain junctions
    private _condition: ClauseModel;
+   uniquePageId = Math.random().toString(36).substring(2);
 
    /**
     * Input for conditionList. If condition list is empty, create and select a new empty clause.
