@@ -101,6 +101,7 @@ public class AuthenticationChain
       }
 
       return stream()
+         .filter(p -> p.getOrganizationIDs() != null)
          .flatMap(p -> Arrays.stream(p.getOrganizationIDs()))
          .distinct()
          .toArray(String[]::new);
