@@ -3512,31 +3512,31 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    isShareEmailDisabled(): boolean {
-      return !this.shareConfig.emailEnabled;
+      return !(this.shareConfig && this.shareConfig.emailEnabled);
    }
 
    isShareFacebookDisabled(): boolean {
-      return !this.shareConfig.facebookEnabled;
+      return !(this.shareConfig && this.shareConfig.facebookEnabled);
    }
 
    isShareHangoutsDisabled(): boolean {
-      return !this.shareConfig.googleChatEnabled;
+      return !(this.shareConfig && this.shareConfig.googleChatEnabled);
    }
 
    isShareLinkedInDisabled(): boolean {
-      return !this.shareConfig.linkedinEnabled;
+      return !(this.shareConfig && this.shareConfig.linkedinEnabled);
    }
 
    isShareSlackDisabled(): boolean {
-      return !this.shareConfig.slackEnabled;
+      return !(this.shareConfig && this.shareConfig.slackEnabled);
    }
 
    isShareTwitterDisabled(): boolean {
-      return !this.shareConfig.twitterEnabled;
+      return !(this.shareConfig && this.shareConfig.twitterEnabled);
    }
 
    isShareLinkDisabled(): boolean {
-      return !this.shareConfig.linkEnabled;
+      return !(this.shareConfig && this.shareConfig.linkEnabled);
    }
 
    isScheduleVisible(): boolean {
