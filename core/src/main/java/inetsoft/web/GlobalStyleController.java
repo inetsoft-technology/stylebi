@@ -95,6 +95,11 @@ public class GlobalStyleController implements ApplicationContextAware {
 
    private synchronized StyleResource getResource(String path, Principal user) throws IOException {
       String themeId = CustomThemesManager.getManager().getSelectedTheme(user);
+
+      if(OrganizationManager.getInstance().getOrganization().getTheme() != null) {
+         themeId = OrganizationManager.getInstance().getOrganization().getTheme();
+      }
+
       ResourceKey key = new ResourceKey(themeId, path);
 
       try {
