@@ -1243,6 +1243,20 @@ public final class MVManager {
          mvDef.setWsId(nwsId);
       }
 
+      List<String> parentVsIds = mvDef.getParentVsIds();
+
+      if(parentVsIds != null && !parentVsIds.isEmpty()) {
+         List<String> newParentVsIds = new ArrayList<>();
+
+         for(String parentVsId : parentVsIds) {
+            String nParentVsId = AssetEntry.createAssetEntry(parentVsId)
+               .cloneAssetEntry(norg).toIdentifier(true);
+            newParentVsIds.add(nParentVsId);
+         }
+
+         mvDef.setParentVsIds(newParentVsIds);
+      }
+
       Identity[] users = mvDef.getUsers();
 
       if(idChanged && users != null && users.length > 0) {
