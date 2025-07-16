@@ -19,6 +19,7 @@ package inetsoft.web;
 
 import com.github.benmanes.caffeine.cache.*;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.OrganizationManager;
