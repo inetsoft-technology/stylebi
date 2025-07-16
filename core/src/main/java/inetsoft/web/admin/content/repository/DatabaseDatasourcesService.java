@@ -1068,7 +1068,7 @@ public class DatabaseDatasourcesService {
             if(!Tool.isEmptyString(oldName) && Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
                try {
                   path = Tool.isEmptyString(path) ? oldName : path;
-                  XDataSource dataSource = repository.getDataSource(isAdditionalSource ? path :
+                  XDataSource dataSource = repository.getDataSource(!isAdditionalSource ? path :
                      path + "/" + oldName);
 
                   if(dataSource instanceof JDBCDataSource) {
