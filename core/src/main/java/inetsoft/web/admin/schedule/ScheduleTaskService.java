@@ -515,8 +515,9 @@ public class ScheduleTaskService {
 
       if(!internalTask) {
          for(int i = 0; i < model.actions().size(); i++) {
+            ScheduleAction scheduleAction = task.getActionCount() > i ? task.getAction(i) : null;
             ScheduleAction action =
-               scheduleService.getActionFromModel(model.actions().get(i), principal, linkURI);
+               scheduleService.getActionFromModel(model.actions().get(i), scheduleAction, principal, linkURI);
 
             if(action == null) {
                continue;
