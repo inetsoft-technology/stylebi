@@ -162,7 +162,7 @@ public class TabularHandler extends XHandler {
    /**
     * Get the runtime for the specified type.
     */
-   private TabularRuntime getRuntime(String type) {
+   public TabularRuntime getRuntime(String type) {
       TabularRuntime runtime = runtimes.get(type);
 
       if(runtime == null) {
