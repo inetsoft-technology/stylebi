@@ -228,8 +228,19 @@ public class ScheduleTaskService {
       }
 
       OrganizationManager organizationManager = OrganizationManager.getInstance();
+      boolean adminPermission = false;
 
-      if(organizationManager.isSiteAdmin(principal) || organizationManager.isOrgAdmin(principal)) {
+      try {
+         SecurityEngine securityEngine = SecurityEngine.getSecurity();
+         adminPermission = securityEngine.checkPermission(
+            principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
+      }
+      catch(Exception ignore) {
+      }
+
+      if(organizationManager.isSiteAdmin(principal) || organizationManager.isOrgAdmin(principal) ||
+         adminPermission)
+      {
          return true;
       }
 
