@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.rest.json;
 
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.rest.AbstractRestQuery;
 import inetsoft.uql.rest.json.lookup.*;
 import inetsoft.uql.rest.pagination.*;
@@ -1085,6 +1086,9 @@ public class RestJsonQuery extends AbstractRestQuery {
       }
 
       if(isMetadataEnabled() && Tool.isEmptyString(jsonMetadata)) {
+         // set it to some value so that the replaceVariables call in generateJsonMetadata
+         // doesn't enter here and create an infinite recursion
+         jsonMetadata = "{}";
          jsonMetadata = generateJsonMetadata();
       }
 
@@ -1099,7 +1103,20 @@ public class RestJsonQuery extends AbstractRestQuery {
       if(getDataSource() != null) {
          TabularHandler handler = new TabularHandler();
          TabularRuntime runtime = handler.getRuntime(getDataSource().getType());
-         return ((RestJsonRuntime) runtime).generateMetadata(this);
+         RestJsonQuery query = (RestJsonQuery) this.clone();
+         VariableTable variableTable = getVariableTable();
+
+         if(variableTable != null) {
+            try {
+               TabularUtil.fillNullVariablesWithEmptyString(runtime, query, variableTable);
+               TabularUtil.replaceVariables(query.getDataSource(), variableTable);
+               TabularUtil.replaceVariables(query, variableTable);
+            }
+            catch(Exception ignore) {
+            }
+         }
+
+         return ((RestJsonRuntime) runtime).generateMetadata(query);
       }
 
       return null;

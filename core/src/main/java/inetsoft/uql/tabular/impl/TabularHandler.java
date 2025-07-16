@@ -60,7 +60,7 @@ public class TabularHandler extends XHandler {
          (TabularDataSource<?>) ConnectionProcessor.getInstance().getDatasource(user, query.getDataSource()).clone();
       query.setDataSource(xds);
 
-      fillNullVariablesWithEmptyString(runtime, query, params);
+      TabularUtil.fillNullVariablesWithEmptyString(runtime, query, params);
       TabularUtil.replaceVariables(xds, params);
       TabularUtil.replaceVariables(query, params);
 
@@ -179,23 +179,6 @@ public class TabularHandler extends XHandler {
       }
 
       return runtime;
-   }
-
-   private void fillNullVariablesWithEmptyString(TabularRuntime runtime, XQuery query,
-                                                 VariableTable vtable) throws Exception
-   {
-      if(!runtime.fillNullVariablesWithEmptyString()) {
-         return;
-      }
-
-      List<UserVariable> variables = TabularUtil.findVariables(query);
-      variables.addAll(TabularUtil.findVariables(query.getDataSource()));
-
-      for(UserVariable var : variables) {
-         if(vtable.get(var) == null) {
-            vtable.put(var.getName(), "");
-         }
-      }
    }
 
    private TabularDataSource<?> dataSource;
