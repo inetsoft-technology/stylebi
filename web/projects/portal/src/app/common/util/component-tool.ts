@@ -40,7 +40,7 @@ export namespace ComponentTool {
 
    export function showHttpError(message: string, error: HttpErrorResponse, modal: NgbModal): void {
       if(error.status === 502 || error.status === 503) {
-         ComponentTool.showMessageDialog(modal, "_#(js:Error)", "_#(js:login.error.gateway");
+         ComponentTool.showMessageDialog(modal, "_#(js:Error)", "_#(js:login.error.gateway)");
          return;
       }
 
