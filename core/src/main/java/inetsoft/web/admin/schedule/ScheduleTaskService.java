@@ -228,20 +228,21 @@ public class ScheduleTaskService {
       }
 
       OrganizationManager organizationManager = OrganizationManager.getInstance();
-      boolean adminPermission = false;
+
+      if(organizationManager.isSiteAdmin(principal) || organizationManager.isOrgAdmin(principal)) {
+         return true;
+      }
 
       try {
          SecurityEngine securityEngine = SecurityEngine.getSecurity();
-         adminPermission = securityEngine.checkPermission(
-            principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
+
+         if(securityEngine.checkPermission(principal, ResourceType.SECURITY_USER,
+                                           task.getOwner(), ResourceAction.ADMIN))
+         {
+            return true;
+         }
       }
       catch(Exception ignore) {
-      }
-
-      if(organizationManager.isSiteAdmin(principal) || organizationManager.isOrgAdmin(principal) ||
-         adminPermission)
-      {
-         return true;
       }
 
       return principal != null &&
