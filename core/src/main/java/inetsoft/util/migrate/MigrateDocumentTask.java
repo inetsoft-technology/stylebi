@@ -155,7 +155,9 @@ public abstract class MigrateDocumentTask implements MigrateTask {
       IdentityID ouser = entry.getUser();
       String ouserName = ouser == null ? "" : ouser.getName();
       String nuser = ouser != null && Tool.equals(ouserName, oname) &&
-         Tool.equals(ouser.getOrgID(), getOldOrganization()) ? nname : ouserName;
+         getOldOrganization() != null &&
+         Tool.equals(ouser.getOrgID(), getOldOrganization().getOrganizationID())
+         ? nname : ouserName;
       AssetEntry newEntry = entry.cloneAssetEntry(entry.getOrgID(), nuser);
 
       if(Tool.equals(oname, newEntry.getCreatedUsername())) {
