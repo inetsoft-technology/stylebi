@@ -1163,7 +1163,7 @@ public final class VSUtil {
       else if(path.startsWith("java:presenter:")) {
          buf = getImageBytes(getPresenterImage(path, width, height, fmt), 72);
       }
-      else if(path.endsWith(".svg")) {
+      else if(path.endsWith(".svg") && path.indexOf("://") > 0) {
          buf = getSVGImageBytes(path);
       }
       else {
@@ -1192,7 +1192,7 @@ public final class VSUtil {
       try(InputStream input = new URL(path).openStream()) {
          SVGSupport svg = SVGSupport.getInstance();
          return svg.transcodeSVGImage(svg.createSVGDocument(input));
-      } 
+      }
       catch(IOException ex) {
          LOG.debug("Failed to read the SVG image", ex);
       }
