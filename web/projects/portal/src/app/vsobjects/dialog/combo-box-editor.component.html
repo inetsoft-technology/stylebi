@@ -124,7 +124,7 @@
         <div class="col form-floating">
             <input class="form-control defaultvalue" [disabled]="model.noDefault"
                    (ngModelChange)="onDefaultvalueChanged($event)"
-                   [ngModel]="model.defaultValue" [placeholder]="datePrompt">
+                   [(ngModel)]="model.defaultValue" [placeholder]="datePrompt">
             <label>_#(Default Value)</label>
         </div>
       </ng-container>
