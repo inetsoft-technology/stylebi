@@ -162,6 +162,7 @@ public class EventAspect {
                    "|| within(inetsoft.web.binding.controller.ChangeChartTypeController))")
    public Object sendUserMessage(ProceedingJoinPoint pjp) throws Throwable {
       try {
+         Tool.clearUserMessage();
          return pjp.proceed();
       }
       finally {
