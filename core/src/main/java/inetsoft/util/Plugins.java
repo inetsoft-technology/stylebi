@@ -88,7 +88,16 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       try {
          blobStorage.stream()
             .sorted(this::comparePlugins)
-            .peek(p -> unzipPlugin(p.getMetadata(), p.getLastModified().toEpochMilli()))
+            .filter(p -> {
+               try {
+                  unzipPlugin(p.getMetadata(), p.getLastModified().toEpochMilli());
+                  return true;
+               }
+               catch(Exception e) {
+                  LOG.error("Failed to unzip plugin {}: {}", p.getMetadata().getId(), e.getMessage());
+                  return false;
+               }
+            })
             .forEach(p -> loadPlugin(p.getMetadata()));
          validatePlugins();
       }
