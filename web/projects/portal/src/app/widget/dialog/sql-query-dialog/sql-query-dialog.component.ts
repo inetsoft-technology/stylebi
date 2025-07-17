@@ -137,6 +137,10 @@ export class SQLQueryDialog implements OnInit {
 
       this.controller.getModel().subscribe(
          (data) => {
+            if(!data) {
+               return;
+            }
+
             this.model = <SqlQueryDialogModel> data;
             this._oldTotalModel = Tool.clone(this.model);
 

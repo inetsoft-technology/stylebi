@@ -15,14 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { ComponentTool } from "../../../../common/util/component-tool";
 import { SqlQueryDialogController } from "../../../../widget/dialog/sql-query-dialog/sql-query-dialog-controller";
 import { ConditionItemPaneProvider } from "../../../../common/data/condition/condition-item-pane-provider";
-import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from "@angular/common/http";
 import { Observable, of } from "rxjs";
 import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { TreeNodeModel } from "../../../../widget/tree/tree-node-model";
 import { SQLConditionItemPaneProvider } from "../../../dialog/ws/sql-condition-item-pane-provider";
-import { tap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
 import { AbstractDataRef } from "../../../../common/data/abstract-data-ref";
 import { ModelService } from "../../../../widget/services/model.service";
 import { SqlQueryDialogModel } from "../../../data/ws/sql-query-dialog-model";
@@ -66,6 +68,7 @@ export class WsSqlQueryController implements SqlQueryDialogController {
    }
 
    get CONTROLLER_MODEL() {
+      console.trace("----------CONTROLLER_MODEL");
       return this._CONTROLLER_MODEL;
    }
 
@@ -81,7 +84,9 @@ export class WsSqlQueryController implements SqlQueryDialogController {
       this._subQuery = subQuery;
    }
 
-   constructor(private http: HttpClient, private modelService: ModelService) {
+   constructor(private http: HttpClient, private modelService: ModelService,
+               private modalService: NgbModal)
+   {
       this.headers = new HttpHeaders({
          "Content-Type": "application/json"
       });
@@ -111,7 +116,25 @@ export class WsSqlQueryController implements SqlQueryDialogController {
       }
 
       return this.modelService.getModel<SqlQueryDialogModel>(url, params)
-         .pipe(tap(model => this._sqlConditionProvider.variableNames = model.variableNames));
+         .pipe(
+            catchError((error: HttpErrorResponse) => {
+               let message = "_#(js:em.data.databases.error)";
+
+               if(error.status === 504) {
+                  message = "_#(js:em.data.databases.error.gatewayTimeout)";
+               }
+
+               const cloudError: string = "_#(js:em.datasource.cloudError)";
+
+               if(!!cloudError && !!cloudError.length && cloudError !== "null") {
+                  message += "\n\n" + cloudError;
+               }
+
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", message).then();
+
+               return of(null);
+            }),
+            tap(model => this._sqlConditionProvider.variableNames = model?.variableNames));
    }
 
    getDataSourceTree(node?: any, columnLevel?: boolean): Observable<TreeNodeModel> {
