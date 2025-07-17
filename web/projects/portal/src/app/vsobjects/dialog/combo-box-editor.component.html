@@ -101,8 +101,8 @@
   </fieldset>
   <fieldset *ngIf="showCalendar">
     <div class="form-row-float-label row">
-      <div #dropDownBody class="col form-floating dropDownBody">
-        <ng-container *ngIf="!model.calendar || (model.calendar && !model.embedded)">
+      <ng-container *ngIf="!model.calendar || (model.calendar && !model.embedded)">
+        <div #dropDownBody class="col form-floating dropDownBody">
             <select *ngIf="valueList?.length < 500" class="form-control defaultvalue" id="defaultvalue"
                     [disabled]="model.noDefault || !(model.query || model.embedded)"
                     [(ngModel)]="model.defaultValue">
@@ -114,17 +114,17 @@
                  [disabled]="model.noDefault || !(model.query || model.embedded)"
                  [class.disabled]="model.noDefault || !(model.query || model.embedded)"
                  [fixedDropdown]="dropdownOptions" dropdownPlacement="bottom">
-              {{ model.defaultValue }}
+
             </div>
             <label>_#(Default Value)</label>
-        </ng-container>
-      </div>
+        </div>
+      </ng-container>
 
       <ng-container *ngIf="model.calendar && model.embedded">
         <div class="col form-floating">
             <input class="form-control defaultvalue" [disabled]="model.noDefault"
                    (ngModelChange)="onDefaultvalueChanged($event)"
-                   [(ngModel)]="model.defaultValue" [placeholder]="datePrompt">
+                   [ngModel]="model.defaultValue" [placeholder]="datePrompt">
             <label>_#(Default Value)</label>
         </div>
       </ng-container>
