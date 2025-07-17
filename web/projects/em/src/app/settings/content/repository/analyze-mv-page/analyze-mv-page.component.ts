@@ -379,21 +379,21 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
             timeout(600000)
          )
          .subscribe(() => {
-               this.refreshAnalyzedResult();
-               const dialogRef = this.dialog.open(MessageDialog, <MatDialogConfig>{
-                  data: {
-                     content: "_#(js:em.alert.createMV)",
-                     type: MessageDialogType.INFO
-                  }
-               });
-               dialogRef.afterClosed().subscribe(() => {
-                  this.loading = false;
-                  this.mvChanged.emit();
-               });
+            this.refreshAnalyzedResult();
+            const dialogRef = this.dialog.open(MessageDialog, <MatDialogConfig>{
+               data: {
+                  content: "_#(js:em.alert.createMV)",
+                  type: MessageDialogType.INFO
+               }
+            });
+            dialogRef.afterClosed().subscribe(() => {
+               this.loading = false;
+               this.mvChanged.emit();
+            });
          },
          (error) => {
-               this.errorService.showDialog(error);
-               this.loading = false;
+            this.loading = false;
+            this.errorService.showDialog(error);
          });
    }
 
