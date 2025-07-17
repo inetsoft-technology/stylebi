@@ -337,14 +337,6 @@ public boolean changeType(String targetStr, int type) {
    return false;
 }
 
-public int getDatabaseType() {
-   if(uniSql != null && uniSql.getDataSource() != null) {
-      return uniSql.getDataSource().getDatabaseType();
-   }
-
-   return -1;
-}
-
 // strip quote
 String strip(String str) {
     int last = (str != null) ? str.length() - 1 : 0;
@@ -390,16 +382,7 @@ special_identifier returns [String specid = ""]
         a:SPIDENT {tmp = a.getText();specid = tmp.substring(1, tmp.length() - 1);}
         |c:SPIDENT2 {tmp = c.getText();specid = tmp.substring(1, tmp.length() - 1);}
         |d:SPIDENT_VAR {specid = d.getText();}
-        |b:SPIDENT_SQUARE {
-            tmp = b.getText();
-
-            if(getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
-               specid = tmp;
-            }
-            else {
-               specid = tmp.substring(1, tmp.length() - 1);
-            }
-        }
+        |b:SPIDENT_SQUARE {tmp = b.getText();specid = tmp.substring(1,tmp.length() - 1);}
     |h:SPIDENT_BRACKET {specid = h.getText();}
         |(DOLAR (f:IDENT|g:UNSIGNED_NUM_LIT)  {specid = "$" + ((f!=null)?f.getText():g.getText());})
         ;
@@ -2320,19 +2303,7 @@ derived_column [JDBCSelection selection, UniformSQL sql]
 
         (//(as_clause)=>        //remove the prediction if don't use subquery_select_list
         aliastmp = as_clause
-        {
-           int columnIdx = selection.getColumnCount() - 1;
-
-           if(getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
-              String column = selection.getColumn(columnIdx);
-              column = column + aliastmp;
-              selection.setColumn(columnIdx, column);
-              selection.setAlias(columnIdx, column);
-           }
-           else {
-              selection.setAlias(columnIdx, aliastmp);
-           }
-        }
+        {selection.setAlias(selection.getColumnCount()-1,aliastmp);}
         )?
         ;
 
