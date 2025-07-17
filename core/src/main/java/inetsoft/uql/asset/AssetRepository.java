@@ -476,4 +476,9 @@ public interface AssetRepository {
     * @param storage the specified indexed storage
     */
    void copyEntryProperty(AssetEntry entry, IndexedStorage storage);
+
+   /**
+    * fire change event for globally visible default org assets on property change
+    */
+   void fireExposeDefaultOrgPropertyChange();
 }
