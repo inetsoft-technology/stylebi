@@ -28,7 +28,7 @@ import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -58,7 +58,7 @@ import java.util.stream.Stream;
  * @version 10.2
  */
 @SingletonManager.Singleton
-public final class MVManager {
+public final class MVManager implements MessageListener {
    /**
     * Change event, per-transaction event, which should be fired after the
     * change process is over. It's useful for listeners like to be notified
@@ -77,6 +77,14 @@ public final class MVManager {
     * Create an instance of MVManager.
     */
    public MVManager() {
+      Cluster.getInstance().addMessageListener(this);
+   }
+
+   @Override
+   public void messageReceived(MessageEvent event) {
+      if(event.getMessage() instanceof MVChangedMessage message) {
+         handleEvent(message.getSrc(), message.getName(), message.getOldValue(), message.getNewValue());
+      }
    }
 
    /**
@@ -1366,6 +1374,15 @@ public final class MVManager {
     * Fire property change event.
     */
    public void fireEvent(String src, String name, Object oval, Object nval) {
+      try {
+         Cluster.getInstance().sendMessage(new MVChangedMessage(src, name, oval, nval));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to send MV changed message", e);
+      }
+   }
+
+   private void handleEvent(String src, String name, Object oval, Object nval) {
       Vector<WeakReference<PropertyChangeListener>> listenersClone = new Vector<>(this.listeners);
       PropertyChangeEvent evt = new PropertyChangeEvent(src, name, oval, nval);
 
