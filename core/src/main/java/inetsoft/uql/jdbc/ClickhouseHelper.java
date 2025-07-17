@@ -18,6 +18,9 @@
 
 package inetsoft.uql.jdbc;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public class ClickhouseHelper extends SQLHelper {
    /**
     * Creates a new instance of <tt>ClickhouseHelper</tt>.
@@ -35,8 +38,10 @@ public class ClickhouseHelper extends SQLHelper {
    protected String transformDate(String str) {
       str = str.trim();
 
-      if(str.startsWith("{ts")) {
-         return str.substring(3, str.length() -1).trim();
+      if(str.startsWith("{ts") || str.startsWith("({ts") ) {
+         Pattern pattern = Pattern.compile("\\{ts\\s*'(.*?)'\\}");
+         Matcher matcher = pattern.matcher(str);
+         return matcher.replaceAll("'$1'");
       }
       else {
          return super.transformDate(str);
