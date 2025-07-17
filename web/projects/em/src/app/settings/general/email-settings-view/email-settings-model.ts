@@ -20,7 +20,8 @@ export interface EmailSettingsModel {
    ssl: boolean;
    tls: boolean;
    jndiUrl: string;
-   smtpAuthentication: SMTPAuthType;
+   smtpAuthentication: boolean;
+   smtpAuthenticationType: SMTPAuthType;
    smtpUser: string;
    smtpPassword: string;
    smtpSecretId: string;

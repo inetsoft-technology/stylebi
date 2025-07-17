@@ -145,6 +145,7 @@ export class EmailSettingsViewComponent implements OnDestroy {
             tls: [""],
             jndiUrl: [""],
             smtpAuthentication: [""],
+            smtpAuthenticationType: [""],
             smtpUser: ["", Validators.required],
             historyEnabled: [""],
             fromAddress: ["", [Validators.required, FormValidators.emailSpecialCharacters]],
@@ -176,14 +177,14 @@ export class EmailSettingsViewComponent implements OnDestroy {
    updateForm() {
       this.model.confirmSmtpPassword = this.model.smtpPassword;
       this.form.patchValue(this.model, {emitEvent: false});
-      this.smtpAuthenticationChanged(this.model.smtpAuthentication);
+      this.smtpAuthenticationChanged(this.model.smtpAuthenticationType);
 
       this.subscriptions.add(this.form.valueChanges.subscribe(formVal => {
          if(!this.valueChanged(formVal)) {
             return;
          }
 
-         if(formVal.smtpAuthentication == SMTPAuthType.GOOGLE_AUTH) {
+         if(formVal.smtpAuthenticationType == SMTPAuthType.GOOGLE_AUTH) {
             if(formVal.smtpUser != this.model.smtpUser) {
                formVal.fromAddress = formVal.smtpUser;
                this.form.get("fromAddress").setValue(formVal.smtpUser, {emitEvent: false});

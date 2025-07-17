@@ -34,7 +34,8 @@ public class EmailSettingsService {
          .ssl(SreeEnv.getBooleanProperty("mail.ssl"))
          .tls(SreeEnv.getBooleanProperty("mail.tls"))
          .jndiUrl(SreeEnv.getProperty("mail.jndi.url"))
-         .smtpAuthentication(SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth")))
+         .smtpAuthentication("true".equals(SreeEnv.getProperty("mail.smtp.authbox")))
+         .smtpAuthenticationType(SMTPAuthType.forValue(SreeEnv.getProperty("mail.smtp.auth")))
          .smtpUser(SreeEnv.getProperty("mail.smtp.user"))
          .smtpSecretId(Tool.isCloudSecrets() ? SreeEnv.getProperty("mail.smtp.pass") : null)
          .smtpPassword(!Tool.isCloudSecrets() ? SreeEnv.getPassword("mail.smtp.pass") : null)
@@ -64,13 +65,14 @@ public class EmailSettingsService {
                         @SuppressWarnings("unused") @AuditUser Principal principal)
       throws Exception
    {
-      SreeEnv.setProperty("mail.smtp.auth", model.smtpAuthentication().value());
+      SreeEnv.setProperty("mail.smtp.authbox", model.smtpAuthentication() + "");
+      SreeEnv.setProperty("mail.smtp.auth", model.smtpAuthenticationType().value());
 
-      if(model.smtpAuthentication() == SMTPAuthType.SMTP_AUTH) {
+      if(model.smtpAuthenticationType() == SMTPAuthType.SMTP_AUTH) {
          SreeEnv.setProperty("mail.smtp.user", model.smtpUser());SreeEnv.setPassword(
             "mail.smtp.pass", Tool.isCloudSecrets() ? model.smtpSecretId() :model.smtpPassword());
       }
-      else if(model.smtpAuthentication() == SMTPAuthType.SASL_XOAUTH2 || model.smtpAuthentication() == SMTPAuthType.GOOGLE_AUTH) {
+      else if(model.smtpAuthenticationType() == SMTPAuthType.SASL_XOAUTH2 || model.smtpAuthenticationType() == SMTPAuthType.GOOGLE_AUTH) {
          SreeEnv.setProperty("mail.smtp.user", model.smtpUser());
 
          SreeEnv.setProperty("mail.smtp.clientId", model.smtpClientId());
@@ -79,7 +81,7 @@ public class EmailSettingsService {
          SreeEnv.setPassword("mail.smtp.refreshToken", model.smtpRefreshToken());
          SreeEnv.setProperty("mail.smtp.tokenExpiration", model.tokenExpiration());
 
-         if(model.smtpAuthentication() == SMTPAuthType.SASL_XOAUTH2) {
+         if(model.smtpAuthenticationType() == SMTPAuthType.SASL_XOAUTH2) {
             SreeEnv.setProperty("mail.smtp.authUri", model.smtpAuthUri());
             SreeEnv.setProperty("mail.smtp.tokenUri", model.smtpTokenUri());
             SreeEnv.setProperty("mail.smtp.oauthScopes", model.smtpOAuthScopes());

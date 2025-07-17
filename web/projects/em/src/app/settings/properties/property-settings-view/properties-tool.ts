@@ -35,7 +35,7 @@ export namespace PropertiesTool {
       "graph.script.action.support", "html.close.button", "html.image.scale",
       "htmlpresenter.fitline", "hyperlink.indicator", "image.antialias",
       "image.filtered", "image.png.alpha", "mail.ssl", "log.output.stderr",
-      "mail.smtp.auth", "map.selection.enabled", "mv.detail.data",
+      "mail.smtp.authbox", "map.selection.enabled", "mv.detail.data",
       "mv.ignore.nestedSelection", "mv.double.precision", "mv.outer.moveUp", "mv.union.moveUp",
       "olap.table.originalContent", "output.null.to.zero", "pdf.compress.image",
       "pdf.compress.text", "pdf.embed.cmap", "pdf.embed.font", "pdf.generate.links",

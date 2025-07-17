@@ -40,7 +40,9 @@ public interface EmailSettingsModel {
    @Nullable
    String jndiUrl();
 
-   SMTPAuthType smtpAuthentication();
+   boolean smtpAuthentication();
+
+   SMTPAuthType smtpAuthenticationType();
 
    @Nullable
    String smtpUser();
