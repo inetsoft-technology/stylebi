@@ -2983,7 +2983,8 @@ public abstract class AssetQuery extends PreAssetQuery {
          // different structurally from that originally bound due to parameterization. If the base
          // table does not contain all of the columns from the saved selection, just add the
          // missing columns to the end of the column mapping array
-         addMissingColumns(cols, selection.getAttributeCount());
+         int size = Math.min(selection.getAttributeCount(), base.getColCount());
+         addMissingColumns(cols, size);
       }
 
       int[] carr = cols.stream().mapToInt(i -> i).toArray();
