@@ -23,8 +23,6 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
-import inetsoft.util.Catalog;
-import inetsoft.util.InvalidOrgException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.digest.DigestUtils;
