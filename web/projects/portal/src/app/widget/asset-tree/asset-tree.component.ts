@@ -185,8 +185,8 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
 
             if(this.defaultFolder) {
                const selectedNode: TreeNodeModel = this.getNodeByPath(
-                  this.defaultFolder.path, this.root, this.currOrgID == "SELF" ?
-                  AssetConstants.USER_SCOPE : this.defaultFolder.scope);
+                  this.defaultFolder.path, this.root, this.currOrgID == "SELF" && !this.isTableStyle() ?
+                                                      AssetConstants.USER_SCOPE : this.defaultFolder.scope);
 
                if(selectedNode) {
                   this.selectNodes([selectedNode]);
@@ -856,5 +856,9 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
       return (node1: TreeNodeModel, node2: TreeNodeModel) => {
          return node1?.data?.identifier == node2?.data?.identifier;
       };
+   }
+
+   isTableStyle(): boolean {
+      return this.defaultFolder.path.includes("/Table Style");
    }
 }
