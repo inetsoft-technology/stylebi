@@ -16,35 +16,26 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.uql.jdbc;
+package inetsoft.web.admin.content.repository.model;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.value.Value;
 
-public class ClickhouseHelper extends SQLHelper {
-   /**
-    * Creates a new instance of <tt>ClickhouseHelper</tt>.
-    */
-   public ClickhouseHelper() {
-      // default connection
+@Value.Immutable
+@JsonSerialize(as = ImmutableCreateMVResponse.class)
+public interface CreateMVResponse {
+   @Value.Default
+   default boolean failed() { return false; }
+
+   @Value.Default
+   default boolean complete() {
+      return true;
    }
 
-   @Override
-   public String getSQLHelperType() {
-      return "clickhouse";
+   static CreateMVResponse.Builder builder() {
+      return new CreateMVResponse.Builder();
    }
 
-   @Override
-   protected String transformDate(String str) {
-      str = str.trim();
-
-      if(str.startsWith("{ts") || str.startsWith("({ts") ) {
-         Pattern pattern = Pattern.compile("\\{ts\\s*'(.*?)'\\}");
-         Matcher matcher = pattern.matcher(str);
-         return matcher.replaceAll("'$1'");
-      }
-      else {
-         return super.transformDate(str);
-      }
+   final class Builder extends ImmutableCreateMVResponse.Builder {
    }
 }

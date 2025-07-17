@@ -19,14 +19,16 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
 import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { Subject, timer } from "rxjs";
-import { takeUntil } from "rxjs/operators";
+import { filter, switchMap, take, takeUntil, timeout } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-formatter";
 import { AnalyzeMVResponse } from "../../../../../../../shared/util/model/mv/analyze-mv-response";
+import { CreateMvResponse } from "../../../../../../../shared/util/model/mv/create-mv-response";
 import { MaterializedModel } from "../../../../../../../shared/util/model/mv/materialized-model";
 import { MVExceptionResponse } from "../../../../../../../shared/util/model/mv/mv-exception-response";
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
+import { Tool } from "../../../../../../../shared/util/tool";
 import { ErrorHandlerService } from "../../../../common/util/error/error-handler.service";
 import { ExpandableRowTableInfo } from "../../../../common/util/table/expandable-row-table/expandable-row-table-info";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
@@ -365,24 +367,34 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
          runInBackground: this.runInBackground,
          cycle: this.mvCycle
       };
+      const createId = Tool.generateRandomUUID();
+      const options = { params: new HttpParams().set("createId", createId) };
 
-      this.http.post("../api/em/content/repository/mv/create", request).subscribe(() => {
-         this.refreshAnalyzedResult();
-         const dialogRef = this.dialog.open(MessageDialog, <MatDialogConfig>{
-            data: {
-               content: "_#(js:em.alert.createMV)",
-               type: MessageDialogType.INFO
-            }
-         });
-         dialogRef.afterClosed().subscribe(() => {
-            this.loading = false;
-            this.mvChanged.emit();
-         });
-      },
+      timer(0, 2000)
+         .pipe(
+            switchMap(() =>
+               this.http.post<CreateMvResponse>("../api/em/content/repository/mv/create", request, options)),
+            filter(response => response.complete),
+            take(1),
+            timeout(600000)
+         )
+         .subscribe(() => {
+               this.refreshAnalyzedResult();
+               const dialogRef = this.dialog.open(MessageDialog, <MatDialogConfig>{
+                  data: {
+                     content: "_#(js:em.alert.createMV)",
+                     type: MessageDialogType.INFO
+                  }
+               });
+               dialogRef.afterClosed().subscribe(() => {
+                  this.loading = false;
+                  this.mvChanged.emit();
+               });
+         },
          (error) => {
-         this.errorService.showDialog(error);
-         this.loading = false;
-      });
+               this.errorService.showDialog(error);
+               this.loading = false;
+         });
    }
 
    showPlan() {

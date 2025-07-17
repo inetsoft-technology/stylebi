@@ -301,13 +301,13 @@ public class MVService {
       List<String> parentVsIds = def.getParentVsIds();
       String parentVsIdsStr = parentVsIds != null && !parentVsIds.isEmpty() ?
          parentVsIds.stream()
-            .map(id -> AssetEntry.createAssetEntry(id).getPath())
+            .map(id -> Tool.buildString("\"", AssetEntry.createAssetEntry(id).getPath(), "\""))
             .collect(Collectors.joining(" -> "))
          : null;
       return Arrays.stream(data.getRegisteredSheets())
          .map(id -> AssetEntry.createAssetEntry(id).getPath())
          .filter(path -> (!path.startsWith(RECYCLE_BIN_FOLDER)))
-         .map(path -> parentVsIdsStr != null ? parentVsIdsStr + " -> " + path : path)
+         .map(path -> parentVsIdsStr != null ? parentVsIdsStr + " -> " + Tool.buildString("\"", path, "\"")  : path)
          .collect(Collectors.joining(","));
    }
 

@@ -386,24 +386,26 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String hostOrgID = Organization.getDefaultOrganizationID();
+
       //pass default org global repository if inside global visible folder
       if(SUtil.isDefaultVSGloballyVisible(user) &&
-         Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()) &&
+         Tool.equals(entry.getOrgID(), hostOrgID) &&
          Tool.equals(entry.getPath(), OrganizationManager.getGlobalDefOrgFolderName()))
       {
          identifier = "1^4097^__NULL__^/^host-org";
-         orgID = Organization.getDefaultOrganizationID();
+         orgID = hostOrgID;
       }
+
       XMLSerializable obj = storage.getXMLSerializable(identifier, null, orgID);
 
       //catch default org folder by checking as host org
       if(obj == null && SUtil.isDefaultVSGloballyVisible(user) &&
+         Tool.equals(entry.getOrgID(), hostOrgID) &&
          !Tool.equals(identifier, "1^4097^__NULL__^/^"+Organization.getSelfOrganizationID()) &&
-         !Tool.equals(identifier, "1^1^__NULL__^/^"+Organization.getSelfOrganizationID())
-      ) {
-         AssetEntry tmp = (AssetEntry) entry.clone();
-         tmp.setOrgID(Organization.getDefaultOrganizationID());
-         obj = storage.getXMLSerializable(tmp.toIdentifier(true), null, Organization.getDefaultOrganizationID());
+         !Tool.equals(identifier, "1^1^__NULL__^/^"+Organization.getSelfOrganizationID()))
+      {
+         obj = storage.getXMLSerializable(identifier, null, hostOrgID);
       }
 
       if(obj instanceof AssetFolder) {
@@ -4606,6 +4608,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    private static boolean isMetadataAware(IndexedStorage storage) {
       return (storage instanceof MetadataAwareStorage) &&
          ((MetadataAwareStorage) storage).isMetadataEnabled();
+   }
+
+   @Override
+   public void fireExposeDefaultOrgPropertyChange() {
+      AssetEntry root = new AssetEntry(
+         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER, "/", null);
+
+      fireEvent(Viewsheet.VIEWSHEET_ASSET, AssetChangeEvent.ASSET_MODIFIED, root, null, true, null, "");
    }
 
    public static final ThreadLocal<String> LOCAL = new ThreadLocal<>();

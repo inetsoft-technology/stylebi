@@ -1487,7 +1487,7 @@ public class QueryManagerService {
          sql.setSQLString(sqlString);
 
          // it is waiting for the parser finish parsing the sql string.
-         if(!Tool.equals(sqlString, sql.getSQLString())) {
+         if(!Tool.equals(sqlString, sql.getSQLString()) && sql.isParseSQL()) {
             try {
                sql.wait();
             }
@@ -1605,11 +1605,13 @@ public class QueryManagerService {
       synchronized(sql) {
          sql.setSQLString(nsqlString);
 
-         // it is waiting for the parser finish parsing the sql string.
-         try {
-            sql.wait();
-         }
-         catch(InterruptedException e) {
+         if(sql.isParseSQL()) {
+            // it is waiting for the parser finish parsing the sql string.
+            try {
+               sql.wait();
+            }
+            catch(InterruptedException e) {
+            }
          }
       }
 

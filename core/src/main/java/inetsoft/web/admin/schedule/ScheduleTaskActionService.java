@@ -152,7 +152,9 @@ public class ScheduleTaskActionService {
             "em.scheduler.taskNotFound", taskName));
       }
 
-      ScheduleAction action = scheduleService.getActionFromModel(model, principal, linkURI);
+      ScheduleAction scheduleAction = task.getActionCount() > index ? task.getAction(index) : null;
+      ScheduleAction action = scheduleService.getActionFromModel(model, scheduleAction,
+                                                                 principal, linkURI);
 
       if(index >= task.getActionCount()) {
          task.addAction(action);

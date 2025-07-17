@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
@@ -37,6 +39,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @RestController
@@ -49,6 +53,10 @@ public class MVController {
       this.mvService = mvService;
       this.support = support;
       this.securityProvider = securityProvider;
+      this.createMVCache = Caffeine.newBuilder()
+         .expireAfterAccess(10L, TimeUnit.MINUTES)
+         .maximumSize(1000L)
+         .build();
    }
 
    @PostMapping("/api/em/content/repository/mv/analyze")
@@ -121,9 +129,55 @@ public class MVController {
 
    @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/create")
-   public void create(HttpServletRequest req,
+   public CreateMVResponse create(HttpServletRequest req,
+                      @RequestParam(name = "createId", required = false) String createId,
                       @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
                       Principal principal) throws Throwable
+   {
+      if(createId != null) {
+         CompletableFuture<CreateMVResponse> future = createMVCache.getIfPresent(createId);
+
+         if(future != null) {
+            if(future.isDone()) {
+               createMVCache.invalidate(createId);
+               return future.get();
+            }
+            else {
+               return CreateMVResponse.builder().complete(false).build();
+            }
+         }
+      }
+
+      if(createId == null) {
+         create0(req, createUpdateMVRequest, principal);
+         return CreateMVResponse.builder().complete(true).build();
+      }
+      else if(createMVCache.getIfPresent(createId) == null) {
+         CompletableFuture<CreateMVResponse> future = new CompletableFuture<>();
+         createMVCache.put(createId, future);
+         ThreadPool.addOnDemand(() -> {
+            Principal oPrincipal = ThreadContext.getPrincipal();
+            ThreadContext.setPrincipal(principal);
+
+            try {
+               create0(req, createUpdateMVRequest, principal);
+               future.complete(CreateMVResponse.builder().complete(true).build());
+            }
+            catch(Throwable e) {
+               future.completeExceptionally(e);
+            }
+            finally {
+               ThreadContext.setPrincipal(oPrincipal);
+            }
+         });
+      }
+
+      return CreateMVResponse.builder().complete(false).build();
+   }
+
+   public void create0(HttpServletRequest req, CreateUpdateMVRequest createUpdateMVRequest,
+                       Principal principal)
+      throws Throwable
    {
       ActionRecord actionRecord = SUtil.getActionRecord(
          principal, ActionRecord.ACTION_NAME_CREATE,
@@ -295,4 +349,5 @@ public class MVController {
    private final MVService mvService;
    private final MVSupportService support;
    private final SecurityProvider securityProvider;
+   private final Cache<String, CompletableFuture<CreateMVResponse>> createMVCache;
 }

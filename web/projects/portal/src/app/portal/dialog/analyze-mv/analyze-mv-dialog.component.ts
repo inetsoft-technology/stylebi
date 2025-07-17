@@ -27,16 +27,18 @@ import {
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription, timer } from "rxjs";
-import { takeUntil } from "rxjs/operators";
+import { filter, switchMap, take, takeUntil, timeout } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../shared/data/repository-entry-type.enum";
 import { MVManagementModel } from "../../../../../../em/src/app/settings/content/materialized-views/mv-management-view/mv-management-model";
 import { SecurityEnabledEvent } from "../../../../../../em/src/app/settings/security/security-settings-page/security-enabled-event";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { AnalyzeMVResponse } from "../../../../../../shared/util/model/mv/analyze-mv-response";
+import { CreateMvResponse } from "../../../../../../shared/util/model/mv/create-mv-response";
 import { CreateUpdateMvRequest } from "../../../../../../shared/util/model/mv/create-update-mv-request";
 import { MaterializedModel } from "../../../../../../shared/util/model/mv/materialized-model";
 import { MVExceptionResponse } from "../../../../../../shared/util/model/mv/mv-exception-response";
 import { NameLabelTuple } from "../../../../../../shared/util/name-label-tuple";
+import { Tool } from "../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { AnalyzeMVPortalRequest } from "../../../vsobjects/model/analyze-mv-portal-request";
 import { RepositoryTreeService } from "../../../widget/repository-tree/repository-tree.service";
@@ -247,20 +249,31 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
 
    create(request: CreateUpdateMvRequest) {
       this.loading = true;
-      this.http.post("../api/em/content/repository/mv/create", request).subscribe(() => {
-         this.refresh("ALL");
-         const dialog = ComponentTool.showMessageDialog(this.modalService, "_#(js:Info)",
-            "_#(js:em.alert.createMV)");
-         dialog.then(() => {
-            this.loading = false;
-            this.okClicked();
-         });
-      },
-         (error) => {
-            ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-               error.error.message);
-         this.loading = false;
-      });
+      const createId = Tool.generateRandomUUID();
+      const options = { params: new HttpParams().set("createId", createId) };
+
+      timer(0, 2000)
+         .pipe(
+            switchMap(() =>
+               this.http.post<CreateMvResponse>("../api/em/content/repository/mv/create", request, options)),
+            filter(response => response.complete),
+            take(1),
+            timeout(600000)
+         )
+         .subscribe(() => {
+               this.refresh("ALL");
+               const dialog = ComponentTool.showMessageDialog(this.modalService, "_#(js:Info)",
+                  "_#(js:em.alert.createMV)");
+               dialog.then(() => {
+                  this.loading = false;
+                  this.okClicked();
+               });
+            },
+            (error) => {
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                  error.error.message);
+               this.loading = false;
+            });
    }
 
    showPlan(request: CreateUpdateMvRequest) {

@@ -86,6 +86,9 @@ public interface TreeNodeModel extends Comparable<TreeNodeModel> {
    @Nullable Boolean defaultOrgAsset();
 
    @Value.Default
+   default boolean expired() {return false;}
+
+   @Value.Default
    default boolean disabled() {
       return false;
    }

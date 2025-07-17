@@ -537,6 +537,10 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
                }
 
                if(expandedQueue.length == 0) {
+                  if(data.expired && data.label === this.globalRepositoryName) {
+                     pendingNode.children = pendingNode.children.filter(a => a.label != this.globalRepositoryName);
+                  }
+
                   this.root = pendingNode;
                   this.updateRootNode.emit(pendingNode);
                   pendingNode = null;

@@ -233,6 +233,18 @@ public class ScheduleTaskService {
          return true;
       }
 
+      try {
+         SecurityEngine securityEngine = SecurityEngine.getSecurity();
+
+         if(securityEngine.checkPermission(principal, ResourceType.SECURITY_USER,
+                                           task.getOwner(), ResourceAction.ADMIN))
+         {
+            return true;
+         }
+      }
+      catch(Exception ignore) {
+      }
+
       return principal != null &&
          (Tool.equals(principal.getName(), task.getOwner().convertToKey()) ||
             !scheduleManager.isDeleteOnlyByOwner(task, principal));
@@ -515,8 +527,9 @@ public class ScheduleTaskService {
 
       if(!internalTask) {
          for(int i = 0; i < model.actions().size(); i++) {
+            ScheduleAction scheduleAction = task.getActionCount() > i ? task.getAction(i) : null;
             ScheduleAction action =
-               scheduleService.getActionFromModel(model.actions().get(i), principal, linkURI);
+               scheduleService.getActionFromModel(model.actions().get(i), scheduleAction, principal, linkURI);
 
             if(action == null) {
                continue;

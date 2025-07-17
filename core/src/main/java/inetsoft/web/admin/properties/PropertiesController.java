@@ -21,6 +21,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.log.*;
@@ -38,6 +39,9 @@ import java.util.Properties;
 @RestController
 @DeniedMultiTenancyOrgUser
 public class PropertiesController {
+   @Autowired
+   private AssetRepository assetRepository;
+
    @Audited(
       actionName = ActionRecord.ACTION_NAME_DELETE,
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
@@ -51,6 +55,10 @@ public class PropertiesController {
       removeLogLevel(property);
       SreeEnv.remove(property);
       SreeEnv.save();
+
+      if(Tool.equals(property, "security.exposedefaultorgtoall")) {
+         assetRepository.fireExposeDefaultOrgPropertyChange();
+      }
    }
 
    @Audited(
@@ -88,6 +96,10 @@ public class PropertiesController {
 
       if(Tool.equals(propertyName,"string.compare.casesensitive")) {
          Tool.invalidateCaseSensitive();
+      }
+
+      if(Tool.equals(propertyName, "security.exposedefaultorgtoall")) {
+         assetRepository.fireExposeDefaultOrgPropertyChange();
       }
    }
 
