@@ -99,6 +99,10 @@ export class AuditTableViewComponent<R> implements OnInit, AfterViewInit {
                this._startDate = this.minDate;
                this._endDate = this.maxDate;
                this.initDate = this.maxDate;
+
+               if(this._startDate < this._endDate - 24 * 60 * 60 * 1000) {
+                  this._startDate = this._endDate - 24 * 60 * 60 * 1000;
+               }
             }
 
             this.onParameterChange();
