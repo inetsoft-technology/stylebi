@@ -394,8 +394,8 @@ public class DataSpace implements AutoCloseable {
       return false;
    }
 
-   public void listBlobs(String outputFile) throws IOException {
-      blobStorage.listBlobs(outputFile);
+   public String listBlobs() throws IOException {
+      return blobStorage.listBlobs();
    }
 
    /**

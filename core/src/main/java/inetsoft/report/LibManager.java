@@ -737,12 +737,10 @@ public class LibManager implements AutoCloseable {
       }
    }
 
-   public void listBlobs(String outputFile, String orgID) throws IOException {
+   public String listBlobs(String orgID) throws IOException {
       BlobStorage<Metadata> storage = storages.get(getStorageId(orgID));
 
-      if(storage != null) {
-         storage.listBlobs(outputFile);
-      }
+      return storage != null ? storage.listBlobs() : null;
    }
 
    private final BlobStorage.Listener<Metadata> changeListener = new BlobStorage.Listener<Metadata>() {

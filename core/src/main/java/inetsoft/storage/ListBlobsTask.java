@@ -18,32 +18,34 @@
 
 package inetsoft.storage;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SingletonCallableTask;
+import inetsoft.util.FileSystemService;
 
 import java.io.*;
 
 public class ListBlobsTask<T extends Serializable> extends BlobTask<T>
-   implements SingletonCallableTask<BlobReference<T>>
+   implements SingletonCallableTask<String>
 {
    /**
     * Creates a new instance of {@code ListBlobsTask}.
     */
-   public ListBlobsTask(String id, String outputFile) {
+   public ListBlobsTask(String id) {
       super(id);
-      this.outputFile = outputFile;
    }
 
    @Override
-   public BlobReference<T> call() throws Exception {
-      try(PrintWriter writer = new PrintWriter(new FileOutputStream(outputFile, true))) {
+   public String call() throws Exception {
+      File tempFile = FileSystemService.getInstance()
+         .getCacheTempFile("blob-list", ".dat");
+
+      try(PrintWriter writer = new PrintWriter(new FileOutputStream(tempFile, true))) {
          writer.println(getId());
          BlobEngine.getInstance().list(getId(), writer);
          writer.println();
       }
 
-      return null;
+      return Cluster.getInstance().addTransferFile(tempFile);
    }
-
-   String outputFile;
 }
 

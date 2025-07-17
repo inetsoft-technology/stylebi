@@ -76,12 +76,10 @@ public class EmbeddedTableStorage implements AutoCloseable {
       getStorage().delete(path);
    }
 
-   public void listBlobs(String outputFile, String orgID) throws IOException {
+   public String listBlobs(String orgID) throws IOException {
       BlobStorage<Metadata> storage = getStorage(orgID);
 
-      if(storage != null) {
-         storage.listBlobs(outputFile);
-      }
+      return storage != null ? storage.listBlobs() : null;
    }
 
    public Instant getLastModified(String path) throws FileNotFoundException {

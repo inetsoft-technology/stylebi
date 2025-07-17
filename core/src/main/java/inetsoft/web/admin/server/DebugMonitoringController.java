@@ -20,11 +20,13 @@ package inetsoft.web.admin.server;
 
 import inetsoft.report.LibManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.asset.EmbeddedTableStorage;
 import inetsoft.util.*;
 import jakarta.servlet.http.HttpServletResponse;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,31 +96,44 @@ public class DebugMonitoringController {
          }
 
          response.setContentType("text/plain; charset=\"UTF-8\"");
-         Path tempFile = Files.createTempFile("blobPaths", ".dat");
-         DataSpace.getDataSpace().listBlobs(tempFile.toString());
-         String[] orgs = SecurityEngine.getSecurity().getOrganizations();
-         orgs = orgs.length == 0 ? new String[]{Organization.getDefaultOrganizationID()} : orgs;
-
-
-         for(String orgID : orgs) {
-            IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
-
-            if(indexedStorage instanceof BlobIndexedStorage) {
-               ((BlobIndexedStorage) indexedStorage).listBlobs(tempFile.toString(), orgID);
-            }
-
-            LibManager.getManager().listBlobs(tempFile.toString(), orgID);
-            EmbeddedTableStorage.getInstance().listBlobs(tempFile.toString(), orgID);
-         }
 
          try(OutputStream out = response.getOutputStream()) {
-            Files.copy(tempFile, out);
-         }
+            String transferFilePath = DataSpace.getDataSpace().listBlobs();
+            copyTransferFile(transferFilePath, out);
 
-         Files.delete(tempFile);
+            String[] orgs = SecurityEngine.getSecurity().getOrganizations();
+            orgs = orgs.length == 0 ? new String[]{Organization.getDefaultOrganizationID()} : orgs;
+
+            for(String orgID : orgs) {
+               IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
+
+               if(indexedStorage instanceof BlobIndexedStorage) {
+                  transferFilePath = ((BlobIndexedStorage) indexedStorage).listBlobs(orgID);
+                  copyTransferFile(transferFilePath, out);
+               }
+
+               transferFilePath = LibManager.getManager().listBlobs(orgID);
+               copyTransferFile(transferFilePath, out);
+               transferFilePath = EmbeddedTableStorage.getInstance().listBlobs(orgID);
+               copyTransferFile(transferFilePath, out);
+            }
+         }
       }
       catch(Exception e) {
          LOG.error("Failed to get key value storage dump", e);
+      }
+   }
+
+   private void copyTransferFile(String transferFilePath, OutputStream output) throws IOException {
+      if(transferFilePath != null) {
+         File transferFile = Cluster.getInstance().getTransferFile(transferFilePath);
+
+         try {
+            Files.copy(transferFile.toPath(), output);
+         }
+         finally {
+            FileUtils.deleteQuietly(transferFile);
+         }
       }
    }
 
