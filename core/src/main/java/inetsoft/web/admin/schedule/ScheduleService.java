@@ -1406,10 +1406,16 @@ public class ScheduleService {
          backupAction.setPaths(Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ? backupActionModel
             .backupPath() : null);
          ServerPathInfo oldServerPath = backupAction.getServerPath();
+
+         if(oldAction instanceof IndividualAssetBackupAction oldBackupAction) {
+            oldServerPath = oldBackupAction.getServerPath();
+         }
+
          ServerPathInfo newServerPathInfo = Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ?
             new ServerPathInfo(backupActionModel.backupServerPath()) : null;
 
          if(oldServerPath != null && newServerPathInfo != null &&
+            newServerPathInfo.getUsername().equals(oldServerPath.getUsername()) &&
             Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()))
          {
             newServerPathInfo.setPassword(oldServerPath.getPassword());
