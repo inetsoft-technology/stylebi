@@ -74,7 +74,7 @@ export class VpmSubqueryEditorComponent implements OnInit {
          this.subSqlQueryController = new VpmSqlQueryController(this.http);
       }
       else {
-         this.subSqlQueryController = new WsSqlQueryController(this.http, this.modelService);
+         this.subSqlQueryController = new WsSqlQueryController(this.http, this.modelService, this.modalService);
       }
 
       this.subSqlQueryController.dataSource = this.datasource;

@@ -550,7 +550,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       const dialog = ComponentTool.showDialog(this.dialogService, SQLQueryDialog, onCommit,
          options, onCancel);
 
-      let controller: WsSqlQueryController = new WsSqlQueryController(this.http, this.modelService);
+      let controller: WsSqlQueryController = new WsSqlQueryController(this.http, this.modelService, this.modalService);
       controller.runtimeId = this.worksheet.runtimeId;
       controller.tableName = table.name;
       controller.dataSource = table.info?.sourceInfo?.source;

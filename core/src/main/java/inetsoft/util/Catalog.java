@@ -564,6 +564,11 @@ public class Catalog {
          return id;
       }
 
+      if("em.datasource.cloudError".equals(id)) {
+         String res = SreeEnv.getProperty("datasource.cloudError");
+         return Tool.isEmptyString(res) ? "" : res;
+      }
+
       Object obj = null;
 
       // get string value from main resource bundle
