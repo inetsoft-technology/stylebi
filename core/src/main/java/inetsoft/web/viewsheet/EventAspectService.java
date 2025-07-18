@@ -20,8 +20,10 @@ package inetsoft.web.viewsheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
+import inetsoft.mv.MVSession;
 import inetsoft.report.composition.*;
 import inetsoft.uql.asset.Assembly;
+import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -68,6 +70,40 @@ public class EventAspectService {
          }
       }
 
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void setWSExecution(@ClusterProxyKey String runtimeId, boolean undoable, Principal principal) throws Exception {
+      RuntimeWorksheet rws = viewsheetService.getWorksheet(runtimeId, principal);
+      MVSession session = rws.getAssetQuerySandbox().getMVSession();
+      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+
+      // if worksheet changed, re-init sql context so change in table
+      // is reflected in spark sql
+      if(undoable && session != null) {
+         session.clearInitialized();
+      }
+
+      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void clearWSExecution(@ClusterProxyKey String runtimeId) throws Exception {
+      WSExecution.setAssetQuerySandbox(null);
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void addExecutionMonitoring(@ClusterProxyKey String runtimeId) throws Exception {
+      viewsheetService.addExecution(runtimeId);
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void removeExecutionMonitoring(@ClusterProxyKey String runtimeId) throws Exception {
+      viewsheetService.removeExecution(runtimeId);
       return null;
    }
 
