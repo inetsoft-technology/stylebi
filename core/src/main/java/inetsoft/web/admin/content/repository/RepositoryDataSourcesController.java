@@ -160,7 +160,7 @@ public class RepositoryDataSourcesController {
                                                     @RequestBody() DataSourceSettingsModel model,
                                                     Principal principal)
    {
-      return this.databaseDatasourcesService.testDataSourceConnection(path, model, principal);
+      return this.databaseDatasourcesService.testDataSourceConnection(path, model, principal, false);
    }
 
    @GetMapping("/api/data/database/default")

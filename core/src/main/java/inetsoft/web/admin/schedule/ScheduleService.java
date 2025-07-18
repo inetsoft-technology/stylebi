@@ -1377,7 +1377,15 @@ public class ScheduleService {
             }
             else {
                abstractAction.setUseCredential(false);
-               abstractAction.setPassword(actionModel.password());
+               String password = actionModel.password();
+
+               if(oldAction instanceof ViewsheetAction oldViewsheetAction &&
+                  Util.PLACEHOLDER_PASSWORD.equals(password))
+               {
+                  password = oldViewsheetAction.getPassword();
+               }
+
+               abstractAction.setPassword(password);
             }
 
             if(abstractAction instanceof ViewsheetAction && "CSV".equals(actionModel.format())) {
@@ -1408,10 +1416,16 @@ public class ScheduleService {
          backupAction.setPaths(Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ? backupActionModel
             .backupPath() : null);
          ServerPathInfo oldServerPath = backupAction.getServerPath();
+
+         if(oldAction instanceof IndividualAssetBackupAction oldBackupAction) {
+            oldServerPath = oldBackupAction.getServerPath();
+         }
+
          ServerPathInfo newServerPathInfo = Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ?
             new ServerPathInfo(backupActionModel.backupServerPath()) : null;
 
          if(oldServerPath != null && newServerPathInfo != null &&
+            Tool.equals(newServerPathInfo.getUsername(), oldServerPath.getUsername()) &&
             Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()))
          {
             newServerPathInfo.setPassword(oldServerPath.getPassword());

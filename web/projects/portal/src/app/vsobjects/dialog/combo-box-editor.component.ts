@@ -133,7 +133,7 @@ export class ComboBoxEditor implements OnInit, OnChanges {
                   }
                }
 
-               this.model.defaultValue = value.length > 0 ? value[0].value : null;
+               this.model.defaultValue = value.length > 0 ? value[0].value : this.model.defaultValue;
             }
          });
       }

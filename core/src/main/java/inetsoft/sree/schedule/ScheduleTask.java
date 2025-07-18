@@ -630,10 +630,19 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                   if(SreeEnv.getBooleanProperty("schedule.options.taskFailed", "true", "CHECKED"))
                   {
                      String subject = Catalog.getCatalog().getString(
-                        "em.scheduler.notification.taskFailedSub",
-                        SUtil.getTaskNameWithoutOrg(getTaskId()), SUtil.getTaskOrgName(getTaskId(), principal),
+                        "em.scheduler.notification.taskFailedSub.community", getName(),
                         (new SimpleDateFormat("hh:mma yyyy-MM-dd"))
-                        .format(new Date()));
+                           .format(new Date()));
+
+                     if(SUtil.isMultiTenant()) {
+                        subject = Catalog.getCatalog().getString(
+                           "em.scheduler.notification.taskFailedSub",
+                           SUtil.getTaskNameWithoutOrg(getTaskId()),
+                           SUtil.getTaskOrgName(getTaskId(), principal),
+                           (new SimpleDateFormat("hh:mma yyyy-MM-dd"))
+                              .format(new Date()));
+                     }
+
                      String body = Catalog.getCatalog().getString(
                         "em.scheduler.notification.taskFailedBody",
                         exceptions.get(i));

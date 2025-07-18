@@ -108,10 +108,13 @@ public class DatabaseDatasourcesController {
 
    @PostMapping("/api/portal/data/databases/additional/test")
    public ConnectionStatus testDataSourceConnection(@RequestParam("path") String path,
+                                                    @RequestParam("isAdditionalSource")
+                                                    boolean isAdditionalSource,
                                                     @RequestBody() DatabaseDefinition model,
                                                     Principal principal)
    {
-      return this.databaseDatasourcesService.testDataSourceConnection(path, model, principal);
+      return this.databaseDatasourcesService.testDataSourceConnection(path, model, principal,
+                                                                      isAdditionalSource);
    }
 
    @GetMapping("/api/portal/data/datasource/refresh-metadata")

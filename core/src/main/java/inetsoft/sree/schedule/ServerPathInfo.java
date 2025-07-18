@@ -55,10 +55,7 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
          }
          else {
             this.username = model.username();
-
-            if(!Util.PLACEHOLDER_PASSWORD.equals(model.password())) {
-               this.password = model.password();
-            }
+            this.password = model.password();
          }
       }
 

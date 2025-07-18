@@ -36,13 +36,6 @@
           <mat-label>_#(Mail Session JNDI URL)</mat-label>
           <input matInput placeholder="_#(Mail Session JNDI URL)" formControlName="jndiUrl">
         </mat-form-field>
-        <mat-checkbox class="mat-checkbox-field" formControlName="smtpAuthentication">
-          _#(SMTP Authentication)
-        </mat-checkbox>
-
-        <ng-container *ngIf="model?.smtpAuthentication">
-        </ng-container>
-
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(SMTP Authentication Type)</mat-label>
           <mat-select formControlName="smtpAuthentication" placeholder="_#(SMTP Authentication Type)">

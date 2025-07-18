@@ -99,7 +99,8 @@ public class WebSocketConfig<S extends Session> extends
          "/em-content-changed", "/data-changed", "/report-export-changed",
          "/schedule-folder-changed", "/em-schedule-folder-changed", "/em-mv-changed",
          "/em-plugin-changed", "/session-expiration", "/license-changed",
-         "/create-org-status-changed", "/schedule/users-change", "/security/providers-change")
+         "/create-org-status-changed", "/schedule/users-change", "/security/providers-change",
+         "/current-org-changed")
               .setTaskScheduler(taskScheduler())
               .setHeartbeatValue(new long[] {25000L, 25000L});
       registry.setUserDestinationPrefix("/user");

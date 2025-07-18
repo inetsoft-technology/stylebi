@@ -1359,10 +1359,29 @@ public class SUtil {
    public static EditableAuthenticationProvider
       getEditableAuthenticationProvider(SecurityProvider security, IdentityID user)
    {
+      return getEditableAuthenticationProvider(security, user, Identity.USER);
+   }
+
+   /**
+    * Gets the user editable authentication module for the specified security
+    * provider.
+    *
+    * @param security the security provider.
+    * @param identityID the user identityID.
+    *
+    * @return the editable authentication module or <code>null</code> if the
+    *         provider's authentication module is not editable.
+    */
+   public static EditableAuthenticationProvider
+      getEditableAuthenticationProvider(SecurityProvider security, IdentityID identityID,
+                                        int identityType)
+   {
       if(security instanceof AbstractSecurityProvider) {
          AuthenticationProvider auth = security.getAuthenticationProvider();
 
-         if(auth instanceof EditableAuthenticationProvider && auth.getUser(user) != null) {
+         if(auth instanceof EditableAuthenticationProvider &&
+            getIdentity(auth, identityID, identityType) != null)
+         {
             return (EditableAuthenticationProvider) auth;
          }
 
@@ -1372,11 +1391,34 @@ public class SUtil {
 
          for(Object provider : ((AuthenticationChain) auth).getProviders()) {
             if(provider instanceof EditableAuthenticationProvider eprovider &&
-               eprovider.getUser(user) != null)
+               getIdentity(eprovider, identityID, identityType) != null)
             {
                return eprovider;
             }
          }
+      }
+
+      return null;
+   }
+
+   private static Identity getIdentity(AuthenticationProvider provider, IdentityID identityID,
+                                       int type)
+   {
+      if(provider == null) {
+         return null;
+      }
+
+      if(type == Identity.USER) {
+         return provider.getUser(identityID);
+      }
+      else if(type == Identity.GROUP) {
+         return provider.getGroup(identityID);
+      }
+      else if(type == Identity.ROLE) {
+         return provider.getRole(identityID);
+      }
+      else if(type == Identity.ORGANIZATION) {
+         return provider.getOrganization(identityID.orgID);
       }
 
       return null;
