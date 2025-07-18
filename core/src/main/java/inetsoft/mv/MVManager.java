@@ -1375,7 +1375,9 @@ public final class MVManager implements MessageListener {
     */
    public void fireEvent(String src, String name, Object oval, Object nval) {
       try {
-         Cluster.getInstance().sendMessage(new MVChangedMessage(src, name, oval, nval));
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         Cluster.getInstance().sendMessage(
+            new MVChangedMessage(getOrgEventSourceID(src, orgId), name, oval, nval));
       }
       catch(Exception e) {
          LOG.warn("Failed to send MV changed message", e);
@@ -1601,6 +1603,30 @@ public final class MVManager implements MessageListener {
       mvs.initLastModified();
    }
 
+   private static String getOrgEventSourceID(String sourceID, String orgID) {
+      return Tool.buildString(orgID, MV_CHANGE_EVENT_ORG_DELIMITER, sourceID);
+   }
+
+   /**
+    * Get the organization ID from the event source ID.
+    *
+    * @param source event source.
+    * @return the organization ID or null if the sourceID is empty or does not contain the delimiter.
+    */
+   public static String getOrgIdFromEventSource(Object source) {
+      if(!(source instanceof String sourceID) || Tool.isEmptyString((String) source)) {
+         return null;
+      }
+
+      int index = sourceID.indexOf(MV_CHANGE_EVENT_ORG_DELIMITER);
+
+      if(index < 0) {
+         return null;
+      }
+
+      return sourceID.substring(0, index);
+   }
+
    /**
     * MVFilter filters one MV.
     */
@@ -1627,6 +1653,7 @@ public final class MVManager implements MessageListener {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MVManager.class);
+   private static final String MV_CHANGE_EVENT_ORG_DELIMITER = "^~~^";
 
    private final MVDefMap mvs = new MVDefMap();
    private final Map<Object, MVCreator> pending = new ConcurrentHashMap<>();

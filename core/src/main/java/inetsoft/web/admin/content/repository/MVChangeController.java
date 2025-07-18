@@ -20,8 +20,8 @@ package inetsoft.web.admin.content.repository;
 import inetsoft.mv.MVManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
-import inetsoft.util.Debouncer;
-import inetsoft.util.DefaultDebouncer;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.util.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;
@@ -66,6 +66,14 @@ public class MVChangeController implements MessageListener {
 
    private void mvPropertyChanged(PropertyChangeEvent event) {
       if(MVManager.MV_CHANGE_EVENT.equals(event.getPropertyName())) {
+         String orgId = MVManager.getOrgIdFromEventSource(event.getSource());
+
+         if(orgId != null &&
+            !Tool.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal)))
+         {
+            return;
+         }
+
          scheduleChangeMessage();
       }
    }
