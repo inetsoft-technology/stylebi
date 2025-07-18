@@ -17,8 +17,10 @@
  */
 package inetsoft.web.composer.ws.dialog;
 
+import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
@@ -134,6 +136,19 @@ public class TabularQueryDialogController extends WorksheetController {
    {
       TabularUtil.setSessionId(request.getSession().getId());
       TabularQuery query = TabularUtil.createQuery(dataSource);
+
+      // set the box variable table in case current parameter values are needed in the query
+      if(runtimeId != null) {
+         RuntimeSheet rs = getWorksheetEngine().getSheet(runtimeId, principal);
+
+         if(rs instanceof RuntimeWorksheet) {
+            AssetQuerySandbox box = ((RuntimeWorksheet) rs).getAssetQuerySandbox();
+
+            if(box != null) {
+               query.setVariableTable(box.getVariableTable());
+            }
+         }
+      }
 
       if(query != null) {
          if(tabularView == null) {

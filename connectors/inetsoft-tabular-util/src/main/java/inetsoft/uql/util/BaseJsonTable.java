@@ -312,6 +312,14 @@ abstract public class BaseJsonTable extends XTableNode {
       this.maxRows = maxRows;
    }
 
+   public Object getJsonMetadata() {
+      return jsonMetadata;
+   }
+
+   public void setJsonMetadata(Object jsonMetadata) {
+      this.jsonMetadata = jsonMetadata;
+   }
+
    /**
     * Value class for specifying formats.
     */
@@ -354,6 +362,7 @@ abstract public class BaseJsonTable extends XTableNode {
    private final Map<String, String> colTypes2 = new Object2ObjectOpenHashMap<>();
    private final Set<String> isoDateFailed = new ObjectOpenHashSet<>();
    private final boolean usLocale = Locale.getDefault().equals(Locale.US);
+   private Object jsonMetadata;
 
    private final static DateTimeFormatter US_DATE = DateTimeFormatter.ofPattern("MM/dd/yyyy");
    private final static DateTimeFormatter EUROPE_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");

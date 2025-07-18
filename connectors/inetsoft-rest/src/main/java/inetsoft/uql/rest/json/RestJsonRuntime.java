@@ -38,6 +38,11 @@ public class RestJsonRuntime extends AbstractRestRuntime {
       return new RestJsonQueryRunner(query, factory, lookupService, transformer);
    }
 
+   protected String generateMetadata(AbstractRestQuery query) {
+      QueryRunner queryRunner = getQueryRunner(query);
+      return queryRunner.generateMetadata();
+   }
+
    private final JsonTransformer transformer;
    private final HttpResponseParameterParser parser;
 }

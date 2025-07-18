@@ -1003,6 +1003,23 @@ public class TabularUtil {
       return val.hashCode();
    }
 
+   public static void fillNullVariablesWithEmptyString(TabularRuntime runtime, XQuery query,
+                                                       VariableTable vtable) throws Exception
+   {
+      if(!runtime.fillNullVariablesWithEmptyString()) {
+         return;
+      }
+
+      List<UserVariable> variables = TabularUtil.findVariables(query);
+      variables.addAll(TabularUtil.findVariables(query.getDataSource()));
+
+      for(UserVariable var : variables) {
+         if(vtable.get(var) == null) {
+            vtable.put(var.getName(), "");
+         }
+      }
+   }
+
    private static ThreadLocal<String> sessionId = new ThreadLocal<>();
    private static final Logger LOG = LoggerFactory.getLogger(TabularUtil.class);
 }
