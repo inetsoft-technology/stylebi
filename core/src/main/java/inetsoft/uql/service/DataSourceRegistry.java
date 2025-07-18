@@ -1862,7 +1862,6 @@ public class DataSourceRegistry implements MessageListener {
          }
 
          AssetFolder root = getRoot(orgID);
-         LOG.debug("Data source root folder org={}: {}", orgID, root);
 
          try {
             List<AssetEntry> entries = root != null ? root.getEntries(type) : Collections.emptyList();
@@ -1982,6 +1981,8 @@ public class DataSourceRegistry implements MessageListener {
       public synchronized DataSourceRegistry get(Object... parameters) {
          if(registry == null) {
             try {
+               // make sure all plugins are loaded first
+               Plugins.getInstance();
                registry = new DataSourceRegistry();
             }
             catch(SAXParseException e) {
