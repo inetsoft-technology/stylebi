@@ -68,7 +68,6 @@ export class WsSqlQueryController implements SqlQueryDialogController {
    }
 
    get CONTROLLER_MODEL() {
-      console.trace("----------CONTROLLER_MODEL");
       return this._CONTROLLER_MODEL;
    }
 
