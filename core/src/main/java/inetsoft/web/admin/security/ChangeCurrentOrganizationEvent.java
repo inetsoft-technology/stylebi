@@ -16,26 +16,28 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.web.admin.schedule;
+package inetsoft.web.admin.security;
 
-import inetsoft.sree.security.IdentityID;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.value.Value;
 
-import java.io.Serializable;
+import javax.annotation.Nullable;
 
-public class IdentityChangedMessage implements Serializable {
-   public IdentityChangedMessage(int type, IdentityID identity) {
-      this.type = type;
-      this.identity = identity;
+@Value.Immutable
+@JsonSerialize(as = ImmutableChangeCurrentOrganizationEvent.class)
+@JsonDeserialize(as = ImmutableChangeCurrentOrganizationEvent.class)
+public interface ChangeCurrentOrganizationEvent {
+   @Nullable
+   String currentOrganization();
+
+   @Nullable
+   String provider();
+
+   static ChangeCurrentOrganizationEvent.Builder builder() {
+      return new Builder();
    }
 
-   public int getType() {
-      return type;
+   class Builder extends ImmutableChangeCurrentOrganizationEvent.Builder {
    }
-
-   public IdentityID getIdentity() {
-      return identity;
-   }
-
-   private final int type;
-   private final IdentityID identity;
 }

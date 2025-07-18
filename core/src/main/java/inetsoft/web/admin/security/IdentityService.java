@@ -52,7 +52,6 @@ import inetsoft.util.log.LogManager;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoriteList;
-import inetsoft.web.admin.schedule.IdentityChangedMessage;
 import inetsoft.web.admin.security.user.*;
 
 import java.io.*;
@@ -191,7 +190,7 @@ public class IdentityService {
                   logoutSession(identityId);
                }
 
-               Cluster.getInstance().sendMessage(new IdentityChangedMessage(type, identityId));
+               Cluster.getInstance().sendMessage(new IdentityChangedMessage(type, null, identityId));
 
                syncIdentity(provider, identityId != null ? new DefaultIdentity(identityId, type) :
                   new DefaultIdentity(), null);
@@ -1441,6 +1440,7 @@ public class IdentityService {
 
       try {
          final int type = identity.getType();
+         final Identity oldIdentity = (Identity) identity.clone();
          identityInfoRecord = getIdentityInfoRecord(model, type,
                                                     identity.getIdentityID(), provider, actionRecord);
 
@@ -1478,23 +1478,27 @@ public class IdentityService {
             }
          }
 
+         Identity newIdentity = null;
+
          if(type == Identity.USER) {
-            setUserInfo((FSUser) identity, (EditUserPaneModel) model, eprovider, groupV);
+            newIdentity = setUserInfo((FSUser) identity, (EditUserPaneModel) model, eprovider, groupV);
          }
          else if(type == Identity.GROUP) {
-            setGroupInfo((FSGroup) identity, (EditGroupPaneModel) model, eprovider, pusers,
-                         pgroups, userV, groupV, memberMap);
+            newIdentity = setGroupInfo((FSGroup) identity, (EditGroupPaneModel) model, eprovider, pusers,
+                                       pgroups, userV, groupV, memberMap);
          }
          else if(type == Identity.ROLE) {
-            setRoleInfo((EditRolePaneModel) model, eprovider, pusers, pgroups, porgs,
-                        userV, groupV, orgV, principal);
+            newIdentity = setRoleInfo((EditRolePaneModel) model, eprovider, pusers, pgroups, porgs,
+                                      userV, groupV, orgV, principal);
          }
          else if(type == Identity.ORGANIZATION) {
-            setOrganizationInfo((FSOrganization) identity, (EditOrganizationPaneModel) model,
-                                eprovider, principal);
+            newIdentity = setOrganizationInfo((FSOrganization) identity, (EditOrganizationPaneModel) model,
+                                              eprovider, principal);
          }
 
-         Cluster.getInstance().sendMessage(new IdentityChangedMessage(type, identity.getIdentityID()));
+         Cluster.getInstance().sendMessage(
+            new IdentityChangedMessage(type, newIdentity != null ? newIdentity.getIdentityID() : null,
+                                       oldIdentity.getIdentityID()));
       }
       catch(Exception e) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -1568,9 +1572,8 @@ public class IdentityService {
       }
    }
 
-   private void setUserInfo(FSUser ouser, EditUserPaneModel model,
-                            EditableAuthenticationProvider eprovider,
-                            List<IdentityID> groupV)
+   private Identity setUserInfo(FSUser ouser, EditUserPaneModel model,
+                                EditableAuthenticationProvider eprovider, List<IdentityID> groupV)
       throws Exception
    {
       List<IdentityModel> members = model.members();
@@ -1639,16 +1642,18 @@ public class IdentityService {
       }
 
       syncIdentity(eprovider, user, oIdentity);
+
+      return user;
    }
 
    /**
     * Update group info
     */
-   private void setGroupInfo(FSGroup oldGroup, EditGroupPaneModel model,
-                             EditableAuthenticationProvider eprovider,
-                             IdentityID[] pusers, IdentityID[] pgroups,
-                             List<IdentityID> userV, List<IdentityID> groupV,
-                             Map<IdentityID, String> memberMap) throws Exception
+   private Identity setGroupInfo(FSGroup oldGroup, EditGroupPaneModel model,
+                                 EditableAuthenticationProvider eprovider,
+                                 IdentityID[] pusers, IdentityID[] pgroups,
+                                 List<IdentityID> userV, List<IdentityID> groupV,
+                                 Map<IdentityID, String> memberMap) throws Exception
    {
       final IdentityID id = new IdentityID(model.name(), model.organization());
       final IdentityID oID = new IdentityID(oldGroup.getName(), oldGroup.getOrganizationID());
@@ -1726,16 +1731,18 @@ public class IdentityService {
          puser.setGroups(arr);
          eprovider.setUser(puser.getIdentityID(), puser);
       }
+
+      return group;
    }
 
    /**
     * Set roleInfo, check members changes or not.
     */
-   private void setRoleInfo(EditRolePaneModel model,
-                            EditableAuthenticationProvider eprovider,
-                            IdentityID[] pusers, IdentityID[] pgroups, String[] porgs,
-                            List<IdentityID> userV, List<IdentityID> groupV, List<IdentityID> orgV,
-                            Principal principal)
+   private Identity setRoleInfo(EditRolePaneModel model,
+                                EditableAuthenticationProvider eprovider,
+                                IdentityID[] pusers, IdentityID[] pgroups, String[] porgs,
+                                List<IdentityID> userV, List<IdentityID> groupV,
+                                List<IdentityID> orgV, Principal principal)
       throws Exception
    {
       IdentityID newOrgID = new IdentityID(model.name(), model.organization());
@@ -1826,10 +1833,13 @@ public class IdentityService {
       if(!newOrgID.equals(oldOrgID) && principal instanceof XPrincipal) {
          ((XPrincipal) principal).updateRoles(eprovider);
       }
+
+      return role;
    }
 
-   private void setOrganizationInfo(FSOrganization oldOrg, EditOrganizationPaneModel model,
-                                    EditableAuthenticationProvider eprovider, Principal principal)
+   private Identity setOrganizationInfo(FSOrganization oldOrg, EditOrganizationPaneModel model,
+                                        EditableAuthenticationProvider eprovider,
+                                        Principal principal)
       throws Exception
    {
       final String name = model.name();
@@ -1845,7 +1855,7 @@ public class IdentityService {
          org.setName(newOrg.getName());
          eprovider.setOrganization(id, org);
 
-         return;
+         return org;
       }
 
       List<String> memberNames = members.stream()
@@ -1910,12 +1920,14 @@ public class IdentityService {
          ((FSOrganization) fromOrg).setTheme(model.theme());
          eprovider.setOrganization(fromOrgID, fromOrg);
 
-         return;
+         return fromOrg;
       }
 
       newOrg.setLocale(localeString);
       newOrg.setTheme(model.theme());
       syncIdentity(eprovider, newOrg, new IdentityID(model.oldName(), eprovider.getOrgIdFromName(model.oldName())));
+
+      return newOrg;
    }
 
    private void updateOrgScopedDataSpace(Organization oorg, Organization norg) {
