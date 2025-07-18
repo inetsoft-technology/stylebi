@@ -1417,7 +1417,7 @@ public class ScheduleService {
             new ServerPathInfo(backupActionModel.backupServerPath()) : null;
 
          if(oldServerPath != null && newServerPathInfo != null &&
-            newServerPathInfo.getUsername().equals(oldServerPath.getUsername()) &&
+            Tool.equals(newServerPathInfo.getUsername(), oldServerPath.getUsername()) &&
             Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()))
          {
             newServerPathInfo.setPassword(oldServerPath.getPassword());
