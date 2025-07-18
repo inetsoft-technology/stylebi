@@ -23,6 +23,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.DefaultDebouncer;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.security.IdentityChangedMessage;
 import inetsoft.web.service.BaseSubscribeChangHandler;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
