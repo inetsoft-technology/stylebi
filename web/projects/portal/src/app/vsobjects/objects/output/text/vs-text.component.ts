@@ -489,6 +489,11 @@ export class VSText extends AbstractVSObject<VSTextModel>
       }
    }
 
+   protected detectChanges() {
+      super.detectChanges();
+      this.changeDetectionRef.detectChanges();
+   }
+
    private unsubscribe(): void {
       if(this.actionSubscription) {
          this.actionSubscription.unsubscribe();
