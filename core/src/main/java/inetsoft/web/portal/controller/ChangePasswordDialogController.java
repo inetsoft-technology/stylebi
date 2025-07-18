@@ -61,8 +61,10 @@ public class ChangePasswordDialogController {
       String objectType = ActionRecord.OBJECT_TYPE_PASSWORD;
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       IdentityID objectName = model.getUserName();
-      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, objectName.convertToKey(),
-                                                   objectType, actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE, null);
+      String recordObjectName = objectName == null ? null : objectName.getName();
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName,
+                                                   recordObjectName, objectType, actionTimestamp,
+                                                   ActionRecord.ACTION_STATUS_FAILURE, null);
       Principal principal0 = authenticate(request, model.getUserName(),
                                           model.getOldPassword());
 
