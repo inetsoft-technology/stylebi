@@ -18,7 +18,7 @@
 import {FlatTreeControl} from "@angular/cdk/tree";
 import {HttpClient, HttpErrorResponse} from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
-import {MatDialog} from "@angular/material/dialog";
+import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import { Observable, of, Subject } from "rxjs";
 import {catchError, map, tap} from "rxjs/operators";
@@ -482,6 +482,25 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                   return [orgRoot];
                }
             }
+         }),
+         catchError((error: HttpErrorResponse) => {
+            const orgInvalid = error.error.type === "InvalidOrgException";
+
+            if(orgInvalid) {
+               this.dialog.open(MessageDialog, <MatDialogConfig>{
+                  width: "350px",
+                  data: {
+                     title: "_#(js:Error)",
+                     content: error.error.message,
+                     type: MessageDialogType.ERROR
+                  }
+               });
+            }
+            else {
+               this.errorService.showSnackBar(error);
+            }
+
+            return of([]);
          }));
 
       // refresh the users after making changes
