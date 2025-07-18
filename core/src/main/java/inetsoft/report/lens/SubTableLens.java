@@ -75,14 +75,14 @@ public class SubTableLens extends AbstractTableLens implements TableFilter {
       int[] rows = null;
       int[] cols = null;
 
-      if(row >= 0) {
+      if(row >= 0 && nrow >= 0) {
          rows = new int[nrow];
          for(int i = 0; i < nrow; i++) {
             rows[i] = i + row;
          }
       }
 
-      if(col >= 0) {
+      if(col >= 0 && ncol >= 0) {
          cols = new int[ncol];
 
          for(int i = 0; i < ncol; i++) {
