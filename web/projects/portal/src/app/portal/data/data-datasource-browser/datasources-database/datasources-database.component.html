@@ -105,9 +105,12 @@
               </div>
           </ng-container>
           <div class="form-group form-floating" *ngIf="databaseInfo.customEditMode">
-            <input type="text" name="customUrl" class="form-control"
-                   [(ngModel)]="databaseInfo.customUrl">
+            <input type="text" name="customUrl" class="form-control" #customUrlCtrl="ngModel"
+                   [class.is-invalid]="customUrlCtrl.invalid"
+                   [(ngModel)]="databaseInfo.customUrl"
+                   required>
             <label><span>_#(URL)</span></label>
+            <span class="invalid-feedback" *ngIf="customUrlCtrl.invalid">_#(common.datasource.urlRequired)</span>
           </div>
           <div class="form-group form-floating" *ngIf="isFilePathEnabled(database.type) && !databaseInfo.customEditMode">
             <input type="text" #filePathCtrl="ngModel"
