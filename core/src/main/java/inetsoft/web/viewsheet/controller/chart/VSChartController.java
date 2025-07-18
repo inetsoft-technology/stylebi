@@ -26,7 +26,7 @@ import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.MessageCommand;
@@ -259,19 +259,28 @@ public abstract class VSChartController<T extends VSChartEvent> {
                                       boolean refreshData)
    {
       Assembly[] assemblies = vs.getAssemblies();
-      
+
       for(int i = 0; i < assemblies.length; i++) {
          Assembly other = assemblies[i];
-         
+
          if(other instanceof Viewsheet) {
             reloadOtherAssemblies(rvs, (Viewsheet) other, priorAssembly, uri, dispatcher, refreshData);
             continue;
          }
-         
+
          if(Tool.equals(other.getAbsoluteName(), priorAssembly)) {
             continue;
          }
-         
+
+         if(other instanceof SelectionVSAssembly) {
+            SelectionVSAssemblyInfo info =
+               (SelectionVSAssemblyInfo) ((SelectionVSAssembly) other).getVSAssemblyInfo();
+
+            if(info.isCreatedByAdhoc() && info.isAdhocFilter()) {
+               continue;
+            }
+         }
+
          reloadVSAssembly((VSAssembly) other, rvs, uri, dispatcher, refreshData, priorAssembly);
       }
    }
