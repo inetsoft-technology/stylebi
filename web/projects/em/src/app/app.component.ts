@@ -37,6 +37,7 @@ import { SessionExpirationModel } from "../../../shared/util/model/session-expir
 import { CloudLicenseState } from "../../../shared/util/security/cloud-license-state";
 import { AuthorizationService } from "./authorization/authorization.service";
 import { ComponentPermissions } from "./authorization/component-permissions";
+import { OrganizationDropdownService } from "./navbar/organization-dropdown.service";
 import { TopScrollService } from "./top-scroll/top-scroll.service";
 import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
 
@@ -66,7 +67,8 @@ export class AppComponent implements OnInit, OnDestroy {
                private scrollService: TopScrollService,
                private ssoHeartbeatDispatcher: SsoHeartbeatDispatcherService,
                public viewContainerRef: ViewContainerRef,
-               private logoutService: LogoutService)
+               private logoutService: LogoutService,
+               private orgDropdownService: OrganizationDropdownService,)
    {
       // viewContainerRef is used by the color picker in the theme page
    }
@@ -99,6 +101,14 @@ export class AppComponent implements OnInit, OnDestroy {
             "/user/create-org-status-changed",
             (message) => this.zone.run(
                () => this.showEditOrgMessage(JSON.parse(message.frame.body)))));
+
+         this.subscription.add(connection.subscribe(
+            "/user/current-org-changed",
+            (message) => {
+               const parsedMessage = JSON.parse(message.frame.body);
+               let currentProvider = this.orgDropdownService.getProvider();
+               this.orgDropdownService.refresh(parsedMessage.provider || currentProvider, false);
+            }));
       });
 
       this.subscription.add(this.breakpointObserver
