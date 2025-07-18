@@ -18,8 +18,8 @@
 package inetsoft.web.admin.security;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.util.Tool;
 import inetsoft.util.data.MapModel;
 import inetsoft.report.internal.Util;
@@ -178,6 +178,15 @@ public class AuthenticationProviderController {
          else {
             username = dbProviderModel.user();
             password = dbProviderModel.password();
+
+            if(Util.PLACEHOLDER_PASSWORD.equals(password) && model.oldName() != null) {
+               AuthenticationProvider oldProvider =
+                  authenticationProviderService.getProviderByName(model.oldName());
+
+               if(oldProvider instanceof DatabaseAuthenticationProvider dbProvider) {
+                  password = dbProvider.getDbPassword();
+               }
+            }
          }
       }
 
