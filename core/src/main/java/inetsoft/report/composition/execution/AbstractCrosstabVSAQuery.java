@@ -880,7 +880,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             // For Feature #16158, Use FirstDayComparator depending on
             // the locale configured.
             if(Tool.getFirstDayOfWeek() != Calendar.SUNDAY
-               && crosstab.getRowHeader(i).contains("DayOfWeek") &&
+               && dref.getFullName().contains("DayOfWeek") &&
                comp instanceof SortOrder)
             {
                crosstab.setRowHeaderComparer(i, new FirstDayComparator((SortOrder) comp));
@@ -900,7 +900,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          }
          else {
             if(Tool.getFirstDayOfWeek() != Calendar.SUNDAY
-               && crosstab.getColHeader(i).contains("DayOfWeek") &&
+               && dref.getFullName().contains("DayOfWeek") &&
                 comp instanceof SortOrder)
             {
                crosstab.setColHeaderComparer(i, new FirstDayComparator((SortOrder) comp));
