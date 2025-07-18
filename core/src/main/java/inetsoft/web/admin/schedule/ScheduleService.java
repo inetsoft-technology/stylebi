@@ -1377,7 +1377,15 @@ public class ScheduleService {
             }
             else {
                abstractAction.setUseCredential(false);
-               abstractAction.setPassword(actionModel.password());
+               String password = actionModel.password();
+
+               if(oldAction instanceof ViewsheetAction oldViewsheetAction &&
+                  Util.PLACEHOLDER_PASSWORD.equals(password))
+               {
+                  password = oldViewsheetAction.getPassword();
+               }
+
+               abstractAction.setPassword(password);
             }
 
             if(abstractAction instanceof ViewsheetAction && "CSV".equals(actionModel.format())) {
