@@ -23,6 +23,8 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.Catalog;
+import inetsoft.util.InvalidOrgException;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.admin.server.LicenseInfo;
 import inetsoft.web.admin.server.ServerService;
@@ -87,8 +89,7 @@ public class SecurityTreeServer {
       String[] orgIds = provider.getOrganizationIDs();
 
       if(orgIds.length != 0 && !Arrays.stream(orgIds).toList().contains(currOrgID)) {
-         currOrgID = orgIds[0];
-         ((XPrincipal) principal).setProperty("curr_org_id", currOrgID);
+         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
       String currOrgName = provider.getOrgNameFromID(currOrgID);
