@@ -629,13 +629,12 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                   // send task failed mail
                   if(SreeEnv.getBooleanProperty("schedule.options.taskFailed", "true", "CHECKED"))
                   {
-                     boolean isMultiTenant = SUtil.isMultiTenant();
                      String subject = Catalog.getCatalog().getString(
                         "em.scheduler.notification.taskFailedSub.community", getName(),
                         (new SimpleDateFormat("hh:mma yyyy-MM-dd"))
                            .format(new Date()));
 
-                     if(isMultiTenant) {
+                     if(SUtil.isMultiTenant()) {
                         subject = Catalog.getCatalog().getString(
                            "em.scheduler.notification.taskFailedSub",
                            SUtil.getTaskNameWithoutOrg(getTaskId()),
