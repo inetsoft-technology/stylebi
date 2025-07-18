@@ -22,7 +22,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -97,10 +97,18 @@ public class GlobalStyleController implements ApplicationContextAware {
    private synchronized StyleResource getResource(String path, Principal user) throws IOException {
       String themeId = null;
 
-      if(SUtil.isMultiTenant() && OrganizationManager.getInstance().getOrganization().getTheme() != null) {
-         themeId = OrganizationManager.getInstance().getOrganization().getTheme();
+      if(SUtil.isMultiTenant()) {
+         String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+         if(currOrgID != null && provider.getOrganization(currOrgID) != null &&
+            provider.getOrganization(currOrgID).getTheme() != null)
+         {
+            themeId = provider.getOrganization(currOrgID).getTheme();
+         }
       }
-      else {
+
+      if(themeId == null) {
          themeId = CustomThemesManager.getManager().getSelectedTheme(user);
       }
 
