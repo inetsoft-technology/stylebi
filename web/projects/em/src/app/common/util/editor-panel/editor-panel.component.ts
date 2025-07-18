@@ -116,6 +116,7 @@ export class EditorPanelComponent implements OnChanges, AfterViewInit, AfterCont
    }
 
    handleClick(event: MouseEvent) {
+      this.applyDisabled = true;
       this.applyClickSubject.next(event);
    }
 }
