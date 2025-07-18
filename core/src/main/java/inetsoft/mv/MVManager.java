@@ -28,7 +28,7 @@ import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -58,7 +58,7 @@ import java.util.stream.Stream;
  * @version 10.2
  */
 @SingletonManager.Singleton
-public final class MVManager {
+public final class MVManager implements MessageListener {
    /**
     * Change event, per-transaction event, which should be fired after the
     * change process is over. It's useful for listeners like to be notified
@@ -77,6 +77,14 @@ public final class MVManager {
     * Create an instance of MVManager.
     */
    public MVManager() {
+      Cluster.getInstance().addMessageListener(this);
+   }
+
+   @Override
+   public void messageReceived(MessageEvent event) {
+      if(event.getMessage() instanceof MVChangedMessage message) {
+         handleEvent(message.getSrc(), message.getName(), message.getOldValue(), message.getNewValue());
+      }
    }
 
    /**
@@ -1366,6 +1374,17 @@ public final class MVManager {
     * Fire property change event.
     */
    public void fireEvent(String src, String name, Object oval, Object nval) {
+      try {
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         Cluster.getInstance().sendMessage(
+            new MVChangedMessage(getOrgEventSourceID(src, orgId), name, oval, nval));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to send MV changed message", e);
+      }
+   }
+
+   private void handleEvent(String src, String name, Object oval, Object nval) {
       Vector<WeakReference<PropertyChangeListener>> listenersClone = new Vector<>(this.listeners);
       PropertyChangeEvent evt = new PropertyChangeEvent(src, name, oval, nval);
 
@@ -1584,6 +1603,30 @@ public final class MVManager {
       mvs.initLastModified();
    }
 
+   private static String getOrgEventSourceID(String sourceID, String orgID) {
+      return Tool.buildString(orgID, MV_CHANGE_EVENT_ORG_DELIMITER, sourceID);
+   }
+
+   /**
+    * Get the organization ID from the event source ID.
+    *
+    * @param source event source.
+    * @return the organization ID or null if the sourceID is empty or does not contain the delimiter.
+    */
+   public static String getOrgIdFromEventSource(Object source) {
+      if(!(source instanceof String sourceID) || Tool.isEmptyString((String) source)) {
+         return null;
+      }
+
+      int index = sourceID.indexOf(MV_CHANGE_EVENT_ORG_DELIMITER);
+
+      if(index < 0) {
+         return null;
+      }
+
+      return sourceID.substring(0, index);
+   }
+
    /**
     * MVFilter filters one MV.
     */
@@ -1610,6 +1653,7 @@ public final class MVManager {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MVManager.class);
+   private static final String MV_CHANGE_EVENT_ORG_DELIMITER = "^~~^";
 
    private final MVDefMap mvs = new MVDefMap();
    private final Map<Object, MVCreator> pending = new ConcurrentHashMap<>();
