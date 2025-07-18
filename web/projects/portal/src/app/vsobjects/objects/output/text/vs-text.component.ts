@@ -214,6 +214,13 @@ export class VSText extends AbstractVSObject<VSTextModel>
       if(modelChanges) {
          this.textChanged();
          this.changeHeightOfTextarea();
+
+         if(this.hasPopComponentChange(modelChanges)) {
+            const currentPopComponent: string = modelChanges.currentValue?.popComponent;
+
+            if(currentPopComponent) {
+               this.popComponentService.registerOnClickFlagged(currentPopComponent);
+            }         }
       }
 
       if(this.model.url && modelChanges != null) {
@@ -224,6 +231,14 @@ export class VSText extends AbstractVSObject<VSTextModel>
          }
       }
    }
+
+   hasPopComponentChange(modelChange): boolean {
+      const currentPopComponent: string = modelChange.currentValue?.popComponent;
+      const previousPopComponent: string = modelChange.previousValue?.popComponent;
+
+      return currentPopComponent != previousPopComponent;
+   }
+
 
    textChanged() {
       this.htmlText = this.getHTMLText();

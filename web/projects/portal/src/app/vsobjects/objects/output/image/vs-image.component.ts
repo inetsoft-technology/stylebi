@@ -89,6 +89,22 @@ export class VSImage extends AbstractImageComponent<VSImageModel>
 
    ngOnChanges(simpleChanges: SimpleChanges) {
       this.modelChanged(simpleChanges.model);
+      const modelChanges = simpleChanges.model;
+
+      if(modelChanges && this.hasPopComponentChange(modelChanges)) {
+         const currentPopComponent: string = modelChanges.currentValue?.popComponent;
+
+         if(currentPopComponent) {
+            this.popComponentService.registerOnClickFlagged(currentPopComponent);
+         }
+      }
+   }
+
+   hasPopComponentChange(modelChange): boolean {
+      const currentPopComponent: string = modelChange.currentValue?.popComponent;
+      const previousPopComponent: string = modelChange.previousValue?.popComponent;
+
+      return currentPopComponent != previousPopComponent;
    }
 
    ngOnDestroy() {
