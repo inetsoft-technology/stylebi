@@ -186,9 +186,11 @@ public abstract class AbstractContainerVSAssembly extends AbstractVSAssembly
    @Override
    public boolean removeAssembly(String assembly) {
       String[] arr = getAssemblies();
+      int lastDotIndex = assembly.lastIndexOf('.');
+      String assemblyName = lastDotIndex >= 0 ? assembly.substring(lastDotIndex + 1) : assembly;
 
       for(int i = 0; i < arr.length; i++) {
-         if(arr[i].equals(assembly)) {
+         if(arr[i].equals(assemblyName)) {
             String[] narr = new String[arr.length - 1];
 
             System.arraycopy(arr, 0, narr, 0, i);
