@@ -1225,10 +1225,12 @@ public class ScheduleService {
 
             Arrays.stream(viewsheetAction.getSaveFormats())
                .forEach(format -> viewsheetAction.setFilePath(format, (ServerPathInfo) null));
-            Map<Integer, ServerPathInfo> clone = new HashMap<>();
+           List <ServerPathInfo> clone = new ArrayList<>();
 
-            if(oldAction instanceof ViewsheetAction oldViewsheetAction) {
-               clone.putAll(oldViewsheetAction.getFilePathsMap());
+            if(oldAction instanceof ViewsheetAction oldViewsheetAction &&
+               !oldViewsheetAction.getFilePathsMap().isEmpty())
+            {
+               clone.addAll(oldViewsheetAction.getFilePathsMap().values());
             }
 
             if(Tool.defaultIfNull(actionModel.saveToServerEnabled(), false)) {
@@ -1241,12 +1243,13 @@ public class ScheduleService {
                   int format = Integer.parseInt(saveFormats[i]);
                   ServerPathInfoModel pModel = serverFilePaths.get(i);
                   String password = pModel.password();
-                  ServerPathInfo oldInfo = clone.get(format);
 
-                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null &&
-                     oldInfo.getUsername().equals(pModel.username()) && !clone.isEmpty())
-                  {
-                     password = oldInfo.getPassword();
+                  for(ServerPathInfo serverPathInfo : clone) {
+                     if(Util.PLACEHOLDER_PASSWORD.equals(password) &&
+                        Tool.equals(serverPathInfo.getUsername(), pModel.username()))
+                     {
+                        password = serverPathInfo.getPassword();
+                     }
                   }
 
                   if(pModel.ftp()) {
