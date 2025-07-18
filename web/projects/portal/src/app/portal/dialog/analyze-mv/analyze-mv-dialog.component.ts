@@ -270,9 +270,9 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
                });
             },
             (error) => {
-               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
-                  error.error.message);
                this.loading = false;
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                  error?.error?.message || error?.error || error);
             });
    }
 
