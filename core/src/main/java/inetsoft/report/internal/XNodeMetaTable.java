@@ -47,6 +47,14 @@ public class XNodeMetaTable extends AbstractTableLens {
    /**
     * Create a table meta data model from a tree definition.
     */
+   public XNodeMetaTable(XTypeNode root, boolean failedQueryDefault) {
+      this(false, root, false);
+      this.failedQueryDefault = failedQueryDefault;
+   }
+
+   /**
+    * Create a table meta data model from a tree definition.
+    */
    public XNodeMetaTable(boolean multirow, XTypeNode root) {
       this(multirow, root, false);
    }
@@ -273,6 +281,13 @@ public class XNodeMetaTable extends AbstractTableLens {
    }
 
    /**
+    * Check if the query is a failed query default data.
+    */
+   public boolean isFailedQueryDefault() {
+      return failedQueryDefault;
+   }
+
+   /**
     * Table data descriptor.
     */
    public final class TableDataDescriptor2 extends DefaultTableDataDescriptor {
@@ -374,4 +389,5 @@ public class XNodeMetaTable extends AbstractTableLens {
    private Map mmap = null;
    private Object[] examplers;
    private TableDataDescriptor descriptor;
+   private boolean failedQueryDefault;
 }

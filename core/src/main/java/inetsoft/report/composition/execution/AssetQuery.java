@@ -716,7 +716,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
                if(base == null) {
                   if(AssetQuerySandbox.isLiveMode(mode)) {
-                     base = getDesignTableLens(vars);
+                     base = getDesignTableLens(vars, true);
                   }
 
                   return base;
@@ -1018,6 +1018,16 @@ public abstract class AssetQuery extends PreAssetQuery {
     * @param vars the specified variable table.
     */
    protected TableLens getDesignTableLens(VariableTable vars) throws Exception {
+      return getDesignTableLens(vars, false);
+   }
+
+   /**
+    * Get the design mode table lens.
+    * @param vars the specified variable table.
+    */
+   protected TableLens getDesignTableLens(VariableTable vars, boolean failedQueryDefault)
+      throws Exception
+   {
       AggregateInfo group = getAggregateInfo();
       boolean embedded = AssetQuerySandbox.isEmbeddedMode(mode);
       boolean pub = !group.isEmpty() || embedded || gmerged ||
@@ -1058,7 +1068,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       XTypeNode output = getXTypeNode(columns);
 
-      TableLens base = new XNodeMetaTable(output);
+      TableLens base = new XNodeMetaTable(output, failedQueryDefault);
       TableDataDescriptor desc = base.getDescriptor();
       XNodeMetaTable.TableDataDescriptor2 desc2 =
          desc instanceof XNodeMetaTable.TableDataDescriptor2
