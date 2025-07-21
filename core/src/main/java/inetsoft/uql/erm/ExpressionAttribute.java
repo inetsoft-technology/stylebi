@@ -39,7 +39,7 @@ public class ExpressionAttribute extends XAttribute {
     * Creates a new instance of ExpressionAttribute. Default constructor that
     * should only be used when loading the attribute from an XML file.
     */
-   ExpressionAttribute() {
+   public ExpressionAttribute() {
       setDataType(XSchema.DOUBLE);
    }
 
