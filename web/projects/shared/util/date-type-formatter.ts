@@ -143,6 +143,10 @@ export class DateTypeFormatter {
    }
 
    public static getMinuteOffset(tz: string, timeZoneOptions: TimeZoneModel[]): number {
+      if(!tz) {
+         return 0;
+      }
+
       let result = timeZoneOptions.find((opt) => opt.timeZoneId == tz &&
          opt.minuteOffset != null);
 
