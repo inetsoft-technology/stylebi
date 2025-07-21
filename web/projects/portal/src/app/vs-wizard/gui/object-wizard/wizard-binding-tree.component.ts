@@ -299,11 +299,7 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
             .filter(node => !!node && !!node.data)
             .map((node) => node.data),
          false, tableName, null, !!reload);
-
-      //Don't refresh bindings if !reload to prevent cancelling executing queries
-      if(!(tableName == null && reload == false)) {
-         this.viewsheetClient.sendEvent(REFRESH_BINDING_NODES_CHANGED_URI, event);
-      }
+      this.viewsheetClient.sendEvent(REFRESH_BINDING_NODES_CHANGED_URI, event);
    }
 
    /**
