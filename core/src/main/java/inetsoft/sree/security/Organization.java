@@ -152,8 +152,13 @@ public class Organization extends AbstractIdentity {
    @Override
    public Object clone() {
       try {
-         String[] cmembers = new String[members.length];
-         System.arraycopy(members, 0, cmembers, 0, members.length);
+         String[] cmembers = null;
+
+         if(members != null) {
+            cmembers = new String[members.length];
+            System.arraycopy(members, 0, cmembers, 0, members.length);
+         }
+
          Organization newOrg = new Organization(name, id, cmembers, locale, active);
 
          return newOrg;
