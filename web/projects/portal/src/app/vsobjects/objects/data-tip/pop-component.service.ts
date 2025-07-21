@@ -65,6 +65,7 @@ export class PopComponentService {
       new Map<string, ((event: MouseEvent) => boolean)[]>();
    private _componentPop = new Subject<string>();
    private _popComponentChanged = new Subject<void>();
+   private onClickFlagged = new Map<string, boolean>;
 
    get componentPop(): Observable<string> {
       return this._componentPop.asObservable();
@@ -226,7 +227,10 @@ export class PopComponentService {
       const tipEvent = new OpenDataTipEvent();
       tipEvent.setName(popName);
       tipEvent.setParent(parentName);
-      this.viewsheetClient.sendEvent("/events/datatip/open", tipEvent);
+
+      if(!this.onClickFlagged.get(popName)) {
+         this.viewsheetClient.sendEvent("/events/datatip/open", tipEvent);
+      }
    }
 
    /**
@@ -264,6 +268,10 @@ export class PopComponentService {
             this._componentPop.next(this._popComponent);
          });
       }
+   }
+
+   registerOnClickFlagged(name: string): void {
+      this.onClickFlagged.set(name, true);
    }
 
    hidePopComponent() {
