@@ -2169,7 +2169,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          command.model.objectFormat.top, command.model.objectFormat.left,
          command.model.objectFormat.width, command.model.objectFormat.height,
          command.model.absoluteName, command.model, command.model.container);
-      this.popComponentService.setPopLocation((command.model as VSObjectModel).popLocation);
+
+      if((command.model as VSObjectModel).popLocation) {
+         this.popComponentService.setPopLocation((command.model as VSObjectModel).popLocation);
+      }
+
       this.registerPopCompVisible(command.model.popComponent);
       this.calculateAllAssemblyBounds();
 
