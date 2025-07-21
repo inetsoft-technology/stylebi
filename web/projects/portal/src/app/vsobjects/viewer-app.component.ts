@@ -472,6 +472,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    selectedPopComponent: string = null;
    selectedDataTipView: string = null;
    isDefaultOrgAsset: boolean = false;
+   private intersectionObserver: IntersectionObserver;
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private stompClientService: StompClientService,
@@ -669,6 +670,18 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(this.embed) {
          this.handleDataTipPopComponentChanges();
       }
+
+      // Feed to trigger scroll viewport sizing when the root is visible. For example, if the
+      // application is in an iframe in a Bootstrap tab component, the viewport rect will not be
+      // initialized until the tab is switched and the root element is actually visible.
+      this.intersectionObserver = new IntersectionObserver((entries) => {
+         entries.forEach(entry => {
+            if(entry.isIntersecting) {
+               this.updateScrollViewport();
+            }
+         });
+      }, { root: null, rootMargin: "0px", threshold: 0.5});
+      this.intersectionObserver.observe(this.viewerRoot.nativeElement);
    }
 
    ngAfterContentInit(): void {
@@ -701,6 +714,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       if(this.inDashboard && window != window.parent) {
          window.parent.postMessage({"dashboardClosed": this.runtimeId}, "*");
+      }
+
+      if(!!this.intersectionObserver) {
+         this.intersectionObserver.disconnect();
       }
    }
 
@@ -2152,7 +2169,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          command.model.objectFormat.top, command.model.objectFormat.left,
          command.model.objectFormat.width, command.model.objectFormat.height,
          command.model.absoluteName, command.model, command.model.container);
-      this.popComponentService.setPopLocation((command.model as VSObjectModel).popLocation);
+
+      if((command.model as VSObjectModel).popLocation) {
+         this.popComponentService.setPopLocation((command.model as VSObjectModel).popLocation);
+      }
+
       this.registerPopCompVisible(command.model.popComponent);
       this.calculateAllAssemblyBounds();
 

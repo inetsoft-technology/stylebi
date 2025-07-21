@@ -127,38 +127,49 @@ public class ScheduleTaskChangeController {
    private void dispatchPortalTaskActivity(TaskActivityMessage message) {
       String name = message.getTaskName();
 
+      if(name == null) {
+         return;
+      }
+
       for(Principal subscriber : portalSubscribers.values()) {
-         if(!ScheduleManager.isInternalTask(name) && checkPortalPermission(subscriber, name)) {
-            String orgID = OrganizationManager.getInstance().getCurrentOrgID(subscriber);
-
-            if(Tool.equals(orgID, OrganizationManager.getInstance().getCurrentOrgID()) ||
-               Tool.equals(message.getActivity().getLastRunStatus(), "Running"))
-            {
-               ScheduleTask task = scheduleManager.getScheduleTask(name, orgID);
-               ScheduleTaskModel taskModel = createModel(subscriber, task, message);
-               ScheduleTaskChange model = ScheduleTaskChange.builder()
-                  .name(taskModel == null ? message.getTaskName() : taskModel.name())
-                  .type(ScheduleTaskChange.Type.ACTIVITY)
-                  .task(taskModel)
-                  .build();
-
-               messagingTemplate.convertAndSendToUser(
-                  SUtil.getUserDestination(subscriber), PORTAL_TOPIC, model);
-            }
+         if(!ScheduleManager.isInternalTask(name) && checkPortalPermission(subscriber, name) && shouldHandleReceivedMessage(name, subscriber)) {
+            ScheduleTask task = scheduleManager.getScheduleTask(name, getSubscriberOrgId(subscriber));
+            ScheduleTaskModel taskModel = createModel(subscriber, task, message);
+            ScheduleTaskChange model = ScheduleTaskChange.builder()
+               .name(taskModel == null ? message.getTaskName() : taskModel.name())
+               .type(ScheduleTaskChange.Type.ACTIVITY)
+               .task(taskModel)
+               .build();
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(subscriber), PORTAL_TOPIC, model);
          }
       }
+   }
+
+   private boolean shouldHandleReceivedMessage(String taskId, Principal subscriber) {
+      IdentityID owner = SUtil.getTaskOwner(taskId);
+      String taskOrgId = owner == null ?
+         OrganizationManager.getInstance().getCurrentOrgID() : owner.getOrgID();
+
+      return Tool.equals(taskOrgId, getSubscriberOrgId(subscriber));
+   }
+
+   private String getSubscriberOrgId(Principal subscriber) {
+      return OrganizationManager.getInstance().getCurrentOrgID(subscriber);
    }
 
    private void dispatchPortalScheduleTask(ScheduleTaskMessage message) {
       ScheduleTask task = message.getTask();
       String taskId = task == null ? null : task.getTaskId();
 
-      for(Principal subscriber : portalSubscribers.values()) {
-         String orgID = OrganizationManager.getInstance().getCurrentOrgID(subscriber);
+      if(taskId == null) {
+         return;
+      }
 
+      for(Principal subscriber : portalSubscribers.values()) {
          if(ScheduleManager.isInternalTask(taskId) ||
-            taskId != null && !checkPortalPermission(subscriber, taskId) ||
-            !Tool.equals(orgID, OrganizationManager.getInstance().getCurrentOrgID()))
+            !checkPortalPermission(subscriber, taskId) ||
+            !shouldHandleReceivedMessage(taskId, subscriber))
          {
             return;
          }
@@ -195,9 +206,18 @@ public class ScheduleTaskChangeController {
 
    private void dispatchAdminTaskActivity(TaskActivityMessage message) {
       String name = message.getTaskName();
+
+      if(name == null) {
+         return;
+      }
+
       ScheduleTask task = scheduleManager.getScheduleTask(name);
 
       for(Principal subscriber : adminSubscribers.values()) {
+         if(!shouldHandleReceivedMessage(name, subscriber)) {
+            return;
+         }
+
          if(task == null) {
             task = scheduleManager.getScheduleTask(name, OrganizationManager.getInstance().getCurrentOrgID(subscriber));
          }
@@ -229,25 +249,30 @@ public class ScheduleTaskChangeController {
          }
 
          if(checkAdminPermission(subscriber, task)) {
-            String orgId = Scheduler.getTaskOrg(task);
-
-            if(Tool.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID())) {
-               ScheduleTaskChange model = ScheduleTaskChange.builder()
-                  .name(getTaskName(message.getTaskName()))
-                  .type(ScheduleTaskChange.Type.ACTIVITY)
-                  .task(createModel(subscriber, task, message))
-                  .build();
-               messagingTemplate.convertAndSendToUser(
-                  SUtil.getUserDestination(subscriber), ADMIN_TOPIC, model);
-            }
+            ScheduleTaskChange model = ScheduleTaskChange.builder()
+               .name(getTaskName(message.getTaskName()))
+               .type(ScheduleTaskChange.Type.ACTIVITY)
+               .task(createModel(subscriber, task, message))
+               .build();
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(subscriber), ADMIN_TOPIC, model);
          }
       }
    }
 
    private void dispatchAdminScheduleTask(ScheduleTaskMessage message) {
       ScheduleTask task = message.getTask();
+      String taskID = task == null ? null : task.getTaskId();
+
+      if(taskID == null) {
+         return;
+      }
 
       for(Principal subscriber : adminSubscribers.values()) {
+         if(!shouldHandleReceivedMessage(taskID, subscriber)) {
+            continue;
+         }
+
          if(task != null) {
             try {
                task = scheduleService.handleInternalTaskConfiguration(task, subscriber);
@@ -259,14 +284,8 @@ public class ScheduleTaskChangeController {
 
          if(checkAdminPermission(subscriber, task)) {
             if(task != null) {
-               String taskOrg = Scheduler.getTaskOrg(task);
-
-               if(!Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(subscriber), taskOrg)) {
-                  return;
-               }
-
                ScheduleTask scheduleTask = ScheduleManager.getScheduleManager()
-                  .getScheduleTask(task.getTaskId(), OrganizationManager.getInstance().getCurrentOrgID(subscriber));
+                  .getScheduleTask(task.getTaskId(), getSubscriberOrgId(subscriber));
 
                if(scheduleTask == null) {
                   return;
@@ -312,7 +331,7 @@ public class ScheduleTaskChangeController {
             return true;
          }
 
-         ScheduleTask scheduleTask = scheduleManager.getScheduleTask(task);
+         ScheduleTask scheduleTask = scheduleManager.getScheduleTask(task, getSubscriberOrgId(subscriber));
 
          if(scheduleTask == null) {
             return false;

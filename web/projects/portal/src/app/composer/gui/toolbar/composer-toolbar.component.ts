@@ -283,7 +283,7 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
                private dropdownObserver: DropdownObserver)
    {
       tooltipConfig.container = "body";
-      this.wsSqlQueryController = new WsSqlQueryController(this.http, this.modelService);
+      this.wsSqlQueryController = new WsSqlQueryController(this.http, this.modelService, this.modalService);
    }
 
    public ngOnInit(): void {

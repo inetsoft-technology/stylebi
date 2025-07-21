@@ -1580,7 +1580,7 @@ public class UserTreeService {
       if(!systemAdminService.hasSysAdmin(Collections.singleton(roleChange))) {
          throw new MessageException(Catalog.getCatalog().getString("em.security.noSystemAdmin"));
       }
-      else if(!systemAdminService.hasOrgAdmin(Collections.singleton(roleChange))) {
+      else if(SUtil.isMultiTenant() && !systemAdminService.hasOrgAdmin(Collections.singleton(roleChange))) {
          throw new MessageException(Catalog.getCatalog().getString("em.security.noOrgAdmin"));
       }
 

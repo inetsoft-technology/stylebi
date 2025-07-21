@@ -366,6 +366,10 @@ export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
             return of(null);
          })
       ).subscribe((connection: ConnectionStatus) => {
+         if(!connection) {
+            return;
+         }
+
          this.databaseStatus = connection.status;
 
          if(this.showTestMessage) {

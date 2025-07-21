@@ -1030,6 +1030,27 @@ public class JDBCHandler extends XHandler {
                      boolToStr = false;
                      retry++;
                   }
+                  else if(databricks &&
+                     ex.getMessage().contains("UNSUPPORTED_FEATURE.SET_OPERATION_ON") &&
+                     query.getSelection().getColumnCount() == 1)
+                  {
+                     String column = query.getSelection().getAlias(0);
+                     String oldSelect = column + " as " + column;
+                     String newSelect = "CAST("+ column + " as STRING) as " + column;
+
+                     if(origSQL.contains(oldSelect)) {
+                        origSQL = origSQL.replace(oldSelect, newSelect);
+
+                        if(conn.isClosed()) {
+                           conn = getConnection(params, user);
+                        }
+
+                        retry ++;
+                     }
+                     else {
+                        throw ex;
+                     }
+                  }
                   else if(!querytimeout && !cancelled &&
                           isproc && hasNullParams && retry == 0)
                   {
@@ -3534,12 +3555,14 @@ public class JDBCHandler extends XHandler {
    }
 
    public void resetConnection() {
-      try {
-         reset();
-         xds = null;
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to reset JDBC handler on data source change", ex);
+      synchronized(metaLock) {
+         try {
+            reset();
+            xds = null;
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to reset JDBC handler on data source change", ex);
+         }
       }
    }
 
