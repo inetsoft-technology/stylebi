@@ -142,7 +142,8 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
 
       let top = this.popService.popY;
       let left = this.popService.popX;
-      let isCenter = this.popService.getPopLocation().toString() == PopLocation.CENTER.toString();
+      let isCenter = this.popService.getPopLocation() &&
+         this.popService.getPopLocation().toString() == PopLocation.CENTER.toString();
 
        if(isCenter) {
 
