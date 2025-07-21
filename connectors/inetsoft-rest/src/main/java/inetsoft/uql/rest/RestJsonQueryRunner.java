@@ -226,6 +226,7 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
         return data;
     }
 
+   @Override
    public String generateMetadata() {
       try(RestDataIteratorStrategy<Object> strategy = factory.createStrategy(query)) {
          final Object json = strategy.next();
