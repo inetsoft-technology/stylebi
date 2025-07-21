@@ -23,11 +23,12 @@ import inetsoft.report.TableFilter;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.filter.BinaryTableFilter;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.lens.SetTableLens;
 import inetsoft.sree.SreeEnv;
-import inetsoft.uql.VariableTable;
-import inetsoft.uql.XPrincipal;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.QueryManager;
@@ -113,11 +114,26 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
       TableFilter2 filter = (TableFilter2) cache.get(key, ts);
 
-      if(filter != null && (filter.isChanged() || isCancelled(filter))) {
+      if(filter != null && (filter.isChanged() || isCancelled(filter) ||
+         isFailedQueryDefaultMetaTable(filter)))
+      {
          filter = null;
       }
 
       return filter == null ? null : (TableFilter2) filter.clone();
+   }
+
+   private static boolean isFailedQueryDefaultMetaTable(XTable lens) {
+      List<XTable> metaTables = new ArrayList<>();
+      Util.listNestedTable(lens, XNodeMetaTable.class, metaTables);
+
+      for(XTable table : metaTables) {
+         if(table instanceof XNodeMetaTable metaTable && metaTable.isFailedQueryDefault()) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    // Check if table or sub-table cancelled
