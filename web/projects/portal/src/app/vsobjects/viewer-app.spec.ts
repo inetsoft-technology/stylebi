@@ -278,6 +278,11 @@ describe("ViewerApp Unit Tests", () => {
          element: jest.fn(),
       };
 
+      window.IntersectionObserver = jest.fn().mockImplementation(() => ({
+         observe: () => {},
+         disconnect: () => {}
+      }));
+
       TestBed.configureTestingModule({
          imports: [
             NgbModule,
