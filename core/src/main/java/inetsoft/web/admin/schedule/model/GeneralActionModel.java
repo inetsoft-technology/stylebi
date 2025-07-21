@@ -133,6 +133,11 @@ public abstract class GeneralActionModel extends ScheduleActionModel {
       return new String[0];
    }
 
+   @Value.Default
+   public String[] oldSaveFormats() {
+      return new String[0];
+   }
+
    @Nullable
    public abstract Boolean emailMatchLayout();
 

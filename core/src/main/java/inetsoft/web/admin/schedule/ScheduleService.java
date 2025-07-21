@@ -1225,16 +1225,15 @@ public class ScheduleService {
 
             Arrays.stream(viewsheetAction.getSaveFormats())
                .forEach(format -> viewsheetAction.setFilePath(format, (ServerPathInfo) null));
-           List <ServerPathInfo> clone = new ArrayList<>();
+            Map<Integer, ServerPathInfo> clone = new HashMap<>();
 
-            if(oldAction instanceof ViewsheetAction oldViewsheetAction &&
-               !oldViewsheetAction.getFilePathsMap().isEmpty())
-            {
-               clone.addAll(oldViewsheetAction.getFilePathsMap().values());
+            if(oldAction instanceof ViewsheetAction oldViewsheetAction) {
+               clone.putAll(oldViewsheetAction.getFilePathsMap());
             }
 
             if(Tool.defaultIfNull(actionModel.saveToServerEnabled(), false)) {
                String[] saveFormats = actionModel.saveFormats();
+               String[] oldSaveFormats = actionModel.oldSaveFormats();
                List<ServerPathInfoModel> serverFilePaths = actionModel.serverFilePaths();
                List<String> filePaths = actionModel.filePaths();
                ServerPathInfo info;
@@ -1243,13 +1242,19 @@ public class ScheduleService {
                   int format = Integer.parseInt(saveFormats[i]);
                   ServerPathInfoModel pModel = serverFilePaths.get(i);
                   String password = pModel.password();
+                  ServerPathInfo oldInfo = null;
 
-                  for(ServerPathInfo serverPathInfo : clone) {
-                     if(Util.PLACEHOLDER_PASSWORD.equals(password) &&
-                        Tool.equals(serverPathInfo.getUsername(), pModel.username()))
-                     {
-                        password = serverPathInfo.getPassword();
+                  for(int j = 0; j < oldSaveFormats.length; j++) {
+                     if(oldSaveFormats[j].equals(saveFormats[i])) {
+                        oldInfo = clone.get(j) != null ? clone.get(j) : null;
+                        break;
                      }
+                  }
+
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null &&
+                     oldInfo.getUsername().equals(pModel.username()) && !clone.isEmpty())
+                  {
+                     password = oldInfo.getPassword();
                   }
 
                   if(pModel.ftp()) {
@@ -1380,7 +1385,15 @@ public class ScheduleService {
             }
             else {
                abstractAction.setUseCredential(false);
-               abstractAction.setPassword(actionModel.password());
+               String password = actionModel.password();
+
+               if(oldAction instanceof ViewsheetAction oldViewsheetAction &&
+                  Util.PLACEHOLDER_PASSWORD.equals(password))
+               {
+                  password = oldViewsheetAction.getPassword();
+               }
+
+               abstractAction.setPassword(password);
             }
 
             if(abstractAction instanceof ViewsheetAction && "CSV".equals(actionModel.format())) {
@@ -1411,10 +1424,16 @@ public class ScheduleService {
          backupAction.setPaths(Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ? backupActionModel
             .backupPath() : null);
          ServerPathInfo oldServerPath = backupAction.getServerPath();
+
+         if(oldAction instanceof IndividualAssetBackupAction oldBackupAction) {
+            oldServerPath = oldBackupAction.getServerPath();
+         }
+
          ServerPathInfo newServerPathInfo = Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ?
             new ServerPathInfo(backupActionModel.backupServerPath()) : null;
 
          if(oldServerPath != null && newServerPathInfo != null &&
+            Tool.equals(newServerPathInfo.getUsername(), oldServerPath.getUsername()) &&
             Util.PLACEHOLDER_PASSWORD.equals(newServerPathInfo.getPassword()))
          {
             newServerPathInfo.setPassword(oldServerPath.getPassword());
