@@ -982,12 +982,15 @@ public class ScheduleService {
             .map(info -> ServerPathInfoModel.builder().from(info).build())
             .collect(Collectors.toList());
 
+         String[] saveFormats = Arrays.stream(viewsheetAction.getSaveFormats())
+            .mapToObj(String::valueOf)
+            .toArray(String[]::new);
+
          actionModel
             .sheet(viewsheetAction.getViewsheet())
             .bookmarks(getBookmarkModels(viewsheetAction, em, principal))
-            .saveFormats(Arrays.stream(viewsheetAction.getSaveFormats())
-                            .mapToObj(String::valueOf)
-                            .toArray(String[]::new))
+            .saveFormats(saveFormats)
+            .oldSaveFormats(saveFormats)
             .saveToServerEnabled(viewsheetAction.getSaveFormats() != null
                                     && viewsheetAction.getSaveFormats().length > 0)
             .filePaths(filePaths)
@@ -1233,6 +1236,7 @@ public class ScheduleService {
 
             if(Tool.defaultIfNull(actionModel.saveToServerEnabled(), false)) {
                String[] saveFormats = actionModel.saveFormats();
+               String[] oldSaveFormats = actionModel.oldSaveFormats();
                List<ServerPathInfoModel> serverFilePaths = actionModel.serverFilePaths();
                List<String> filePaths = actionModel.filePaths();
                ServerPathInfo info;
@@ -1241,10 +1245,17 @@ public class ScheduleService {
                   int format = Integer.parseInt(saveFormats[i]);
                   ServerPathInfoModel pModel = serverFilePaths.get(i);
                   String password = pModel.password();
-                  ServerPathInfo oldInfo = clone.get(format);
+                  ServerPathInfo oldInfo = null;
 
-                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null &&
-                     oldInfo.getUsername().equals(pModel.username()) && !clone.isEmpty())
+                  for(int j = 0; j < oldSaveFormats.length; j++) {
+                     if(oldSaveFormats[j].equals(saveFormats[i])) {
+                        oldInfo = clone.get(j) != null ? clone.get(j) : null;
+                        break;
+                     }
+                  }
+
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null
+                     && !clone.isEmpty())
                   {
                      password = oldInfo.getPassword();
                   }
