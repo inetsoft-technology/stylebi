@@ -3534,12 +3534,14 @@ public class JDBCHandler extends XHandler {
    }
 
    public void resetConnection() {
-      try {
-         reset();
-         xds = null;
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to reset JDBC handler on data source change", ex);
+      synchronized(metaLock) {
+         try {
+            reset();
+            xds = null;
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to reset JDBC handler on data source change", ex);
+         }
       }
    }
 
