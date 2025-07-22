@@ -420,7 +420,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    void parse(String sql, int parseType, long time) throws Exception {
       clear();
-      SQLLexer lexer = new SQLLexer(new StringReader(sql));
+      SQLLexer lexer = new SQLLexer(new StringReader(getQuotedSqlString(sql)));
       SQLParser parser = new SQLParser(lexer);
       parser.setTime(time);
       setParseResult(PARSE_FAILED);
@@ -3613,9 +3613,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public boolean isLossy() {
       if(parseIt && lossy == null && sqlstring != null) {
-         SQLLexer lexer = new SQLLexer(new StringReader(sqlstring));
+         SQLLexer lexer = new SQLLexer(new StringReader(getQuotedSqlString(sqlstring)));
          SQLParser parser = new SQLParser(lexer);
          UniformSQL sql = new UniformSQL();
+         sql.setDataSource(getDataSource());
 
          try {
             parser.direct_select_stmt_n_rows(sql);
@@ -3627,6 +3628,14 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       return lossy != null && lossy;
+   }
+
+   private String getQuotedSqlString(String sql) {
+      if(dataSource != null && dataSource.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
+         return JDBCUtil.quoteMapKeyAccessForParsing(sql);
+      }
+
+      return sql;
    }
 
    /**
