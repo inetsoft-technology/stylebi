@@ -55,8 +55,6 @@
         <mat-checkbox formControlName="saveToDisk">_#(Save to Disk)</mat-checkbox>
         <mat-checkbox formControlName="emailDelivery">_#(Email Delivery)</mat-checkbox>
         <mat-checkbox formControlName="enableEmailBrowser">_#(Enable Email Browser)</mat-checkbox>
-        <mat-checkbox formControlName="autoStart">_#(Auto Start)</mat-checkbox>
-        <mat-checkbox formControlName="autoStop">_#(Auto Stop)</mat-checkbox>
         <mat-checkbox *ngIf="model?.securityEnable" formControlName="shareTaskInSameGroup">_#(em.schedule.option.shareTasksInGroup)</mat-checkbox>
         <mat-checkbox *ngIf="model?.securityEnable && model?.shareTaskInSameGroup" formControlName="deleteTaskOnlyByOwner" class="mat-checkbox-field">
           _#(em.schedule.option.modifyTasksByOwner)

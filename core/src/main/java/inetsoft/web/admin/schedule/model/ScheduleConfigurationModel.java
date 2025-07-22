@@ -44,10 +44,6 @@ public abstract class ScheduleConfigurationModel {
       return String.valueOf(File.pathSeparatorChar);
    }
 
-   public abstract boolean autoStart();
-
-   public abstract boolean autoStop();
-
    public abstract boolean notificationEmail();
 
    public abstract boolean saveToDisk();

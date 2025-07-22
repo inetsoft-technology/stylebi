@@ -75,8 +75,6 @@ public class SchedulerConfigurationService {
          .rmiPort(Integer.parseInt(SreeEnv.getProperty("scheduler.rmi.port")))
          .classpath(SreeEnv.computePropertyIfAbsent(
             "scheduler.classpath", () -> SUtil.getApplicationClasspath()))
-         .autoStart(getBooleanProperty("schedule.auto.start"))
-         .autoStop(getBooleanProperty("schedule.auto.down"))
          .notificationEmail(getBooleanProperty("schedule.options.notificationEmail"))
          .saveToDisk(getBooleanProperty("schedule.options.saveToDisk"))
          .emailDelivery(getBooleanProperty("schedule.options.emailDelivery"))
@@ -122,8 +120,6 @@ public class SchedulerConfigurationService {
       SreeEnv.setProperty("schedule.status.check.email", model.emailAddress());
       SreeEnv.setProperty("schedule.status.check.email.subject", model.emailSubject());
       SreeEnv.setProperty("schedule.status.check.email.message", model.emailMessage());
-      SreeEnv.setProperty("schedule.auto.start", Boolean.toString(model.autoStart()));
-      SreeEnv.setProperty("schedule.auto.down", Boolean.toString(model.autoStop()));
       SreeEnv.setProperty("schedule.options.notificationEmail", Boolean.toString(model.notificationEmail()));
       SreeEnv.setProperty("schedule.options.saveToDisk", Boolean.toString(model.saveToDisk()));
       SreeEnv.setProperty("schedule.options.emailDelivery", Boolean.toString(model.emailDelivery()));
