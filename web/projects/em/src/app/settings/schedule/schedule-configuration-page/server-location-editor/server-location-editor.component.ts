@@ -83,7 +83,8 @@ export class ServerLocationEditorComponent implements OnInit {
          username: !formValue.useSecretId ? formValue.username : null,
          password: !formValue.useSecretId ? formValue.password : null,
          ftp: !!formValue.ftp,
-         oldPasswordKey: this.oldPasswordKey
+         oldPasswordKey: this.oldPasswordKey,
+         oldFormat: -1
       };
       let result: ServerLocation = {
          path: formValue.path,

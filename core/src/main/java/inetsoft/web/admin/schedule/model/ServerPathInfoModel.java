@@ -57,6 +57,11 @@ public abstract class ServerPathInfoModel {
       return false;
    }
 
+   @Value.Default
+   public int oldFormat() {
+      return -1;
+   }
+
 
    public static Builder builder() {
       return new Builder();

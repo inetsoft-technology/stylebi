@@ -41,6 +41,7 @@ export interface ServerSaveFile {
    secretId?: string;
    username?: string;
    password?: string;
+   oldFormat?: number;
 }
 
 export interface ServerSave {
@@ -264,7 +265,8 @@ export class ServerSaveComponent implements OnInit {
          useCredential: false,
          secretId: "",
          username: "",
-         password: ""
+         password: "",
+         oldFormat: -1
       };
 
       this._formats.push(this.formats[0].type);
@@ -371,6 +373,7 @@ export class ServerSaveComponent implements OnInit {
                   file.secretId = location.pathInfoModel.secretId;
                   file.username = location.pathInfoModel.username;
                   file.password = location.pathInfoModel.password;
+                  file.oldFormat = location.pathInfoModel.oldFormat;
                }
             }
          }
@@ -382,6 +385,7 @@ export class ServerSaveComponent implements OnInit {
          file.secretId = pathModel.secretId;
          file.username = pathModel.username;
          file.password = pathModel.password;
+         file.oldFormat = pathModel.oldFormat;
       }
 
       return file;

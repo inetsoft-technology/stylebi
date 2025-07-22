@@ -977,20 +977,26 @@ public class ScheduleService {
             .collect(Collectors.toList());
 
          List<ServerPathInfoModel> filePathInfos = Arrays.stream(viewsheetAction.getSaveFormats())
-            .mapToObj(viewsheetAction::getFilePathInfo)
-            .filter(Objects::nonNull)
-            .map(info -> ServerPathInfoModel.builder().from(info).build())
-            .collect(Collectors.toList());
+            .mapToObj(format -> {
+               ServerPathInfo info = viewsheetAction.getFilePathInfo(format);
 
-         String[] saveFormats = Arrays.stream(viewsheetAction.getSaveFormats())
-            .mapToObj(String::valueOf)
-            .toArray(String[]::new);
+               if(info != null) {
+                  return ServerPathInfoModel.builder()
+                     .from(info)
+                     .oldFormat(format)
+                     .build();
+               }
+               return null;
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
 
          actionModel
             .sheet(viewsheetAction.getViewsheet())
             .bookmarks(getBookmarkModels(viewsheetAction, em, principal))
-            .saveFormats(saveFormats)
-            .oldSaveFormats(saveFormats)
+            .saveFormats(Arrays.stream(viewsheetAction.getSaveFormats())
+                            .mapToObj(String::valueOf)
+                            .toArray(String[]::new))
             .saveToServerEnabled(viewsheetAction.getSaveFormats() != null
                                     && viewsheetAction.getSaveFormats().length > 0)
             .filePaths(filePaths)
@@ -1236,7 +1242,6 @@ public class ScheduleService {
 
             if(Tool.defaultIfNull(actionModel.saveToServerEnabled(), false)) {
                String[] saveFormats = actionModel.saveFormats();
-               String[] oldSaveFormats = actionModel.oldSaveFormats();
                List<ServerPathInfoModel> serverFilePaths = actionModel.serverFilePaths();
                List<String> filePaths = actionModel.filePaths();
                ServerPathInfo info;
@@ -1245,14 +1250,8 @@ public class ScheduleService {
                   int format = Integer.parseInt(saveFormats[i]);
                   ServerPathInfoModel pModel = serverFilePaths.get(i);
                   String password = pModel.password();
-                  ServerPathInfo oldInfo = null;
-
-                  for(int j = 0; j < oldSaveFormats.length; j++) {
-                     if(oldSaveFormats[j].equals(saveFormats[i])) {
-                        oldInfo = clone.get(j) != null ? clone.get(j) : null;
-                        break;
-                     }
-                  }
+                  int oldFormat = pModel.oldFormat();
+                  ServerPathInfo oldInfo = clone.get(oldFormat);
 
                   if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null
                      && !clone.isEmpty())

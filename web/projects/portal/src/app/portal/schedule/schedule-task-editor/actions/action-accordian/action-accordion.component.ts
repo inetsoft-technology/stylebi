@@ -423,7 +423,8 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
             useCredential: this.useCredential,
             secretId: this.secretId,
             username: this.username,
-            password: this.password
+            password: this.password,
+            oldFormat: -1,
          };
          pathModel = this.hasLocations && !!this.locationPath ?
             this.getLocationPathInfo(this.locationPath) : pathModel;
@@ -557,7 +558,8 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
             useCredential: this.useCredential,
             secretId: this.secretId,
             username: this.username,
-            password: this.password
+            password: this.password,
+            oldFormat: -1
          };
       pathModel.path = this.path;
 
@@ -620,7 +622,8 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
                      useCredential: this.useCredential,
                      secretId: this.secretId,
                      username: this.username,
-                     password: this.password
+                     password: this.password,
+                     oldFormat: -1
                   };
 
                   this.action.filePaths[filePathIndex] = this.path;

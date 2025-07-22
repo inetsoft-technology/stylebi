@@ -23,4 +23,5 @@ export class ServerPathInfoModel {
    ftp?: boolean;
    useCredential?: boolean;
    secretId?: string;
+   oldFormat: number;
 }
