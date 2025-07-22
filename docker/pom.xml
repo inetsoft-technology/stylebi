@@ -35,7 +35,6 @@
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <docker.build.version>${maven.build.timestamp}</docker.build.version>
     <inetsoft.docker.repository>ghcr.io/inetsoft-technology</inetsoft.docker.repository>
-    <community.docker.tags>"${inetsoft.docker.repository}/stylebi-community:1.0","${inetsoft.docker.repository}/stylebi-community:1.0.${docker.build.version}","${inetsoft.docker.repository}/stylebi-community:latest"</community.docker.tags>
   </properties>
 
   <dependencies>
@@ -384,19 +383,11 @@
         <configuration>
           <from>
             <image>ghcr.io/inetsoft-technology/java:21.0.7_6</image>
-            <platforms>
-              <platform>
-                <architecture>amd64</architecture>
-                <os>linux</os>
-              </platform>
-              <platform>
-                <architecture>arm64</architecture>
-                <os>linux</os>
-              </platform>
-            </platforms>
+            <!-- CI: -Djib.from.platforms=linux/amd64,linux/arm64 -->
           </from>
           <to>
             <image>${inetsoft.docker.repository}/stylebi-community</image>
+            <!-- CI: -Djib.to.tags=1.0,1.0.$BUILD -->
             <tags>
               <tag>1.0</tag>
               <tag>1.0.${docker.build.version}</tag>
