@@ -603,6 +603,7 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
          username: change.username,
          password: change.password,
          ftp: !!change.ftp,
+         oldFormat: change.oldFormat,
       };
 
       return info;

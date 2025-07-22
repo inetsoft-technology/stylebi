@@ -977,9 +977,18 @@ public class ScheduleService {
             .collect(Collectors.toList());
 
          List<ServerPathInfoModel> filePathInfos = Arrays.stream(viewsheetAction.getSaveFormats())
-            .mapToObj(viewsheetAction::getFilePathInfo)
+            .mapToObj(format -> {
+               ServerPathInfo info = viewsheetAction.getFilePathInfo(format);
+
+               if(info != null) {
+                  return ServerPathInfoModel.builder()
+                     .from(info)
+                     .oldFormat(format)
+                     .build();
+               }
+               return null;
+            })
             .filter(Objects::nonNull)
-            .map(info -> ServerPathInfoModel.builder().from(info).build())
             .collect(Collectors.toList());
 
          actionModel
@@ -1241,10 +1250,11 @@ public class ScheduleService {
                   int format = Integer.parseInt(saveFormats[i]);
                   ServerPathInfoModel pModel = serverFilePaths.get(i);
                   String password = pModel.password();
-                  ServerPathInfo oldInfo = clone.get(format);
+                  int oldFormat = pModel.oldFormat();
+                  ServerPathInfo oldInfo = clone.get(oldFormat);
 
-                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null &&
-                     oldInfo.getUsername().equals(pModel.username()) && !clone.isEmpty())
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null
+                     && !clone.isEmpty())
                   {
                      password = oldInfo.getPassword();
                   }

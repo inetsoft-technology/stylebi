@@ -75,6 +75,7 @@ export class BackupActionEditorComponent {
          secretId: change.secretId,
          username: change.username,
          password: change.password,
+         oldFormat: -1,
       };
 
       this.actionModel.backupServerPath = serverPathModel;
