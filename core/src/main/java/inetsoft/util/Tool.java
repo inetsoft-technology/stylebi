@@ -4928,9 +4928,6 @@ public final class Tool extends CoreTool {
       else if(number instanceof Double) {
          return BigDecimal.valueOf(((Number) number).doubleValue());
       }
-      else if(number instanceof Number) {
-         return new BigDecimal(number.toString());
-      }
       else {
          throw new IllegalArgumentException("Unsupported number type: " + number.getClass().getName());
       }
