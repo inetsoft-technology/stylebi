@@ -220,6 +220,7 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
          lock.lock();
 
          if(closed) {
+            lock.unlock();
             return;
          }
 
@@ -641,6 +642,7 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
 
       try {
          if(closed) {
+            lock.unlock();
             return;
          }
 
