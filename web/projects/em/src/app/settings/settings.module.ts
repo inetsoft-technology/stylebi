@@ -33,6 +33,7 @@ import { SearchModule } from "../search/search.module";
 import { TopScrollModule } from "../top-scroll/top-scroll.module";
 import { SettingsRoutingModule } from "./settings-routing.module";
 import { SettingsSidenavComponent } from "./settings-sidenav/settings-sidenav.component";
+import { LoadingSpinnerModule } from "../common/util/loading-spinner/loading-spinner.module";
 
 @NgModule({
    imports: [
@@ -50,7 +51,8 @@ import { SettingsSidenavComponent } from "./settings-sidenav/settings-sidenav.co
       PageHeaderModule,
       SettingsRoutingModule,
       SearchModule,
-      TopScrollModule
+      TopScrollModule,
+      LoadingSpinnerModule
    ],
    declarations: [SettingsSidenavComponent],
    providers: [

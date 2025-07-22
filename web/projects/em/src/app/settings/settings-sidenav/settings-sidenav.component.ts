@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { BreakpointObserver } from "@angular/cdk/layout";
-import { Component, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
+import { AfterViewInit, Component, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { MatSidenav } from "@angular/material/sidenav";
 import { Router } from "@angular/router";
 import { Subject } from "rxjs";
@@ -35,7 +35,7 @@ const SMALL_WIDTH_BREAKPOINT = 720;
    templateUrl: "./settings-sidenav.component.html",
    styleUrls: ["./settings-sidenav.component.scss"]
 })
-export class SettingsSidenavComponent implements OnInit, OnDestroy {
+export class SettingsSidenavComponent implements OnInit, AfterViewInit, OnDestroy {
    @ViewChild(MatSidenav, { static: true }) sidenav: MatSidenav;
    searchText: string;
    generalVisible = false;
@@ -45,6 +45,7 @@ export class SettingsSidenavComponent implements OnInit, OnDestroy {
    presentationVisible = false;
    loggingVisible = false;
    propertiesVisible = false;
+   loading = true;
 
    private destroy$ = new Subject<void>();
 
@@ -70,6 +71,12 @@ export class SettingsSidenavComponent implements OnInit, OnDestroy {
          this.presentationVisible = p.permissions.presentation;
          this.loggingVisible = p.permissions.logging;
          this.propertiesVisible = p.permissions.properties;
+      });
+   }
+
+   ngAfterViewInit() {
+      setTimeout(() => {
+         this.loading = false;
       });
    }
 
