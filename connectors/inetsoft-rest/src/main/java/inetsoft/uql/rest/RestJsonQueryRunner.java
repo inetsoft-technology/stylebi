@@ -17,12 +17,14 @@
  */
 package inetsoft.uql.rest;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jayway.jsonpath.PathNotFoundException;
 import com.jayway.jsonpath.spi.json.JsonProvider;
 import inetsoft.uql.XTableNode;
 import inetsoft.uql.rest.json.*;
 import inetsoft.uql.rest.json.lookup.*;
 import inetsoft.uql.util.*;
+import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +47,21 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
     @Override
     public XTableNode runStream() {
         final BaseJsonTable table = getTable();
+
+        if(!Tool.isEmptyString(query.getJsonMetadata())) {
+            try {
+                // parse and apply json path for metadata
+                table.setJsonMetadata(selectData(query.getJsonMetadata(), query.getValidJsonPath(),
+                                                 transformer));
+            }
+            catch(Exception ex) {
+                CoreTool.addUserMessage(ResourceBundle.getBundle(
+                   "inetsoft.uql.rest.json.Bundle",
+                   ThreadContext.getLocale()).getString("inetsoft.uql.rest.json.parseMetadataException"));
+                LOG.error("Failed to parse JSON metadata.", ex);
+            }
+        }
+
         table.beginStreamedLoading();
 
         try(RestDataIteratorStrategy<Object> strategy = factory.createStrategy(query)) {
@@ -208,6 +225,27 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
 
         return data;
     }
+
+   @Override
+   public String generateMetadata() {
+      try(RestDataIteratorStrategy<Object> strategy = factory.createStrategy(query)) {
+         final Object json = strategy.next();
+
+         if(json == null) {
+            return "{}";
+         }
+
+         ObjectMapper mapper = new ObjectMapper();
+         return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(json);
+      }
+      catch(Exception ex) {
+         if(!(ex instanceof InterruptedException) || !isCancelled()) {
+            logException(ex);
+         }
+      }
+
+      return "{}";
+   }
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
    protected final RestDataIteratorStrategyFactory<RestJsonQuery, Object> factory;

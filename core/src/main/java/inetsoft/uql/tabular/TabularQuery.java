@@ -175,6 +175,14 @@ public abstract class TabularQuery extends XQuery {
       return extentmap.get(header);
    }
 
+   public VariableTable getVariableTable() {
+      return variableTable;
+   }
+
+   public void setVariableTable(VariableTable variableTable) {
+      this.variableTable = variableTable;
+   }
+
    /**
     * Get the assets referenced by this query.
     * @param assets a list of all tables in same worksheet.
@@ -335,6 +343,10 @@ public abstract class TabularQuery extends XQuery {
          copy.cols = Arrays.copyOf(cols, cols.length);
       }
 
+      if(variableTable != null) {
+         copy.variableTable = variableTable.clone();
+      }
+
       return copy;
    }
 
@@ -342,6 +354,7 @@ public abstract class TabularQuery extends XQuery {
    private Map<String, String> typemap = new HashMap<>();
    private Map<String, String> fmtmap = new HashMap<>();
    private Map<String, String> extentmap = new HashMap<>();
+   private VariableTable variableTable;
    public static final String OUTER_TABLE_NAME_PROPERTY_PREFIX = "outer.table.name.";
    public static final String IS_OUTER_TABLE = "__is_outer_table__";
 }
