@@ -3277,6 +3277,29 @@ public class SUtil {
       return locations;
    }
 
+   public static Map<String, String> getServerLocationsPwdMap() {
+      HashMap map = new HashMap();
+      String val = SreeEnv.getProperty("server.save.locations");
+
+      if(Tool.isEmptyString(val)) {
+         return map;
+      }
+
+      String[] paths = val.split(";");
+
+      for(int i = 0; i < paths.length; i++) {
+         String path = paths[i];
+         String[] parts = path.split("\\|");
+
+         if(parts.length == 4) {
+            String pwd = parts[3];
+            map.put(Tool.buildString(parts[0], parts[1], parts[2]), pwd);
+         }
+      }
+
+      return map;
+   }
+
    public static void configBinaryTypes(IgniteConfiguration config) {
       BinaryConfiguration binaryCfg = new BinaryConfiguration();
       binaryCfg.setTypeConfigurations(getBinaryTypeConfigurations());

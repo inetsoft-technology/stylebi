@@ -2081,7 +2081,37 @@ public class ScheduleService {
    }
 
    List<ServerLocation> getServerLocations(Catalog catalog) {
-      return SUtil.getServerLocations();
+      List<ServerLocation> serverLocations = new ArrayList<>();
+      Map<String, String> oldPwdMap = SUtil.getServerLocationsPwdMap();
+
+      for(ServerLocation location : SUtil.getServerLocations()) {
+         ServerPathInfoModel infoModel = location.pathInfoModel();
+
+         if(infoModel != null) {
+            String password = infoModel.password();
+
+            if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+               password = oldPwdMap.get(infoModel.oldPasswordKey());
+            }
+
+            ServerPathInfoModel newLocation = ServerPathInfoModel.builder()
+               .path(infoModel.path())
+               .username(infoModel.username())
+               .password(password)
+               .secretId(infoModel.secretId())
+               .useCredential(infoModel.useCredential())
+               .ftp(infoModel.ftp())
+               .build();
+
+            serverLocations.add(ServerLocation.builder()
+               .path(location.path())
+               .label(catalog.getString(location.label()))
+               .pathInfoModel(newLocation)
+               .build());
+         }
+      }
+
+      return serverLocations;
    }
 
    public ScheduleTaskNamesModel getScheduleTaskNamesModel(Principal principal) {
