@@ -302,7 +302,7 @@ public class SchedulerConfigurationService {
       }
       else {
          ArrayList<String> paths = new ArrayList<>();
-         Map<String, String> oldPwdMap = getPwdMap();
+         Map<String, String> oldPwdMap = SUtil.getServerLocationsPwdMap();
 
          for(ServerLocation location : locations) {
             String path = location.path();
@@ -352,29 +352,6 @@ public class SchedulerConfigurationService {
          String property = String.join(";", paths);
          SreeEnv.setProperty("server.save.locations", property);
       }
-   }
-
-   private Map<String, String> getPwdMap() {
-      HashMap map = new HashMap();
-      String val = SreeEnv.getProperty("server.save.locations");
-
-      if(Tool.isEmptyString(val)) {
-         return map;
-      }
-
-      String[] paths = val.split(";");
-
-      for(int i = 0; i < paths.length; i++) {
-         String path = paths[i];
-         String[] parts = path.split("\\|");
-
-         if(parts.length == 4) {
-            String pwd = parts[3];
-            map.put(Tool.buildString(parts[0], parts[1], parts[2]), pwd);
-         }
-      }
-
-      return map;
    }
 
    private final ScheduleClient scheduleClient;
