@@ -24,7 +24,7 @@ then
     JAVA_OPTS=$(echo "$JAVA_OPTS" | envsubst)
 fi
 
-JAVA_CP="/usr/local/inetsoft/classes:/usr/local/inetsoft/lib/*"
+JAVA_CP="/usr/local/inetsoft/classes:/usr/local/inetsoft/libs/*"
 JAVA_OPTS="$JAVA_OPTS \
 -Dlocal.ip.addr=$(hostname -i) \
 -Drmi.localhost.ip=$(hostname -i) \
