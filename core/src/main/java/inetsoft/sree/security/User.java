@@ -225,23 +225,35 @@ public class User extends AbstractIdentity {
     */
    @Override
    public Object clone() {
-      try {
+      User user = (User) super.clone();
+      user.name = name;
+      user.alias = alias;
+      user.organizationID = organizationID;
+      user.locale = locale;
+      user.password = password;
+      user.googleSSOId = googleSSOId;
+      user.passwordAlgorithm = passwordAlgorithm;
+      user.passwordSalt = passwordSalt;
+      user.appendPasswordSalt = appendPasswordSalt;
+      user.active = active;
+
+      if(emails != null) {
          String[] cemails = new String[emails.length];
          System.arraycopy(emails, 0, cemails, 0, emails.length);
+         user.emails = cemails;
+      }
 
-         IdentityID[] croles = new IdentityID[roles.length];
-         System.arraycopy(roles, 0, croles, 0, roles.length);
+      if(roles != null) {
+         user.roles = (IdentityID[]) Tool.clone(roles);
+      }
 
+      if(groups != null) {
          String[] cgroups = new String[groups.length];
          System.arraycopy(groups, 0, cgroups, 0, groups.length);
+         user.groups = cgroups;
+      }
 
-         return new User(new IdentityID(name, getOrganizationID()), cemails, cgroups, croles, locale, password, passwordAlgorithm,
-                         passwordSalt, appendPasswordSalt, active, alias);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to clone object", ex);
-         return null;
-      }
+      return user;
    }
 
    /**

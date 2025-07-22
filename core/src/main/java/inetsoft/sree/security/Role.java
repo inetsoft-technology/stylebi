@@ -113,17 +113,17 @@ public class Role extends AbstractIdentity {
     */
    @Override
    public Object clone() {
-      try {
-         IdentityID[] croles = new IdentityID[roles.length];
-         System.arraycopy(roles, 0, croles, 0, roles.length);
+      Role role = (Role) super.clone();
+      role.name = name;
+      role.organizationID = organizationID;
+      role.desc = desc;
+      role.defaultRole = defaultRole;
 
-         Role role = new Role(new IdentityID(name, organizationID), croles);
-         return role;
+      if(roles != null) {
+         role.roles = (IdentityID[]) Tool.clone(roles);
       }
-      catch(Exception ex) {
-         LOG.error("Failed to clone object", ex);
-         return null;
-      }
+
+      return role;
    }
 
    /**
