@@ -1595,7 +1595,7 @@ public class XEngine implements XRepository, XQueryRepository {
                   // Release the jdbc get meta lock to avoid others thread block
                   // when current thread is padding wait.
                   if(handler instanceof JDBCHandler) {
-                     ((JDBCHandler) handler).waitMetaLock(20);
+                     ((JDBCHandler) handler).waitMetaLock();
                   }
                }
                catch(Exception ex) {

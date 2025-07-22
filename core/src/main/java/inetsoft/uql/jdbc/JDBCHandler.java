@@ -46,8 +46,7 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 import java.sql.*;
 import java.util.*;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.*;
 
 /**
  * JDBC query handler. It is responsible for executing all JDBC queries.
@@ -1517,7 +1516,9 @@ public class JDBCHandler extends XHandler {
       // [schema]
       // procedure name
 
-      synchronized(metaLock) {
+      metaLock.lock();
+
+      try {
          Connection conn = null;
 
          String additional = null;
@@ -1621,16 +1622,18 @@ public class JDBCHandler extends XHandler {
             Tool.closeQuietly(conn);
          }
       }
+      finally {
+         metaLock.unlock();
+      }
    }
 
    /**
     * Release the get meta lock
-    *
-    * @param timeout wait timeout
-    * @throws InterruptedException
     */
-   public void waitMetaLock(int timeout) throws InterruptedException {
-      metaLock.wait(timeout);
+   public void waitMetaLock() {
+      if(metaLock.isHeldByCurrentThread()) {
+         metaLock.unlock();
+      }
    }
 
    public XNode getRootMetaData(JDBCDataSource dataSource, String queryType) throws Exception {
@@ -3555,7 +3558,9 @@ public class JDBCHandler extends XHandler {
    }
 
    public void resetConnection() {
-      synchronized(metaLock) {
+      metaLock.lock();
+
+      try {
          try {
             reset();
             xds = null;
@@ -3563,6 +3568,9 @@ public class JDBCHandler extends XHandler {
          catch(Exception ex) {
             LOG.error("Failed to reset JDBC handler on data source change", ex);
          }
+      }
+      finally {
+         metaLock.unlock();
       }
    }
 
@@ -3807,7 +3815,7 @@ public class JDBCHandler extends XHandler {
 
    private JDBCDataSource xds = null;
    private SQLTypes sqlTypes = null;
-   private Object metaLock = new Object();
+   private final ReentrantLock metaLock = new ReentrantLock();
    private transient boolean login = false; // require login
    private transient boolean schema = false;
    private transient boolean catalog = false;
