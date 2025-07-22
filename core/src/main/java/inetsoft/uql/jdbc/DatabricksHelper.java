@@ -70,4 +70,22 @@ public class DatabricksHelper extends SQLHelper {
 
       return super.quotePath(path, physical, force, selectClause);
    }
+
+   /**
+    * Get the order by column of a field.
+    */
+   protected String getOrderByColumn(String field) {
+      JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
+      int index = xselect.indexOfColumn(field);
+
+      if(index >= 0) {
+         String alias = xselect.getValidAlias(index, this);
+
+         if(alias != null) {
+            return alias;
+         }
+      }
+
+      return super.getOrderByColumn(field);
+   }
 }
