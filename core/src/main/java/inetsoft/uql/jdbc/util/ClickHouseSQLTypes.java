@@ -21,6 +21,10 @@ import inetsoft.uql.XNode;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.util.XUtil;
+import inetsoft.util.Tool;
+
+import java.sql.ResultSet;
+import java.sql.Types;
 
 /**
  * SQLTypes specialization that handles MySQL databases.
@@ -78,5 +82,19 @@ public final class ClickHouseSQLTypes extends SQLTypes {
       }
 
       return tblname;
+   }
+
+   /**
+    * Get an object from a resultset.
+    */
+   @Override
+   public Object getObject(ResultSet result, int idx, int type)
+      throws Exception
+   {
+      if(type == Types.ARRAY) {
+         return result.getString(idx);
+      }
+
+      return super.getObject(result, idx, type);
    }
 }
