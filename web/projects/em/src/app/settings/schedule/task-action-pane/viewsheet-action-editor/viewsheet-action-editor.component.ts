@@ -596,7 +596,6 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
    }
 
    private convertToPathModel(change: ServerSaveFile) {
-      console.log(change);
       let info: ServerPathInfoModel = {
          path: change.path,
          useCredential: !!change.useCredential,
