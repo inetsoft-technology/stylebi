@@ -366,7 +366,6 @@
             <appRoot>/usr/local/inetsoft</appRoot>
             <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
             <entrypoint>/usr/local/inetsoft/bin/entrypoint.sh</entrypoint>
-            <format>OCI</format>
             <environment>
               <INETSOFT_SERVER_MAIN>inetsoft.web.InetsoftApplication</INETSOFT_SERVER_MAIN>
             </environment>
