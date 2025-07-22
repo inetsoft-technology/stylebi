@@ -153,7 +153,11 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
 
    @Override
    public Object clone() throws CloneNotSupportedException {
-      return super.clone();
+      IdentityID clone = (IdentityID) super.clone();
+      clone.name = this.name;
+      clone.orgID = this.orgID;
+
+      return clone;
    }
 
    @Override
