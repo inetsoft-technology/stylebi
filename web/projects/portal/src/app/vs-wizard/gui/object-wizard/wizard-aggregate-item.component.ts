@@ -26,6 +26,7 @@ import { AssetUtil } from "../../../binding/util/asset-util";
 import { Tool } from "../../../../../../shared/util/tool";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
 import { DataRef } from "../../../common/data/data-ref";
+import { ModelService } from "../../../widget/services/model.service";
 import { VSWizardBindingTreeService } from "../../services/vs-wizard-binding-tree.service";
 import { VSWizardItem } from "./wizard-item.component";
 import { XSchema } from "../../../common/data/xschema";
@@ -51,9 +52,10 @@ export class VSWizardAggregateItem extends VSWizardItem<BAggregateRef> implement
 
    constructor(protected modalService: NgbModal,
                protected clientService: ViewsheetClientService,
-               protected treeService: VSWizardBindingTreeService)
+               protected treeService: VSWizardBindingTreeService,
+               protected modelService: ModelService)
    {
-      super(modalService, clientService, treeService);
+      super(modalService, clientService, treeService, modelService);
    }
 
    ngOnInit() {
