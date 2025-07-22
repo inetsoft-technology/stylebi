@@ -17,6 +17,7 @@
  */
 import { Input, NgZone } from "@angular/core";
 import { Subscription } from "rxjs";
+import { RemoveVSObjectCommand } from "../../vsobjects/command/remove-vs-object-command";
 import { ViewsheetClientService } from "./viewsheet-client.service";
 import { ViewsheetCommandMessage } from "./viewsheet-command-message";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
@@ -76,7 +77,9 @@ export abstract class CommandProcessor {
          (message: ViewsheetCommandMessage) => {
             if(handleGlobal && !message.assembly ||
                !handleGlobal && this.getAssemblyName() &&
-               this.getAssemblyName() === message.assembly)
+               (this.getAssemblyName() === message.assembly ||
+               message.type == "RemoveVSObjectCommand" &&
+               (message.command as RemoveVSObjectCommand).name.startsWith(this.getAssemblyName())))
             {
                const method: string = "process" + message.type;
 
