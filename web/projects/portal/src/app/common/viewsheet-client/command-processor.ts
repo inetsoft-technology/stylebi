@@ -79,7 +79,7 @@ export abstract class CommandProcessor {
                !handleGlobal && this.getAssemblyName() &&
                (this.getAssemblyName() === message.assembly ||
                message.type == "RemoveVSObjectCommand" &&
-               (message.command as RemoveVSObjectCommand).name.startsWith(this.getAssemblyName())))
+               (message.command as RemoveVSObjectCommand).name.startsWith(this.getAssemblyName() + "")))
             {
                const method: string = "process" + message.type;
 
