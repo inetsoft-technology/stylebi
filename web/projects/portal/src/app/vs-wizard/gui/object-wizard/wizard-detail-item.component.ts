@@ -19,6 +19,7 @@ import { Component } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { DataRef } from "../../../common/data/data-ref";
+import { ModelService } from "../../../widget/services/model.service";
 import { VSWizardBindingTreeService } from "../../services/vs-wizard-binding-tree.service";
 import { VSWizardItem } from "./wizard-item.component";
 
@@ -31,8 +32,10 @@ export class VSWizardDetailItem extends VSWizardItem<DataRef> {
 
    constructor(protected modalService: NgbModal,
                protected clientService: ViewsheetClientService,
-               protected treeService: VSWizardBindingTreeService){
-      super(modalService, clientService, treeService);
+               protected treeService: VSWizardBindingTreeService,
+               protected modelService: ModelService)
+   {
+      super(modalService, clientService, treeService, modelService);
    }
 
    getDataType(): string {
