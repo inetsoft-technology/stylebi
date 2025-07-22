@@ -25,6 +25,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -161,7 +162,7 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
          }
          finally {
             if(lastInstance) {
-               cluster.destroyLock(prefix + "lock");
+               destroyLock(lock, prefix + "lock");
             }
             else {
                lock.unlock();
@@ -170,6 +171,40 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
       }
 
       close(lastInstance);
+   }
+
+   private void destroyLock(Lock lock, String lockName) {
+      int tryCount = 10;
+
+      for(int i = 0; i < tryCount; i++) {
+         lock.lock();
+
+         try {
+            cluster.destroyLock(lockName);
+            LOG.debug("destroyed lock: {}", lockName);
+            return;
+         }
+         catch(Exception e) {
+            LOG.debug("Failed to destroy lock: {} lock", lockName, e);
+         }
+         finally {
+            lock.unlock();
+         }
+
+         try {
+            Thread.sleep(5_000);
+         }
+         catch(InterruptedException ignore) {
+         }
+      }
+
+      LOG.error("Failed to destroy lock: {}, after {} attempts", lockName, tryCount);
+
+      if(lock instanceof ReentrantLock reentrantLock) {
+         LOG.debug("Lock {} held by any thread: {}", lockName, reentrantLock.isLocked());
+         LOG.debug("Lock {} hold count: {}", lockName, reentrantLock.getHoldCount());
+         LOG.debug("{} Threads waiting for lock: {}", reentrantLock.getQueueLength(), lockName);
+      }
    }
 
    /**
@@ -181,8 +216,12 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
    public void initialize() {
       long now = System.currentTimeMillis();
 
-      if(now > validTS || taskThread == null || flushInterval > 0L && flushExecutor == null) {
+      if(!closed && (now > validTS || taskThread == null || flushInterval > 0L && flushExecutor == null)) {
          lock.lock();
+
+         if(closed) {
+            return;
+         }
 
          // getCache() can be called many many times in short succession. since we only need
          // to clear cache (for authentication) when configuration is changed, allowing a
@@ -271,7 +310,7 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
     */
    public void notify(E event, long eventTimestamp) {
       // check the condition outside the lock to reduce lock contention
-      if(eventTimestamp > timestamp.get()) {
+      if(!closed && eventTimestamp > timestamp.get()) {
          lock.lock();
 
          try {
@@ -294,6 +333,10 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
     */
    @SuppressWarnings("unchecked")
    public void modify(Runnable changes) {
+      if(closed) {
+         return;
+      }
+
       lock.lock();
 
       try {
@@ -368,6 +411,10 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
     * @see #initialize()
     */
    public void reset() {
+      if(closed) {
+         return;
+      }
+
       lock.lock();
 
       try {
@@ -586,9 +633,17 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
 
    @SuppressWarnings("unchecked")
    private void submitLoadTask(E event) {
+      if(closed) {
+         return;
+      }
+
       lock.lock();
 
       try {
+         if(closed) {
+            return;
+         }
+
          L data = getLoadData(event);
 
          if(lastTask.get() != null && lastTask.get().isLoading()) {
