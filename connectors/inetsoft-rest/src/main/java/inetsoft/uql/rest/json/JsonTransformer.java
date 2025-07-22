@@ -56,6 +56,10 @@ public class JsonTransformer implements InputTransformer {
    @Override
    public Object transform(Object obj, String path) {
       try {
+         if(obj instanceof String) {
+            return parseContext.parse((String) obj).read(path);
+         }
+
          return parseContext.parse(obj).read(path);
       }
       catch(IllegalArgumentException e) {

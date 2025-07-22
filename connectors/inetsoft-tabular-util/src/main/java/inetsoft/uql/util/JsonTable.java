@@ -43,6 +43,10 @@ public class JsonTable extends BaseJsonTable {
    @Override
    public void beginStreamedLoading() {
       data = new XSwappableObjectList<>(null);
+
+      if(getJsonMetadata() != null) {
+         metadata = new JsonTable(getJsonMetadata(), getMaxRows());
+      }
    }
 
    @SuppressWarnings("unchecked")
@@ -71,13 +75,45 @@ public class JsonTable extends BaseJsonTable {
       for(int i = 0; i < limit; i++) {
          List<Object> row = new ArrayList<>();
          walkRecord(dataList.get(i), row, null);
-         data.add(row.toArray(new Object[0]));
+         data.add(transformRow(row));
       }
+   }
+
+   private Object[] transformRow(List<Object> row) {
+      if(metadata == null) {
+         return row.toArray(new Object[0]);
+      }
+
+      // put metadata columns first, and new columns last
+      Set<String> nameSet = new LinkedHashSet<>(metadata.names);
+      nameSet.addAll(names);
+
+      Object[] newRow = new Object[nameSet.size()];
+      int count = 0;
+
+      // rearrange the row entries
+      for(String name : nameSet) {
+         if(count < metadata.names.size()) {
+            newRow[metadata.nameIdx.get(name)] = nameIdx.containsKey(name) ?
+               row.get(nameIdx.get(name)) : null;
+         }
+         else {
+            newRow[count] = row.get(nameIdx.get(name));
+         }
+
+         count++;
+      }
+
+      return newRow;
    }
 
    @Override
    public void finishStreamedLoading() {
       data.complete();
+
+      if(metadata != null) {
+         transformTableWithMetadata();
+      }
 
       // Default to string when all column's values are null.
       for(int i = 0; i < types.size(); i++) {
@@ -94,6 +130,48 @@ public class JsonTable extends BaseJsonTable {
             setColumnType(name, Tool.getDataType(types.get(i)));
          }
       }
+   }
+
+   /**
+    * Transform the nameIdx, names, and types data structures to include the metadata columns
+    */
+   private void transformTableWithMetadata() {
+      // put metadata columns first
+      Set<String> nameSet = new LinkedHashSet<>(metadata.names);
+      nameSet.addAll(names);
+
+      Map<String, Integer> newNameIdx = new HashMap<>();
+      List<String> newNames = new ArrayList<>();
+      List<Class<?>> newTypes = new ArrayList<>();
+
+      int count = 0;
+
+      for(String name : nameSet) {
+         newNames.add(name);
+         newNameIdx.put(name, count);
+
+         if(count < metadata.names.size()) {
+            // if type is null then use the type from metadata
+            // otherwise use type derived from real data
+            Class<?> currentType = nameIdx.containsKey(name) ? types.get(nameIdx.get(name)) : null;
+
+            if(currentType == null) {
+               newTypes.add(metadata.types.get(metadata.nameIdx.get(name)));
+            }
+            else {
+               newTypes.add(currentType);
+            }
+         }
+         else {
+            newTypes.add(types.get(nameIdx.get(name)));
+         }
+
+         count++;
+      }
+
+      nameIdx = newNameIdx;
+      names = newNames;
+      types = newTypes;
    }
 
    @Override
@@ -329,9 +407,10 @@ public class JsonTable extends BaseJsonTable {
 
    private XSwappableObjectList<Object[]> data;
    private int curr = -1;
-   private final Map<String, Integer> nameIdx = new HashMap<>();
-   private final List<String> names = new ArrayList<>();
-   private final List<Class<?>> types = new ArrayList<>();
+   private Map<String, Integer> nameIdx = new HashMap<>();
+   private List<String> names = new ArrayList<>();
+   private List<Class<?>> types = new ArrayList<>();
+   private JsonTable metadata;
 
    private static final Logger LOG = LoggerFactory.getLogger(JsonTable.class.getName());
 }

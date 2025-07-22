@@ -17,10 +17,12 @@
  */
 package inetsoft.uql.rest.json;
 
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.rest.AbstractRestQuery;
 import inetsoft.uql.rest.json.lookup.*;
 import inetsoft.uql.rest.pagination.*;
 import inetsoft.uql.tabular.*;
+import inetsoft.uql.tabular.impl.TabularHandler;
 import inetsoft.util.Tool;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -40,6 +42,8 @@ import java.util.*;
       @View2("requestType"),
       @View2(value = "contentType", visibleMethod = "isPostRequest"),
       @View2(value = "requestBody", visibleMethod = "isPostRequest"),
+      @View2(value = "metadataEnabled"),
+      @View2(value = "jsonMetadata", visibleMethod = "isMetadataEnabled"),
       @View2("paginationType"),
    }),
    @View1(type = ViewType.PANEL, align = ViewAlign.CENTER,
@@ -961,6 +965,7 @@ public class RestJsonQuery extends AbstractRestQuery {
    @Override
    public void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
+      writer.print(" metadataEnabled=\"" + metadataEnabled + "\"");
    }
 
    @Override
@@ -984,11 +989,16 @@ public class RestJsonQuery extends AbstractRestQuery {
 
          writer.println("</lookupUrls>");
       }
+
+      if(jsonMetadata != null && isMetadataEnabled()) {
+         writer.println("<jsonMetadata><![CDATA[" + Tool.byteEncode(jsonMetadata) + "]]></jsonMetadata>");
+      }
    }
 
    @Override
    protected void parseAttributes(Element tag) throws Exception {
       super.parseAttributes(tag);
+      metadataEnabled = "true".equals(Tool.getAttribute(tag, "metadataEnabled"));
    }
 
    @Override
@@ -1020,8 +1030,14 @@ public class RestJsonQuery extends AbstractRestQuery {
             lookupIgnoreBaseUrl.add(ignoreBaseUrl);
          }
       }
+
+      node = Tool.getChildNodeByTagName(root, "jsonMetadata");
+
+      if(node != null) {
+         jsonMetadata = Tool.byteDecode(Tool.getValue(node));
+      }
    }
-   
+
    @Override
    public RestJsonQuery clone() {
       RestJsonQuery copy = (RestJsonQuery) super.clone();
@@ -1053,6 +1069,59 @@ public class RestJsonQuery extends AbstractRestQuery {
       return copy;
    }
 
+   @Property(label="JSON Metadata")
+   public boolean isMetadataEnabled() {
+      return metadataEnabled;
+   }
+
+   public void setMetadataEnabled(boolean metadataEnabled) {
+      this.metadataEnabled = metadataEnabled;
+   }
+
+   @Property(label="JSON Metadata")
+   @PropertyEditor(rows = 5, dependsOn = "metadataEnabled")
+   public String getJsonMetadata() {
+      if(!isMetadataEnabled()) {
+         return null;
+      }
+
+      if(isMetadataEnabled() && Tool.isEmptyString(jsonMetadata)) {
+         // set it to some value so that the replaceVariables call in generateJsonMetadata
+         // doesn't enter here and create an infinite recursion
+         jsonMetadata = "{}";
+         jsonMetadata = generateJsonMetadata();
+      }
+
+      return jsonMetadata;
+   }
+
+   public void setJsonMetadata(String jsonMetadata) {
+      this.jsonMetadata = jsonMetadata;
+   }
+
+   private String generateJsonMetadata() {
+      if(getDataSource() != null) {
+         TabularHandler handler = new TabularHandler();
+         TabularRuntime runtime = handler.getRuntime(getDataSource().getType());
+         RestJsonQuery query = (RestJsonQuery) this.clone();
+         VariableTable variableTable = getVariableTable();
+
+         if(variableTable != null) {
+            try {
+               TabularUtil.fillNullVariablesWithEmptyString(runtime, query, variableTable);
+               TabularUtil.replaceVariables(query.getDataSource(), variableTable);
+               TabularUtil.replaceVariables(query, variableTable);
+            }
+            catch(Exception ignore) {
+            }
+         }
+
+         return ((RestJsonRuntime) runtime).generateMetadata(query);
+      }
+
+      return null;
+   }
+
    private String jsonpath;
    private boolean ignoreBaseUrl = false;
    private int lookupDepth;
@@ -1068,4 +1137,6 @@ public class RestJsonQuery extends AbstractRestQuery {
       new ArrayList<>(EndpointJsonQuery.LOOKUP_QUERY_LIMIT);
    private List<Boolean> lookupIgnoreBaseUrl =
       new ArrayList<>(EndpointJsonQuery.LOOKUP_QUERY_LIMIT);
+   private boolean metadataEnabled;
+   private String jsonMetadata;
 }
