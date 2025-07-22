@@ -85,8 +85,6 @@ export class ScheduleConfigurationViewComponent implements OnDestroy {
          concurrency: [1, [Validators.required, FormValidators.isInteger, Validators.min(1)]],
          rmiPort: [0, [Validators.required, FormValidators.isInteger, Validators.min(0), Validators.max(65535)]],
          classpath: ["", [Validators.required]],
-         autoStart: [],
-         autoStop: [],
          notificationEmail: [],
          saveToDisk: [],
          emailDelivery: [],
