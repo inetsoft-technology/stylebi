@@ -312,37 +312,6 @@
         </executions>
       </plugin>
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>build-helper-maven-plugin</artifactId>
-        <version>3.6.0</version>
-        <executions>
-          <execution>
-            <id>long-version-property</id>
-            <goals>
-              <goal>regex-property</goal>
-            </goals>
-            <configuration>
-              <name>docker.tag.longVersion</name>
-              <value>${project.version}</value>
-              <regex>\.\d+-SNAPSHOT$</regex>
-              <replacement>.${maven.build.timestamp}</replacement>
-            </configuration>
-          </execution>
-          <execution>
-            <id>short-version-property</id>
-            <goals>
-              <goal>regex-property</goal>
-            </goals>
-            <configuration>
-              <name>docker.tag.shortVersion</name>
-              <value>${project.version}</value>
-              <regex>\.\d[^.]*$</regex>
-              <replacement></replacement>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-      <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
         <version>3.4.2</version>
