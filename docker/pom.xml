@@ -26,10 +26,8 @@
     <version>1.0.0-SNAPSHOT</version>
   </parent>
 
-  
-
   <artifactId>inetsoft-docker-community</artifactId>
-  <packaging>pom</packaging>
+  <packaging>jar</packaging>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -37,7 +35,6 @@
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <docker.build.version>${maven.build.timestamp}</docker.build.version>
     <inetsoft.docker.repository>ghcr.io/inetsoft-technology</inetsoft.docker.repository>
-    <community.docker.tags>"${inetsoft.docker.repository}/stylebi-community:1.0","${inetsoft.docker.repository}/stylebi-community:1.0.${docker.build.version}","${inetsoft.docker.repository}/stylebi-community:latest"</community.docker.tags>
   </properties>
 
   <dependencies>
@@ -244,6 +241,14 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <excludes>
+          <exclude>.gitkeep</exclude>
+        </excludes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>com.inetsoft.stylebi.build</groupId>
@@ -301,82 +306,101 @@
               <appendAssemblyId>false</appendAssemblyId>
               <attach>false</attach>
               <descriptorSourceDirectory>${basedir}/src/main/assembly</descriptorSourceDirectory>
-              <finalName>docker-build</finalName>
+              <finalName>docker</finalName>
             </configuration>
           </execution>
         </executions>
       </plugin>
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>build-helper-maven-plugin</artifactId>
-        <version>3.6.0</version>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
         <executions>
           <execution>
-            <id>long-version-property</id>
-            <goals>
-              <goal>regex-property</goal>
-            </goals>
-            <configuration>
-              <name>docker.tag.longVersion</name>
-              <value>${project.version}</value>
-              <regex>\.\d+-SNAPSHOT$</regex>
-              <replacement>.${maven.build.timestamp}</replacement>
-            </configuration>
-          </execution>
-          <execution>
-            <id>short-version-property</id>
-            <goals>
-              <goal>regex-property</goal>
-            </goals>
-            <configuration>
-              <name>docker.tag.shortVersion</name>
-              <value>${project.version}</value>
-              <regex>\.\d[^.]*$</regex>
-              <replacement></replacement>
-            </configuration>
+            <id>default-jar</id>
+            <phase>none</phase>
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-install-plugin</artifactId>
+        <version>3.1.4</version>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-deploy-plugin</artifactId>
+        <version>3.1.4</version>
+        <configuration>
+          <skip>true</skip>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>com.google.cloud.tools</groupId>
+        <artifactId>jib-maven-plugin</artifactId>
+        <version>3.4.6</version>
+        <dependencies>
+          <dependency>
+            <groupId>com.google.cloud.tools</groupId>
+            <artifactId>jib-ownership-extension-maven</artifactId>
+            <version>0.1.0</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <from>
+            <image>ghcr.io/inetsoft-technology/java:21.0.7_6</image>
+            <!-- CI: -Djib.from.platforms=linux/amd64,linux/arm64 -->
+          </from>
+          <to>
+            <image>${inetsoft.docker.repository}/stylebi-community</image>
+            <!-- CI: -Djib.to.tags=1.0,1.0.$BUILD -->
+            <tags>
+              <tag>1.0</tag>
+              <tag>1.0.${docker.build.version}</tag>
+            </tags>
+          </to>
+          <container>
+            <appRoot>/usr/local/inetsoft</appRoot>
+            <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+            <entrypoint>/usr/local/inetsoft/bin/entrypoint.sh</entrypoint>
+            <format>OCI</format>
+            <environment>
+              <INETSOFT_SERVER_MAIN>inetsoft.web.InetsoftApplication</INETSOFT_SERVER_MAIN>
+            </environment>
+          </container>
+          <extraDirectories>
+            <paths>
+              <path>
+                <from>${project.build.directory}/docker</from>
+                <into>/usr/local/inetsoft</into>
+              </path>
+            </paths>
+            <permissions>
+              <permission>
+                <file>/usr/local/inetsoft/bin/*.sh</file>
+                <mode>755</mode>
+              </permission>
+            </permissions>
+          </extraDirectories>
+          <pluginExtensions>
+            <pluginExtension>
+              <implementation>com.google.cloud.tools.jib.maven.extension.ownership.JibOwnershipExtension</implementation>
+              <configuration implementation="com.google.cloud.tools.jib.maven.extension.ownership.Configuration">
+                <rules>
+                  <rule>
+                    <glob>/usr/local/inetsoft/**</glob>
+                    <ownership>1000:1000</ownership>
+                  </rule>
+                </rules>
+              </configuration>
+            </pluginExtension>
+          </pluginExtensions>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
-
-  <profiles>
-    <profile>
-      <id>dockerImage</id>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>io.fabric8</groupId>
-            <artifactId>docker-maven-plugin</artifactId>
-            <version>0.45.0</version>
-            <configuration>
-              <images>
-                <image>
-                  <name>${inetsoft.docker.repository}/stylebi-community</name>
-                  <build>
-                    <contextDir>${project.build.directory}/docker-build</contextDir>
-                    <tags>
-                      <tag>${docker.tag.longVersion}</tag>
-                      <tag>${docker.tag.shortVersion}</tag>
-                      <tag>latest</tag>
-                    </tags>
-                  </build>
-                </image>
-              </images>
-            </configuration>
-            <executions>
-              <execution>
-                <id>build-docker-image</id>
-                <phase>package</phase>
-                <goals>
-                  <goal>build</goal>
-                </goals>
-              </execution>
-            </executions>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-  </profiles>
 
 </project>
