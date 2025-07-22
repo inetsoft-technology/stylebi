@@ -2420,7 +2420,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
          // if edited by vs wizard, then refresh will be done when process AssemblyChangedCommand,
          // because assembly name maybe changed, should use the latest name to do refresh.
-         if(!!oldBindingPaneModel.wizardOriginalInfo) {
+         if(!!oldBindingPaneModel.wizardOriginalInfo && this.focusedViewsheet?.socketConnection) {
             this.focusedViewsheet.socketConnection.sendEvent("/events/vs/bindingtree/gettreemodel",
                evt);
 
