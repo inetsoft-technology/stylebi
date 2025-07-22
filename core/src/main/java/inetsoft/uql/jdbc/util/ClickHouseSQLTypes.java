@@ -94,6 +94,12 @@ public final class ClickHouseSQLTypes extends SQLTypes {
       if(type == Types.ARRAY) {
          return result.getString(idx);
       }
+      else if(type == Types.STRUCT) {
+         String tupleString = result.getString(idx);
+         tupleString = tupleString.substring(1, tupleString.length() - 1);
+
+         return "(" + tupleString + ")";
+      }
 
       return super.getObject(result, idx, type);
    }
