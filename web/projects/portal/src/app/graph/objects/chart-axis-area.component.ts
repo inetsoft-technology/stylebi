@@ -726,7 +726,7 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
       let load_done = true;
 
       for(const tile of this.chartObject.tiles) {
-         if(this.isTileVisible(tile) && !(tile as any).loaded) {
+         if(this.isTileVisible(tile) && (tile as any).loaded === false) {
             load_done = false;
          }
       }
