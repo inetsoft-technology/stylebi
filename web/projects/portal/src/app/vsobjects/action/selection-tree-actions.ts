@@ -178,7 +178,7 @@ export class SelectionTreeActions extends AbstractVSActions<VSSelectionTreeModel
    }
 
    private get closeMaxModeVisible():  boolean {
-      return this.model.maxMode && (this.mobileDevice ||
+      return this.model.maxMode && !this.inSelectionContainer && (this.mobileDevice ||
          ((!this.binding && this.model.maxMode &&
             this.isActionVisibleInViewer("Close Max Mode") && !this.isDataTip() &&
             !this.isPopComponent()) && this.isActionVisibleInViewer("Show Actual Size")));
