@@ -252,7 +252,9 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
                            Map map = entrySet.stream()
                               .filter(entry -> entry.getKey() != null)
                               .filter(entry -> entry.getValue() != null)
-                              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                                                        (o1, o2) -> o2,
+                                                        TreeMap::new));
                            e.getValue().putAll(map);
                         }
                      }
