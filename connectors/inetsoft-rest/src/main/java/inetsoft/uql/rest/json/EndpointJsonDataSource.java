@@ -32,6 +32,10 @@ public abstract class EndpointJsonDataSource<SELF extends EndpointJsonDataSource
 
    protected abstract String getTestSuffix();
 
+   protected boolean isIgnoreBaseUrlForTest() {
+      return false;
+   }
+
    protected void validateTestResponse(HttpResponse response) throws Exception {
       if(response.getResponseStatusCode() >= 400) {
          throw new Exception(

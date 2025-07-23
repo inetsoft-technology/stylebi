@@ -91,7 +91,13 @@ public class MixpanelDataSource extends EndpointJsonDataSource<MixpanelDataSourc
 
    @Override
    protected String getTestSuffix() {
-      return "/2.0/funnels/list";
+      // %5B%22%24any%22%5D is ["$pageview"] url encoded
+      return "https://data.mixpanel.com/api/2.0/export/?from_date=2024-01-01&to_date=2024-01-01&event=%5B%22%24pageview%22%5D";
+   }
+
+   @Override
+   protected boolean isIgnoreBaseUrlForTest() {
+      return true;
    }
 
    @Override
