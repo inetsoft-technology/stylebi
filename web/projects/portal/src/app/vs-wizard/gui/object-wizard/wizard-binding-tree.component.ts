@@ -412,8 +412,6 @@ export class WizardBindingTree extends CommandProcessor implements OnInit, OnDes
    }
 
    private processOpenEditGeographicCommand(command: OpenEditGeographicCommand): void {
-      console.log("--------command", command);
-
       if(command.measureName) {
          const refName = command.measureName;
          const ref: any = Object.assign({},
