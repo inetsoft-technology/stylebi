@@ -133,6 +133,8 @@ public class MVController {
                       @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
                       Principal principal) throws Throwable
    {
+      HttpSession session = req.getSession(true);
+
       if(createId != null) {
          CompletableFuture<CreateMVResponse> future = createMVCache.getIfPresent(createId);
 
@@ -148,7 +150,7 @@ public class MVController {
       }
 
       if(createId == null) {
-         create0(req, createUpdateMVRequest, principal);
+         create0(session, createUpdateMVRequest, principal);
          return CreateMVResponse.builder().complete(true).build();
       }
       else if(createMVCache.getIfPresent(createId) == null) {
@@ -159,7 +161,7 @@ public class MVController {
             ThreadContext.setPrincipal(principal);
 
             try {
-               create0(req, createUpdateMVRequest, principal);
+               create0(session, createUpdateMVRequest, principal);
                future.complete(CreateMVResponse.builder().complete(true).build());
             }
             catch(Throwable e) {
@@ -174,7 +176,7 @@ public class MVController {
       return CreateMVResponse.builder().complete(false).build();
    }
 
-   public void create0(HttpServletRequest req, CreateUpdateMVRequest createUpdateMVRequest,
+   public void create0(HttpSession session, CreateUpdateMVRequest createUpdateMVRequest,
                        Principal principal)
       throws Throwable
    {
@@ -193,7 +195,6 @@ public class MVController {
             throw new RuntimeException("User '" + user.getName() + "' doesn't have schedule permission.");
          }
 
-         HttpSession session = req.getSession(true);
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
          List<MVSupportService.MVStatus> mvstatus = (List<MVSupportService.MVStatus>)
             session.getAttribute("mvstatus");
