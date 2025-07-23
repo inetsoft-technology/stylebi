@@ -58,16 +58,25 @@ public class MaxModeAssemblyService {
          vs = (Viewsheet) vs.getAssembly(assemblyName.substring(0, index));
       }
 
+      boolean adhocFilter = ass.getVSAssemblyInfo() instanceof SelectionBaseVSAssemblyInfo &&
+         ((SelectionBaseVSAssemblyInfo) ass.getVSAssemblyInfo()).isAdhocFilter();
+
+      if(!adhocFilter) {
+         vs.setMaxMode(maxSize != null);
+      }
+
       int zAdjust = maxSize == null ? -100000 : 100000;
-      vs.setMaxMode(maxSize != null);
       boolean embeddedViewsheet = false;
 
       while(vs.getViewsheet() != null) {
          // make sure embedded vs is on top when maximizing chart inside
          vs.setZIndex(vs.getZIndex() + zAdjust);
          vs = vs.getViewsheet();
-         vs.setMaxMode(maxSize != null);
          embeddedViewsheet = true;
+
+         if(!adhocFilter) {
+            vs.setMaxMode(maxSize != null);
+         }
       }
 
       MaxModeSupportAssemblyInfo assemblyInfo = assembly.getMaxModeInfo();
