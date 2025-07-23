@@ -41,6 +41,7 @@ public class EndpointJsonRuntime extends RestJsonRuntime {
       RestJsonQuery query = new RestJsonQuery(dataSource.getType());
       query.setDataSource(dataSource);
       query.setSuffix(dataSource.getTestSuffix());
+      query.setIgnoreBaseUrl(dataSource.isIgnoreBaseUrlForTest());
 
       RestQuotaManager.withQuota(dataSource, () -> testDataSource(dataSource, query));
    }
