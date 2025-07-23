@@ -3631,7 +3631,9 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
    }
 
    private String getQuotedSqlString(String sql) {
-      if(dataSource != null && dataSource.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
+      if(dataSource != null && (dataSource.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE ||
+         "databricks".equals(SQLHelper.getProductName(dataSource))))
+      {
          return JDBCUtil.quoteMapKeyAccessForParsing(sql);
       }
 
