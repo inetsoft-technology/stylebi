@@ -24,6 +24,8 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.springframework.context.annotation.Scope;
+import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.context.event.EventListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
@@ -68,12 +70,6 @@ public class DataTreeChangeController {
       if(user != null) {
          subscriptions.put(stompHeaders.getSessionId(), new IdentityID(user, orgId));
       }
-   }
-
-   @EventListener
-   public void onSessionUnsubscribe(SessionUnsubscribeEvent event) {
-      StompHeaderAccessor stompHeaders = StompHeaderAccessor.wrap(event.getMessage());
-      subscriptions.remove(stompHeaders.getSessionId());
    }
 
    @EventListener
