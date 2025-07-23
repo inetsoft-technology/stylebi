@@ -18,8 +18,8 @@
 package inetsoft.web;
 
 import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -71,5 +71,21 @@ public class ErrorController {
    private int getErrorCode(HttpServletRequest httpRequest) {
       return (Integer) httpRequest
          .getAttribute("jakarta.servlet.error.status_code");
+   }
+
+   /**
+    * Shows the login page.
+    * @return the error page model and view.
+    */
+   @RequestMapping(value = "common/error", method = { RequestMethod.GET, RequestMethod.POST })
+   public ModelAndView showErrorPage(HttpServletRequest request) {
+      final Catalog catalog = Catalog.getCatalog();
+      final ModelAndView model = new ModelAndView("error/error-template");
+      final String error = Tool.getErrorMessage(request);
+      model.addObject("errorMsg", error);
+      model.addObject("errorTitle", catalog.getString("Error"));
+      model.addObject("customTheme",
+                      !"default".equals(CustomThemesManager.getManager().getSelectedTheme()));
+      return model;
    }
 }
