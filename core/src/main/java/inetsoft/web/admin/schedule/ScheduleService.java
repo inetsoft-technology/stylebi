@@ -50,6 +50,7 @@ import inetsoft.web.admin.deploy.DeployUtil;
 import inetsoft.web.admin.model.NameLabelTuple;
 import inetsoft.web.admin.presentation.PresentationFormatsSettingsService;
 import inetsoft.web.admin.schedule.model.*;
+import inetsoft.web.admin.security.SSOType;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import inetsoft.web.portal.model.CSVConfigModel;
 import inetsoft.web.viewsheet.controller.dialog.EmailDialogController;
@@ -764,7 +765,8 @@ public class ScheduleService {
          .owners(allowedUsers)
          .groups(allowedGroups)
          .emailUsers(emailUsers)
-         .emailGroups(sortedEmailGroups);
+         .emailGroups(sortedEmailGroups)
+         .ssoEnable(SSOType.forName(SreeEnv.getProperty("sso.protocol.type")) != SSOType.NONE);
 
       if(allowedUsers.length > 0) {
          model.adminName(principal.getName());

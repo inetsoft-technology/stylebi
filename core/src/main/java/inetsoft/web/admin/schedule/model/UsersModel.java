@@ -53,6 +53,8 @@ public abstract class UsersModel {
       return new ArrayList<>(0);
    }
 
+   public abstract boolean ssoEnable();
+
    public static Builder builder() {
       return new Builder();
    }

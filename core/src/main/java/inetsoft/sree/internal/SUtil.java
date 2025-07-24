@@ -3093,14 +3093,27 @@ public class SUtil {
       String currOrgId = organizationManager.getCurrentOrgID();
 
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
-         IdentityID[] orgUsers = SecurityEngine.getSecurity().getOrgUsers(currOrgId);
+         SecurityEngine security = SecurityEngine.getSecurity();
+         IdentityID[] orgUsers = security.getOrgUsers(currOrgId);
+         UserProvider userProvider = UserProvider.getInstance();
+         IdentityID orgAdmin = null;
 
          if(orgUsers != null) {
-            IdentityID orgAdmin = Arrays.stream(orgUsers)
+            orgAdmin = Arrays.stream(orgUsers)
                .filter(organizationManager::isOrgAdmin)
                .findFirst().orElse(null);
-            return orgAdmin == null ? new IdentityID(user.name, currOrgId) : orgAdmin;
          }
+
+         if(orgAdmin == null && userProvider != null) {
+            List<IdentityID> users = userProvider.getUsers();
+
+            orgAdmin = users.stream()
+               .filter(u -> Tool.equals(u.getOrgID(), currOrgId) && organizationManager.isOrgAdmin(u))
+               .findFirst()
+               .orElse(null);
+         }
+
+         return orgAdmin == null ? new IdentityID(user.name, currOrgId) : orgAdmin;
       }
 
       return user;
