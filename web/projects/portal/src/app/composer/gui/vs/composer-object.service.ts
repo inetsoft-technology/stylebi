@@ -670,19 +670,8 @@ export class ComposerObjectService {
    }
 
    checkTableTransferDataType(viewsheetService: ViewsheetClientService, tableData: TableTransfer) {
-      let runtimeId: string = viewsheetService.runtimeId;
-      let lastSlashIdx: number = runtimeId.lastIndexOf("/");
-
-      if(lastSlashIdx > 0) {
-         let folder: string = runtimeId.substring(0, lastSlashIdx + 1);
-         runtimeId = folder + encodeURIComponent(runtimeId.substring(lastSlashIdx + 1));
-      }
-      else {
-         runtimeId = encodeURIComponent(runtimeId);
-      }
-
       return this.modelService.sendModel<any>("../api/composer/viewsheet/objects/getTableTransferDataType/" +
-         runtimeId, tableData);
+         Tool.encodeURIComponentExceptSlash(viewsheetService.runtimeId), tableData);
    }
 
    applyChangeBinding(viewsheetService: ViewsheetClientService, objectName: string,
