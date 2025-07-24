@@ -1588,8 +1588,6 @@ public class VSObjectPropertyService {
                return false;
             }
          }
-
-         return true;
       }
 
       return true;
