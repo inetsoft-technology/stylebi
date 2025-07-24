@@ -4383,10 +4383,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return new ArrayList<>();
       }
 
-      boolean userScope = entry.getScope() == AssetRepository.USER_SCOPE;
       IdentityID userIdentity = null;
 
-      if(userScope) {
+      if(entry.getScope() == AssetRepository.USER_SCOPE) {
          userIdentity = entry.getUser();
       }
 
