@@ -63,7 +63,7 @@ export class GeoOptionPane implements OnInit {
    }
 
    private populateMappingStatus(): void {
-      if(!this.chartGeoModel) {
+      if(!this.chartGeoModel || !this.mappingVisible) {
          return;
       }
 
@@ -118,46 +118,51 @@ export class GeoOptionPane implements OnInit {
          }
       }
 
-      for(let layer in layers) {
-         if(layers.hasOwnProperty(layer)) {
-            let value: string = <string> layers[layer];
-            this.layerMode.push({label: layer, data: value});
+      if(this.layerVisible) {
+         for(let layer in layers) {
+            if(layers.hasOwnProperty(layer)) {
+               let value: string = <string> layers[layer];
+               this.layerMode.push({label: layer, data: value});
 
-            if(value == data.layer && this.chartGeoModel) {
-               this.chartGeoModel.option.layerValue = value;
-               flag = true;
+               if(value == data.layer && this.chartGeoModel) {
+                  this.chartGeoModel.option.layerValue = value;
+                  flag = true;
+               }
             }
+         }
+
+         if(!flag && this.chartGeoModel && this.layerMode.length != 0) {
+            this.chartGeoModel.option.layerValue = this.layerMode[0].data;
          }
       }
 
-      if(!flag && this.chartGeoModel && this.layerMode.length != 0) {
-         this.chartGeoModel.option.layerValue = this.layerMode[0].data;
-      }
+      if(this.mappingVisible) {
+         flag = false;
+         // save and restore manual mapping
+         const omappings = this.chartGeoModel && this.chartGeoModel.option ?
+            this.chartGeoModel.option.mapping.mappings : null;
 
-      flag = false;
-      // save and restore manual mapping
-      const omappings = this.chartGeoModel && this.chartGeoModel.option ?
-         this.chartGeoModel.option.mapping.mappings : null;
+         for(let mapping in mappings) {
+            if(mappings.hasOwnProperty(mapping)) {
+               let value: FeatureMappingInfo = <FeatureMappingInfo> mappings[mapping];
+               this.mappingMode.push({label: mapping, data: value});
 
-      for(let mapping in mappings) {
-         if(mappings.hasOwnProperty(mapping)) {
-            let value: FeatureMappingInfo = <FeatureMappingInfo> mappings[mapping];
-            this.mappingMode.push({label: mapping, data: value});
-
-            if(this.chartGeoModel && this.chartGeoModel.option.mapping &&
-               value.id == this.chartGeoModel.option.mapping.id) {
-               this.chartGeoModel.option.mapping = value;
-               flag = true;
+               if(this.chartGeoModel && this.chartGeoModel.option.mapping &&
+                  value.id == this.chartGeoModel.option.mapping.id)
+               {
+                  this.chartGeoModel.option.mapping = value;
+                  flag = true;
+               }
             }
          }
-      }
 
-      if(!flag && this.chartGeoModel && this.mappingMode.length != 0) {
-         this.chartGeoModel.option.mapping = this.mappingMode[0].data;
-      }
+         if(!flag && this.chartGeoModel && this.mappingMode.length != 0) {
+            this.chartGeoModel.option.mapping = this.mappingMode[0].data;
+         }
 
-      if(omappings) {
-         this.chartGeoModel.option.mapping.mappings = omappings;
+         if(omappings) {
+            this.chartGeoModel.option.mapping.mappings = omappings;
+         }
       }
 
       if(!this.loaded) {
