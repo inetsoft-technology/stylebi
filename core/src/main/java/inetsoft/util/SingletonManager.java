@@ -93,6 +93,16 @@ public final class SingletonManager {
                      reference = new DefaultReference<>(type);
                   }
 
+                  if(LOG.isDebugEnabled() && ("inetsoft.util.Plugins".equals(type.getName()) ||
+                     "inetsoft.uql.Config".equals(type.getName())))
+                  {
+                     LOG.debug(
+                        "Creating singleton reference [{}] for class {} [{}]",
+                        String.format("%08X", System.identityHashCode(reference)),
+                        type.getSimpleName(),
+                        String.format("%08X", System.identityHashCode(type)));
+                  }
+
                   instances.put(type, reference);
                }
             }

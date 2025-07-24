@@ -1981,14 +1981,12 @@ public class DataSourceRegistry implements MessageListener {
       public synchronized DataSourceRegistry get(Object... parameters) {
          if(registry == null) {
             try {
-               // make sure all plugins are loaded first
-               Plugins.getInstance();
                registry = new DataSourceRegistry();
             }
             catch(SAXParseException e) {
-               LOG.error(String.format(
-                  "Parsing error: line %d column %d, %s",
-                  e.getLineNumber(), e.getColumnNumber(), e.getMessage()));
+               LOG.error(
+                  "Parsing error: line {} column {}, {}",
+                  e.getLineNumber(), e.getColumnNumber(), e.getMessage());
             }
             catch(Exception e) {
                LOG.error("Failed to load data source registry file", e);

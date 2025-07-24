@@ -67,7 +67,13 @@ public class XDataSourceWrapper implements XMLSerializable {
       String cls = Config.getDataSourceClass(type);
 
       if(cls == null) {
-         LOG.warn("Data source type not found: " + type);
+         if(LOG.isDebugEnabled()) {
+            LOG.warn("Data source type not found: {}", type, new Exception("Stack trace"));
+         }
+         else {
+            LOG.warn("Data source type not found: {}", type);
+         }
+
          return;
       }
 
