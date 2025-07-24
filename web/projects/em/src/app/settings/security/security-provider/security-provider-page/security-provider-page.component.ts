@@ -15,8 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, OnInit } from "@angular/core";
-import { AuthorizationService } from "../../../../authorization/authorization.service";
+import { AfterViewInit, Component, OnInit } from "@angular/core";
+import { LoadingSpinnerService } from "../../../../common/util/loading-spinner/loading-spinner.service";
 import { PageHeaderService } from "../../../../page-header/page-header.service";
 import { Secured } from "../../../../secured";
 
@@ -30,11 +30,19 @@ import { Secured } from "../../../../secured";
    templateUrl: "./security-provider-page.component.html",
    styleUrls: ["./security-provider-page.component.scss"]
 })
-export class SecurityProviderPageComponent implements OnInit {
-   constructor(private pageTitle: PageHeaderService) {
+export class SecurityProviderPageComponent implements OnInit, AfterViewInit {
+   constructor(private pageTitle: PageHeaderService,
+               private loadingSpinnerService: LoadingSpinnerService) {
    }
 
    ngOnInit() {
       this.pageTitle.title = "_#(js:Security Settings Provider)";
+      this.loadingSpinnerService.show();
+   }
+
+   ngAfterViewInit() {
+      setTimeout(() => {
+         this.loadingSpinnerService.hide();
+      }, 200);
    }
 }

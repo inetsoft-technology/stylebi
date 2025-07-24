@@ -16,12 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { BreakpointObserver } from "@angular/cdk/layout";
-import { AfterViewInit, Component, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
+import { Component, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { MatSidenav } from "@angular/material/sidenav";
 import { Router } from "@angular/router";
-import { Subject } from "rxjs";
+import { Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { AuthorizationService } from "../../authorization/authorization.service";
+import { LoadingSpinnerService } from "../../common/util/loading-spinner/loading-spinner.service";
 import { Secured } from "../../secured";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
@@ -35,7 +36,7 @@ const SMALL_WIDTH_BREAKPOINT = 720;
    templateUrl: "./settings-sidenav.component.html",
    styleUrls: ["./settings-sidenav.component.scss"]
 })
-export class SettingsSidenavComponent implements OnInit, AfterViewInit, OnDestroy {
+export class SettingsSidenavComponent implements OnInit, OnDestroy {
    @ViewChild(MatSidenav, { static: true }) sidenav: MatSidenav;
    searchText: string;
    generalVisible = false;
@@ -45,12 +46,13 @@ export class SettingsSidenavComponent implements OnInit, AfterViewInit, OnDestro
    presentationVisible = false;
    loggingVisible = false;
    propertiesVisible = false;
-   loading = true;
-
+   loading = false;
+   private loadingSub: Subscription;
    private destroy$ = new Subject<void>();
 
    constructor(private router: Router, zone: NgZone, private authzService: AuthorizationService,
-               private breakpointObserver: BreakpointObserver)
+               private breakpointObserver: BreakpointObserver,
+               private loadingSpinnerService: LoadingSpinnerService)
    {
    }
 
@@ -72,17 +74,19 @@ export class SettingsSidenavComponent implements OnInit, AfterViewInit, OnDestro
          this.loggingVisible = p.permissions.logging;
          this.propertiesVisible = p.permissions.properties;
       });
-   }
 
-   ngAfterViewInit() {
-      setTimeout(() => {
-         this.loading = false;
+      this.loadingSub = this.loadingSpinnerService.loading$.subscribe(isLoading => {
+         this.loading = isLoading;
       });
    }
 
    ngOnDestroy(): void {
       this.destroy$.next();
       this.destroy$.unsubscribe();
+
+      if(this.loadingSub) {
+         this.loadingSub.unsubscribe();
+      }
    }
 
    isScreenSmall(): boolean {
