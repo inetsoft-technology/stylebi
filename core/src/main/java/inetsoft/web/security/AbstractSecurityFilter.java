@@ -24,6 +24,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.SessionLicenseManager;
 import inetsoft.sree.web.SessionLicenseService;
+import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
@@ -273,23 +274,32 @@ public abstract class AbstractSecurityFilter
     * Check if the SRPrincipal exists in the session attributes
     */
    protected boolean hasSession(HttpServletRequest request) {
+      return getXPrincipal(request) != null;
+   }
+
+   /**
+    * Gets the SRPrincipal from the session attributes.
+    *
+    * @param request the HTTP request object.
+    * @return the SRPrincipal if it exists in the session attributes, or null if it does not.
+    */
+   protected XPrincipal getXPrincipal(HttpServletRequest request) {
       if(request == null) {
-         return false;
+         return null;
       }
 
       final HttpSession session = request.getSession();
 
       if(session != null) {
          try {
-            final SRPrincipal principal = (SRPrincipal) SUtil.getPrincipal(request);
-            return principal != null;
+            return (SRPrincipal) SUtil.getPrincipal(request);
          }
          catch(IllegalStateException | ClassCastException e) {
             LOG.info("SRPrincipal not found", e);
          }
       }
 
-      return false;
+      return null;
    }
 
    /**
