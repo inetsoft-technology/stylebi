@@ -194,7 +194,7 @@ export class SelectionListActions extends AbstractVSActions<VSSelectionListModel
    }
 
    private get closeMaxModeVisible():  boolean {
-      return this.model.maxMode && (GuiTool.isMobileDevice() ||
+      return this.model.maxMode && !this.inSelectionContainer && (GuiTool.isMobileDevice() ||
          ((!this.binding && this.model.maxMode &&
             this.isActionVisibleInViewer("Close Max Mode") && !this.isDataTip() &&
             !this.isPopComponent()) && this.isActionVisibleInViewer("Show Actual Size")));
