@@ -4374,24 +4374,80 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
 
    /**
+    * Get all bookmark entries corresponding to the specified viewsheet entry.
+    */
+   protected List<AssetEntry> getVSBookmarkEntries(AssetEntry entry)
+      throws Exception
+   {
+      if(getStorage(entry) == null) {
+         return new ArrayList<>();
+      }
+
+      boolean userScope = entry.getScope() == AssetRepository.USER_SCOPE;
+      IdentityID userIdentity = null;
+
+      if(userScope) {
+         userIdentity = entry.getUser();
+      }
+
+      AssetEntry bookmarkEntry = getVSBookmarkEntry(entry, userIdentity);
+      String viewsheetPath = bookmarkEntry.getPath();
+      List<AssetEntry> entries = new ArrayList<>();
+
+      IndexedStorage.Filter filter = key -> {
+         AssetEntry entry0 = AssetEntry.createAssetEntry(key);
+
+         if(entry0 != null && entry0.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK &&
+            entry0.getPath().equals(viewsheetPath))
+         {
+            AssetEntry bEntry = AssetEntry.createAssetEntry(key);
+
+            if(bEntry != null) {
+               entries.add(bEntry);
+            }
+
+            return true;
+         }
+
+         return false;
+      };
+
+      getStorage(entry).getKeys(filter, entry.getOrgID());
+
+      return entries;
+   }
+
+   /**
     * Rename the viewsheet bookmark.
     *
     * @param oentry the entry of the original viewsheet.
     * @param nentry the entry of the new viewsheet.
     */
    private void renameVSBookmark(AssetEntry oentry, AssetEntry nentry) throws Exception {
-      IdentityID[] users = XUtil.getUsers();
-
       // @by stephenwebster, Bug #35814
       // Renaming bookmarks on user scoped assets is done as part of the renameUser process
       if(isRenameUser(oentry, nentry)) {
          return;
       }
 
-      for(IdentityID user : users) {
-         AssetEntry obentry = getVSBookmarkEntry(oentry, user);
-         AssetEntry nbentry = getVSBookmarkEntry(nentry, user);
-         renameVSBookmark0(obentry, nbentry);
+      Principal principal = ThreadContext.getContextPrincipal();
+
+      if(SUtil.isInternalUser(principal)) {
+         IdentityID[] users = XUtil.getUsers();
+
+         for(IdentityID user : users) {
+            AssetEntry obentry = getVSBookmarkEntry(oentry, user);
+            AssetEntry nbentry = getVSBookmarkEntry(nentry, user);
+            renameVSBookmark0(obentry, nbentry);
+         }
+      }
+      else {
+         List<AssetEntry> bookmarkEntries = getVSBookmarkEntries(oentry);
+
+         for(AssetEntry bookmarkEntry : bookmarkEntries) {
+            AssetEntry nbentry = getVSBookmarkEntry(nentry, bookmarkEntry.getUser());
+            renameVSBookmark0(bookmarkEntry, nbentry);
+         }
       }
    }
 
