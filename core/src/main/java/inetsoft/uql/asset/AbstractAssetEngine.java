@@ -4393,12 +4393,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          if(entry0 != null && entry0.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK &&
             entry0.getPath().equals(viewsheetPath))
          {
-            AssetEntry bEntry = AssetEntry.createAssetEntry(key);
-
-            if(bEntry != null) {
-               entries.add(bEntry);
-            }
-
+            entries.add(entry0);
             return true;
          }
 
