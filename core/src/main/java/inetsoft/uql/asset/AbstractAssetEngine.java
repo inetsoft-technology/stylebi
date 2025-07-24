@@ -4383,13 +4383,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return new ArrayList<>();
       }
 
-      IdentityID userIdentity = null;
-
-      if(entry.getScope() == AssetRepository.USER_SCOPE) {
-         userIdentity = entry.getUser();
-      }
-
-      AssetEntry bookmarkEntry = getVSBookmarkEntry(entry, userIdentity);
+      AssetEntry bookmarkEntry = getVSBookmarkEntry(entry, entry.getUser());
       String viewsheetPath = bookmarkEntry.getPath();
       List<AssetEntry> entries = new ArrayList<>();
 
