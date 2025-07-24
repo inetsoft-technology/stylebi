@@ -47,4 +47,18 @@ public class ClickhouseHelper extends SQLHelper {
          return super.transformDate(str);
       }
    }
+
+   /**
+    * Check if a word is a keyword.
+    * @param word the specified keyword.
+    * @return <tt>true</tt> is a keyword, <tt>false</tt> otherwise.
+    */
+   @Override
+   public boolean isKeyword(String word) {
+      if(word.equals("default")) {
+         return false;
+      }
+
+      return super.isKeyword(word);
+   }
 }
