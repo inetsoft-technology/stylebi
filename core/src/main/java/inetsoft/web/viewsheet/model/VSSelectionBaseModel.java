@@ -37,7 +37,8 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
         (SelectionBaseVSAssemblyInfo) assembly.getVSAssemblyInfo();
       FormatInfo finfo = assemblyInfo.getFormatInfo();
       String measure = assemblyInfo.getMeasure();
-      dropdown = assemblyInfo.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE;
+      dropdown = assemblyInfo.isAdhocFilter() ? false :
+         assemblyInfo.getShowType() == SelectionVSAssemblyInfo.DROPDOWN_SHOW_TYPE;
       singleSelection = assemblyInfo.isSingleSelection();
       showText = assemblyInfo.isShowText();
       showBar = assemblyInfo.isShowBar();
