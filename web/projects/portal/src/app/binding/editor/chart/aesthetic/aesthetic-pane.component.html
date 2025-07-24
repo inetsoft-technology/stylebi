@@ -51,6 +51,7 @@
    <div class="field-row mt-1 shape_field_id" *ngIf="isShapeSupported()">
       <div class="unhighlightable aesthetic-row-label">_#(Shape)</div>
       <shape-field-mc class="fill-width" [bindingModel]="bindingModel" [aggr]="currAggregate"
+                      [assetId]="assetId"
                       [assemblyName]="assemblyName" [objectType]="objectType"
                       [grayedOutValues]="grayedOutValues">
       </shape-field-mc>

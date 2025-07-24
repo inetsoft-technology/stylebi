@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    Component,
    ElementRef,
@@ -25,6 +25,7 @@ import {
    Output,
    ViewChild
 } from "@angular/core";
+import { createAssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { ChartConfig } from "../../../../common/util/chart-config";
 import { StyleConstants } from "../../../../common/util/style-constants";
 import { ModelService } from "../../../../widget/services/model.service";
@@ -38,6 +39,7 @@ const NUM_SHAPES: number = 16;
 })
 export class StaticShapePane implements OnInit {
    @Input() nilSupported: boolean = false;
+   @Input() assetId: string;
    @Output() shapeChanged = new EventEmitter<string>();
    @ViewChild("uploadInput") uploadInput: ElementRef;
 
@@ -61,7 +63,7 @@ export class StaticShapePane implements OnInit {
    }
 
    ngOnInit(): void {
-      this.loadShapes();
+      this.loadShapes(null, this.getAssetOrgId());
    }
 
    get currentViewIndices(): number[] {
@@ -116,14 +118,20 @@ export class StaticShapePane implements OnInit {
          this.http.post("../api/chart/shape/upload", formData)
             .subscribe(result => {
                if(result) {
-                  this.loadShapes(recentFile);
+                  this.loadShapes(recentFile, this.getAssetOrgId());
                }
             });
       }
    }
 
-   loadShapes(shapeName?: string): void {
-      this.modelService.getModel<string[]>("../api/composer/imageShapes")
+   loadShapes(shapeName?: string, orgId?: string): void {
+      let httpParams: HttpParams = new HttpParams();
+
+      if(orgId) {
+         httpParams = httpParams.set("orgId", orgId);
+      }
+
+      this.modelService.getModel<string[]>("../api/composer/imageShapes", httpParams)
          .subscribe(data => {
             this.shapes = ChartConfig.SHAPE_STYLES.concat(data);
             this.initCurrentPage(shapeName || this._shapeStr);
@@ -134,4 +142,13 @@ export class StaticShapePane implements OnInit {
       this.currentPage = this.shapes?.indexOf(shapeName) >= NUM_SHAPES ?
          Math.floor(this.shapes?.indexOf(shapeName) / NUM_SHAPES) : this.currentPage;
    }
+
+   private getAssetOrgId(): string {
+      if(this.assetId) {
+         return createAssetEntry(this.assetId).organization;
+      }
+
+      return null;
+   }
+
 }
