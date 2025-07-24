@@ -23,6 +23,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.XFactory;
@@ -1022,6 +1023,16 @@ public class UserTreeService {
       }
 
       List<IdentityModel> members = getOrganizationMembers(info.getMembers(), principal);
+      Set<CustomTheme> themes = CustomThemesManager.getManager().getCustomThemes();
+      boolean themeFound = false;
+
+      for(CustomTheme theme : themes) {
+         if(organization.getTheme() != null &&
+            organization.getTheme().equals(theme.getName()))
+         {
+            themeFound = true;
+         }
+      }
 
       return EditOrganizationPaneModel.builder()
          .name(orgID.name)
@@ -1036,7 +1047,7 @@ public class UserTreeService {
          .editable(organization.isEditable() && currentProvider instanceof EditableAuthenticationProvider)
          .currentUser(orgID.name.equals(pId.name))
          .localesList(localesList)
-         .theme(organization.getTheme())
+         .theme(themeFound ? organization.getTheme() : null)
          .currentUserName(pId.name)
          .build();
    }
