@@ -20,13 +20,13 @@ docker buildx build \
 
 In order to push the image, you must have authenticated to `gchr.io` with the `docker login` command
 using a Github user that has write permission on the inetsoft-technology repository. If you don't
-have this permission, you can build the base image locally by omitting the `--push` option from the
-command above.
+have this permission, you can build the base image locally by replace the `--push` option with
+`--load` in the command above.
 
 ## Building the StyleBI Image
 
 From the StyleBI root directory, run the following command:
 
 ```shell
-./mvnw clean compile jib:dockerBuild -pl docker
+./mvnw clean package jib:dockerBuild -pl docker
 ```

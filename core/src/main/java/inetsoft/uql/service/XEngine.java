@@ -17,17 +17,17 @@
  */
 package inetsoft.uql.service;
 
-import inetsoft.sree.security.*;
-import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
+import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.tabular.TabularDataSource;
@@ -1951,8 +1951,7 @@ public class XEngine implements XRepository, XQueryRepository {
     * @return the file
     */
    private File getMetaDataDir() {
-      return FileSystemService.getInstance().getFile(
-         System.getProperty("user.home", ".") + File.separator + ".srMetaData");
+      return FileSystemService.getInstance().getMetadataDirectory();
    }
 
    /**
@@ -1969,12 +1968,6 @@ public class XEngine implements XRepository, XQueryRepository {
          @Override
          protected void doRun() {
             try {
-               File dir = getMetaDataDir();
-
-               if(!dir.exists() && !dir.mkdirs()) {
-                  LOG.warn("Failed to create cache directory: {}", dir);
-               }
-
                ObjectOutputStream out = new ObjectOutputStream(
                   new BufferedOutputStream(new FileOutputStream(getMetaDataFile(key))));
 
