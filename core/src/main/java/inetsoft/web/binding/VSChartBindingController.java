@@ -271,7 +271,8 @@ public class VSChartBindingController {
 
    @GetMapping("/api/composer/imageShapes")
    @ResponseBody
-   public String[] getImageShapes() throws Exception{
+   @SwitchOrg
+   public String[] getImageShapes(@OrganizationID @RequestParam(required = false, value = "orgId") String orgId) {
       return ImageShapes.getShapeNames().toArray(new String[0]);
    }
 
