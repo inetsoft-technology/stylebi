@@ -30,7 +30,6 @@ import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -68,12 +67,6 @@ public class DataTreeChangeController {
       if(user != null) {
          subscriptions.put(stompHeaders.getSessionId(), new IdentityID(user, orgId));
       }
-   }
-
-   @EventListener
-   public void onSessionUnsubscribe(SessionUnsubscribeEvent event) {
-      StompHeaderAccessor stompHeaders = StompHeaderAccessor.wrap(event.getMessage());
-      subscriptions.remove(stompHeaders.getSessionId());
    }
 
    @EventListener
