@@ -23,7 +23,7 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.DefaultDebouncer;
 import inetsoft.util.Tool;
-import inetsoft.web.admin.security.IdentityChangedMessage;
+import inetsoft.web.admin.security.*;
 import inetsoft.web.service.BaseSubscribeChangHandler;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
@@ -98,9 +98,18 @@ public class ScheduleUsersChangeService extends BaseSubscribeChangHandler implem
             .filter(sub -> Tool.equals(((XPrincipal) sub.getUser()).getCurrentOrgId(),
                                        identity.getOrgID()))
             .forEach(sub -> {
-               this.debouncer.debounce(identity.orgID, 1L, TimeUnit.SECONDS,
+               this.debouncer.debounce(sub.getSessionId(), 1L, TimeUnit.SECONDS,
                   () -> sendToSubscriber(sub));
             });
+      }
+      else if(event.getMessage() instanceof SSOTypeChangedMessage message) {
+         if(message.getNewType() != message.getOldType() &&
+            (message.getOldType() == SSOType.NONE || message.getNewType() == SSOType.NONE))
+         {
+            getSubscribers().forEach(sub ->
+               this.debouncer.debounce(sub.getSessionId(), 1L, TimeUnit.SECONDS,
+                                       () -> sendToSubscriber(sub)));
+         }
       }
    }
 

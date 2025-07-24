@@ -128,6 +128,7 @@ export class TaskOptionsPane {
    private _model: TaskOptionsPaneModel;
    private owners: IdentityIdWithLabel[];
    public adminName: string = "";
+   public ssoEnable: boolean = false;
    public isAdminNameLoading: boolean = true;
    private _executeAs: string;
    public groupErrorState = new GroupErrorState();
@@ -169,6 +170,11 @@ export class TaskOptionsPane {
             this.updateDisabledState();
          }
       );
+
+      usersService.getSSOEnable().subscribe(value => {
+         this.ssoEnable = value;
+         this.updateDisabledState();
+      });
 
       this.filteredUsers = this.optionsForm.controls["owner"].valueChanges
          .pipe(
@@ -297,7 +303,7 @@ export class TaskOptionsPane {
    };
 
    private updateDisabledState() {
-      if(!this.adminName) {
+      if(!this.adminName && !this.ssoEnable) {
          this.optionsForm.get("owner").disable();
          this.optionsForm.get("executeAs").disable();
       }

@@ -33,6 +33,7 @@ export class ScheduleUsersService implements OnDestroy {
    emailGroups = new BehaviorSubject<IdentityId[]>([]);
    emailUsers = new BehaviorSubject<IdentityId[]>([]);
    adminName = new BehaviorSubject<string>(null);
+   ssoEnable = new BehaviorSubject<boolean>(false);
    private reload = false;
    private loading = false;
    private url = "../api/em/schedule/users-model";
@@ -69,8 +70,8 @@ export class ScheduleUsersService implements OnDestroy {
                this.groups.next(usersModel.groups);
                this.emailGroups.next(usersModel.emailGroups);
                this.emailUsers.next(usersModel.emailUsers);
-
                this.adminName.next((usersModel.adminName));
+               this.ssoEnable.next(usersModel.ssoEnable);
             },
             () => {},
             () => {
@@ -106,6 +107,10 @@ export class ScheduleUsersService implements OnDestroy {
 
    getAdminName(): Observable<string> {
       return this.adminName;
+   }
+
+   getSSOEnable(): Observable<boolean> {
+      return this.ssoEnable;
    }
 
    ngOnDestroy(): void {
