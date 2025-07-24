@@ -46,7 +46,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
    public TextInputVSAssemblyInfo() {
       super();
 
-      defaultText = new DynamicValue("", XSchema.STRING);
+      defaultText = new DynamicValue(null, XSchema.STRING);
       toolTip = new DynamicValue("TextInput", XSchema.STRING);
       setPixelSize(new Dimension(100, 20));
    }
@@ -235,7 +235,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
          writer.println("</value>");
       }
 
-      if(defaultText != null) {
+      if(defaultText != null && defaultText.getDValue() != null) {
          writer.print("<defaultText>");
          writer.print("<![CDATA[" + Tool.getDataString(defaultText) + "]]>");
          writer.println("</defaultText>");
@@ -284,7 +284,7 @@ public class TextInputVSAssemblyInfo extends ClickableInputVSAssemblyInfo {
       node = Tool.getChildNodeByTagName(elem, "defaultText");
 
       if(node != null) {
-         defaultText.setDValue(Tool.getValue(node) == null ? "" : Tool.getValue(node));
+         defaultText.setDValue(Tool.getValue(node));
       }
 
       node = Tool.getChildNodeByTagName(elem, "toolTip");
