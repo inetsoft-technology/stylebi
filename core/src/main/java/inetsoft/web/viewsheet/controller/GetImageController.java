@@ -124,6 +124,25 @@ public class GetImageController {
    }
 
    /**
+    * Get image given the supplied hash
+    *
+    * @param vid        The runtime viewsheet id.
+    * @param hash       The image hash.
+    * @param principal  The user which is logged into the browser.
+    */
+   @GetMapping(value = "/getImageFromHash/{vid}/{hash}")
+   @InGroupedThread
+   public void processGetImageFromHash(
+      @PathVariable("vid") String vid,
+      @PathVariable("hash") String hash,
+      Principal principal,
+      HttpServletRequest request,
+      HttpServletResponse response) throws Exception
+   {
+      imageService.processImageFromHash(vid, hash, principal, request, response);
+   }
+
+   /**
     * Gets the image requested, and puts it into the response.  Only called directly
     * by Chart, the other image-using assets all call the 4-parameter version above.
     *
