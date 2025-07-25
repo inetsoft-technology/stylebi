@@ -108,7 +108,8 @@ public class GlobalStyleController implements ApplicationContextAware {
          }
       }
 
-      if(themeId == null) {
+      //override unset or default theme with presentation setting
+      if(themeId == null || "".equals(themeId)) {
          themeId = CustomThemesManager.getManager().getSelectedTheme(user);
       }
 
