@@ -23,7 +23,7 @@ import { BehaviorSubject } from "rxjs";
    providedIn: "root"
 })
 export class LoadingSpinnerService {
-   private subject = new BehaviorSubject<boolean>(true);
+   private subject = new BehaviorSubject<boolean>(false);
    loading$ = this.subject.asObservable();
 
    show() {
