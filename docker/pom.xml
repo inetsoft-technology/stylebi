@@ -352,11 +352,9 @@
         <configuration>
           <from>
             <image>ghcr.io/inetsoft-technology/java:21.0.7_6</image>
-            <!-- CI: -Djib.from.platforms=linux/amd64,linux/arm64 -->
           </from>
           <to>
             <image>${inetsoft.docker.repository}/stylebi-community</image>
-            <!-- CI: -Djib.to.tags=1.0,1.0.$BUILD -->
             <tags>
               <tag>1.0</tag>
               <tag>1.0.${docker.build.version}</tag>
@@ -401,5 +399,20 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>ci</id>
+      <activation>
+        <property>
+          <name>env.CI</name>
+          <value>true</value>
+        </property>
+      </activation>
+      <properties>
+        <jib.from.platforms>linux/amd64,linux/arm64</jib.from.platforms>
+      </properties>
+    </profile>
+  </profiles>
 
 </project>
