@@ -772,7 +772,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
          getSubscribers().stream()
             .filter(sub -> sub.getUser() instanceof XPrincipal)
             .forEach(sub -> {
-               this.debouncer.debounce(((XPrincipal) sub.getUser()).getCurrentOrgId(), 1L, TimeUnit.SECONDS,
+               this.debouncer.debounce(((XPrincipal) sub.getUser()).getSessionID(), 1L, TimeUnit.SECONDS,
                                        () -> sendToSubscriber(sub));
             });
       }
