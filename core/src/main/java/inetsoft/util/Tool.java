@@ -399,6 +399,22 @@ public final class Tool extends CoreTool {
     * @param escape the escape character.
     */
    public static String[] splitWithQuote(String str, String delim,
+                                         char escape)
+   {
+
+      String[] strs = splitWithDelim(str, delim, escape);;
+
+      // strip quotes
+      for(int i = 0; i < strs.length; i++) {
+         if(strs[i].startsWith("\"") && strs[i].endsWith("\"")) {
+            strs[i] = strs[i].substring(1, strs[i].length() - 1);
+         }
+      }
+
+      return strs;
+   }
+
+   public static String[] splitWithDelim(String str, String delim,
                                          char escape) {
       if(str == null || str.length() == 0) {
          return new String[] {};
@@ -416,13 +432,6 @@ public final class Tool extends CoreTool {
 
       String[] strs = new String[v.size()];
       v.copyInto(strs);
-
-      // strip quotes
-      for(int i = 0; i < strs.length; i++) {
-         if(strs[i].startsWith("\"") && strs[i].endsWith("\"")) {
-            strs[i] = strs[i].substring(1, strs[i].length() - 1);
-         }
-      }
 
       return strs;
    }
