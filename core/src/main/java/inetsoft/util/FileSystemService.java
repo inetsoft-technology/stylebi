@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.FileTime;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -612,6 +613,23 @@ public class FileSystemService {
       }
 
       return false;
+   }
+
+   public File getMetadataDirectory() {
+      String path = SreeEnv.getProperty(
+         "inetsoft.metadata.dir", System.getProperty("user.home", ".") + "/.srMetaData");
+      File dir = new File(path).getAbsoluteFile();
+
+      if(!dir.isDirectory()) {
+         try {
+            Files.createDirectories(dir.toPath());
+         }
+         catch(IOException e) {
+            LOG.warn("Failed to create metadata directory {}", path, e);
+         }
+      }
+
+      return dir;
    }
 
    /**
