@@ -243,6 +243,10 @@ public class ResourcePermissionService {
       setResourcePermissions0(path, resourceType, tableModel, principal);
    }
 
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectType = ActionRecord.OBJECT_TYPE_OBJECTPERMISSION
+   )
    public void setResourcePermissions(String path, ResourceType resourceType,
                                       @SuppressWarnings("unused") @AuditObjectName String auditPath,
                                       ResourcePermissionModel tableModel,
