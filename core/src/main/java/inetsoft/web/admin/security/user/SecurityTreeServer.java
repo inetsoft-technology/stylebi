@@ -87,6 +87,10 @@ public class SecurityTreeServer {
          currOrgID = currOrgID == null ? Organization.getDefaultOrganizationID() : currOrgID;
          String[] orgIds = provider.getOrganizationIDs();
 
+         if(orgIds.length == 0) {
+            throw new MessageException(Catalog.getCatalog().getString("em.security.provider.db.noOrg"));
+         }
+
          if(orgIds.length != 0 && !Arrays.stream(orgIds).toList().contains(currOrgID)) {
             throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
          }
