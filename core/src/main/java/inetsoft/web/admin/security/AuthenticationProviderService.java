@@ -307,7 +307,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
       }
 
       return getAuthenticationChain().get().stream()
-         .filter((p) -> Catalog.getCatalog().getString(p.getProviderName()).equals(name))
+         .filter((p) -> Catalog.getCatalog().getString(p.getProviderName()).equals(name) || p.getProviderName().equals(name))
          .findAny()
          .orElse(null);
    }

@@ -1269,7 +1269,7 @@ public final class XUtil {
 
       if(providerName != null && securityEngine.getAuthenticationChain().isPresent()) {
          return securityEngine.getAuthenticationChain().get().stream()
-            .filter((p) -> Catalog.getCatalog().getString(p.getProviderName()).equals(providerName))
+            .filter((p) -> (Catalog.getCatalog().getString(p.getProviderName()).equals(providerName)) || p.getProviderName().equals(providerName))
             .findAny()
             .orElseGet(securityEngine::getSecurityProvider);
       }

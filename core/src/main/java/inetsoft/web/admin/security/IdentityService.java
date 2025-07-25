@@ -89,7 +89,7 @@ public class IdentityService {
 
       AuthenticationChain authcChain = (AuthenticationChain) authc;
       return authcChain.getProviders().stream()
-         .filter((p) -> Catalog.getCatalog().getString(p.getProviderName()).equals(providerName))
+         .filter((p) -> Catalog.getCatalog().getString(p.getProviderName()).equals(providerName) || p.getProviderName().equals(providerName))
          .findFirst()
          .orElse(null);
    }
