@@ -473,6 +473,16 @@ public class VSInputService {
 
                   clist.getDataList().add(a.getAssemblyEntry());
                }
+               // Update hyperlink variable tables for otherwise unrelated assemblies
+               else if(a instanceof OutputVSAssembly && !clist.contains(a.getAssemblyEntry())) {
+                  OutputVSAssemblyInfo assemblyInfo = (OutputVSAssemblyInfo) a.getInfo();
+
+                  if(assemblyInfo.getHyperlink() != null &&
+                     assemblyInfo.getHyperlink().isSendReportParameters())
+                  {
+                     clist.getDataList().add(a.getAssemblyEntry());
+                  }
+               }
             }
 
             vsObjectService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher, true);
