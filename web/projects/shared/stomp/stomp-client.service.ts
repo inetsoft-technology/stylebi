@@ -33,6 +33,7 @@ import { BaseHrefService } from "../../portal/src/app/common/services/base-href.
 export class StompClientService {
    private clients: Map<string, StompClient> = new Map<string, StompClient>();
    private disconnectSubject = new Subject<void>();
+   private reconnectErrorSubject = new Subject<string>();
    private _reloadOnFailure: boolean = false;
 
    constructor(private zone: NgZone, private ssoHeartbeatService: SsoHeartbeatService,
@@ -48,6 +49,7 @@ export class StompClientService {
          if(!client) {
             client = new StompClient(
                endpoint, (key) => this.onDisconnect(key),
+               (error) => this.onReconnectError(error),
                this.ssoHeartbeatService, this.logoutService, em, this.baseHrefService.getBaseHref(),
                customElement);
             this.clients.set(endpoint, client);
@@ -67,7 +69,15 @@ export class StompClientService {
       this.disconnectSubject.next();
    }
 
+   private onReconnectError(error: string) {
+      this.reconnectErrorSubject.next(error);
+   }
+
    whenDisconnected(): Observable<void> {
       return this.disconnectSubject.asObservable();
+   }
+
+   reconnectError(): Observable<string> {
+      return this.reconnectErrorSubject.asObservable();
    }
 }

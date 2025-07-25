@@ -20,7 +20,9 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.WorksheetService;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +33,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Component that ensures that open viewsheets are closed when the client that opened them
@@ -60,6 +63,17 @@ public class RuntimeViewsheetManager {
    }
 
    public void sessionEnded(Principal user) {
+      // websocket might reconnect right away, wait a little before closing the viewsheets
+      VSUtil.getDebouncer().debounce(getDebounceKey(user), 1L, TimeUnit.MINUTES, () -> {
+         closeViewsheets(user);
+      });
+   }
+
+   public void sessionConnected(Principal user) {
+      VSUtil.getDebouncer().cancel(getDebounceKey(user));
+   }
+
+   private void closeViewsheets(Principal user) {
       synchronized(openSheets) {
          for(Iterator<String> i = openSheets.iterator(); i.hasNext(); ) {
             String runtimeId = i.next();
@@ -82,6 +96,14 @@ public class RuntimeViewsheetManager {
             i.remove();
          }
       }
+   }
+
+   private String getSessionId(Principal user) {
+      return user instanceof XPrincipal ? ((XPrincipal) user).getSessionID() : "unknown-session";
+   }
+
+   private String getDebounceKey(Principal user) {
+      return "RuntimeViewsheetManager." + getSessionId(user);
    }
 
    private final Set<String> openSheets = new HashSet<>();
