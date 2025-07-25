@@ -1028,7 +1028,7 @@ public class UserTreeService {
 
       for(CustomTheme theme : themes) {
          if(organization.getTheme() != null &&
-            organization.getTheme().equals(theme.getName()))
+            organization.getTheme().equals(theme.getId()))
          {
             themeFound = true;
          }
