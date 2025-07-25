@@ -179,6 +179,11 @@ public class TimeSeriesRow implements CalcRow {
          }
 
          if(val != null) {
+
+            if(!(val instanceof Date)) {
+               continue;
+            }
+
             TVal tval = new TVal(val, i);
             TVal min = minmap.get(outerkey);
             TVal max = maxmap.get(outerkey);
