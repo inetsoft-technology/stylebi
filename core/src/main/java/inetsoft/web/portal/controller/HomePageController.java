@@ -21,6 +21,7 @@ import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -72,11 +73,25 @@ public class HomePageController {
          .mustRevalidate()
          .getHeaderValue();
       response.setHeader(HttpHeaders.CACHE_CONTROL, header);
+
+      boolean hasOrgTheme = false;
+
+      if(OrganizationManager.getInstance().getCurrentOrgID() != null) {
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+         if(provider.getOrganization(orgId) != null &&
+            provider.getOrganization(orgId).getTheme() != null)
+         {
+            hasOrgTheme = true;
+         }
+      }
+
       CustomThemesManager themes = CustomThemesManager.getManager();
       String customLoadingText = SreeEnv.getProperty("portal.customLoadingText").replaceAll("\\s", " ");
       ModelAndView model = new ModelAndView("app/index");
       model.addObject("linkUri", linkUri);
-      model.addObject("customTheme", themes.isCustomThemeApplied());
+      model.addObject("customTheme", themes.isCustomThemeApplied() || hasOrgTheme);
       model.addObject("scriptThemeCssPath", themes.getScriptThemeCssPath(true));
       model.addObject("customLoadingText", customLoadingText);
 
