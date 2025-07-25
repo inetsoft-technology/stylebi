@@ -19,7 +19,6 @@ package inetsoft.web;
 
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -81,7 +80,7 @@ public class ErrorController {
    public ModelAndView showErrorPage(HttpServletRequest request) {
       final Catalog catalog = Catalog.getCatalog();
       final ModelAndView model = new ModelAndView("error/error-template");
-      final String error = Tool.getErrorMessage(request);
+      final String error = WebUtils.getErrorMessage(request);
       model.addObject("errorMsg", error);
       model.addObject("errorTitle", catalog.getString("Error"));
       model.addObject("customTheme",

@@ -19,7 +19,6 @@ package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.EGraph;
-import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
@@ -28,7 +27,6 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.filter.ColumnMapFilter;
-import inetsoft.report.internal.LicenseException;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.io.csv.CSVConfig;
@@ -43,6 +41,7 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
+import inetsoft.web.WebUtils;
 import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.*;
@@ -186,7 +185,7 @@ public class ExportController {
             throw e;
          }
 
-         Tool.redirectToErrorPage(response, request, e.getMessage());
+         WebUtils.redirectToErrorPage(response, request, e.getMessage());
       }
    }
 
