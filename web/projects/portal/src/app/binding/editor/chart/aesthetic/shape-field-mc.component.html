@@ -60,7 +60,7 @@
   <div *ngIf="editPaneId" class="dropdown-pane">
     <div *ngIf="frames" [ngSwitch]="editPaneId">
       <div *ngSwitchCase="'StaticShape'">
-        <static-shape-pane [shapeStr]="shapeFrame?.shape"
+        <static-shape-pane [shapeStr]="shapeFrame?.shape" [assetId]="assetId"
           [nilSupported]="nilSupported"
           (shapeChanged)="shapeFrame.shape = $event; openChanged(false)">
         </static-shape-pane>
