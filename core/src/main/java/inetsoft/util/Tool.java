@@ -398,9 +398,7 @@ public final class Tool extends CoreTool {
     * @param delim the delimiter to be used in splitting the string.
     * @param escape the escape character.
     */
-   public static String[] splitWithQuote(String str, String delim,
-                                         char escape)
-   {
+   public static String[] splitWithQuote(String str, String delim, char escape) {
 
       String[] strs = splitWithDelim(str, delim, escape);;
 
@@ -414,8 +412,7 @@ public final class Tool extends CoreTool {
       return strs;
    }
 
-   public static String[] splitWithDelim(String str, String delim,
-                                         char escape) {
+   public static String[] splitWithDelim(String str, String delim, char escape) {
       if(str == null || str.length() == 0) {
          return new String[] {};
       }
