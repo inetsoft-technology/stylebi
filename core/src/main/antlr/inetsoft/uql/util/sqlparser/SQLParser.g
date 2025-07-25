@@ -2295,7 +2295,25 @@ derived_column [JDBCSelection selection, UniformSQL sql]
               sql.getDataSource().getDatabaseType() == JDBCDataSource.JDBC_ORACLE &&
               exp.getType().equals(XExpression.FIELD))
        {
-              tmp = tmp.toUpperCase();
+              String[] parts = Tool.splitWithDelim(tmp, ".", '"');
+              StringBuilder builder = new StringBuilder();
+
+              for(int i = 0; i < parts.length; i++) {
+                String part = parts[i];
+
+                if(part.startsWith("\"") && part.endsWith("\"")) {
+                  builder.append(part);
+                }
+                else {
+                  builder.append(part.toUpperCase());
+                }
+
+                if(i < parts.length - 1) {
+                  builder.append('.');
+                }
+              }
+
+              tmp = builder.toString();
            }
 
            selection.addColumn(tmp);
