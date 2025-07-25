@@ -201,6 +201,8 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
          this.loading = false;
          console.error(message);
       }
+
+      this.cdRef.detectChanges();
    }
 
    onLoadingStateChanged(event: { name: string, loading: boolean }) {

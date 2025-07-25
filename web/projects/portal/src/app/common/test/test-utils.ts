@@ -825,6 +825,7 @@ export namespace TestUtils {
    export function createMockStompClientService(): any {
       const stompMessages = new Subject<StompMessage>();
       const whenDisconnected = new Subject<void>();
+      const reconnectError = new Subject<void>();
       const stompConnection = {
          subscribe: jest.fn(),
          send: jest.fn(),
@@ -836,7 +837,8 @@ export namespace TestUtils {
       });
       return {
          connect: jest.fn(() => observableOf(stompConnection)),
-         whenDisconnected: jest.fn(() => observableOf(whenDisconnected))
+         whenDisconnected: jest.fn(() => observableOf(whenDisconnected)),
+         reconnectError: jest.fn(() => observableOf(reconnectError))
       };
    }
 
