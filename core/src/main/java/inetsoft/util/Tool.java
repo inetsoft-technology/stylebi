@@ -38,14 +38,14 @@ import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.affinity.AffinitySupport;
-import inetsoft.util.config.*;
-import inetsoft.util.credential.*;
+import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.config.SecretsType;
+import inetsoft.util.credential.CloudCredential;
+import inetsoft.util.credential.Credential;
 import inetsoft.util.css.*;
 import inetsoft.util.encrypt.HcpVaultSecretsPasswordEncryption;
 import inetsoft.util.swap.XSwapUtil;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import net.jpountz.lz4.LZ4BlockInputStream;
 import net.jpountz.lz4.LZ4BlockOutputStream;
 import org.apache.commons.io.IOUtils;
@@ -76,8 +76,8 @@ import java.nio.file.*;
 import java.security.*;
 import java.sql.Timestamp;
 import java.text.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -5104,41 +5104,6 @@ public final class Tool extends CoreTool {
       Object t = x[a];
       x[a] = x[b];
       x[b] = t;
-   }
-
-   /**
-    * Redirects to the error page with the specified message.
-    *
-    * @param response the HTTP response.
-    * @param request  the HTTP request.
-    * @param message  the error message to display.
-    *
-    * @throws IOException if an I/O error occurs.
-    */
-   public static void redirectToErrorPage(HttpServletResponse response, HttpServletRequest request,
-                                          String message)
-      throws IOException, ServletException
-   {
-      request.setAttribute("error", message);
-      request.getRequestDispatcher("/common/error")
-         .forward(request, response);
-   }
-
-   /**
-    * Get the error message from the request.
-    * @param request the HTTP request.
-    *
-    * @return error message, or a default error message if not found.
-    */
-   public static String getErrorMessage(HttpServletRequest request) {
-      String error = Catalog.getCatalog().getString("http.error.serverError");
-      Object errorObj  = request.getAttribute("error");
-
-      if(errorObj instanceof String errorMessage && !Tool.isEmptyString(errorMessage)) {
-         error = errorMessage;
-      }
-
-      return error;
    }
 
    private static final int[][] dateLevel = {
