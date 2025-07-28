@@ -27,4 +27,5 @@ export interface VSImageModel extends VSOutputModel {
    animateGif: boolean;
    shadow: boolean;
    scaleInfo: ScaleInfoModel;
+   imageHash: string;
 }

@@ -22,6 +22,7 @@ import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.ImageVSAssembly;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
+import inetsoft.util.ImageHashService;
 import inetsoft.web.composer.model.vs.HyperlinkModel;
 import org.springframework.stereotype.Component;
 
@@ -57,6 +58,11 @@ public class VSImageModel extends VSOutputModel<ImageVSAssembly> {
             hyperlinks[i] = HyperlinkModel.createHyperlinkModel(hrefs[i]);
          }
       }
+
+      if(assembly.getImage() != null) {
+         ImageHashService imageHashService = rvs.getImageHashService();
+         imageHash = imageHashService.getImageHash(assembly);
+      }
    }
 
    public boolean getNoImageFlag() {
@@ -87,6 +93,10 @@ public class VSImageModel extends VSOutputModel<ImageVSAssembly> {
       return hyperlinks;
    }
 
+   public String getImageHash() {
+      return imageHash;
+   }
+
    private boolean noImageFlag;
    private String alpha;
    private boolean locked;
@@ -94,6 +104,7 @@ public class VSImageModel extends VSOutputModel<ImageVSAssembly> {
    private boolean shadow;
    private final HyperlinkModel[] hyperlinks;
    private final ScaleInfoModel scaleInfo;
+   private String imageHash;
 
    @Component
    public static final class VSImageModelFactory
