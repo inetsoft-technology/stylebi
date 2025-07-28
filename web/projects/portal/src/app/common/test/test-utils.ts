@@ -1258,7 +1258,8 @@ export namespace TestUtils {
             scaleImage: false,
             tiled: false,
             preserveAspectRatio: false
-         }
+         },
+         imageHash: null
       }, createMockVSObjectModel("VSImage", name));
    }
 

@@ -38,8 +38,7 @@ import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.GroupedThread;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogContext;
@@ -126,6 +125,34 @@ public class AssemblyImageService {
          GroupedThread.withGroupedThread(groupedThread -> {
             groupedThread.removeRecord(LogContext.DASHBOARD.getRecord(sheetName));
             groupedThread.removeRecord(LogContext.ASSEMBLY.getRecord(assemblyName));
+         });
+      }
+   }
+
+   public void processImageFromHash(String vid, String hashEncoded,
+                                    Principal principal, HttpServletRequest request,
+                                    HttpServletResponse response)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(Tool.byteDecode(vid), principal);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      String sheetName = box.getAssetEntry() == null ? "" : box.getAssetEntry().getPath();
+      String hash = Tool.byteDecode(hashEncoded);
+
+      try {
+         GroupedThread.withGroupedThread(groupedThread -> {
+            groupedThread.addRecord(LogContext.DASHBOARD.getRecord(sheetName));
+         });
+         // for Feature #26586, add ui processing time record.
+         ProfileUtils.addExecutionBreakDownRecord(box.getID(),
+                                                  ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
+               ImageHashService imageHashService = rvs.getImageHashService();
+               imageHashService.sendImageResponse(hash, rvs.getViewsheet(), request, response);
+            });
+      }
+      finally {
+         GroupedThread.withGroupedThread(groupedThread -> {
+            groupedThread.removeRecord(LogContext.DASHBOARD.getRecord(sheetName));
          });
       }
    }
