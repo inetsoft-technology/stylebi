@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.util.health.HealthStatus;
 import inetsoft.web.admin.schedule.*;
 import inetsoft.web.admin.server.ServerMetrics;
@@ -43,6 +44,14 @@ public interface Schedule extends Remote, TestableRemote {
     * Run a task now
     */
    void runNow(String task) throws RemoteException;
+
+   /**
+    * Run a task now with a specific user as the trigger.
+    *
+    * @param task the name of the task to run
+    * @param triggerUser the user identity that is triggering the task
+    */
+   void runNow(String task, IdentityID triggerUser) throws RemoteException;
 
    /**
     * Stop a task now
