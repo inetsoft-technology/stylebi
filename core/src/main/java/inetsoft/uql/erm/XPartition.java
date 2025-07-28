@@ -2960,7 +2960,7 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
          File dir = fileSystemService.getMetadataDirectory();
          File file = fileSystemService.getFile(dir, key);
 
-         if(!file.delete()) {
+         if(file.exists() && !file.delete()) {
             LOG.warn("Failed to delete meta-data file: {}", file);
          }
       }
