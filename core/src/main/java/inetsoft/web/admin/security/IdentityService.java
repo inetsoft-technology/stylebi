@@ -78,7 +78,6 @@ public class IdentityService {
       this.securityProvider = securityProvider;
       this.themeService = themeService;
       this.authenticationService = authenticationService;
-      this.customThemeChangeListener = CustomThemesManager.getManager().getThemeChangeListener();
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -1918,7 +1917,7 @@ public class IdentityService {
          fromOrg instanceof FSOrganization)
       {
          ((FSOrganization) fromOrg).setLocale(localeString);
-         customThemeChangeListener.handle(new ThemeChangeEvent(fromOrg.getTheme(), model.theme(), fromOrgID, fromOrgID));
+         updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, fromOrgID);
          ((FSOrganization) fromOrg).setTheme(model.theme());
          eprovider.setOrganization(fromOrgID, fromOrg);
 
@@ -1926,11 +1925,41 @@ public class IdentityService {
       }
 
       newOrg.setLocale(localeString);
-      customThemeChangeListener.handle(new ThemeChangeEvent(fromOrg.getTheme(), model.theme(), fromOrgID, newOrg.getId()));
+      updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, newOrg.getId());
       newOrg.setTheme(model.theme());
       syncIdentity(eprovider, newOrg, new IdentityID(model.oldName(), eprovider.getOrgIdFromName(model.oldName())));
 
       return newOrg;
+   }
+
+   private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
+      if(!Tool.equals(oldThemeId, themeID)) {
+
+         if(oldThemeId != null) {
+            CustomTheme oldTheme = CustomThemesManager.getManager().getCustomThemes().stream()
+               .filter(t -> Tool.equals(t.getId(), oldThemeId))
+               .findFirst().orElse(null);
+
+            if(oldTheme != null) {
+               List<String> themeOrgs = oldTheme.getOrganizations();
+               themeOrgs.remove(oldOrgID);
+            }
+         }
+
+         if(themeID != null) {
+            CustomTheme theme = CustomThemesManager.getManager().getCustomThemes().stream()
+               .filter(t -> Tool.equals(t.getId(), themeID))
+               .findFirst().orElse(null);
+
+            if(theme != null) {
+               List<String> themeOrgs = theme.getOrganizations();
+               themeOrgs.add(newOrgID);
+               theme.setOrganizations(themeOrgs);
+            }
+         }
+
+         CustomThemesManager.getManager().save();
+      }
    }
 
    private void updateOrgScopedDataSpace(Organization oorg, Organization norg) {
@@ -2487,29 +2516,9 @@ public class IdentityService {
       return datasourceListString.toString();
    }
 
-   public class ThemeChangeEvent {
-      private final String oldThemeId;
-      private final String newThemeId;
-      private final String oldOrgId;
-      private final String newOrgId;
-
-      public ThemeChangeEvent(String oldThemeId, String newThemeId, String oldOrgId, String newOrgId) {
-         this.oldThemeId = oldThemeId;
-         this.newThemeId = newThemeId;
-         this.oldOrgId = oldOrgId;
-         this.newOrgId = newOrgId;
-      }
-
-      public String getOldThemeId() { return oldThemeId; }
-      public String getNewThemeId() { return newThemeId; }
-      public String getOldOrgId() { return oldOrgId; }
-      public String getNewOrgId() { return newOrgId; }
-   }
-
    private final SecurityEngine securityEngine;
    private final SecurityProvider securityProvider;
    private final IdentityThemeService themeService;
    private final Logger LOG = LoggerFactory.getLogger(IdentityService.class);
    private final AuthenticationService authenticationService;
-   private final CustomThemeChangeListener customThemeChangeListener;
 }

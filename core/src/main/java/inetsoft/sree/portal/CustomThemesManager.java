@@ -18,7 +18,6 @@
 package inetsoft.sree.portal;
 
 import inetsoft.util.*;
-import inetsoft.web.admin.security.IdentityService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
@@ -159,46 +158,4 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
 
       private CustomThemesManager manager;
    }
-
-   private void updateCustomThemeOrganization(IdentityService.ThemeChangeEvent event) {
-      String oldThemeId = event.getOldThemeId();
-      String newThemeId = event.getNewThemeId();
-      String oldOrgID = event.getOldOrgId();
-      String newOrgID = event.getNewOrgId();
-
-      if(!Tool.equals(oldThemeId, newThemeId)) {
-
-         if(oldThemeId != null) {
-            CustomTheme oldTheme = CustomThemesManager.getManager().getCustomThemes().stream()
-               .filter(t -> Tool.equals(t.getId(), oldThemeId))
-               .findFirst().orElse(null);
-
-            if(oldTheme != null) {
-               List<String> themeOrgs = oldTheme.getOrganizations();
-               themeOrgs.remove(oldOrgID);
-            }
-         }
-
-         if(newThemeId != null) {
-            CustomTheme theme = CustomThemesManager.getManager().getCustomThemes().stream()
-               .filter(t -> Tool.equals(t.getId(), newThemeId))
-               .findFirst().orElse(null);
-
-            if(theme != null) {
-               List<String> themeOrgs = theme.getOrganizations();
-               themeOrgs.add(newOrgID);
-               theme.setOrganizations(themeOrgs);
-            }
-         }
-
-         CustomThemesManager.getManager().save();
-      }
-   }
-
-   public CustomThemeChangeListener getThemeChangeListener() {
-      return themeChangeListener;
-   }
-
-   public CustomThemeChangeListener themeChangeListener = this::updateCustomThemeOrganization;
-
 }
