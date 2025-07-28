@@ -20,10 +20,11 @@ package inetsoft.web.admin.viewsheet;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
@@ -78,8 +79,18 @@ public interface ViewsheetModel extends Serializable {
          monitorUser(user);
          dateCreated(rvs.getDateCreated());
          dateAccessed(rvs.getLastAccessed());
+         String sheet = null;
 
-         String sheet = rvs.getEntry().getSheetName();
+         if(SUtil.isDefaultVSGloballyVisible() &&
+            !Tool.equals(user.getOrgID(), OrganizationManager.getInstance().getCurrentOrgID()) &&
+            Tool.equals(user.getOrgID(), Organization.getDefaultOrganizationID()))
+         {
+            sheet = rvs.getEntry().getSheetName(true);
+         }
+         else {
+            sheet = rvs.getEntry().getSheetName();
+         }
+
          String prefix = "Viewsheet: ";
          int idx = sheet == null ? -1 : sheet.indexOf(prefix);
 
