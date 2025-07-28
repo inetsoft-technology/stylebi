@@ -95,7 +95,7 @@ public class JsonTable extends BaseJsonTable {
       for(String name : nameSet) {
          if(count < metadata.names.size()) {
             newRow[metadata.nameIdx.get(name)] = nameIdx.containsKey(name) ?
-               row.get(nameIdx.get(name)) : null;
+               nameIdx.get(name) < row.toArray().length ? row.get(nameIdx.get(name)) : null : null;
          }
          else {
             newRow[count] = row.get(nameIdx.get(name));
