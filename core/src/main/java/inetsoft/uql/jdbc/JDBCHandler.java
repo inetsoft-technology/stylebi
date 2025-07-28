@@ -45,6 +45,7 @@ import javax.sql.DataSource;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.sql.*;
+import java.sql.Date;
 import java.util.*;
 import java.util.concurrent.locks.*;
 
@@ -907,7 +908,7 @@ public class JDBCHandler extends XHandler {
                               ((PreparedStatement) stmt).
                                  setString(inIdx, Tool.toString(val));
                            }
-                           else if(clickhouse && val instanceof Timestamp) {
+                           else if(clickhouse && (val instanceof Timestamp || val instanceof Date)) {
                               ((PreparedStatement) stmt).setObject(inIdx, Tool.toString(val));
                            }
                            else if(boolToStr && val instanceof Boolean) {
