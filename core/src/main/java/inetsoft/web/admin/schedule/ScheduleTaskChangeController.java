@@ -211,22 +211,6 @@ public class ScheduleTaskChangeController {
 
       try {
          task = scheduleService.handleInternalTaskConfiguration(task, subscriber);
-         TaskActivity activity = message.getActivity();
-
-         if(activity != null && activity.getLastRunStatus() != null &&
-            activity.getLastRunStatus().equals("Finished"))
-         {
-            String actionName = ActionRecord.ACTION_NAME_FINISH;
-            String objectType = ActionRecord.OBJECT_TYPE_TASK;
-
-            ActionRecord finishActionRecord = SUtil.getActionRecord(
-               subscriber, actionName, task.getTaskId(), objectType);
-            finishActionRecord.setObjectUser(task.getOwner() != null ? task.getOwner().getName() : "");
-            String seeScheduleLog = Catalog.getCatalog().getString("em.task.runStatus");
-            finishActionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
-            finishActionRecord.setActionError(seeScheduleLog);
-            Audit.getInstance().auditAction(finishActionRecord, subscriber);
-         }
       }
       catch(SecurityException e) {
          LOG.warn("Failed to check schedule task permission", e);
