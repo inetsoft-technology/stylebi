@@ -889,6 +889,21 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
          }
       }
 
+      TimeSliderSelection newTimeSliderSelection = cinfo.getTimeSliderSelection();
+      TimeSliderSelection oldTimeSliderSelection = getTimeSliderSelection();
+
+      if(!Tool.equals(newTimeSliderSelection.getLabelFormat(),
+                      oldTimeSliderSelection.getLabelFormat()))
+      {
+         oldTimeSliderSelection.setLabelFormat(newTimeSliderSelection.getLabelFormat());
+      }
+
+      if(!Tool.equals(newTimeSliderSelection.getValueFormat(),
+                      oldTimeSliderSelection.getValueFormat()))
+      {
+         oldTimeSliderSelection.setValueFormat(newTimeSliderSelection.getValueFormat());
+      }
+
       return result;
    }
 
