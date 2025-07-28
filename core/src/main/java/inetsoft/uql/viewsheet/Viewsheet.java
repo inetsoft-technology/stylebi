@@ -1604,6 +1604,12 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                continue;
             }
 
+            if(assembly.getVSAssemblyInfo() instanceof SelectionVSAssemblyInfo &&
+               ((SelectionVSAssemblyInfo) assembly.getVSAssemblyInfo()).isAdhocFilter())
+            {
+               continue;
+            }
+
             AssemblyInfo info = assembly.getInfo();
             Dimension size;
             Point pos;
