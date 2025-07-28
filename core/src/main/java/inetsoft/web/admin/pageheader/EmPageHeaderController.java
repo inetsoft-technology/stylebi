@@ -19,6 +19,7 @@ package inetsoft.web.admin.pageheader;
 
 import inetsoft.mv.MVManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -26,6 +27,7 @@ import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.security.IdentityChangedMessage;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -101,6 +103,10 @@ public class EmPageHeaderController {
       IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
       ((XPrincipal) principal).setProperty("curr_org_id", orgID);
       ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      String orgName = provider.getOrgNameFromID(orgID);
+      Cluster.getInstance().sendMessage(
+         new IdentityChangedMessage(new IdentityID(orgName, orgID), ((XPrincipal) principal).getSessionID()));
 
       if(!indexedStorage.isInitialized(orgID)) {
          DataSourceRegistry.getRegistry().init();
