@@ -780,9 +780,21 @@ public class SUtil {
             }
             else {
                // for sso user.
-               String orgID = remoteUserID.name.equals("INETSOFT_SYSTEM")  && remoteUserID.orgID == null ?
-                  Organization.getDefaultOrganizationID() :
-                  provider.getOrganization(remoteUserID.orgID).getId();
+               String orgID = null;
+
+               if(remoteUserID.name.equals("INETSOFT_SYSTEM")  && remoteUserID.orgID == null) {
+                  orgID = Organization.getDefaultOrganizationID();
+               }
+               else {
+                  Organization organization = provider.getOrganization(remoteUserID.orgID);
+
+                  if(organization == null) {
+                     throw new RuntimeException("Cannot find organization by remote user: " + remoteUserID);
+                  }
+
+                  orgID = organization.getId();
+               }
+
                res = new SRPrincipal(new ClientInfo(remoteUserID, remoteAddr, sessionId, locale),
                                      new IdentityID[0], new String[0], orgID,
                                      getRandom().nextLong(), null);
