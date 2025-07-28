@@ -187,9 +187,6 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
          catch(Exception e) {
             LOG.debug("Failed to destroy lock: {} lock", lockName, e);
          }
-         finally {
-            lock.unlock();
-         }
 
          try {
             Thread.sleep(5_000);
