@@ -23,6 +23,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -108,7 +109,7 @@ public class GlobalStyleController implements ApplicationContextAware {
          }
       }
 
-      if(themeId == null) {
+      if(Tool.isEmptyString(themeId)) {
          themeId = CustomThemesManager.getManager().getSelectedTheme(user);
       }
 
