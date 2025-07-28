@@ -91,4 +91,9 @@ public interface Debouncer<T> extends AutoCloseable {
     */
    <V> Future<V> debounce(T key, long interval, TimeUnit intervalUnit, Callable<V> task,
                           BinaryOperator<Callable<V>> reducer);
+
+   /**
+    * Cancels a task
+    */
+   void cancel(T key);
 }

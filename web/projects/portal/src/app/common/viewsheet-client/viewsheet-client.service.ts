@@ -88,6 +88,9 @@ export class ViewsheetClientService implements OnDestroy {
          this.client.whenDisconnected().subscribe(() => {
             this.connectionErrorSubject.next("Client disconnected!");
          });
+         this.client.reconnectError().subscribe((error) => {
+            this.connectionErrorSubject.next(error);
+         });
          this.client.connect("../vs-events", false, customElement).subscribe(
             (connection) => {
                this.commandSubject.forceAsync = connection.transport !== "websocket";

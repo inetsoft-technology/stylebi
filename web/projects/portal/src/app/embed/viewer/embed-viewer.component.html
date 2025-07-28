@@ -20,7 +20,8 @@
      [class.data-tip-pop-component-visible]="dataTipPopComponentVisible"
      [style.width.px]="width ? width : null"
      [style.height.px]="height ? height : null">
-  <viewer-app #viewerApp *ngIf="assetId && connected && !showError"
+  <viewer-app #viewerApp *ngIf="assetId && connected"
+              [style.visibility]="showError ? 'hidden' : 'visible'"
               [assetId]="assetId"
               [queryParameters]="queryParams"
               [hideToolbar]="hideToolbar"

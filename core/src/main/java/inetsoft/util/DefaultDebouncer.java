@@ -148,6 +148,26 @@ public class DefaultDebouncer<T> implements Debouncer<T> {
       return schedule(key, interval, intervalUnit, task, reducer);
    }
 
+   @Override
+   public void cancel(T key) {
+      lock.lock();
+
+      try {
+         DebouncedTask<?> task = pending.remove(key);
+
+         if(task != null) {
+            Future<?> future = task.scheduledFuture;
+
+            if(future != null) {
+               future.cancel(false);
+            }
+         }
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
    /**
     * {@inheritDoc}
     */
@@ -173,13 +193,13 @@ public class DefaultDebouncer<T> implements Debouncer<T> {
                debounced = new DebouncedTask<>(key);
                lastKey = key;
                lastTask = debounced;
-               executor.schedule(debounced, interval, intervalUnit);
+               debounced.scheduledFuture = executor.schedule(debounced, interval, intervalUnit);
             }
          }
          else {
             debounced = pending.computeIfAbsent(key, k -> {
                DebouncedTask<V> d = new DebouncedTask<>(k);
-               executor.schedule(d, interval, intervalUnit);
+               d.scheduledFuture = executor.schedule(d, interval, intervalUnit);
                return d;
             });
          }
@@ -233,7 +253,8 @@ public class DefaultDebouncer<T> implements Debouncer<T> {
             long remaining = scheduled - System.currentTimeMillis();
 
             if(remaining > 0) {
-               executor.schedule(this, remaining, TimeUnit.MILLISECONDS);
+               this.scheduledFuture =
+                  executor.schedule(this, remaining, TimeUnit.MILLISECONDS);
                return;
             }
             else {
@@ -266,6 +287,7 @@ public class DefaultDebouncer<T> implements Debouncer<T> {
       private Callable<V> task;
       private final CompletableFuture<V> future = new CompletableFuture<>();
       private long scheduled;
+      private Future<?> scheduledFuture;
    }
 
    private static final class RunnableCallable implements Callable<Void> {
