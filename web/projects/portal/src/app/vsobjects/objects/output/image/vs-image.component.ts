@@ -18,6 +18,7 @@
 import {
    ChangeDetectorRef,
    Component,
+   ElementRef,
    EventEmitter,
    Input,
    NgZone,
@@ -26,7 +27,8 @@ import {
    OnInit,
    Output,
    SimpleChange,
-   SimpleChanges
+   SimpleChanges,
+   ViewChild
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AssemblyActionEvent } from "../../../../common/action/assembly-action-event";
@@ -55,6 +57,7 @@ export class VSImage extends AbstractImageComponent<VSImageModel>
    @Input() layoutRegion: string = "CONTENT";
    @Input() layoutName: string;
    @Output() onOpenFormatPane = new EventEmitter<VSImageModel>();
+   @ViewChild("imageElement") imageElement: ElementRef;
    imageSize = new Dimension(null, null);
    tooltip: string = "";
    opacity: any;
@@ -126,6 +129,7 @@ export class VSImage extends AbstractImageComponent<VSImageModel>
          () => {
             this.opacity = this.getOpacity();
             this.src = this.getSrc();
+            this.onImageLoad();
             this.changeRef.detectChanges();
 
             if(this.model.scaleInfo.tiled) {
@@ -165,6 +169,11 @@ export class VSImage extends AbstractImageComponent<VSImageModel>
             "/" + this.model.objectFormat.width +
             "/" + this.model.objectFormat.height +
             "?" + this.model.genTime;
+      }
+      else if(this.model.imageHash) {
+         newSrc = this.vsInfo.linkUri + "/getImageFromHash" +
+            "/" + Tool.byteEncodeURLComponent(this.viewsheetClient.runtimeId) +
+            "/" + Tool.byteEncodeURLComponent(this.model.imageHash);
       }
       else {
          newSrc = this.vsInfo.linkUri + "getAssemblyImage" +
@@ -233,7 +242,7 @@ export class VSImage extends AbstractImageComponent<VSImageModel>
       return this.contextProvider.composer;
    }
 
-   onImageLoad(event: UIEvent) {
+   onImageLoad() {
       this.imageSize = new Dimension(null, null);
       this.changeRef.detectChanges();
 
@@ -241,8 +250,8 @@ export class VSImage extends AbstractImageComponent<VSImageModel>
          let size = new Dimension(this.model.objectFormat.width, this.model.objectFormat.height);
 
          if(this.model.scaleInfo.preserveAspectRatio) {
-            const image = event.target as HTMLImageElement;
-            size = size.getScaledDimension(image.width / image.height);
+            size = size.getScaledDimension(
+               this.imageElement.nativeElement.width / this.imageElement.nativeElement.height);
          }
 
          size.width -= Tool.getMarginSize(this.model.objectFormat.border.left);

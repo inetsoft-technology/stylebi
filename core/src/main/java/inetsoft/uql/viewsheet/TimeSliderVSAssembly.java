@@ -1242,7 +1242,7 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
          sb.append(values[start].getLabel());
 
          int end = start + getTimeInfo().getLength() + 1;
-         end = end > max ? max : end;
+         end = end > max || end < 1 ? max : end;
          String conn = isUpperInclusive() ? ".." : "->";
 
          sb.append(conn).append(values[end - 1].getLabel());
