@@ -23,7 +23,7 @@ ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX
 ENV JAVA_LOCALE_OPTS='-Duser.language=en -Duser.country=US -Djava.locale.providers=COMPAT,SPI'
 ENV JAVA_CODECACHE_OPTS='-XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize=200m -XX:+UseCodeCacheFlushing'
 ENV JAVA_NETWORK_OPTS='-Djava.net.preferIPv4Stack=true'
-ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs -Dinetsoft.metadata.dir=/var/lib/inesoft/metadata'
+ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs -Dinetsoft.metadata.dir=/var/lib/inetsoft/metadata'
 ENV JAVA_CLASSPATH=''
 
 RUN apt-get update \
