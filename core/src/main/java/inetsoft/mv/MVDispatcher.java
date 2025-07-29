@@ -196,13 +196,24 @@ public class MVDispatcher {
                      // add 100 years instead of using MAX_VALUE, which
                      // causes year out of range error in oracle
                      calendar0.add(Calendar.YEAR, 100);
-                     vars.put("__END__", calendar0.getTime());
+
+                     if(isDateTime) {
+                        vars.put("__END__", calendar0.getTime());
+                     }
+                     else {
+                        vars.put("__END__", new java.sql.Date(calendar0.getTimeInMillis()));
+                     }
                   }
                   // first block condition is >=, no <
                }
                else {
                   if(isDate) {
-                     vars.put("__END__", calendar.getTime());
+                     if(isDateTime) {
+                        vars.put("__END__", calendar.getTime());
+                     }
+                     else {
+                        vars.put("__END__", new java.sql.Date(calendar.getTimeInMillis()));
+                     }
                   }
                   else {
                      vars.put("__END__", nrange);
@@ -225,7 +236,12 @@ public class MVDispatcher {
                }
 
                if(isDate) {
-                  vars.put("__START__", calendar.getTime());
+                  if(isDateTime) {
+                     vars.put("__START__", calendar.getTime());
+                  }
+                  else {
+                     vars.put("__START__", new java.sql.Date(calendar.getTimeInMillis()));
+                  }
                }
                // last condition is <, no >=
                else if(i < dispatcherCnt - 1) {
@@ -236,6 +252,7 @@ public class MVDispatcher {
                   new MVCompositeDispatcher(def, vars);
                dispatcher.number = this.number;
                dispatcher.isDate = this.isDate;
+               dispatcher.isDateTime = this.isDateTime;
                dispatchers[i] = dispatcher;
                pool.add(dispatcher);
             }
@@ -374,6 +391,7 @@ public class MVDispatcher {
       }
 
       isDate = date != null;
+      isDateTime = XSchema.TIME_INSTANT.equals(date.getDataType());
       String dataType = date != null ? XSchema.DATE : number.getDataType();
 
       if(isDate) {
@@ -802,6 +820,7 @@ public class MVDispatcher {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MVDispatcher.class);
+   protected boolean isDateTime = false;
    protected MVDef def;
    protected String name;
    private boolean canceled = false;
