@@ -34,9 +34,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && userdel -rf ubuntu \
   && groupadd -g 1000 inetsoft \
-  && useradd -u 1000 -g 1000 -d /usr/local/inetsoft -s /bin/bash -m inetsoft \
+  && useradd -u 1000 -g 1000 -d /var/lib/inetsoft -s /bin/bash -m inetsoft \
   && mkdir -p /usr/local/inetsoft/classes \
-  && chown -R inetsoft:inetsoft /usr/local/inetsoft/classes \
+  && chown -R inetsoft:inetsoft /usr/local/inetsoft \
   && mkdir -p /var/lib/inetsoft/config \
   && mkdir -p /var/lib/inetsoft/temp \
   && chown -R inetsoft:inetsoft /var/lib/inetsoft \
