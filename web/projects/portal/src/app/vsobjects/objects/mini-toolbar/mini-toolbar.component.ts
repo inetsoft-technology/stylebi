@@ -20,6 +20,7 @@ import { AssemblyActionGroup } from "../../../common/action/assembly-action-grou
 import { GuiTool } from "../../../common/util/gui-tool";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { ContextProvider } from "../../context-provider.service";
+import { PopComponentService } from "../data-tip/pop-component.service";
 import { NavigationKeys } from "../navigation-keys";
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { Observable ,  Subscription } from "rxjs";
@@ -93,7 +94,8 @@ export class MiniToolbar implements OnDestroy {
 
    constructor(private contextProvider: ContextProvider,
                private element: ElementRef,
-               private miniToolbarService: MiniToolbarService) {
+               private miniToolbarService: MiniToolbarService,
+               private popComponentService: PopComponentService) {
    }
 
    ngOnDestroy() {
@@ -246,10 +248,18 @@ export class MiniToolbar implements OnDestroy {
    }
 
    get topY(): number {
+      if(this.isPopComponent) {
+         return Number.NaN;
+      }
+
       // don't cover resize handle in composer
       const adj = this.contextProvider.composer && !this.contextProvider.vsWizard ? 3 : 0;
       const minTop = 20;
       return this.top > minTop || this.forceAbove ? this.top - this.miniToolbarHeight - adj
         : this.top;
+   }
+
+   get isPopComponent(): boolean {
+      return this.popComponentService.isPopComponentShow(this.assembly);
    }
 }
