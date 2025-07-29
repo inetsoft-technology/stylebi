@@ -187,6 +187,7 @@ public class PostProcessor {
 
             for(int i = 0; i < headers.length; i++) {
                filter.setObject(0, i + table.getColCount(), headers[i]);
+               filter.setColumnIdentifier(i + table.getColCount(), headers[i]);
             }
 
             return filter;
