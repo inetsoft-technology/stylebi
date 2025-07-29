@@ -384,6 +384,10 @@ public class ValueOfColumn extends AbstractColumn {
                   return INVALID;
                }
 
+               if(!(val instanceof Date)) {
+                  return INVALID;
+               }
+
                tval = getPreviousDate(val);
             }
             else {
