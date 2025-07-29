@@ -94,8 +94,17 @@ public class JsonTable extends BaseJsonTable {
       // rearrange the row entries
       for(String name : nameSet) {
          if(count < metadata.names.size()) {
-            newRow[metadata.nameIdx.get(name)] = nameIdx.containsKey(name) ?
-               nameIdx.get(name) < row.toArray().length ? row.get(nameIdx.get(name)) : null : null;
+
+            if(nameIdx.containsKey(name)) {
+               int idx = nameIdx.get(name);
+
+               if(idx < row.size()) {
+                  newRow[metadata.nameIdx.get(name)] = row.get(idx);
+               }
+            }
+            else {
+               newRow[metadata.nameIdx.get(name)] = null;
+            }
          }
          else {
             newRow[count] = row.get(nameIdx.get(name));
