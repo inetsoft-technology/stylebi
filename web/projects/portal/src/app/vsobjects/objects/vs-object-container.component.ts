@@ -179,6 +179,11 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
 
       this.subscriptions.add(this.popService.componentPop.subscribe((name) => {
          this.resetAssemblyAction(name);
+         this.changeDetectorRef.detectChanges();
+      }));
+
+      this.subscriptions.add(this.dataTipService.showHideDataTip.subscribe(() => {
+         this.changeDetectorRef.detectChanges();
       }));
    }
 
