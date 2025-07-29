@@ -20,73 +20,43 @@ package inetsoft.sree.security.db;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.IdentityID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.*;
 
-class DatabaseAuthenticationCache implements AutoCloseable {
+class DatabaseAuthenticationCache {
    public DatabaseAuthenticationCache(DatabaseAuthenticationProvider provider) {
       this.provider = provider;
       this.cluster = Cluster.getInstance();
-      prefix = "DatabaseSecurity:" + provider.getProviderName();
-      this.lastLoad = cluster.getLong(prefix + ".lastLoad");
-      this.lastFailure = cluster.getLong(prefix + ".lastFailure");
-      this.loadCount = cluster.getLong(prefix + ".loadCount");
-      this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
-      this.orgMembers = cluster.getReplicatedMap(prefix + ".orgMembers");
-      this.orgRoles = cluster.getReplicatedMap(prefix + ".orgRoles");
-      this.organizations = cluster.getReplicatedSet(prefix + ".organizations", true);
-      this.users = cluster.getReplicatedSet(prefix + ".users", true);
-      this.groups = cluster.getReplicatedSet(prefix + ".groups", true);
-      this.roles = cluster.getReplicatedSet(prefix + ".roles", true);
-      this.groupUsers = cluster.getReplicatedMap(prefix + ".groupUsers");
-      this.userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
-      this.userEmails = cluster.getReplicatedMap(prefix + ".userEmails");
-      this.executor = Executors.newSingleThreadScheduledExecutor(
-         r -> new Thread(r, "DatabaseAuthenticationCache"));
-   }
-
-   @Override
-   public void close() throws Exception {
-      executor.shutdown();
-   }
-
-   public void load() {
-      refresh(false, true);
+      String prefix = "DatabaseSecurity:" + provider.getProviderName() + ".";
+      this.lastLoad = cluster.getLong(prefix + "lastLoad");
+      this.lastFailure = cluster.getLong(prefix + "lastFailure");
+      this.loadCount = cluster.getLong(prefix + "loadCount");
+      this.orgNames = cluster.getReplicatedMap(prefix + "orgNames");
+      this.orgMembers = cluster.getReplicatedMap(prefix + "orgMembers");
+      this.orgRoles = cluster.getReplicatedMap(prefix + "orgRoles");
+      this.organizations = cluster.getReplicatedSet(prefix + "organizations", true);
+      this.users = cluster.getReplicatedSet(prefix + "users", true);
+      this.groups = cluster.getReplicatedSet(prefix + "groups", true);
+      this.roles = cluster.getReplicatedSet(prefix + "roles", true);
+      this.groupUsers = cluster.getReplicatedMap(prefix + "groupUsers");
+      this.userRoles = cluster.getReplicatedMap(prefix + "userRoles");
+      this.userEmails = cluster.getReplicatedMap(prefix + "userEmails");
    }
 
    public void refresh() {
-      refresh(true, false);
+      // todo send refresh task
    }
 
-   private void refresh(boolean force, boolean reschedule) {
-      long next = -1;
-
-      try {
-         next = cluster.submit(
-            prefix, new RefreshCacheTask(provider.getProviderName(), force)).get();
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to refresh database authentication cache", e);
-      }
-
-      if(reschedule && next > 0) {
-         executor.schedule(() -> refresh(false, true), next, TimeUnit.MILLISECONDS);
-      }
-   }
-
-   long load(boolean force) {
+   private long load(boolean force) {
       if(loadCount.incrementAndGet() > 1) {
          loadCount.decrementAndGet();
-         return isFailedState() ? 60000L : provider.getCacheRefreshDelay();
+         return isFailedState() ? 60L : provider.getCacheRefreshDelay();
       }
 
       try {
-         if(!force && !isReloadRequired()) {
+         if(force || !isReloadRequired()) {
             return getNextReloadDelay();
          }
 
@@ -279,13 +249,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
          return interval;
       }
 
-      long delay = interval - Duration.between(loaded, Instant.now()).toMillis();
-
-      if(delay <= 0) {
-         return 1L;
-      }
-
-      return delay;
+      return Duration.between(loaded, Instant.now()).plusMillis(interval).toMillis();
    }
 
    private void handleError() {
@@ -295,7 +259,6 @@ class DatabaseAuthenticationCache implements AutoCloseable {
 
    private final DatabaseAuthenticationProvider provider;
    private final Cluster cluster;
-   private final String prefix;
    private final DistributedLong lastLoad;
    private final DistributedLong lastFailure;
    private final DistributedLong loadCount;
@@ -309,6 +272,4 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    private final DistributedMap<IdentityID, IdentityID[]> groupUsers;
    private final DistributedMap<IdentityID, IdentityID[]> userRoles;
    private final DistributedMap<IdentityID, String[]> userEmails;
-   private final ScheduledExecutorService executor;
-   private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationCache.class);
 }
