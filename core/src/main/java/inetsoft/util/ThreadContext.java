@@ -17,7 +17,9 @@
  */
 package inetsoft.util;
 
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 import java.util.*;
@@ -54,6 +56,12 @@ public final class ThreadContext {
          PRINCIPAL.remove();
       }
       else {
+         if(LOG.isDebugEnabled() &&
+            Organization.getSelfOrganizationID().equals(OrganizationManager.getInstance().getCurrentOrgID(principal)))
+         {
+            LOG.debug("Setting self-registered user: {}", principal, new Exception("Stack trace"));
+         }
+
          PRINCIPAL.set(principal);
       }
    }
@@ -192,4 +200,5 @@ public final class ThreadContext {
    private static final ThreadLocal<Principal> PRINCIPAL = new InheritableThreadLocal<>();
    private static final ThreadLocal<Locale> LOCALE = new InheritableThreadLocal<>();
    private static final Map<Thread,Map<String,Object>> sessionInfos = new WeakHashMap<>();
+   private static final Logger LOG = LoggerFactory.getLogger(ThreadContext.class);
 }
