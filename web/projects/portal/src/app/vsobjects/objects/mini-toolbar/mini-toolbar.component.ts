@@ -20,6 +20,7 @@ import { AssemblyActionGroup } from "../../../common/action/assembly-action-grou
 import { GuiTool } from "../../../common/util/gui-tool";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { ContextProvider } from "../../context-provider.service";
+import { PopComponentService } from "../data-tip/pop-component.service";
 import { NavigationKeys } from "../navigation-keys";
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { Observable ,  Subscription } from "rxjs";
@@ -47,10 +48,19 @@ export class MiniToolbar implements OnDestroy {
    @Input() top: number;
    @Input() left: number;
    @Input() width: number;
-   @Input() assembly: string;
    @Input() forceAbove: boolean = false;
    @Input() visible: boolean = true;
    @Input() forceHide: boolean = false;
+
+   @Input() set assembly(value: string) {
+      this._assembly = value;
+      this.currentPopComponent = this.popComponentService.isCurrentPopComponent(this.assembly, null);
+   }
+
+   get assembly() {
+      return this._assembly;
+   }
+
    @Input() set forceShow(value: boolean) {
       this.focused = value;
 
@@ -85,15 +95,18 @@ export class MiniToolbar implements OnDestroy {
       }
    }
    mobileDevice: boolean = GuiTool.isMobileDevice();
+   currentPopComponent: boolean;
    private focusedGroupIndex: number = -1;
    private focusedActionIndex: number = -1;
    private focused: boolean = false;
    private subscription: Subscription;
    private focusedElement: any;
+   private _assembly: string;
 
    constructor(private contextProvider: ContextProvider,
                private element: ElementRef,
-               private miniToolbarService: MiniToolbarService) {
+               private miniToolbarService: MiniToolbarService,
+               private popComponentService: PopComponentService) {
    }
 
    ngOnDestroy() {
@@ -246,6 +259,10 @@ export class MiniToolbar implements OnDestroy {
    }
 
    get topY(): number {
+      if(this.currentPopComponent) {
+         return Number.NaN;
+      }
+
       // don't cover resize handle in composer
       const adj = this.contextProvider.composer && !this.contextProvider.vsWizard ? 3 : 0;
       const minTop = 20;
