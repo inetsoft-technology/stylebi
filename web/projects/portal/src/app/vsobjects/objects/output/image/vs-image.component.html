@@ -39,6 +39,8 @@
      [style.border-right]="model.objectFormat.border.right"
      [style.border-radius.px]="model.objectFormat.roundCorner">
   <div class="image-container"
+       [style.align-items]="model.objectFormat.alignItems"
+       [style.justify-content]="model.objectFormat.justifyContent"
        [class.cursor-pointer]="viewer && (model.hyperlinks && model.hyperlinks.length || model.hasOnClick || model.popComponent)">
     <ng-container *ngIf="!model.noImageFlag && vsInfo?.linkUri">
       <img #imageElement *ngIf="!model.scaleInfo.tiled" class="image-content"
