@@ -335,7 +335,7 @@ public class CrosstabDcProcessor {
       DateComparisonInfo dcInfo = DateComparisonUtil.getDateComparison(info, info.getViewsheet());
 
       if(dcInfo == null || dcInfo.getComparisonOption() == DateComparisonInfo.VALUE ||
-         !(dcInfo.getPeriods() instanceof StandardPeriods))
+         !(dcInfo.getPeriods() instanceof StandardPeriods) || info.getDateComparisonRef() == null)
       {
          return table;
       }
