@@ -411,13 +411,10 @@ export class VSObjectContainer implements AfterViewInit, OnChanges, OnDestroy {
 
    public getToolbarTop(object: VSObjectModel, i: number): number {
       let actionHeight = 28;
-      let top: number = this.embeddedVS ? this.embeddedVSBounds.y : object.objectFormat.top;
+      let top = object.objectFormat.top;
 
       if(Tool.equalsIgnoreCase(object.objectType, "VSRangeSlider") && top < actionHeight) {
          top = top + object.objectFormat.height + actionHeight;
-      }
-      else {
-         top = object.objectFormat.top;
       }
 
       return top;
