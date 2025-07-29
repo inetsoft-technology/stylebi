@@ -349,7 +349,7 @@ public class CrosstabDcProcessor {
       int cnt = onRows ? table.getRowCount() : table.getColCount();
 
       for(int i = 0; i < headers.length; i++) {
-         if(compRef.getFullName().equals(((VSDataRef) headers[i]).getFullName())) {
+         if(compRef != null && compRef.getFullName().equals(((VSDataRef) headers[i]).getFullName())) {
             idx = i;
             break;
          }
