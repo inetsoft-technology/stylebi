@@ -88,7 +88,7 @@
          <button class="btn btn-link btn-xs force-focus-highlight" title="_#(Remove)"
                  [disabled]="isEditBookmarkDisabled(bookmark)"
                  *ngIf="isEditBookmarkVisible(bookmark)"
-                 (click)="deleteBookmark(bookmark)">
+                 (click)="deleteBookmark(bookmark); $event.stopPropagation();">
             <i class="trash-icon icon-size-small align-middle"
                (click)="isEditBookmarkDisabled(bookmark) ? $event.stopPropagation() : null"></i>
          </button>
