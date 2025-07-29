@@ -373,9 +373,6 @@ public class ValueOfColumn extends AbstractColumn {
       else {
          Object val = data.getData(ndim, row);
 
-         if(!(val instanceof Date)) {
-            return INVALID;
-         }
 
          Object tval = null;
 
@@ -384,6 +381,10 @@ public class ValueOfColumn extends AbstractColumn {
                VSDataSet vsDataSet = getVSDataset(data);
 
                if(vsDataSet != null && vsDataSet.isOthers(ndim, String.valueOf(val))) {
+                  return INVALID;
+               }
+
+               if(!(val instanceof Date)) {
                   return INVALID;
                }
 
