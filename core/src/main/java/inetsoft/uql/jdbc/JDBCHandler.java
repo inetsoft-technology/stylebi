@@ -1041,6 +1041,12 @@ public class JDBCHandler extends XHandler {
                      String oldSelect = column + " as " + column;
                      String newSelect = "CAST("+ column + " as STRING) as " + column;
 
+                     if(column == null) {
+                        column = query.getSelection().getColumn(0);
+                        oldSelect = column;
+                        newSelect = "CAST("+ column + " as STRING)";
+                     }
+
                      if(origSQL.contains(oldSelect)) {
                         origSQL = origSQL.replace(oldSelect, newSelect);
 
