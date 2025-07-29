@@ -48,19 +48,10 @@ export class MiniToolbar implements OnDestroy {
    @Input() top: number;
    @Input() left: number;
    @Input() width: number;
+   @Input() assembly: string;
    @Input() forceAbove: boolean = false;
    @Input() visible: boolean = true;
    @Input() forceHide: boolean = false;
-
-   @Input() set assembly(value: string) {
-      this._assembly = value;
-      this.currentPopComponent = this.popComponentService.isCurrentPopComponent(this.assembly, null);
-   }
-
-   get assembly() {
-      return this._assembly;
-   }
-
    @Input() set forceShow(value: boolean) {
       this.focused = value;
 
@@ -95,13 +86,11 @@ export class MiniToolbar implements OnDestroy {
       }
    }
    mobileDevice: boolean = GuiTool.isMobileDevice();
-   currentPopComponent: boolean;
    private focusedGroupIndex: number = -1;
    private focusedActionIndex: number = -1;
    private focused: boolean = false;
    private subscription: Subscription;
    private focusedElement: any;
-   private _assembly: string;
 
    constructor(private contextProvider: ContextProvider,
                private element: ElementRef,
@@ -259,7 +248,7 @@ export class MiniToolbar implements OnDestroy {
    }
 
    get topY(): number {
-      if(this.currentPopComponent) {
+      if(this.isPopComponent) {
          return Number.NaN;
       }
 
@@ -268,5 +257,9 @@ export class MiniToolbar implements OnDestroy {
       const minTop = 20;
       return this.top > minTop || this.forceAbove ? this.top - this.miniToolbarHeight - adj
         : this.top;
+   }
+
+   get isPopComponent(): boolean {
+      return this.popComponentService.isPopComponentShow(this.assembly);
    }
 }
