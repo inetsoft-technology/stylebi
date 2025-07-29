@@ -178,7 +178,9 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          generateTasks(true, false);
       }
       else if(MVManager.MV_CHANGE_EVENT.equals(name)) {
-         generateTasks(true, false);
+         String orgId = MVManager.getOrgIdFromEventSource(evt.getSource());
+         generateTasks(null, orgId != null ? new Organization(new IdentityID(orgId, orgId)) : null,
+                       true, false, false);
       }
    }
 
