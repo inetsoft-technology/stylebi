@@ -80,8 +80,9 @@ public class ImageHashService {
          height = size.height;
       }
 
+      String embeddedViewsheetName = vs.isEmbedded() ? vs.getAbsoluteName() : null;
       ImageInfo imageInfo = new ImageInfo(imagePath, width, height, rawBytes, assemblyName,
-                                          shadow, highlight, scale9);
+                                          shadow, highlight, scale9, embeddedViewsheetName);
 
       if(infoToHash.containsKey(imageInfo)) {
          return infoToHash.get(imageInfo);
@@ -171,6 +172,14 @@ public class ImageHashService {
          if(vsAssembly instanceof ImageVSAssembly) {
             info = vsAssembly.getVSAssemblyInfo();
             rawImage = ((ImageVSAssemblyInfo) info).getRawImage();
+         }
+      }
+
+      if(imageInfo.embeddedViewsheetName != null) {
+         VSAssembly embeddedVS = vs.getAssembly(imageInfo.embeddedViewsheetName);
+
+         if(embeddedVS instanceof Viewsheet) {
+            vs = (Viewsheet) embeddedVS;
          }
       }
 
@@ -282,7 +291,8 @@ public class ImageHashService {
     */
    private static class ImageInfo {
       public ImageInfo(String path, int width, int height, boolean rawBytes, String assemblyName,
-                       boolean shadow, boolean highlight, String scale9)
+                       boolean shadow, boolean highlight, String scale9,
+                       String embeddedViewsheetName)
       {
          this.path = path;
          this.width = width;
@@ -292,6 +302,7 @@ public class ImageHashService {
          this.shadow = shadow;
          this.highlight = highlight;
          this.scale9 = scale9;
+         this.embeddedViewsheetName = embeddedViewsheetName;
       }
 
       @Override
@@ -309,12 +320,14 @@ public class ImageHashService {
             rawBytes == imageInfo.rawBytes && shadow == imageInfo.shadow &&
             highlight == imageInfo.highlight && Objects.equals(path, imageInfo.path) &&
             Objects.equals(assemblyName, imageInfo.assemblyName) &&
-            Objects.equals(scale9, imageInfo.scale9);
+            Objects.equals(scale9, imageInfo.scale9) &&
+            Objects.equals(embeddedViewsheetName, imageInfo.embeddedViewsheetName);
       }
 
       @Override
       public int hashCode() {
-         return Objects.hash(path, width, height, rawBytes, assemblyName, shadow, highlight, scale9);
+         return Objects.hash(path, width, height, rawBytes, assemblyName, shadow, highlight, scale9,
+                             embeddedViewsheetName);
       }
 
       private final String path;
@@ -325,6 +338,7 @@ public class ImageHashService {
       private final boolean shadow;
       private final boolean highlight;
       private final String scale9;
+      private final String embeddedViewsheetName;
    }
 
    private final ConcurrentHashMap<ImageInfo, String> infoToHash = new ConcurrentHashMap<>();

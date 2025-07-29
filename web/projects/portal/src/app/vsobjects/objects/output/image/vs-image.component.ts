@@ -249,7 +249,7 @@ export class VSImage extends AbstractImageComponent<VSImageModel>
       if(this.model.scaleInfo.scaleImage || this.model.noImageFlag) {
          let size = new Dimension(this.model.objectFormat.width, this.model.objectFormat.height);
 
-         if(this.model.scaleInfo.preserveAspectRatio) {
+         if(this.model.scaleInfo.preserveAspectRatio && this.imageElement) {
             size = size.getScaledDimension(
                this.imageElement.nativeElement.width / this.imageElement.nativeElement.height);
          }
