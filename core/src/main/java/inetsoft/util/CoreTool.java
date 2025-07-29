@@ -1009,6 +1009,20 @@ public class CoreTool {
     * @return typed value.
     */
    public static Object getData(String type, String val, boolean strictNull) {
+      return getData(type, val, strictNull, false);
+   }
+
+   /**
+    * Get a typed value from its string representation. For example
+    * getData("Integer", "15") returns an Integer object with value 15.
+    * @param type String representation of the type.
+    * @param val String representation of the value.
+    * @param strictNull if true, null values were identified with FAKE_NULL so that
+    *                   they can be strictly distinguished, else not.
+    * @param databricks true if databricks db else false.
+    * @return typed value.
+    */
+   public static Object getData(String type, String val, boolean strictNull, boolean databricks) {
       try {
          if(strictNull && FAKE_NULL.equals(val) || !strictNull && NULL.equals(val) || val == null) {
             return null;
@@ -1101,7 +1115,12 @@ public class CoreTool {
             Date timeInstant;
 
             try {
-               timeInstant = parseDateTime(val);
+               if(databricks) {
+                  timeInstant = parseDatabricksDateTime(val);
+               }
+               else {
+                  timeInstant = parseDateTime(val);
+               }
             }
             catch(Exception ex) {
                try {
@@ -1921,6 +1940,15 @@ public class CoreTool {
          catch(Exception ex2) {
             throw new ParseException(ex2.getMessage(), 0);
          }
+      }
+   }
+
+   public static Date parseDatabricksDateTime(String val) throws ParseException {
+      try {
+         return (Date) DATABRICKS_DATETIME_FORMAT_CACHE.parse(val);
+      }
+      catch(ParseException ex) {
+         return parseDateTime(val);
       }
    }
 
@@ -3798,6 +3826,9 @@ public class CoreTool {
    // date format cache
    static final FormatCache DATE_FORMAT_CACHE =
       new FormatCache(createDateFormat(DEFAULT_DATE_PATTERN));
+
+   static final FormatCache DATABRICKS_DATETIME_FORMAT_CACHE =
+      new FormatCache(createDateFormat(DATABRICKS_DATETIME_PATTERN));
 
    private static Toolkit toolkit = null;
    private static final Component component = new Component() {};

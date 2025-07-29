@@ -109,6 +109,7 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
       final Map<String, Collection<Object>> intersectionAllSelections =
          getColumnMapIntersection(assembly, allSelections);
 
+      boolean databricks = Tool.isDatabricks(assembly);
       DataRef ref = assembly.getDataRef();
       Set<Object> vset = values.get(ref.getName()); // associated values
       Set<Object> sset = (Set<Object>) intersectionAllSelections.get(ref.getName()); // selected values
@@ -185,7 +186,7 @@ public class SelectionListVSAQuery extends AbstractSelectionVSAQuery {
             break;
          }
 
-         String value = obj == null ? null : Tool.getDataString(obj);
+         String value = obj == null ? null : Tool.getTableLensDataString(obj, databricks);
          String label = VSCubeTableLens.getDisplayValue(
             obj == null ? "" : obj instanceof MemberObject ? obj : value, rtype);
 

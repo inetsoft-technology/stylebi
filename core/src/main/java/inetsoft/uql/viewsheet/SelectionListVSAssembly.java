@@ -297,6 +297,7 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
     * @return the selected objects.
     */
    private List<Object> getSelectedObjects0(boolean applied) {
+      boolean databricks = Tool.isDatabricks(this);
       //fix bug #3983
       checkScriptSelectedValues();
 
@@ -323,7 +324,7 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
 
          String vstr = val.getValue();
          String dtype = ref.getDataType();
-         Object obj = Tool.getData(dtype, vstr, false);
+         Object obj = Tool.getData(dtype, vstr, false, databricks);
          list.add(obj);
       }
 

@@ -35,7 +35,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
-import inetsoft.uql.viewsheet.VSCrosstabInfo;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.affinity.AffinitySupport;
@@ -5132,6 +5132,27 @@ public final class Tool extends CoreTool {
 
    public static boolean isDatabricks(XDataSource xds) {
       return xds != null ? SQLHelper.getSQLHelper(xds) instanceof DatabricksHelper : false;
+   }
+
+   public static boolean isDatabricks(BindableVSAssembly assembly) {
+      AssemblyRef[] assemblyRefs = assembly == null ? null : assembly.getDependedWSAssemblies();
+
+      if(assemblyRefs == null || assemblyRefs.length == 0) {
+         return false;
+      }
+
+      Worksheet ws = assembly.getWorksheet();
+
+      // single source.
+      if(ws != null && assemblyRefs.length == 1) {
+         Assembly wsAssembly = ws.getAssembly(assemblyRefs[0].getEntry().getName());
+
+         if(wsAssembly instanceof TableAssembly tableAssembly) {
+            return Tool.isDatabricks(tableAssembly.getSource());
+         }
+      }
+
+      return false;
    }
 
    private static final int[][] dateLevel = {
