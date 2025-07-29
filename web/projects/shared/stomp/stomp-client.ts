@@ -43,6 +43,7 @@ export class StompClient {
    public reloadOnFailure: boolean;
 
    constructor(private endpoint: string, private onDisconnect: (endpoint: string) => any,
+               private onReconnectError: (error: string) => any,
                private ssoHeartbeatService: SsoHeartbeatService,
                private logoutService: LogoutService, emClient: boolean, private baseHref: string,
                private customElement: boolean)
@@ -61,7 +62,7 @@ export class StompClient {
             this.pendingConnections = null;
          },
          (error: any) => {
-            if(this.pendingConnections || (this.customElement && this.connected)) {
+            if(this.pendingConnections) {
                console.error("Disconnected from server: ", error);
 
                if(this.pendingConnections != null) {
@@ -155,8 +156,13 @@ export class StompClient {
             this.reconnectCnt = 0;
             this.attachOnClose();
             this.clientSubject.next(this.client);
+            this.onReconnectError(null);
          },
          (error: any) => {
+            if(this.reconnectCnt > 0) {
+               this.onReconnectError(error);
+            }
+
             if(this.reconnectCnt > 30) {
                if(this.reloadOnFailure) {
                   console.error("Failed to reconnect to server, reloading: ", error);

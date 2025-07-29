@@ -19,14 +19,14 @@ package inetsoft.web.composer;
 
 import inetsoft.web.viewsheet.service.RuntimeViewsheetManager;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import org.springframework.web.socket.messaging.SessionDisconnectEvent;
+import org.springframework.web.socket.messaging.*;
 
 import java.security.Principal;
 
 @Component
-public class ComposerDisconnectListener implements ApplicationListener<SessionDisconnectEvent> {
+public class ComposerDisconnectListener {
    @Autowired
    public ComposerDisconnectListener(RuntimeViewsheetManager runtimeViewsheetManager) {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
@@ -36,10 +36,15 @@ public class ComposerDisconnectListener implements ApplicationListener<SessionDi
     * On websocket disconnect, attempts to clean up the socket's runtime sheet if it has
     * not been closed already.
     */
-   @Override
-   public void onApplicationEvent(SessionDisconnectEvent sessionDisconnectEvent) {
+   @EventListener
+   public void sessionDisconnected(SessionDisconnectEvent sessionDisconnectEvent) {
       Principal principal = sessionDisconnectEvent.getUser();
       runtimeViewsheetManager.sessionEnded(principal);
+   }
+
+   @EventListener
+   public void sessionConnected(SessionConnectEvent event) {
+      runtimeViewsheetManager.sessionConnected(event.getUser());
    }
 
    private final RuntimeViewsheetManager runtimeViewsheetManager;

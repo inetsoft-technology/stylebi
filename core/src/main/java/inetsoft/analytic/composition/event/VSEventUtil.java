@@ -405,8 +405,8 @@ public final class VSEventUtil {
             if(isFloat) {
                popComponents.add(vsassembly);
             }
-            else if(!(vsassembly instanceof SelectionListVSAssembly && container == null &&
-               ((SelectionListVSAssemblyInfo)vsassembly.getInfo()).isAdhocFilter()))
+            else if(!(vsassembly.getInfo() instanceof SelectionVSAssemblyInfo && container == null &&
+               ((SelectionVSAssemblyInfo) vsassembly.getInfo()).isAdhocFilter()))
             {
                applyAssemblyScale(vsassembly, scaleRatio, info, mobile,
                                   isFloat(vsassembly, viewsheet), width, box, false);
