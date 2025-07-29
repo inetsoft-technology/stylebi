@@ -217,6 +217,14 @@ public interface Cluster extends AutoCloseable {
 
    void destroySet(String name);
 
+   default <E> Set<E> getReplicatedSet(String name) {
+      return getReplicatedSet(name, false);
+   }
+
+   <E> Set<E> getReplicatedSet(String name, boolean transactional);
+
+   void destroyReplicatedSet(String name);
+
    DistributedLong getLong(String name);
 
    void destroyLong(String name);
@@ -438,6 +446,8 @@ public interface Cluster extends AutoCloseable {
    }
 
    List<String> getClusterAddresses();
+
+   DistributedTransaction startTx();
 
    final class Reference extends SingletonManager.Reference<Cluster> {
       @Override
