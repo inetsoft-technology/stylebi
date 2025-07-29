@@ -244,7 +244,7 @@ public class VSWizardObjectHandler {
 
       if(original != null && !Tool.equals(newName, original.getAbsoluteName())) {
          if(vs.containsAssembly(original)) {
-            coreLifecycleService.removeVSAssembly(rvs, linkUri, original, dispatcher, true, true);
+            coreLifecycleService.removeVSAssembly(rvs, linkUri, original, dispatcher, false, true);
          }
 
          RemoveVSObjectCommand command = new RemoveVSObjectCommand();
