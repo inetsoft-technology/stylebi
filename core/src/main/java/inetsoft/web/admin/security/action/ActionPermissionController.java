@@ -141,7 +141,18 @@ public class ActionPermissionController {
 
    private String getActionObjectName(String typeName, String path) {
       String type = typeName != null ? typeName.replace("_", " ") : null;
-      return path == null || path.isEmpty() ? type : type + ": " + path;
+      String actionObjectName = path == null || path.isEmpty() ? type : type + ": " + path;
+
+      //hardcode end user visible description of permission change for some audit records instead of internal path
+      if("DASHBOARD:*".equals(actionObjectName)) {
+         return "PORTAL TAB: Dashboard";
+      }
+
+      if("SCHEDULER:*".equals(actionObjectName)) {
+         return "PORTAL TAB: Scheduler";
+      }
+
+      return actionObjectName;
    }
 
    private final ActionPermissionService actionService;
