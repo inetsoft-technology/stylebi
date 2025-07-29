@@ -146,6 +146,10 @@ export class VSSelectionContainerChildren extends CommandProcessor implements On
             this.actionFactory.createActions(this.vsObject.childObjects[index]);
       });
 
+      this.selectionContainerChildrenService.onChildModelUpdate.subscribe((model) => {
+         this.vsObject = model
+      });
+
       if(this.vsObject.childObjects) {
          this.childActions = [];
 
@@ -169,6 +173,8 @@ export class VSSelectionContainerChildren extends CommandProcessor implements On
                this.actionFactory.createCurrentSelectionActions(model));
          }
       }
+
+      this.changeRef.detectChanges();
    }
 
    get vsObject(): VSSelectionContainerModel {

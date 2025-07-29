@@ -284,6 +284,7 @@ export class VSSelectionContainer extends AbstractVSObject<VSSelectionContainerM
             this.model.childObjects[i] =
                VSUtil.replaceObject(this.model.childObjects[i], command.info);
             this.selectionContainerChildrenService.updateChild(i);
+            this.selectionContainerChildrenService.updateChildModel(this.model);
             this.updateFocus(this.model.childObjects[i]);
             break;
          }
