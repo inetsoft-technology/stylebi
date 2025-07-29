@@ -58,6 +58,7 @@ export class DataTipService {
    private _dataTipsVisible: Map<string, boolean> = new Map<string, boolean>();
    private inited = {}; // track if data tip has been initialized
    private _dataTipChanged = new Subject<void>();
+   private _showHideDataTip = new Subject<void>();
 
    constructor(private viewsheetClient: ViewsheetClientService, private zone: NgZone)
    {
@@ -210,6 +211,8 @@ export class DataTipService {
          condition: condition,
          dataTipAlpha: alpha
       };
+
+      this.showHideDataTip.next();
    }
 
    /**
@@ -228,6 +231,7 @@ export class DataTipService {
       this._parentName = null;
       this._condition = null;
       this._lastDataTip = null;
+      this.showHideDataTip.next();
    }
 
    public clearDataTip() {
@@ -297,5 +301,9 @@ export class DataTipService {
 
    get dataTipChanged(): Subject<void> {
       return this._dataTipChanged;
+   }
+
+   get showHideDataTip(): Subject<void> {
+      return this._showHideDataTip;
    }
 }

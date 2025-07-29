@@ -278,6 +278,7 @@ export class PopComponentService {
       this.clearPopViewerOffset();
       this.popComponent = null;
       this._popComponentSource = null;
+      this._componentPop.next(null);
    }
 
    // Check if this component should be visible. Either it's not a popcomponent or its popped up.
