@@ -30,7 +30,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.portal.*;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.*;
@@ -1917,6 +1917,7 @@ public class IdentityService {
          fromOrg instanceof FSOrganization)
       {
          ((FSOrganization) fromOrg).setLocale(localeString);
+         updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, fromOrgID);
          ((FSOrganization) fromOrg).setTheme(model.theme());
          eprovider.setOrganization(fromOrgID, fromOrg);
 
@@ -1924,10 +1925,41 @@ public class IdentityService {
       }
 
       newOrg.setLocale(localeString);
+      updateCustomThemeOrganization(fromOrg.getTheme(), model.theme(), fromOrgID, newOrg.getId());
       newOrg.setTheme(model.theme());
       syncIdentity(eprovider, newOrg, new IdentityID(model.oldName(), eprovider.getOrgIdFromName(model.oldName())));
 
       return newOrg;
+   }
+
+   private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
+      if(!Tool.equals(oldThemeId, themeID)) {
+
+         if(oldThemeId != null) {
+            CustomTheme oldTheme = CustomThemesManager.getManager().getCustomThemes().stream()
+               .filter(t -> Tool.equals(t.getId(), oldThemeId))
+               .findFirst().orElse(null);
+
+            if(oldTheme != null) {
+               List<String> themeOrgs = oldTheme.getOrganizations();
+               themeOrgs.remove(oldOrgID);
+            }
+         }
+
+         if(themeID != null) {
+            CustomTheme theme = CustomThemesManager.getManager().getCustomThemes().stream()
+               .filter(t -> Tool.equals(t.getId(), themeID))
+               .findFirst().orElse(null);
+
+            if(theme != null) {
+               List<String> themeOrgs = theme.getOrganizations();
+               themeOrgs.add(newOrgID);
+               theme.setOrganizations(themeOrgs);
+            }
+         }
+
+         CustomThemesManager.getManager().save();
+      }
    }
 
    private void updateOrgScopedDataSpace(Organization oorg, Organization norg) {
