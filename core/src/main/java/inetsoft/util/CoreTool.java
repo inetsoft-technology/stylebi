@@ -200,6 +200,11 @@ public class CoreTool {
     * Date time format.
     */
    public static final String DEFAULT_DATETIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
+
+   /**
+    * Date time format for databricks db.
+    */
+   public static final String DATABRICKS_DATETIME_PATTERN = "yyyy-MM-dd HH:mm:ss.SSS";
    /**
     * Time format.
     */
@@ -291,12 +296,19 @@ public class CoreTool {
       return true;
    }
 
+   public static String toString(Object obj) {
+      return Tool.toString(obj, false);
+   }
+
    /**
     * Utility method that takes care of the numeric convertion bug
     * in jdk. For example a Number representing 0.1 + 0.2 should not =
     * 0.30000000000000004.
+    *
+    * @param obj the target object to convert to string.
+    * @param databricks true if databricks db else false.
     */
-   public static String toString(Object obj) {
+   public static String toString(Object obj, boolean databricks) {
       if(obj == null) {
          return "";
       }
@@ -307,6 +319,10 @@ public class CoreTool {
             return formatTime((Date) obj);
          }
          else if(obj instanceof Timestamp) {
+            if(databricks) {
+               return Tool.getDatabricksTimestampFormat().format(obj);
+            }
+
             return formatDateTime((Timestamp) obj);
          }
          else if(obj instanceof java.sql.Date) {

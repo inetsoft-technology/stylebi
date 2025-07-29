@@ -31,8 +31,9 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.asset.internal.AssemblyInfo;
-import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
@@ -2881,6 +2882,17 @@ public final class Tool extends CoreTool {
       return dateFmt;
    }
 
+   public static SimpleDateFormat getDatabricksTimestampFormat() {
+      SimpleDateFormat dateFmt = dateFmts.get(DATABRICKS_TIMESTAMP_FORMAT_KEY);
+
+      if(dateFmt == null) {
+         dateFmt = Tool.createDateFormat(DATABRICKS_DATETIME_PATTERN);
+         dateFmts.put(DATABRICKS_TIMESTAMP_FORMAT_KEY, dateFmt);
+      }
+
+      return dateFmt;
+   }
+
    public static String getDateFormatPattern() {
       String dateFormat = SreeEnv.getProperty("format.date.time");
 
@@ -5112,6 +5124,12 @@ public final class Tool extends CoreTool {
       x[b] = t;
    }
 
+   public static boolean isDatabricks(String source) {
+      XDataSource xds = Tool.isEmptyString(source) ?
+         null : DataSourceRegistry.getRegistry().getDataSource(source);
+      return xds != null ? SQLHelper.getSQLHelper(xds) instanceof DatabricksHelper : false;
+   }
+
    private static final int[][] dateLevel = {
       {DateRangeRef.YEAR_INTERVAL, DateRangeRef.QUARTER_OF_YEAR_PART},
       {DateRangeRef.QUARTER_INTERVAL, DateRangeRef.MONTH_OF_YEAR_PART},
@@ -5176,6 +5194,7 @@ public final class Tool extends CoreTool {
    public static final String DATE_PARAMETER_PREFIX = "^DATE^";
    public static final String TIME_PARAMETER_PREFIX = "^TIME^";
    public static final String TIMESTAMP_PARAMETER_PREFIX = "^TIMESTAMP^";
+   public static final String DATABRICKS_TIMESTAMP_FORMAT_KEY = "^TIMESTAMP^";
 
    private static final Map<String,SimpleDateFormat> dateFmts = new ConcurrentHashMap<>();
    private static SreeEnv.Value firstDayProperty = new SreeEnv.Value("week.start", 30000);

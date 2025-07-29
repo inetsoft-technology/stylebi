@@ -415,6 +415,7 @@ public class BrowseDataController {
          int mode = AssetQuerySandbox.BROWSE_MODE;
          VariableTable vtable = box.getVariableTable().clone();
          table.resetColumnSelection();
+         boolean databricks = Tool.isDatabricks(table.getSource());
          box.resetDefaultColumnSelection(table.getName());
          AssetQuery query = AssetQuery.createAssetQuery(table, mode, box, false, -1L, true, false);
          TableLens data = query.getTableLens(vtable);
@@ -437,7 +438,7 @@ public class BrowseDataController {
                   continue;
                }
 
-               String label = Tool.toString(val);
+               String label = Tool.toString(val, databricks);
 
                // could be duplicates when there is named group. (61513)
                if(!added.contains(label)) {

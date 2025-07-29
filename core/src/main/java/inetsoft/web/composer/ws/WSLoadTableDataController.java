@@ -58,6 +58,7 @@ public class WSLoadTableDataController extends WorksheetController {
          return;
       }
 
+      boolean databricks = Tool.isDatabricks(table.getSource());
       SortInfo sInfo = table.getSortInfo();
       boolean sortData = sInfo != null && sInfo.isTempSort() && sInfo.getSortCount() > 0;
 
@@ -130,7 +131,7 @@ public class WSLoadTableDataController extends WorksheetController {
                   ex = e;
                }
 
-               String str = AssetUtil.format(val);
+               String str = AssetUtil.formatDbData(val, databricks);
 
                if(str.length() > MAX_CELL) {
                   str = str.substring(0, MAX_CELL);

@@ -1270,9 +1270,10 @@ public class AssetUtil {
     * Get a string representation of a value.
     *
     * @param val the object to get a string representation of.
+    * @param databricks, true if databricks db else false.
     */
-   public static String format(Object val) {
-      return format(val, false);
+   public static String formatDbData(Object val, boolean databricks) {
+      return format(val, false, databricks);
    }
 
    /**
@@ -1280,7 +1281,21 @@ public class AssetUtil {
     *
     * @param val the object to get a string representation of.
     */
+   public static String format(Object val) {
+      return format(val, false);
+   }
+
    public static String format(Object val, boolean trim) {
+      return format(val, trim, false);
+   }
+
+   /**
+    * Get a string representation of a value.
+    *
+    * @param val the object to get a string representation of.
+    * @param databricks, true if databricks db else false.
+    */
+   public static String format(Object val, boolean trim, boolean databricks) {
       // NaN?
       if(val == null || (val instanceof Number &&
          Double.isNaN(((Number) val).doubleValue()))) {
@@ -1293,6 +1308,10 @@ public class AssetUtil {
          return getTimeFormat().format((Date) val);
       }
       else if(val instanceof java.sql.Timestamp) {
+         if(databricks) {
+            return Tool.getDatabricksTimestampFormat().format(val);
+         }
+
          return getDateTimeFormat().format((Date) val);
       }
       else if(val instanceof Date) {
