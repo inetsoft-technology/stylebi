@@ -373,9 +373,6 @@ public class ValueOfColumn extends AbstractColumn {
       else {
          Object val = data.getData(ndim, row);
 
-         if(!(val instanceof Date)) {
-            return INVALID;
-         }
 
          Object tval = null;
 
