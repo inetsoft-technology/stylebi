@@ -335,7 +335,7 @@ public class CrosstabDcProcessor {
       DateComparisonInfo dcInfo = DateComparisonUtil.getDateComparison(info, info.getViewsheet());
 
       if(dcInfo == null || dcInfo.getComparisonOption() == DateComparisonInfo.VALUE ||
-         !(dcInfo.getPeriods() instanceof StandardPeriods))
+         !(dcInfo.getPeriods() instanceof StandardPeriods) || info.getDateComparisonRef() == null)
       {
          return table;
       }
@@ -349,7 +349,7 @@ public class CrosstabDcProcessor {
       int cnt = onRows ? table.getRowCount() : table.getColCount();
 
       for(int i = 0; i < headers.length; i++) {
-         if(compRef != null && compRef.getFullName().equals(((VSDataRef) headers[i]).getFullName())) {
+         if(compRef.getFullName().equals(((VSDataRef) headers[i]).getFullName())) {
             idx = i;
             break;
          }
