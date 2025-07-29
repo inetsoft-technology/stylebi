@@ -23,12 +23,13 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import jakarta.validation.constraints.NotNull;
 import org.apache.commons.codec.binary.Hex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -398,7 +399,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
          try {
             if(securityCache != null) {
-               securityCache.refresh();
+               securityCache.load();
             }
          }
          finally {
@@ -759,7 +760,12 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
                securityCache = new DatabaseAuthenticationCache(this);
             }
 
-            securityCache.load();
+            securityCache.initialize();
+
+            if(securityCache.reloadCacheAfter.isBefore(Instant.now())) {
+               securityCache.reloadCacheAfter = Instant.MAX;
+               resetConnection();
+            }
          }
       }
       finally {
