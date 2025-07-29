@@ -205,6 +205,7 @@ public abstract class AbstractCondition implements XCondition {
     * @param value the object to get a a representation of.
     * @param type the data type.
     * @param def <tt>true</tt> to use default value, <tt>false</tt> otherwise.
+    * @param databricks true if databricks db else false.
     * @return the String representation of the specified object's value.
     */
    public static String getValueString(Object value, String type, boolean def, boolean databricks) {
