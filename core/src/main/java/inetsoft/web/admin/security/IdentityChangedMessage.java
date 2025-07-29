@@ -19,6 +19,7 @@
 package inetsoft.web.admin.security;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.User;
 
 import java.io.Serializable;
 
@@ -27,6 +28,14 @@ public class IdentityChangedMessage implements Serializable {
       this.type = type;
       this.identity = identity;
       this.oldIdentity = oldIdentity;
+      this.sessionID = null;
+   }
+
+   public IdentityChangedMessage(IdentityID orgIdentity, String sessionID) {
+      this.type = User.ORGANIZATION;
+      this.identity = orgIdentity;
+      this.oldIdentity = null;
+      this.sessionID = sessionID;
    }
 
    public int getType() {
@@ -41,7 +50,12 @@ public class IdentityChangedMessage implements Serializable {
       return oldIdentity;
    }
 
+   public String getSessionID() {
+      return sessionID;
+   }
+
    private final int type;
    private final IdentityID identity;
    private final IdentityID oldIdentity;
+   private final String sessionID;
 }
