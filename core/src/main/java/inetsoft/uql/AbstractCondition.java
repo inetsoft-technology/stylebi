@@ -196,11 +196,23 @@ public abstract class AbstractCondition implements XCondition {
     * @return the String representation of the specified object's value.
     */
    public static String getValueString(Object value, String type, boolean def) {
+      return getValueString(value, type, def, false);
+   }
+
+   /**
+    * Get a String representation of the specified object's value. The format
+    * of the resulting String is determined by the type of object specified.
+    * @param value the object to get a a representation of.
+    * @param type the data type.
+    * @param def <tt>true</tt> to use default value, <tt>false</tt> otherwise.
+    * @return the String representation of the specified object's value.
+    */
+   public static String getValueString(Object value, String type, boolean def, boolean databricks) {
       if(value == null) {
          return def ? createDefaultValue(type).toString() : Tool.NULL;
       }
 
-      DateFormat format = getDateFormat(type);
+      DateFormat format = getDateFormat(type, databricks);
 
       if(format != null && (value instanceof Date)) {
          return format.format(value);
@@ -234,10 +246,23 @@ public abstract class AbstractCondition implements XCondition {
    }
 
    public static DateFormat getDateFormat(String type) {
+      return getDateFormat(type, false);
+   }
+
+   /**
+    * @param type the data type.
+    * @param databricks true if databricks db else false.
+    * @return
+    */
+   public static DateFormat getDateFormat(String type, boolean databricks) {
       if(type.equals(XSchema.DATE)) {
          return CoreTool.dateFmt.get();
       }
       else if(type.equals(XSchema.TIME_INSTANT)) {
+         if(databricks) {
+            return CoreTool.databricksTimeInstantFmt.get();
+         }
+
          return CoreTool.timeInstantFmt.get();
       }
       else if(type.equals(XSchema.TIME)) {

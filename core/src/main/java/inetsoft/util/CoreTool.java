@@ -110,7 +110,11 @@ public class CoreTool {
     */
    public static final ThreadLocal<DateFormat> timeInstantFmt =
       ThreadLocal.withInitial(() -> createDateFormat("{'ts' ''yyyy-MM-dd HH:mm:ss''}"));
-
+   /**
+    * Date time format for databricks db.
+    */
+   public static final ThreadLocal<DateFormat> databricksTimeInstantFmt =
+      ThreadLocal.withInitial(() -> createDateFormat("{'ts' ''yyyy-MM-dd HH:mm:ss.SSS''}"));
    /**
     * Shared thread local GregorianCalendar.
     */
@@ -1296,6 +1300,14 @@ public class CoreTool {
     * Get a string representation of a value.
     * @param val the object to get a string representation of.
     */
+   public static String getTableLensDataString(Object val, boolean databricks) {
+      return getDataString(val, true, false, databricks);
+   }
+
+   /**
+    * Get a string representation of a value.
+    * @param val the object to get a string representation of.
+    */
    public static String getDataString(Object val) {
       return getDataString(val, true, false);
    }
@@ -1316,6 +1328,18 @@ public class CoreTool {
     *                   they can be strictly distinguished, else not.
     */
    public static String getDataString(Object val, boolean keepBlank, boolean strictNull) {
+      return getDataString(val, keepBlank, strictNull, false);
+   }
+
+   /**
+    * Get a string representation of a value.
+    * @param val the object to get a string representation of.
+    * @param keepBlank the flag to control display blank or not.
+    * @param strictNull if true, null values should be identified with FAKE_NULL so that
+    *                   they can be strictly distinguished, else not.
+    * @param databricks true if databricks db else false.
+    */
+   public static String getDataString(Object val, boolean keepBlank, boolean strictNull, boolean databricks) {
       // for null, return null instead of blank
       if(val == null) {
          return strictNull ? FAKE_NULL : keepBlank ? NULL : null;
@@ -1327,6 +1351,10 @@ public class CoreTool {
          return formatTime((Date) val);
       }
       else if(val instanceof java.sql.Timestamp) {
+         if(databricks) {
+            return Tool.getDatabricksTimestampFormat().format(val);
+         }
+
          return formatDateTime((Date) val);
       }
       else if(val instanceof Date) {

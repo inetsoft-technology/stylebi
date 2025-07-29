@@ -495,6 +495,10 @@ public class JDBCTableNode extends XTableNode {
       queryManagers.add(queryManager);
    }
 
+   public XDataSource getXDataSource() {
+      return this.xds;
+   }
+
    private boolean cancelled = false;
    private int ncol;
    private String[] names;

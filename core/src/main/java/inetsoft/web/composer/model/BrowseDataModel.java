@@ -39,6 +39,11 @@ public interface BrowseDataModel {
       return false;
    }
 
+   @Value.Default
+   default boolean databricksDB() {
+      return false;
+   }
+
    @JsonIgnore
    default boolean existLabels() {
       return labels() != null;

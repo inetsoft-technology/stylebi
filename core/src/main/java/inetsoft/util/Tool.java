@@ -29,7 +29,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XDataSource;
-import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
@@ -5127,6 +5127,10 @@ public final class Tool extends CoreTool {
    public static boolean isDatabricks(String source) {
       XDataSource xds = Tool.isEmptyString(source) ?
          null : DataSourceRegistry.getRegistry().getDataSource(source);
+      return isDatabricks(xds);
+   }
+
+   public static boolean isDatabricks(XDataSource xds) {
       return xds != null ? SQLHelper.getSQLHelper(xds) instanceof DatabricksHelper : false;
    }
 

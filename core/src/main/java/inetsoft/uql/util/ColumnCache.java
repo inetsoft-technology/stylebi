@@ -17,16 +17,13 @@
  */
 package inetsoft.uql.util;
 
-import inetsoft.report.TableLens;
-import inetsoft.report.XSessionManager;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.XDataModel;
-import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.jdbc.JDBCTableNode;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.tabular.TabularQuery;
 import inetsoft.uql.viewsheet.graph.ChartAggregateRef;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.BrowseDataModel;
@@ -127,6 +124,7 @@ public class ColumnCache {
 
       List<String> llist = new ArrayList<>();
       List<String> vlist = new ArrayList<>();
+      boolean databricks = browseData.databricksDB();
 
       for(int i = 0; i < labels.length; i++) {
          Object lb = labels[i];
@@ -138,7 +136,7 @@ public class ColumnCache {
          }
 
          boolean stringLabel = lb instanceof String;
-         lb = lb == null ? "" : AbstractCondition.getValueString(lb, type);
+         lb = lb == null ? "" : AbstractCondition.getValueString(lb, type, true, databricks);
 
          // @by watsonn, bug1094716920565
          // also put single quote if it is "oracle.sql.INTERVALYM"
@@ -149,7 +147,7 @@ public class ColumnCache {
          }
 
          boolean stringVal = val instanceof String;
-         val = val == null || "".equals(val) ? val : AbstractCondition.getValueString(val, type);
+         val = val == null || "".equals(val) ? val : AbstractCondition.getValueString(val, type, true, databricks);
 
          // @by watsonn, bug1094716920565
          // also put single quote if it is "oracle.sql.INTERVALYM"
@@ -768,6 +766,10 @@ public class ColumnCache {
 
       if(ncol > 1) {
          browseDataBuilder.labels(descs.toArray());
+      }
+
+      if(result instanceof JDBCTableNode jdbcTableNode) {
+         browseDataBuilder.databricksDB(Tool.isDatabricks(jdbcTableNode.getXDataSource()));
       }
 
       String nkey = getKey(qrep, query, column, null, vars);
