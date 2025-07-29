@@ -100,6 +100,7 @@ import { ExpandStringDirective } from "../widget/expand-string/expand-string.dir
 import { ActionsContextmenuComponent } from "../widget/fixed-dropdown/actions-contextmenu.component";
 import { DropdownOptions } from "../widget/fixed-dropdown/dropdown-options";
 import { DropdownRef } from "../widget/fixed-dropdown/fixed-dropdown-ref";
+import { FixedDropdownDirective } from "../widget/fixed-dropdown/fixed-dropdown.directive";
 import { FixedDropdownService } from "../widget/fixed-dropdown/fixed-dropdown.service";
 import { PreviousSnapshotType } from "../widget/hyperlink/previous-snapshot";
 import { NotificationsComponent } from "../widget/notifications/notifications.component";
@@ -313,6 +314,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @ViewChild("viewerToolbar") viewerToolbar: ElementRef;
    @ViewChild("fileSelector") importExcelFileSelector: ElementRef<HTMLInputElement>;
    @ViewChild("scaleContainer") scaleContainer: ElementRef<HTMLInputElement>;
+   @ViewChild("bookmarkDropdownBtn", { read: FixedDropdownDirective }) bookmarkDropdownBtn: FixedDropdownDirective;
    @ViewChildren(VsToolbarButtonDirective) toolbarButtons: QueryList<VsToolbarButtonDirective>;
    @Input() touchDevice: boolean = false;
    @Input() annotationChanged: boolean = false;
@@ -1807,6 +1809,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
          .then((buttonClicked) => {
             if(buttonClicked === "yes") {
+               this.bookmarkDropdownBtn?.close();
                this.sendBookmarkEvent("delete", bookmark);
 
                if(bookmark.currentBookmark) {
