@@ -15,6 +15,8 @@
 package inetsoft.util;
 
 import inetsoft.analytic.composition.VSPortalHelper;
+import inetsoft.graph.internal.DimensionD;
+import inetsoft.report.gui.viewsheet.VSImage;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -22,8 +24,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.awt.Dimension;
-import java.awt.Image;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.security.MessageDigest;
 import java.util.Objects;
@@ -40,7 +41,11 @@ public class ImageHashService {
       Viewsheet vs = assembly.getViewsheet();
       String assemblyName = null;
       String imagePath = null;
-      boolean rawBytes = shouldSendRawBytes(assembly);
+      boolean shadow = isShadow(assemblyInfo);
+      boolean highlight = hasHighlight(assemblyInfo);
+      String scale9 = getScale9(assemblyInfo);
+      boolean dynamicImage = shadow || highlight || scale9 != null;
+      boolean rawBytes = !dynamicImage && shouldSendRawBytes(assembly);
       int width = -1;
       int height = -1;
 
@@ -48,7 +53,8 @@ public class ImageHashService {
          ImageVSAssemblyInfo imageVSAssemblyInfo = (ImageVSAssemblyInfo) assemblyInfo;
 
          // only include assemblyName when using rawImage (script set image)
-         if(imageVSAssemblyInfo.getRawImage() != null) {
+         // or when image needs to be dynamically generated
+         if(imageVSAssemblyInfo.getRawImage() != null || dynamicImage) {
             assemblyName = assemblyInfo.getName();
          }
 
@@ -63,7 +69,7 @@ public class ImageHashService {
       boolean presenter = imagePath.startsWith("java:presenter:");
 
       // only include width and height when absolutely necessary
-      if(!rawBytes && (svg || presenter)) {
+      if(!rawBytes && (svg || presenter || dynamicImage)) {
          Dimension size = assemblyInfo.getLayoutSize();
 
          if(size == null || size.width == 0 || size.height == 0) {
@@ -74,7 +80,8 @@ public class ImageHashService {
          height = size.height;
       }
 
-      ImageInfo imageInfo = new ImageInfo(imagePath, width, height, rawBytes, assemblyName);
+      ImageInfo imageInfo = new ImageInfo(imagePath, width, height, rawBytes, assemblyName,
+                                          shadow, highlight, scale9);
 
       if(infoToHash.containsKey(imageInfo)) {
          return infoToHash.get(imageInfo);
@@ -155,12 +162,15 @@ public class ImageHashService {
       }
 
       Image rawImage = null;
+      boolean dynamicImage = imageInfo.shadow || imageInfo.highlight || imageInfo.scale9 != null;
+      VSAssemblyInfo info = null;
 
       if(imageInfo.assemblyName != null) {
          VSAssembly vsAssembly = vs.getAssembly(imageInfo.assemblyName);
 
          if(vsAssembly instanceof ImageVSAssembly) {
-            rawImage = ((ImageVSAssemblyInfo) vsAssembly.getVSAssemblyInfo()).getRawImage();
+            info = vsAssembly.getVSAssemblyInfo();
+            rawImage = ((ImageVSAssemblyInfo) info).getRawImage();
          }
       }
 
@@ -178,6 +188,19 @@ public class ImageHashService {
          if(image == null) {
             image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
             ((BufferedImage) image).setRGB(0, 0, 0xffffff);
+         }
+
+         if(dynamicImage) {
+            if(info instanceof ImageVSAssemblyInfo) {
+               VSImage vsImage = new VSImage(vs);
+               vsImage.setAssemblyInfo(info);
+               vsImage.setRawImage(image);
+               Dimension pixelSize = info.getPixelSize();
+               DimensionD scale = new DimensionD((double) imageInfo.width / pixelSize.width,
+                                                 (double) imageInfo.height / pixelSize.height);
+               ((ImageVSAssemblyInfo) info).setScalingRatio(scale);
+               image = vsImage.getImage(false);
+            }
          }
 
          buf = VSUtil.getImageBytes(image, dpi);
@@ -219,16 +242,56 @@ public class ImageHashService {
       return false;
    }
 
+   private boolean isShadow(VSAssemblyInfo assemblyInfo) {
+      if(assemblyInfo instanceof ImageVSAssemblyInfo) {
+         ImageVSAssemblyInfo info = (ImageVSAssemblyInfo) assemblyInfo;
+         return info.isShadow();
+      }
+
+      return false;
+   }
+
+   private boolean hasHighlight(VSAssemblyInfo assemblyInfo) {
+      if(assemblyInfo instanceof ImageVSAssemblyInfo) {
+         ImageVSAssemblyInfo info = (ImageVSAssemblyInfo) assemblyInfo;
+         Color highlightC = info.getHighlightForeground();
+         VSCompositeFormat fmt = info.getFormat();
+         highlightC = highlightC == null ? fmt.getForeground() : highlightC;
+         highlightC = Color.BLACK.equals(highlightC) ? null : highlightC;
+         return highlightC != null;
+      }
+
+      return false;
+   }
+
+   private String getScale9(VSAssemblyInfo assemblyInfo) {
+      if(assemblyInfo instanceof ImageVSAssemblyInfo) {
+         ImageVSAssemblyInfo info = (ImageVSAssemblyInfo) assemblyInfo;
+
+         if(info.isScaleImage() && !info.isMaintainAspectRatio() && info.getScale9() != null) {
+            Insets insets = info.getScale9();
+            return insets.top + "," + insets.left + "," + insets.bottom + "," + insets.right;
+         }
+      }
+
+      return null;
+   }
+
    /**
     * Image info that can be used to get the actual image
     */
    private static class ImageInfo {
-      public ImageInfo(String path, int width, int height, boolean rawBytes, String assemblyName) {
+      public ImageInfo(String path, int width, int height, boolean rawBytes, String assemblyName,
+                       boolean shadow, boolean highlight, String scale9)
+      {
          this.path = path;
          this.width = width;
          this.height = height;
          this.rawBytes = rawBytes;
          this.assemblyName = assemblyName;
+         this.shadow = shadow;
+         this.highlight = highlight;
+         this.scale9 = scale9;
       }
 
       @Override
@@ -243,13 +306,15 @@ public class ImageHashService {
 
          ImageInfo imageInfo = (ImageInfo) o;
          return width == imageInfo.width && height == imageInfo.height &&
-            rawBytes == imageInfo.rawBytes && Objects.equals(path, imageInfo.path) &&
-            Objects.equals(assemblyName, imageInfo.assemblyName);
+            rawBytes == imageInfo.rawBytes && shadow == imageInfo.shadow &&
+            highlight == imageInfo.highlight && Objects.equals(path, imageInfo.path) &&
+            Objects.equals(assemblyName, imageInfo.assemblyName) &&
+            Objects.equals(scale9, imageInfo.scale9);
       }
 
       @Override
       public int hashCode() {
-         return Objects.hash(path, width, height, rawBytes, assemblyName);
+         return Objects.hash(path, width, height, rawBytes, assemblyName, shadow, highlight, scale9);
       }
 
       private final String path;
@@ -257,6 +322,9 @@ public class ImageHashService {
       private final int height;
       private final boolean rawBytes;
       private final String assemblyName;
+      private final boolean shadow;
+      private final boolean highlight;
+      private final String scale9;
    }
 
    private final ConcurrentHashMap<ImageInfo, String> infoToHash = new ConcurrentHashMap<>();
