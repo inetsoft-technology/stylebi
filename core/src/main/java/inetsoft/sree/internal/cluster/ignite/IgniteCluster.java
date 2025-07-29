@@ -41,6 +41,7 @@ import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.multicast.TcpDiscoveryMulticastIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.ssl.SslContextFactory;
+import org.apache.ignite.transactions.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -920,6 +921,23 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public <E> Set<E> getReplicatedSet(String name, boolean transactional) {
+      CollectionConfiguration setConfig = new CollectionConfiguration();
+      setConfig.setBackups(getDefaultBackupCount());
+      setConfig.setCacheMode(CacheMode.REPLICATED);
+      setConfig.setAtomicityMode(transactional ?
+                                    CacheAtomicityMode.TRANSACTIONAL :
+                                    CacheAtomicityMode.ATOMIC);
+      ignite.transactions().txStart(TransactionConcurrency.OPTIMISTIC, TransactionIsolation.SERIALIZABLE);
+      return ignite.set(name, setConfig);
+   }
+
+   @Override
+   public void destroyReplicatedSet(String name) {
+      destroySet(name);
+   }
+
+   @Override
    public DistributedLong getLong(String name) {
       return new IgniteDistributedLong(ignite.atomicLong(name, 0, true));
    }
@@ -1313,6 +1331,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             igniteInstance.compute(clusterGroup).withExecutor(getIgniteExecutePoolName(poolLevel)) :
             igniteInstance.compute().withExecutor(getIgniteExecutePoolName(poolLevel));
       }
+   }
+
+   @Override
+   public DistributedTransaction startTx() {
+      Transaction tx = ignite.transactions().txStart(
+         TransactionConcurrency.OPTIMISTIC, TransactionIsolation.SERIALIZABLE);
+      return new IgniteTransaction(tx);
    }
 
    private final Ignite ignite;
