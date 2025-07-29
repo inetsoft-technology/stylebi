@@ -67,6 +67,10 @@ public class DatabricksHelper extends SQLHelper {
             path = path.substring(lastIndex + 1);
          }
       }
+      else if(path.contains("['")) {
+         path = path.replace("['", "[");
+         path = path.replace("']", "]");
+      }
 
       return super.quotePath(path, physical, force, selectClause);
    }
