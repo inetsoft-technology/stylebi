@@ -42,13 +42,13 @@ public class ClickhouseHelper extends SQLHelper {
          Pattern pattern = Pattern.compile("\\{ts\\s*'(.*?)'\\}");
          Matcher matcher = pattern.matcher(str);
 
-         return "toDateTime(" + matcher.replaceAll("'$1'") + ")";
+         return matcher.replaceAll("toDateTime('$1')");
       }
       else if(str.startsWith("{d") || str.startsWith("({d") ) {
          Pattern pattern = Pattern.compile("\\{d\\s*'(.*?)'\\}");
          Matcher matcher = pattern.matcher(str);
 
-         return "toDate(" + matcher.replaceAll("'$1'") + ")";
+         return matcher.replaceAll("toDate('$1')");
       }
       else {
          return super.transformDate(str);
