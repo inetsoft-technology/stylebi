@@ -37,6 +37,8 @@ import java.io.PrintWriter;
 import java.time.Instant;
 import java.util.*;
 
+import static inetsoft.util.AbstractPasswordEncryption.MASTER_PREFIX;
+
 @View(vertical=true, value={
    @View1("URL"),
    @View1("authType"),
@@ -739,7 +741,13 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       val = Tool.getChildValueByTagName(root, "refreshToken");
 
       if(val != null) {
-         refreshToken = Tool.decryptPassword(val);
+         val = Tool.decryptPassword(val, true);
+
+         if(val.startsWith(MASTER_PREFIX)) {
+            LOG.warn("Password decryption failed to decrypt refreshToken for data source: {}, Master Key has likely been changed", getFullName());
+         }
+
+         refreshToken = val;
       }
 
       String value = Tool.getChildValueByTagName(root, "tokenExpiration");
