@@ -34,8 +34,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.xmla.XMLAUtil;
-import inetsoft.util.MessageException;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.profile.ProfileUtils;
 import org.slf4j.Logger;
@@ -268,8 +267,15 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       ProfileUtils.addExecutionBreakDownRecord(getID(),
          ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
             checkAndRunCalcFieldMeasureQuery(measureAggregation);
-            refreshSelectionValue0(data, allSelections, appliedSelections, values,
-                                   measureAggregation);
+
+            try {
+               CoreTool.useDatetimeWithMillisFormat.set(Tool.isDatabricks((BindableVSAssembly) getAssembly()));
+               refreshSelectionValue0(data, allSelections, appliedSelections, values,
+                                      measureAggregation);
+            }
+            finally {
+               CoreTool.useDatetimeWithMillisFormat.set(false);
+            }
          });
    }
 

@@ -83,7 +83,23 @@ public class AssemblyConditionDialogController extends WorksheetController {
          .getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
+      Tool.useDatetimeWithMillisFormat.set(
+         Tool.isDatabricks(tableAssembly == null ? null : tableAssembly.getSource()));
 
+      try {
+         return createAssemblyConditionDialogModel(rws, tableAssembly, principal);
+      }
+      finally {
+         Tool.useDatetimeWithMillisFormat.set(false);
+      }
+   }
+
+   private AssemblyConditionDialogModel createAssemblyConditionDialogModel(RuntimeWorksheet rws,
+                                                                           TableAssembly tableAssembly,
+                                                                           Principal principal)
+      throws Exception
+   {
+      Worksheet ws = tableAssembly.getWorksheet();
       ConditionList preConds =
          getConditionList(tableAssembly.getPreConditionList());
       ConditionList postConds =
@@ -112,8 +128,8 @@ public class AssemblyConditionDialogController extends WorksheetController {
             subqueryTableModel.setDescription(
                ((TableAssembly) assembly).getDescription());
             subqueryTableModel.setColumns(ConditionUtil.getDataRefModelsFromColumnSelection(
-                  ((TableAssembly) assembly).getColumnSelection(),
-                  this.dataRefModelFactoryService, 0));
+               ((TableAssembly) assembly).getColumnSelection(),
+               this.dataRefModelFactoryService, 0));
             subqueryTableModel.setCurrentTable(assembly.equals(tableAssembly));
             subqueryTableModels.add(subqueryTableModel);
          }
@@ -196,7 +212,7 @@ public class AssemblyConditionDialogController extends WorksheetController {
       model.setPreAggregateFields(preAggregateFields);
       model.setPostAggregateFields(postAggregateFields);
       model.setPreAggregateConditionList(ConditionUtil.fromConditionListToModel(preConds,
-         dataRefModelFactoryService));
+                                                                                dataRefModelFactoryService));
       model.setPostAggregateConditionList(
          ConditionUtil.fromConditionListToModel(postConds, dataRefModelFactoryService));
       model.setRankingConditionList(
@@ -277,9 +293,26 @@ public class AssemblyConditionDialogController extends WorksheetController {
       assemblyName = Tool.byteDecode(assemblyName);
       RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
       Worksheet ws = rws.getWorksheet();
+      TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
+      Tool.useDatetimeWithMillisFormat.set(
+         Tool.isDatabricks(tableAssembly == null ? null : tableAssembly.getSource()));
+
+      try {
+         updateByModel(rws, tableAssembly, assemblyName, model, principal, commandDispatcher);
+      }
+      finally {
+         Tool.useDatetimeWithMillisFormat.set(false);
+      }
+   }
+
+   private void updateByModel(RuntimeWorksheet rws, TableAssembly tableAssembly, String assemblyName,
+                              AssemblyConditionDialogModel model, Principal principal,
+                              CommandDispatcher commandDispatcher)
+      throws Exception
+   {
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
       VariableTable variableTable = box.getVariableTable();
-      TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
+      Worksheet ws = rws.getWorksheet();
       SourceInfo sourceInfo = tableAssembly instanceof BoundTableAssembly ?
          ((BoundTableAssembly) tableAssembly).getSourceInfo() : null;
       ConditionList preConds = ConditionUtil
@@ -309,13 +342,13 @@ public class AssemblyConditionDialogController extends WorksheetController {
       VSUtil.removeVariable(variableTable, (ConditionList) tableAssembly.getPostConditionList(), postConds);
       VSUtil.removeVariable(variableTable, (ConditionList) tableAssembly.getRankingConditionList(), rankConds);
       VSUtil.removeVariable(variableTable,
-         (ConditionList) tableAssembly.getMVUpdatePreConditionList(), mvUpdatePreConds);
+                            (ConditionList) tableAssembly.getMVUpdatePreConditionList(), mvUpdatePreConds);
       VSUtil.removeVariable(variableTable,
-         (ConditionList) tableAssembly.getMVUpdatePostConditionList(), mvUpdatePostConds);
+                            (ConditionList) tableAssembly.getMVUpdatePostConditionList(), mvUpdatePostConds);
       VSUtil.removeVariable(variableTable,
-         (ConditionList) tableAssembly.getMVDeletePreConditionList(), mvDeletePreConds);
+                            (ConditionList) tableAssembly.getMVDeletePreConditionList(), mvDeletePreConds);
       VSUtil.removeVariable(variableTable,
-         (ConditionList) tableAssembly.getMVDeletePostConditionList(), mvDeletePostConds);
+                            (ConditionList) tableAssembly.getMVDeletePostConditionList(), mvDeletePostConds);
       boolean conditionChanged = !Tool.equals(preConds, tableAssembly.getPreConditionList()) ||
          !Tool.equals(postConds, tableAssembly.getPostConditionList()) ||
          !Tool.equals(rankConds, tableAssembly.getRankingConditionList()) ||

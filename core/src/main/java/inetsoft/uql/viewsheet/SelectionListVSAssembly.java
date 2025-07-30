@@ -232,7 +232,17 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
          return false;
       }
 
-      List<Object> list = getSelectedObjects0(applied);
+      // ignore addition usage, since binding timestamp + additional tables is not a common usage,
+      // so no need to spend a lot of effort to figure it out which table the selection value data come from.
+      Tool.useDatetimeWithMillisFormat.set(Tool.isDatabricks(this));
+      List<Object> list = null;
+
+      try {
+         list = getSelectedObjects0(applied);
+      }
+      finally {
+         Tool.useDatetimeWithMillisFormat.set(false);
+      }
 
       if(list.size() > 0) {
          for(String tableName : getTableNames()) {
