@@ -2189,6 +2189,15 @@ public class JDBCHandler extends XHandler {
                            }
                         }
                      }
+                     else if(xds.getURL().startsWith("jdbc:databricks:")) {
+                        String catalogName =
+                           results.getMetaData().getColumnCount() < 2 ?
+                              null : results.getString(2);
+
+                        if(!"workspace".equals(catalogName)) {
+                           continue;
+                        }
+                     }
 
                      parent.addChild(node, true, false);
                   }
