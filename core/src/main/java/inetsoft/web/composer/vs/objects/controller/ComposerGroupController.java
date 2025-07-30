@@ -124,6 +124,10 @@ public class ComposerGroupController {
                String[] subChilds = selGroup.getAssemblies();
 
                for(int j = 0; j < subChilds.length; j++) {
+                  if(viewsheet.getAssembly(subChilds[j]) instanceof TabVSAssembly) {
+                     continue;
+                  }
+
                   childs.add(subChilds[j]);
                }
             }
