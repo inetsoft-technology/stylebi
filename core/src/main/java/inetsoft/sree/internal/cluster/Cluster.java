@@ -149,6 +149,12 @@ public interface Cluster extends AutoCloseable {
     */
    Lock getLock(String name);
 
+   /**
+    * Get a distributed lock.
+    * @param name the name of the lock.
+    */
+   Lock getLockWithoutCreate(String name);
+
    void destroyLock(String name);
 
    /**

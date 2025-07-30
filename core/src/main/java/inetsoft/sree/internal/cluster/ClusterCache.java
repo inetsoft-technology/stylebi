@@ -177,7 +177,15 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
       int tryCount = 10;
 
       for(int i = 0; i < tryCount; i++) {
-         lock.lock();
+         try {
+            lock.lock();
+         }
+         catch(Exception ex) {
+            // other thread has already destroyed the lock.
+            if(cluster.getLockWithoutCreate(this.prefix + "lock") == null) {
+               return;
+            }
+         }
 
          try {
             cluster.destroyLock(lockName);
@@ -193,14 +201,6 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
          }
          catch(InterruptedException ignore) {
          }
-      }
-
-      LOG.error("Failed to destroy lock: {}, after {} attempts", lockName, tryCount);
-
-      if(lock instanceof ReentrantLock reentrantLock) {
-         LOG.debug("Lock {} held by any thread: {}", lockName, reentrantLock.isLocked());
-         LOG.debug("Lock {} hold count: {}", lockName, reentrantLock.getHoldCount());
-         LOG.debug("{} Threads waiting for lock: {}", reentrantLock.getQueueLength(), lockName);
       }
    }
 
