@@ -150,7 +150,18 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
     * @return the plugin manager instance.
     */
    public static Plugins getInstance() {
-      return SingletonManager.getInstance(Plugins.class);
+      Plugins plugins = SingletonManager.getInstance(Plugins.class);
+
+      if(!plugins.initialized) {
+         synchronized(plugins) {
+            if(!plugins.initialized) {
+               plugins.init();
+               plugins.initialized = true;
+            }
+         }
+      }
+
+      return plugins;
    }
 
    /**
@@ -764,7 +775,6 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
                   try {
                      plugins = new Plugins(
                         SingletonManager.getInstance(BlobStorage.class, "plugins", true));
-                     plugins.init();
                   }
                   catch(Exception e) {
                      LOG.error("Failed to initialize plugins", e);
@@ -806,6 +816,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
    private final Map<String, Plugin> plugins;
    private final Lock blobChangeLock;
    private final List<ActionListener> listeners = new ArrayList<>();
+   private volatile boolean initialized = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(Plugins.class);
    private static final String BLOB_CHANGE_LOCK = Plugins.class.getName() + ".blobChangeLock";
