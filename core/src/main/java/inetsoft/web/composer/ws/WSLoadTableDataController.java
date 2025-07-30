@@ -24,8 +24,7 @@ import inetsoft.report.filter.SortFilter;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.util.GroupedThread;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.script.ExpressionFailedException;
 import inetsoft.web.composer.model.ws.WSTableData;
@@ -117,33 +116,39 @@ public class WSLoadTableDataController extends WorksheetController {
          // limit size of data to avoid oom (42576).
          final int MAX_DATA = 20 * 1024 * 1024; // 20m
          final int MAX_CELL = 32767; // same as xls
+         CoreTool.useDatetimeWithMillisFormat.set(Tool.isDatabricks(table.getSource()));
 
-         for(int row = startRow; row < endRow; row++) {
-            for(int col = 0; col < numCols; col++) {
-               Object val = null;
+         try {
+            for(int row = startRow; row < endRow; row++) {
+               for(int col = 0; col < numCols; col++) {
+                  Object val = null;
 
-               // script may fail, we just load null for failed cell. (58626)
-               try {
-                  val = lens.getObject(row + 1, col);
+                  // script may fail, we just load null for failed cell. (58626)
+                  try {
+                     val = lens.getObject(row + 1, col);
+                  }
+                  catch(Exception e) {
+                     ex = e;
+                  }
+
+                  String str = AssetUtil.format(val);
+
+                  if(str.length() > MAX_CELL) {
+                     str = str.substring(0, MAX_CELL);
+                  }
+
+                  rows[row - startRow][col] = str;
+                  dataSize += str.length();
                }
-               catch(Exception e) {
-                  ex = e;
+
+               if(dataSize > MAX_DATA) {
+                  endRow = row + 1;
+                  break;
                }
-
-               String str = AssetUtil.format(val);
-
-               if(str.length() > MAX_CELL) {
-                  str = str.substring(0, MAX_CELL);
-               }
-
-               rows[row - startRow][col] = str;
-               dataSize += str.length();
             }
-
-            if(dataSize > MAX_DATA) {
-               endRow = row + 1;
-               break;
-            }
+         }
+         finally {
+            CoreTool.useDatetimeWithMillisFormat.set(false);
          }
 
          final WSTableData tableData = WSTableData.builder()

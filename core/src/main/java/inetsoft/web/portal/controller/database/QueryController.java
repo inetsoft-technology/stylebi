@@ -22,7 +22,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.jdbc.UniformSQL;
-import inetsoft.util.Catalog;
+import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -33,7 +33,6 @@ import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.AddQueryColumnEvent;
 import inetsoft.web.portal.model.database.events.RemoveQueryColumnEvent;
-import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -114,14 +113,21 @@ public class QueryController extends WorksheetController {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCDataSource xds = (JDBCDataSource) query.getDataSource();
-      List<String> list = queryManager.getBrowseData(sql, tableName, columnName, columnType, xds, true);
+      CoreTool.useDatetimeWithMillisFormat.set(Tool.isDatabricks(xds));
 
-      if(list.size() > BrowseDataController.MAX_ROW_COUNT) {
-         list = list.subList(0, BrowseDataController.MAX_ROW_COUNT);
-         list.add("(" + Catalog.getCatalog().getString("data.truncated") + ")");
+      try {
+         List<String> list = queryManager.getBrowseData(sql, tableName, columnName, columnType, xds, true);
+
+         if(list.size() > BrowseDataController.MAX_ROW_COUNT) {
+            list = list.subList(0, BrowseDataController.MAX_ROW_COUNT);
+            list.add("(" + Catalog.getCatalog().getString("data.truncated") + ")");
+         }
+
+         return list;
       }
-
-      return list;
+      finally {
+         CoreTool.useDatetimeWithMillisFormat.set(false);
+      }
    }
 
    @GetMapping(value = "/api/data/datasource/query/column/check/expression")

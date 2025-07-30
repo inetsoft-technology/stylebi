@@ -74,10 +74,21 @@ public class ConditionTrapController extends WorksheetController {
       if(table != null) {
          SourceInfo sourceInfo = table instanceof BoundTableAssembly ?
             ((BoundTableAssembly) table).getSourceInfo() : null;
-         ConditionList oldConditionList = ConditionUtil.fromModelToConditionList(
-            model.oldConditionList(), sourceInfo, viewsheetService, principal, rws);
-         ConditionList newConditionList = ConditionUtil.fromModelToConditionList(
-            model.newConditionList(), sourceInfo, viewsheetService, principal, rws);
+
+         Tool.useDatetimeWithMillisFormat.set(
+            Tool.isDatabricks(sourceInfo == null ? null : sourceInfo.getSource()));
+         ConditionList oldConditionList = null;
+         ConditionList newConditionList = null;
+
+         try {
+            oldConditionList = ConditionUtil.fromModelToConditionList(
+               model.oldConditionList(), sourceInfo, viewsheetService, principal, rws);
+            newConditionList = ConditionUtil.fromModelToConditionList(
+               model.newConditionList(), sourceInfo, viewsheetService, principal, rws);
+         }
+         finally {
+            Tool.useDatetimeWithMillisFormat.set(false);
+         }
 
          TableAssembly otable = (TableAssembly) table.clone();
          otable.setPreConditionList(oldConditionList);

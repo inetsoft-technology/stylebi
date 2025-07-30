@@ -19,7 +19,6 @@ package inetsoft.uql;
 
 import inetsoft.report.Comparer;
 import inetsoft.report.filter.*;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.DateCondition;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.AbstractDataRef;
@@ -1644,9 +1643,16 @@ public class Condition extends AbstractCondition {
     */
    @Override
    public void writeContents(PrintWriter writer) {
-      for(int j = 0; j < getValueCount(); j++) {
-         Object val = getValue(j);
-         writeConditionValue(writer, val);
+      try {
+         Tool.useDatetimeWithMillisFormat.set(isDatetimeWithMillis());
+
+         for(int j = 0; j < getValueCount(); j++) {
+            Object val = getValue(j);
+            writeConditionValue(writer, val);
+         }
+      }
+      finally {
+         Tool.useDatetimeWithMillisFormat.set(false);
       }
    }
 
@@ -1748,12 +1754,19 @@ public class Condition extends AbstractCondition {
 
          Element atag = (Element) nlist.item(i);
 
-         if(atag.getTagName().equals("condition_data")) {
-            Object val = parseConditionValue(atag);
+         try {
+            Tool.useDatetimeWithMillisFormat.set(isDatetimeWithMillis());
 
-            if(val != null) {
-               addValue(val);
+            if(atag.getTagName().equals("condition_data")) {
+               Object val = parseConditionValue(atag);
+
+               if(val != null) {
+                  addValue(val);
+               }
             }
+         }
+         finally {
+            Tool.useDatetimeWithMillisFormat.set(false);
          }
       }
    }

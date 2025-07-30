@@ -314,11 +314,20 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
     */
    @Override
    public boolean getSelection(Map<String, Map<String, Collection<Object>>> map, boolean applied) {
-      if(isIDMode()) {
-         return getIDModeSelection(map, applied);
+      // ignore addition usage, since binding timestamp + additional tables is not a common usage,
+      // so no need to spend a lot of effort to figure it out which table the selection value data come from.
+      Tool.useDatetimeWithMillisFormat.set(Tool.isDatabricks(this));
+
+      try {
+         if(isIDMode()) {
+            return getIDModeSelection(map, applied);
+         }
+         else {
+            return getColumnModeSelection(map, applied);
+         }
       }
-      else {
-         return getColumnModeSelection(map, applied);
+      finally {
+         Tool.useDatetimeWithMillisFormat.set(false);
       }
    }
 
