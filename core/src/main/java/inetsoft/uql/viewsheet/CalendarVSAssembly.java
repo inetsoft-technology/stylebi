@@ -226,16 +226,17 @@ public class CalendarVSAssembly extends AbstractSelectionVSAssembly implements T
          conds.append(new JunctionOperator(JunctionOperator.OR, 0));
       }
 
-      Condition mincond = new Condition(ref.getDataType());
+      String dataType = ref.getDataType();
+      Condition mincond = new Condition(dataType);
       mincond.setOperation(Condition.GREATER_THAN);
       mincond.setEqual(true);
-      mincond.addValue(mind);
+      mincond.addValue(convertToSqlDate(mind, dataType));
       conds.append(new ConditionItem(ref, mincond, level));
       conds.append(new JunctionOperator(JunctionOperator.AND, level));
 
-      Condition maxcond = new Condition(ref.getDataType());
+      Condition maxcond = new Condition(dataType);
       maxcond.setOperation(Condition.LESS_THAN);
-      maxcond.addValue(maxd);
+      maxcond.addValue(convertToSqlDate(maxd, dataType));
       conds.append(new ConditionItem(ref, maxcond, level));
    }
 
@@ -687,16 +688,17 @@ public class CalendarVSAssembly extends AbstractSelectionVSAssembly implements T
             }
          }
 
+         String dataType = ref.getDataType();
          ConditionList conds = new ConditionList();
-         Condition mincond = new Condition(ref.getDataType());
+         Condition mincond = new Condition(dataType);
          mincond.setOperation(Condition.GREATER_THAN);
          mincond.setEqual(true);
-         mincond.addValue(min);
+         mincond.addValue(convertToSqlDate(min, dataType));
          conds.append(new ConditionItem(ref, mincond, 0));
          conds.append(new JunctionOperator(JunctionOperator.AND, 0));
-         Condition maxcond = new Condition(ref.getDataType());
+         Condition maxcond = new Condition(dataType);
          maxcond.setOperation(Condition.LESS_THAN);
-         maxcond.addValue(max);
+         maxcond.addValue(convertToSqlDate(max, dataType));
          conds.append(new ConditionItem(ref, maxcond, 0));
 
          return conds;
@@ -1110,6 +1112,21 @@ public class CalendarVSAssembly extends AbstractSelectionVSAssembly implements T
       Date date0 = start ?
          date : new Date(date.getTime() - 24 * 60 * 60 * 1000);
       return Tool.formatDate(date0);
+   }
+
+   private static Object convertToSqlDate(Object value, String type) {
+      if(!(value instanceof Date)) {
+         return value;
+      }
+
+      if(Tool.equals(type, Tool.DATE)) {
+         return new java.sql.Date(((Date) value).getTime());
+      }
+      else if(Tool.equals(type, Tool.TIME_INSTANT)) {
+         return new java.sql.Timestamp(((Date) value).getTime());
+      }
+
+      return value;
    }
 
    /**
