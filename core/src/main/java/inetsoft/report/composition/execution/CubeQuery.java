@@ -765,7 +765,9 @@ public class CubeQuery extends AssetQuery {
          ((MemberObject) obj).getFullCaption() : obj.toString();
 
       try{
-         return fmt.parse(str);
+         synchronized(fmt) {
+            return fmt.parse(str);
+         }
       }
       catch(Exception e) {
          LOG.warn("Failed to parse date: " + str, e);
