@@ -38,7 +38,7 @@ public abstract class AbstractPasswordEncryption implements PasswordEncryption {
 
    protected static final String OLD_PREFIX = "\\pwd";
    protected static final String NEW_PREFIX = "\\aes";
-   protected static final String MASTER_PREFIX = "\\master";
+   public static final String MASTER_PREFIX = "\\master";
 
    private SSLCertificateHelper sslCertificateHelper;
 }
