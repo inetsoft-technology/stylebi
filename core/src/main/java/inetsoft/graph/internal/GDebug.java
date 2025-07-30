@@ -116,10 +116,7 @@ public class GDebug {
     */
    public static void writeImage(File file, Image img) {
       try(java.io.FileOutputStream fout = new java.io.FileOutputStream(file)) {
-         //write to in-memory buffer first to prevent issues with Spring async response output stream
-         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-         CoreTool.writePNG(img, buffer);
-         IOUtils.write(buffer.toByteArray(), fout);
+         CoreTool.writePNG(img, fout);
       }
       catch(Exception ex) {
          LOG.error("Failed to write image: " + file, ex);

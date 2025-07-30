@@ -163,10 +163,7 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
          Image img = (Image) JavaScriptEngine.unwrap(img0);
 
          if(img != null) {
-            //write to in-memory buffer first to prevent issues with Spring async response output stream
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            CoreTool.writePNG(img, buffer);
-            IOUtils.write(buffer.toByteArray(), bout);
+            CoreTool.writePNG(img, bout);
             box.getViewsheet().addUploadedImage(path, bout.toByteArray());
          }
          else {
