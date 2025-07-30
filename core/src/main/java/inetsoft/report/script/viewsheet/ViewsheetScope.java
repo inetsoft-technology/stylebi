@@ -38,7 +38,6 @@ import inetsoft.util.log.LogContext;
 import inetsoft.util.script.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.vswizard.model.VSWizardConstants;
-import org.apache.commons.io.IOUtils;
 import org.mozilla.javascript.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

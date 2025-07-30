@@ -22,7 +22,6 @@ import inetsoft.graph.data.*;
 import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.graphics.SVGSupport;
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
