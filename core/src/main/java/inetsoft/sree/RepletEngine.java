@@ -1687,7 +1687,7 @@ public class RepletEngine extends AbstractAssetEngine
             return;
          }
 
-         String source = (String) evt.getSource();
+         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
          int index = source.indexOf('^');
          IdentityID user = null;
 
@@ -1746,7 +1746,7 @@ public class RepletEngine extends AbstractAssetEngine
       }
       else if(name.equals(RepletRegistry.ADD_FOLDER_EVENT)) {
          String folderName = (String) nval;
-         String source = (String) evt.getSource();
+         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
          int index = source.indexOf('^');
          IdentityID user = null;
 
@@ -1796,7 +1796,7 @@ public class RepletEngine extends AbstractAssetEngine
             return;
          }
 
-         String source = (String) evt.getSource();
+         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
          int index = source.indexOf('^');
          IdentityID user = null;
 
@@ -1831,7 +1831,7 @@ public class RepletEngine extends AbstractAssetEngine
       }
       // remove registry folder? remove archive folder and permission as well
       else if(name.equals(RepletRegistry.REMOVE_FOLDER_EVENT)) {
-         String source = (String) evt.getSource();
+         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
          int index = source.indexOf('^');
          IdentityID user = null;
 
@@ -1871,7 +1871,7 @@ public class RepletEngine extends AbstractAssetEngine
       }
       // rename registry replet? rename permission as well
       else if(name.equals(RepletRegistry.RENAME_REPLET_EVENT)) {
-         String source = (String) evt.getSource();
+         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
          int index = source.indexOf('^');
          String user = null;
          boolean directChange = source.endsWith("_true");
@@ -1909,7 +1909,7 @@ public class RepletEngine extends AbstractAssetEngine
       // remove registry replet? remove permission as well
       else if(name.equals(RepletRegistry.REMOVE_REPLET_EVENT)) {
          String path = (String) oval;
-         String source = (String) evt.getSource();
+         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
          int index = source.indexOf('^');
           String user = null;
 

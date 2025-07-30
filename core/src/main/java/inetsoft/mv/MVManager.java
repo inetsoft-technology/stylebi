@@ -26,6 +26,7 @@ import inetsoft.mv.trans.UserInfo;
 import inetsoft.mv.util.MVRule;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
@@ -1377,7 +1378,7 @@ public final class MVManager implements MessageListener {
       try {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
          Cluster.getInstance().sendMessage(
-            new MVChangedMessage(MVTool.getOrgEventSourceID(src, orgId), name, oval, nval));
+            new MVChangedMessage(Util.getOrgEventSourceID(src, orgId), name, oval, nval));
       }
       catch(Exception e) {
          LOG.warn("Failed to send MV changed message", e);
