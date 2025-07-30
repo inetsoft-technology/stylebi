@@ -613,6 +613,11 @@ public class QueryGraphModelService {
          entry.getProperty("catalogSep"), xds,
          entry.getProperty(XSourceInfo.CATALOG),
          entry.getProperty(XSourceInfo.SCHEMA));
+
+      if(entry.getProperty("supportCatalog") != null) {
+         node.setAttribute("supportCatalog", entry.getProperty("supportCatalog"));
+      }
+
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(database);
       TableNode tableNode = metaDataProvider.getTableMetaData(node);
 
