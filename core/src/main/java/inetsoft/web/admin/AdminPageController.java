@@ -74,9 +74,7 @@ public class AdminPageController {
          model = new ModelAndView("em/index");
       }
 
-      model.addObject("linkUri", linkUri);
       CustomThemesManager themes = CustomThemesManager.getManager();
-
       boolean hasOrgTheme = false;
       boolean hasDarkEMTheme = false;
 
