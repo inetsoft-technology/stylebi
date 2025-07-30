@@ -625,6 +625,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public Lock getLockWithoutCreate(String name) {
+      return ignite.reentrantLock(name, true, false, false);
+   }
+
+   @Override
    public void destroyLock(String name) {
       try(IgniteLock lock = ignite.reentrantLock(name, true, false, false)) {
          if(lock != null) {

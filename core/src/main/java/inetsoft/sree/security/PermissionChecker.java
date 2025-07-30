@@ -42,7 +42,12 @@ public class PermissionChecker {
     * Check the if an identity is on the permission list.
     */
    public boolean checkPermission(Identity identity, Permission permission,
-                                  ResourceAction action, boolean recursive) {
+                                  ResourceAction action, boolean recursive)
+   {
+      if(permission == null) {
+         return false;
+      }
+
       String orgID = identity != null ? identity.getOrganizationID() :
          OrganizationManager.getInstance().getCurrentOrgID();
       boolean useAnd = "true".equals(andCond.get());
@@ -57,7 +62,7 @@ public class PermissionChecker {
       boolean isRoleEmpty =
          isEmptyPermission(permission, Identity.ROLE, action, orgID);
 
-      // Only read/write/delete type permission can call this. To other type
+      // Only read/write/delete type permission can call this. To other typecom
       // permission, if the two permission is empty, it will not call this but
       // use parent permission directly.
       if(isUserGroupEmpty && isRoleEmpty && !organizationPermission) {
