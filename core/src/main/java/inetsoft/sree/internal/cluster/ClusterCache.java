@@ -670,7 +670,8 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
                }
                catch(ClusterTopologyCheckedException clusterException) {
                   LOG.warn("Failed to acquire lock due to cluster topology change");
-               }            }
+               }
+            }
 
             long interval = loadInterval;
 
