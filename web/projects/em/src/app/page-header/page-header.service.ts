@@ -69,11 +69,11 @@ export class PageHeaderService {
       "_#(js:Export History)",
       "_#(js:Schedule History)",
       "_#(js:Bookmark History)",
-      "_#(js:Dashboard Monitoring)",
+      "_#(js:Viewsheet Monitoring)",
       "_#(js:Query Monitoring)",
-      "_#(js:Cache Monitoring)",
+      "_#(js:em.cacheMonitoring.title)",
       "_#(js:User Monitoring)",
-      "_#(js:Cluster Monitoring)"
+      "_#(js:em.clusterMonitoring.title)"
    ]
 
    constructor(private bodyTitle: Title) {
