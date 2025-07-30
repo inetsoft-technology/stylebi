@@ -38,6 +38,7 @@ import inetsoft.util.log.LogContext;
 import inetsoft.util.script.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.vswizard.model.VSWizardConstants;
+import org.apache.commons.io.IOUtils;
 import org.mozilla.javascript.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -162,7 +163,10 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
          Image img = (Image) JavaScriptEngine.unwrap(img0);
 
          if(img != null) {
-            CoreTool.writePNG(img, bout);
+            //write to in-memory buffer first to prevent issues with Spring async response output stream
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            CoreTool.writePNG(img, buffer);
+            IOUtils.write(buffer.toByteArray(), bout);
             box.getViewsheet().addUploadedImage(path, bout.toByteArray());
          }
          else {

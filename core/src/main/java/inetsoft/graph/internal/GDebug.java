@@ -22,14 +22,14 @@ import inetsoft.graph.data.*;
 import inetsoft.util.CoreTool;
 import inetsoft.util.FileSystemService;
 import inetsoft.util.graphics.SVGSupport;
+import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.*;
 
 /**
  * Debugging related utility functions.
@@ -116,7 +116,10 @@ public class GDebug {
     */
    public static void writeImage(File file, Image img) {
       try(java.io.FileOutputStream fout = new java.io.FileOutputStream(file)) {
-         CoreTool.writePNG(img, fout);
+         //write to in-memory buffer first to prevent issues with Spring async response output stream
+         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+         CoreTool.writePNG(img, buffer);
+         IOUtils.write(buffer.toByteArray(), fout);
       }
       catch(Exception ex) {
          LOG.error("Failed to write image: " + file, ex);

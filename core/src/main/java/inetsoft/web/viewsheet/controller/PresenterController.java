@@ -280,7 +280,12 @@ public class PresenterController {
       g.dispose();
       response.setContentType("image/png");
       OutputStream out = response.getOutputStream();
-      CoreTool.writePNG(image, out);
+
+      //write to in-memory buffer first to prevent issues with Spring async response output stream
+      ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+      CoreTool.writePNG(image, buffer);
+      IOUtils.write(buffer.toByteArray(), out);
+
       out.flush();
    }
 
