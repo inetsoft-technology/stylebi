@@ -29,6 +29,7 @@ import { BehaviorSubject, Subscription } from "rxjs";
 import { debounceTime, distinctUntilChanged } from "rxjs/operators";
 import { ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
+import { CustomRouteReuseStrategy } from "../custom-route-reuse-strategy";
 import { OrganizationDropdownService } from "../navbar/organization-dropdown.service";
 import { EmPageHeaderModel } from "./em-page-header-model";
 import { PageHeaderService } from "./page-header.service";
@@ -157,10 +158,11 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
 
       this.ngZone.run(() => {
          this.router.navigateByUrl("/", { skipLocationChange: true }).then(() => {
+            CustomRouteReuseStrategy.forceNoReuse = true;
+
             if(index != -1) {
                this.ngZone.run(() => {
                   this.router.navigate([currRoute], {fragment: fragment, replaceUrl: true});
-
                });
             }
             else {
