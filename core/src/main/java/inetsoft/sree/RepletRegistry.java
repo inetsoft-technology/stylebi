@@ -17,7 +17,7 @@
  */
 package inetsoft.sree;
 
-import inetsoft.mv.MVTool;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -500,7 +500,7 @@ public class RepletRegistry implements Serializable {
          listeners = new Vector<>(this.listeners);
       }
 
-      PropertyChangeEvent evt = new PropertyChangeEvent(src, MVTool.getOrgEventSourceID(name, orgID), oval, nval);
+      PropertyChangeEvent evt = new PropertyChangeEvent(Util.getOrgEventSourceID(src, orgID), name, oval, nval);
 
       fireEventToListeners(listeners, evt, name);
 

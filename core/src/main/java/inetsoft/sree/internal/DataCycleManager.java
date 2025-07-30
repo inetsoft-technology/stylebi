@@ -18,6 +18,7 @@
 package inetsoft.sree.internal;
 
 import inetsoft.mv.*;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
@@ -172,7 +173,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    @Override
    public void propertyChange(PropertyChangeEvent evt) {
       String name = evt.getPropertyName();
-      String orgId = MVTool.getOrgIdFromEventSource(evt.getSource());
+      String orgId = Util.getOrgIdFromEventSource(evt.getSource());
 
       if(MVManager.MV_CHANGE_EVENT.equals(name) || RepletRegistry.CHANGE_EVENT.equals(name)) {
          generateTasks(null, orgId != null ? new Organization(new IdentityID(orgId, orgId)) : null,
