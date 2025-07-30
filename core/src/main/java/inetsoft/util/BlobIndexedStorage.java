@@ -501,6 +501,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
                }
 
                putXMLSerializable(identifier, data);
+
+               if(!Tool.equals(identifier, key)) {
+                  remove(key);
+               }
             }
          }
          else if((entry.getType().id() & AssetEntry.Type.FOLDER.id()) == AssetEntry.Type.FOLDER.id()) {
