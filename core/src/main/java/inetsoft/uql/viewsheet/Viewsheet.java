@@ -3995,15 +3995,18 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       writer.print(">");
       writer.println("<Version>" + getVersion() + "</Version>");
 
-      writer.println("<assemblies>");
 
-      for(Assembly assembly : assemblies) {
-         writer.println("<oneAssembly>");
-         assembly.writeXML(writer);
-         writer.println("</oneAssembly>");
+      if(!isEmbedded()) {
+         writer.println("<assemblies>");
+
+         for(Assembly assembly : assemblies) {
+            writer.println("<oneAssembly>");
+            assembly.writeXML(writer);
+            writer.println("</oneAssembly>");
+         }
+
+         writer.println("</assemblies>");
       }
-
-      writer.println("</assemblies>");
 
       writer.println("<dependencies>");
 
