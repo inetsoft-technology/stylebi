@@ -130,13 +130,10 @@ public class JobCompletionListener extends JobListenerSupport {
          IdentityID owner = taskValue != null ? taskValue.getOwner() : null;
          String addr = Tool.getIP();
          Principal contextPrincipal = ThreadContext.getContextPrincipal();
+         Object triggerUser = context.getMergedJobDataMap().get("principal");
 
-         if(contextPrincipal == null) {
-            Object triggerUser = context.getMergedJobDataMap().get("principal");
-
-            if(triggerUser instanceof Principal) {
-               contextPrincipal = (Principal) triggerUser;
-            }
+         if(triggerUser instanceof Principal) {
+            contextPrincipal = (Principal) triggerUser;
          }
 
          // Bug #40798, don't audit logins for internal tasks
@@ -154,7 +151,7 @@ public class JobCompletionListener extends JobListenerSupport {
          ActionRecord finishActionRecord = SUtil.getActionRecord(
             principal, actionName, taskName, objectType);
 
-         if(contextPrincipal != null) {
+         if(principal == null && contextPrincipal != null) {
             String user = SUtil.getUserName(contextPrincipal);
             finishActionRecord.setUserSessionID(user);
             principal = contextPrincipal;
