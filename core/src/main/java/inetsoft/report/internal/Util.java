@@ -38,7 +38,6 @@ import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.util.*;
-import inetsoft.web.composer.model.BrowseDataModel;
 import org.jnumbers.NumberParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -3396,6 +3395,50 @@ public class Util implements inetsoft.report.StyleConstants {
       return image;
    }
 
+   public static String getOrgEventSourceID(String sourceID, String orgID) {
+      return Tool.buildString(orgID, EVENT_ORG_DELIMITER, sourceID);
+   }
+
+   /**
+    * Get the organization ID from the event source ID.
+    *
+    * @param source event source.
+    * @return the organization ID or null if the sourceID is empty or does not contain the delimiter.
+    */
+   public static String getOrgIdFromEventSource(Object source) {
+      if(!(source instanceof String sourceID) || Tool.isEmptyString((String) source)) {
+         return null;
+      }
+
+      int index = sourceID.indexOf(EVENT_ORG_DELIMITER);
+
+      if(index < 0) {
+         return null;
+      }
+
+      return sourceID.substring(0, index);
+   }
+
+   /**
+    * Get the source name from the event source ID.
+    *
+    * @param source event source.
+    * @return the source name or the original source if it does not contain the delimiter.
+    */
+   public static Object getSourceNameFromEventSource(Object source) {
+      if(!(source instanceof String sourceID) || Tool.isEmptyString((String) source)) {
+         return source;
+      }
+
+      int index = sourceID.indexOf(EVENT_ORG_DELIMITER);
+
+      if(index < 0) {
+         return source;
+      }
+
+      return sourceID.substring(index + EVENT_ORG_DELIMITER.length());
+   }
+
    public static String BASE_MAX_ROW_KEY = "^_base_^";
    public static String SUB_MAX_ROW_KEY = "^_sub_^";
    public static String HINT_MAX_ROW_KEY = "^_hint_maxrow_^";
@@ -3408,6 +3451,7 @@ public class Util implements inetsoft.report.StyleConstants {
    private static final int MAX_COLUMN_COUNT = 200;
    private static final int MAX_CELL_SIZE = 500;
    private static final HashMap<String, String> datePartMap = new HashMap<>();
+   private static final String EVENT_ORG_DELIMITER = "^~~^";
 
    static {
       datePartMap.put("Year", "year");

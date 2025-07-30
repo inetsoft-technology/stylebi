@@ -605,30 +605,6 @@ public class MVTool {
       return false;
    }
 
-   public static String getOrgEventSourceID(String sourceID, String orgID) {
-      return Tool.buildString(orgID, MV_CHANGE_EVENT_ORG_DELIMITER, sourceID);
-   }
-
-   /**
-    * Get the organization ID from the event source ID.
-    *
-    * @param source event source.
-    * @return the organization ID or null if the sourceID is empty or does not contain the delimiter.
-    */
-   public static String getOrgIdFromEventSource(Object source) {
-      if(!(source instanceof String sourceID) || Tool.isEmptyString((String) source)) {
-         return null;
-      }
-
-      int index = sourceID.indexOf(MV_CHANGE_EVENT_ORG_DELIMITER);
-
-      if(index < 0) {
-         return null;
-      }
-
-      return sourceID.substring(0, index);
-   }
-
    private static final String[] AGGREGATE_FIELDS = new String[] {
       "field['" + XConstants.AVERAGE_FORMULA + "(",
       "field['" + XConstants.COUNT_FORMULA + "(",
@@ -659,5 +635,4 @@ public class MVTool {
    private static final Logger LOG = LoggerFactory.getLogger(MVTool.class);
    private static final Pattern NO_MV_PATTERN = Pattern.compile("\\/\\*\\s+@nomv ");
    private static final Pattern PARAMTER_PATTERN = Pattern.compile("\\bparameter\\.");
-   private static final String MV_CHANGE_EVENT_ORG_DELIMITER = "^~~^";
 }
