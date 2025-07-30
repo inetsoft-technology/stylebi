@@ -18,8 +18,7 @@
 package inetsoft.web.admin;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
 import inetsoft.web.viewsheet.service.LinkUri;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
@@ -75,11 +74,31 @@ public class AdminPageController {
          model = new ModelAndView("em/index");
       }
 
-      model.addObject("linkUri", linkUri);
       CustomThemesManager themes = CustomThemesManager.getManager();
+      boolean hasOrgTheme = false;
+      boolean hasDarkEMTheme = false;
 
-      model.addObject("customTheme", themes.isCustomThemeApplied());
-      model.addObject("darkTheme", themes.isEMDarkTheme());
+      if(OrganizationManager.getInstance().getCurrentOrgID() != null) {
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+         if(provider.getOrganization(orgId) != null &&
+            provider.getOrganization(orgId).getTheme() != null &&
+            provider.getOrganization(orgId).getTheme().length() != 0)
+         {
+            hasOrgTheme = true;
+
+            hasDarkEMTheme = CustomThemesManager.getManager().getCustomThemes().stream()
+               .filter(t -> t.getId().equals(provider.getOrganization(orgId).getTheme()))
+               .findAny()
+               .map(CustomTheme::isEMDark)
+               .orElse(false);
+         }
+      }
+
+      model.addObject("linkUri", linkUri);
+      model.addObject("customTheme", themes.isCustomThemeApplied() || hasOrgTheme);
+      model.addObject("darkTheme", themes.isEMDarkTheme() || hasDarkEMTheme);
       model.addObject("scriptThemeCssPath", themes.getScriptThemeCssPath(false));
       return model;
    }
