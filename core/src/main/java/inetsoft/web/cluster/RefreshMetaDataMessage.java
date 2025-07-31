@@ -20,8 +20,9 @@ package inetsoft.web.cluster;
 import java.io.Serializable;
 
 public class RefreshMetaDataMessage extends ServerClusterMessage implements Serializable {
-   public RefreshMetaDataMessage(String datasource) {
+   public RefreshMetaDataMessage(String datasource, String orgId) {
       this.datasource = datasource;
+      this.orgId = orgId;
    }
 
    @Override
@@ -33,6 +34,11 @@ public class RefreshMetaDataMessage extends ServerClusterMessage implements Seri
       return datasource;
    }
 
+   public String getOrgId() {
+      return orgId;
+   }
+
    public static final String ACTION = "refresh meta-data";
    private String datasource;
+   private String orgId;
 }

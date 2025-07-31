@@ -674,7 +674,15 @@ public class XEngine implements XRepository, XQueryRepository {
     * Remove meta data files with specified data source.
     */
    public void removeMetaDataFiles(String key) {
-      key = OrganizationManager.getInstance().getCurrentOrgID() + "__" + getKey(key);
+      removeMetaDataFiles(null, key);
+   }
+
+   /**
+    * Remove meta data files with specified data source.
+    */
+   public void removeMetaDataFiles(String orgId, String key) {
+      key = (Tool.isEmptyString(orgId) ? OrganizationManager.getInstance().getCurrentOrgID() : orgId)
+         + "__" + getKey(key);
       String keyHeader = key + "__";
       // remove the related file caches
       File cacheDir = getMetaDataDir();
@@ -707,8 +715,16 @@ public class XEngine implements XRepository, XQueryRepository {
     * Remove meta data files with specified data source.
     */
    public void removeMetaCache(String key) {
+      removeMetaCache(key, null);
+   }
+
+   /**
+    * Remove meta data files with specified data source.
+    */
+   public void removeMetaCache(String key, String orgId) {
+      orgId = Tool.isEmptyString(orgId) ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
       key = getKey(key);
-      String keyHeader = key + "__";
+      String keyHeader = Tool.buildString(orgId ,"__" ,key);
 
       for(String tempKey : metaDataCache.keySet()) {
          if(tempKey.startsWith(keyHeader) || tempKey.equals(key)) {
@@ -2046,13 +2062,14 @@ public class XEngine implements XRepository, XQueryRepository {
     * Process cluster node to refresh meta data.
     */
    private void processClusterNodes(String dxname) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
       Cluster cluster = Cluster.getInstance();
       boolean clusterEnabled = "server_cluster".equals(SreeEnv.getProperty("server.type"));
 
       if(!clusterEnabled) {
          if(cluster != null) {
             try {
-               cluster.sendMessage(new ClearLocalNodeMetaDataCacheMessage(dxname));
+               cluster.sendMessage(new ClearLocalNodeMetaDataCacheMessage(dxname, currentOrgID));
             }
             catch (Exception ex) {
                LOG.error(ex.getMessage(), ex);
@@ -2072,7 +2089,7 @@ public class XEngine implements XRepository, XQueryRepository {
                continue;
             }
 
-            cluster.sendMessage(clusterNode, new RefreshMetaDataMessage(dxname));
+            cluster.sendMessage(clusterNode, new RefreshMetaDataMessage(dxname, currentOrgID));
          }
       }
       catch(Exception ex) {

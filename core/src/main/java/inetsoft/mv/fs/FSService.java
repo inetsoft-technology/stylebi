@@ -122,10 +122,17 @@ public final class FSService {
     * Refresh the in-memory information from disk.
     */
    public static void refresh() {
+      refresh(null);
+   }
+
+   /**
+    * Refresh the in-memory information from disk.
+    */
+   public static void refresh(String orgId) {
       Cluster.getInstance().lockKey("mv.fs.update");
 
       try {
-         getServer().getFSystem().refresh(getDataNode().getBSystem(), true);
+         getServer(orgId).getFSystem().refresh(getDataNode().getBSystem(), true);
       }
       finally {
          Cluster.getInstance().unlockKey("mv.fs.update");

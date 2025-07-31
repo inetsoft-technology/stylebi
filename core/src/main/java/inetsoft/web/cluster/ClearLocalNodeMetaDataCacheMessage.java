@@ -20,8 +20,9 @@ package inetsoft.web.cluster;
 import java.io.Serializable;
 
 public class ClearLocalNodeMetaDataCacheMessage extends ServerClusterMessage implements Serializable {
-   public ClearLocalNodeMetaDataCacheMessage(String datasource) {
+   public ClearLocalNodeMetaDataCacheMessage(String datasource, String orgId) {
       this.datasource = datasource;
+      this.orgId = orgId;
    }
 
    @Override
@@ -33,6 +34,11 @@ public class ClearLocalNodeMetaDataCacheMessage extends ServerClusterMessage imp
       return datasource;
    }
 
+   public String getOrgId() {
+      return orgId;
+   }
+
    public static final String ACTION = "reload meta-data";
    private String datasource;
+   private String orgId;
 }

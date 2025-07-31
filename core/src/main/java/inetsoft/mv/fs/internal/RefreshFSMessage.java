@@ -20,4 +20,13 @@ package inetsoft.mv.fs.internal;
 import java.io.Serializable;
 
 public class RefreshFSMessage implements Serializable {
+   public RefreshFSMessage(String orgId) {
+      this.orgId = orgId;
+   }
+
+   public String getOrgId() {
+      return orgId;
+   }
+
+   private final String orgId;
 }
