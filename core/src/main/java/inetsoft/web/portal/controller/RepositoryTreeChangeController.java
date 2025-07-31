@@ -21,7 +21,9 @@ import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.*;
+import inetsoft.util.Tool;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -118,6 +120,14 @@ public class RepositoryTreeChangeController {
       @Override
       public void assetChanged(AssetChangeEvent event) {
          if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED && principal != null) {
+            String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+            if(event.getAssetEntry() != null &&
+               !Tool.equals(currentOrgID, event.getAssetEntry().getOrgID()))
+            {
+               return;
+            }
+
             messagingTemplate
                .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
          }
