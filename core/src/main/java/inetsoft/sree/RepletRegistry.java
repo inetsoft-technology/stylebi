@@ -18,6 +18,7 @@
 package inetsoft.sree;
 
 import inetsoft.report.internal.Util;
+import inetsoft.report.PropertyChangeEvent;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -30,7 +31,6 @@ import org.xml.sax.helpers.DefaultHandler;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.lang.ref.WeakReference;
