@@ -100,7 +100,8 @@ public class RepositoryTreeChangeController {
    private final PropertyChangeListener reportListener = new PropertyChangeListener() {
       @Override
       public void propertyChange(PropertyChangeEvent event) {
-         String orgEventSourceID = Util.getOrgIdFromEventSource(event.getSource());
+         String orgEventSourceID = event instanceof inetsoft.report.PropertyChangeEvent eventWrapper ?
+            eventWrapper.getOrgID() : Util.getOrgIdFromEventSource(event.getSource());
          String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
          if(!RepletRegistry.EDIT_CYCLE_EVENT.equals(event.getPropertyName()) &&
