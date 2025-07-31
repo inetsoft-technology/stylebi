@@ -119,7 +119,7 @@ public class ClusterStatusController implements MessageListener {
             final String datasource = dataMessage.getDatasource();
 
             if(datasource != null) {
-               ((XEngine) repository).removeMetaDataFiles(datasource);
+               ((XEngine) repository).removeMetaDataFiles(dataMessage.getOrgId(), datasource);
             }
             else {
                repository.refreshMetaData();
@@ -161,7 +161,7 @@ public class ClusterStatusController implements MessageListener {
             final String datasource = dataMessage.getDatasource();
 
             if(datasource != null) {
-               ((XEngine) repository).removeMetaCache(datasource);
+               ((XEngine) repository).removeMetaCache(datasource, dataMessage.getOrgId());
             }
          }
 
