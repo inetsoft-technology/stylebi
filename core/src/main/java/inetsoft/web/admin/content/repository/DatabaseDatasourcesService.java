@@ -1079,7 +1079,9 @@ public class DatabaseDatasourcesService {
                }
             }
 
-            xds.setPassword(password);
+            if(!Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
+               xds.setPassword(password);
+            }
          }
          else {
             String credentialId = definition.getAuthentication().getCredentialId();
