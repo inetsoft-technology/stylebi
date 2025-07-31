@@ -32,6 +32,7 @@
      [style.top.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ?
      model.objectFormat.top : null"
      [style.left.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS || isBinding ? 'absolute' : 'relative'"
      [style.width.px]="getObjectWidth()"
      [style.height.px]="getObjectHeight()"
      (onClick)="showPagingControl()">
