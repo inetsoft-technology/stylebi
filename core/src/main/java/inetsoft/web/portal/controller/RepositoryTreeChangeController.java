@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.report.internal.Util;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleManager;
@@ -59,7 +60,6 @@ public class RepositoryTreeChangeController {
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
-      this.scheduleManager = scheduleManager;
    }
 
    @PostConstruct
@@ -95,27 +95,24 @@ public class RepositoryTreeChangeController {
 
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
-   private final ScheduleManager scheduleManager;
    private Principal principal;
 
    private final PropertyChangeListener reportListener = new PropertyChangeListener() {
       @Override
       public void propertyChange(PropertyChangeEvent event) {
+         String orgEventSourceID = Util.getOrgIdFromEventSource(event.getSource());
+         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
          if(!RepletRegistry.EDIT_CYCLE_EVENT.equals(event.getPropertyName()) &&
-            !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()))
+            !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()) &&
+            (orgEventSourceID == null || Tool.equals(orgEventSourceID, currentOrgID)))
          {
             messagingTemplate
                .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
          }
       }
    };
-   private final PropertyChangeListener archiveListener = new PropertyChangeListener() {
-      @Override
-      public void propertyChange(PropertyChangeEvent event) {
-         messagingTemplate
-            .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
-      }
-   };
+
    private final AssetChangeListener viewsheetListener = new AssetChangeListener() {
       @Override
       public void assetChanged(AssetChangeEvent event) {
