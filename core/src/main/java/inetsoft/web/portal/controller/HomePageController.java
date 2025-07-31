@@ -19,8 +19,7 @@ package inetsoft.web.portal.controller;
 
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -74,24 +73,12 @@ public class HomePageController {
          .getHeaderValue();
       response.setHeader(HttpHeaders.CACHE_CONTROL, header);
 
-      boolean hasOrgTheme = false;
-
-      if(OrganizationManager.getInstance().getCurrentOrgID() != null) {
-         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-
-         if(provider.getOrganization(orgId) != null &&
-            provider.getOrganization(orgId).getTheme() != null)
-         {
-            hasOrgTheme = true;
-         }
-      }
-
+      boolean hasOrgTheme = hasTheme();
       CustomThemesManager themes = CustomThemesManager.getManager();
       String customLoadingText = SreeEnv.getProperty("portal.customLoadingText").replaceAll("\\s", " ");
       ModelAndView model = new ModelAndView("app/index");
       model.addObject("linkUri", linkUri);
-      model.addObject("customTheme", themes.isCustomThemeApplied() || hasOrgTheme);
+      model.addObject("customTheme", hasOrgTheme);
       model.addObject("scriptThemeCssPath", themes.getScriptThemeCssPath(true));
       model.addObject("customLoadingText", customLoadingText);
 
@@ -101,6 +88,26 @@ public class HomePageController {
       addOpenGraphTags(model, linkUri, request.getRequestURI());
 
       return model;
+   }
+
+   private boolean hasTheme() {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(orgId == null) {
+         return false;
+      }
+
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      Organization organization = provider.getOrganization(orgId);
+
+      if(organization == null) {
+         return false;
+      }
+
+      return CustomThemesManager.getManager()
+         .getCustomThemes()
+         .stream()
+         .anyMatch(theme -> theme.getId().equals(organization.getTheme()));
    }
 
    @PostMapping({"/app/portal/**", "/app/viewer/**", "/app/reportviewer/**"})
