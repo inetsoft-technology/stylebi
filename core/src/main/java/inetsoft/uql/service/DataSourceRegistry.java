@@ -1199,8 +1199,8 @@ public class DataSourceRegistry implements MessageListener {
          protected void doRun() {
             for(PropertyChangeListener listener : modifiedListeners) {
                listener.propertyChange(
-                  new PropertyChangeEvent(DataSourceRegistry.this,
-                                          "DataSourceRegistry", orgId, orgId));
+                  new inetsoft.report.PropertyChangeEvent(DataSourceRegistry.this,
+                                          "DataSourceRegistry", null, null, orgId));
             }
          }
       }).start();
