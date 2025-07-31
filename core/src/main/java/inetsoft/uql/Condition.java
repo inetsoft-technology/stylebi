@@ -24,6 +24,7 @@ import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import org.pojava.datetime.DateTime;
 import org.slf4j.Logger;
@@ -1643,17 +1644,12 @@ public class Condition extends AbstractCondition {
     */
    @Override
    public void writeContents(PrintWriter writer) {
-      try {
-         Tool.useDatetimeWithMillisFormat.set(isDatetimeWithMillis());
-
+      XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
          for(int j = 0; j < getValueCount(); j++) {
             Object val = getValue(j);
             writeConditionValue(writer, val);
          }
-      }
-      finally {
-         Tool.useDatetimeWithMillisFormat.set(false);
-      }
+      });
    }
 
    /**
@@ -1754,20 +1750,20 @@ public class Condition extends AbstractCondition {
 
          Element atag = (Element) nlist.item(i);
 
-         try {
-            Tool.useDatetimeWithMillisFormat.set(isDatetimeWithMillis());
+         XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
+            try {
+               if(atag.getTagName().equals("condition_data")) {
+                  Object val = parseConditionValue(atag);
 
-            if(atag.getTagName().equals("condition_data")) {
-               Object val = parseConditionValue(atag);
-
-               if(val != null) {
-                  addValue(val);
+                  if(val != null) {
+                     addValue(val);
+                  }
                }
             }
-         }
-         finally {
-            Tool.useDatetimeWithMillisFormat.set(false);
-         }
+            catch(Exception ex) {
+               throw new RuntimeException(ex.getMessage(), ex);
+            }
+         });
       }
    }
 
