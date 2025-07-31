@@ -20,6 +20,7 @@ package inetsoft.uql;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import org.pojava.datetime.DateTime;
 import org.slf4j.Logger;
@@ -726,7 +727,7 @@ public abstract class AbstractCondition implements XCondition {
       writer.print(" negated=\"" + isNegated() + "\"");
       writer.print(" operation=\"" + getOperation() + "\"");
       writer.print(" equal=\"" + isEqual() + "\"");
-      writer.print(" datetimeWithMillis=\"" + isDatetimeWithMillis() + "\"");
+      writer.print(" millisInFormatRequired=\"" + isMillisInFormatRequired() + "\"");
    }
 
    /**
@@ -753,8 +754,8 @@ public abstract class AbstractCondition implements XCondition {
          setEqual(str.equalsIgnoreCase("true"));
       }
 
-      if((str = Tool.getAttribute(elem, "datetimeWithMillis")) != null) {
-         setDatetimeWithMillis(str.equalsIgnoreCase("true"));
+      if((str = Tool.getAttribute(elem, "millisInFormatRequired")) != null) {
+         setMillisInFormatRequired(str.equalsIgnoreCase("true"));
       }
    }
 
@@ -831,14 +832,14 @@ public abstract class AbstractCondition implements XCondition {
       eq = eq && op == cond2.op;
       eq = eq && negated == cond2.negated;
       eq = eq && equal == cond2.equal;
-      eq = eq && datetimeWithMillis == cond2.datetimeWithMillis;
+      eq = eq && millisInFormatRequired == cond2.millisInFormatRequired;
 
       return eq;
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(type, op, negated, equal, datetimeWithMillis);
+      return Objects.hash(type, op, negated, equal, millisInFormatRequired);
    }
 
    /**
@@ -850,14 +851,10 @@ public abstract class AbstractCondition implements XCondition {
       writer.print("<xCondition class=\"" + getClass().getName() + "\"");
       writeAttributes(writer);
       writer.println(">");
-      Tool.useDatetimeWithMillisFormat.set(isDatetimeWithMillis());
 
-      try {
+      XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
          writeContents(writer);
-      }
-      finally {
-         Tool.useDatetimeWithMillisFormat.set(false);
-      }
+      });
 
       writer.println("</xCondition>");
    }
@@ -870,29 +867,29 @@ public abstract class AbstractCondition implements XCondition {
    public void parseXML(Element ctag) throws Exception {
       parseAttributes(ctag);
 
-      Tool.useDatetimeWithMillisFormat.set(isDatetimeWithMillis());
-
-      try {
-         parseContents(ctag);
-      }
-      finally {
-         Tool.useDatetimeWithMillisFormat.set(false);
-      }
+      XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
+         try {
+            parseContents(ctag);
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex.getMessage(), ex);
+         }
+      });
    }
 
-   public boolean isDatetimeWithMillis() {
-      return datetimeWithMillis;
+   public boolean isMillisInFormatRequired() {
+      return millisInFormatRequired;
    }
 
-   public void setDatetimeWithMillis(boolean datetimeWithMillis) {
-      this.datetimeWithMillis = datetimeWithMillis;
+   public void setMillisInFormatRequired(boolean millisInFormatRequired) {
+      this.millisInFormatRequired = millisInFormatRequired;
    }
 
    protected String type = XSchema.STRING;
    protected int op = EQUAL_TO;
    protected boolean negated = false;
    protected boolean equal = false;
-   private boolean datetimeWithMillis;
+   private boolean millisInFormatRequired;
 
    static ThreadLocal<DateFormat> allDateFmt = ThreadLocal.withInitial(Tool::createDateFormat);
    private static final Logger LOG = LoggerFactory.getLogger(AbstractCondition.class);

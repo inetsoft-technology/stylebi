@@ -4799,6 +4799,9 @@ public final class XUtil {
       try {
          return action.get();
       }
+      catch(Exception ex) {
+         throw new RuntimeException(ex);
+      }
       finally {
          CoreTool.useDatetimeWithMillisFormat.set(false);
       }
@@ -4810,13 +4813,19 @@ public final class XUtil {
       try {
          action.run();
       }
+      catch(Exception ex) {
+         throw new RuntimeException(ex);
+      }
       finally {
          CoreTool.useDatetimeWithMillisFormat.set(false);
       }
    }
 
    public static boolean isMillisInFormatRequired(Object target) {
-      if(target instanceof String source) {
+      if(target instanceof Boolean) {
+         return (boolean) target;
+      }
+      else if(target instanceof String source) {
          XDataSource xds = Tool.isEmptyString(source) ?
             null : DataSourceRegistry.getRegistry().getDataSource(source);
          return isMillisInFormatRequired(xds);
@@ -4835,7 +4844,6 @@ public final class XUtil {
 
          Worksheet ws = assembly.getWorksheet();
 
-         // single source.
          if(ws != null && assemblyRefs.length == 1) {
             Assembly wsAssembly = ws.getAssembly(assemblyRefs[0].getEntry().getName());
 
