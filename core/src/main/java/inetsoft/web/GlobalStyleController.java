@@ -20,8 +20,7 @@ package inetsoft.web;
 import com.github.benmanes.caffeine.cache.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
 import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
@@ -97,6 +96,7 @@ public class GlobalStyleController implements ApplicationContextAware {
 
    private synchronized StyleResource getResource(String path, Principal user) throws IOException {
       String themeId = null;
+      boolean hasTheme = false;
 
       if(SUtil.isMultiTenant()) {
          String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
@@ -106,10 +106,18 @@ public class GlobalStyleController implements ApplicationContextAware {
             provider.getOrganization(currOrgID).getTheme() != null)
          {
             themeId = provider.getOrganization(currOrgID).getTheme();
+            CustomThemesManager themes = CustomThemesManager.getManager();
+
+            for(CustomTheme theme : themes.getCustomThemes()) {
+               if(theme.getId().equals(themeId)) {
+                  hasTheme = true;
+                  break;
+               }
+            }
          }
       }
 
-      if(Tool.isEmptyString(themeId)) {
+      if(Tool.isEmptyString(themeId) || !hasTheme) {
          themeId = CustomThemesManager.getManager().getSelectedTheme(user);
       }
 
