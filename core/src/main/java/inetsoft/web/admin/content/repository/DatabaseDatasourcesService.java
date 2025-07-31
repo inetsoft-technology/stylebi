@@ -671,7 +671,7 @@ public class DatabaseDatasourcesService {
          }
       }
 
-      JDBCDataSource additionalConnection = getDatabase(database.getName(), database);
+      JDBCDataSource additionalConnection = getDatabase(database.getName(), database, false, true);
       additionalConnection.setBaseDatasource(base);
       base.addDatasource(additionalConnection);
 
