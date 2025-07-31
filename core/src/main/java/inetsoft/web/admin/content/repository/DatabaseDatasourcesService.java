@@ -671,7 +671,7 @@ public class DatabaseDatasourcesService {
          }
       }
 
-      JDBCDataSource additionalConnection = getDatabase(database.getName(), database);
+      JDBCDataSource additionalConnection = getDatabase(database.getName(), database, false, true);
       additionalConnection.setBaseDatasource(base);
       base.addDatasource(additionalConnection);
 
@@ -1079,9 +1079,7 @@ public class DatabaseDatasourcesService {
                }
             }
 
-            if(!Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
-               xds.setPassword(password);
-            }
+            xds.setPassword(password);
          }
          else {
             String credentialId = definition.getAuthentication().getCredentialId();
