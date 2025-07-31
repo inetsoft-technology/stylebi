@@ -851,17 +851,13 @@ public final class WizardRecommenderUtil {
          getUsedAutoCreatedCal(newInfo, used);
       }
 
-      removeRangeTotalColumn(vs, used);
-   }
-
-   public static void removeRangeTotalColumn(Viewsheet vs, Set<String> used) {
       for(String source : vs.getCalcFieldSources()) {
          CalculateRef[] crefs = vs.getCalcFields(source);
 
          if(crefs != null) {
             for(CalculateRef cref : crefs) {
                if((cref.getName().startsWith("Total@") || cref.getName().startsWith("Range@"))
-                  && (used == null || !used.contains(source + ":" + cref.getName())))
+                  && !used.contains(source + ":" + cref.getName()))
                {
                   vs.removeCalcField(source, cref.getName());
                }
@@ -869,7 +865,7 @@ public final class WizardRecommenderUtil {
          }
       }
    }
-
+   
    private static void getUsedAutoCreatedCal(ChartVSAssemblyInfo aInfo, Set<String> used) {
       SourceInfo source = aInfo.getSourceInfo();
       VSChartInfo cinfo = aInfo.getVSChartInfo();
