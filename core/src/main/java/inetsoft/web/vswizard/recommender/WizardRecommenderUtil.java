@@ -851,13 +851,17 @@ public final class WizardRecommenderUtil {
          getUsedAutoCreatedCal(newInfo, used);
       }
 
+      removeRangeTotalColumn(vs, used);
+   }
+
+   public static void removeRangeTotalColumn(Viewsheet vs, Set<String> used) {
       for(String source : vs.getCalcFieldSources()) {
          CalculateRef[] crefs = vs.getCalcFields(source);
 
          if(crefs != null) {
             for(CalculateRef cref : crefs) {
                if((cref.getName().startsWith("Total@") || cref.getName().startsWith("Range@"))
-                  && !used.contains(source + ":" + cref.getName()))
+                  && (used == null || !used.contains(source + ":" + cref.getName())))
                {
                   vs.removeCalcField(source, cref.getName());
                }
