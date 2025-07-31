@@ -62,7 +62,7 @@ public class PermissionChecker {
       boolean isRoleEmpty =
          isEmptyPermission(permission, Identity.ROLE, action, orgID);
 
-      // Only read/write/delete type permission can call this. To other typecom
+      // Only read/write/delete type permission can call this. To other type
       // permission, if the two permission is empty, it will not call this but
       // use parent permission directly.
       if(isUserGroupEmpty && isRoleEmpty && !organizationPermission) {
