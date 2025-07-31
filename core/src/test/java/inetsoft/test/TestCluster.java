@@ -110,11 +110,6 @@ public class TestCluster implements Cluster {
    }
 
    @Override
-   public Lock getLockWithoutCreate(String name) {
-      return locks.get(name);
-   }
-
-   @Override
    public void destroyLock(String name) {
       Lock lock = locks.get(name);
 
