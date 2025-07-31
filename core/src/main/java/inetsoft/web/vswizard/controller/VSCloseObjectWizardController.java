@@ -149,7 +149,7 @@ public class VSCloseObjectWizardController {
          }
 
          if(!(info instanceof ChartVSAssemblyInfo)) {
-            WizardRecommenderUtil.removeRangeTotalColumn(vs, null);
+            WizardRecommenderUtil.cleanupCalculateRefs(vs, null);
          }
 
          if(info instanceof ChartVSAssemblyInfo && originalAssembly instanceof ChartVSAssembly) {
