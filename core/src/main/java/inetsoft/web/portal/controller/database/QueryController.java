@@ -22,6 +22,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.jdbc.UniformSQL;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.BrowseDataController;
@@ -113,21 +114,22 @@ public class QueryController extends WorksheetController {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCDataSource xds = (JDBCDataSource) query.getDataSource();
-      CoreTool.useDatetimeWithMillisFormat.set(Tool.isDatabricks(xds));
 
-      try {
-         List<String> list = queryManager.getBrowseData(sql, tableName, columnName, columnType, xds, true);
+      return XUtil.withFixedDateFormat(xds, () -> {
+         try {
+            List<String> list = queryManager.getBrowseData(sql, tableName, columnName, columnType, xds, true);
 
-         if(list.size() > BrowseDataController.MAX_ROW_COUNT) {
-            list = list.subList(0, BrowseDataController.MAX_ROW_COUNT);
-            list.add("(" + Catalog.getCatalog().getString("data.truncated") + ")");
+            if(list.size() > BrowseDataController.MAX_ROW_COUNT) {
+               list = list.subList(0, BrowseDataController.MAX_ROW_COUNT);
+               list.add("(" + Catalog.getCatalog().getString("data.truncated") + ")");
+            }
+
+            return list;
          }
-
-         return list;
-      }
-      finally {
-         CoreTool.useDatetimeWithMillisFormat.set(false);
-      }
+         catch(Exception ex) {
+            throw new RuntimeException(ex.getMessage(), ex);
+         }
+      });
    }
 
    @GetMapping(value = "/api/data/datasource/query/column/check/expression")
