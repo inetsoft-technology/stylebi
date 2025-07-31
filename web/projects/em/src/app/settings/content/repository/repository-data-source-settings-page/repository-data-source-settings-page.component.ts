@@ -17,7 +17,7 @@
  */
 import {
    Component, EventEmitter,
-   Input, OnChanges, Output, SimpleChanges,
+   Input, OnChanges, OnInit, Output, SimpleChanges,
 } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { MatSnackBar } from "@angular/material/snack-bar";
@@ -33,7 +33,7 @@ import { Tool } from "../../../../../../../shared/util/tool";
    templateUrl: "./repository-data-source-settings-page.component.html",
    styleUrls: ["./repository-data-source-settings-page.component.scss"]
 })
-export class RepositoryDataSourceSettingsPageComponent extends DataSourceSettingsPage implements OnChanges {
+export class RepositoryDataSourceSettingsPageComponent extends DataSourceSettingsPage implements OnInit, OnChanges {
    @Input() model: DataSourceEditorModel;
    @Input() selectedTab = 0;
    @Input() smallDevice: boolean;
@@ -48,6 +48,11 @@ export class RepositoryDataSourceSettingsPageComponent extends DataSourceSetting
 
    constructor(http: HttpClient, private snackBar: MatSnackBar, stompClient: StompClientService) {
       super(http, stompClient);
+   }
+
+   ngOnInit() {
+      super.ngOnInit();
+      this.subscribePluginsChange(true);
    }
 
    ngOnChanges(changes: SimpleChanges) {

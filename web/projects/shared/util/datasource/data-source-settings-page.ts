@@ -172,13 +172,6 @@ export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
 
       this.http.get<string>("../api/em/navbar/organization")
          .subscribe((org) => this.currOrg = org);
-
-      this.stompClient.connect("../vs-events", true).subscribe(connection => {
-         this.connection = connection;
-         this.subscription.add(connection.subscribe(
-            "/user/em-plugin-changed",
-            (message) => this.refreshDrivers()));
-      });
    }
 
     ngOnDestroy() {
@@ -192,6 +185,15 @@ export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
           this.connection = null;
        }
     }
+
+   subscribePluginsChange(em: boolean = false) {
+      this.stompClient.connect("../vs-events", em).subscribe(connection => {
+         this.connection = connection;
+         this.subscription.add(connection.subscribe(
+            "/user/em-plugin-changed",
+            (message) => this.refreshDrivers()));
+      });
+   }
 
    setModel(newModel: DataSourceSettingsModel): void {
       this.database = newModel.dataSource;
