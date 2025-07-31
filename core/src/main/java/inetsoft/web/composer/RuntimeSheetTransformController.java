@@ -25,6 +25,7 @@ import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.util.Tool;
@@ -71,12 +72,14 @@ public class RuntimeSheetTransformController implements MessageListener {
          return;
       }
 
-      if(event.getMessage() instanceof ViewsheetBookmarkChangedEvent) {
-         AssetEntry asset = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getAssetEntry();
-         String id = ((ViewsheetBookmarkChangedEvent) event.getMessage()).rvsID;
+      String currOrgID = getSubscriberOrgID();
+
+      if(event.getMessage() instanceof ViewsheetBookmarkChangedEvent bkChangedEvent) {
+         AssetEntry asset = bkChangedEvent.getAssetEntry();
+         String id = bkChangedEvent.rvsID;
          viewsheetService.updateBookmarks(asset);
 
-         if(((ViewsheetBookmarkChangedEvent) event.getMessage()).deleted) {
+         if(Tool.equals(currOrgID, bkChangedEvent.orgID) && bkChangedEvent.deleted) {
             String bookmark = ((ViewsheetBookmarkChangedEvent) event.getMessage()).bookmark;
             handleMessageForBookmarks(asset, id, bookmark, true);
          }
@@ -87,7 +90,9 @@ public class RuntimeSheetTransformController implements MessageListener {
             handleRenameBookmark(asset, id, oname, nname, owner);
          }
       }
-      else if(event.getMessage() instanceof RenameTransformFinishedEvent) {
+      else if(event.getMessage() instanceof RenameTransformFinishedEvent finshedEvent &&
+         Tool.equals(currOrgID, finshedEvent.getOrgID()))
+      {
          RenameTransformFinishedEvent renameEvent = (RenameTransformFinishedEvent) event.getMessage();
          AssetObject asset = renameEvent.getEntry();
          RenameDependencyInfo dependencyInfo = renameEvent.getDependencyInfo();
@@ -105,7 +110,9 @@ public class RuntimeSheetTransformController implements MessageListener {
             handleSheetChangeMessageForWs((AssetEntry) asset, renameEvent.getRenameInfo());
          }
       }
-      else if(event.getMessage() instanceof TransformAssetFinishedEvent) {
+      else if(event.getMessage() instanceof TransformAssetFinishedEvent finishedEvent &&
+         Tool.equals(currOrgID, finishedEvent.getOrgID()))
+      {
          handleAssetTransformFinished((TransformAssetFinishedEvent) event.getMessage());
       }
    }
@@ -286,6 +293,10 @@ public class RuntimeSheetTransformController implements MessageListener {
    }
 
    private void sendMessage(String id, AssetEntry entry, boolean reload) {
+      if(entry == null || !Tool.equals(getSubscriberOrgID(), entry.getOrgID())) {
+         return;
+      }
+
       RenameEventModel model = RenameEventModel.builder()
          .id(id)
          .reload(reload)
@@ -296,11 +307,17 @@ public class RuntimeSheetTransformController implements MessageListener {
 
    @SubscribeMapping("/dependency-changed")
    public void subscribeToDependency(Principal principal) {
+      this.principal = principal;
       destination = SUtil.getUserDestination(principal);
       clusterInstance.addMessageListener(this);
    }
 
+   private String getSubscriberOrgID() {
+      return OrganizationManager.getInstance().getCurrentOrgID(principal);
+   }
+
    private String destination;
+   private Principal principal;
    private Cluster clusterInstance;
    private AnalyticRepository repository;
    private ViewsheetService viewsheetService;

@@ -173,7 +173,7 @@ export abstract class DataSourceSettingsPage implements OnInit, OnDestroy {
       this.http.get<string>("../api/em/navbar/organization")
          .subscribe((org) => this.currOrg = org);
 
-      this.stompClient.connect("../vs-events").subscribe(connection => {
+      this.stompClient.connect("../vs-events", true).subscribe(connection => {
          this.connection = connection;
          this.subscription.add(connection.subscribe(
             "/user/em-plugin-changed",

@@ -2438,7 +2438,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
 
    //in the case that worksheet is being saved on orgID change, worksheet needs the new orgID passed to save to storage
    //grab new org id from users, which was already updated
-   private String handleUpdatingOrgID() {
+   public String handleUpdatingOrgID() {
       Identity user = this.users == null || this.users.length == 0 ? null : this.users[0];
       String uOrgID = user == null ? null : user.getOrganizationID();
       String curOrgID = OrganizationManager.getInstance().getCurrentOrgID();
