@@ -269,8 +269,31 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     * Clear the cached data.
     */
    public static void clearCache() {
+      clearCache(null);
+   }
+
+   /**
+    * Clear the cached data.
+    */
+   public static void clearCache(String orgId) {
       AssetDataCache cache = getCache();
-      cache.clear();
+
+      if(Tool.isEmptyString(orgId)) {
+         cache.clear();
+      }
+      else {
+         for(DataKey dataKey : cache.keySet()) {
+            if(orgId.equals(dataKey.getOrgId())) {
+               TableFilter2 data = (TableFilter2) cache.get(dataKey);
+
+               if(data != null) {
+                  data.dispose2();
+               }
+
+               cache.remove(dataKey);
+            }
+         }
+      }
    }
 
    /**
@@ -1268,6 +1291,14 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
 
       private AssetDataCache cache;
       private DataSourceRegistry dataSourceRegistry;
-      private final PropertyChangeListener listener = evt -> clearCache();
+      private final PropertyChangeListener listener = evt -> {
+         String orgId = null;
+
+         if(evt instanceof inetsoft.report.PropertyChangeEvent propertyChangeEvent) {
+            orgId = propertyChangeEvent.getOrgID();
+         }
+
+         clearCache(orgId);
+      };
    }
 }
