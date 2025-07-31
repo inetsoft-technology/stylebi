@@ -20,4 +20,18 @@ package inetsoft.uql.service;
 import java.io.Serializable;
 
 public class ClearDataSourceCacheEvent implements Serializable {
+   public ClearDataSourceCacheEvent(String orgID) {
+      super();
+      this.orgID = orgID;
+   }
+
+   public String getOrgID() {
+      return orgID;
+   }
+
+   public void setOrgID(String orgID) {
+      this.orgID = orgID;
+   }
+
+   private String orgID;
 }

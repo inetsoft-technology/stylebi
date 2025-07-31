@@ -18,6 +18,7 @@
 package inetsoft.uql.asset.sync;
 
 
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetObject;
 
 import java.io.Serializable;
@@ -29,6 +30,7 @@ public class RenameTransformFinishedEvent implements Serializable {
    public RenameTransformFinishedEvent(AssetObject asset, RenameDependencyInfo dinfo) {
       entry = asset;
       dependencyInfo = dinfo;
+      this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
    }
 
    public RenameDependencyInfo getDependencyInfo() {
@@ -47,6 +49,14 @@ public class RenameTransformFinishedEvent implements Serializable {
       this.entry = asset;
    }
 
+   public String getOrgID() {
+      return orgID;
+   }
+
+   public void setOrgID(String orgID) {
+      this.orgID = orgID;
+   }
+
    public void setReload(boolean load) {
       this.reload = load;
    }
@@ -55,7 +65,9 @@ public class RenameTransformFinishedEvent implements Serializable {
       return this.reload;
    }
 
+
    private AssetObject entry;
+   private String orgID;
    private boolean reload;
    private RenameDependencyInfo dependencyInfo;
 }

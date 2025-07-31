@@ -23,6 +23,7 @@ import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SimpleMessage;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.MVSupportService;
@@ -157,7 +158,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
       Map<String, String> statusMap = Cluster.getInstance().getMap("inetsoft.mv.status.map");
 
       statusMap.put(mv.getName(), "Generating");
-      sendChangeMessage();
+      sendChangeMessage(OrganizationManager.getInstance().getCurrentOrgID(principal));
 
       try {
          createMV(principal, mv);
@@ -223,13 +224,13 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
       mv.updateLastUpdateTime(); // update time stamp
       mgr.add(mv);
 
-      sendChangeMessage();
+      sendChangeMessage(mv.handleUpdatingOrgID());
       SharedMVUtil.shareCreatedMV(mv);
    }
 
-   private void sendChangeMessage() {
+   private void sendChangeMessage(String orgID) {
       try {
-         SimpleMessage message = new SimpleMessage(MVManager.MV_CHANGE_EVENT);
+         SimpleMessage message = new SimpleMessage(MVManager.MV_CHANGE_EVENT, orgID);
          Cluster.getInstance().sendMessage(message);
       }
       catch(Exception clusterMessageError) {
