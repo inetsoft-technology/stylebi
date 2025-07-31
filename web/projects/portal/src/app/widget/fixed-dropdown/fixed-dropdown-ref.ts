@@ -46,6 +46,8 @@ export class DropdownRef {
          dropdown.dropdownBounds = new Rectangle(bounds.left, bounds.top, width, height);
          this.stackService.push(dropdown);
       });
+
+      dropdownCmptRef.changeDetectorRef.detectChanges();
    }
 
    /**
