@@ -765,9 +765,7 @@ public class CubeQuery extends AssetQuery {
          ((MemberObject) obj).getFullCaption() : obj.toString();
 
       try{
-         synchronized(fmt) {
-            return fmt.parse(str);
-         }
+         return fmt.parse(str);
       }
       catch(Exception e) {
          LOG.warn("Failed to parse date: " + str, e);
@@ -1431,7 +1429,11 @@ public class CubeQuery extends AssetQuery {
             obj = super.getObject(r, c);
 
             if(obj instanceof MemberObject) {
-               Date date = parseDate(obj, fmts[c]);
+               Date date;
+
+               synchronized(fmts[c]) {
+                  date = parseDate(obj, fmts[c]);;
+               }
 
                if(date != null) {
                   obj = new CubeDate(date, (MemberObject) obj);
