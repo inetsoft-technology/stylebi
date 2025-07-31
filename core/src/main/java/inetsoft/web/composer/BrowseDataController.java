@@ -131,13 +131,16 @@ public class BrowseDataController {
          model = executeByColumnCache(assembly);
 
          if(model == null) {
-            try {
-               CoreTool.useDatetimeWithMillisFormat.set(Tool.isDatabricks(((TableAssembly) assembly).getSource()));
-               model = executeByQuery(box, (TableAssembly) assembly);
-            }
-            finally {
-               CoreTool.useDatetimeWithMillisFormat.set(false);
-            }
+            final TableAssembly tableAssembly = (TableAssembly) assembly;
+
+            model = XUtil.withFixedDateFormat(((TableAssembly) assembly).getSource(), () -> {
+               try {
+                  return executeByQuery(box, tableAssembly);
+               }
+               catch(Exception ex) {
+                  throw new RuntimeException(ex.getMessage(), ex);
+               }
+            });
          }
       }
 

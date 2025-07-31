@@ -27,6 +27,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.VSScriptableController;
@@ -82,16 +83,17 @@ public class AssemblyConditionDialogController extends WorksheetController {
       RuntimeWorksheet rws = super.getWorksheetEngine()
          .getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
-      TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
-      Tool.useDatetimeWithMillisFormat.set(
-         Tool.isDatabricks(tableAssembly == null ? null : tableAssembly.getSource()));
+      final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
+      String source = tableAssembly == null ? null : tableAssembly.getSource();
 
-      try {
-         return createAssemblyConditionDialogModel(rws, tableAssembly, principal);
-      }
-      finally {
-         Tool.useDatetimeWithMillisFormat.set(false);
-      }
+      return XUtil.withFixedDateFormat(source, () -> {
+         try {
+            return createAssemblyConditionDialogModel(rws, tableAssembly, principal);
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex.getMessage(), ex);
+         }
+      });
    }
 
    private AssemblyConditionDialogModel createAssemblyConditionDialogModel(RuntimeWorksheet rws,
@@ -290,19 +292,20 @@ public class AssemblyConditionDialogController extends WorksheetController {
       Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      assemblyName = Tool.byteDecode(assemblyName);
+      final String tableAssemblyName = Tool.byteDecode(assemblyName);
       RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
       Worksheet ws = rws.getWorksheet();
-      TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
-      Tool.useDatetimeWithMillisFormat.set(
-         Tool.isDatabricks(tableAssembly == null ? null : tableAssembly.getSource()));
+      final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(tableAssemblyName);
+      String source = tableAssembly == null ? null : tableAssembly.getSource();
 
-      try {
-         updateByModel(rws, tableAssembly, assemblyName, model, principal, commandDispatcher);
-      }
-      finally {
-         Tool.useDatetimeWithMillisFormat.set(false);
-      }
+      XUtil.withFixedDateFormat(source, () -> {
+         try {
+            updateByModel(rws, tableAssembly, tableAssemblyName, model, principal, commandDispatcher);
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex.getMessage(), ex);
+         }
+      });
    }
 
    private void updateByModel(RuntimeWorksheet rws, TableAssembly tableAssembly, String assemblyName,

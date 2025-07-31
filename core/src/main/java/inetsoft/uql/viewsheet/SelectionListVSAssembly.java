@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet;
 import inetsoft.report.TableDataPath;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -232,17 +233,9 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
          return false;
       }
 
-      // ignore addition usage, since binding timestamp + additional tables is not a common usage,
-      // so no need to spend a lot of effort to figure it out which table the selection value data come from.
-      Tool.useDatetimeWithMillisFormat.set(Tool.isDatabricks(this));
-      List<Object> list = null;
-
-      try {
-         list = getSelectedObjects0(applied);
-      }
-      finally {
-         Tool.useDatetimeWithMillisFormat.set(false);
-      }
+      List<Object> list = XUtil.withFixedDateFormat(this, () -> {
+         return getSelectedObjects0(applied);
+      });
 
       if(list.size() > 0) {
          for(String tableName : getTableNames()) {

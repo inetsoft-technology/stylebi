@@ -24,6 +24,7 @@ import inetsoft.report.filter.SortFilter;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.script.ExpressionFailedException;
@@ -49,7 +50,7 @@ public class WSLoadTableDataController extends WorksheetController {
       CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeWorksheet rws = getRuntimeWorksheet(principal);
-      int startRow = event.start();
+      final int startRow = event.start();
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
       TableAssembly table = (TableAssembly) rws.getWorksheet().getAssembly(assemblyName);
 
@@ -72,7 +73,7 @@ public class WSLoadTableDataController extends WorksheetController {
 
       if(table != null) {
          TableLens lens = box.getTableLens(assemblyName, WorksheetEventUtil.getMode(table));
-         Exception ex = null;
+         Exception[] exs = new Exception[1];
 
          if(sortData) {
             if(event.firstChange()) {
@@ -101,34 +102,36 @@ public class WSLoadTableDataController extends WorksheetController {
             lens.moreRows(startRow + event.blockSize());
          }
          catch(ExpressionFailedException e) {
-            ex = e;
+            exs[0] = e;
          }
 
          final int numCols = lens.getColCount();
          final int rowCount = lens.getRowCount();
-         final boolean completed = rowCount >= 0 || ex != null;
+         final boolean completed = rowCount >= 0 || exs[0] != null;
          final int availableRowCount = Math.max((rowCount < 0 ? -rowCount - 1 : rowCount) - 1, 0);
          final int numRows = Math.min(availableRowCount, event.blockSize());
 
          String[][] rows = new String[numRows][numCols];
-         int endRow = Math.min(startRow + numRows, availableRowCount);
-         int dataSize = 0;
          // limit size of data to avoid oom (42576).
          final int MAX_DATA = 20 * 1024 * 1024; // 20m
          final int MAX_CELL = 32767; // same as xls
-         CoreTool.useDatetimeWithMillisFormat.set(Tool.isDatabricks(table.getSource()));
 
-         try {
+         final TableLens tableLens = lens;
+
+         int endRowNum = XUtil.withFixedDateFormat(table.getSource(), () -> {
+            int endRow = Math.min(startRow + numRows, availableRowCount);
+            int dataSize = 0;
+
             for(int row = startRow; row < endRow; row++) {
                for(int col = 0; col < numCols; col++) {
                   Object val = null;
 
                   // script may fail, we just load null for failed cell. (58626)
                   try {
-                     val = lens.getObject(row + 1, col);
+                     val = tableLens.getObject(row + 1, col);
                   }
                   catch(Exception e) {
-                     ex = e;
+                     exs[0] = e;
                   }
 
                   String str = AssetUtil.format(val);
@@ -146,15 +149,14 @@ public class WSLoadTableDataController extends WorksheetController {
                   break;
                }
             }
-         }
-         finally {
-            CoreTool.useDatetimeWithMillisFormat.set(false);
-         }
+
+            return endRow;
+         });
 
          final WSTableData tableData = WSTableData.builder()
             .loadedRows(rows)
             .startRow(startRow)
-            .endRow(endRow)
+            .endRow(endRowNum)
             .completed(completed)
             .build();
 
@@ -165,8 +167,8 @@ public class WSLoadTableDataController extends WorksheetController {
 
          commandDispatcher.sendCommand(assemblyName, command);
 
-         if(ex != null) {
-            throw ex;
+         if(exs[0] != null) {
+            throw exs[0];
          }
       }
 

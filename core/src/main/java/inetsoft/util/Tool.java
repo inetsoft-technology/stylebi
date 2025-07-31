@@ -5125,37 +5125,6 @@ public final class Tool extends CoreTool {
       x[b] = t;
    }
 
-   public static boolean isDatabricks(String source) {
-      XDataSource xds = Tool.isEmptyString(source) ?
-         null : DataSourceRegistry.getRegistry().getDataSource(source);
-      return isDatabricks(xds);
-   }
-
-   public static boolean isDatabricks(XDataSource xds) {
-      return xds != null ? SQLHelper.getSQLHelper(xds) instanceof DatabricksHelper : false;
-   }
-
-   public static boolean isDatabricks(BindableVSAssembly assembly) {
-      AssemblyRef[] assemblyRefs = assembly == null ? null : assembly.getDependedWSAssemblies();
-
-      if(assemblyRefs == null || assemblyRefs.length == 0) {
-         return false;
-      }
-
-      Worksheet ws = assembly.getWorksheet();
-
-      // single source.
-      if(ws != null && assemblyRefs.length == 1) {
-         Assembly wsAssembly = ws.getAssembly(assemblyRefs[0].getEntry().getName());
-
-         if(wsAssembly instanceof TableAssembly tableAssembly) {
-            return Tool.isDatabricks(tableAssembly.getSource());
-         }
-      }
-
-      return false;
-   }
-
    private static final int[][] dateLevel = {
       {DateRangeRef.YEAR_INTERVAL, DateRangeRef.QUARTER_OF_YEAR_PART},
       {DateRangeRef.QUARTER_INTERVAL, DateRangeRef.MONTH_OF_YEAR_PART},
