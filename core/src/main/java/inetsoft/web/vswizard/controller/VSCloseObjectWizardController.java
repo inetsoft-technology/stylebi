@@ -148,6 +148,10 @@ public class VSCloseObjectWizardController {
             return;
          }
 
+         if(!(info instanceof ChartVSAssemblyInfo)) {
+            WizardRecommenderUtil.cleanupCalculateRefs(vs, null);
+         }
+
          if(info instanceof ChartVSAssemblyInfo && originalAssembly instanceof ChartVSAssembly) {
             ((ChartVSAssemblyInfo) info).setMaxSize(null);
             vs.setMaxMode(false);
