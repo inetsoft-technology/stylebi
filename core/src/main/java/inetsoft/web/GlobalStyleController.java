@@ -110,6 +110,7 @@ public class GlobalStyleController implements ApplicationContextAware {
       }
 
       if(Tool.isEmptyString(themeId)) {
+
          themeId = CustomThemesManager.getManager().getSelectedTheme(user);
       }
 
