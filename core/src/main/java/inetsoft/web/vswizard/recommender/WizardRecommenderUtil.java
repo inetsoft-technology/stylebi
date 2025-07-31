@@ -865,7 +865,7 @@ public final class WizardRecommenderUtil {
          }
       }
    }
-   
+
    private static void getUsedAutoCreatedCal(ChartVSAssemblyInfo aInfo, Set<String> used) {
       SourceInfo source = aInfo.getSourceInfo();
       VSChartInfo cinfo = aInfo.getVSChartInfo();
