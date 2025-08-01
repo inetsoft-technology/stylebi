@@ -42,7 +42,12 @@ public class PermissionChecker {
     * Check the if an identity is on the permission list.
     */
    public boolean checkPermission(Identity identity, Permission permission,
-                                  ResourceAction action, boolean recursive) {
+                                  ResourceAction action, boolean recursive)
+   {
+      if(permission == null) {
+         return false;
+      }
+
       String orgID = identity != null ? identity.getOrganizationID() :
          OrganizationManager.getInstance().getCurrentOrgID();
       boolean useAnd = "true".equals(andCond.get());
