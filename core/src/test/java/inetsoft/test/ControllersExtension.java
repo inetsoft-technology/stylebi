@@ -129,7 +129,7 @@ public class ControllersExtension extends MockMessageExtension {
 
       objectService = new VSObjectService(coreLifecycleService, viewsheetService, securityEngine,
                                           sharedFilterService);
-      bookmarkService = new VSBookmarkService(objectService);
+      bookmarkService = new VSBookmarkService(objectService, coreLifecycleService);
       List<DataRefModelFactory<?, ?>> dataRefModelFactories = Arrays.asList(
          new AggregateRefModel.AggregateRefModelFactory(),
          new AliasDataRefModel.AliasDataRefModelFactory(),
