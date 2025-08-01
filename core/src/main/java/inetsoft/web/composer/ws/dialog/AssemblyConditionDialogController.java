@@ -28,6 +28,7 @@ import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.VSScriptableController;
 import inetsoft.web.binding.drm.*;
@@ -421,9 +422,11 @@ public class AssemblyConditionDialogController extends WorksheetController {
          .getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       List<String> dateRanges = new ArrayList<>();
+      List<String> dateRangeLabels = new ArrayList<>();
 
       for(DateCondition dateCondition : DateCondition.getBuiltinDateConditions()) {
          dateRanges.add(dateCondition.getName());
+         dateRangeLabels.add(Catalog.getCatalog().getString(dateCondition.getLabel()));
       }
 
       for(Assembly assembly : ws.getAssemblies()) {
@@ -434,6 +437,7 @@ public class AssemblyConditionDialogController extends WorksheetController {
 
       return BrowseDataModel.builder()
          .values(dateRanges.toArray(new Object[0]))
+         .labels(dateRangeLabels.toArray(new Object[0]))
          .build();
    }
 
