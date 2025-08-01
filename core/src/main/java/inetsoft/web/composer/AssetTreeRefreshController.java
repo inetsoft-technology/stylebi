@@ -133,6 +133,14 @@ public class AssetTreeRefreshController {
       @Override
       public void actionPerformed(ActionEvent event) {
          int changeType = event.getID();
+         String orgId = event instanceof inetsoft.report.ActionEvent e ?
+            e.getOrgID() : null;
+         String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(currentPrincipal);
+
+         if(orgId != null && !Tool.equals(orgId, currentOrgID)) {
+            return;
+         }
+
          AssetChangeEventModel eventModel = null;
 
          if(changeType == LibManager.SCRIPT_ADDED || changeType == LibManager.SCRIPT_REMOVED ||

@@ -21,8 +21,9 @@ import java.io.Serializable;
 
 public class SimpleMessage implements Serializable {
 
-   public SimpleMessage(String message) {
+   public SimpleMessage(String message, String orgID) {
       this.message = message;
+      this.orgID = orgID;
    }
 
    public String getMessage() {
@@ -33,12 +34,22 @@ public class SimpleMessage implements Serializable {
       this.message = message;
    }
 
+   public String getOrgID() {
+      return orgID;
+   }
+
+   public void setOrgID(String orgID) {
+      this.orgID = orgID;
+   }
+
    @Override
    public String toString() {
       return "SimpleMessage{" +
+         "orgID='" + orgID +
          "message='" + message +
          '}';
    }
 
    private String message;
+   private String orgID;
 }

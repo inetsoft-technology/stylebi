@@ -21,6 +21,7 @@ import inetsoft.mv.data.MVStorage;
 import inetsoft.mv.fs.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.OrganizationManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +80,7 @@ public final class ClusterUtil {
       Cluster cluster = Cluster.getInstance();
 
       try {
-         cluster.sendMessage(new RefreshFSMessage());
+         cluster.sendMessage(new RefreshFSMessage(OrganizationManager.getInstance().getCurrentOrgID()));
       }
       catch(Exception e) {
          LOG.error("Failed to send refresh message", e);

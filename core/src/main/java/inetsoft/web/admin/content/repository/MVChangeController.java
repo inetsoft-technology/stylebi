@@ -91,7 +91,9 @@ public class MVChangeController implements MessageListener {
    @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof SimpleMessage simpleMessage) {
-         if(MVManager.MV_CHANGE_EVENT.equals(simpleMessage.getMessage())) {
+         if(MVManager.MV_CHANGE_EVENT.equals(simpleMessage.getMessage()) &&
+            Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal), simpleMessage.getOrgID()))
+         {
             scheduleChangeMessage();
          }
       }

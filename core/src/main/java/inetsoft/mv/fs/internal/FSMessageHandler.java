@@ -47,8 +47,8 @@ public class FSMessageHandler implements MessageListener {
          if(event.getMessage() instanceof ClearSecurityCacheMessage) {
             clearSecurityCache();
          }
-         else if(event.getMessage() instanceof RefreshFSMessage) {
-            refresh();
+         else if(event.getMessage() instanceof RefreshFSMessage message) {
+            refresh(message.getOrgId());
          }
       }
    }
@@ -67,8 +67,8 @@ public class FSMessageHandler implements MessageListener {
       }
    }
 
-   private void refresh() {
-      FSService.refresh();
+   private void refresh(String orgId) {
+      FSService.refresh(orgId);
       MVManager.getManager().refresh();
    }
 

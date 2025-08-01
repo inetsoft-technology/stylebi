@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.service;
 
+import inetsoft.report.PropertyChangeEvent;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
@@ -36,7 +37,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXParseException;
 
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.Serializable;
 import java.lang.SecurityException;
@@ -1200,7 +1200,7 @@ public class DataSourceRegistry implements MessageListener {
             for(PropertyChangeListener listener : modifiedListeners) {
                listener.propertyChange(
                   new PropertyChangeEvent(DataSourceRegistry.this,
-                                          "DataSourceRegistry", orgId, orgId));
+                                          "DataSourceRegistry", null, null, orgId));
             }
          }
       }).start();
@@ -1285,7 +1285,7 @@ public class DataSourceRegistry implements MessageListener {
 
          indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
          clearCache2();
-         Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent());
+         sendClearDataSourceCacheEvent();
 
          if(fireEvent) {
             fireModifiedEvent(entry.getOrgID());
@@ -1305,6 +1305,11 @@ public class DataSourceRegistry implements MessageListener {
       finally {
          indexedStorage.close();
       }
+   }
+
+   private void sendClearDataSourceCacheEvent() throws Exception {
+      Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent(
+         OrganizationManager.getInstance().getCurrentOrgID()));
    }
 
    /**
@@ -1570,7 +1575,7 @@ public class DataSourceRegistry implements MessageListener {
          setRoot(root);
          indexedStorage.remove(entry.toIdentifier(), true);
          clearCache2();
-         Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent());
+         sendClearDataSourceCacheEvent();
 
          //delete vpm, should not delete data source permissions
          if(entry.isVPM()) {
@@ -1605,7 +1610,7 @@ public class DataSourceRegistry implements MessageListener {
             clearCache2();
          }
 
-         Cluster.getInstance().sendMessage(new ClearDataSourceCacheEvent());
+         sendClearDataSourceCacheEvent();
          setRoot(root);
       }
       catch(Exception e) {

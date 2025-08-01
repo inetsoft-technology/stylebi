@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,30 +15,29 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.cluster;
 
-import java.io.Serializable;
+package inetsoft.report;
 
-public class ClearLocalNodeMetaDataCacheMessage extends ServerClusterMessage implements Serializable {
-   public ClearLocalNodeMetaDataCacheMessage(String datasource, String orgId) {
-      this.datasource = datasource;
-      this.orgId = orgId;
+import inetsoft.sree.security.OrganizationManager;
+
+public class ActionEvent extends java.awt.event.ActionEvent {
+   public ActionEvent(Object source, int actionID, String command) {
+      super(source, actionID, command);
+      this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
    }
 
-   @Override
-   protected String getCompletionAction() {
-      return ACTION;
+   public ActionEvent(Object source, int actionID, String command, String orgID) {
+      super(source, actionID, command);
+      this.orgID = orgID;
    }
 
-   public String getDatasource() {
-      return datasource;
+   public String getOrgID() {
+      return orgID;
    }
 
-   public String getOrgId() {
-      return orgId;
+   public void setOrgID(String orgID) {
+      this.orgID = orgID;
    }
 
-   public static final String ACTION = "reload meta-data";
-   private String datasource;
-   private String orgId;
+   private String orgID;
 }

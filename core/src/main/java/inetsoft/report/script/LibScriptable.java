@@ -18,7 +18,9 @@
 package inetsoft.report.script;
 
 import inetsoft.report.LibManager;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Cleaner;
+import inetsoft.util.Tool;
 import inetsoft.util.script.TimeoutContext;
 import org.mozilla.javascript.*;
 import org.slf4j.Logger;
@@ -152,10 +154,16 @@ public class LibScriptable extends ScriptableObject {
 
       @Override
       public void actionPerformed(ActionEvent e) {
-         LibScriptable sobj = lib.get();
+         if(e instanceof inetsoft.report.ActionEvent event) {
+            String orgID = event.getOrgID();
 
-         if(sobj != null) {
-            sobj.reloadScripts();
+            if(Tool.equals(orgID, OrganizationManager.getInstance().getCurrentOrgID())) {
+               LibScriptable sobj = lib.get();
+
+               if(sobj != null) {
+                  sobj.reloadScripts();
+               }
+            }
          }
       }
 
