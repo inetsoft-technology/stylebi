@@ -17,6 +17,7 @@
  */
 export interface SecurityProviderStatus {
    name: string;
+   label: string;
    cacheEnabled: boolean;
    cacheAge: number;
    cacheAgeLabel?: string;

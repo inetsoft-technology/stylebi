@@ -29,6 +29,7 @@ import org.immutables.value.Value;
 @JsonDeserialize(as = ImmutableSecurityProviderStatus.class)
 public interface SecurityProviderStatus {
    String name();
+   String label();
    boolean cacheEnabled();
    long cacheAge();
    boolean loading();
@@ -44,14 +45,16 @@ public interface SecurityProviderStatus {
 
    final class Builder extends ImmutableSecurityProviderStatus.Builder {
       public Builder from(AuthenticationProvider provider) {
-         name(Catalog.getCatalog().getString(provider.getProviderName()));
+         name(provider.getProviderName());
+         label(Catalog.getCatalog().getString(provider.getProviderName()));
          setCacheProperties(provider);
          ldap(provider instanceof LdapAuthenticationProvider);
          return this;
       }
 
       public Builder from(AuthorizationProvider provider) {
-         name(Catalog.getCatalog().getString(provider.getProviderName()));
+         name(provider.getProviderName());
+         label(Catalog.getCatalog().getString(provider.getProviderName()));
          setCacheProperties(provider);
          return this;
       }
