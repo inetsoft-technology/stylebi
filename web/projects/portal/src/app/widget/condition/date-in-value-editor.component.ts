@@ -41,7 +41,6 @@ export class DateInValueEditor implements OnInit {
    private _rangeVal: string;
    dateRanges: string[];
    dateRangeLabels: string[];
-   hasLabel: boolean = false;
 
    ngOnInit(): void {
       this.fetchDateRanges();
@@ -54,7 +53,6 @@ export class DateInValueEditor implements OnInit {
          observable.subscribe((data) => {
             this.dateRanges = data.values;
             this.dateRangeLabels = data.labels;
-            this.hasLabel = data.labels && data.labels.length > 0;
 
             if(!this._rangeVal) {
                this.value = data[0];
