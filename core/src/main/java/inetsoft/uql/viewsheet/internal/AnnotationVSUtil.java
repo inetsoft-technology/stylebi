@@ -1224,7 +1224,7 @@ public final class AnnotationVSUtil {
             if(isMap && regions != null && regions.length > 0 &&
                regions[0] instanceof PolygonRegion) {
                PolygonRegion pregion = getMaxRegion(regions);
-               Shape shape = pregion.createShape();
+               Shape shape = pregion.createScaledShape();
 
                if(shape instanceof Polygon) {
                   Point center = getPolygonCenter((Polygon) shape);
