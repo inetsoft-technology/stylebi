@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.service;
 
+import inetsoft.report.PropertyChangeEvent;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
@@ -36,7 +37,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXParseException;
 
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.Serializable;
 import java.lang.SecurityException;
@@ -1199,7 +1199,7 @@ public class DataSourceRegistry implements MessageListener {
          protected void doRun() {
             for(PropertyChangeListener listener : modifiedListeners) {
                listener.propertyChange(
-                  new inetsoft.report.PropertyChangeEvent(DataSourceRegistry.this,
+                  new PropertyChangeEvent(DataSourceRegistry.this,
                                           "DataSourceRegistry", null, null, orgId));
             }
          }
