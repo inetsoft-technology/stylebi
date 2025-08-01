@@ -137,49 +137,68 @@ public class RepositoryChangeController {
       if(!RepletRegistry.EDIT_CYCLE_EVENT.equals(event.getPropertyName()) &&
          !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()))
       {
-         scheduleChangeMessage();
-      }
-   }
+         String orgID = null;
 
-   private void archivePropertyChanged(PropertyChangeEvent event) {
-      scheduleChangeMessage();
+         if(event instanceof inetsoft.report.PropertyChangeEvent eventWrapper) {
+            orgID = eventWrapper.getOrgID();
+         }
+
+         scheduleChangeMessage(orgID);
+      }
    }
 
    private void assetChanged(AssetChangeEvent event) {
       if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED) {
-         scheduleChangeMessage();
+         String orgID = event.getAssetEntry() != null ? event.getAssetEntry().getOrgID() : null;
+         scheduleChangeMessage(orgID);
       }
    }
 
    private void libraryChanged(ActionEvent event) {
-      scheduleChangeMessage();
+      String orgID = null;
+
+      if(event instanceof inetsoft.report.ActionEvent eventWrapper) {
+         orgID = eventWrapper.getOrgID();
+      }
+
+      scheduleChangeMessage(orgID);
    }
 
    private void dashboardChanged(DashboardChangeEvent event) {
-      scheduleChangeMessage();
+      String orgID = event.getUser() != null ? event.getUser().getOrgID() : null;
+      scheduleChangeMessage(orgID);
    }
 
    private void dataSourceChanged(PropertyChangeEvent event) {
-      scheduleChangeMessage();
-   }
+      String orgID = null;
 
-   private void queryChanged(PropertyChangeEvent event) {
-      scheduleChangeMessage();
+      if(event instanceof inetsoft.report.PropertyChangeEvent eventWrapper) {
+         orgID = eventWrapper.getOrgID();
+      }
+
+      scheduleChangeMessage(orgID);
    }
 
    private void autoSaveChanged(AssetChangeEvent event) {
       if(event.getChangeType() != AssetChangeEvent.AUTO_SAVE_ADD) {
-         scheduleChangeMessage();
+         String orgID = event.getAssetEntry() != null ? event.getAssetEntry().getOrgID() : null;
+         scheduleChangeMessage(orgID);
       }
    }
 
-   private void scheduleChangeMessage() {
-      debouncer.debounce("change", 1L, TimeUnit.SECONDS, this::sendChangeMessage);
+   private void scheduleChangeMessage(String orgId) {
+      debouncer.debounce("change", 1L, TimeUnit.SECONDS, () -> sendChangeMessage(orgId));
    }
 
-   private void sendChangeMessage() {
-      messagingTemplate
-         .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+   private void sendChangeMessage(String orgId) {
+      if(orgId == null) {
+         return;
+      }
+
+      if(Tool.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal))) {
+         messagingTemplate
+            .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+      }
    }
 
    private final AssetRepository assetRepository;
@@ -189,12 +208,10 @@ public class RepositoryChangeController {
    private final ScheduleManager scheduleManager;
 
    private final PropertyChangeListener reportListener = this::reportPropertyChanged;
-   private final PropertyChangeListener archiveListener = this::archivePropertyChanged;
    private final AssetChangeListener assetListener = this::assetChanged;
    private final ActionListener libraryListener = this::libraryChanged;
    private final DashboardChangeListener dashboardListener = this::dashboardChanged;
    private final PropertyChangeListener dataSourceListener = this::dataSourceChanged;
-   private final PropertyChangeListener queryListener = this::queryChanged;
    private final AssetChangeListener autoSaveListener = this::autoSaveChanged;
 
    private static final String CHANGE_TOPIC = "/em-content-changed";
