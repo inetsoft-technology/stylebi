@@ -18,6 +18,7 @@
 package inetsoft.sree.internal.cluster;
 
 import inetsoft.util.GroupedThread;
+import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -342,7 +343,12 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
       try {
          if(lastTask.get() != null && lastTask.get().isLoading()) {
             // run pending load task immediately before applying changes
-            processTask(true);
+            try {
+               processTask(false);
+            }
+            catch(ClusterTopologyCheckedException clusterException) {
+               LOG.warn("Failed to acquire lock due to cluster topology change");
+            }
          }
 
          changes.run();
@@ -656,7 +662,12 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
          else {
             if(lastTask.get() != null) {
                // run pending save immediately
-               processTask(true);
+               try {
+                  processTask(false);
+               }
+               catch(ClusterTopologyCheckedException clusterException) {
+                  LOG.warn("Failed to acquire lock due to cluster topology change");
+               }
             }
 
             long interval = loadInterval;
@@ -686,6 +697,19 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
             try {
                wait = processTask(false);
             }
+            catch(ClusterTopologyCheckedException clusterException) {
+               LOG.warn("Failed to acquire lock due to cluster topology change. Retrying...");
+
+               try {
+                  Thread.sleep(1000);
+               }
+               catch(InterruptedException ie) {
+                  Thread.currentThread().interrupt();
+                  LOG.error("Interrupted while waiting after a topology change.", ie);
+               }
+
+               continue;
+            }
             finally {
                taskLock.unlock();
             }
@@ -703,7 +727,7 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
    }
 
    @SuppressWarnings("unchecked")
-   private long processTask(boolean flush) {
+   private long processTask(boolean flush) throws ClusterTopologyCheckedException {
       if(closed) {
          return 0L;
       }
