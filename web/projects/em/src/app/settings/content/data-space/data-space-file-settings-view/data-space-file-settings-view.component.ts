@@ -22,32 +22,36 @@ import {
    Inject,
    Input,
    OnChanges,
+   OnDestroy,
    OnInit,
    Output,
    SimpleChanges, ViewChild
 } from "@angular/core";
-import {HttpClient, HttpParams} from "@angular/common/http";
-import {MAT_DIALOG_DATA, MatDialog, MatDialogRef} from "@angular/material/dialog";
-import {MatSnackBar} from "@angular/material/snack-bar";
-import {GuiTool} from "../../../../../../../portal/src/app/common/util/gui-tool";
-import {DownloadService} from "../../../../../../../shared/download/download.service";
+import { HttpClient, HttpParams } from "@angular/common/http";
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { MatSnackBar } from "@angular/material/snack-bar";
+import { Subscription } from "rxjs";
+import { distinctUntilChanged } from "rxjs/operators";
+import { GuiTool } from "../../../../../../../portal/src/app/common/util/gui-tool";
+import { DownloadService } from "../../../../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
-import {Tool} from "../../../../../../../shared/util/tool";
-import {FileData} from "../../../../../../../shared/util/model/file-data";
-import {DataSpaceTreeNode} from "../data-space-tree-node";
+import { Tool } from "../../../../../../../shared/util/tool";
+import { FileData } from "../../../../../../../shared/util/model/file-data";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
+import { DataSpaceTreeNode } from "../data-space-tree-node";
 import { TextFileContentViewComponent } from "../text-file-content-view/text-file-content-view.component";
-import {DataSpaceFileSettingsModel} from "./data-space-file-settings-model";
-import {DataSpaceFileChange} from "../data-space-editor-page/data-space-editor-page.component";
-import {UntypedFormControl, Validators} from "@angular/forms";
-import {FormValidators} from "../../../../../../../shared/util/form-validators";
-import {DataSpaceFileContentModel} from "../text-file-content-view/data-space-file-content-model";
+import { DataSpaceFileSettingsModel } from "./data-space-file-settings-model";
+import { DataSpaceFileChange } from "../data-space-editor-page/data-space-editor-page.component";
+import { UntypedFormControl, Validators } from "@angular/forms";
+import { FormValidators } from "../../../../../../../shared/util/form-validators";
+import { DataSpaceFileContentModel } from "../text-file-content-view/data-space-file-content-model";
 
 @Component({
    selector: "em-data-space-file-settings-view",
    templateUrl: "./data-space-file-settings-view.component.html",
    styleUrls: ["./data-space-file-settings-view.component.scss"]
 })
-export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
+export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges, OnDestroy {
    @ViewChild("textContent") textContent: TextFileContentViewComponent;
    @Input() data: DataSpaceTreeNode;
    @Input() newFile: boolean;
@@ -58,6 +62,7 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
    @Output() fileAdded = new EventEmitter<string>();
    @Output() fileEdited = new EventEmitter<DataSpaceFileChange>();
    @Output() cancelClicked = new EventEmitter<void>();
+   @ViewChild("editorPanel") editorPanel: EditorPanelComponent;
    model: DataSpaceFileSettingsModel;
    parentPath: string;
    files: FileData[];
@@ -65,6 +70,7 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
    content: DataSpaceFileContentModel;
    contentEditMode: boolean = false;
    isEnterprise: boolean = false;
+   private subscriptions: Subscription = new Subscription();
 
    constructor(private downloadService: DownloadService, private http: HttpClient,
                public dialog: MatDialog, private snackBar: MatSnackBar,
@@ -76,9 +82,17 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
    }
 
    ngOnInit() {
-      this.appInfoService.isEnterprise().subscribe(val => {
+      this.subscriptions.add(this.appInfoService.isEnterprise().subscribe(val => {
          this.isEnterprise = val;
-      });
+      }));
+
+      this.subscriptions.add(
+         this.nameControl.valueChanges
+            .pipe(distinctUntilChanged())
+            .subscribe(() => {
+               this.editorPanel?.changeApplyDisabledState(!this.nameControl?.valid);
+            })
+      );
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -100,6 +114,10 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
                });
          }
       }
+   }
+
+   ngOnDestroy() {
+      this.subscriptions.unsubscribe();
    }
 
    getFilePath() {
@@ -216,6 +234,10 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges {
       }
 
       this.cancelClicked.emit();
+   }
+
+   enableApplyButton(): void {
+      this.editorPanel?.changeApplyDisabledState(false);
    }
 }
 
