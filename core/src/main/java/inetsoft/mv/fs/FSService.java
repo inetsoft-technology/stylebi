@@ -122,7 +122,7 @@ public final class FSService {
     * Refresh the in-memory information from disk.
     */
    public static void refresh() {
-      refresh(null);
+      refresh(OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    /**
