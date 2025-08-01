@@ -104,8 +104,7 @@ public class UploadController {
             principal, ResourceType.UPLOAD_DRIVERS, "*", ResourceAction.ACCESS);
       }
       else if(uploadType.equals("shape")) {
-         return OrganizationManager.getInstance().isSiteAdmin(principal) ||
-            OrganizationManager.getInstance().isOrgAdmin(principal);
+         return true;
       }
       else {
          return securityEngine.checkPermission(principal, ResourceType.EM, "*",
