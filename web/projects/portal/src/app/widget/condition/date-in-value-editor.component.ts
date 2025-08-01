@@ -40,6 +40,7 @@ export class DateInValueEditor implements OnInit {
    @Output() valueChange: EventEmitter<string> = new EventEmitter<string>();
    private _rangeVal: string;
    dateRanges: string[];
+   hasLabel: boolean = false;
 
    ngOnInit(): void {
       this.fetchDateRanges();
@@ -51,6 +52,7 @@ export class DateInValueEditor implements OnInit {
       if(observable != null) {
          observable.subscribe((data) => {
             this.dateRanges = data.values;
+            this.hasLabel = data.labels && data.labels.length > 0;
 
             if(!this._rangeVal) {
                this.value = data[0];
@@ -61,6 +63,10 @@ export class DateInValueEditor implements OnInit {
    }
 
    getDateRangeLabels(dateRange) {
+      if(!this.hasLabel) {
+         return dateRange;
+      }
+
       switch(dateRange) {
          case "Last year":
             return "_#(js:Last year)";
