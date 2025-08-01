@@ -20,14 +20,19 @@ import {
    EventEmitter,
    Input,
    OnChanges,
+   OnDestroy,
    OnInit,
    Output,
-   SimpleChanges
+   SimpleChanges,
+   ViewChild
 } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
+import { Subscription } from "rxjs";
+import { distinctUntilChanged } from "rxjs/operators";
 import { Tool } from "../../../../../../../shared/util/tool";
+import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 import { DeleteDialog } from "../data-space-file-settings-view/data-space-file-settings-view.component";
 import { DataSpaceTreeNode } from "../data-space-tree-node";
 import { DataSpaceFolderSettingsModel } from "./data-space-folder-settings-model";
@@ -42,7 +47,7 @@ import { DownloadService } from "../../../../../../../shared/download/download.s
    templateUrl: "./data-space-folder-settings-view.component.html",
    styleUrls: ["./data-space-folder-settings-view.component.scss"]
 })
-export class DataSpaceFolderSettingsViewComponent implements OnInit, OnChanges {
+export class DataSpaceFolderSettingsViewComponent implements OnInit, OnChanges, OnDestroy {
    @Input() data: DataSpaceTreeNode;
    @Input() newFolder: boolean;
    @Output() newFolderChange = new EventEmitter<boolean>();
@@ -52,8 +57,10 @@ export class DataSpaceFolderSettingsViewComponent implements OnInit, OnChanges {
    @Output() deleteFolderChange = new EventEmitter<DataSpaceTreeNode>();
    @Output() folderAdded = new EventEmitter<string>();
    @Output() folderEdited = new EventEmitter<DataSpaceFileChange>();
+   @ViewChild("editorPanel") editorPanel: EditorPanelComponent;
    model: DataSpaceFolderSettingsModel;
    nameControl: UntypedFormControl;
+   private subscriptions: Subscription = new Subscription();
 
    constructor(private http: HttpClient,
                public dialog: MatDialog,
@@ -65,6 +72,13 @@ export class DataSpaceFolderSettingsViewComponent implements OnInit, OnChanges {
    }
 
    ngOnInit() {
+      this.subscriptions.add(
+         this.nameControl.valueChanges
+            .pipe(distinctUntilChanged())
+            .subscribe(() => {
+               this.editorPanel?.changeApplyDisabledState(!this.canEdit || !this.nameControl?.valid);
+            })
+      );
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -86,6 +100,10 @@ export class DataSpaceFolderSettingsViewComponent implements OnInit, OnChanges {
                });
          }
       }
+   }
+
+   ngOnDestroy() {
+      this.subscriptions.unsubscribe();
    }
 
    get canDelete(): boolean {

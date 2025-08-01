@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<em-editor-panel
+<em-editor-panel #editorPanel
   [applyDisabled]="!nameControl?.valid"
   [resetVisible]="smallDevice || newFile"
   resetLabel="_#(Cancel)"
@@ -45,7 +45,7 @@
         </mat-form-field>
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(select.file)</mat-label>
-          <em-file-chooser [(ngModel)]="files"></em-file-chooser>
+          <em-file-chooser [(ngModel)]="files" (valueChange)="enableApplyButton()"></em-file-chooser>
           <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
         </mat-form-field>
         <ng-container *ngIf="!newFile">
@@ -61,7 +61,7 @@
       </div>
       <em-text-file-content-view  #textContent id="content" *ngIf="contentEditorVisible"
                                  [path]="data.path" [editMode]="contentEditMode"
-                                 (contentChanged)="content = $event">
+                                 (contentChanged)="content = $event; enableApplyButton()">
       </em-text-file-content-view>
     </mat-card-content>
   </mat-card>
