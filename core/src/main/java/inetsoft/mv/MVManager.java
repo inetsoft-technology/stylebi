@@ -1134,6 +1134,11 @@ public final class MVManager implements MessageListener {
          }
 
          Identity[] users = def.getUsers();
+
+         if(users == null) {
+            continue;
+         }
+
          boolean modified = false;
 
          for(int i = 0; i < users.length; i++) {
