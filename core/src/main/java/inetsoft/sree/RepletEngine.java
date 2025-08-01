@@ -1671,7 +1671,7 @@ public class RepletEngine extends AbstractAssetEngine
       String name = evt.getPropertyName();
       Object oval = evt.getOldValue();
       Object nval = evt.getNewValue();
-      String sourceOrg = Util.getOrgIdFromEventSource(evt.getSource());
+      String sourceOrg = evt instanceof inetsoft.report.PropertyChangeEvent e ? e.getOrgID() : null;
 
       if(Tool.isEmptyString(sourceOrg)) {
          sourceOrg = OrganizationManager.getInstance().getCurrentOrgID();
