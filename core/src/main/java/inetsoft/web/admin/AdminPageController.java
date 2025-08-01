@@ -20,6 +20,7 @@ package inetsoft.web.admin;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.LinkUri;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.http.HttpServletRequest;
@@ -83,8 +84,8 @@ public class AdminPageController {
          SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
          if(provider.getOrganization(orgId) != null &&
-            provider.getOrganization(orgId).getTheme() != null &&
-            provider.getOrganization(orgId).getTheme().length() != 0)
+            !Tool.isEmptyString(provider.getOrganization(orgId).getTheme())
+            && !(Tool.equals("default", provider.getOrganization(orgId).getTheme())))
          {
             hasOrgTheme = true;
 

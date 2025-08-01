@@ -81,7 +81,8 @@ public class HomePageController {
          SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
          if(provider.getOrganization(orgId) != null &&
-            provider.getOrganization(orgId).getTheme() != null)
+            !Tool.isEmptyString(provider.getOrganization(orgId).getTheme()) &&
+            !(Tool.equals("default", provider.getOrganization(orgId).getTheme())))
          {
             hasOrgTheme = true;
          }

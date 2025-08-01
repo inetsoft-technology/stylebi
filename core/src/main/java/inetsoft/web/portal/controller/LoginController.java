@@ -81,7 +81,9 @@ public class LoginController {
       // this page, but the subsequent requests will be unauthenticated, so if the current user has
       // a theme assigned, it will end up trying to load theme-variables.css from the "default"
       // theme, which doesn't exist. To avoid this, just check if the global theme is custom.
-      model.addObject("customTheme", !"default".equals(themes.getSelectedTheme()));
+      boolean isCustomTheme = !Tool.isEmptyString(themes.getSelectedTheme()) &&
+                              !"default".equals(themes.getSelectedTheme());
+      model.addObject("customTheme", isCustomTheme);
 
       if(welcomePage != null) {
          LoginBannerModel loginBanner = new LoginBannerModel();
