@@ -17,7 +17,6 @@
  */
 package inetsoft.report.composition.execution;
 
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssemblyEntry;
@@ -56,7 +55,7 @@ public class DataKey implements Serializable, Cloneable {
          return null;
       }
 
-      return new DataKey(val, timeout, table, OrganizationManager.getInstance().getCurrentOrgID());
+      return new DataKey(val, timeout, table);
    }
 
    /**
@@ -124,11 +123,10 @@ public class DataKey implements Serializable, Cloneable {
     *
     * @param val the specified key value.
     */
-   private DataKey(String val, long timeout, TableAssembly table, String orgId) {
+   private DataKey(String val, long timeout, TableAssembly table) {
       this.val = val;
       this.timeout = timeout;
       this.entry = table.getAssemblyEntry();
-      this.orgId = orgId;
    }
 
    /**
@@ -147,10 +145,6 @@ public class DataKey implements Serializable, Cloneable {
 
    public AssemblyEntry getAssemblyEntry() {
       return entry;
-   }
-
-   public String getOrgId() {
-      return orgId;
    }
 
    /**
@@ -191,5 +185,4 @@ public class DataKey implements Serializable, Cloneable {
    private AssemblyEntry entry;
    private final String val;
    private final long timeout;
-   private final String orgId;
 }
