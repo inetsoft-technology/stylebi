@@ -165,8 +165,7 @@ public class RepositoryChangeController {
    }
 
    private void dashboardChanged(DashboardChangeEvent event) {
-      String orgID = event.getUser() != null ? event.getUser().getOrgID() : null;
-      scheduleChangeMessage(orgID);
+      scheduleChangeMessage(event.getOrgID());
    }
 
    private void dataSourceChanged(PropertyChangeEvent event) {
