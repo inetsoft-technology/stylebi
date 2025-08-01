@@ -131,7 +131,16 @@ public class BrowseDataController {
          model = executeByColumnCache(assembly);
 
          if(model == null) {
-            model = executeByQuery(box, (TableAssembly) assembly);
+            final TableAssembly tableAssembly = (TableAssembly) assembly;
+
+            model = XUtil.withFixedDateFormat(((TableAssembly) assembly).getSource(), () -> {
+               try {
+                  return executeByQuery(box, tableAssembly);
+               }
+               catch(Exception ex) {
+                  throw new RuntimeException(ex.getMessage(), ex);
+               }
+            });
          }
       }
 

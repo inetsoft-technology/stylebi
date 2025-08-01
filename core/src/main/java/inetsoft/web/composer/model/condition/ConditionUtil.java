@@ -291,6 +291,7 @@ public class ConditionUtil {
 
                condition = new AssetCondition();
                ((AssetCondition) condition).setValues(values);
+               ((AssetCondition) condition).setMillisInFormatRequired(Tool.useDatetimeWithMillisFormat.get());
             }
 
             condition.setOperation(conditionModel.getOperation());

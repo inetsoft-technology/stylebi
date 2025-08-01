@@ -29,11 +29,13 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XDataSource;
-import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssemblyInfo;
-import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.viewsheet.BindableVSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.xmla.XMLADataSource;
@@ -2881,6 +2883,17 @@ public final class Tool extends CoreTool {
       return dateFmt;
    }
 
+   public static SimpleDateFormat getTimestampWithMillisFormat() {
+      SimpleDateFormat dateFmt = dateFmts.get(DATETIME_WITH_MILLIS_FORMAT_KEY);
+
+      if(dateFmt == null) {
+         dateFmt = Tool.createDateFormat(DATETIME_WITH_MILLIS_PATTERN);
+         dateFmts.put(DATETIME_WITH_MILLIS_FORMAT_KEY, dateFmt);
+      }
+
+      return dateFmt;
+   }
+
    public static String getDateFormatPattern() {
       String dateFormat = SreeEnv.getProperty("format.date.time");
 
@@ -5176,7 +5189,7 @@ public final class Tool extends CoreTool {
    public static final String DATE_PARAMETER_PREFIX = "^DATE^";
    public static final String TIME_PARAMETER_PREFIX = "^TIME^";
    public static final String TIMESTAMP_PARAMETER_PREFIX = "^TIMESTAMP^";
-
+   public static final String DATETIME_WITH_MILLIS_FORMAT_KEY = "TIMESTAMP:WITHMILLIS";
    private static final Map<String,SimpleDateFormat> dateFmts = new ConcurrentHashMap<>();
    private static SreeEnv.Value firstDayProperty = new SreeEnv.Value("week.start", 30000);
 

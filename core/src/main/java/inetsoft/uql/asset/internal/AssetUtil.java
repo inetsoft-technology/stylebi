@@ -1293,6 +1293,10 @@ public class AssetUtil {
          return getTimeFormat().format((Date) val);
       }
       else if(val instanceof java.sql.Timestamp) {
+         if(Tool.useDatetimeWithMillisFormat.get()) {
+            return Tool.getTimestampWithMillisFormat().format(val);
+         }
+
          return getDateTimeFormat().format((Date) val);
       }
       else if(val instanceof Date) {
