@@ -16,5 +16,5 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <select class="form-control" [(ngModel)]="value" (ngModelChange)="valueChange.emit($event)">
-  <option *ngFor="let dateRange of dateRanges" [value]="dateRange">{{getDateRangeLabels(dateRange)}}</option>
+  <option *ngFor="let dateRange of dateRanges; index as i" [value]="dateRange">{{hasLabel ? dateRangeLabels[i] : dateRange}}</option>
 </select>
