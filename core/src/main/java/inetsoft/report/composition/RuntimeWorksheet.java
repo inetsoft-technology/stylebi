@@ -105,13 +105,6 @@ public class RuntimeWorksheet extends RuntimeSheet
    @Override
    public void propertyChange(PropertyChangeEvent evt) {
       if(box != null) {
-         if(evt instanceof inetsoft.report.PropertyChangeEvent propertyChangeEvent &&
-            propertyChangeEvent.getOrgID() != null && getEntry() != null &&
-            !Tool.equals(getEntry().getOrgID(), propertyChangeEvent.getOrgID()))
-         {
-            return;
-         }
-
          box.reset();
       }
    }
