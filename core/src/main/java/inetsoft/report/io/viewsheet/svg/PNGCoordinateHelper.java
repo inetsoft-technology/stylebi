@@ -64,6 +64,10 @@ public class PNGCoordinateHelper extends SVGCoordinateHelper {
     * @throws IOException if an I/O error occurs.
     */
    public void write(OutputStream output) throws IOException {
+      if(bufferedImage == null) {
+         return;
+      }
+
       getGraphics().dispose();
 
       // combine images into one
