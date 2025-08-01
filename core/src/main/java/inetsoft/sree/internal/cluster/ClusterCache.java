@@ -761,7 +761,7 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
                   e.getValue().clear();
 
                   if(data.containsKey(e.getKey())) {
-                     e.getValue().putAll(data.get(e.getKey()));
+                     e.getValue().putAll(new TreeMap<>(data.get(e.getKey())));
                   }
                }
 
