@@ -21,6 +21,7 @@ import {
 } from "@angular/core";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
+import { DropdownStackService } from "../../../widget/fixed-dropdown/dropdown-stack.service";
 import { PopComponentService } from "./pop-component.service";
 import { OpenDataTipEvent } from "../../event/open-datatip-event";
 import { ViewsheetClientService } from "../../../common/viewsheet-client/viewsheet-client.service";
@@ -52,7 +53,8 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
                private renderer: Renderer2,
                private changeRef: ChangeDetectorRef,
                private contextProvider: ContextProvider,
-               private viewsheetClient: ViewsheetClientService)
+               private viewsheetClient: ViewsheetClientService,
+               private dropdownService: DropdownStackService)
    {
       this.popService.componentRegistered
          .pipe(takeUntil(this.destroy$))
@@ -383,8 +385,11 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
                   let popComponent = this.popService.getPopComponentModel();
                   let isSelection = popComponent?.objectType == "VSSelectionContainer" ||
                      popComponent?.objectType == "VSSelectionList" || popComponent?.objectType == "VSSelectionTree";
+                  let isDropdownOpened = this.dropdownService.isDropdownOpened();
 
-                  if(GuiTool.isMobileDevice() && isSelection && (<any> popComponent).maxMode) {
+                  if((GuiTool.isMobileDevice() && isSelection && (<any> popComponent).maxMode) ||
+                     isDropdownOpened)
+                  {
                      return;
                   }
 

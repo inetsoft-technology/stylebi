@@ -50,4 +50,8 @@ export class DropdownStackService {
    public isCurrent(dropdown: FixedDropdownComponent): boolean {
       return this.dropdowns[this.dropdowns.length - 1] == dropdown;
    }
+
+   public isDropdownOpened(): boolean {
+      return this.dropdowns.length > 0;
+   }
 }
