@@ -421,9 +421,11 @@ public class AssemblyConditionDialogController extends WorksheetController {
          .getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       List<String> dateRanges = new ArrayList<>();
+      List<String> dateRangeLabels = new ArrayList<>();
 
       for(DateCondition dateCondition : DateCondition.getBuiltinDateConditions()) {
          dateRanges.add(dateCondition.getName());
+         dateRangeLabels.add(dateCondition.getLabel());
       }
 
       for(Assembly assembly : ws.getAssemblies()) {
@@ -434,6 +436,7 @@ public class AssemblyConditionDialogController extends WorksheetController {
 
       return BrowseDataModel.builder()
          .values(dateRanges.toArray(new Object[0]))
+         .labels(dateRangeLabels.toArray(new Object[0]))
          .build();
    }
 
