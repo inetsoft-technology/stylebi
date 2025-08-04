@@ -81,9 +81,11 @@ public class LogMonitoringController {
    }
 
    @GetMapping("/em/monitoring/logviewer/download")
-   public void downloadLogs(HttpServletResponse response) {
+   public void downloadLogs(HttpServletResponse response,
+                            @RequestParam(value = "clusterNode", required = false) String clusterNode)
+   {
       try {
-         logMonitoringService.downloadLogs(response);
+         logMonitoringService.downloadLogs(response, clusterNode);
       }
       catch(Exception e) {
          throw new RuntimeException(e);
