@@ -554,10 +554,11 @@ public class ClusterJobStore implements JobStore, Serializable {
    @Override
    public void resumeTrigger(TriggerKey triggerKey) throws JobPersistenceException {
       triggersByKey.lock(triggerKey, 5, TimeUnit.MINUTES);
+      TriggerWrapper oldTrigger = triggersByKey.get(triggerKey);
 
       try {
-         if(schedulerRunning) {
-            TriggerWrapper newTrigger = newTriggerWrapper(triggersByKey.get(triggerKey), NORMAL);
+         if(schedulerRunning && oldTrigger != null) {
+            TriggerWrapper newTrigger = newTriggerWrapper(oldTrigger, NORMAL);
             triggersByKey.set(newTrigger.key, newTrigger);
          }
       }
