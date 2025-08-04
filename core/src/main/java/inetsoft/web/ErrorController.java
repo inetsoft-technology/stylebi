@@ -19,6 +19,7 @@ package inetsoft.web;
 
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -62,8 +63,9 @@ public class ErrorController {
 
       errorPage.addObject("errorTitle", errorTitle);
       errorPage.addObject("errorMsg", errorMsg);
-      errorPage.addObject("customTheme",
-                          !"default".equals(CustomThemesManager.getManager().getSelectedTheme()));
+      boolean isCustomTheme = !Tool.isEmptyString(CustomThemesManager.getManager().getSelectedTheme()) &&
+                              !"default".equals(CustomThemesManager.getManager().getSelectedTheme());
+      errorPage.addObject("customTheme", isCustomTheme);
       return errorPage;
    }
 
@@ -83,8 +85,9 @@ public class ErrorController {
       final String error = WebUtils.getErrorMessage(request);
       model.addObject("errorMsg", error);
       model.addObject("errorTitle", catalog.getString("Error"));
-      model.addObject("customTheme",
-                      !"default".equals(CustomThemesManager.getManager().getSelectedTheme()));
+      boolean isCustomTheme = !Tool.isEmptyString(CustomThemesManager.getManager().getSelectedTheme()) &&
+                              !"default".equals(CustomThemesManager.getManager().getSelectedTheme());
+      model.addObject("customTheme", isCustomTheme);
       return model;
    }
 }
