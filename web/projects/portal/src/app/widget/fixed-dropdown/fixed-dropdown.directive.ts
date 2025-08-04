@@ -16,11 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
+   ChangeDetectorRef,
    Directive,
    ElementRef,
    EventEmitter,
    HostListener,
-   Input,
+   Input, NgZone,
    OnDestroy,
    Output,
    TemplateRef
@@ -49,7 +50,9 @@ export class FixedDropdownDirective implements OnDestroy {
    private isDropdownOpenOnMousedown: boolean;
 
    constructor(private dropdownService: FixedDropdownService,
-               private elementRef: ElementRef)
+               private elementRef: ElementRef,
+               private changeRef: ChangeDetectorRef,
+               private zone: NgZone)
    {
    }
 
@@ -161,6 +164,10 @@ export class FixedDropdownDirective implements OnDestroy {
 
          this.openChange.emit(true);
          this.dropdown = this.dropdownService.open(this.fixedDropdown, options);
+
+         this.zone.run(() => {
+            this.changeRef.detectChanges();
+         });
 
          const sub = this.dropdown.closeEvent.subscribe(() => {
             this.openChange.emit(false);
