@@ -671,7 +671,7 @@ public class DatabaseDatasourcesService {
          }
       }
 
-      JDBCDataSource additionalConnection = getDatabase(database.getName(), database, false, true);
+      JDBCDataSource additionalConnection = getDatabase(base.getFullName(), database, false, true);
       additionalConnection.setBaseDatasource(base);
       base.addDatasource(additionalConnection);
 
@@ -1063,6 +1063,7 @@ public class DatabaseDatasourcesService {
             xds.initCredential(true);
             xds.setUser(definition.getAuthentication().getUserName());
             String oldName = definition.getOldName();
+            oldName = path.substring(0, path.lastIndexOf('/') + 1) + oldName;
             String password = definition.getAuthentication().getPassword();
 
             if(!Tool.isEmptyString(oldName) && Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
@@ -1079,7 +1080,9 @@ public class DatabaseDatasourcesService {
                }
             }
 
-            xds.setPassword(password);
+            if(!Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
+               xds.setPassword(password);
+            }
          }
          else {
             String credentialId = definition.getAuthentication().getCredentialId();
