@@ -171,14 +171,14 @@ public class LogMonitoringService implements MessageListener {
     *
     * @param response the HTTP response object.
     */
-   public void downloadLogs(HttpServletResponse response) {
+   public void downloadLogs(HttpServletResponse response, String clusterNode) {
       ZipOutputStream output = null;
 
       try {
          output = createLogZip(response);
-         logManager.zipLogs(output);
+         logManager.zipLogs(output, clusterNode);
       }
-      catch(IOException exc) {
+      catch(Exception exc) {
          LOG.error("Failed to create zip file of all log files", exc);
       }
       finally {
