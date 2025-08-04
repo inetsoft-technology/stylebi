@@ -315,14 +315,12 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
     */
    @Override
    public boolean getSelection(Map<String, Map<String, Collection<Object>>> map, boolean applied) {
-      return XUtil.withFixedDateFormat(this, () -> {
-         if(isIDMode()) {
-            return getIDModeSelection(map, applied);
-         }
-         else {
-            return getColumnModeSelection(map, applied);
-         }
-      });
+      if(isIDMode()) {
+         return getIDModeSelection(map, applied);
+      }
+      else {
+         return getColumnModeSelection(map, applied);
+      }
    }
 
    /**
@@ -774,43 +772,45 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
     * @return the selected objects.
     */
    private List<Object> getColumnModeSelectedObjects0(DataRef ref, final boolean applied) {
-      int level = -1;
-      final DataRef[] refs = getDataRefs();
-      final List<Object> list = new ArrayList<>();
+      return XUtil.withFixedDateFormat(this, () -> {
+         int level = -1;
+         final DataRef[] refs = getDataRefs();
+         final List<Object> list = new ArrayList<>();
 
-      for(int i = 0; i < refs.length; i++) {
-         if(refs[i].equals(ref)) {
-            level = i;
-            break;
+         for(int i = 0; i < refs.length; i++) {
+            if(refs[i].equals(ref)) {
+               level = i;
+               break;
+            }
          }
-      }
 
-      if(level == -1) {
+         if(level == -1) {
+            return list;
+         }
+
+         CompositeSelectionValue cval = getStateCompositeSelectionValue();
+
+         if(cval == null) {
+            return list;
+         }
+
+         //fix bug #3983
+         checkScriptSelectedValues();
+
+         String dtype = ref.getDataType();
+         int excluded = applied ? SelectionValue.STATE_EXCLUDED : 0;
+         List<SelectionValue> vals = cval.getSelectionValues(
+            level, SelectionValue.STATE_SELECTED, excluded);
+
+         for(SelectionValue val : vals) {
+            String vstr = val.getValue();
+            Object obj = Tool.getData(dtype, vstr, true);
+
+            list.add(obj);
+         }
+
          return list;
-      }
-
-      CompositeSelectionValue cval = getStateCompositeSelectionValue();
-
-      if(cval == null) {
-         return list;
-      }
-
-      //fix bug #3983
-      checkScriptSelectedValues();
-
-      String dtype = ref.getDataType();
-      int excluded = applied ? SelectionValue.STATE_EXCLUDED : 0;
-      List<SelectionValue> vals = cval.getSelectionValues(
-         level, SelectionValue.STATE_SELECTED, excluded);
-
-      for(SelectionValue val : vals) {
-         String vstr = val.getValue();
-         Object obj = Tool.getData(dtype, vstr, true);
-
-         list.add(obj);
-      }
-
-      return list;
+      });
    }
 
    /**
@@ -820,34 +820,36 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
     * @return the selected objects.
     */
    private List<Object> getIDModeSelectedObjects0(DataRef ref, final boolean applied) {
-      //fix bug #3983
-      checkScriptSelectedValues();
+      return XUtil.withFixedDateFormat(this, () -> {
+         //fix bug #3983
+         checkScriptSelectedValues();
 
-      SelectionList slist = getStateSelectionList();
-      List<Object> list = new ArrayList<>();
+         SelectionList slist = getStateSelectionList();
+         List<Object> list = new ArrayList<>();
 
-      if(slist == null || ref == null) {
+         if(slist == null || ref == null) {
+            return list;
+         }
+
+         SelectionValue[] vals = slist.getAllSelectionValues();
+
+         for(SelectionValue val : vals) {
+            if(!val.isSelected()) {
+               continue;
+            }
+
+            if(applied && (val.getState() & SelectionValue.STATE_EXCLUDED) != 0) {
+               continue;
+            }
+
+            String vstr = val.getValue();
+            String dtype = ref.getDataType();
+            Object obj = Tool.getData(dtype, vstr, true);
+            list.add(obj);
+         }
+
          return list;
-      }
-
-      SelectionValue[] vals = slist.getAllSelectionValues();
-
-      for(SelectionValue val : vals) {
-         if(!val.isSelected()) {
-            continue;
-         }
-
-         if(applied && (val.getState() & SelectionValue.STATE_EXCLUDED) != 0) {
-            continue;
-         }
-
-         String vstr = val.getValue();
-         String dtype = ref.getDataType();
-         Object obj = Tool.getData(dtype, vstr, true);
-         list.add(obj);
-      }
-
-      return list;
+      });
    }
 
    /**
