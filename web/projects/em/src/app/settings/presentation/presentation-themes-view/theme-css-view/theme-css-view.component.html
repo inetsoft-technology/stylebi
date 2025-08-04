@@ -75,6 +75,7 @@
         <mat-label>_#(Primary)</mat-label>
         <button class="mat-button color-picker-btn"
                 [cpDisabled]="disabled"
+                [cpPosition]="'right'"
                 [colorPicker]="emPrimaryColor" [cpAlphaChannel]="'disabled'"
                 (colorPickerChange)="updateEMPrimaryPalette($event)"
                 [style.background]="emPrimaryColor" [cpUseRootViewContainer]="true"
@@ -92,6 +93,7 @@
         <mat-label>_#(Accent)</mat-label>
         <button class="mat-button color-picker-btn"
                 [cpDisabled]="disabled"
+                [cpPosition]="'right'"
                 [colorPicker]="emAccentColor" [cpAlphaChannel]="'disabled'"
                 (colorPickerChange)="updateEMAccentPalette($event)"
                 [style.background]="emAccentColor" [cpUseRootViewContainer]="true"
@@ -161,6 +163,7 @@
         <button class="mat-button color-picker-btn"
                 [cpDisabled]="disabled"
                 [disabled]="disabled"
+                [cpPosition]="'right'"
                 [colorPicker]="form.controls[row.name].value"
                 (colorPickerChange)="updateCssColorValue(row, $event, form)"
                 [style.background]="form.controls[row.name].value" [cpUseRootViewContainer]="true"
