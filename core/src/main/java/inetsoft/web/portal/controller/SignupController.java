@@ -59,7 +59,9 @@ public class SignupController {
       boolean customLogo = manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID());
 
       model.addObject("customLogo", customLogo);
-      model.addObject("customTheme", !"default".equals(themes.getSelectedTheme()));
+      boolean isCustomTheme = !Tool.isEmptyString(themes.getSelectedTheme()) &&
+                              !"default".equals(themes.getSelectedTheme());
+      model.addObject("customTheme", isCustomTheme);
 
       boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
 
@@ -105,7 +107,9 @@ public class SignupController {
 
       model.addObject("customLogo", customLogo);
       model.addObject("linkUri", linkUri);
-      model.addObject("customTheme", !"default".equals(themes.getSelectedTheme()));
+      boolean isCustomTheme = !Tool.isEmptyString(themes.getSelectedTheme()) &&
+         !"default".equals(themes.getSelectedTheme());
+      model.addObject("customTheme", isCustomTheme);
 
       String header = CacheControl.noCache()
          .cachePrivate()
