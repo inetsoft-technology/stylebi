@@ -531,7 +531,7 @@ public final class LogManager implements AutoCloseable, MessageListener {
             GetLogResponse response =
                cluster.exchangeMessages(file.getClusterNode(), request, GetLogResponse.class);
 
-            while(response.getContent() == null || response.getContent().size() > 0) {
+            while(response.getContent() != null && !response.getContent().isEmpty()) {
                for(String line : response.getContent()) {
                   if(line == null) {
                      continue;
