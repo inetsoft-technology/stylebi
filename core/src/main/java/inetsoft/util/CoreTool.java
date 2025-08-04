@@ -447,7 +447,7 @@ public class CoreTool {
     * Synchronizely call dateformat format.
     */
    public static String formatDateTime(Date date) {
-      if(date instanceof java.sql.Timestamp && useDatetimeWithMillisFormat.get()) {
+      if(useDatetimeWithMillisFormat.get()) {
          return DATETIME_WITH_MILLIS_FORMAT_CACHE.format(date);
       }
 

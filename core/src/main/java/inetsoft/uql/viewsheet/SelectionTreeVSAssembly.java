@@ -707,32 +707,34 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
     * @return the selected objects.
     */
    private List<Object> getSelectedObjects(DataRef ref, SelectionList slist, int level) {
-      List<Object> list = new ArrayList<>();
+      return XUtil.withFixedDateFormat(this, () -> {
+         List<Object> list = new ArrayList<>();
 
-      if(slist == null) {
+         if(slist == null) {
+            return list;
+         }
+
+         SelectionValue[] vals = slist.getSelectionValues();
+
+         for(SelectionValue val : vals) {
+            if(!val.isSelected()) {
+               continue;
+            }
+
+            if((val.getState() & SelectionValue.STATE_EXCLUDED) != 0 &&
+               !getSelectionTreeInfo().isSingleSelectionLevel(level))
+            {
+               continue;
+            }
+
+            String vstr = val.getValue();
+            String dtype = ref.getDataType();
+            Object obj = Tool.getData(dtype, vstr, true);
+            list.add(obj);
+         }
+
          return list;
-      }
-
-      SelectionValue[] vals = slist.getSelectionValues();
-
-      for(SelectionValue val : vals) {
-         if(!val.isSelected()) {
-            continue;
-         }
-
-         if((val.getState() & SelectionValue.STATE_EXCLUDED) != 0 &&
-            !getSelectionTreeInfo().isSingleSelectionLevel(level))
-         {
-            continue;
-         }
-
-         String vstr = val.getValue();
-         String dtype = ref.getDataType();
-         Object obj = Tool.getData(dtype, vstr, true);
-         list.add(obj);
-      }
-
-      return list;
+      });
    }
 
    /**
