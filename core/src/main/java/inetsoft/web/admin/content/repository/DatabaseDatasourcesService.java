@@ -534,9 +534,9 @@ public class DatabaseDatasourcesService {
             // clear additional ds first
             for(String dataSourceName : jdbcDataSource.getDataSourceNames()) {
                JDBCDataSource source = jdbcDataSource.getDataSource(dataSourceName);
-               dataSourceName = dataSourceName.contains("/") ?
+               String dsNameWithoutFolder = dataSourceName.contains("/") ?
                   dataSourceName.substring(dataSourceName.indexOf('/') + 1) : dataSourceName;
-               additionalNamePasswordMap.put(dataSourceName, source.getPassword());
+               additionalNamePasswordMap.put(dsNameWithoutFolder, source.getPassword());
                jdbcDataSource.removeDatasource(dataSourceName);
             }
 
