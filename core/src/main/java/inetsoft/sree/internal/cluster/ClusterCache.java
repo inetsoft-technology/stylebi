@@ -178,7 +178,9 @@ public abstract class ClusterCache<E, L extends Serializable, S extends  Seriali
       int tryCount = 10;
 
       for(int i = 0; i < tryCount; i++) {
-         lock.lock();
+         if(i != 0) {
+            lock.lock();
+         }
 
          try {
             cluster.destroyLock(lockName);
