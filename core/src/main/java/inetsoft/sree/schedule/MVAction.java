@@ -26,6 +26,7 @@ import inetsoft.sree.internal.cluster.SimpleMessage;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.MVSupportService;
+import org.apache.ignite.IgniteInterruptedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -42,7 +43,7 @@ import java.util.concurrent.locks.*;
  * @version 10.2
  * @author InetSoft Technology Corp
  */
-public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
+public class MVAction implements AssetSupport, Cloneable, XMLSerializable, CancelableAction {
    /**
     * Create an empty action.
     */
@@ -252,16 +253,21 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
          boolean exists = mv.hasData();
 
          if(createInScheduler) {
-            MVCallable creator = new MVCallable(mv, principal);
-            Future<String> future = Cluster.getInstance().submit(creator, true);
-            String message = future.get();
+            try {
+               MVCallable creator = new MVCallable(mv, principal);
+               mvFuture = Cluster.getInstance().submit(creator, true);
+               String message = mvFuture.get();
 
-            if(message != null) {
-               throw new RuntimeException(message);
+               if(message != null) {
+                  throw new RuntimeException(message);
+               }
+               else {
+                  thisMv.setSuccess(true);
+                  thisMv.setUpdated(exists);
+               }
             }
-            else {
-               thisMv.setSuccess(true);
-               thisMv.setUpdated(exists);
+            finally {
+               mvFuture = null;
             }
          }
          else {
@@ -394,6 +400,13 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
       return Objects.hash(getOptionalMV().orElse(null));
    }
 
+   @Override
+   public void cancel() {
+      if(mvFuture != null) {
+         mvFuture.cancel(true  );
+      }
+   }
+
    private void writeObject(ObjectOutputStream out) throws IOException {
       out.writeObject(email);
       getOptionalMV().ifPresent(mv -> mvname = mv.getName());
@@ -422,8 +435,16 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
       @Override
       public String call() throws Exception {
          try {
+            if(isCanceled()) {
+               throw new InterruptedException("Task was cancelled.");
+            }
+
             if(principal != null) {
                ThreadContext.setContextPrincipal(principal);
+            }
+
+            if(isCanceled()) {
+               throw new InterruptedException("Task was cancelled.");
             }
 
             // make sure services are properly initialized
@@ -431,6 +452,10 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
 
             // make sure new MV is loaded so it's accessible in createMV0
             MVManager.getManager().refresh();
+
+            if(isCanceled()) {
+               throw new InterruptedException("Task was cancelled.");
+            }
 
             // make sure MV created in on-demand is loaded
             FSService.refresh();
@@ -447,10 +472,17 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
                   ", check log for details";
             }
          }
+         catch(InterruptedException | IgniteInterruptedException ex) {
+            return "MV Creation cancelled: " + mv.getName();
+         }
          catch(Exception ex) {
             LOG.error("Failed to create MV: {}", mv.getName(), ex);
             throw new Exception("MV Creation failed: " + mv.getName() + " [" + ex + "]");
          }
+      }
+
+      private boolean isCanceled() {
+         return Thread.currentThread().isInterrupted();
       }
 
       private MVDef mv;
@@ -467,5 +499,6 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
    private MVDef mv;
    private volatile boolean reloadMv = false;
    private String email;
+   private Future<String> mvFuture;
    private static final Logger LOG = LoggerFactory.getLogger(MVAction.class);
 }
