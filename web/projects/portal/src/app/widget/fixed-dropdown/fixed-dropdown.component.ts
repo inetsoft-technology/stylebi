@@ -127,7 +127,6 @@ export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy 
       // set the position of the dropdown
       this.dropdownPosition = new Point(dropdownBounds.x, dropdownBounds.y);
       this.opacity = 1;
-      this.renderer.setStyle(this.elementRef.nativeElement, 'opacity', this._opacity);
 
       // adjust to the given container element
       if(this.container) {
