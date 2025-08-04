@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet;
 
 import inetsoft.uql.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
@@ -314,12 +315,14 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
     */
    @Override
    public boolean getSelection(Map<String, Map<String, Collection<Object>>> map, boolean applied) {
-      if(isIDMode()) {
-         return getIDModeSelection(map, applied);
-      }
-      else {
-         return getColumnModeSelection(map, applied);
-      }
+      return XUtil.withFixedDateFormat(this, () -> {
+         if(isIDMode()) {
+            return getIDModeSelection(map, applied);
+         }
+         else {
+            return getColumnModeSelection(map, applied);
+         }
+      });
    }
 
    /**

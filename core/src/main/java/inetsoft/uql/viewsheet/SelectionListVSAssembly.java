@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet;
 import inetsoft.report.TableDataPath;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -232,7 +233,9 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
          return false;
       }
 
-      List<Object> list = getSelectedObjects0(applied);
+      List<Object> list = XUtil.withFixedDateFormat(this, () -> {
+         return getSelectedObjects0(applied);
+      });
 
       if(list.size() > 0) {
          for(String tableName : getTableNames()) {

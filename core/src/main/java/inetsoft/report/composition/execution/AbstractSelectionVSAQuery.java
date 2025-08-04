@@ -31,6 +31,7 @@ import inetsoft.report.script.viewsheet.VSAScriptable;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.xmla.XMLAUtil;
@@ -268,8 +269,16 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       ProfileUtils.addExecutionBreakDownRecord(getID(),
          ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
             checkAndRunCalcFieldMeasureQuery(measureAggregation);
-            refreshSelectionValue0(data, allSelections, appliedSelections, values,
-                                   measureAggregation);
+
+            XUtil.withFixedDateFormat(getAssembly(), () -> {
+               try {
+                  refreshSelectionValue0(data, allSelections, appliedSelections, values,
+                                         measureAggregation);
+               }
+               catch(Exception ex) {
+                  throw new RuntimeException(ex.getMessage(), ex);
+               }
+            });
          });
    }
 
