@@ -1575,7 +1575,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
 
          if(vstr.toString().equals(mobj) || caption.toString().equals(mobj) ||
             cellData != null && cellData.toString().equals(mobj) &&
-            assembly.getTableName().startsWith(Assembly.CUBE_VS) ||
+            assembly.getTableName() != null && assembly.getTableName().startsWith(Assembly.CUBE_VS) ||
             memberObj != null && memberObj.isIdentity(mobj))
          {
             pos = counter;
