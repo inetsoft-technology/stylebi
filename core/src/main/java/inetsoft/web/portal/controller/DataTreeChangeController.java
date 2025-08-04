@@ -85,7 +85,8 @@ public class DataTreeChangeController {
    }
 
    private void dataSourceChanged(PropertyChangeEvent event) {
-      sendChangeMessage((String) event.getOldValue());
+      sendChangeMessage(event instanceof inetsoft.report.PropertyChangeEvent e ? e.getOrgID() :
+         (String) event.getOldValue());
    }
 
    private void sendChangeMessage(String orgId) {

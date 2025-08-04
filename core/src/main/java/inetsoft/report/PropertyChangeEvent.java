@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,38 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.uql.asset.sync;
 
+package inetsoft.report;
 
 import inetsoft.sree.security.OrganizationManager;
-import inetsoft.uql.asset.AssetObject;
 
-import java.io.Serializable;
-
-public class RenameTransformFinishedEvent implements Serializable {
-   public RenameTransformFinishedEvent() {
-   }
-
-   public RenameTransformFinishedEvent(AssetObject asset, RenameDependencyInfo dinfo) {
-      entry = asset;
-      dependencyInfo = dinfo;
+public class PropertyChangeEvent extends java.beans.PropertyChangeEvent {
+   public PropertyChangeEvent(Object source, String propertyName, Object oldValue, Object newValue) {
+      super(source, propertyName, oldValue, newValue);
       this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
    }
 
-   public RenameDependencyInfo getDependencyInfo() {
-      return dependencyInfo;
-   }
-
-   public void setDependencyInfo(RenameDependencyInfo dependencyInfo) {
-      this.dependencyInfo = dependencyInfo;
-   }
-
-   public AssetObject getEntry() {
-      return entry;
-   }
-
-   public void setEntry(AssetObject asset) {
-      this.entry = asset;
+   public PropertyChangeEvent(Object source, String propertyName, Object oldValue, Object newValue, String orgID) {
+      super(source, propertyName, oldValue, newValue);
+      this.orgID = orgID;
    }
 
    public String getOrgID() {
@@ -57,17 +39,5 @@ public class RenameTransformFinishedEvent implements Serializable {
       this.orgID = orgID;
    }
 
-   public void setReload(boolean load) {
-      this.reload = load;
-   }
-
-   public boolean isReload() {
-      return this.reload;
-   }
-
-
-   private AssetObject entry;
    private String orgID;
-   private boolean reload;
-   private RenameDependencyInfo dependencyInfo;
 }

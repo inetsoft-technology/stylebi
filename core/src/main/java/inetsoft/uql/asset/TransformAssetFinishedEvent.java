@@ -32,5 +32,9 @@ public class TransformAssetFinishedEvent implements Serializable {
       this.entry = entry;
    }
 
+   public String getOrgID() {
+      return entry == null ? null : entry.getOrgID();
+   }
+
    private AssetEntry entry;
 }

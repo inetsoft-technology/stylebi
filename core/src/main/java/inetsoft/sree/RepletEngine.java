@@ -1671,263 +1671,281 @@ public class RepletEngine extends AbstractAssetEngine
       String name = evt.getPropertyName();
       Object oval = evt.getOldValue();
       Object nval = evt.getNewValue();
+      String sourceOrg = evt instanceof inetsoft.report.PropertyChangeEvent e ? e.getOrgID() : null;
 
-      // @by stephenwebster, In parts of RepletRegistry, the source is followed
-      // by a flag that indicates whether the change event was caused by a direct
-      // change to the asset or whether it was a result of an external change.
-      // This is referred to as 'transaction', and is now referred to as
-      // 'directChange' in this method. This is important, since many modifications
-      // which are triggered by a folder rename may not need to be done or repeated
-      // on subsequent replet change events or folder change events.
+      if(Tool.isEmptyString(sourceOrg)) {
+         sourceOrg = OrganizationManager.getInstance().getCurrentOrgID();
+      }
 
-      // rename registry folder? rename archive folder and permission as well
-      if(name.equals(RepletRegistry.RENAME_FOLDER_EVENT)) {
-         if(oval == null && nval == null) {
-            // set alias, bail out
-            return;
+      String oldCurrentOrgId = OrganizationContextHolder.getCurrentOrgId();
+      OrganizationContextHolder.setCurrentOrgId(sourceOrg);
+
+      try {
+         // @by stephenwebster, In parts of RepletRegistry, the source is followed
+         // by a flag that indicates whether the change event was caused by a direct
+         // change to the asset or whether it was a result of an external change.
+         // This is referred to as 'transaction', and is now referred to as
+         // 'directChange' in this method. This is important, since many modifications
+         // which are triggered by a folder rename may not need to be done or repeated
+         // on subsequent replet change events or folder change events.
+
+         // rename registry folder? rename archive folder and permission as well
+         if(name.equals(RepletRegistry.RENAME_FOLDER_EVENT)) {
+            if(oval == null && nval == null) {
+               // set alias, bail out
+               return;
+            }
+
+            String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
+            int index = source.indexOf('^');
+            IdentityID user = null;
+
+            if(index != -1) {
+               user = IdentityID.getIdentityIDFromKey(source.substring(index + 1));
+               source = source.substring(0, index);
+            }
+
+            boolean directChange = source.endsWith("_true");
+            String nname = (String) nval;
+            String oname = (String) oval;
+            boolean ismy = user != null;
+
+            // change asset folder as well
+            if(directChange) {
+               String assetNname = ismy ? nname.substring(Tool.MY_DASHBOARD.length() + 1) : nname;
+               String assetOname = ismy && oname != null ?
+                  oname.substring(Tool.MY_DASHBOARD.length() + 1) : oname;
+               AssetEntry oentry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
+                                                  AssetEntry.Type.REPOSITORY_FOLDER, assetOname, user, sourceOrg);
+               AssetEntry nentry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
+                                                  AssetEntry.Type.REPOSITORY_FOLDER, assetNname, user);
+
+               try {
+                  // If restore folder from recycle bin, it will using change folder to change.
+                  if(containsEntry(oentry) || nname.contains(RecycleUtils.RECYCLE_BIN_FOLDER)) {
+                     super.changeFolder(oentry, nentry, null, true, true);
+                  }
+               }
+               catch(Exception ex) {
+                  LOG.error("Failed to change folder from {}  to {}", oentry, nentry, ex);
+               }
+            }
+
+            if(!SUtil.isMyReport(oname)) {
+               SecurityEngine security = getSecurity();
+
+               if(security != null && !Tool.equals(nname, oname)) {
+                  Permission perm = security.getPermission(ResourceType.REPORT, oname);
+
+                  if(perm != null) {
+                     security.setPermission(ResourceType.REPORT, nname, perm);
+                     security.removePermission(ResourceType.REPORT, oname);
+                  }
+               }
+            }
+
+            // @by stephenwebster, For bug1408723303556
+            // directChange will be true only for the top-level folder which is
+            // renamed, therefore renaming nested folders is redundant.
+            if(directChange) {
+               ScheduleManager manager = ScheduleManager.getScheduleManager();
+               String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+               manager.folderRenamed(oname, nname, user == null ? null : user.name, orgID);
+            }
          }
+         else if(name.equals(RepletRegistry.ADD_FOLDER_EVENT)) {
+            String folderName = (String) nval;
+            String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
+            int index = source.indexOf('^');
+            IdentityID user = null;
 
-         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
-         int index = source.indexOf('^');
-         IdentityID user = null;
+            if(index != -1) {
+               user = IdentityID.getIdentityIDFromKey(source.substring(index + 1));
+            }
 
-         if(index != -1) {
-            user = IdentityID.getIdentityIDFromKey(source.substring(index + 1));
-            source = source.substring(0, index);
+            AssetEntry nasset = null;
+            boolean isMy = SUtil.isMyReport(folderName);
+
+            if(isMy) {
+               nasset = new AssetEntry(AssetRepository.USER_SCOPE,
+                                       AssetEntry.Type.REPOSITORY_FOLDER, folderName.replace("My Dashboards/", ""), user);
+            }
+            else {
+               nasset = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
+                                       AssetEntry.Type.REPOSITORY_FOLDER, folderName, null);
+            }
+
+            if(!containsEntry(nasset)) {
+               try {
+                  if(isMy && user != null) {
+                     XPrincipal user0 = (XPrincipal) ThreadContext.getContextPrincipal();
+                     XPrincipal principal = new XPrincipal(user);
+
+                     // For SSO, it will create user from SRPrincipal, but for others, it will get user
+                     // from provider. So SSO should add roles and groups for permission check.
+                     if(!"true".equals(user0.getProperty("__internal__"))) {
+                        principal = new SRPrincipal(user);
+                        principal.setRoles(user0.getRoles());
+                        principal.setGroups(user0.getGroups());
+                     }
+
+                     addFolder(nasset, isMy ? principal : null);
+                  }
+                  else if(!isMy) {
+                     addFolder(nasset, null);
+                  }
+               }
+               catch(Exception ex) {
+                  LOG.error("Failed to add folder: " + nval, ex);
+               }
+            }
          }
+         else if(name.equals(RepletRegistry.RENAME_FOLDER_ALIAS_EVENT)) {
+            if(oval == null || nval == null) {
+               return;
+            }
 
-         boolean directChange = source.endsWith("_true");
-         String nname = (String) nval;
-         String oname = (String) oval;
-         boolean ismy = user != null;
+            String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
+            int index = source.indexOf('^');
+            IdentityID user = null;
 
-         // change asset folder as well
-         if(directChange) {
-            String assetNname = ismy ? nname.substring(Tool.MY_DASHBOARD.length() + 1) : nname;
-            String assetOname = ismy && oname != null ?
-               oname.substring(Tool.MY_DASHBOARD.length() + 1) : oname;
-            AssetEntry oentry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
-                                               AssetEntry.Type.REPOSITORY_FOLDER, assetOname, user);
-            AssetEntry nentry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
-                                               AssetEntry.Type.REPOSITORY_FOLDER, assetNname, user);
+            if(index != -1) {
+               user = IdentityID.getIdentityIDFromKey(source.substring(index + 1));
+               source = source.substring(0, index);
+            }
 
-            try {
-               // If restore folder from recycle bin, it will using change folder to change.
-               if(containsEntry(oentry) || nname.contains(RecycleUtils.RECYCLE_BIN_FOLDER)) {
+            boolean directChange = source.endsWith("_true");
+            String nalias = (String) nval;
+            String assetName0 = (String) oval;
+            boolean ismy = user != null;
+
+            // change asset folder as well
+            if(directChange) {
+               String assetName =
+                  ismy ? assetName0.substring(Tool.MY_DASHBOARD.length() + 1) : assetName0;
+               AssetEntry oentry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
+                                                  AssetEntry.Type.REPOSITORY_FOLDER, assetName, user);
+               AssetEntry nentry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
+                                                  AssetEntry.Type.REPOSITORY_FOLDER, assetName, user);
+               nentry.setAlias(nalias);
+
+               try {
                   super.changeFolder(oentry, nentry, null, true, true);
                }
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to change folder from {}  to {}", oentry, nentry, ex);
-            }
-         }
-
-         if(!SUtil.isMyReport(oname)) {
-            SecurityEngine security = getSecurity();
-
-            if(security != null && !Tool.equals(nname, oname)) {
-               Permission perm = security.getPermission(ResourceType.REPORT, oname);
-
-               if(perm != null) {
-                  security.setPermission(ResourceType.REPORT, nname, perm);
-                  security.removePermission(ResourceType.REPORT, oname);
+               catch(Exception ex) {
+                  LOG.error("Failed to change folder from " + oentry +
+                               " to " + nentry, ex);
                }
             }
          }
+         // remove registry folder? remove archive folder and permission as well
+         else if(name.equals(RepletRegistry.REMOVE_FOLDER_EVENT)) {
+            String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
+            int index = source.indexOf('^');
+            IdentityID user = null;
 
-         // @by stephenwebster, For bug1408723303556
-         // directChange will be true only for the top-level folder which is
-         // renamed, therefore renaming nested folders is redundant.
-         if(directChange) {
-            ScheduleManager manager = ScheduleManager.getScheduleManager();
-            String orgID = OrganizationManager.getInstance().getCurrentOrgID();
-            manager.folderRenamed(oname, nname, user == null ? null : user.name, orgID);
-         }
-      }
-      else if(name.equals(RepletRegistry.ADD_FOLDER_EVENT)) {
-         String folderName = (String) nval;
-         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
-         int index = source.indexOf('^');
-         IdentityID user = null;
+            if(index != -1) {
+               user = IdentityID.getIdentityIDFromKey(source.substring(index + 1));
+               source = source.substring(0, index);
+            }
 
-         if(index != -1) {
-            user = IdentityID.getIdentityIDFromKey(source.substring(index + 1));
-         }
+            boolean directChange = source.endsWith("_true");
+            String path = (String) oval;
+            boolean ismy = user != null;
 
-         AssetEntry nasset = null;
-         boolean isMy = SUtil.isMyReport(folderName);
+            // remove asset folder as well
+            if(directChange) {
+               String apath = ismy ?
+                  path.substring(Tool.MY_DASHBOARD.length() + 1) : path;
+               AssetEntry entry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
+                                                 AssetEntry.Type.REPOSITORY_FOLDER, apath, user);
 
-         if(isMy) {
-            nasset = new AssetEntry(AssetRepository.USER_SCOPE,
-               AssetEntry.Type.REPOSITORY_FOLDER, folderName.replace("My Dashboards/", ""), user);
-         }
-         else {
-            nasset = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
-               AssetEntry.Type.REPOSITORY_FOLDER, folderName, null);
-         }
-
-         if(!containsEntry(nasset)) {
-            try {
-               if(isMy && user != null) {
-                  XPrincipal user0 = (XPrincipal) ThreadContext.getContextPrincipal();
-                  XPrincipal principal = new XPrincipal(user);
-
-                  // For SSO, it will create user from SRPrincipal, but for others, it will get user
-                  // from provider. So SSO should add roles and groups for permission check.
-                  if(!"true".equals(user0.getProperty("__internal__"))) {
-                     principal = new SRPrincipal(user);
-                     principal.setRoles(user0.getRoles());
-                     principal.setGroups(user0.getGroups());
+               try {
+                  if(containsEntry(entry)) {
+                     super.removeFolder(entry, null, true);
                   }
-
-                  addFolder(nasset, isMy ? principal : null);
                }
-               else if(!isMy) {
-                  addFolder(nasset, null);
+               catch(Exception ex) {
+                  LOG.error("Failed to remove folder " + entry, ex);
                }
             }
-            catch(Exception ex) {
-               LOG.error("Failed to add folder: " + nval, ex);
-            }
-         }
-      }
-      else if(name.equals(RepletRegistry.RENAME_FOLDER_ALIAS_EVENT)) {
-         if(oval == null || nval == null) {
-            return;
-         }
 
-         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
-         int index = source.indexOf('^');
-         IdentityID user = null;
+            if(!SUtil.isMyReport(path)) {
+               SecurityEngine security = getSecurity();
 
-         if(index != -1) {
-            user = IdentityID.getIdentityIDFromKey(source.substring(index + 1));
-            source = source.substring(0, index);
-         }
-
-         boolean directChange = source.endsWith("_true");
-         String nalias = (String) nval;
-         String assetName0 = (String) oval;
-         boolean ismy = user != null;
-
-         // change asset folder as well
-         if(directChange) {
-            String assetName =
-               ismy ? assetName0.substring(Tool.MY_DASHBOARD.length() + 1) : assetName0;
-            AssetEntry oentry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
-                                               AssetEntry.Type.REPOSITORY_FOLDER, assetName, user);
-            AssetEntry nentry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
-                                               AssetEntry.Type.REPOSITORY_FOLDER, assetName, user);
-            nentry.setAlias(nalias);
-
-            try {
-               super.changeFolder(oentry, nentry, null, true, true);
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to change folder from " + oentry +
-                     " to " + nentry, ex);
-            }
-         }
-      }
-      // remove registry folder? remove archive folder and permission as well
-      else if(name.equals(RepletRegistry.REMOVE_FOLDER_EVENT)) {
-         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
-         int index = source.indexOf('^');
-         IdentityID user = null;
-
-         if(index != -1) {
-            user = IdentityID.getIdentityIDFromKey(source.substring(index + 1));
-            source = source.substring(0, index);
-         }
-
-         boolean directChange = source.endsWith("_true");
-         String path = (String) oval;
-         boolean ismy = user != null;
-
-         // remove asset folder as well
-         if(directChange) {
-            String apath = ismy ?
-               path.substring(Tool.MY_DASHBOARD.length() + 1) : path;
-            AssetEntry entry = new AssetEntry(ismy ? USER_SCOPE : GLOBAL_SCOPE,
-               AssetEntry.Type.REPOSITORY_FOLDER, apath, user);
-
-            try {
-               if(containsEntry(entry)) {
-                  super.removeFolder(entry, null, true);
-               }
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to remove folder " + entry, ex);
-            }
-         }
-
-         if(!SUtil.isMyReport(path)) {
-            SecurityEngine security = getSecurity();
-
-            if(security != null) {
-               security.removePermission(ResourceType.REPORT, path);
-            }
-         }
-      }
-      // rename registry replet? rename permission as well
-      else if(name.equals(RepletRegistry.RENAME_REPLET_EVENT)) {
-         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
-         int index = source.indexOf('^');
-         String user = null;
-         boolean directChange = source.endsWith("_true");
-
-         if(index != -1) {
-            user = source.substring(index + 1);
-         }
-
-         String nname = (String) nval;
-         String oname = (String) oval;
-
-         if(!SUtil.isMyReport(oname)) {
-            SecurityEngine security = getSecurity();
-
-            if(security != null) {
-               security.setPermission(
-                  ResourceType.REPORT, nname, security.getPermission(ResourceType.REPORT, oname));
-
-               if(!Tool.equals(nname, oname)) {
-                  security.removePermission(ResourceType.REPORT, oname);
+               if(security != null) {
+                  security.removePermission(ResourceType.REPORT, path);
                }
             }
          }
+         // rename registry replet? rename permission as well
+         else if(name.equals(RepletRegistry.RENAME_REPLET_EVENT)) {
+            String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
+            int index = source.indexOf('^');
+            String user = null;
+            boolean directChange = source.endsWith("_true");
 
-         // @by stephenwebster, For bug1408723303556
-         // If directChange is true, this means it comes from a direct rename of a replet.
-         // Otherwise it is false indicating that the change was triggered by a folder rename.
-         // In that case, the ScheduleManager folderRenamed method will handle updating the path
-         // to any schedule actions having replets defined in that path.
-         if(directChange) {
-            ScheduleManager manager = ScheduleManager.getScheduleManager();
-            manager.repletRenamed(oname, nname, user);
-         }
-      }
-      // remove registry replet? remove permission as well
-      else if(name.equals(RepletRegistry.REMOVE_REPLET_EVENT)) {
-         String path = (String) oval;
-         String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
-         int index = source.indexOf('^');
-          String user = null;
+            if(index != -1) {
+               user = source.substring(index + 1);
+            }
 
-          if(index != -1) {
-             user = source.substring(index + 1);
-          }
+            String nname = (String) nval;
+            String oname = (String) oval;
 
-         if(!SUtil.isMyReport(path)) {
-            SecurityEngine security = getSecurity();
+            if(!SUtil.isMyReport(oname)) {
+               SecurityEngine security = getSecurity();
 
-            if(security != null) {
-               security.removePermission(ResourceType.REPORT, path);
+               if(security != null) {
+                  security.setPermission(
+                     ResourceType.REPORT, nname, security.getPermission(ResourceType.REPORT, oname));
+
+                  if(!Tool.equals(nname, oname)) {
+                     security.removePermission(ResourceType.REPORT, oname);
+                  }
+               }
+            }
+
+            // @by stephenwebster, For bug1408723303556
+            // If directChange is true, this means it comes from a direct rename of a replet.
+            // Otherwise it is false indicating that the change was triggered by a folder rename.
+            // In that case, the ScheduleManager folderRenamed method will handle updating the path
+            // to any schedule actions having replets defined in that path.
+            if(directChange) {
+               ScheduleManager manager = ScheduleManager.getScheduleManager();
+               manager.repletRenamed(oname, nname, user);
             }
          }
+         // remove registry replet? remove permission as well
+         else if(name.equals(RepletRegistry.REMOVE_REPLET_EVENT)) {
+            String path = (String) oval;
+            String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
+            int index = source.indexOf('^');
+            String user = null;
+
+            if(index != -1) {
+               user = source.substring(index + 1);
+            }
+
+            if(!SUtil.isMyReport(path)) {
+               SecurityEngine security = getSecurity();
+
+               if(security != null) {
+                  security.removePermission(ResourceType.REPORT, path);
+               }
+            }
 
 //         ScheduleManager manager = ScheduleManager.getScheduleManager();
 //         manager.repletRemoved(path, user);
-         //Will be remobe
+            //Will be remobe
+         }
+      }
+      finally {
+         if(oldCurrentOrgId == null) {
+            OrganizationContextHolder.clear();
+         }
+         else {
+            OrganizationContextHolder.setCurrentOrgId(oldCurrentOrgId);
+         }
       }
    }
 

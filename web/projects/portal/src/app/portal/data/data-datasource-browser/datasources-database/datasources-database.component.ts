@@ -144,6 +144,7 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
 
    ngOnInit() {
       super.ngOnInit();
+      this.subscribePluginsChange(false);
       this.appInfoService.isEnterprise().subscribe(info => this.enterprise = info);
 
       if(this.additionalVisible) {
