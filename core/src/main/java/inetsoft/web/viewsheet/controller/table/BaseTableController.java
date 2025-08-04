@@ -32,6 +32,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.internal.*;
@@ -300,8 +301,14 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
          addScriptables(lens, vsassembly, box);
 
          if(refreshData) {
-            BaseTableCellModel[][] tableCells = getTableCells(vsassembly.getVSAssemblyInfo(), lens,
-               start, end, formLens, rvs.isRuntime());
+            final VSAssembly assembly = vsassembly;
+            final VSTableLens lens0 = lens;
+            final FormTableLens formLens0 = formLens;
+
+            BaseTableCellModel[][] tableCells = XUtil.withFixedDateFormat(vsassembly, () -> {
+               return getTableCells(assembly.getVSAssemblyInfo(), lens0, start, end, formLens0, rvs.isRuntime());
+            });
+
             BaseTableCellModel[][] tableHeaderCells = null;
 
             //if assembly is Table, and start != 0, then should send table header to web when load

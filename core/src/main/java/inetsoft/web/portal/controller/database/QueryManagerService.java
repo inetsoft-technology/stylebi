@@ -1758,14 +1758,16 @@ public class QueryManagerService {
       int end = lens.getRowCount();
       int colCount = lens.getColCount();
 
-      String[][] values = new String[end][colCount];
+      final String[][] values = new String[end][colCount];
 
-      for(int row = start; row < end; row++) {
-         for(int col = 0; col < colCount; col++) {
-            Object value = lens.getObject(row, col);
-            values[row][col] = value == null ? "" : Tool.getDataString(value);
+      XUtil.withFixedDateFormat(query.getDataSource(), () -> {
+         for(int row = start; row < end; row++) {
+            for(int col = 0; col < colCount; col++) {
+               Object value = lens.getObject(row, col);
+               values[row][col] = value == null ? "" : Tool.getDataString(value);
+            }
          }
-      }
+      });
 
       return values;
    }
