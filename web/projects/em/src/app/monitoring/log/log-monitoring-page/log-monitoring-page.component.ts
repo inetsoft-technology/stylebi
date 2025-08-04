@@ -19,6 +19,7 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { Subject, Subscription } from "rxjs";
 import { concatMap, tap } from "rxjs/operators";
+import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
@@ -120,7 +121,10 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
    }
 
    downloadLog() {
-      this.downloadService.download("../em/monitoring/logviewer/download");
+      let params = new HttpParams()
+         .set("clusterNode", this.model.selectedLog?.clusterNode)
+      this.downloadService.download(GuiTool.appendParams("../em/monitoring/logviewer/download",
+         params));
    }
 
    rotateLogs() {
