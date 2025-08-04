@@ -2179,6 +2179,7 @@ public class QueryManagerService {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       SelectTable[] selectTables = sql.getSelectTable();
+      XNode root = null;
 
       for(SelectTable selectTable : selectTables) {
          Object name = selectTable.getName();
@@ -2192,6 +2193,14 @@ public class QueryManagerService {
          else {
             tableName = String.valueOf(selectTable.getName());
             XNode node = metaData.getTable(tableName, XUtil.OUTER_MOSE_LAYER_DATABASE);
+
+            if(node != null && root == null) {
+               root = node;
+
+               while(root.getParent() != null) {
+                  root = root.getParent();
+               }
+            }
 
             if(node != null) {
                tablePath = JDBCUtil.getTablePath(jdbcDataSource, node);
@@ -2214,6 +2223,14 @@ public class QueryManagerService {
          entry.setProperty(XSourceInfo.CATALOG, selectTable.getCatalog());
          entry.setProperty(XSourceInfo.SCHEMA, selectTable.getSchema());
          entry.setProperty("source_with_no_quote", tableName);
+
+         if(root != null) {
+            entry.setProperty("hasSchema", Tool.toString(root.getAttribute("hasSchema")));
+            entry.setProperty("defaultSchema", Tool.toString(root.getAttribute("defaultSchema")));
+            entry.setProperty("supportCatalog", Tool.toString(root.getAttribute("supportCatalog")));
+            entry.setProperty("hasCatalog", Tool.toString(root.getAttribute("hasCatalog")));
+         }
+
          String alias = selectTable.getAlias();
          alias = alias == null ? tableName : alias;
          runtimeQuery.addSelectedTable(alias, entry);
