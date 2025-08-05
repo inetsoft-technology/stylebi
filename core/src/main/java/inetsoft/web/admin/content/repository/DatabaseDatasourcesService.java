@@ -548,7 +548,7 @@ public class DatabaseDatasourcesService {
                if(additionalNamePasswordMap.get(oldName) != null && ads.getAuthentication() != null) {
                   AuthenticationDetails authentication = ads.getAuthentication();
 
-                  if(!Tool.isCloudSecrets() && !authentication.isUseCredentialId() &&
+                  if((!Tool.isCloudSecrets() || !authentication.isUseCredentialId()) &&
                      Tool.equals(authentication.getPassword(), Util.PLACEHOLDER_PASSWORD))
                   {
                      authentication.setPassword(additionalNamePasswordMap.get(oldName));
