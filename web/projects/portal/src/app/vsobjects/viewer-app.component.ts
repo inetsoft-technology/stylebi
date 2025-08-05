@@ -200,6 +200,7 @@ import { GlobalSubmitService } from "./util/global-submit.service";
 import { ViewerResizeService } from "./util/viewer-resize.service";
 import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
+import { BaseHrefService } from "../common/services/base-href.service";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -516,7 +517,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private miniToolbarService: MiniToolbarService,
                private featureFlagService: FeatureFlagsService,
                private assetLoadingService: AssetLoadingService,
-               private viewContainerRef: ViewContainerRef)
+               private viewContainerRef: ViewContainerRef,
+               private baseHrefService: BaseHrefService)
    {
       super(viewsheetClient, zone, true);
       tooltipConfig.tooltipClass = "top-tooltip";
@@ -2533,7 +2535,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.virtualScroll = command.info["virtualScroll"];
 
       if(command.info["hasWatermark"]) {
-         const imageUrl = "url('assets/elastic_watermark.png')";
+         const url = this.baseHrefService.getBaseHref() + "/assets/elastic_watermark.png";
+         const imageUrl = `url('${url}')`;
          this.backgroundImage = this.sanitizer.bypassSecurityTrustStyle(imageUrl);
          this.backgroundImageRepeat = "repeat";
       }
