@@ -59,7 +59,7 @@ public class MVDispatcher {
 
    public boolean isCanceled() {
       return canceled || (data instanceof XNodeTableLens &&
-         ((XNodeTableLens) data).isCancelled());
+         ((XNodeTableLens) data).isCancelled()) || Thread.currentThread().isInterrupted();
    }
 
    public void cancel() {

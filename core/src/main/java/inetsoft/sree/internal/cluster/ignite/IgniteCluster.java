@@ -956,8 +956,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       // Do not use lambda expression to submit the task to ignite, it can not run with JDK21.
       ClusterGroup clusterGroup = scheduler ? ignite.cluster().forPredicate(SCHEDULE_SELECTOR) :
          ignite.cluster().forServers();
-      return CompletableFuture.supplyAsync(new IgniteTaskFuture<>(ignite, clusterGroup, task, level),
-         getExecutorService(level));
+      IgniteTaskCallable<T> igniteTask  = new IgniteTaskCallable<>(task, level);
+      return new IgniteFutureWrapper<>(getIgniteCompute(ignite, clusterGroup, level).callAsync(igniteTask));
    }
 
    @Override
@@ -1537,6 +1537,51 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       private final Ignite igniteInstance;
       private final ClusterGroup clusterGroup;
       private final IgniteTaskCallable<T> task;
+   }
+
+   private static class IgniteFutureWrapper<T> implements Future<T> {
+      private final IgniteFuture<T> igniteFuture;
+
+      public IgniteFutureWrapper(IgniteFuture<T> igniteFuture) {
+         this.igniteFuture = igniteFuture;
+      }
+
+      @Override
+      public boolean cancel(boolean mayInterruptIfRunning) {
+         return igniteFuture.cancel();
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return igniteFuture.isCancelled();
+      }
+
+      @Override
+      public boolean isDone() {
+         return igniteFuture.isDone();
+      }
+
+      @Override
+      public T get() throws InterruptedException, ExecutionException {
+         try {
+            return igniteFuture.get();
+         }
+         catch (Exception e) {
+            throw new ExecutionException(e);
+         }
+      }
+
+      @Override
+      public T get(long timeout, TimeUnit unit)
+         throws InterruptedException, ExecutionException, java.util.concurrent.TimeoutException
+      {
+         try {
+            return igniteFuture.get(timeout, unit);
+         }
+         catch (Exception e) {
+            throw new ExecutionException(e);
+         }
+      }
    }
 
    private static class IgniteTaskCallable<T> implements IgniteCallable<T> {
