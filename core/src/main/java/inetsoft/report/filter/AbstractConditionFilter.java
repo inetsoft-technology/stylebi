@@ -129,6 +129,8 @@ public abstract class AbstractConditionFilter extends AbstractTableLens
     */
    @Override
    public final int getBaseRowIndex(int row) {
+      moreRows(row);
+
       if(row < hcount) {
          return row;
       }
