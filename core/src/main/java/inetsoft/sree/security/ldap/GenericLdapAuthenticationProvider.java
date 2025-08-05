@@ -166,16 +166,12 @@ public class GenericLdapAuthenticationProvider extends LdapAuthenticationProvide
     */
    @Override
    protected String getRolesSearch(int type) {
-      switch (type) {
-      case Identity.USER:
-         return getUserRolesSearch();
-      case Identity.ROLE:
-         return roleRolesSearch;
-      case Identity.GROUP:
-         return groupRolesSearch;
-      default:
-         return null;
-      }
+      return switch(type) {
+         case Identity.USER -> getUserRolesSearch();
+         case Identity.ROLE -> roleRolesSearch;
+         case Identity.GROUP -> groupRolesSearch;
+         default -> null;
+      };
    }
 
    /**
