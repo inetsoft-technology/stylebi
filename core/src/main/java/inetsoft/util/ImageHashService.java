@@ -216,10 +216,20 @@ public class ImageHashService {
          final int dpi = 72;
          Image image = null;
 
-         if(svg && dynamicImage && imageInfo.scale9 == null) {
-            // get the original unscaled image
+         if(svg && dynamicImage && imageInfo.scale9 == null && !imageInfo.scaled) {
+            int maxWidth = imageInfo.width;
+            int maxHeight = imageInfo.height;
+
+            // account for shadow
+            if(imageInfo.shadow) {
+               maxWidth -= 6;
+               maxHeight -= 6;
+            }
+
+            // get the svg image with preferred or max size
             image = VSUtil.getVSImage(rawImage, imageInfo.path, vs, -1,
-                                      -1, null, vsPortalHelper);
+                                      -1, maxWidth, maxHeight,
+                                      null, vsPortalHelper);
          }
 
          image = image != null ? image : VSUtil.getVSImage(rawImage, imageInfo.path, vs,

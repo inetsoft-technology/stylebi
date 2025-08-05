@@ -1020,7 +1020,22 @@ public final class VSUtil {
                                   int width, int height,
                                   VSCompositeFormat fmt, XPortalHelper helper)
    {
-      String name;
+      return getVSImage(rawImage, path, vs, width, height, -1, -1, fmt, helper);
+   }
+
+   /**
+    * Get an image from either updated (in viewsheet) or from server.
+    * @param path image path.
+    * @param width the width of dynamically generated images.
+    * @param height the height of dynamically generated images.
+    * @param maxWidth the max width of dynamically generated images.
+    * @param maxHeight the max height of dynamically generated images.
+    * @param fmt default format settings.
+    */
+   public static Image getVSImage(Image rawImage, String path, Viewsheet vs,
+                                  int width, int height, int maxWidth, int maxHeight,
+                                  VSCompositeFormat fmt, XPortalHelper helper)
+   {
       Image rimg = rawImage;
 
       if(rawImage != null) {
@@ -1051,7 +1066,8 @@ public final class VSUtil {
                buf = isTIF ? transcodeTiffToJpg(buf) : buf;
                ByteArrayInputStream baos = new ByteArrayInputStream(buf);
                rimg = isSVG ?
-                  SVGSupport.getInstance().getSVGImage(baos, width, height) : ImageIO.read(baos);
+                  SVGSupport.getInstance().getSVGImage(
+                     baos, width, height, maxWidth, maxHeight) : ImageIO.read(baos);
             }
          }
          catch(Exception ex) {
@@ -1074,7 +1090,8 @@ public final class VSUtil {
             try {
                buf = isTIF ? transcodeTiffToJpg(buf) : buf;
                ByteArrayInputStream baos = new ByteArrayInputStream(buf);
-               rimg = isSVG ? SVGSupport.getInstance().getSVGImage(baos) : ImageIO.read(baos);
+               rimg = isSVG ? SVGSupport.getInstance().getSVGImage(
+                  baos, width, height, maxWidth, maxHeight) : ImageIO.read(baos);
             }
             catch(Exception ex) {
                LOG.error("Failed to get uploaded image: " + path, ex);

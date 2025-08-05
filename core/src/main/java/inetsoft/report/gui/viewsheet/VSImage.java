@@ -46,7 +46,24 @@ public class VSImage extends VSImageable {
     */
    @Override
    protected void drawBackground(Graphics g) {
-      // do nothing
+      ImageVSAssemblyInfo info = (ImageVSAssemblyInfo) getAssemblyInfo();
+      Color bg = info.getHighlightBackground();
+      VSCompositeFormat fmt = info.getFormat();
+      Dimension nsize = getImageSize();
+
+      if(isShadow()) {
+         nsize.width += 6;
+         nsize.height += 6;
+      }
+
+      if(bg == null) {
+         bg = getBackground(fmt);
+      }
+
+      if(bg != null) {
+         g.setColor(bg);
+         g.fillRect(0, 0, nsize.width, nsize.height);
+      }
    }
 
    /**
@@ -74,7 +91,6 @@ public class VSImage extends VSImageable {
       VSAssemblyInfo info = getAssemblyInfo();
       Image img0 = rimage;
       Color highlightC = ((ImageVSAssemblyInfo) info).getHighlightForeground();
-      Color bg = ((ImageVSAssemblyInfo) info).getHighlightBackground();
       VSCompositeFormat fmt = info.getFormat();
       highlightC = highlightC == null ? fmt.getForeground() : highlightC;
       highlightC = Color.BLACK.equals(highlightC) ? null : highlightC;
@@ -83,12 +99,8 @@ public class VSImage extends VSImageable {
          img0 = GTool.changeHue(img0, highlightC);
       }
 
-      if(bg == null) {
-         bg = getBackground(fmt);
-      }
-
       try {
-         return getBufferedImage(img0, bg);
+         return getBufferedImage(img0, null);
       }
       catch(Exception e) {
          LOG.error(e.getMessage(), e);
