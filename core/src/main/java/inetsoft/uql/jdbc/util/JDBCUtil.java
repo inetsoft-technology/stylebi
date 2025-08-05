@@ -491,6 +491,7 @@ public class JDBCUtil {
          newSelect.setDescription(path, select.getDescription(path));
          newSelect.setTable(path, select.getTable(path));
          newSelect.setXMetaInfo(aidx, select.getXMetaInfo(i));
+         newSelect.setExpression(aidx, select.isExpression(i));
       }
 
       sql.setSelection(newSelect);
