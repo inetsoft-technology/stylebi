@@ -690,7 +690,6 @@ public abstract class LdapAuthenticationProvider
    protected final String getRoleDn(String name) {
       if(isCacheInitialized()) {
          String dn = getCache().getRoleDn(name);
-         LOG.error("Got DN from cache for role {}: {}", name, dn);
          return dn;
       }
 
@@ -700,7 +699,6 @@ public abstract class LdapAuthenticationProvider
          .flatMap(base -> client.searchDirectory(base, filter, SearchControls.SUBTREE_SCOPE, attr).stream())
          .findFirst()
          .orElse(null);
-      LOG.error("Got DN from server for role {}: {}", name, dn);
       return dn;
    }
 
@@ -1085,6 +1083,11 @@ public abstract class LdapAuthenticationProvider
    }
 
    LdapAuthenticationCache getCache() {
+      return getCache(true);
+   }
+
+   LdapAuthenticationCache getCache(boolean initialize) {
+      LdapAuthenticationCache result;
       cacheLock.lock();
 
       try {
@@ -1092,12 +1095,20 @@ public abstract class LdapAuthenticationProvider
             cache = new LdapAuthenticationCache(this);
          }
 
-         cache.load();
-         return cache;
+         result = cache;
       }
       finally {
          cacheLock.unlock();
       }
+
+      // This needs to be run outside of the lock to prevent a deadlock when the cluster singleton
+      // is this instance. Any concurrent calls are handled by the debouncer in the cluster
+      // singleton handling of the load call, so possible race conditions here are not a concern.
+      if(initialize && !result.isInitialized() && !result.isLoading()) {
+         result.load();
+      }
+
+      return result;
    }
 
    protected boolean supportsNamingListener() {

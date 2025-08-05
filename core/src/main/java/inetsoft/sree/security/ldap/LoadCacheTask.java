@@ -31,7 +31,7 @@ public class LoadCacheTask implements SingletonCallableTask<Long> {
 
    @Override
    public Long call() throws Exception {
-      return getProvider().getCache().load(force).get();
+      return getProvider().getCache(false).load(force).get();
    }
 
    private LdapAuthenticationProvider getProvider() {

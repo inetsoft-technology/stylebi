@@ -917,6 +917,7 @@
             <kryo.unsafe>false</kryo.unsafe>
             <show.license.exception>true</show.license.exception>
             <inetsoft.sree.internal.cluster.implementation>inetsoft.test.TestCluster</inetsoft.sree.internal.cluster.implementation>
+            <sree.home>${project.build.directory}/test-config</sree.home>
             <!--
               The following settings are because there are tests of date formatting and parsing
               and the assertions can be flaky if the time zone or locale changes. More substantial
