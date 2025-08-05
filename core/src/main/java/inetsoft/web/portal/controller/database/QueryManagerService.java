@@ -1794,6 +1794,14 @@ public class QueryManagerService {
                : fullname.substring(fullname.lastIndexOf('.') + 1);
             AttributeRef attributeRef = new AttributeRef(name);
             ColumnRef ref = new ColumnRef(attributeRef);
+
+            if(selection.isExpression(i)) {
+               ExpressionRef expressionRef = new ExpressionRef();
+               expressionRef.setName(name);
+               expressionRef.setExpression(fullname);
+               ref.setDataRef(expressionRef);
+            }
+
             ref.setDataType(selection.getType(fullname));
             String oldAlias = getOriginalAlias(aliasMapping, alias);
             DataRef oldRef = getOldAttributeRef(oldAlias, fullname, oldColumns, selection);
