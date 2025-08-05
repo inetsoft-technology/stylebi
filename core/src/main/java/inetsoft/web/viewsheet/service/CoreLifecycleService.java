@@ -1113,8 +1113,8 @@ public class CoreLifecycleService {
       }
       finally {
          box.clearDelayedVisibilityAssemblies();
-         viewsheetService.removeExecution(id);
          box.unlockWrite();
+         viewsheetService.removeExecution(id);
       }
 
       // loading table can take a long time, move it out of the locked block
