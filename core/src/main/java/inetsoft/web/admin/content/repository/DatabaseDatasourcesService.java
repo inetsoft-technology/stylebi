@@ -1050,7 +1050,7 @@ public class DatabaseDatasourcesService {
       DatabaseType databaseType = databaseTypeService.getDatabaseType(type);
 
       JDBCDataSource xds = new JDBCDataSource();
-      xds.setName(name);
+      xds.setName(isAdditionalSource ? definition.getName() : name);
       xds.setDescription(definition.getDescription());
       xds.setDriver(databaseType.getDriverClass(definition.getInfo()));
       xds.setRequireLogin(definition.getAuthentication().isRequired());
