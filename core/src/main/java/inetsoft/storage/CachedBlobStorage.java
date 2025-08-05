@@ -19,7 +19,6 @@ package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.MessageEvent;
 import inetsoft.sree.internal.cluster.MessageListener;
-import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,8 +27,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * {@code CachedBlobStorage} is an implementation of {@link BlobStorage} that stores blobs in some
@@ -46,24 +43,18 @@ public final class CachedBlobStorage<T extends Serializable>
     * @param id       the unique identifier of the blob storage.
     * @param cacheDir the base directory of the local blob cache.
     * @param storage  the key-value store for the blob metadata.
-    * @param engine   the blob storage engine.
+    * @param cache    the blob storage cache.
     * @param preload  preload the local cache in a background thread on initialization.
-    *
-    * @throws IOException if the local storage directories could not be created.
     */
    public CachedBlobStorage(String id, Path cacheDir, KeyValueStorage<Blob<T>> storage,
-                            BlobEngine engine, boolean preload) throws IOException
+                            BlobCache cache, boolean preload)
    {
       super(id, storage);
       Objects.requireNonNull(id, "The storage identifier cannot be null");
       Objects.requireNonNull(cacheDir, "The cache directory cannot be null");
-      Objects.requireNonNull(engine, "The blob storage engine cannot be null");
+      Objects.requireNonNull(cache, "The blob storage cache cannot be null");
       this.id = id;
-      this.base = cacheDir.resolve(id);
-      this.tempDir = this.base.resolve("temp");
-      this.lockDir = this.tempDir.resolve("locks");
-      this.engine = engine;
-      Files.createDirectories(this.lockDir);
+      this.cache = cache;
       getCluster().addMessageListener(this);
 
       if(preload) {
@@ -75,47 +66,29 @@ public final class CachedBlobStorage<T extends Serializable>
 
    @Override
    protected InputStream getInputStream(Blob<T> blob) throws IOException {
-      Path path = copyToCache(blob);
+      Path path = cache.get(id, blob);
       return Files.newInputStream(path);
    }
 
    @Override
    protected BlobChannel getReadChannel(Blob<T> blob) throws IOException {
-      Path path = copyToCache(blob);
+      Path path = cache.get(id, blob);
       return new BlobReadChannel(FileChannel.open(path, StandardOpenOption.READ));
    }
 
    @Override
    protected void commit(Blob<T> blob, Path tempFile) throws IOException {
-      Path path = getPath(blob, base);
-      engine.write(id, blob.getDigest(), tempFile);
-
-      if(path.toFile().exists()) {
-         Tool.deleteFile(path.toFile());
-      }
-      else {
-         Files.createDirectories(path.getParent());
-         Files.move(tempFile, path, StandardCopyOption.ATOMIC_MOVE);
-      }
+      cache.put(id, blob, tempFile);
    }
 
    @Override
    protected void delete(Blob<T> blob) throws IOException {
-      Path path = getPath(blob, base);
-
-      try {
-         if(path.toFile().exists()) {
-            Files.delete(path);
-         }
-      }
-      catch(NoSuchFileException e) {
-         logger.warn("Failed to delete local cache file {}", path, e);
-      }
+      cache.remove(id, blob);
    }
 
    @Override
    protected Path copyToTemp(Blob<T> blob) throws IOException {
-      Path path = copyToCache(blob);
+      Path path = cache.get(id, blob);
       Path tempFile = createTempFile("blob", ".dat");
       Files.copy(path, tempFile, StandardCopyOption.REPLACE_EXISTING);
       return tempFile;
@@ -123,7 +96,7 @@ public final class CachedBlobStorage<T extends Serializable>
 
    @Override
    protected Path createTempFile(String prefix, String suffix) throws IOException {
-      return Files.createTempFile(tempDir, prefix, suffix);
+      return cache.createTempFile(id, prefix, suffix);
    }
 
    @Override
@@ -135,7 +108,7 @@ public final class CachedBlobStorage<T extends Serializable>
    public void deleteBlobStorage() throws Exception {
       List<String> files = stream()
          .map(Blob::getPath)
-         .collect(Collectors.toList());
+         .toList();
 
       for(String file : files) {
          delete(file);
@@ -152,57 +125,19 @@ public final class CachedBlobStorage<T extends Serializable>
 
    @Override
    public void messageReceived(MessageEvent event) {
-      if(event.getMessage() instanceof ClearBlobCacheMessage) {
-         ClearBlobCacheMessage message = (ClearBlobCacheMessage) event.getMessage();
+      if(event.getMessage() instanceof ClearBlobCacheMessage message) {
 
          if(getId().equals(message.getStoreId())) {
             String digest = message.getDigest();
-            String dir = digest.substring(0, 2);
-            String file = digest.substring(2);
-            Path path = base.resolve(dir).resolve(file);
 
-            if(path.toFile().exists()) {
-               try {
-                  Files.delete(path);
-               }
-               catch(IOException e) {
-                  logger.warn("Failed to delete local cache file {}", path, e);
-               }
+            try {
+               cache.remove(id, digest);
+            }
+            catch(IOException e) {
+               logger.warn("Failed to delete local cache file {}", digest, e);
             }
          }
       }
-   }
-
-   private Path copyToCache(Blob<T> blob) throws IOException {
-      Path path = getPath(blob, base);
-
-      if(!path.toFile().exists()) {
-         FileLock lock = new FileLock(lockDir, id + "-" + blob.getDigest());
-
-         try {
-            if(lock.tryLock(5L, TimeUnit.MINUTES)) {
-               try {
-                  if(!path.toFile().exists()) {
-                     Path tempFile = createTempFile("blob", ".dat");
-                     engine.read(id, blob.getDigest(), tempFile);
-                     Files.createDirectories(path.getParent());
-                     Files.move(tempFile, path, StandardCopyOption.ATOMIC_MOVE);
-                  }
-               }
-               finally {
-                  lock.unlock();
-               }
-            }
-            else {
-               throw new IOException("Timeout while waiting for file lock");
-            }
-         }
-         catch(InterruptedException e) {
-            throw new IOException("Thread interrupted while waiting to lock file", e);
-         }
-      }
-
-      return path;
    }
 
    private void preload() {
@@ -214,7 +149,7 @@ public final class CachedBlobStorage<T extends Serializable>
 
    private void preload(Blob<T> blob) {
       try {
-         copyToCache(blob);
+         cache.get(id, blob);
       }
       catch(Exception e) {
          logger.warn(
@@ -223,9 +158,6 @@ public final class CachedBlobStorage<T extends Serializable>
    }
 
    private final String id;
-   private final Path base;
-   private final Path tempDir;
-   private final Path lockDir;
-   private final BlobEngine engine;
+   private final BlobCache cache;
    private final Logger logger = LoggerFactory.getLogger(getClass());
 }
