@@ -46,21 +46,16 @@ public class VSImage extends VSImageable {
     */
    @Override
    protected void drawBackground(Graphics g) {
-      ImageVSAssemblyInfo info = (ImageVSAssemblyInfo) getAssemblyInfo();
-      Color bg = info.getHighlightBackground();
-      VSCompositeFormat fmt = info.getFormat();
-      Dimension nsize = getImageSize();
-
-      if(isShadow()) {
-         nsize.width += 6;
-         nsize.height += 6;
-      }
-
-      if(bg == null) {
-         bg = getBackground(fmt);
-      }
+      Color bg = getBackground();
 
       if(bg != null) {
+         Dimension nsize = getImageSize();
+
+         if(isShadow()) {
+            nsize.width += 6;
+            nsize.height += 6;
+         }
+
          g.setColor(bg);
          g.fillRect(0, 0, nsize.width, nsize.height);
       }
@@ -172,6 +167,18 @@ public class VSImage extends VSImageable {
 
       g.dispose();
       return image2;
+   }
+
+   public Color getBackground() {
+      ImageVSAssemblyInfo info = (ImageVSAssemblyInfo) getAssemblyInfo();
+      Color bg = info.getHighlightBackground();
+      VSCompositeFormat fmt = info.getFormat();
+
+      if(bg == null) {
+         bg = getBackground(fmt);
+      }
+
+      return bg;
    }
 
    private Image rimage;

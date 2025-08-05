@@ -1011,6 +1011,41 @@ public final class VSUtil {
 
    /**
     * Get an image from either updated (in viewsheet) or from server.
+    * @param info image vs info.
+    * @param width the width of dynamically generated images.
+    * @param height the height of dynamically generated images.
+    * @param fmt default format settings.
+    */
+   public static Image getVSImage(ImageVSAssemblyInfo info, Viewsheet vs,
+                                  int width, int height,
+                                  VSCompositeFormat fmt, XPortalHelper helper)
+   {
+      String path = info.getImage();
+      boolean svg = path != null && path.endsWith(".svg");
+      int maxWidth = -1;
+      int maxHeight = -1;
+
+      // unscaled svg, only set max width,height
+      if(svg && !info.isScaleImage()) {
+         maxWidth = width;
+         maxHeight = height;
+
+         // account for shadow
+         if(info.isShadow()) {
+            maxWidth -= 6;
+            maxHeight -= 6;
+         }
+
+         width = -1;
+         height = -1;
+      }
+
+      return getVSImage(info.getRawImage(), path, vs, width, height,
+                        maxWidth, maxHeight, fmt, helper);
+   }
+
+   /**
+    * Get an image from either updated (in viewsheet) or from server.
     * @param path image path.
     * @param width the width of dynamically generated images.
     * @param height the height of dynamically generated images.
