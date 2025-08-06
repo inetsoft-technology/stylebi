@@ -782,7 +782,14 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          const rect = this.viewerToolbar.nativeElement.getBoundingClientRect();
          const screenSize = this.screenSize;
 
-         if(window.visualViewport) {
+         // web component
+         if(this.embed) {
+            const viewerRect = this.viewerRoot.nativeElement.getBoundingClientRect();
+            ratio = 1;
+            left = Math.round(Math.max(0, -viewerRect.left));
+            top = Math.round(Math.max(0, -viewerRect.top + rect.height));
+         }
+         else if(window.visualViewport) {
             ratio = 1 / window.visualViewport.scale;
 
             // original dist to top of page
@@ -811,6 +818,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             const shrunk = Math.round((rect.height / ratio) - rect.height);
             this.bodyTransform = this.sanitizer.bypassSecurityTrustStyle(
                "translate(0, " + -shrunk + "px)");
+            this.changeDetectorRef.detectChanges();
          }
       }
    }
@@ -4009,7 +4017,13 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          defaultButtons++;
       }
 
-      return Math.floor(window.innerWidth / ToolbarActionsHandler.MOBILE_BUTTON_WIDTH) - defaultButtons;
+      let width = window.innerWidth;
+
+      if(this.embed && this.viewerRoot) {
+         width = this.viewerRoot.nativeElement.getBoundingClientRect().width;
+      }
+
+      return Math.floor(width / ToolbarActionsHandler.MOBILE_BUTTON_WIDTH) - defaultButtons;
    }
 
    isPageControlVisible(): boolean {
