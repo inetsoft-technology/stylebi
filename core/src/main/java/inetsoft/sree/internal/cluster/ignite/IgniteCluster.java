@@ -928,7 +928,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       setConfig.setAtomicityMode(transactional ?
                                     CacheAtomicityMode.TRANSACTIONAL :
                                     CacheAtomicityMode.ATOMIC);
-      ignite.transactions().txStart(TransactionConcurrency.OPTIMISTIC, TransactionIsolation.SERIALIZABLE);
       return ignite.set(name, setConfig);
    }
 
