@@ -221,6 +221,10 @@ class DatabaseAuthenticationCache implements AutoCloseable {
       return loadCount.get() > 0;
    }
 
+   public boolean isInitialized() {
+      return lastLoad.get() != 0;
+   }
+
    public long getAge() {
       long loaded = lastLoad.get();
       return loaded == 0L ? 0L : System.currentTimeMillis() - loaded;

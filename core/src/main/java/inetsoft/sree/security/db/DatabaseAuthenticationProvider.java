@@ -22,16 +22,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.uql.jdbc.JDBCHandler;
 import inetsoft.util.Tool;
 import jakarta.validation.constraints.NotNull;
 import org.apache.commons.codec.binary.Hex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Driver;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Authentication module that stores user, password, group and role information
@@ -751,6 +756,8 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    }
 
    DatabaseAuthenticationCache getCache(boolean initialize) {
+      DatabaseAuthenticationCache result = null;
+
       cacheLock.lock();
 
       try {
@@ -759,14 +766,18 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
                securityCache = new DatabaseAuthenticationCache(this);
             }
 
-            securityCache.load();
+            result = securityCache;
          }
       }
       finally {
          cacheLock.unlock();
       }
 
-      return securityCache;
+      if(initialize && result != null && !result.isLoading() && !result.isInitialized()) {
+         result.load();
+      }
+
+      return result;
    }
 
    private void closeCache() {
@@ -797,7 +808,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       this.ignoreCache.set(ignoreCache);
    }
 
-   private ConnectionProperties getConnectionProperties() {
+   ConnectionProperties getConnectionProperties() {
       loadCredential();
       return new ConnectionProperties(driverClass, url, dbUser, dbPassword, requiresLogin);
    }
@@ -838,6 +849,35 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       return getCacheInterval();
    }
 
+   boolean isCacheInitialized() {
+      DatabaseAuthenticationCache cache = getCache(false);
+      return cache != null && cache.isInitialized();
+   }
+
+   void setMultiTenantSupplier(Supplier<Boolean> supplier) {
+      this.multiTenant = supplier;
+   }
+
+   boolean isMultiTenant() {
+      return multiTenant.get();
+   }
+
+   void setDriverAvailable(Function<String, Boolean> driverAvailable) {
+      this.driverAvailable = driverAvailable;
+   }
+
+   boolean isDriverAvailable(String driverClass) {
+      return driverAvailable.apply(driverClass);
+   }
+
+   void setDriverSupplier(DriverSupplier driverSupplier) {
+      this.driverSupplier = driverSupplier;
+   }
+
+   Driver getDriver(String driverClass) throws Exception {
+      return driverSupplier.getDriver(driverClass);
+   }
+
    private String userQuery;
    private String userListQuery;
    private String userRolesQuery;
@@ -864,12 +904,19 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    private String[] orgAdministratorRoles = new String[0];
    private final boolean cacheEnabled;
    private final boolean caseSensitive;
-   private final ConnectionProvider connectionProvider =
-      new ConnectionProvider(this::getConnectionProperties);
+   private Supplier<Boolean> multiTenant = SUtil::isMultiTenant;
+   private Function<String, Boolean> driverAvailable = JDBCHandler::isDriverAvailable;
+   private DriverSupplier driverSupplier = JDBCHandler::getDriver;
    private final AuthenticationDAO dao = new AuthenticationDAO(this);
    private final Lock cacheLock = new ReentrantLock();
    private DatabaseAuthenticationCache securityCache;
    private final ThreadLocal<Boolean> ignoreCache = ThreadLocal.withInitial(() -> false);
+   private final ConnectionProvider connectionProvider = new ConnectionProvider(this);
 
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationProvider.class);
+
+   @FunctionalInterface
+   interface DriverSupplier {
+      Driver getDriver(String driverClass) throws Exception;
+   }
 }

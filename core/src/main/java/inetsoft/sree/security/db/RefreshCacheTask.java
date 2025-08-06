@@ -33,7 +33,8 @@ public class RefreshCacheTask implements SingletonCallableTask<Long> {
    @Override
    public Long call() throws Exception {
       DatabaseAuthenticationProvider provider = getProvider();
-      return provider.getCache(false).load(force);
+      DatabaseAuthenticationCache cache = provider.getCache(false);
+      return cache.load(force);
    }
 
    private DatabaseAuthenticationProvider getProvider() {

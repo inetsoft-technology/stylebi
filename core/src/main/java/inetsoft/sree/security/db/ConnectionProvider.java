@@ -22,6 +22,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.jdbc.JDBCHandler;
 import inetsoft.util.*;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,11 +31,12 @@ import java.time.Instant;
 import java.util.Properties;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 class ConnectionProvider implements AutoCloseable {
-   public ConnectionProvider(Supplier<ConnectionProperties> propertiesSupplier) {
-      this.propertiesSupplier = propertiesSupplier;
+   public ConnectionProvider(DatabaseAuthenticationProvider provider) {
+      this.provider = provider;
       this.connectionRetryInterval = Long.parseLong(SreeEnv.getProperty(
          "database.security.connection.retryInterval", "600000"));
    }
@@ -44,7 +46,7 @@ class ConnectionProvider implements AutoCloseable {
       lock.lock();
 
       try {
-         ConnectionProperties connectionProperties = propertiesSupplier.get();
+         ConnectionProperties connectionProperties = provider.getConnectionProperties();
 
          if(connectionValid == null || shouldRetryConnection()) {
             try {
@@ -65,11 +67,14 @@ class ConnectionProvider implements AutoCloseable {
                connectionPool = new HikariDataSource();
 
                Properties properties = new Properties();
-               properties.setProperty("user", connectionProperties.username());
-               properties.setProperty("password", connectionProperties.password());
+
+               if(connectionProperties.requiresLogin()) {
+                  properties.setProperty("user", connectionProperties.username());
+                  properties.setProperty("password", connectionProperties.password());
+               }
 
                try {
-                  Driver driver = JDBCHandler.getDriver(connectionProperties.driverClass());
+                  Driver driver = provider.getDriver(connectionProperties.driverClass());
                   connectionPool.setDataSource(new AuthenticationDataSource(
                      driver, connectionProperties.url(), properties));
                }
@@ -77,8 +82,11 @@ class ConnectionProvider implements AutoCloseable {
                   LOG.warn("Failed to create default data source", e);
                   connectionPool.setDriverClassName(connectionProperties.driverClass());
                   connectionPool.setJdbcUrl(connectionProperties.url());
-                  connectionPool.setUsername(connectionProperties.username());
-                  connectionPool.setPassword(connectionProperties.password());
+
+                  if(connectionProperties.requiresLogin()) {
+                     connectionPool.setUsername(connectionProperties.username());
+                     connectionPool.setPassword(connectionProperties.password());
+                  }
                }
             }
 
@@ -98,12 +106,15 @@ class ConnectionProvider implements AutoCloseable {
    }
 
    public void testConnection() throws Exception {
-      ConnectionProperties props = propertiesSupplier.get();
+      ConnectionProperties props = provider.getConnectionProperties();
       checkConnectionProperties(props);
-      Driver driver = JDBCHandler.getDriver(props.driverClass());
+      Driver driver = provider.getDriver(props.driverClass());
       Properties properties = new Properties();
-      properties.setProperty("user", props.username());
-      properties.setProperty("password", props.password());
+
+      if(props.requiresLogin()) {
+         properties.setProperty("user", props.username());
+         properties.setProperty("password", props.password());
+      }
 
       try(Connection connection = driver.connect(props.url(), properties)) {
          if(connection == null) {
@@ -150,26 +161,25 @@ class ConnectionProvider implements AutoCloseable {
    }
 
    private void checkConnectionProperties(ConnectionProperties properties) throws SQLException {
-      if(properties.driverClass().isEmpty()) {
+      if(StringUtils.isBlank(properties.driverClass())) {
          throw new SQLException("Failed to make a connection, the driver class is not defined.");
       }
 
-      if(properties.url().isEmpty()) {
+      if(StringUtils.isBlank(properties.url())) {
          throw new SQLException("Failed to make a connection, the JDBC URL is not defined.");
       }
 
-      if(properties.username().isEmpty() && properties.requiresLogin()) {
+      if(properties.requiresLogin() && StringUtils.isBlank(properties.username())) {
          throw new SQLException("Failed to make a connection, user name is not defined.");
       }
 
-      if(!JDBCHandler.isDriverAvailable(Tool.convertUserClassName(properties.driverClass()))) {
+      if(!provider.isDriverAvailable(properties.driverClass())) {
          throw new SQLException("Failed to make a connection, cannot find the driver class");
       }
    }
 
-   private final Supplier<ConnectionProperties> propertiesSupplier;
+   private final DatabaseAuthenticationProvider provider;
    private final Lock lock = new ReentrantLock();
-
    private final long connectionRetryInterval;
    private Boolean connectionValid;
    private Instant connectionLastTested = Instant.MAX;

@@ -18,7 +18,6 @@
 
 package inetsoft.sree.security.db;
 
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import org.apache.commons.lang3.StringUtils;
@@ -45,7 +44,7 @@ class AuthenticationDAO {
          try(Handle handle = jdbi.open()) {
             Query query = handle.createQuery(provider.getUserQuery());
 
-            if(SUtil.isMultiTenant()) {
+            if(provider.isMultiTenant()) {
                query.bind(0, username.orgID);
                query.bind(1, username.name);
             }
@@ -65,7 +64,7 @@ class AuthenticationDAO {
          try(Handle handle = jdbi.open()) {
             Query query = handle.createQuery(provider.getUserQuery());
 
-            if(SUtil.isMultiTenant()) {
+            if(provider.isMultiTenant()) {
                query.bind(0, userid.orgID);
                query.bind(1, userid.name);
             }
@@ -218,7 +217,7 @@ class AuthenticationDAO {
          try(Handle handle = jdbi.open()) {
             Query query = handle.createQuery(provider.getGroupUsersQuery());
 
-            if(SUtil.isMultiTenant()) {
+            if(provider.isMultiTenant()) {
                query.bind(0, group.orgID);
                query.bind(1, group.name);
             }
@@ -276,7 +275,7 @@ class AuthenticationDAO {
          try(Handle handle = jdbi.open()) {
             Query query = handle.createQuery(provider.getUserRolesQuery());
 
-            if(SUtil.isMultiTenant()) {
+            if(provider.isMultiTenant()) {
                query.bind(0, user.orgID);
                query.bind(1, user.name);
             }
@@ -336,7 +335,7 @@ class AuthenticationDAO {
          try(Handle handle = jdbi.open()) {
             Query query = handle.createQuery(provider.getUserEmailsQuery());
 
-            if(SUtil.isMultiTenant()) {
+            if(provider.isMultiTenant()) {
                query.bind(0, user.orgID);
                query.bind(1, user.name);
             }
@@ -380,7 +379,7 @@ class AuthenticationDAO {
          return null;
       }
 
-      if(SUtil.isMultiTenant()) {
+      if(provider.isMultiTenant()) {
          orgId = rs.getString(2);
 
          if(StringUtils.isBlank(orgId)) {
@@ -468,7 +467,7 @@ class AuthenticationDAO {
       if(provider.isAdminRole(role)) {
          orgID = null;
       }
-      else if(SUtil.isMultiTenant()) {
+      else if(provider.isMultiTenant()) {
          orgID = rs.getString(2);
       }
       else {
@@ -504,7 +503,7 @@ class AuthenticationDAO {
          return null;
       }
 
-      if(SUtil.isMultiTenant()) {
+      if(provider.isMultiTenant()) {
          orgID = rs.getString(2);
 
          if(StringUtils.isBlank(orgID) || "null".equalsIgnoreCase(orgID)) {
