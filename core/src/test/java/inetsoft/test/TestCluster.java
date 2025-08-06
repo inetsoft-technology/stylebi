@@ -763,6 +763,11 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public void removeAll() {
+         delegate.clear();
+      }
+
+      @Override
       public void putAll(@NotNull Map<? extends K, ? extends V> m) {
          for(Map.Entry<? extends K, ? extends V> e : m.entrySet()) {
             put(e.getKey(), e.getValue());

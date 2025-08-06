@@ -61,4 +61,9 @@ public interface DistributedMap<K, V> extends Map<K, V> {
     * @param keys
     */
    void removeAll(Set<? extends K> keys);
+
+   /**
+    * Removes all entries from the map.
+    */
+   void removeAll();
 }
