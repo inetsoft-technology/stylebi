@@ -99,7 +99,7 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    @Override
    public void clear() {
       executeWithRetry(() -> {
-         cache.clear();
+         cache.removeAll();
          return null;
       });
    }
