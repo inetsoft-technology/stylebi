@@ -21,27 +21,21 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
-import inetsoft.util.*;
+import inetsoft.util.DataChangeListener;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.naming.*;
-import javax.naming.directory.*;
-import javax.naming.event.*;
-import javax.naming.ldap.*;
-import java.io.Serializable;
+import javax.naming.directory.SearchControls;
+import javax.naming.ldap.LdapContext;
 import java.text.MessageFormat;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Base class for authentication modules that retrieve information from an LDAP
@@ -59,7 +53,8 @@ public abstract class LdapAuthenticationProvider
     */
    protected LdapAuthenticationProvider() {
       try {
-         this.contextPool = new ContextPool();
+         this.contextPool = new ContextPool(this);
+         this.client = new LdapAuthenticationClient(this);
       }
       catch(Exception exc) {
          throw new RuntimeException("Failed to create context pool", exc);
@@ -104,39 +99,7 @@ public abstract class LdapAuthenticationProvider
     * @return <tt>true</tt> if valid; <tt>false</tt> otherwise.
     */
    protected boolean testContext(LdapContext context) {
-      long start = System.currentTimeMillis();
-      LOG.debug("Validating directory context");
-      boolean valid = false;
-
-      SearchControls controls = new SearchControls();
-      controls.setSearchScope(SearchControls.OBJECT_SCOPE);
-      // Set a time limit to ensure fast failure with network issues. 2 seconds appears to
-      // be plenty of time, since testing over a WAN from the U.S. to Europe with StartTLS
-      // enabled shows an average time for this search to complete is 300ms.
-      controls.setTimeLimit(2000);
-      controls.setCountLimit(1);
-      controls.setReturningAttributes(new String[] { validateContextAttr });
-
-      try {
-         NamingEnumeration<SearchResult> results =
-            context.search(validateContextBaseDn, validateContextSearch, controls);
-
-         if(results.hasMore()) {
-            valid = true;
-         }
-         else {
-            LOG.debug("Directory context invalid due to no results");
-         }
-      }
-      catch(Throwable exc) {
-         LOG.debug("Directory context invalid", exc);
-      }
-      finally {
-         LOG.debug(
-            "Directory context validated in {}ms", System.currentTimeMillis() - start);
-      }
-
-      return valid;
+      return client.testContext(context);
    }
 
    /**
@@ -199,7 +162,7 @@ public abstract class LdapAuthenticationProvider
                .toArray(IdentityID[]::new);
          }
 
-         return doGetUsers().keySet().stream()
+         return client.getUsers().keySet().stream()
             .map(u -> new IdentityID(u, Organization.getDefaultOrganizationID()))
             .toArray(IdentityID[]::new);
       }
@@ -207,23 +170,6 @@ public abstract class LdapAuthenticationProvider
          LOG.error("Failed to list users", e);
          return new IdentityID[0];
       }
-   }
-
-   protected Map<String, String> doGetUsers() {
-      Map<String, String> users = new HashMap<>();
-      String filter = getUserSearch();
-      String attr = getUserAttribute();
-
-      for(String base: getUserBases(getUserBase())) {
-         users.putAll(searchDirectoryDns(base, filter, userScope, attr));
-      }
-
-      if(users.isEmpty()) {
-         LOG.warn(
-            "Zero users found. This may indicate a problem with your configuration.");
-      }
-
-      return users;
    }
 
    /**
@@ -255,47 +201,6 @@ public abstract class LdapAuthenticationProvider
       return Arrays.asList(getCache().getSubIdentities(group, type));
    }
 
-   protected final List<String> doSearchSubIdentities(String group, int type) {
-      String entrydn = getDNString(cache.getGroupDn(group));
-      StringBuilder name = new StringBuilder();
-      String filter = type == Identity.USER ? getUserSearch() : getGroupSearch();
-      String attr = type == Identity.USER ? getUserAttribute() : getGroupAttribute();
-      int scope = type == Identity.USER ? userScope : SearchControls.SUBTREE_SCOPE;
-
-      if(entrydn != null) {
-         name.append(entrydn);
-      }
-      else {
-         name.append(getGroupAttribute()).append('=').append(group);
-
-         if(getGroupBase() != null && !getGroupBase().isEmpty()) {
-            String middleGroup = doGetGroups().get(group);
-
-            if(middleGroup != null) {
-               int baseGroupIndex = Math.max(0, middleGroup.indexOf(getGroupBase()));
-
-               if(middleGroup.startsWith(name.toString()) && baseGroupIndex > name.length() + 1) {
-                  middleGroup = middleGroup.substring(name.length() + 1, baseGroupIndex - 1);
-               }
-               else {
-                  middleGroup = null;
-               }
-
-               if(!Tool.isEmptyString(middleGroup)) {
-                  name.append(",").append(middleGroup);
-               }
-            }
-
-            return Arrays.stream(getGroupBases(getGroupBase()))
-               .map(g -> name.append(",").append(g).toString())
-               .flatMap(g -> searchDirectory(g, filter, scope, attr).stream())
-               .collect(Collectors.toList());
-         }
-      }
-
-      return searchDirectory(name.toString(), filter, userScope, attr);
-   }
-
    /**
     * {@inheritDoc}
     */
@@ -312,16 +217,6 @@ public abstract class LdapAuthenticationProvider
       }
    }
 
-   protected String[] doGetEmails(String user) {
-      String filter = "(&(" +
-         getUserSearch() + ")(" + getUserAttribute() +
-         '=' + Tool.encodeForLDAP(user) + "))";
-      String attr = getMailAttribute();
-      return Arrays.stream(getUserBases(getUserBase()))
-         .flatMap(u -> searchDirectory(u, filter, SearchControls.SUBTREE_SCOPE, attr).stream())
-         .toArray(String[]::new);
-   }
-
    /**
     * {@inheritDoc}
     */
@@ -334,7 +229,7 @@ public abstract class LdapAuthenticationProvider
                .toArray(IdentityID[]::new);
          }
 
-         return Arrays.stream(doGetIndividualUsers())
+         return Arrays.stream(client.getIndividualUsers())
             .map(u -> new IdentityID(u, Organization.getDefaultOrganizationID()))
             .toArray(IdentityID[]::new);
       }
@@ -342,14 +237,6 @@ public abstract class LdapAuthenticationProvider
          LOG.error("Failed to get individual uses", e);
          return new IdentityID[0];
       }
-   }
-
-   protected String[] doGetIndividualUsers() {
-      String filter = getUserSearch();
-      String attr = getUserAttribute();
-      return Arrays.stream(getUserBases(getUserBase()))
-         .flatMap(u -> searchDirectory(u, filter, SearchControls.ONELEVEL_SCOPE, attr).stream())
-         .toArray(String[]::new);
    }
 
    /**
@@ -362,20 +249,12 @@ public abstract class LdapAuthenticationProvider
             return getCache().getIndividualEmails();
          }
 
-         return doGetIndividualEmailAddresses();
+         return client.getIndividualEmailAddresses();
       }
       catch(Exception e) {
          LOG.error("Failed to get individual email addresses", e);
          return new String[0];
       }
-   }
-
-   protected String[] doGetIndividualEmailAddresses() {
-      String filter = getUserSearch();
-      String attr = getMailAttribute();
-      return Arrays.stream(getUserBases(getUserBase()))
-         .flatMap(u -> searchDirectory(u, filter, SearchControls.ONELEVEL_SCOPE, attr).stream())
-         .toArray(String[]::new);
    }
 
    /**
@@ -390,7 +269,7 @@ public abstract class LdapAuthenticationProvider
                .toArray(IdentityID[]::new);
          }
 
-         return doGetRoles().keySet().stream()
+         return client.getRoles().keySet().stream()
             .map(r -> new IdentityID(r, Organization.getDefaultOrganizationID()))
             .toArray(IdentityID[]::new);
       }
@@ -398,18 +277,6 @@ public abstract class LdapAuthenticationProvider
          LOG.error("Failed to list the roles", e);
          return new IdentityID[0];
       }
-   }
-
-   protected Map<String, String> doGetRoles() {
-      Map<String, String> roles = new HashMap<>();
-      String filter = getRoleSearch();
-      String attr = getRoleAttribute();
-
-      for(String base : getRoleBases(getRoleBase())) {
-         roles.putAll(searchDirectoryDns(base, filter, SearchControls.SUBTREE_SCOPE, attr));
-      }
-
-      return roles;
    }
 
    /**
@@ -438,14 +305,6 @@ public abstract class LdapAuthenticationProvider
       }
 
       return null;
-   }
-
-   protected Role doGetRole(String name) {
-      IdentityID id = new IdentityID(name, Organization.getDefaultOrganizationID());
-      IdentityID[] roles = Arrays.stream(searchRoles(name, Identity.ROLE))
-         .map(r -> new IdentityID(r, Organization.getDefaultOrganizationID()))
-         .toArray(IdentityID[]::new);
-      return new Role(id, roles);
    }
 
    /**
@@ -484,14 +343,14 @@ public abstract class LdapAuthenticationProvider
       return name;
    }
 
-   protected String[] doSearchRoles(String name, String dn, int type) {
+   protected String[] searchRoles(String name, String dn, int type) {
       Set<String> allRoles = Arrays.stream(getRoles())
          .map(IdentityID::getName)
          .collect(Collectors.toSet());
       String filter = MessageFormat.format(getRolesSearch(type), name, dn);
       String attr = getRoleAttribute();
       return Arrays.stream(getRoleBases(getRoleBase()))
-         .flatMap(r -> searchDirectory(r, filter, SearchControls.SUBTREE_SCOPE, attr).stream())
+         .flatMap(r -> client.searchDirectory(r, filter, SearchControls.SUBTREE_SCOPE, attr).stream())
          .filter(allRoles::contains)
          .toArray(String[]::new);
    }
@@ -508,7 +367,7 @@ public abstract class LdapAuthenticationProvider
                .toArray(IdentityID[]::new);
          }
 
-         return doGetGroups().keySet().stream()
+         return client.getGroups().keySet().stream()
             .map(g -> new IdentityID(g, Organization.getDefaultOrganizationID()))
             .toArray(IdentityID[]::new);
       }
@@ -519,82 +378,11 @@ public abstract class LdapAuthenticationProvider
    }
 
    /**
-    * Get a list of all groups defined in the system.
-    */
-   private Map<String, String> doGetGroups() {
-      String entryDn = getEntryDNAttribute();
-      Map<String, String> values = new HashMap<>();
-      String[] bases = getGroupBases(getGroupBase());
-      String groupAttr = getGroupAttribute();
-
-      try {
-         for(String base : bases) {
-            LdapName baseDn = new LdapName(base);
-            Set<Rdn> rdns = new HashSet<>(baseDn.getRdns());
-            List<SearchResult> results = searchDirectory(
-               base, getGroupSearch(), SearchControls.SUBTREE_SCOPE,
-               new String[]{ getGroupAttribute(), entryDn });
-
-            for(SearchResult result : results) {
-               Attribute name = result.getAttributes().get(groupAttr);
-               Attribute id = result.getAttributes().get(entryDn);
-
-               if(name != null && name.size() > 0) {
-                  String value = name.get(0).toString();
-
-                  if(!rdns.contains(new Rdn(groupAttr + "=" + value))) {
-                     String dn = null;
-
-                     if(id != null && id.size() > 0) {
-                        dn = id.get(0).toString();
-                     }
-
-                     if(dn == null) {
-                        dn = getDNFromSearchResult(result, base);
-                     }
-
-                     values.put(value, dn);
-                  }
-               }
-            }
-         }
-      }
-      catch(NamingException e) {
-         throw new RuntimeException("Failed to list groups", e);
-      }
-
-      return values;
-   }
-
-   /**
     * {@inheritDoc}
     */
    @Override
    public final Group getGroup(IdentityID name) {
       return getCache().getGroup(name.getName());
-   }
-
-   protected Group doGetGroup(String name) {
-      IdentityID[] roles = Arrays.stream(searchRoles(name, Identity.GROUP))
-         .map(r -> new IdentityID(r, Organization.getDefaultOrganizationID()))
-         .toArray(IdentityID[]::new);
-      ArrayList<String> list = new ArrayList<>();
-      IdentityID[] groups = getGroups();
-
-      for(IdentityID group : groups) {
-        List<String> sgroups = searchSubIdentities(group.getName(), Identity.GROUP);
-
-         for(String sgroup : sgroups) {
-            if(name.equals(sgroup) && !group.getName().equals(name)) {
-               list.add(group.getName());
-               break;
-            }
-         }
-      }
-
-      String[] pgroups = list.toArray(new String[0]);
-      return new Group(new IdentityID(
-         name, Organization.getDefaultOrganizationID()), null, pgroups, roles);
    }
 
    /**
@@ -674,71 +462,12 @@ public abstract class LdapAuthenticationProvider
       String[] userBases = getUserBases(getUserBase());
 
       for(String userBase : userBases) {
-         if(doAuthenticate(userBase, filter, passwd, controls, context)) {
+         if(client.authenticate(userBase, filter, passwd, controls, context)) {
             return true;
          }
       }
 
       return false;
-   }
-
-   /**
-    * Do the detail work of authenticate.
-    */
-   private boolean doAuthenticate(String userBase, String filter, String passwd,
-                                  SearchControls controls, LdapContext context)
-      throws NamingException
-   {
-      // @by stephenwebster, fix bug1393861418055
-      // while doing a search, must escape forward slash
-      NamingEnumeration<?> e =
-         context.search(Tool.replaceAll(userBase, "/", "\\/"), filter, controls);
-
-      if(!e.hasMore()) {
-         return false;
-      }
-
-      SearchResult result = (SearchResult) e.next();
-      String root = getRootDn();
-      String dn;
-
-      // @by stephenwebster, fix bug139386141805
-      // The result name could be a composite name (in which case it is quoted).
-      // This throws off the creation of the dn string.  Only expecting 1.
-      String cdn = new CompositeName(result.getName()).get(0);
-
-      if(!root.isEmpty() && userBase.endsWith(root)) {
-         dn = cdn + ',' + userBase;
-      }
-      else {
-         StringBuilder buf = new StringBuilder();
-         buf.append(cdn);
-
-         if(!userBase.isEmpty()) {
-            buf.append(',');
-            buf.append(userBase);
-         }
-
-         if(!root.isEmpty()) {
-            buf.append(',');
-            buf.append(root);
-         }
-
-         dn = buf.toString();
-      }
-
-      context.addToEnvironment(Context.SECURITY_PRINCIPAL, dn);
-      context.addToEnvironment(Context.SECURITY_CREDENTIALS, passwd);
-
-      try {
-         context.getAttributes("");
-      }
-      catch(AuthenticationException ae) {
-         LOG.debug("Unable to authenticate user due to an authentication error ", ae);
-         return false;
-      }
-
-      return true;
    }
 
    /**
@@ -857,62 +586,6 @@ public abstract class LdapAuthenticationProvider
    };
 
    /**
-    * Returns the real user account name for this user.
-    * @param userid The userid to search for in the directory
-    */
-   private String getRealUserName(String userid) {
-      // @by stephenwebster, this is the same logic used to authenticate a user.
-      // For now, this will be a stop-gap solution to get the exact user id from
-      // LDAP that the userid represents.  For Bug #6240
-      String filter = "(&(" + getUserSearch() +
-         ")(" + getUserAttribute() + '=' + Tool.encodeForLDAP(userid) +
-         "))";
-      SearchControls controls = new SearchControls();
-      controls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-      controls.setReturningAttributes(new String[] {getUserAttribute()});
-      String[] userBases = getUserBases(getUserBase());
-      String userName = userid;
-
-      try {
-         LdapContext context = borrowContext();
-
-         try {
-            for(String userBase : userBases) {
-               long start = System.currentTimeMillis();
-               LOG.debug("LDAP lookup user name in {} for {}", userBase, filter);
-               NamingEnumeration<?> e =
-                  context.search(
-                     Tool.replaceAll(userBase, "/", "\\/"), filter, controls);
-
-               if(!e.hasMore()) {
-                  continue;
-               }
-
-               SearchResult result = (SearchResult) e.next();
-               userName =
-                  (String) result.getAttributes().get(getUserAttribute()).get(0);
-               LOG.debug(
-                  "LDAP lookup user name complete in {} for {}, took {}ms",
-                  userBase, filter, System.currentTimeMillis() - start);
-               break;
-            }
-         }
-         catch(Exception e) {
-            LOG.warn("Problem finding account name for user", e);
-         }
-         finally {
-            returnContext(context);
-         }
-      }
-      catch(Exception e) {
-         LOG.warn("Problem finding account name for user, " +
-                        "context is not available", e);
-      }
-
-      return userName;
-   }
-
-   /**
     * Get the LDAP directory in which to start searching for users.
     *
     * @return the name of an LDAP entry.
@@ -996,7 +669,7 @@ public abstract class LdapAuthenticationProvider
       String filter = "(&(" + getUserSearch() + ")(" + getUserAttribute() + "=" + name + "))";
       String attr = getEntryDNAttribute();
       return Arrays.stream(getUserBases(getUserBase()))
-         .flatMap(base -> searchDirectory(base, filter, userScope, attr).stream())
+         .flatMap(base -> client.searchDirectory(base, filter, userScope, attr).stream())
          .findFirst()
          .orElse(null);
    }
@@ -1009,7 +682,7 @@ public abstract class LdapAuthenticationProvider
       String filter = "(&(" + getGroupSearch() + ")(" + getGroupAttribute() + "=" + name + "))";
       String attr = getEntryDNAttribute();
       return Arrays.stream(getGroupBases(getGroupBase()))
-         .flatMap(base -> searchDirectory(base, filter, userScope, attr).stream())
+         .flatMap(base -> client.searchDirectory(base, filter, userScope, attr).stream())
          .findFirst()
          .orElse(null);
    }
@@ -1017,17 +690,15 @@ public abstract class LdapAuthenticationProvider
    protected final String getRoleDn(String name) {
       if(isCacheInitialized()) {
          String dn = getCache().getRoleDn(name);
-         LOG.error("Got DN from cache for role {}: {}", name, dn);
          return dn;
       }
 
       String filter = "(&(" + getRoleSearch() + ")(" + getRoleAttribute() + "=" + name + "))";
       String attr = getEntryDNAttribute();
       String dn = Arrays.stream(getRoleBases(getRoleBase()))
-         .flatMap(base -> searchDirectory(base, filter, SearchControls.SUBTREE_SCOPE, attr).stream())
+         .flatMap(base -> client.searchDirectory(base, filter, SearchControls.SUBTREE_SCOPE, attr).stream())
          .findFirst()
          .orElse(null);
-      LOG.error("Got DN from server for role {}: {}", name, dn);
       return dn;
    }
 
@@ -1054,188 +725,8 @@ public abstract class LdapAuthenticationProvider
     */
    public abstract String getGroupAttribute();
 
-   /**
-    * Search the LDAP directory.
-    *
-    * @param name the name of the subcontext to search.
-    * @param filter the search filter.
-    * @param scope the scope of the search. This parameter must be one of the
-    *              scope constants define in
-    *              <code>javax.naming.directory.SearchControls</code>.
-    * @param attr the name of the attribute containing the value to be
-    *             retrieved.
-    *
-    * @return the values of the specified attribute.
-    */
-   protected List<String> searchDirectory(String name, String filter, int scope, String attr) {
-      try {
-         return searchDirectory(name, filter, scope, new String[] { attr }).stream()
-            .map(r -> r.getAttributes().get(attr))
-            .filter(Objects::nonNull)
-            .flatMap(this::getAttributeStream)
-            .map(String::valueOf)
-            .collect(Collectors.toList());
-      }
-      catch(NamingException e) {
-         throw new RuntimeException("Failed to search directory", e);
-      }
-   }
-
-   protected Map<String, String> searchDirectoryDns(String name, String filter, int scope,
-                                                    String attr)
-   {
-      try {
-         String entryDn = getEntryDNAttribute();
-         String[] attrNames = { entryDn, attr };
-         Map<String, String> map = new HashMap<>();
-
-         for(SearchResult result : searchDirectory(name, filter, scope, attrNames)) {
-            Attributes attrs = result.getAttributes();
-            Attribute values = attrs.get(attr);
-
-            if(values != null) {
-               Attribute dnAttr = attrs.get(entryDn);
-               String dn = null;
-
-               if(dnAttr != null && dnAttr.size() > 0) {
-                  dn = String.valueOf(dnAttr.get(0));
-               }
-
-               if(dn == null) {
-                  dn = getDNFromSearchResult(result, name);
-               }
-
-               for(NamingEnumeration<?> e = values.getAll(); e.hasMore();) {
-                  Object value = e.next();
-
-                  if(value != null) {
-                     map.put(String.valueOf(value), dn);
-                  }
-               }
-            }
-         }
-
-         return map;
-      }
-      catch(NamingException e) {
-         throw new RuntimeException("Failed to search directory", e);
-      }
-   }
-
-   private Stream<Object> getAttributeStream(Attribute attribute) {
-      try {
-         return Tool.toStream(attribute.getAll()).map(v -> (Object) v);
-      }
-      catch(NamingException e) {
-         throw new RuntimeException("Failed to list attribute values", e);
-      }
-   }
-
-   /**
-    * Search the LDAP directory.
-    *
-    * @param name the name of the subcontext to search.
-    * @param filter the search filter.
-    * @param scope the scope of the search. This parameter must be one of the
-    *              scope constants define in
-    *              <code>javax.naming.directory.SearchControls</code>.
-    * @param attrs the names of the attributes containing the value to be
-    *             retrieved.
-    *
-    * @return a list of Strings containing the value of the specified
-    *         attribute.
-    *
-    * @throws NamingException if an error occurs while querying the LDAP
-    *                         server.
-    */
-   protected List<SearchResult> searchDirectory(String name, String filter, int scope,
-                                                String[] attrs) throws NamingException
-   {
-      SearchControls scontrols = new SearchControls();
-      scontrols.setSearchScope(scope);
-      scontrols.setReturningAttributes(attrs);
-      long totalStart = System.currentTimeMillis();
-      LOG.debug("LDAP searching in {} for {}", name, filter);
-      List<SearchResult> results = new ArrayList<>();
-
-      try {
-         LdapContext context = borrowContext();
-
-         try {
-            // @see customer bug: bug1283178929388
-            setPagedControl(context, true, null);
-            byte[] cookie = null;
-
-            do {
-               long pageStart = System.currentTimeMillis();
-               LOG.debug("LDAP search result page requested in {} for {}", name, filter);
-               // @by stephenwebster, fix bug1393861418055
-               // while doing a search, must escape forward slash in name
-               NamingEnumeration<SearchResult> enumeration =
-                  context.search(Tool.replaceAll(name, "/", "\\/"), filter, scontrols);
-
-               while(enumeration != null && enumeration.hasMoreElements()) {
-                  SearchResult entry = enumeration.nextElement();
-                  results.add(entry);
-               }
-
-               Control[] arr = context.getResponseControls();
-
-               for(int i = 0; arr != null && i < arr.length; i++) {
-                  if(arr[i] instanceof PagedResultsResponseControl paged) {
-                     cookie = paged.getCookie();
-                  }
-               }
-
-               setPagedControl(context, true, cookie);
-               LOG.debug(
-                  "LDAP search result page returned in {} for {}, {} total results, " +
-                  "took {}ms", name, filter, results.size(),
-                  System.currentTimeMillis() - pageStart);
-            }
-            while (cookie != null);
-
-            return results;
-         }
-         finally {
-            LOG.debug(
-               "LDAP search complete in {} for {}, took {}ms",
-               name, filter, System.currentTimeMillis() - totalStart);
-            setPagedControl(context, false, null);
-            returnContext(context);
-         }
-      }
-      catch(NamingException exc) {
-         // Redundant logging for IGC customer issue.
-         LOG.debug("Redundant NamingException log", exc);
-
-         // should be all cases
-         throw exc;
-      }
-      catch(Exception exc) {
-         // Redundant logging for IGC customer issue.
-         LOG.debug("Redundant Exception log", exc);
-
-         throw new RuntimeException("Unexpected error", exc);
-      }
-   }
-
-   /**
-    * Set the paged control.
-    */
-   protected void setPagedControl(LdapContext context, boolean paged, byte[] cookie) {
-      try {
-         if(paged) {
-            context.setRequestControls(new Control[] {
-               new PagedResultsControl(50, cookie, Control.CRITICAL)});
-         }
-         else {
-            context.setRequestControls(null);
-         }
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to set paged results option for LDAP queries", ex);
-      }
+   int getUserScope() {
+      return userScope;
    }
 
    /**
@@ -1292,16 +783,6 @@ public abstract class LdapAuthenticationProvider
       }
 
       return null;
-   }
-
-   protected User doGetUser(IdentityID name) {
-      final String realName = getRealUserName(name.getName());
-      IdentityID realId = new IdentityID(realName, name.getOrgID());
-      IdentityID[] roles = Arrays.stream(searchRoles(realName, Identity.USER))
-         .map(r -> new IdentityID(r, name.getOrgID()))
-         .toArray(IdentityID[]::new);
-      String[] pgroups = getUserGroups(realId);
-      return new User(realId, getEmails(name), pgroups, roles, "", "");
    }
 
    @Override
@@ -1510,23 +991,6 @@ public abstract class LdapAuthenticationProvider
       return null;
    }
 
-   private String getDNFromSearchResult(SearchResult result, String searchBase) {
-      String dn;
-
-      if(result.isRelative()) {
-         dn = result.getName() + "," + searchBase;
-
-         if(!dn.endsWith("," + getRootDn())) {
-            dn = dn + "," + getRootDn();
-         }
-      }
-      else {
-         dn = result.getName();
-      }
-
-      return dn;
-   }
-
    public String getPassword() {
       return password;
    }
@@ -1579,6 +1043,10 @@ public abstract class LdapAuthenticationProvider
       contextPool.flush();
    }
 
+   LdapAuthenticationClient getClient() {
+      return client;
+   }
+
    @Override
    public void setProviderName(String providerName) {
       String oldName = getProviderName();
@@ -1614,27 +1082,57 @@ public abstract class LdapAuthenticationProvider
       this.ignoreCache.set(ignoreCache);
    }
 
-   private LdapCache getCache() {
+   LdapAuthenticationCache getCache() {
+      return getCache(true);
+   }
+
+   LdapAuthenticationCache getCache(boolean initialize) {
+      LdapAuthenticationCache result;
       cacheLock.lock();
 
       try {
          if(cache == null) {
-            cache = new LdapCache();
+            cache = new LdapAuthenticationCache(this);
          }
 
-         cache.initialize();
-         return cache;
+         result = cache;
       }
       finally {
          cacheLock.unlock();
       }
+
+      // This needs to be run outside of the lock to prevent a deadlock when the cluster singleton
+      // is this instance. Any concurrent calls are handled by the debouncer in the cluster
+      // singleton handling of the load call, so possible race conditions here are not a concern.
+      if(initialize && !result.isInitialized() && !result.isLoading()) {
+         result.load();
+      }
+
+      return result;
    }
 
    protected boolean supportsNamingListener() {
       return true;
    }
 
+   String getValidateContextAttr() {
+      return validateContextAttr;
+   }
+
+   String getValidateContextBaseDn() {
+      return validateContextBaseDn;
+   }
+
+   String getValidateContextSearch() {
+      return validateContextSearch;
+   }
+
+   long getCacheRefreshDelay() {
+      return getCacheInterval();
+   }
+
    private final ContextPool contextPool;
+   private final LdapAuthenticationClient client;
    private String protocol;
    private int userScope = SearchControls.ONELEVEL_SCOPE;
    private String validateContextAttr = "objectclass";
@@ -1652,425 +1150,11 @@ public abstract class LdapAuthenticationProvider
    private String ldapAdministrator = "cn=manager";
    private String[] systemAdministratorRoles = new String[0];
    private final Lock cacheLock = new ReentrantLock();
-   private LdapCache cache;
+   private LdapAuthenticationCache cache;
    private final ThreadLocal<Boolean> ignoreCache = ThreadLocal.withInitial(() -> false);
 
    private static final String ENTRYDN_ATTRIBUTE = "entrydn";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(LdapAuthenticationProvider.class);
-
-   private final class ContextPool extends ObjectPool<LdapContext> {
-      ContextPool() throws Exception {
-         super(0, 4, 4, 0L);
-      }
-
-      @Override
-      protected LdapContext create() throws Exception {
-         LdapContext context;
-
-         try {
-            context = createContext();
-         }
-         catch(AuthenticationException exc) {
-            LOG.error(
-               "Failed to authenticate with the LDAP server using the " +
-               "provided administrator credentials. The credentials may have " +
-               "been changed on the server. If this is the case, you may log " +
-               "into the Enterprise Manager using the distinguished name " +
-               "(DN) of the administrator as the user name and the new " +
-               "password as the password. This will update the LDAP " +
-               "credentials. You may then log into the Enterprise Manager as " +
-               "normal.");
-            throw exc;
-         }
-
-         initInstance(context);
-         return context;
-      }
-
-      @Override
-      protected void destroy(LdapContext object) {
-         try {
-            object.close();
-         }
-         catch(Throwable exc) {
-            LOG.warn("Failed to close directory context", exc);
-         }
-      }
-
-      @Override
-      protected boolean validate(LdapContext object) {
-         return testContext(object);
-      }
-   }
-
-   private final class LdapCache
-      extends ClusterCache<NamingEvent, LoadData, SaveData>
-      implements NamespaceChangeListener, ObjectChangeListener
-   {
-      public LdapCache() {
-         super(true, 1500L, TimeUnit.MILLISECONDS, 1000L, TimeUnit.MILLISECONDS,
-               getCacheInterval(), TimeUnit.MILLISECONDS,
-               "LdapSecurityCache:" + getProviderName() + ".",
-               LISTS_CACHE, EMAILS_CACHE, USERS_CACHE, GROUPS_CACHE, ROLES_CACHE,
-               IDENTITY_CACHE, USER_ROLES_CACHE, USER_DNS_CACHE, GROUP_DNS_CACHE,
-               ROLE_DNS_CACHE);
-      }
-
-      @Override
-      public void reset() {
-         removeListeners();
-         super.reset();
-      }
-
-      @SuppressWarnings("rawtypes")
-      @Override
-      protected Map<String, Map> doLoad(boolean initializing, LoadData data) {
-         Map<String, Map> maps = new HashMap<>();
-
-         Map<String, String[]> lists = new HashMap<>();
-         lists.put(INDIVIDUAL_USERS_LIST, doGetIndividualUsers());
-         lists.put(INDIVIDUAL_EMAILS_LIST, doGetIndividualEmailAddresses());
-         maps.put(LISTS_CACHE, lists);
-
-         maps.put(USER_DNS_CACHE, doGetUsers());
-         maps.put(GROUP_DNS_CACHE, doGetGroups());
-         maps.put(ROLE_DNS_CACHE, doGetRoles());
-         maps.put(EMAILS_CACHE, Collections.emptyMap());
-         maps.put(USERS_CACHE, Collections.emptyMap());
-         maps.put(ROLES_CACHE, Collections.emptyMap());
-         maps.put(GROUPS_CACHE, Collections.emptyMap());
-         maps.put(IDENTITY_CACHE, Collections.emptyMap());
-         maps.put(USER_ROLES_CACHE, Collections.emptyMap());
-
-         cacheLock.lock();
-
-         try {
-            if(!listenersAdded) {
-               addListeners();
-               listenersAdded = true;
-            }
-         }
-         finally {
-            cacheLock.unlock();
-         }
-
-         return maps;
-      }
-
-      @Override
-      protected LoadData getLoadData(NamingEvent event) {
-         return null;
-      }
-
-      @Override
-      protected void close(boolean lastInstance) throws Exception {
-         removeListeners();
-         super.close(lastInstance);
-      }
-
-      @Override
-      public void objectAdded(NamingEvent evt) {
-         notify(evt);
-      }
-
-      @Override
-      public void objectRemoved(NamingEvent evt) {
-         notify(evt);
-      }
-
-      @Override
-      public void objectRenamed(NamingEvent evt) {
-         notify(evt);
-      }
-
-      @Override
-      public void objectChanged(NamingEvent evt) {
-         notify(evt);
-      }
-
-      @Override
-      public void namingExceptionThrown(NamingExceptionEvent evt) {
-         LOG.warn("LDAP exception occurred", evt.getException());
-      }
-
-      String[] getUsers() {
-         validateListeners();
-         return getUserDnsMap().keySet().toArray(new String[0]);
-      }
-
-      String[] getSubIdentities(String group, int type) {
-         validateListeners();
-         IdentityKey key = new IdentityKey(group, type);
-         return getIdentityMap().computeIfAbsent(
-            key, k -> doSearchSubIdentities(group, type).toArray(new String[0]));
-      }
-
-      String[] getEmails(String user) {
-         validateListeners();
-         return getEmailsMap().computeIfAbsent(user, LdapAuthenticationProvider.this::doGetEmails);
-      }
-
-      String[] getIndividualUsers() {
-         validateListeners();
-         return getListsMap().get(INDIVIDUAL_USERS_LIST);
-      }
-
-      String[] getIndividualEmails() {
-         validateListeners();
-         return getListsMap().get(INDIVIDUAL_EMAILS_LIST);
-      }
-
-      String[] getRoles() {
-         validateListeners();
-         return getRoleDnsMap().keySet().toArray(new String[0]);
-      }
-
-      String[] getGroups() {
-         validateListeners();
-         return getGroupDnsMap().keySet().toArray(new String[0]);
-      }
-
-      String getUserDn(String user) {
-         validateListeners();
-         return getUserDnsMap().get(user);
-      }
-
-      String getGroupDn(String group) {
-         validateListeners();
-         return getGroupDnsMap().get(group);
-      }
-
-      String getRoleDn(String role) {
-         validateListeners();
-         return getRoleDnsMap().get(role);
-      }
-
-      String[] getRoles(String name, String dn, int type) {
-         validateListeners();
-         IdentityKey key = new IdentityKey(name, type);
-         return getIdentityRoleMap().computeIfAbsent(key, k -> doSearchRoles(name, dn, type));
-      }
-
-      User getUser(String name) {
-         validateListeners();
-         return getUsersMap().computeIfAbsent(
-            name, k -> doGetUser(new IdentityID(name, Organization.getDefaultOrganizationID())));
-      }
-
-      Group getGroup(String name) {
-         validateListeners();
-         return getGroupsMap().computeIfAbsent(name, LdapAuthenticationProvider.this::doGetGroup);
-      }
-
-      Role getRole(String name) {
-         validateListeners();
-         return getRolesMap().computeIfAbsent(name, LdapAuthenticationProvider.this::doGetRole);
-      }
-
-      private Map<String, String[]> getListsMap() {
-         return getMap(LISTS_CACHE);
-      }
-
-      private Map<String, String[]> getEmailsMap() {
-         return getMap(EMAILS_CACHE);
-      }
-
-      private Map<String, User> getUsersMap() {
-         return getMap(USERS_CACHE);
-      }
-
-      private Map<String, Group> getGroupsMap() {
-         return getMap(GROUPS_CACHE);
-      }
-
-      private Map<String, Role> getRolesMap() {
-         return getMap(ROLES_CACHE);
-      }
-
-      private Map<IdentityKey, String[]> getIdentityMap() {
-         return getMap(IDENTITY_CACHE);
-      }
-
-      private Map<IdentityKey, String[]> getIdentityRoleMap() {
-         return getMap(USER_ROLES_CACHE);
-      }
-
-      private Map<String, String> getUserDnsMap() {
-         return getMap(USER_DNS_CACHE);
-      }
-
-      private Map<String, String> getGroupDnsMap() {
-         return getMap(GROUP_DNS_CACHE);
-      }
-
-      private Map<String, String> getRoleDnsMap() {
-         return getMap(ROLE_DNS_CACHE);
-      }
-
-      private void validateListeners() {
-         validateLock.lock();
-
-         try {
-            Instant now = Instant.now();
-
-            if(validateTimestamp == null || now.isAfter(validateTimestamp)) {
-               LdapContext context = dirContext;
-
-               if(dirContext != null && !testContext(context)) {
-                  addListeners();
-               }
-
-               validateTimestamp = now.plus(5L, ChronoUnit.MINUTES);
-            }
-         }
-         finally {
-            validateLock.unlock();
-         }
-      }
-
-      private void addListeners() {
-         removeListeners();
-
-         try {
-            dirContext = createContext();
-            eventContext = (EventDirContext) dirContext.lookup("");
-
-            if(supportsNamingListener()) {
-               eventContext.addNamingListener("", SearchControls.SUBTREE_SCOPE, this);
-            }
-         }
-         catch(Exception e) {
-            LOG.error("Failed to add LDAP listener, automatic cache invalidation disabled", e);
-
-            if(eventContext != null) {
-               try {
-                  eventContext.close();
-               }
-               catch(NamingException ignore) {
-               }
-               finally {
-                  eventContext = null;
-               }
-            }
-
-            if(dirContext != null) {
-               try {
-                  dirContext.close();
-               }
-               catch(NamingException ignore) {
-               }
-               finally {
-                  dirContext = null;
-               }
-            }
-         }
-      }
-
-      private void removeListeners() {
-         if(eventContext != null) {
-            listenersAdded = false;
-
-            try {
-               //noinspection SynchronizeOnNonFinalField
-               synchronized(eventContext) {
-                  eventContext.removeNamingListener(this);
-                  eventContext.close();
-               }
-            }
-            catch(NamingException e) {
-               LOG.warn("Failed to remove LDAP listener", e);
-            }
-            finally {
-               eventContext = null;
-            }
-         }
-
-         if(dirContext != null) {
-            try {
-               dirContext.close();
-            }
-            catch(NamingException e) {
-               LOG.warn("Failed to close LDAP context", e);
-            }
-            finally {
-               dirContext = null;
-            }
-         }
-      }
-
-      @Override
-      public boolean isInitialized() {
-         return super.isInitialized();
-      }
-
-      private LdapContext dirContext;
-      private EventDirContext eventContext;
-      private Instant validateTimestamp;
-      private final Lock validateLock = new ReentrantLock();
-      private boolean listenersAdded = false;
-
-      private static final String LISTS_CACHE = "lists";
-      private static final String IDENTITY_CACHE = "identities";
-      private static final String EMAILS_CACHE = "emails";
-      private static final String USERS_CACHE = "users";
-      private static final String GROUPS_CACHE = "groups";
-      private static final String ROLES_CACHE = "roles";
-      private static final String USER_ROLES_CACHE = "userRoles";
-      private static final String USER_DNS_CACHE = "userDnsCache";
-      private static final String GROUP_DNS_CACHE = "groupDnsCache";
-      private static final String ROLE_DNS_CACHE = "roleDnsCache";
-      private static final String INDIVIDUAL_USERS_LIST = "individualUsers";
-      private static final String INDIVIDUAL_EMAILS_LIST = "individualEmails";
-   }
-
-   private static final class IdentityKey implements Serializable {
-      public IdentityKey(String name, int type) {
-         this.name = name;
-         this.type = type;
-      }
-
-      @Override
-      public boolean equals(Object o) {
-         if(this == o) {
-            return true;
-         }
-
-         if(o == null || getClass() != o.getClass()) {
-            return false;
-         }
-
-         IdentityKey that = (IdentityKey) o;
-         return type == that.type && Objects.equals(name, that.name);
-      }
-
-      @Override
-      public int hashCode() {
-         return Objects.hash(name, type);
-      }
-
-      private final String name;
-      private final int type;
-   }
-
-   private static final class LoadData implements Serializable {
-      public LoadData(String dn, long timestamp) {
-         this.dn = dn;
-         this.timestamp = timestamp;
-      }
-
-      final String dn;
-      final long timestamp;
-   }
-
-   private static final class SaveData implements Serializable {
-      public SaveData(String dn, long timestamp) {
-         this.dn = dn;
-         this.timestamp = timestamp;
-      }
-
-      final String dn;
-      final long timestamp;
-   }
 }

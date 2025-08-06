@@ -20,19 +20,19 @@ package inetsoft.test;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.Organization;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
-import inetsoft.util.config.*;
+import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.config.KeyValueConfig;
 import inetsoft.web.admin.content.repository.MVSupportService;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.extension.*;
 
 import java.io.*;
 import java.lang.management.*;
+import java.net.URI;
 import java.net.URL;
 import java.nio.file.*;
 import java.security.Principal;
@@ -67,14 +67,44 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       }
 
       home = new File(home).getCanonicalPath();
-      writeConfig(Paths.get(home));
+      Path homePath = Paths.get(home);
+      Files.createDirectories(homePath);
+      writeConfig(homePath);
       ConfigurationContext.getContext().setHome(home);
       Tool.setServer(true);
 
       if(annotation != null) {
+         for(SreeProperty prop : annotation.properties()) {
+            SreeEnv.setProperty(prop.name(), prop.value());
+         }
+
+         if(annotation.properties().length > 0) {
+            SreeEnv.save();
+         }
+
+         for(DataSpaceFile spaceFile : annotation.dataSpace()) {
+            int index = spaceFile.path().lastIndexOf('/');
+            String dir = index < 0 ? null : spaceFile.path().substring(0, index);
+            String file = index < 0 ? spaceFile.path() : spaceFile.path().substring(index + 1);
+            DataSpace space = DataSpace.getDataSpace();
+
+            if(dir != null) {
+               space.makeDirectories(dir);
+            }
+
+            try(InputStream in = getClass().getResourceAsStream(spaceFile.resource())) {
+               space.withOutputStream(dir, file, out ->
+                  IOUtils.copy(Objects.requireNonNull(in), out));
+            }
+         }
+
+         if(annotation.security()) {
+            SecurityEngine.getSecurity().init();
+         }
+
          for(String url : annotation.importUrls()) {
             if(!url.isEmpty()) {
-               importAssets(new URL(url));
+               importAssets(URI.create(url).toURL());
             }
          }
 
@@ -232,9 +262,8 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
             printStackTrace(thread, writer);
 
             for(Thread actualThread : allThreads) {
-               if(actualThread.getId() == thread.getThreadId()) {
-                  if(actualThread instanceof GroupedThread) {
-                     GroupedThread groupedThread = (GroupedThread) actualThread;
+               if(actualThread.threadId() == thread.getThreadId()) {
+                  if(actualThread instanceof GroupedThread groupedThread) {
 
                      if(groupedThread.getPrincipal() != null || groupedThread.hasRecords()) {
                         writer.print("\r\n\tThread context:\r\n");
@@ -302,6 +331,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
          result = buffer.toString();
       }
       catch(Exception e) {
+         //noinspection CallToPrintStackTrace
          e.printStackTrace();
       }
 

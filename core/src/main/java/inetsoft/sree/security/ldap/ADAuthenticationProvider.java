@@ -144,7 +144,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
    }
 
    @Override
-   protected String[] doSearchRoles(String name, String dn, int type) {
+   protected String[] searchRoles(String name, String dn, int type) {
       String[] roles;
       String filter = MessageFormat.format(getRolesSearch(type), name, dn);
 
@@ -154,7 +154,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
 
       for(String user : users) {
          List<String> dirs =
-            searchDirectory(user, filter, SearchControls.SUBTREE_SCOPE, "memberOf");
+            getClient().searchDirectory(user, filter, SearchControls.SUBTREE_SCOPE, "memberOf");
 
          for(String dir : dirs) {
             boolean matched = false;
@@ -215,7 +215,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
 
       // get version
       version = sid[0];
-      strSID.append("-").append(Integer.toString(version));
+      strSID.append("-").append(version);
 
       for(int i = 2; i <= 7; i++) {
          rid.append(byte2hex(sid[i]));
@@ -223,7 +223,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
 
       // get authority
       authority = Long.parseLong(rid.toString());
-      strSID.append("-").append(Long.toString(authority));
+      strSID.append("-").append(authority);
 
       //next byte is the count of sub-authorities
       count = sid[1]&0xFF;
@@ -257,9 +257,9 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
     */
    protected String searchPrimaryRole(String userName) {
       try {
-         String filter = new StringBuilder().append("(&(").
-            append(getUserSearch()).append(")(").append(getUserAttribute()).
-            append('=').append(Tool.encodeForLDAP(userName)).append("))").toString();
+         String filter = "(&(" +
+            getUserSearch() + ")(" + getUserAttribute() +
+            '=' + Tool.encodeForLDAP(userName) + "))";
 
          String[] users = getUserBases(getUserBase());
          String[] primary = null;
@@ -272,7 +272,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
          // query.  This significantly reduces the time required to lookup the
          // primary role.  In my scenario from around 650ms to 8ms on average.
          for(String user : users) {
-            List<SearchResult> results = searchDirectory(user, filter,
+            List<SearchResult> results = getClient().searchDirectory(user, filter,
                SearchControls.SUBTREE_SCOPE,
                new String[] {"objectSid","PrimaryGroupID"});
 
@@ -304,7 +304,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
                String search =
                   "(&"+getRoleSearch()+"(objectSid=" + primary[0] + "))";
                List<SearchResult> results =
-                  searchDirectory(roleBase, search, SearchControls.SUBTREE_SCOPE, attrs);
+                  getClient().searchDirectory(roleBase, search, SearchControls.SUBTREE_SCOPE, attrs);
 
                for(SearchResult result : results) {
                   Attribute attribute = result.getAttributes().get(getRoleAttribute());
@@ -331,16 +331,12 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
     */
    @Override
    protected String getRolesSearch(int type) {
-      switch (type) {
-      case Identity.USER:
-         return getUserRolesSearch();
-      case Identity.ROLE:
-         return ROLE_ROLES_SEARCH;
-      case Identity.GROUP:
-         return GROUP_ROLES_SEARCH;
-      default:
-         return null;
-      }
+      return switch(type) {
+         case Identity.USER -> getUserRolesSearch();
+         case Identity.ROLE -> ROLE_ROLES_SEARCH;
+         case Identity.GROUP -> GROUP_ROLES_SEARCH;
+         default -> null;
+      };
    }
 
    /**
@@ -415,7 +411,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
 
    @Override
    public void setUserBase(String userBase) {
-      if(userBase == null || "".equals(userBase)) {
+      if(userBase == null || userBase.isEmpty()) {
          userBase = "cn=Users," + getRootDn();
       }
       // only ADSecurityProvider merges rootDn into userBase instead of url
@@ -428,7 +424,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
 
    @Override
    public void setGroupBase(String groupBase) {
-      if(groupBase == null || "".equals(groupBase)) {
+      if(groupBase == null || groupBase.isEmpty()) {
          groupBase = "cn=Users," + getRootDn();
       }
       // only ADSecurityProvider merges rootDn into groupBase instead of url
@@ -441,7 +437,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
 
    @Override
    public void setRoleBase(String roleBase) {
-      if(roleBase == null || "".equals(roleBase)) {
+      if(roleBase == null || roleBase.isEmpty()) {
          roleBase = "cn=Users," + getRootDn();
       }
       // only ADSecurityProvider merges rootDn into roleBase instead of url
@@ -454,7 +450,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
 
    @Override
    public void setUserSearch(String userSearch) {
-      if(userSearch == null || "".equals(userSearch)) {
+      if(userSearch == null || userSearch.isEmpty()) {
          userSearch = USER_SEARCH;
       }
 
@@ -463,7 +459,7 @@ public class ADAuthenticationProvider extends LdapAuthenticationProvider {
 
    @Override
    public void setUserRolesSearch(String userRolesSearch) {
-      if(userRolesSearch == null || "".equals(userRolesSearch)) {
+      if(userRolesSearch == null || userRolesSearch.isEmpty()) {
          userRolesSearch = USER_ROLES_SEARCH;
       }
 

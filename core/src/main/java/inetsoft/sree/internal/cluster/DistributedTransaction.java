@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,21 +15,29 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.test;
 
-import org.junit.jupiter.api.extension.ExtendWith;
+package inetsoft.sree.internal.cluster;
 
-import java.lang.annotation.*;
+public interface DistributedTransaction extends AutoCloseable {
+   long startTime();
 
-@Target(ElementType.TYPE)
-@Retention(RetentionPolicy.RUNTIME)
-@ExtendWith(SreeHomeExtension.class)
-public @interface SreeHome {
-   String value() default "";
-   String[] importUrls() default {};
-   String[] importResources() default {};
-   String[] materialize() default {};
-   DataSpaceFile[] dataSpace() default {};
-   SreeProperty[] properties() default {};
-   boolean security() default false;
+   long timeout();
+
+   long timeout(long timeout);
+
+   boolean setRollbackOnly();
+
+   boolean isRollbackOnly();
+
+   void commit();
+
+   void close();
+
+   void rollback();
+
+   void resume();
+
+   void suspend();
+
+   String label();
 }
