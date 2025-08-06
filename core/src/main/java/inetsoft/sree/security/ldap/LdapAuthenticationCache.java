@@ -47,8 +47,7 @@ class LdapAuthenticationCache implements AutoCloseable, NamespaceChangeListener,
       this.loadCount = cluster.getLong(prefix + ".loadCount");
       this.lastLoad = cluster.getLong(prefix + ".lastLoad");
       this.initialized = cluster.getLong(prefix + ".initialized");
-      this.individualUsers = cluster.getReplicatedSet(prefix + ".individualUsers", true);
-      this.individualEmails = cluster.getReplicatedSet(prefix + ".individualEmails", true);
+      this.lists = cluster.getReplicatedMap(prefix + ".lists");
       this.userDns = cluster.getReplicatedMap(prefix + ".userDns");
       this.groupDns = cluster.getReplicatedMap(prefix + ".groupDns");
       this.roleDns = cluster.getReplicatedMap(prefix + ".roleDns");
@@ -128,11 +127,9 @@ class LdapAuthenticationCache implements AutoCloseable, NamespaceChangeListener,
          Map<String, String> newRoleDns = provider.getClient().getRoles();
 
          try(DistributedTransaction tx = cluster.startTx()) {
-            individualUsers.clear();
-            individualUsers.addAll(Arrays.asList(newIndividualUsers));
-
-            individualEmails.clear();
-            individualEmails.addAll(Arrays.asList(newIndividualEmails));
+            lists.removeAll();
+            lists.put(USER_LIST, new TreeSet<>(Arrays.asList(newIndividualUsers)));
+            lists.put(EMAIL_LIST, new TreeSet<>(Arrays.asList(newIndividualEmails)));
 
             userDns.removeAll();
             userDns.putAll(newUserDns);
@@ -181,11 +178,13 @@ class LdapAuthenticationCache implements AutoCloseable, NamespaceChangeListener,
 
    public String[] getIndividualUsers() {
       validateListeners();
+      Set<String> individualUsers = lists.get(USER_LIST);
       return individualUsers.toArray(new String[0]);
    }
 
    public String[] getIndividualEmails() {
       validateListeners();
+      Set<String> individualEmails = lists.get(EMAIL_LIST);
       return individualEmails.toArray(new String[0]);
    }
 
@@ -415,8 +414,7 @@ class LdapAuthenticationCache implements AutoCloseable, NamespaceChangeListener,
    private final DistributedLong loadCount;
    private final DistributedLong lastLoad;
    private final DistributedLong initialized;
-   private final Set<String> individualUsers;
-   private final Set<String> individualEmails;
+   private final DistributedMap<String, Set<String>> lists;
    private final DistributedMap<String, String> userDns;
    private final DistributedMap<String, String> groupDns;
    private final DistributedMap<String, String> roleDns;
@@ -432,7 +430,10 @@ class LdapAuthenticationCache implements AutoCloseable, NamespaceChangeListener,
    private Instant validateTimestamp;
    private final Lock validateLock = new ReentrantLock();
    private final Lock listenerLock =  new ReentrantLock();
+
    private static final Logger LOG = LoggerFactory.getLogger(LdapAuthenticationCache.class);
+   private static final String USER_LIST = "individualUsers";
+   private static final String EMAIL_LIST = "individualEmails";
 
    private final class LoadTask implements Callable<Long> {
       public LoadTask(boolean force) {
