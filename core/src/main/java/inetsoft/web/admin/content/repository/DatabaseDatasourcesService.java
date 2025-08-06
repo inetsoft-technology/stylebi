@@ -1081,7 +1081,6 @@ public class DatabaseDatasourcesService {
             xds.initCredential(true);
             xds.setUser(definition.getAuthentication().getUserName());
             String oldName = definition.getOldName();
-            oldName = path.substring(0, path.lastIndexOf('/') + 1) + oldName;
             String password = definition.getAuthentication().getPassword();
 
             if(!Tool.isEmptyString(oldName) && Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
