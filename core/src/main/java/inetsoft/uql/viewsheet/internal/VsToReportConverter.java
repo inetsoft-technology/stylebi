@@ -2135,8 +2135,7 @@ public class VsToReportConverter {
             }
          }
          else {
-            Image rimg = VSUtil.getVSImage(imgInfo.getRawImage(),
-                                           imgInfo.getImage(), vs,
+            Image rimg = VSUtil.getVSImage(imgInfo, vs,
                                            obj.getContentWidth(),
                                            obj.getContentHeight(),
                                            imgInfo.getFormat(),
@@ -2150,10 +2149,16 @@ public class VsToReportConverter {
 
             obj.setRawImage(rimg);
 
-            BufferedImage image =  obj.getContentImage();
+            BufferedImage image = new BufferedImage(obj.getContentWidth(),
+                                                    obj.getContentHeight(),
+                                                    BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = (Graphics2D) image.getGraphics();
+            obj.paint(g);
+            g.dispose();
             imageElem.setImage(image);
          }
 
+         imageElem.setBackground(obj.getBackground());
          processHyperlink(assembly, imageElem);
          addElement(assembly, imageElem, sectionName);
       }

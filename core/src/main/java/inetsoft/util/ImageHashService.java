@@ -16,6 +16,7 @@ package inetsoft.util;
 
 import inetsoft.analytic.composition.VSPortalHelper;
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.gui.viewsheet.VSImage;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
@@ -46,8 +47,11 @@ public class ImageHashService {
       String scale9 = getScale9(assemblyInfo);
       boolean dynamicImage = shadow || highlight || scale9 != null;
       boolean rawBytes = !dynamicImage && shouldSendRawBytes(assembly);
+      boolean scaled = false;
       int width = -1;
       int height = -1;
+      int bgColorValue = 0;
+      int align = StyleConstants.H_LEFT | StyleConstants.V_TOP;
 
       if(assemblyInfo instanceof ImageVSAssemblyInfo) {
          ImageVSAssemblyInfo imageVSAssemblyInfo = (ImageVSAssemblyInfo) assemblyInfo;
@@ -59,6 +63,22 @@ public class ImageHashService {
          }
 
          imagePath = imageVSAssemblyInfo.getImage();
+
+         // only set the following for dynamic image as otherwise these properties get applied
+         // on the client
+         if(dynamicImage) {
+            scaled = imageVSAssemblyInfo.isScaleImage();
+
+            VSCompositeFormat format = imageVSAssemblyInfo.getFormat();
+
+            if(format != null) {
+               if(format.getBackground() != null) {
+                  bgColorValue = format.getBackground().getRGB();
+               }
+
+               align = format.getAlignment();
+            }
+         }
       }
 
       if(Tool.isEmptyString(imagePath)) {
@@ -82,7 +102,8 @@ public class ImageHashService {
 
       String embeddedViewsheetName = vs.isEmbedded() ? vs.getAbsoluteName() : null;
       ImageInfo imageInfo = new ImageInfo(imagePath, width, height, rawBytes, assemblyName,
-                                          shadow, highlight, scale9, embeddedViewsheetName);
+                                          shadow, highlight, scale9, scaled, bgColorValue, align,
+                                          embeddedViewsheetName);
 
       if(infoToHash.containsKey(imageInfo)) {
          return infoToHash.get(imageInfo);
@@ -112,9 +133,10 @@ public class ImageHashService {
       response.setHeader("Pragma", "");
 
       byte[] buf = getImageBytes(imageInfo, viewsheet);
+      boolean dynamicImage = imageInfo.shadow || imageInfo.highlight || imageInfo.scale9 != null;
       boolean svg = imageInfo.path != null && imageInfo.path.endsWith(".svg");
 
-      if(svg) {
+      if(svg && !dynamicImage) {
          response.setContentType("image/svg+xml");
       }
       else {
@@ -164,6 +186,7 @@ public class ImageHashService {
 
       Image rawImage = null;
       boolean dynamicImage = imageInfo.shadow || imageInfo.highlight || imageInfo.scale9 != null;
+      boolean svg = imageInfo.path != null && imageInfo.path.endsWith(".svg");
       VSAssemblyInfo info = null;
 
       if(imageInfo.assemblyName != null) {
@@ -191,8 +214,27 @@ public class ImageHashService {
       }
       else {
          final int dpi = 72;
-         Image image = VSUtil.getVSImage(rawImage, imageInfo.path, vs, imageInfo.width,
-                                         imageInfo.height, null, vsPortalHelper);
+         Image image = null;
+
+         if(svg && dynamicImage && imageInfo.scale9 == null && !imageInfo.scaled) {
+            int maxWidth = imageInfo.width;
+            int maxHeight = imageInfo.height;
+
+            // account for shadow
+            if(imageInfo.shadow) {
+               maxWidth -= 6;
+               maxHeight -= 6;
+            }
+
+            // get the svg image with preferred or max size
+            image = VSUtil.getVSImage(rawImage, imageInfo.path, vs, -1,
+                                      -1, maxWidth, maxHeight,
+                                      null, vsPortalHelper);
+         }
+
+         image = image != null ? image : VSUtil.getVSImage(rawImage, imageInfo.path, vs,
+                                                           imageInfo.width, imageInfo.height,
+                                                           null, vsPortalHelper);
 
          if(image == null) {
             image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
@@ -204,10 +246,20 @@ public class ImageHashService {
                VSImage vsImage = new VSImage(vs);
                vsImage.setAssemblyInfo(info);
                vsImage.setRawImage(image);
+
+               // calculate the scaling ratio for viewsheet scaling
                Dimension pixelSize = info.getPixelSize();
                DimensionD scale = new DimensionD((double) imageInfo.width / pixelSize.width,
                                                  (double) imageInfo.height / pixelSize.height);
                ((ImageVSAssemblyInfo) info).setScalingRatio(scale);
+
+               // when image is not scaled then generate the image with the original size so it
+               // can be properly aligned on the client
+               if(!imageInfo.scaled) {
+                  vsImage.setPixelSize(new Dimension(image.getWidth(null),
+                                                     image.getHeight(null)));
+               }
+
                image = vsImage.getImage(false);
             }
          }
@@ -292,7 +344,7 @@ public class ImageHashService {
    private static class ImageInfo {
       public ImageInfo(String path, int width, int height, boolean rawBytes, String assemblyName,
                        boolean shadow, boolean highlight, String scale9,
-                       String embeddedViewsheetName)
+                       boolean scaled, int bgColorValue, int align, String embeddedViewsheetName)
       {
          this.path = path;
          this.width = width;
@@ -302,6 +354,9 @@ public class ImageHashService {
          this.shadow = shadow;
          this.highlight = highlight;
          this.scale9 = scale9;
+         this.scaled = scaled;
+         this.bgColorValue = bgColorValue;
+         this.align = align;
          this.embeddedViewsheetName = embeddedViewsheetName;
       }
 
@@ -318,7 +373,9 @@ public class ImageHashService {
          ImageInfo imageInfo = (ImageInfo) o;
          return width == imageInfo.width && height == imageInfo.height &&
             rawBytes == imageInfo.rawBytes && shadow == imageInfo.shadow &&
-            highlight == imageInfo.highlight && Objects.equals(path, imageInfo.path) &&
+            highlight == imageInfo.highlight && scaled == imageInfo.scaled &&
+            bgColorValue == imageInfo.bgColorValue && align == imageInfo.align &&
+            Objects.equals(path, imageInfo.path) &&
             Objects.equals(assemblyName, imageInfo.assemblyName) &&
             Objects.equals(scale9, imageInfo.scale9) &&
             Objects.equals(embeddedViewsheetName, imageInfo.embeddedViewsheetName);
@@ -327,7 +384,7 @@ public class ImageHashService {
       @Override
       public int hashCode() {
          return Objects.hash(path, width, height, rawBytes, assemblyName, shadow, highlight, scale9,
-                             embeddedViewsheetName);
+                             scaled, bgColorValue, align, embeddedViewsheetName);
       }
 
       private final String path;
@@ -338,6 +395,9 @@ public class ImageHashService {
       private final boolean shadow;
       private final boolean highlight;
       private final String scale9;
+      private final boolean scaled;
+      private final int bgColorValue;
+      private final int align;
       private final String embeddedViewsheetName;
    }
 
