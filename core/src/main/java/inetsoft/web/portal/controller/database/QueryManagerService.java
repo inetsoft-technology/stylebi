@@ -2189,7 +2189,7 @@ public class QueryManagerService {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       SelectTable[] selectTables = sql.getSelectTable();
-      XNode root = null;
+      XNode root = metaData.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
 
       for(SelectTable selectTable : selectTables) {
          Object name = selectTable.getName();
@@ -2203,14 +2203,6 @@ public class QueryManagerService {
          else {
             tableName = String.valueOf(selectTable.getName());
             XNode node = metaData.getTable(tableName, XUtil.OUTER_MOSE_LAYER_DATABASE);
-
-            if(node != null && root == null) {
-               root = node;
-
-               while(root.getParent() != null) {
-                  root = root.getParent();
-               }
-            }
 
             if(node != null) {
                tablePath = JDBCUtil.getTablePath(jdbcDataSource, node);

@@ -21,8 +21,7 @@ import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.uql.*;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
-import inetsoft.uql.jdbc.JDBCDataSource;
-import inetsoft.uql.jdbc.SQLHelper;
+import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.jdbc.util.XMetaDataNode;
 import inetsoft.uql.schema.XSchema;
@@ -1196,6 +1195,10 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
 
       metadataCache.put(getDataModel().getDataSource() + "::" +
          pname, getMetaData(partition, sortChildren, additional));
+   }
+
+   public XNode getRootMetaData(String additional) throws Exception {
+      return new JDBCHandler().getRootMetaData((JDBCDataSource) getDataSource(), "DBPROPERTIES", additional);
    }
 
    private boolean portalData = false;
