@@ -17,8 +17,11 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.schedule.quartz.JobCompletionListener;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.util.SingletonManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -79,7 +82,13 @@ public class ScheduleStatusDao implements AutoCloseable {
          newStatus.setLastScheduledStartTime(startTime);
       }
 
-      storage.put(taskName, newStatus);
+      try {
+         storage.put(taskName, newStatus).get();
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to put schedule status {} for {}", status, taskName);
+      }
+
       return newStatus;
    }
 
@@ -94,6 +103,7 @@ public class ScheduleStatusDao implements AutoCloseable {
    }
 
    private final KeyValueStorage<Status> storage;
+   private static final Logger LOG = LoggerFactory.getLogger(ScheduleStatusDao.class);
 
    public static final class Status implements Serializable {
       /**
