@@ -356,12 +356,12 @@ public class TestCluster implements Cluster {
 
    @Override
    public <T extends Serializable> Future<T> submit(String serviceId, SingletonCallableTask<T> task) {
-      return executor.submit(task);
+      return getSingletonExecutor(serviceId).submit(task);
    }
 
    @Override
    public Future<?> submit(String serviceId, SingletonRunnableTask task) {
-      return executor.submit(task);
+      return getSingletonExecutor(serviceId).submit(task);
    }
 
    @Override
@@ -500,7 +500,19 @@ public class TestCluster implements Cluster {
    @Override
    public void close() throws Exception {
       executor.shutdown();
+
+      for(ExecutorService service : singletonExecutors.values()) {
+         service.shutdown();
+      }
+
+      singletonExecutors.clear();
       scheduledExecutor.shutdown();
+   }
+
+   private ExecutorService getSingletonExecutor(String serviceId) {
+      synchronized(singletonExecutors) {
+         return singletonExecutors.computeIfAbsent(serviceId, k -> Executors.newSingleThreadScheduledExecutor());
+      }
    }
 
    @Override
@@ -521,6 +533,7 @@ public class TestCluster implements Cluster {
    private final ConcurrentMap<String, DistributedLong> longs = new ConcurrentHashMap<>();
    private final ConcurrentMap<String, DistributedReference<?>> references =
       new ConcurrentHashMap<>();
+   private final Map<String, ExecutorService> singletonExecutors = new HashMap<>();
    private final ExecutorService executor = Executors.newSingleThreadScheduledExecutor();
    private final DistributedScheduledExecutorService scheduledExecutor =
       new LocalDistributedScheduledExecutorService();

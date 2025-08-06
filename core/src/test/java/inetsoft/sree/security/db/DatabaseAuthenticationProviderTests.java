@@ -23,13 +23,16 @@ import inetsoft.sree.security.*;
 import inetsoft.test.SreeHome;
 import inetsoft.util.db.DBConnectionPool;
 import org.apache.commons.io.IOUtils;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
 
-import java.io.*;
+import java.io.File;
+import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.time.Duration;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,10 +43,10 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("slow")
 class DatabaseAuthenticationProviderTests {
    private DatabaseAuthenticationProvider provider;
+
    private static int testCounter = 1;
    private static final String DRIVER = "org.apache.derby.jdbc.EmbeddedDriver";
    private static final String URL = "jdbc:derby:memory:authtest;create=true";
-   private static final String SHUTDOWN_URL = "jdbc:derby:memory:authtest;shutdown=true";
 
    @BeforeEach
    void setup() throws Exception {
@@ -58,15 +61,21 @@ class DatabaseAuthenticationProviderTests {
          provider = null;
       }
 
-      try(Connection connection = connect(true)) {
+      try(Connection connection = connect()) {
          try(Statement statement = connection.createStatement()) {
-            statement.execute("DROP DATABASE");
+            statement.execute("DROP TABLE INETSOFT_GROUP_USER");
+            statement.execute("DROP TABLE INETSOFT_USER_ROLE");
+            statement.execute("DROP TABLE INETSOFT_GROUP");
+            statement.execute("DROP TABLE INETSOFT_ROLE");
+            statement.execute("DROP TABLE INETSOFT_USER");
+            statement.execute("DROP TABLE INETSOFT_ORG");
          }
       }
    }
 
    @Test
    void getOrganizationIdsShouldReturnCorrectValues() {
+      waitForCache();
       String[] expected = { "host-org" };
       String[] actual = provider.getOrganizationIDs();
       assertNotNull(actual);
@@ -75,6 +84,7 @@ class DatabaseAuthenticationProviderTests {
 
    @Test
    void getOrganizationNameShouldReturnCorrectValue() {
+      waitForCache();
       String expected = "Host Organization";
       String actual = provider.getOrganizationName("host-org");
       assertEquals(expected, actual);
@@ -82,17 +92,20 @@ class DatabaseAuthenticationProviderTests {
 
    @Test
    void getRolesShouldReturnCorrectValues() {
+      waitForCache();
       IdentityID[] expected = {
-        new IdentityID("Site Admin", "host-org"),
-        new IdentityID("Org Admin", "host-org")
+         new IdentityID("Org Admin", null),
+         new IdentityID("Site Admin", null)
       };
       IdentityID[] actual = provider.getRoles();
       assertNotNull(actual);
+      Arrays.sort(expected);
       assertArrayEquals(expected, actual);
    }
 
    @Test
    void getUsersShouldReturnCorrectValues() {
+      waitForCache();
       IdentityID[] expected = { new IdentityID("admin", "host-org") };
       IdentityID[] actual = provider.getUsers();
       assertNotNull(actual);
@@ -101,10 +114,19 @@ class DatabaseAuthenticationProviderTests {
 
    @Test
    void getUserRoleShouldReturnCorrectValue() {
-      IdentityID[] expected = { new IdentityID("Site Admin", "host-org") };
+      waitForCache();
+      IdentityID[] expected = { new IdentityID("Site Admin", null) };
       IdentityID[] actual = provider.getRoles(new IdentityID("admin", "host-org"));
       assertNotNull(actual);
       assertArrayEquals(expected, actual);
+   }
+
+   private void waitForCache() {
+      provider.getCache(true);
+      Awaitility.await()
+         .atMost(Duration.ofMinutes(1L))
+         .pollInterval(Duration.ofMillis(500L))
+         .until(provider::isCacheInitialized);
    }
 
    private void createProvider() throws Exception {
@@ -118,15 +140,16 @@ class DatabaseAuthenticationProviderTests {
       provider.setOrganizationNameQuery("SELECT ORG_NAME FROM INETSOFT_ORG WHERE ORG_ID=?");
       provider.setOrganizationRolesQuery("SELECT ROLE_NAME FROM INETSOFT_ROLE WHERE ORG_ID=?");
       provider.setOrganizationMembersQuery("SELECT USER_NAME FROM INETSOFT_USER WHERE ORG_ID=?");
-      provider.setGroupUsersQuery("SELECT USER_NAME FROM INETSOFT_GROUP WHERE ORG_ID=? AND GROUP_NAME=?");
+      provider.setGroupUsersQuery("SELECT USER_NAME FROM INETSOFT_GROUP_USER WHERE ORG_ID=? AND GROUP_NAME=?");
       provider.setRoleListQuery("SELECT ROLE_NAME, ORG_ID FROM INETSOFT_ROLE");
-      provider.setUserRolesQuery("SELECT ROLE_NAME FROM INETSOFT_ROLE WHERE ORG_ID=? AND USER_NAME=?");
+      provider.setUserRolesQuery("SELECT ROLE_NAME FROM INETSOFT_USER_ROLE WHERE ORG_ID=? AND USER_NAME=?");
       provider.setGroupListQuery("SELECT GROUP_NAME, ORG_ID FROM INETSOFT_GROUP");
       provider.setUserEmailsQuery("SELECT EMAIL FROM INETSOFT_USER WHERE ORG_ID=? AND USER_NAME=?");
       provider.setSystemAdministratorRoles(new String[] { "Site Admin" });
       provider.setOrgAdministratorRoles(new String[] { "Org Admin" });
       provider.setHashAlgorithm("bcrypt");
-      provider.setProviderName(String.format("DatabaseTest%d",  testCounter++));
+      String providerName = String.format("DatabaseTest%d",  testCounter++);
+      provider.setProviderName(providerName);
 
       AuthenticationChain authcChain = new AuthenticationChain();
       authcChain.setProviders(List.of(provider));
@@ -139,13 +162,19 @@ class DatabaseAuthenticationProviderTests {
       authcChain.saveConfiguration();
 
       SreeEnv.setProperty("security.enabled", "true");
+      SreeEnv.setProperty("security.users.multiTenant", "true");
       SreeEnv.save();
 
       SecurityEngine.getSecurity().init();
+
+      provider = getProvider(providerName);
+      provider.setMultiTenantSupplier(() -> true);
+      provider.setDriverAvailable(DRIVER::equals);
+      provider.setDriverSupplier(DatabaseAuthenticationProviderTests::getDriver);
    }
 
    private void loadData() throws Exception {
-      try(Connection connection = connect(false);
+      try(Connection connection = connect();
           Statement statement = connection.createStatement())
       {
          for(String sql : getLoadStatements()) {
@@ -154,10 +183,10 @@ class DatabaseAuthenticationProviderTests {
       }
    }
 
-   private Connection connect(boolean shutdown) throws Exception {
+   private Connection connect() throws Exception {
       Class<?> clazz = getDriverClassLoader().loadClass(DRIVER);
       Driver driver = (Driver) clazz.getConstructor().newInstance();
-      return driver.connect(shutdown ? SHUTDOWN_URL : URL, new Properties());
+      return driver.connect(URL, new Properties());
    }
 
    @SuppressWarnings("resource")
@@ -195,6 +224,20 @@ class DatabaseAuthenticationProviderTests {
       return driverLoader == null ? baseLoader : driverLoader;
    }
 
+   private static Driver getDriver(String driverClass) {
+      if(!DRIVER.equals(driverClass)) {
+         return null;
+      }
+
+      try {
+         Class<?> clazz = getDriverClassLoader().loadClass(DRIVER);
+         return (Driver) clazz.getConstructor().newInstance();
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to instantiate driver class: " + driverClass, e);
+      }
+   }
+
    private List<String> getLoadStatements() throws Exception {
       List<String> lines;
 
@@ -229,5 +272,38 @@ class DatabaseAuthenticationProviderTests {
       }
 
       return statements;
+   }
+
+   private DatabaseAuthenticationProvider getProvider(String providerName) {
+      SecurityProvider root = SecurityEngine.getSecurity().getSecurityProvider();
+
+      if(root == null) {
+         throw new IllegalStateException("Security not configured");
+      }
+
+      AuthenticationProvider rootAuthentication = root.getAuthenticationProvider();
+      DatabaseAuthenticationProvider provider = null;
+
+      if(rootAuthentication instanceof DatabaseAuthenticationProvider db &&
+         Objects.equals(providerName, db.getProviderName()))
+      {
+         provider = db;
+      }
+      else if(rootAuthentication instanceof AuthenticationChain chain) {
+         for(AuthenticationProvider child : chain.getProviders()) {
+            if(child instanceof DatabaseAuthenticationProvider db &&
+               Objects.equals(providerName, db.getProviderName()))
+            {
+               provider = db;
+               break;
+            }
+         }
+      }
+
+      if(provider == null) {
+         throw new IllegalStateException("Security provider not found");
+      }
+
+      return provider;
    }
 }
