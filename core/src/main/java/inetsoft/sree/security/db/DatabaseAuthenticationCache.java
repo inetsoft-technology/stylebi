@@ -20,6 +20,7 @@ package inetsoft.sree.security.db;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,8 +68,13 @@ class DatabaseAuthenticationCache implements AutoCloseable {
       long next = -1;
 
       try {
-         next = cluster.submit(
-            prefix, new RefreshCacheTask(provider.getProviderName(), force)).get();
+         if(!Tool.equals(cluster.getServiceOwner(prefix), cluster.getLocalMember())) {
+            next = cluster.submit(
+               prefix, new RefreshCacheTask(provider.getProviderName(), force)).get();
+         }
+         else {
+            next = new RefreshCacheTask(provider.getProviderName(), force).call();
+         }
       }
       catch(Exception e) {
          LOG.warn("Failed to refresh database authentication cache", e);
