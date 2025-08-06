@@ -157,18 +157,18 @@ class DatabaseAuthenticationCache implements AutoCloseable {
             roles.clear();
             roles.addAll(Arrays.asList(newRoles.result()));
 
-            orgNames.clear();
+            orgNames.removeAll();
             orgNames.putAll(newOrgNames);
 
-            orgMembers.clear();
+            orgMembers.removeAll();
             orgMembers.putAll(newOrgMembers);
 
-            orgRoles.clear();
+            orgRoles.removeAll();
             orgRoles.putAll(newOrgRoles);
 
-            groupUsers.clear();
-            userRoles.clear();
-            userEmails.clear();
+            groupUsers.removeAll();
+            userRoles.removeAll();
+            userEmails.removeAll();
 
             tx.commit();
             lastLoad.set(System.currentTimeMillis());
