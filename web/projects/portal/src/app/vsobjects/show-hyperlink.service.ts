@@ -169,7 +169,7 @@ export class ShowHyperlinkService extends HyperlinkService implements OnDestroy 
          }
 
          // never replace composer window with drilldown
-         if(this.inComposer || this.inEmbed) {
+         if(this.inComposer || (this.inEmbed && target == "_self")) {
             target = "_blank";
          }
 
