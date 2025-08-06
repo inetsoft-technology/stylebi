@@ -618,6 +618,18 @@ public class QueryGraphModelService {
          node.setAttribute("supportCatalog", entry.getProperty("supportCatalog"));
       }
 
+      SQLHelper helper = SQLHelper.getSQLHelper(xds);
+
+      if(helper != null && "databricks".equals(helper.getSQLHelperType())) {
+         String quote = helper.getQuote();
+
+         // for databricks, default is not keyword, default schema should not be quoted.
+         if(Tool.equals(node.getAttribute("schema"), Tool.buildString(quote, "default", quote))) {
+            node.setAttribute("schema", "default");
+         }
+      }
+
+
       DefaultMetaDataProvider metaDataProvider = getMetaDataProvider(database);
       TableNode tableNode = metaDataProvider.getTableMetaData(node);
 
