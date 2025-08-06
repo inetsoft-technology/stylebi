@@ -134,21 +134,21 @@ class LdapAuthenticationCache implements AutoCloseable, NamespaceChangeListener,
             individualEmails.clear();
             individualEmails.addAll(Arrays.asList(newIndividualEmails));
 
-            userDns.clear();
+            userDns.removeAll();
             userDns.putAll(newUserDns);
 
-            groupDns.clear();
+            groupDns.removeAll();
             groupDns.putAll(newGroupDns);
 
-            roleDns.clear();
+            roleDns.removeAll();
             roleDns.putAll(newRoleDns);
 
-            emailsMap.clear();
-            usersMap.clear();
-            groupsMap.clear();
-            rolesMap.clear();
-            identityMap.clear();
-            identityRoleMap.clear();
+            emailsMap.removeAll();
+            usersMap.removeAll();
+            groupsMap.removeAll();
+            rolesMap.removeAll();
+            identityMap.removeAll();
+            identityRoleMap.removeAll();
 
             tx.commit();
             lastLoad.set(System.currentTimeMillis());
