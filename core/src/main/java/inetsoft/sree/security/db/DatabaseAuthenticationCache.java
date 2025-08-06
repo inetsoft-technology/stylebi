@@ -198,7 +198,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    public IdentityID[] getUsers(IdentityID groupIdentity) {
-      return groupUsers.computeIfAbsent(groupIdentity, k -> provider.getDao().getUsers(k).result());
+      return groupUsers.computeIfAbsent(groupIdentity, k -> new IdentityArrayWrapper(provider.getDao().getUsers(k).result())).getValue();
    }
 
    public IdentityID[] getRoles() {
@@ -206,7 +206,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    public IdentityID[] getRoles(IdentityID userId) {
-      return userRoles.computeIfAbsent(userId, k -> provider.getDao().getRoles(k).result());
+      return userRoles.computeIfAbsent(userId, k -> new IdentityArrayWrapper(provider.getDao().getRoles(k).result())).getValue();
    }
 
    public IdentityID[] getGroups() {
@@ -297,6 +297,18 @@ class DatabaseAuthenticationCache implements AutoCloseable {
       provider.getConnectionProvider().resetConnection();
    }
 
+   private static class IdentityArrayWrapper {
+      public IdentityArrayWrapper(IdentityID[] value) {
+         this.value = value;
+      }
+
+      public IdentityID[] getValue() {
+         return value;
+      }
+
+      private final IdentityID[] value;
+   }
+
    private final DatabaseAuthenticationProvider provider;
    private final Cluster cluster;
    private final String prefix;
@@ -310,8 +322,8 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    private final Set<IdentityID> users;
    private final Set<IdentityID> groups;
    private final Set<IdentityID> roles;
-   private final DistributedMap<IdentityID, IdentityID[]> groupUsers;
-   private final DistributedMap<IdentityID, IdentityID[]> userRoles;
+   private final DistributedMap<IdentityID, IdentityArrayWrapper> groupUsers;
+   private final DistributedMap<IdentityID, IdentityArrayWrapper> userRoles;
    private final DistributedMap<IdentityID, String[]> userEmails;
    private final ScheduledExecutorService executor;
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationCache.class);
