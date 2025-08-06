@@ -385,7 +385,7 @@ public class PDFVSExporter extends AbstractVSExporter {
             VSImage image = new VSImage(info.getViewsheet());
             image.setTheme(theme);
             image.setAssemblyInfo(info);
-            Image rimg = VSUtil.getVSImage(info.getRawImage(), info.getImage(),
+            Image rimg = VSUtil.getVSImage(info,
                                            assembly.getViewsheet(),
                                            image.getContentWidth(),
                                            image.getContentHeight(),

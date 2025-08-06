@@ -17,12 +17,14 @@
  */
 package inetsoft.util.graphics;
 
+import inetsoft.report.Size;
 import inetsoft.uql.viewsheet.internal.SVGImageTranscoder;
 import org.apache.batik.anim.dom.*;
-import org.apache.batik.bridge.BridgeException;
+import org.apache.batik.bridge.*;
 import org.apache.batik.dom.svg.SVGContext;
 import org.apache.batik.ext.awt.image.codec.png.PNGImageWriter;
 import org.apache.batik.ext.awt.image.spi.ImageWriterRegistry;
+import org.apache.batik.gvt.GraphicsNode;
 import org.apache.batik.svggen.SVGGraphics2D;
 import org.apache.batik.transcoder.*;
 import org.apache.batik.transcoder.image.ImageTranscoder;
@@ -92,15 +94,42 @@ public class BatikSVGSupport implements SVGSupport {
    }
 
    @Override
-   public Image getSVGImage(InputStream svgStream, float width, float height) throws Exception {
+   public Image getSVGImage(InputStream svgStream, float width, float height,
+                            float maxWidth, float maxHeight) throws Exception
+   {
       Document doc = SVGUtil.createDocument(svgStream);
       SVGImageTranscoder imageTranscoder = new SVGImageTranscoder();
 
-      if(width > 0F && height > 0F) {
-         imageTranscoder.addTranscodingHint(SVGImageTranscoder.KEY_WIDTH, width);
-         imageTranscoder.addTranscodingHint(SVGImageTranscoder.KEY_HEIGHT, height);
-      }
+      if((width > 0F && height > 0F) || (maxWidth > 0F && maxHeight > 0F)) {
+         float aspectRatio = getAspectRatio(doc);
+         Size finalSize;
 
+         if(width > 0F && height > 0F) {
+            if(maxWidth > 0F && maxHeight > 0F) {
+               width = Math.min(width, maxWidth);
+               height = Math.min(height, maxHeight);
+            }
+
+            finalSize = getScaledDimension(width, height, aspectRatio);
+         }
+         else {
+            // check what the pref size of the svg is and use that if set, otherwise use max size
+            Size prefSize = getPreferredSize(doc);
+
+            if(prefSize.width != 0F && prefSize.height != 0F &&
+               prefSize.width < maxWidth && prefSize.height < maxHeight)
+            {
+               maxWidth = prefSize.width;
+               maxHeight = prefSize.height;
+               aspectRatio = 1;
+            }
+
+            finalSize = getScaledDimension(maxWidth, maxHeight, aspectRatio);
+         }
+
+         imageTranscoder.addTranscodingHint(SVGImageTranscoder.KEY_WIDTH, finalSize.width);
+         imageTranscoder.addTranscodingHint(SVGImageTranscoder.KEY_HEIGHT, finalSize.height);
+      }
       try {
          imageTranscoder.transcode(new TranscoderInput(doc), null);
          return imageTranscoder.getImage();
@@ -295,6 +324,95 @@ public class BatikSVGSupport implements SVGSupport {
       }
 
       return urlString;
+   }
+
+   private float getAspectRatio(Document doc) {
+      Element svgRoot = doc.getDocumentElement();
+
+      if(svgRoot == null) {
+         return 1F;
+      }
+
+      Float aspectRatio = null;
+
+      // try to compute the aspect ratio using viewBox
+      String viewBox = svgRoot.getAttribute("viewBox");
+
+      if(viewBox != null && !viewBox.isEmpty()) {
+         String[] parts = viewBox.trim().split("\\s+");
+
+         if(parts.length == 4) {
+            try {
+               float w = Float.parseFloat(parts[2]);
+               float h = Float.parseFloat(parts[3]);
+
+               if(h != 0F) {
+                  aspectRatio = w / h;
+               }
+            }
+            catch(NumberFormatException e) {
+               // Fallback below
+            }
+         }
+      }
+
+      // Fallback: Compute aspect ratio using sensitive bounds
+      if(aspectRatio == null) {
+         try {
+            GVTBuilder builder = new GVTBuilder();
+            BridgeContext context = new BridgeContext(new UserAgentAdapter());
+            GraphicsNode node = builder.build(context, doc);
+            Rectangle2D bounds = node.getSensitiveBounds();
+
+            if(bounds != null && bounds.getHeight() != 0F) {
+               aspectRatio = (float) bounds.getWidth() / (float) bounds.getHeight();
+            }
+         }
+         catch(Exception e) {
+            // do nothing
+         }
+      }
+
+      return aspectRatio != null ? aspectRatio : 1F;
+   }
+
+   private Size getScaledDimension(float width, float height, float aspectRatio) {
+      if(aspectRatio == 1) {
+         return new Size(width, height);
+      }
+
+      float targetWidth = width;
+      float targetHeight = width / aspectRatio;
+
+      if(targetHeight > height) {
+         targetHeight = height;
+         targetWidth = height * aspectRatio;
+      }
+
+      return new Size(targetWidth, targetHeight);
+   }
+
+   private Size getPreferredSize(Document doc) {
+      Size size = new Size();
+      Element svgRoot = doc.getDocumentElement();
+
+      if(svgRoot == null) {
+         return size;
+      }
+
+      // Get width and height from attributes if defined
+      String widthStr = svgRoot.getAttribute("width");
+      String heightStr = svgRoot.getAttribute("height");
+
+      if(widthStr.endsWith("px")) {
+         size.width = Float.parseFloat(widthStr.replace("px", ""));
+      }
+
+      if(heightStr.endsWith("px")) {
+         size.height = Float.parseFloat(heightStr.replace("px", ""));
+      }
+
+      return size;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(BatikSVGSupport.class);

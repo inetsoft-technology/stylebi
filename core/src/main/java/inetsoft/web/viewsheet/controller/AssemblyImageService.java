@@ -185,9 +185,7 @@ public class AssemblyImageService {
          if(imgInfo.getImage() != null) {
 //            obj.setDataTipView(dataTip);
             obj.setAssemblyInfo(imgInfo);
-            String path = imgInfo.getImage();
-            Image rimg = VSUtil.getVSImage(imgInfo.getRawImage(),
-                                           path, vs,
+            Image rimg = VSUtil.getVSImage(imgInfo, vs,
                                            obj.getContentWidth(),
                                            obj.getContentHeight(),
                                            imgInfo.getFormat(),
