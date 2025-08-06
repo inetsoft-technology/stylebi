@@ -391,7 +391,7 @@ public class MVDispatcher {
       }
 
       isDate = date != null;
-      isDateTime = XSchema.TIME_INSTANT.equals(date.getDataType());
+      isDateTime = isDate && XSchema.TIME_INSTANT.equals(date.getDataType());
       String dataType = date != null ? XSchema.DATE : number.getDataType();
 
       if(isDate) {
