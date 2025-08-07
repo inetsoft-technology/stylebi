@@ -36,6 +36,7 @@ import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 
@@ -1232,7 +1233,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    private Map<DataCycleId, Vector<ScheduleCondition>> dataCycleMap =
       new LinkedHashMap<>();
    private Map<DataCycleId, Boolean> cycleStatusMap = new LinkedHashMap<>();
-   private Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new LinkedHashMap<>();
+   private Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
    private Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
    private Map<DataCycleId, CycleInfo> cycleInfoMap = new HashMap<>();
    private String dcycle;
