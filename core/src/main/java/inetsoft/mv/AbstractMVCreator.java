@@ -70,12 +70,17 @@ public abstract class AbstractMVCreator implements MVCreator {
 
          return rc;
       }
-      catch(CancelledException ex) {
+      catch(CancelledException | InterruptedException ex) {
          def.setSuccess(false);
          throw ex;
       }
       catch(Exception ex) {
          def.setSuccess(false);
+
+         if(ex.getCause() instanceof InterruptedException) {
+            throw (InterruptedException) ex.getCause();
+         }
+
          throw new RuntimeException("Materialization of " +
                                        (def.isWSMV() ?
                                         "worksheet '" + def.getWsPath() :

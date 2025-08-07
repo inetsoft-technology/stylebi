@@ -19,6 +19,7 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.*;
 import inetsoft.util.*;
 import jakarta.annotation.PostConstruct;
@@ -92,8 +93,11 @@ public class ScheduleTaskFolderChangeController {
    }
 
    private void folderChanged(AssetChangeEvent event, boolean portal) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(subscriber);
+
       if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED &&
-         event.getAssetEntry() != null && event.getAssetEntry().isScheduleTaskFolder())
+         event.getAssetEntry() != null && event.getAssetEntry().isScheduleTaskFolder() &&
+         Tool.equals(currentOrgID, event.getAssetEntry().getOrgID()))
       {
          debouncer.debounce("task_folder_change", 1L, TimeUnit.SECONDS,
             ()-> messagingTemplate.convertAndSendToUser(SUtil.getUserDestination(subscriber),

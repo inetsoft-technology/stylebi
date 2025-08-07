@@ -17,11 +17,13 @@
  */
 import { Injectable } from "@angular/core";
 import { Observable ,  ReplaySubject ,  Subject } from "rxjs";
+import { VSSelectionContainerModel } from "../../../model/vs-selection-container-model";
 import { SelectionContainerChildDragModel } from "../selection-container-child-drag-model";
 
 @Injectable()
 export class SelectionContainerChildrenService {
    private childUpdated: Subject<number> = new Subject<number>();
+   private childModelUpdated: Subject<VSSelectionContainerModel> = new Subject<VSSelectionContainerModel>();
    private subject: ReplaySubject<SelectionContainerChildDragModel> =
       new ReplaySubject<SelectionContainerChildDragModel>(1);
    private dragModel: SelectionContainerChildDragModel =
@@ -34,6 +36,14 @@ export class SelectionContainerChildrenService {
 
    public updateChild(childIndex: number): void {
       this.childUpdated.next(childIndex);
+   }
+
+   public get onChildModelUpdate(): Observable<VSSelectionContainerModel> {
+      return this.childModelUpdated.asObservable();
+   }
+
+   public updateChildModel(model: VSSelectionContainerModel): void {
+      this.childModelUpdated.next(model);
    }
 
    public get dragModelSubject(): ReplaySubject<SelectionContainerChildDragModel> {

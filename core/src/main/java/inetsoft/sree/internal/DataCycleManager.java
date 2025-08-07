@@ -17,8 +17,8 @@
  */
 package inetsoft.sree.internal;
 
-import inetsoft.mv.MVDef;
-import inetsoft.mv.MVManager;
+import inetsoft.mv.*;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
@@ -36,6 +36,7 @@ import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 
@@ -76,7 +77,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       // read in the properties specified for cycles in the EM
       try {
          load();
-         generateTasks(false, true);
+         generateTasks(false);
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize data cycle manager", ex);
@@ -173,12 +174,11 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    @Override
    public void propertyChange(PropertyChangeEvent evt) {
       String name = evt.getPropertyName();
+      String orgId = Util.getOrgIdFromEventSource(evt.getSource());
 
-      if(RepletRegistry.CHANGE_EVENT.equals(name)) {
-         generateTasks(true, false);
-      }
-      else if(MVManager.MV_CHANGE_EVENT.equals(name)) {
-         generateTasks(true, false);
+      if(MVManager.MV_CHANGE_EVENT.equals(name) || RepletRegistry.CHANGE_EVENT.equals(name)) {
+         generateTasks(null, orgId != null ? new Organization(new IdentityID(orgId, orgId)) : null,
+                       true, false);
       }
    }
 
@@ -246,19 +246,32 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     */
    @Override
    public List<ScheduleTask> getTasks() {
+      return getTasks(OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Get the pregenerated tasks for the ScheduleManager.
+    * @return Vector of ScheduleTask.
+    */
+   @Override
+   public List<ScheduleTask> getTasks(String orgID) {
       List<ScheduleTask> tasks = new ArrayList<>();
-      pregeneratedTasksMap.values().forEach(tasks::addAll);
+      Boolean inited = orgPregeneratedTaskLoadedStatus.get(orgID);
+
+      if(inited == null || !inited) {
+         Organization org = new Organization(new IdentityID(orgID, orgID));
+         generateTasks(null, org, true,  false);
+      }
+
+      tasks.addAll(pregeneratedTasksMap.get(orgID));
       return tasks;
    }
 
    public void clearOrgTasks(String orgId) {
       if(pregeneratedTasksMap.containsKey(orgId)) {
          pregeneratedTasksMap.remove(orgId);
+         orgPregeneratedTaskLoadedStatus.remove(orgId);
       }
-   }
-
-   public List<ScheduleTask> getTasks(String orgId) {
-      return pregeneratedTasksMap.get(orgId);
    }
 
    @Override
@@ -266,87 +279,90 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       return getTasks().iterator();
    }
 
-   private void generateTasks(boolean reloadExtensions, boolean allMVs) {
-      generateTasks(null, null, reloadExtensions, allMVs, false);
+   private void generateTasks(boolean reloadExtensions) {
+      generateTasks(null, null, reloadExtensions, false);
    }
 
    /**
     * Internal method used to set pregeneratedTasks.
     */
    private void generateTasks(Organization oorg, Organization norg, boolean reloadExtensions,
-                              boolean allMVs, boolean replace)
+                              boolean replace)
    {
-      // don't load in secondary schedulers
-      if(Scheduler.getSchedulerCount() != 1 &&
-         "true".equals(System.getProperty("ScheduleServer")))
-      {
-         return;
-      }
+      String currOrgID = norg != null ?
+         norg.getOrganizationID() : OrganizationManager.getInstance().getCurrentOrgID();
 
-      List<ScheduleTask> tasks = new ArrayList<>();
-      Map<DataCycleId, Boolean> cycleStatusMap = new HashMap(this.cycleStatusMap);
-      allMVs = oorg == null && norg == null && allMVs;
-      Enumeration<DataCycleId> cycles = allMVs ? getDataCycles() : getDataCycles(norg);
-
-      while(cycles.hasMoreElements()) {
-         DataCycleId cycle = cycles.nextElement();
-         String orgId = cycle.orgId;
-         IdentityID identityID = new IdentityID(XPrincipal.SYSTEM, orgId);
-         ScheduleTask task = new ScheduleTask(
-            TASK_PREFIX + cycle.name, ScheduleTask.Type.CYCLE_TASK);
-         task.setEditable(false);
-         task.setRemovable(false);
-
-         if(cycleStatusMap.containsKey(cycle)) {
-            task.setEnabled(cycleStatusMap.get(cycle));
+      try {
+         // don't load in secondary schedulers
+         if(Scheduler.getSchedulerCount() != 1 &&
+            "true".equals(System.getProperty("ScheduleServer")))
+         {
+            return;
          }
 
-         task.setOwner(identityID);
-         task.setCycleInfo(getCycleInfo(cycle.name, cycle.orgId));
+         List<ScheduleTask> tasks = new ArrayList<>();
+         Map<DataCycleId, Boolean> cycleStatusMap = new HashMap(this.cycleStatusMap);
+         Enumeration<DataCycleId> cycles = getDataCycles(norg);
 
-         for(int i = 0; i < getConditionCount(cycle.name, cycle.orgId); i++) {
-            task.addCondition(getCondition(cycle.name, cycle.orgId, i));
+         while(cycles.hasMoreElements()) {
+            DataCycleId cycle = cycles.nextElement();
+            String orgId = cycle.orgId;
+            IdentityID identityID = new IdentityID(XPrincipal.SYSTEM, orgId);
+            ScheduleTask task = new ScheduleTask(
+               TASK_PREFIX + cycle.name, ScheduleTask.Type.CYCLE_TASK);
+            task.setEditable(false);
+            task.setRemovable(false);
+
+            if(cycleStatusMap.containsKey(cycle)) {
+               task.setEnabled(cycleStatusMap.get(cycle));
+            }
+
+            task.setOwner(identityID);
+            task.setCycleInfo(getCycleInfo(cycle.name, cycle.orgId));
+
+            for(int i = 0; i < getConditionCount(cycle.name, cycle.orgId); i++) {
+               task.addCondition(getCondition(cycle.name, cycle.orgId, i));
+            }
+
+            generateMVActions(task, cycle.name, tasks, orgId);
+
+            if(task.getActionCount() == 0) {
+               continue;
+            }
+
+            tasks.add(task);
          }
 
-         generateMVActions(task, cycle.name, tasks, orgId);
-
-         if(task.getActionCount() == 0) {
-            continue;
-         }
-
-         tasks.add(task);
-      }
-
-      synchronized(this) {
-         if(allMVs) {
-            pregeneratedTasksMap.clear();
-         }
-         else {
+         synchronized(this) {
             if(replace && oorg != null) {
                pregeneratedTasksMap.remove(oorg.getOrganizationID());
+               orgPregeneratedTaskLoadedStatus.remove(oorg.getOrganizationID());
             }
             else {
                String org = norg != null ?
                   norg.getOrganizationID() : OrganizationManager.getInstance().getCurrentOrgID();
                pregeneratedTasksMap.put(org, new Vector<>());
             }
-         }
 
-         for(ScheduleTask task : tasks) {
-            String orgID = task.getOwner() != null ?
-               task.getOwner().getOrgID() : OrganizationManager.getInstance().getCurrentOrgID();
-            pregeneratedTasksMap.computeIfAbsent(orgID, k -> new Vector<>());
-            List<ScheduleTask> taskList = pregeneratedTasksMap.get(orgID);
+            for(ScheduleTask task : tasks) {
+               String orgID = task.getOwner() != null ?
+                  task.getOwner().getOrgID() : OrganizationManager.getInstance().getCurrentOrgID();
+               pregeneratedTasksMap.computeIfAbsent(orgID, k -> new Vector<>());
+               List<ScheduleTask> taskList = pregeneratedTasksMap.get(orgID);
 
-            if(!taskList.contains(task)) {
-               taskList.add(task);
-               taskAdded(task);
+               if(!taskList.contains(task)) {
+                  taskList.add(task);
+                  taskAdded(task);
+               }
             }
          }
       }
+      finally {
+         orgPregeneratedTaskLoadedStatus.put(currOrgID, true);
+      }
 
       if(reloadExtensions) {
-         ScheduleManager.getScheduleManager().reloadExtensions();
+         ScheduleManager.getScheduleManager().reloadExtensions(currOrgID);
       }
    }
 
@@ -550,7 +566,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          }
       }
 
-      generateTasks(oorg, norg, true, false, replace);
+      generateTasks(oorg, norg, true, replace);
    }
 
    private PrintWriter createWriter(OutputStream output) {
@@ -1217,6 +1233,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    private Map<DataCycleId, Vector<ScheduleCondition>> dataCycleMap =
       new LinkedHashMap<>();
    private Map<DataCycleId, Boolean> cycleStatusMap = new LinkedHashMap<>();
+   private Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
    private Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
    private Map<DataCycleId, CycleInfo> cycleInfoMap = new HashMap<>();
    private String dcycle;
@@ -1238,7 +1255,8 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
             try {
                if(manager == null) {
                   manager = new DataCycleManager();
-                  ScheduleManager.getScheduleManager().reloadExtensions();
+                  ScheduleManager.getScheduleManager().reloadExtensions(
+                     OrganizationManager.getInstance().getCurrentOrgID());
 
                   try {
                      RepletRegistry.getRegistry().addPropertyChangeListener(manager);

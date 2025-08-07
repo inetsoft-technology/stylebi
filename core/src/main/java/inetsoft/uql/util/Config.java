@@ -20,6 +20,7 @@ package inetsoft.uql.util;
 import com.google.common.collect.Iterables;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.XNode;
+import inetsoft.uql.XQuery;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.*;
 import org.slf4j.Logger;
@@ -34,7 +35,6 @@ import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -830,15 +830,19 @@ public class Config implements Serializable {
    public static final class Reference extends SingletonManager.Reference<Config> {
       @Override
       public Config get(Object... parameters) {
-         return config.updateAndGet(c -> c == null ? new Config() : c);
+         if(config == null) {
+            config = new Config();
+         }
+
+         return config;
       }
 
       @Override
       public void dispose() {
-         config.set(null);
+         config = null;
       }
 
-      private final AtomicReference<Config> config = new AtomicReference<>();
+      private Config config;
    }
 
    private transient Map<String, DSInfo> dxmap = new HashMap<>();

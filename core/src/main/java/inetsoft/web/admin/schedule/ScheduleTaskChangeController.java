@@ -76,10 +76,6 @@ public class ScheduleTaskChangeController {
          portalSubscribed = false;
          adminSubscribed = false;
       }
-
-      if(assetListener != null) {
-         assetRepository.removeAssetChangeListener(this.assetListener);
-      }
    }
 
    @SubscribeMapping(PORTAL_TOPIC)
@@ -332,8 +328,6 @@ public class ScheduleTaskChangeController {
    private Principal subscriber;
    private boolean portalSubscribed = false;
    private boolean adminSubscribed = false;
-   private AssetChangeListener assetListener;
-
    private final AnalyticRepository repository;
    private final ScheduleService scheduleService;
    private final ScheduleManager scheduleManager;

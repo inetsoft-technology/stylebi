@@ -144,6 +144,7 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
 
    ngOnInit() {
       super.ngOnInit();
+      this.subscribePluginsChange(false);
       this.appInfoService.isEnterprise().subscribe(info => this.enterprise = info);
 
       if(this.additionalVisible) {
@@ -814,7 +815,13 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    }
 
    refreshMetadata() {
-      const params = new HttpParams().set("dataSource", this.databasePath);
+      let dataSource = this.databasePath;
+
+      if(!this.additionalVisible && this.primaryDatabasePath) {
+         dataSource = this.primaryDatabasePath + "/" + this.database.name;
+      }
+
+      const params = new HttpParams().set("dataSource", dataSource);
       this.http.get<boolean>(PORTAL_DATABASE_REFRESH, {params}).subscribe(success =>
       {
          if(success) {

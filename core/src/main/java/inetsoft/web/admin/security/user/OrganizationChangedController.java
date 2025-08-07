@@ -62,15 +62,21 @@ public class OrganizationChangedController implements MessageListener {
    @Override
    public void messageReceived(MessageEvent event) {
       if(!(event.getMessage() instanceof IdentityChangedMessage message) ||
-         message.getType() != Identity.ORGANIZATION || message.getOldIdentity() == null ||
+         message.getType() != Identity.ORGANIZATION ||
+         message.getOldIdentity() == null && message.getSessionID() == null ||
          !OrganizationManager.getInstance().isSiteAdmin(principal))
       {
          return;
       }
 
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      String sessionID = principal instanceof SRPrincipal ?
+         ((SRPrincipal) principal).getSessionID() : null;
+      String oOrgID = message.getOldIdentity() == null ? null : message.getOldIdentity().getOrgID();
 
-      if(!Tool.equals(message.getOldIdentity().getOrgID(), currentOrgID)) {
+      if(oOrgID != null && !Tool.equals(oOrgID, currentOrgID) ||
+         !Tool.equals(sessionID, message.getSessionID()))
+      {
          return;
       }
 

@@ -21,31 +21,22 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.zaxxer.hikari.HikariDataSource;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.internal.cluster.ClusterCache;
 import inetsoft.sree.security.*;
 import inetsoft.uql.jdbc.JDBCHandler;
-import inetsoft.util.*;
+import inetsoft.util.Tool;
 import jakarta.validation.constraints.NotNull;
 import org.apache.commons.codec.binary.Hex;
-import org.jdbi.v3.core.Handle;
-import org.jdbi.v3.core.Jdbi;
-import org.jdbi.v3.core.statement.Query;
-import org.jdbi.v3.core.statement.StatementContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.sql.DataSource;
-import java.io.PrintWriter;
-import java.io.Serializable;
-import java.sql.*;
-import java.time.Instant;
+import java.sql.Driver;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Authentication module that stores user, password, group and role information
@@ -58,8 +49,6 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    public DatabaseAuthenticationProvider() {
       cacheEnabled = "true".equals(SreeEnv.getProperty("security.cache"));
       caseSensitive = "true".equals(SreeEnv.getProperty("security.user.caseSensitive", "true"));
-      connectionRetryInterval = Long.parseLong(SreeEnv.getProperty(
-         "database.security.connection.retryInterval", "600000"));
    }
 
    @Override
@@ -90,34 +79,11 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return false;
       }
 
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
+      try {
+         Optional<UserCredential> passwordAndSalt = dao.getUserCredential(username);
 
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(userQuery);
-
-            if(SUtil.isMultiTenant()) {
-               query.bind(0, username.orgID);
-               query.bind(1, username.name);
-            }
-            else {
-               query.bind(0, username.name);
-            }
-
-            Optional<Object[]> row = query.map(this::mapToArray).stream().findFirst();
-
-            if(row.isPresent()) {
-               Object[] result = row.get();
-               String dbPassword = (String) result[1];
-               String salt = null;
-
-               // check if salt has been included as well
-               if(result.length > 2) {
-                  salt = (String) result[2];
-               }
-
-               return authenticate(password, dbPassword, salt);
-            }
+         if(passwordAndSalt.isPresent()) {
+            return authenticate(password, passwordAndSalt.get().password(), passwordAndSalt.get().salt());
          }
       }
       catch(Exception e) {
@@ -138,21 +104,8 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return Collections.emptyMap();
       }
 
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(userQuery);
-
-            if(SUtil.isMultiTenant()) {
-               query.bind(0, userid.orgID);
-               query.bind(1, userid.name);
-            }
-            else {
-               query.bind(0, userid.name);
-            }
-            return query.mapToMap().stream().findFirst().orElse(null);
-         }
+      try {
+         return dao.queryUser(userid).orElse(null);
       }
       catch(Exception e) {
          LOG.error("An exception prevented user query \"{}\"", userid.convertToKey(), e);
@@ -178,18 +131,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    }
 
    public void testConnection() throws Exception {
-      loadCredential();
-      checkConnectionProperties();
-      Driver driver = JDBCHandler.getDriver(driverClass);
-      Properties properties = new Properties();
-      properties.setProperty("user", dbUser);
-      properties.setProperty("password", dbPassword);
-
-      try(Connection connection = driver.connect(url, properties)) {
-         if(connection == null) {
-            throw new MessageException(Catalog.getCatalog().getString("Connection failed"));
-         }
-      }
+      connectionProvider.testConnection();
    }
 
    @Override
@@ -209,18 +151,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
    @Override
    public void tearDown() {
-      poolLock.lock();
-
-      try {
-         if(connectionPool != null) {
-            connectionPool.close();
-            connectionPool = null;
-         }
-      }
-      finally {
-         poolLock.unlock();
-      }
-
+      connectionProvider.close();
       closeCache();
    }
 
@@ -229,48 +160,8 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       if(cacheEnabled && !isIgnoreCache()) {
          return getCache().getUsers();
       }
-      return Arrays.stream(doGetUsers().result).map(IdentityID::getIdentityIDFromKey).toArray(IdentityID[]::new);
-   }
 
-   private QueryResult doGetUsers() {
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(userListQuery);
-            String[] users;
-
-            if(SUtil.isMultiTenant()) {
-               users = query.mapToMap().stream()
-                  .filter(map -> {
-                     List<Object> values = new ArrayList<>(map.values());
-                     return values.get(0) != null && values.get(1) != null && !"null".equalsIgnoreCase(values.get(0).toString()) &&
-                        !values.get(0).toString().isEmpty() && !values.get(1).toString().isEmpty();
-                  })
-                  .map(map -> {
-                     List<Object> values = new ArrayList<>(map.values());
-                     return new IdentityID(values.get(0).toString(), values.get(1).toString()).convertToKey();
-                  })
-                  .toArray(String[]::new);
-            }
-            else {
-               users = query.map(this::mapToString).filter(Objects::nonNull)
-                  .map(name -> new IdentityID(name, Organization.getDefaultOrganizationID()).convertToKey())
-                  .filter(u -> !"null".equalsIgnoreCase(u)).list().toArray(new String[0]);
-            }
-
-            return new QueryResult(users, false);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve the user list, user list query is not defined properly.", ex);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to retrieve the user list, connection failed.", ex);
-      }
-
-      return new QueryResult(new String[0], true);
+      return dao.getUsers().result();
    }
 
    @Override
@@ -329,16 +220,20 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getOrganizations();
       }
 
-      return doGetOrganizations().result;
+      return dao.getOrganizations().result();
    }
 
    @Override
    public String[] getOrganizationNames() {
       if(cacheEnabled && !isIgnoreCache()) {
-         return Arrays.stream(getCache().getOrganizations()).map(this::getOrgNameFromID).toArray(String[]::new);
+         return Arrays.stream(getCache().getOrganizations())
+            .map(this::getOrganizationName)
+            .toArray(String[]::new);
       }
 
-      return Arrays.stream(doGetOrganizations().result).map(this::getOrgNameFromID).toArray(String[]::new);
+      return Arrays.stream(dao.getOrganizations().result())
+         .map(dao::getOrganizationName)
+         .toArray(String[]::new);
    }
 
    public String getOrganizationName(String id) {
@@ -351,10 +246,10 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          String cacheid = getCache().getOrganizationName(id);
 
          return cacheid == null || cacheid.isEmpty() ?
-                 doGetOrganizationName(id) : cacheid;
+                 dao.getOrganizationName(id) : cacheid;
       }
 
-      return doGetOrganizationName(id);
+      return dao.getOrganizationName(id);
    }
 
    @Override
@@ -374,114 +269,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getOrganizationMembers(organizationID);
       }
 
-      return doGetOrganizationMembers(organizationID);
-   }
-
-   private QueryResult doGetOrganizations() {
-      if(organizationListQuery == null || organizationListQuery.isEmpty()) {
-         return new QueryResult(new String[]{Organization.getDefaultOrganizationID()}, false);
-      }
-
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(organizationListQuery);
-            String[] orgs = query.map(this::mapToString)
-               .filter(o -> o != null && !o.isEmpty() && !"null".equalsIgnoreCase(o))
-               .list().toArray(new String[0]);
-            return new QueryResult(orgs, false);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve the organization list, organization list query is not defined properly.", ex);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to retrieve the organization list, connection failed.", ex);
-      }
-
-      return new QueryResult(new String[0], true);
-   }
-
-   private String doGetOrganizationName(String id) {
-      if(organizationNameQuery == null || organizationNameQuery.isEmpty()) {
-         return Organization.getDefaultOrganizationName();
-      }
-
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(organizationNameQuery);
-            query.bind(0, id);
-            return query.map(this::mapToString).stream().filter(Objects::nonNull).findFirst().orElse(null);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve the organization id, organization id query is not defined properly.", ex);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to retrieve the organization id, connection failed.", ex);
-      }
-
-      return "";
-   }
-
-   private String[] doGetOrganizationRoles(String name) {
-      if(organizationRolesQuery == null || organizationRolesQuery.isEmpty()) {
-         return new String[0];
-      }
-
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(organizationRolesQuery);
-            query.bind(0, name);
-            return query.map(this::mapToString).stream()
-            .filter(r -> r != null && !r.isEmpty() && !"null".equalsIgnoreCase(r)).toArray(String[]::new);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve the organization roles list, organization roles list query is not defined properly.", ex);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to retrieve the organization roles list, connection failed.", ex);
-      }
-
-      return new String[0];
-   }
-
-   private String[] doGetOrganizationMembers(String id) {
-      if(organizationMembersQuery == null || organizationMembersQuery.isEmpty()) {
-         return new String[0];
-      }
-
-      Set<String> members = new HashSet<>();
-
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(organizationMembersQuery);
-            query.bind(0, id);
-            query.map(this::mapToList).stream().forEach(members::addAll);
-
-            return members.toArray(new String[0]);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve the organization Members list, organization members list query is not defined properly.", ex);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to retrieve the organization members list, connection failed.", ex);
-      }
-
-      return new String[0];
+      return dao.getOrganizationMembers(organizationID).result();
    }
 
    @Override
@@ -500,37 +288,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getUsers(groupIdentity);
       }
 
-      return Arrays.stream(doGetUsers(groupIdentity))
-         .map(name -> new IdentityID(name, groupIdentity.orgID)).toArray(IdentityID[]::new);
-   }
-
-   private String[] doGetUsers(IdentityID group) {
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(groupUsersQuery);
-
-            if(SUtil.isMultiTenant()) {
-               query.bind(0, group.orgID);
-               query.bind(1, group.name);
-            }
-            else {
-               query.bind(0, group.name);
-            }
-            return query.map(this::mapToString).stream().toArray(String[]::new);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve group users, group users query is not defined properly.", ex);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn(
-            "Failed to retrieve group users, connection failed.", ex);
-      }
-
-      return new String[0];
+      return dao.getUsers(groupIdentity).result();
    }
 
    @Override
@@ -552,61 +310,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getRoles();
       }
 
-      return Arrays.stream(doGetRoles().result).map(IdentityID::getIdentityIDFromKey).toArray(IdentityID[]::new);
-   }
-
-   private QueryResult doGetRoles() {
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(roleListQuery);
-            String[] roles;
-
-            if(SUtil.isMultiTenant()) {
-               roles = query.mapToMap().stream()
-                  .map(map -> {
-                     List<Object> values = new ArrayList<>(map.values());
-                     String roleName = values.get(0) == null ? null : values.get(0).toString();
-                     String orgID = values.get(1) == null ? null : values.get(1).toString();
-                     orgID = handleGlobalOrganizations(roleName, orgID);
-                     return new IdentityID(roleName, orgID).convertToKey();
-                  })
-                  .filter(r -> !(IdentityID.getIdentityIDFromKey(r).name.isEmpty()) &&
-                     (!"null".equalsIgnoreCase(IdentityID.getIdentityIDFromKey(r).name)))
-                  .toArray(String[]::new);
-            }
-            else {
-               roles = query.map(this::mapToString).filter(Objects::nonNull)
-                  .map(name -> {
-                     String orgID = handleGlobalOrganizations(name, Organization.getDefaultOrganizationID());
-                     return new IdentityID(name, orgID).convertToKey();
-                  })
-                  .filter(r -> !(IdentityID.getIdentityIDFromKey(r).name.isEmpty()) &&
-                     (!"null".equalsIgnoreCase(IdentityID.getIdentityIDFromKey(r).name)))
-                  .list().toArray(new String[0]);
-            }
-
-            if(systemAdministratorRoles != null && systemAdministratorRoles.length > 0 ||
-               orgAdministratorRoles != null && orgAdministratorRoles.length > 0)
-            {
-               Set<String> set = new java.util.HashSet<>();
-               set.addAll(Arrays.asList(roles));
-               roles = set.toArray(new String[set.size()]);
-            }
-
-            return new QueryResult(roles, false);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve the role list, role list query is not defined properly.", ex);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to retrieve the role list, connection failed.", ex);
-      }
-
-      return new QueryResult(new String[0], true);
+      return dao.getRoles().result();
    }
 
    @Override
@@ -616,58 +320,10 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
             return getCache().getRoles(userID);
          }
 
-         return doGetRoles(userID);
-      }
-      return new IdentityID[0];
-   }
-
-   private IdentityID[] doGetRoles(IdentityID user) {
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(userRolesQuery);
-
-            if(SUtil.isMultiTenant()) {
-               query.bind(0, user.orgID);
-               query.bind(1, user.name);
-            }
-            else {
-               query.bind(0, user.name);
-            }
-
-            return query.map(this::mapToString).stream().map(r -> new IdentityID(r, parseOrgOrGlobalRole(r, user.orgID))).toArray(IdentityID[]::new);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve user roles, user roles query is not defined properly.", ex);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to retrieve user roles, connection failed.", ex);
+         return dao.getRoles(userID).result();
       }
 
       return new IdentityID[0];
-   }
-
-   private String handleGlobalOrganizations(String roleName, String orgID) {
-      if(systemAdministratorRoles != null) {
-         int idx = Arrays.asList(systemAdministratorRoles).indexOf(roleName);
-
-         if(idx != -1) {
-            return null;
-         }
-      }
-
-      if(orgAdministratorRoles != null) {
-         int idx = Arrays.asList(orgAdministratorRoles).indexOf(roleName);
-
-         if(idx != -1) {
-            return null;
-         }
-      }
-
-      return orgID;
    }
 
    @Override
@@ -679,57 +335,13 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       return new Role(roleIdentity, "");
    }
 
-   private String parseOrgOrGlobalRole(String roleName, String userOrg) {
-      return getRole(new IdentityID(roleName, userOrg)) == null ? null : userOrg;
-   }
-
    @Override
    public IdentityID[] getGroups() {
       if(cacheEnabled && !isIgnoreCache()) {
          return getCache().getGroups();
       }
 
-      return Arrays.stream(doGetGroups().result).map(IdentityID::getIdentityIDFromKey).toArray(IdentityID[]::new);
-   }
-
-   private QueryResult doGetGroups() {
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(groupListQuery);
-            String[] result;
-
-            if(SUtil.isMultiTenant()) {
-               result = query.mapToMap().stream()
-                  .filter(map -> {
-                     List<Object> values = new ArrayList<>(map.values());
-                     return values.get(0) != null && values.get(1) != null && !"null".equalsIgnoreCase(values.get(0).toString()) &&
-                        !values.get(0).toString().isEmpty() && !values.get(1).toString().isEmpty();
-                  })
-                  .map(map -> {
-                     List<Object> values = new ArrayList<>(map.values());
-                     return new IdentityID(values.get(0).toString(), values.get(1).toString()).convertToKey();
-                  })
-                  .toArray(String[]::new);
-            }
-            else {
-               result = query.map(this::mapToString).stream().filter(g -> !Tool.isEmptyString(g))
-                  .map(n -> new IdentityID(n, Organization.getDefaultOrganizationID()).convertToKey())
-                  .filter(g -> !"null".equalsIgnoreCase(g)).toArray(String[]::new);
-            }
-            return new QueryResult(result, false);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve the group list, group list query is not defined properly.", ex);
-         }
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to retrieve the group list, connection failed.", ex);
-      }
-
-      return new QueryResult(new String[0], true);
+      return dao.getGroups().result();
    }
 
    /**
@@ -743,40 +355,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          return getCache().getEmails(userIdentity);
       }
 
-      return doGetEmails(userIdentity);
-   }
-
-   private String[] doGetEmails(IdentityID user) {
-      if(userEmailsQuery == null || userEmailsQuery.isEmpty()) {
-         LOG.debug("Failed to retrieve user emails, user emails query is not defined.");
-         return new String[0];
-      }
-
-      try(Connection connection = getConnection()) {
-         Jdbi jdbi = Jdbi.create(connection);
-
-         try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(userEmailsQuery);
-
-            if(SUtil.isMultiTenant()) {
-               query.bind(0, user.orgID);
-               query.bind(1, user.name);
-            }
-            else {
-               query.bind(0, user.name);
-            }
-            return query.map(this::mapToString).stream().filter(Objects::nonNull).toArray(String[]::new);
-         }
-         catch(Exception ex) {
-            LOG.warn(
-               "Failed to retrieve user emails, user emails query is not defined properly.", ex);
-         }
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to retrieve user emails, connection failed.", e);
-      }
-
-      return new String[0];
+      return dao.getEmails(userIdentity).result();
    }
 
    @Override
@@ -823,8 +402,10 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          cacheLock.lock();
 
          try {
-            if(securityCache != null) {
-               securityCache.load();
+            DatabaseAuthenticationCache cache = isIgnoreCache() ? securityCache : getCache();
+
+            if(cache != null) {
+               cache.refresh();
             }
          }
          finally {
@@ -1167,127 +748,38 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       }
    }
 
-   private Connection getConnection() throws Exception {
-      Connection connection = null;
-      poolLock.lock();
-
-      try {
-         loadCredential();
-
-         if(connectionValid == null || shouldRetryConnection()) {
-            try {
-               testConnection();
-               connectionValid = true;
-            }
-            catch(Exception e) {
-               connectionValid = false;
-               throw e;
-            }
-            finally {
-               connectionLastTested = Instant.now();
-            }
-         }
-
-         if(connectionValid) {
-            if(connectionPool == null) {
-               connectionPool = new HikariDataSource();
-
-               Properties properties = new Properties();
-               properties.setProperty("user", dbUser);
-               properties.setProperty("password", dbPassword);
-
-               try {
-                  Driver driver = JDBCHandler.getDriver(driverClass);
-                  connectionPool.setDataSource(new DbDataSource(driver, url, properties));
-               }
-               catch(Exception e) {
-                  LOG.warn("Failed to create default data source", e);
-                  connectionPool.setDriverClassName(driverClass);
-                  connectionPool.setJdbcUrl(url);
-                  connectionPool.setUsername(dbUser);
-                  connectionPool.setPassword(dbPassword);
-               }
-            }
-
-            connection = connectionPool.getConnection();
-         }
-      }
-      finally {
-         poolLock.unlock();
-      }
-
-      if(connection == null) {
-         connectionValid = false;
-         throw new SQLException("Failed to connect");
-      }
-
-      return connection;
-   }
-
-   private boolean shouldRetryConnection() {
-      return Boolean.FALSE.equals(connectionValid) &&
-             connectionLastTested.isBefore(Instant.now().minusMillis(connectionRetryInterval));
-   }
-
    public void resetConnection() {
-      poolLock.lock();
-
-      try {
-         if(connectionPool != null) {
-            connectionPool.close();
-            connectionPool = null;
-         }
-
-         connectionValid = null;
-         connectionLastTested = Instant.MAX;
-      }
-      finally {
-         poolLock.unlock();
-      }
-
+      connectionProvider.resetConnection();
       clearCache();
    }
 
-   private void checkConnectionProperties() throws SQLException {
-      if(driverClass.isEmpty()) {
-         throw new SQLException("Failed to make a connection, the driver class is not defined.");
-      }
-
-      if(url.isEmpty()) {
-         throw new SQLException("Failed to make a connection, the JDBC URL is not defined.");
-      }
-
-      if(dbUser.isEmpty() && requiresLogin) {
-         throw new SQLException("Failed to make a connection, user name is not defined.");
-      }
-
-      if(!JDBCHandler.isDriverAvailable(Tool.convertUserClassName(driverClass))) {
-         throw new SQLException("Failed to make a connection, cannot find the driver class");
-      }
+   private DatabaseAuthenticationCache getCache() {
+      return getCache(true);
    }
 
-   private DbSecurityCache getCache() {
+   DatabaseAuthenticationCache getCache(boolean initialize) {
+      DatabaseAuthenticationCache result = null;
+
       cacheLock.lock();
 
       try {
          if(cacheEnabled) {
             if(securityCache == null) {
-               securityCache = new DbSecurityCache();
+               securityCache = new DatabaseAuthenticationCache(this);
             }
 
-            securityCache.initialize();
-
-            if(securityCache.reloadCacheAfter.isBefore(Instant.now())) {
-               securityCache.reloadCacheAfter = Instant.MAX;
-               resetConnection();
-            }
+            result = securityCache;
          }
       }
       finally {
          cacheLock.unlock();
       }
 
-      return securityCache;
+      if(initialize && result != null && !result.isLoading() && !result.isInitialized()) {
+         result.load();
+      }
+
+      return result;
    }
 
    private void closeCache() {
@@ -1318,35 +810,76 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       this.ignoreCache.set(ignoreCache);
    }
 
-   private Object[] mapToArray(ResultSet rs, StatementContext ctx) throws SQLException {
-      Object[] result = new Object[rs.getMetaData().getColumnCount()];
+   ConnectionProperties getConnectionProperties() {
+      loadCredential();
+      return new ConnectionProperties(driverClass, url, dbUser, dbPassword, requiresLogin);
+   }
 
-      for(int i = 0; i < result.length; i++) {
-         result[i] = rs.getObject(i + 1);
+   ConnectionProvider getConnectionProvider() {
+      return connectionProvider;
+   }
+
+   AuthenticationDAO getDao() {
+      return dao;
+   }
+
+   boolean isAdminRole(String roleName) {
+      if(systemAdministratorRoles != null) {
+         int idx = Arrays.asList(systemAdministratorRoles).indexOf(roleName);
+
+         if(idx != -1) {
+            return true;
+         }
       }
 
-      return result;
-   }
+      if(orgAdministratorRoles != null) {
+         int idx = Arrays.asList(orgAdministratorRoles).indexOf(roleName);
 
-   private List<String> mapToList(ResultSet rs, StatementContext ctx) throws SQLException {
-      List<String> list = new ArrayList<>();
-
-      for(int i = 0; i < rs.getMetaData().getColumnCount(); i++) {
-         list.add(rs.getString(i + 1));
+         if(idx != -1) {
+            return true;
+         }
       }
 
-      return list;
+      return false;
    }
 
-   private String mapToString(ResultSet r, int columnNumber, StatementContext ctx)
-      throws SQLException
-   {
-      return r.getString(columnNumber);
+   boolean orgRoleExists(String roleName, String userOrg) {
+      return getRole(new IdentityID(roleName, userOrg)) != null;
    }
 
-   private final static int IDENTITY_USER = 0;
-   private final static int IDENTITY_GROUP = 1;
-   private final static int IDENTITY_ROLE = 2;
+   long getCacheRefreshDelay() {
+      return getCacheInterval();
+   }
+
+   boolean isCacheInitialized() {
+      DatabaseAuthenticationCache cache = getCache(false);
+      return cache != null && cache.isInitialized();
+   }
+
+   void setMultiTenantSupplier(Supplier<Boolean> supplier) {
+      this.multiTenant = supplier;
+   }
+
+   boolean isMultiTenant() {
+      return multiTenant.get();
+   }
+
+   void setDriverAvailable(Function<String, Boolean> driverAvailable) {
+      this.driverAvailable = driverAvailable;
+   }
+
+   boolean isDriverAvailable(String driverClass) {
+      return driverAvailable.apply(driverClass);
+   }
+
+   void setDriverSupplier(DriverSupplier driverSupplier) {
+      this.driverSupplier = driverSupplier;
+   }
+
+   Driver getDriver(String driverClass) throws Exception {
+      return driverSupplier.getDriver(driverClass);
+   }
+
    private String userQuery;
    private String userListQuery;
    private String userRolesQuery;
@@ -1371,321 +904,21 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    private String dbPassword;
    private String[] systemAdministratorRoles = new String[0];
    private String[] orgAdministratorRoles = new String[0];
-   private final Lock poolLock = new ReentrantLock();
-   private Boolean connectionValid;
-   private Instant connectionLastTested = Instant.MAX;
-   private HikariDataSource connectionPool;
    private final boolean cacheEnabled;
    private final boolean caseSensitive;
-   private final long connectionRetryInterval;
+   private Supplier<Boolean> multiTenant = SUtil::isMultiTenant;
+   private Function<String, Boolean> driverAvailable = JDBCHandler::isDriverAvailable;
+   private DriverSupplier driverSupplier = JDBCHandler::getDriver;
+   private final AuthenticationDAO dao = new AuthenticationDAO(this);
    private final Lock cacheLock = new ReentrantLock();
-   private DbSecurityCache securityCache;
+   private DatabaseAuthenticationCache securityCache;
    private final ThreadLocal<Boolean> ignoreCache = ThreadLocal.withInitial(() -> false);
+   private final ConnectionProvider connectionProvider = new ConnectionProvider(this);
 
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationProvider.class);
 
-   private static final class DbDataSource implements DataSource {
-      /**
-       * Creates a new instance of <tt>DbDataSource</tt>.
-       *
-       * @param driver     the JDBC driver.
-       * @param url        the JDBC URL for the database.
-       * @param properties the connection properties.
-       */
-      DbDataSource(Driver driver, String url, Properties properties) {
-         this.driver = driver;
-         this.url = url;
-         this.properties = properties;
-      }
-
-      @Override
-      public Connection getConnection() throws SQLException {
-         return driver.connect(url, properties);
-      }
-
-      @Override
-      public Connection getConnection(String username, String password)
-         throws SQLException
-      {
-         Properties userProperties = new Properties(properties);
-         userProperties.setProperty("user", username);
-         userProperties.setProperty("password", password);
-         return driver.connect(url, userProperties);
-      }
-
-      @Override
-      public PrintWriter getLogWriter() {
-         return logWriter;
-      }
-
-      @Override
-      public void setLogWriter(PrintWriter out) {
-         this.logWriter = out;
-      }
-
-      @Override
-      public void setLoginTimeout(int seconds) {
-         loginTimeout = seconds;
-      }
-
-      @Override
-      public int getLoginTimeout() {
-         return loginTimeout;
-      }
-
-      @SuppressWarnings("unchecked")
-      @Override
-      public <T> T unwrap(Class<T> iface) throws SQLException {
-         if(isWrapperFor(iface)) {
-            return (T) this;
-         }
-
-         throw new SQLException("Does not wrap " + iface);
-      }
-
-      @Override
-      public boolean isWrapperFor(Class<?> iface) {
-         return (iface != null && iface.isAssignableFrom(this.getClass()));
-      }
-
-      @Override
-      public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
-         return driver.getParentLogger();
-      }
-
-      private final Driver driver;
-      private final String url;
-      private final Properties properties;
-
-      private PrintWriter logWriter = null;
-      private int loginTimeout = 0;
-   }
-
-   private final class DbSecurityCache extends ClusterCache<LoadEvent, LoadData, SaveData> {
-      DbSecurityCache() {
-         super(false, 500L, TimeUnit.MILLISECONDS, 1000L, TimeUnit.MILLISECONDS,
-               getCacheInterval(), TimeUnit.MILLISECONDS,
-               "DatabaseSecurityCache:" + getProviderName() + ".",
-               USER_ROLES, USER_EMAILS, GROUP_USERS, LISTS, ORGANIZATION_NAME, ORGANIZATION_MEMBERS, ORGANIZATION_ROLES);
-      }
-
-      @Override
-      protected Map<String, Map> doLoad(boolean initializing, LoadData loadData) {
-         final QueryResult users = doGetUsers();
-         final QueryResult roles = doGetRoles();
-         final QueryResult groups = doGetGroups();
-         final QueryResult organizations = doGetOrganizations();
-
-         if(users.failed || roles.failed || groups.failed || organizations.failed) {
-            reloadCacheAfter = Instant.now().plusSeconds(60);
-         }
-
-         Map<String, Map> maps = new HashMap<>();
-         Map<String, String> orgNames = new HashMap<>();
-         Map<String, String[]> orgMembers = new HashMap<>();
-         Map<String, String[]> orgRoles = new HashMap<>();
-
-         for(int i = 0; i < organizations.result.length; i++) {
-            String id = organizations.result[i];
-            String orgName = doGetOrganizationName(id);
-            String[] orgMember = doGetOrganizationMembers(id);
-            String[] orgRole = doGetOrganizationRoles(id);
-            orgNames.put(id,orgName);
-            orgMembers.put(id,orgMember);
-            orgRoles.put(id,orgRole);
-         }
-
-         maps.put(ORGANIZATION_NAME, orgNames);
-         maps.put(ORGANIZATION_MEMBERS, orgMembers);
-         maps.put(ORGANIZATION_ROLES, orgRoles);
-         Map<String, String[]> lists = new HashMap<>();
-         lists.put(USERS, users.result);
-         lists.put(ROLES, roles.result);
-         lists.put(GROUPS, groups.result);
-         lists.put(ORGANIZATIONS, Arrays.stream(organizations.result).filter(Objects::nonNull).toArray(String[]::new));
-         maps.put(LISTS, lists);
-
-         return maps;
-      }
-
-      IdentityID[] getUsers(String[] userNames, Map<String, String[]> userOrgsMap) {
-         List<IdentityID> list = new ArrayList<>();
-
-         Arrays.stream(userNames).forEach(u -> {
-            String[] orgs = userOrgsMap.get(u);
-
-            for(int i = 0; orgs != null && i < orgs.length; i++) {
-               IdentityID id = new IdentityID(u, orgs[i]);
-
-               if(!list.contains(id)) {
-                  list.add(id);
-               }
-            }
-         });
-
-         return list.toArray(new IdentityID[list.size()]);
-      }
-
-      IdentityID[] getRoles(String[] roleNames, Map<String, String[]> roleOrgsMap) {
-         List<IdentityID> list = new ArrayList<>();
-
-         Arrays.stream(roleNames).forEach(r -> {
-            String[] orgs = roleOrgsMap.get(r);
-
-            for(int i = 0; orgs != null && i < orgs.length; i++) {
-               IdentityID id = new IdentityID(r, orgs[i]);
-
-               if(!list.contains(id)) {
-                  list.add(id);
-               }
-            }
-         });
-
-         return list.toArray(new IdentityID[list.size()]);
-      }
-
-      IdentityID[] getGroups(String[] groupNames, Map<String, String[]> groupOrgsMap) {
-         List<IdentityID> list = new ArrayList<>();
-
-         Arrays.stream(groupNames).forEach(g -> {
-            String[] orgs = groupOrgsMap.get(g);
-
-            for(int i = 0; orgs != null && i < orgs.length; i++) {
-               IdentityID id = new IdentityID(g, orgs[i]);
-
-               if(!list.contains(id)) {
-                  list.add(id);
-               }
-            }
-         });
-
-         return list.toArray(new IdentityID[list.size()]);
-      }
-
-      @Override
-      protected LoadData getLoadData(LoadEvent event) {
-         return new LoadData(System.currentTimeMillis());
-      }
-
-      IdentityID[] getUsers() {
-         return Arrays.stream(((String[]) get(LISTS, USERS)))
-            .map(IdentityID::getIdentityIDFromKey).toArray(IdentityID[]::new);
-      }
-
-      IdentityID[] getUsers(IdentityID group) {
-         String[] userNames = getGroupUsers().computeIfAbsent(
-            group, DatabaseAuthenticationProvider.this::doGetUsers);
-         return Arrays.stream(userNames).map(name -> new IdentityID(name, group.orgID)).toArray(IdentityID[]::new);
-      }
-
-      IdentityID[] getRoles() {
-         return Arrays.stream((String[]) get(LISTS, ROLES))
-            .map(IdentityID::getIdentityIDFromKey).toArray(IdentityID[]::new);
-      }
-
-      IdentityID[] getRoles(IdentityID user) {
-         Map<IdentityID, ArrayList<IdentityID>> userRoles = getUserRoles();
-
-         if(userRoles.containsKey(user)) {
-            return userRoles.get(user) == null ? new IdentityID[0] : userRoles.get(user).stream().toArray(IdentityID[]::new);
-         }
-         else {
-            ArrayList<IdentityID> roles = new ArrayList<IdentityID>(Arrays.asList(doGetRoles(user)));
-            userRoles.put(user, roles);
-            return roles == null ? new IdentityID[0] : roles.stream().toArray(IdentityID[]::new);
-         }
-      }
-
-      IdentityID[] getGroups() {
-         return Arrays.stream((String[]) get(LISTS, GROUPS))
-            .map(IdentityID::getIdentityIDFromKey).toArray(IdentityID[]::new);
-      }
-
-      IdentityID[] getOrganizations(String[] orgs) {
-         return Arrays.stream(orgs).map(n -> new IdentityID(n,n)).toArray(IdentityID[]::new);
-      }
-
-      String[] getOrganizations() {return get(LISTS, ORGANIZATIONS);}
-
-      String getOrganizationName(String id) {
-         return getMap(ORGANIZATION_NAME).values().isEmpty() ? null :
-                 getMap(ORGANIZATION_NAME).get(id) == null ? null : getMap(ORGANIZATION_NAME).get(id).toString();
-      }
-
-      String[] getOrganizationMembers(String orgName) {
-         return getMap(ORGANIZATION_MEMBERS).values().isEmpty() ? null :
-            getMap(ORGANIZATION_MEMBERS) == null ? null : (String[]) getMap(ORGANIZATION_MEMBERS).get(orgName);
-      }
-
-      String[] getEmails(IdentityID user) {
-         return getUserEmails().computeIfAbsent(
-            user, DatabaseAuthenticationProvider.this::doGetEmails);
-      }
-
-      private Map<IdentityID, String[]> getGroupUsers() {
-         return getMap(GROUP_USERS);
-      }
-
-      private Map<IdentityID, ArrayList<IdentityID>> getUserRoles() {
-         return getMap(USER_ROLES);
-      }
-
-      private Map<IdentityID, String[]> getUserEmails() {
-         return getMap(USER_EMAILS);
-      }
-
-      private Instant reloadCacheAfter = Instant.MAX;
-
-      private static final String USER_ROLES = "userRoles";
-      private static final String USER_EMAILS = "userEmails";
-      private static final String GROUP_USERS = "groupUsers";
-      private static final String LISTS = "lists";
-      private static final String USERS = "users";
-      private static final String GROUPS = "groups";
-      private static final String ROLES = "roles";
-      private static final String ORGANIZATIONS = "organizations";
-      private static final String ORGANIZATION_NAME = "organizationName";
-      private static final String ORGANIZATION_ROLES = "organizationRoles";
-      private static final String ORGANIZATION_MEMBERS = "organizationMembers";
-   }
-
-   /*
-    These cache data structures are basically empty, but provide a place to pass data or fire events
-    if the future if needed.
-    */
-
-   public static final class LoadEvent extends EventObject {
-      public LoadEvent(Object source) {
-         super(source);
-      }
-   }
-
-   public static final class LoadData implements Serializable {
-      public LoadData(long timestamp) {
-         this.timestamp = timestamp;
-      }
-
-      final long timestamp;
-   }
-
-   public static final class SaveData implements Serializable {
-      public SaveData(long timestamp) {
-         this.timestamp = timestamp;
-      }
-
-      final long timestamp;
-   }
-
-   /**
-    * Wrapper for query result that indicates whether the query failed.
-    */
-   private static final class QueryResult implements Serializable {
-      private QueryResult(String[] result, boolean failed) {
-         this.result = result;
-         this.failed = failed;
-      }
-
-      final String[] result;
-      final boolean failed;
+   @FunctionalInterface
+   interface DriverSupplier {
+      Driver getDriver(String driverClass) throws Exception;
    }
 }

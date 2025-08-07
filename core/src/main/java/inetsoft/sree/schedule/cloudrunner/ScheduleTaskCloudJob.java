@@ -167,6 +167,7 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
             BlobConfig blobConfig = new BlobConfig();
             blobConfig.setType(config.getBlob().getType());
             blobConfig.setCacheDirectory("/var/lib/inetsoft/blob-cache");
+            blobConfig.setCacheMaxSize(config.getBlob().getCacheMaxSize());
             blobConfig.setAzure(config.getBlob().getAzure());
             blobConfig.setFilesystem(config.getBlob().getFilesystem());
             blobConfig.setGcs(config.getBlob().getGcs());

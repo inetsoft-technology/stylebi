@@ -51,7 +51,12 @@ public interface SVGSupport {
       return getSVGImage(svgStream, 0F, 0F);
    }
 
-   Image getSVGImage(InputStream svgStream, float width, float height) throws Exception;
+   default Image getSVGImage(InputStream svgStream, float width, float height) throws Exception {
+      return getSVGImage(svgStream, width, height, 0F, 0F);
+   }
+
+   Image getSVGImage(InputStream svgStream, float width, float height,
+                     float maxWidth, float maxHeight) throws Exception;
 
    byte[] transcodeSVGImage(Document document) throws Exception;
 

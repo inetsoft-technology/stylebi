@@ -77,7 +77,7 @@ public class LocalMVCreator extends AbstractMVCreator {
       if(def.isAssociationMV() || file == null ||
          (conds == null || conds.isEmpty()) && !assembly.isMVForceAppendUpdates())
       {
-         if(canceled) {
+         if(canceled || Thread.currentThread().isInterrupted()) {
             return false;
          }
 
@@ -87,7 +87,7 @@ public class LocalMVCreator extends AbstractMVCreator {
 
          dispatcher = new MVDispatcher(def);
 
-         if(canceled) {
+         if(canceled || Thread.currentThread().isInterrupted()) {
             return false;
          }
 
@@ -97,7 +97,7 @@ public class LocalMVCreator extends AbstractMVCreator {
 
       incremental = new LocalMVIncremental(def);
 
-      if(canceled) {
+      if(canceled || Thread.currentThread().isInterrupted()) {
          return false;
       }
 

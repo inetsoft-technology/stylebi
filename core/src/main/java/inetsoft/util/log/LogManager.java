@@ -22,6 +22,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.util.*;
+import inetsoft.web.admin.logviewer.*;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.*;
 
@@ -496,6 +497,61 @@ public final class LogManager implements AutoCloseable, MessageListener {
          }
       }
       catch(IOException e) {
+         throw new RuntimeException("Failed to add log file to zip", e);
+      }
+   }
+
+   /**
+    * Output logs to zip output stream. Outputs all logs.
+    */
+   public void zipLogs(ZipOutputStream output, String server) throws Exception {
+      String localMember = Cluster.getInstance().getLocalMember();
+
+      if(Tool.equals(localMember, server) || Tool.isEmptyString(server)) {
+         zipLogs(output);
+      }
+      else {
+         GetLogFilesResponse response = Cluster.getInstance().exchangeMessages(
+            server, new GetLogFilesRequest(), GetLogFilesResponse.class);
+
+         response.getLogFiles().forEach(p -> addEntry(output, p));
+      }
+   }
+
+   private void addEntry(ZipOutputStream zip, LogFileModel file) {
+      try {
+         ZipEntry entry = new ZipEntry(file.getLogFile());
+         zip.putNextEntry(entry);
+         int offset = 0;
+         int length = 500;
+         Cluster cluster = Cluster.getInstance();
+
+         try {
+            GetLogRequest request = new GetLogRequest(file.getLogFile(), offset, length);
+            GetLogResponse response =
+               cluster.exchangeMessages(file.getClusterNode(), request, GetLogResponse.class);
+
+            while(response.getContent() != null && !response.getContent().isEmpty()) {
+               for(String line : response.getContent()) {
+                  if(line == null) {
+                     continue;
+                  }
+
+                  zip.write(line.getBytes());
+                  zip.write("\n".getBytes());
+               }
+
+               offset += response.getContent().size();
+               request = new GetLogRequest(file.getLogFile(), offset, length);
+               response =
+                  cluster.exchangeMessages(file.getClusterNode(), request, GetLogResponse.class);
+            }
+         }
+         finally {
+            zip.closeEntry();
+         }
+      }
+      catch(Exception e) {
          throw new RuntimeException("Failed to add log file to zip", e);
       }
    }

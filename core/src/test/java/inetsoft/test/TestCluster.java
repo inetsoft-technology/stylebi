@@ -297,6 +297,16 @@ public class TestCluster implements Cluster {
    }
 
    @Override
+   public <E> Set<E> getReplicatedSet(String name, boolean transactional) {
+      return getSet(name);
+   }
+
+   @Override
+   public void destroyReplicatedSet(String name) {
+      destroySet(name);
+   }
+
+   @Override
    public DistributedLong getLong(String name) {
       return longs.computeIfAbsent(name, k -> new LocalDistributedLong());
    }
@@ -346,12 +356,12 @@ public class TestCluster implements Cluster {
 
    @Override
    public <T extends Serializable> Future<T> submit(String serviceId, SingletonCallableTask<T> task) {
-      return executor.submit(task);
+      return getSingletonExecutor(serviceId).submit(task);
    }
 
    @Override
    public Future<?> submit(String serviceId, SingletonRunnableTask task) {
-      return executor.submit(task);
+      return getSingletonExecutor(serviceId).submit(task);
    }
 
    @Override
@@ -490,7 +500,24 @@ public class TestCluster implements Cluster {
    @Override
    public void close() throws Exception {
       executor.shutdown();
+
+      for(ExecutorService service : singletonExecutors.values()) {
+         service.shutdown();
+      }
+
+      singletonExecutors.clear();
       scheduledExecutor.shutdown();
+   }
+
+   private ExecutorService getSingletonExecutor(String serviceId) {
+      synchronized(singletonExecutors) {
+         return singletonExecutors.computeIfAbsent(serviceId, k -> Executors.newSingleThreadScheduledExecutor());
+      }
+   }
+
+   @Override
+   public DistributedTransaction startTx() {
+      return new TestTransaction();
    }
 
    private final ConcurrentMap<String, Map<String, Object>> clusterNodeProperties =
@@ -506,6 +533,7 @@ public class TestCluster implements Cluster {
    private final ConcurrentMap<String, DistributedLong> longs = new ConcurrentHashMap<>();
    private final ConcurrentMap<String, DistributedReference<?>> references =
       new ConcurrentHashMap<>();
+   private final Map<String, ExecutorService> singletonExecutors = new HashMap<>();
    private final ExecutorService executor = Executors.newSingleThreadScheduledExecutor();
    private final DistributedScheduledExecutorService scheduledExecutor =
       new LocalDistributedScheduledExecutorService();
@@ -732,6 +760,11 @@ public class TestCluster implements Cluster {
       @Override
       public void removeAll(Set<? extends K> keys) {
          delegate.keySet().removeAll(keys);
+      }
+
+      @Override
+      public void removeAll() {
+         delegate.clear();
       }
 
       @Override
@@ -1125,5 +1158,61 @@ public class TestCluster implements Cluster {
       }
 
       private final ScheduledExecutorService delegate = Executors.newSingleThreadScheduledExecutor();
+   }
+
+   private static final class TestTransaction implements DistributedTransaction {
+      @Override
+      public long startTime() {
+         return startTime;
+      }
+
+      @Override
+      public long timeout() {
+         return timeout;
+      }
+
+      @Override
+      public long timeout(long timeout) {
+         return this.timeout = timeout;
+      }
+
+      @Override
+      public boolean setRollbackOnly() {
+         return rollbackOnly = true;
+      }
+
+      @Override
+      public boolean isRollbackOnly() {
+         return rollbackOnly;
+      }
+
+      @Override
+      public void commit() {
+      }
+
+      @Override
+      public void close() {
+      }
+
+      @Override
+      public void rollback() {
+      }
+
+      @Override
+      public void resume() {
+      }
+
+      @Override
+      public void suspend() {
+      }
+
+      @Override
+      public String label() {
+         return null;
+      }
+
+      private final long startTime = System.currentTimeMillis();
+      private long timeout = 0L;
+      private boolean rollbackOnly = false;
    }
 }

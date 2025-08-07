@@ -20,7 +20,6 @@ package inetsoft.uql.asset;
 import inetsoft.uql.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
-import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

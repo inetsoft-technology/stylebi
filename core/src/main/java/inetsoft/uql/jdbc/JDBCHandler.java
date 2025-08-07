@@ -45,7 +45,6 @@ import javax.sql.DataSource;
 import java.lang.reflect.Method;
 import java.security.Principal;
 import java.sql.*;
-import java.sql.Date;
 import java.util.*;
 import java.util.concurrent.locks.*;
 
@@ -908,7 +907,10 @@ public class JDBCHandler extends XHandler {
                               ((PreparedStatement) stmt).
                                  setString(inIdx, Tool.toString(val));
                            }
-                           else if(clickhouse && (val instanceof Timestamp || val instanceof Date)) {
+                           else if(clickhouse && val instanceof java.sql.Date) {
+                              ((PreparedStatement) stmt).setDate(inIdx, (java.sql.Date) val);
+                           }
+                           else if(clickhouse && val instanceof Timestamp) {
                               ((PreparedStatement) stmt).setObject(inIdx, Tool.toString(val));
                            }
                            else if(boolToStr && val instanceof Boolean) {
@@ -1037,6 +1039,12 @@ public class JDBCHandler extends XHandler {
                      String column = query.getSelection().getAlias(0);
                      String oldSelect = column + " as " + column;
                      String newSelect = "CAST("+ column + " as STRING) as " + column;
+
+                     if(column == null) {
+                        column = query.getSelection().getColumn(0);
+                        oldSelect = column;
+                        newSelect = "CAST("+ column + " as STRING)";
+                     }
 
                      if(origSQL.contains(oldSelect)) {
                         origSQL = origSQL.replace(oldSelect, newSelect);
@@ -1814,7 +1822,7 @@ public class JDBCHandler extends XHandler {
             }
          }
 
-         if((mysql5 || sqlServer) && cnt > 1) {
+         if((mysql5 || sqlServer || clickHouse) && cnt > 1) {
             if(db == null) {
                defaultCatalog = meta.getConnection().getCatalog();
             }
@@ -2180,6 +2188,15 @@ public class JDBCHandler extends XHandler {
                            }
                         }
                      }
+                     else if(xds.getURL().startsWith("jdbc:databricks:")) {
+                        String catalogName =
+                           results.getMetaData().getColumnCount() < 2 ?
+                              null : results.getString(2);
+
+                        if(!"workspace".equals(catalogName)) {
+                           continue;
+                        }
+                     }
 
                      parent.addChild(node, true, false);
                   }
@@ -2262,6 +2279,11 @@ public class JDBCHandler extends XHandler {
       }
       else if(xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
          catalogName = xds.getDefaultDatabase();
+
+         if(catalogName == null) {
+            catalogName = getClickHouseDefaultCatalog(meta);
+         }
+
          escapedCatalogName = escapeSchemaName(catalogName);
       }
 
@@ -3597,6 +3619,28 @@ public class JDBCHandler extends XHandler {
     */
    public JDBCDataSource getDataSource() {
       return xds;
+   }
+
+   public static String getClickHouseDefaultCatalog(DatabaseMetaData meta) throws Exception {
+      List<String> catalogs = new ArrayList<>();
+
+      try(ResultSet rs = meta.getCatalogs()) {
+         while(rs.next()) {
+            catalogs.add(rs.getString("TABLE_CAT"));
+         }
+      }
+
+      if(catalogs.contains("default")) {
+         return "default";
+      }
+
+      for(String catalog : catalogs) {
+         if(!"INFORMATION_SCHEMA".equalsIgnoreCase(catalog) && !"SYSTEM".equalsIgnoreCase(catalog)) {
+            return catalog;
+         }
+      }
+
+      return catalogs.isEmpty() ? null : catalogs.get(0);
    }
 
    /**

@@ -529,14 +529,32 @@ public class DatabaseDatasourcesService {
             : null;
 
          if(additionalDataSources != null) {
+            Map<String, String> additionalNamePasswordMap = new HashMap<>();
+
             // clear additional ds first
-            Arrays.stream(jdbcDataSource.getDataSourceNames())
-               .forEach(jdbcDataSource::removeDatasource);
+            for(String dataSourceName : jdbcDataSource.getDataSourceNames()) {
+               JDBCDataSource source = jdbcDataSource.getDataSource(dataSourceName);
+               String dsNameWithoutFolder = dataSourceName.contains("/") ?
+                  dataSourceName.substring(dataSourceName.indexOf('/') + 1) : dataSourceName;
+               additionalNamePasswordMap.put(dsNameWithoutFolder, source.getPassword());
+               jdbcDataSource.removeDatasource(dataSourceName);
+            }
 
             // add newly additional ds
             for(DatabaseDefinition ads : additionalDataSources) {
                String additionalName = ads.getName();
                String oldName = ads.getOldName();
+
+               if(additionalNamePasswordMap.get(oldName) != null && ads.getAuthentication() != null) {
+                  AuthenticationDetails authentication = ads.getAuthentication();
+
+                  if((!Tool.isCloudSecrets() || !authentication.isUseCredentialId()) &&
+                     Tool.equals(authentication.getPassword(), Util.PLACEHOLDER_PASSWORD))
+                  {
+                     authentication.setPassword(additionalNamePasswordMap.get(oldName));
+                  }
+               }
+
                addAdditionalConnection(jdbcDataSource, ads);
 
                if(!additionalChange) {
@@ -671,7 +689,7 @@ public class DatabaseDatasourcesService {
          }
       }
 
-      JDBCDataSource additionalConnection = getDatabase(database.getName(), database);
+      JDBCDataSource additionalConnection = getDatabase(base.getFullName(), database, false, true);
       additionalConnection.setBaseDatasource(base);
       base.addDatasource(additionalConnection);
 
@@ -1032,7 +1050,7 @@ public class DatabaseDatasourcesService {
       DatabaseType databaseType = databaseTypeService.getDatabaseType(type);
 
       JDBCDataSource xds = new JDBCDataSource();
-      xds.setName(name);
+      xds.setName(isAdditionalSource ? definition.getName() : name);
       xds.setDescription(definition.getDescription());
       xds.setDriver(databaseType.getDriverClass(definition.getInfo()));
       xds.setRequireLogin(definition.getAuthentication().isRequired());
@@ -1079,7 +1097,9 @@ public class DatabaseDatasourcesService {
                }
             }
 
-            xds.setPassword(password);
+            if(!Tool.equals(password, Util.PLACEHOLDER_PASSWORD)) {
+               xds.setPassword(password);
+            }
          }
          else {
             String credentialId = definition.getAuthentication().getCredentialId();

@@ -1429,7 +1429,11 @@ public class CubeQuery extends AssetQuery {
             obj = super.getObject(r, c);
 
             if(obj instanceof MemberObject) {
-               Date date = parseDate(obj, fmts[c]);
+               Date date;
+
+               synchronized(fmts[c]) {
+                  date = parseDate(obj, fmts[c]);;
+               }
 
                if(date != null) {
                   obj = new CubeDate(date, (MemberObject) obj);

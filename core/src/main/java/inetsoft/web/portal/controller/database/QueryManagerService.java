@@ -1758,14 +1758,16 @@ public class QueryManagerService {
       int end = lens.getRowCount();
       int colCount = lens.getColCount();
 
-      String[][] values = new String[end][colCount];
+      final String[][] values = new String[end][colCount];
 
-      for(int row = start; row < end; row++) {
-         for(int col = 0; col < colCount; col++) {
-            Object value = lens.getObject(row, col);
-            values[row][col] = value == null ? "" : Tool.getDataString(value);
+      XUtil.withFixedDateFormat(query.getDataSource(), () -> {
+         for(int row = start; row < end; row++) {
+            for(int col = 0; col < colCount; col++) {
+               Object value = lens.getObject(row, col);
+               values[row][col] = value == null ? "" : Tool.getDataString(value);
+            }
          }
-      }
+      });
 
       return values;
    }
@@ -1792,6 +1794,7 @@ public class QueryManagerService {
                : fullname.substring(fullname.lastIndexOf('.') + 1);
             AttributeRef attributeRef = new AttributeRef(name);
             ColumnRef ref = new ColumnRef(attributeRef);
+            ref.setQueryExpressionField(selection.isExpression(i));
             ref.setDataType(selection.getType(fullname));
             String oldAlias = getOriginalAlias(aliasMapping, alias);
             DataRef oldRef = getOldAttributeRef(oldAlias, fullname, oldColumns, selection);
@@ -2179,6 +2182,7 @@ public class QueryManagerService {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       SelectTable[] selectTables = sql.getSelectTable();
+      XNode root = metaData.getRootMetaData(XUtil.OUTER_MOSE_LAYER_DATABASE);
 
       for(SelectTable selectTable : selectTables) {
          Object name = selectTable.getName();
@@ -2214,6 +2218,14 @@ public class QueryManagerService {
          entry.setProperty(XSourceInfo.CATALOG, selectTable.getCatalog());
          entry.setProperty(XSourceInfo.SCHEMA, selectTable.getSchema());
          entry.setProperty("source_with_no_quote", tableName);
+
+         if(root != null) {
+            entry.setProperty("hasSchema", Tool.toString(root.getAttribute("hasSchema")));
+            entry.setProperty("defaultSchema", Tool.toString(root.getAttribute("defaultSchema")));
+            entry.setProperty("supportCatalog", Tool.toString(root.getAttribute("supportCatalog")));
+            entry.setProperty("hasCatalog", Tool.toString(root.getAttribute("hasCatalog")));
+         }
+
          String alias = selectTable.getAlias();
          alias = alias == null ? tableName : alias;
          runtimeQuery.addSelectedTable(alias, entry);

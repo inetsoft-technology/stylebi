@@ -194,8 +194,15 @@ public class GDataRuntime extends TabularRuntime {
          table.complete();
          table.dispose();
          LOG.error("Failed to execute Google query: {}", ds.getName(), ex);
-         Tool.addUserMessage("Failed to execute Google query: " + ds.getName() +
-                             " (" + ex.getMessage() + ")");
+         String msg = "Failed to execute Google query: " + ds.getName() +
+            " (" + ex.getMessage() + ")";
+
+         if(gdataQuery.getSpreadsheet().getSelectedFile() == null) {
+            msg = ResourceBundle.getBundle("inetsoft.uql.gdata.Bundle")
+               .getString("error.nullSheet");
+         }
+
+         Tool.addUserMessage(msg);
          handleError(params, ex, () -> null);
       }
 

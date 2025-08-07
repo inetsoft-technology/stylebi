@@ -18,6 +18,7 @@
 package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 
 import java.util.EventObject;
 
@@ -33,6 +34,7 @@ public class DashboardChangeEvent extends EventObject {
       this.oldName = oldName;
       this.newName = newName;
       this.user = user;
+      this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
    }
 
    public Type getType() {
@@ -51,10 +53,15 @@ public class DashboardChangeEvent extends EventObject {
       return user;
    }
 
+   public String getOrgID() {
+      return orgID;
+   }
+
    private final Type type;
    private final String oldName;
    private final String newName;
    private final IdentityID user;
+   private final String orgID;
 
    public enum Type {
       CREATED, MODIFIED, RENAMED, REMOVED

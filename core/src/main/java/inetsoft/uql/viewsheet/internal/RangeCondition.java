@@ -21,6 +21,7 @@ import inetsoft.report.filter.ConditionGroup;
 import inetsoft.uql.ConditionItem;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 
 import java.util.*;
@@ -62,7 +63,11 @@ public class RangeCondition {
 
    public static RangeCondition from(TimeSliderVSAssembly assembly, DataRef[] refs) {
       final Object[] mins = assembly.getSplitSelectedMinValues();
+      Object[] nmins = getFixedDateValues(mins, refs);
+
       final Object[] maxes = assembly.getSplitSelectedMaxValues();
+      Object[] nmaxes = getFixedDateValues(maxes, refs);
+
       final TimeInfo tinfo = assembly.getTimeInfo();
       // splitSelectedMax already accounts for upper inclusivity for composite time sliders
       final boolean upperInclusive =
@@ -70,8 +75,25 @@ public class RangeCondition {
       final boolean lowerInclusive = true;
       final boolean nullable = tinfo instanceof CompositeTimeInfo;
 
-      return new RangeCondition(mins, maxes, refs, lowerInclusive, upperInclusive, nullable,
+      return new RangeCondition(nmins, nmaxes, refs, lowerInclusive, upperInclusive, nullable,
                                 assembly.getName());
+   }
+
+   private static Object[] getFixedDateValues(Object[] values, DataRef[] refs) {
+      Object[] nvalues = new Object[values.length];
+
+      for(int i = 0; i < values.length; i++) {
+         if(refs != null && XSchema.DATE.equals(refs[i].getDataType()) &&
+            values[i] instanceof java.util.Date)
+         {
+            nvalues[i] = new java.sql.Date(((java.util.Date) values[i]).getTime());
+         }
+         else {
+            nvalues[i] = values[i];
+         }
+      }
+
+      return nvalues;
    }
 
    private RangeCondition(Object[] mins, Object[] maxes, DataRef[] refs, boolean lowerInclusive,

@@ -111,6 +111,9 @@ public class CoreTool {
    public static final ThreadLocal<DateFormat> timeInstantFmt =
       ThreadLocal.withInitial(() -> createDateFormat("{'ts' ''yyyy-MM-dd HH:mm:ss''}"));
 
+   public static final ThreadLocal<DateFormat> timeInstantWithMillisFmt =
+      ThreadLocal.withInitial(() -> createDateFormat("{'ts' ''yyyy-MM-dd HH:mm:ss.SSS''}"));
+
    /**
     * Shared thread local GregorianCalendar.
     */
@@ -200,6 +203,10 @@ public class CoreTool {
     * Date time format.
     */
    public static final String DEFAULT_DATETIME_PATTERN = "yyyy-MM-dd HH:mm:ss";
+   /**
+    * Date time format with millis.
+    */
+   public static final String DATETIME_WITH_MILLIS_PATTERN = "yyyy-MM-dd HH:mm:ss.SSS";
    /**
     * Time format.
     */
@@ -440,6 +447,10 @@ public class CoreTool {
     * Synchronizely call dateformat format.
     */
    public static String formatDateTime(Date date) {
+      if(useDatetimeWithMillisFormat.get()) {
+         return DATETIME_WITH_MILLIS_FORMAT_CACHE.format(date);
+      }
+
       return DATETIME_FORMAT_CACHE.format(date);
    }
 
@@ -1885,6 +1896,10 @@ public class CoreTool {
     */
    public static Date parseDateTime(String val) throws ParseException {
       try {
+         if(useDatetimeWithMillisFormat.get()) {
+            return (Date) DATETIME_WITH_MILLIS_FORMAT_CACHE.parse(val);
+         }
+
          return parseDateTimeWithDefaultFormat(val);
       }
       catch(ParseException ex) {
@@ -3748,6 +3763,9 @@ public class CoreTool {
    // date time format cache
    static final FormatCache DATETIME_FORMAT_CACHE =
       new FormatCache(createDateFormat(DEFAULT_DATETIME_PATTERN));
+   // date time with millis format cache.
+   static final FormatCache DATETIME_WITH_MILLIS_FORMAT_CACHE =
+      new FormatCache(createDateFormat(DATETIME_WITH_MILLIS_PATTERN));
    // time format cache
    static final FormatCache TIME_FORMAT_CACHE =
       new FormatCache(createDateFormat(DEFAULT_TIME_PATTERN));
@@ -3890,6 +3908,7 @@ public class CoreTool {
    public static final String FAKE_NULL = "__null__";
    private final static ThreadLocal<List<UserMessage>> USER_MESSAGE_LOCAL = ThreadLocal.withInitial(ArrayList::new);
    private final static ThreadLocal<String> USER_MESSAGE_ASSEMBLY_NAME = ThreadLocal.withInitial(String::new);
+   public final static ThreadLocal<Boolean> useDatetimeWithMillisFormat = ThreadLocal.withInitial(() -> false);
    private static String confirmMsg = null;
    private static final ThreadLocal<Boolean> slocal = new ThreadLocal<>();
    private static XMLInputFactory ifactory;
