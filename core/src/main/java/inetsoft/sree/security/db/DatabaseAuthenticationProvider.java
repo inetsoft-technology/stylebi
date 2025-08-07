@@ -402,8 +402,10 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          cacheLock.lock();
 
          try {
-            if(securityCache != null) {
-               securityCache.refresh();
+            DatabaseAuthenticationCache cache = isIgnoreCache() ? securityCache : getCache();
+
+            if(cache != null) {
+               cache.refresh();
             }
          }
          finally {

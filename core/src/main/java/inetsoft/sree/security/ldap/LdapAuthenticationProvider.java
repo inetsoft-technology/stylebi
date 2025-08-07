@@ -804,6 +804,8 @@ public abstract class LdapAuthenticationProvider
       cacheLock.lock();
 
       try {
+         LdapAuthenticationCache cache = isIgnoreCache() ? this.cache : getCache();
+
          if(cache != null) {
             cache.load();
          }
