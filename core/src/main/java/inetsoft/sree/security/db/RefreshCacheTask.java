@@ -20,6 +20,7 @@ package inetsoft.sree.security.db;
 
 import inetsoft.sree.internal.cluster.SingletonCallableTask;
 import inetsoft.sree.security.*;
+import inetsoft.util.Tool;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -64,7 +65,7 @@ public class RefreshCacheTask implements SingletonCallableTask<Long> {
       }
 
       if(provider == null) {
-         throw new IllegalStateException("Security provider not found");
+         throw new IllegalStateException(Tool.buildString("Security provider:", providerName, " not found"));
       }
 
       return provider;
