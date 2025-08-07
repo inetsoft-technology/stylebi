@@ -18,6 +18,7 @@
 
 package inetsoft.sree.security.db;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.test.SreeHome;
@@ -25,6 +26,9 @@ import inetsoft.util.db.DBConnectionPool;
 import org.apache.commons.io.IOUtils;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.io.File;
 import java.io.InputStream;
@@ -36,6 +40,7 @@ import java.time.Duration;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -43,10 +48,66 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("slow")
 class DatabaseAuthenticationProviderTests {
    private DatabaseAuthenticationProvider provider;
+   private static List<TestOrganization> expectedData;
 
    private static int testCounter = 1;
    private static final String DRIVER = "org.apache.derby.jdbc.EmbeddedDriver";
    private static final String URL = "jdbc:derby:memory:authtest;create=true";
+   private static final Set<String> ADMIN_ROLES = Set.of("Site Admin", "Org Admin");
+
+   @BeforeAll
+   static void loadExpectedData() throws Exception {
+      Map<?, ?> map;
+
+      try(InputStream in = DatabaseAuthenticationProviderTests.class.getResourceAsStream("multitenant.json")) {
+         ObjectMapper mapper = new ObjectMapper();
+         map = mapper.readValue(in, Map.class);
+      }
+
+      expectedData = new ArrayList<>();
+
+      for(Object org : map.values()) {
+         Map<?, ?> orgMap = (Map<?, ?>) org;
+         String id = (String) orgMap.get("id");
+         String name = (String) orgMap.get("name");
+         List<TestUser> users = new ArrayList<>();
+         List<String> groups = new ArrayList<>();
+         List<String> roles = new ArrayList<>();
+         Map<String, List<String>> userRoles = new HashMap<>();
+         Map<String, List<String>> groupUsers = new HashMap<>();
+
+         for(Object user : ((Map<?, ?>) orgMap.get("users")).values()) {
+            Map<?, ?> userMap = (Map<?, ?>) user;
+            String userName = (String) userMap.get("name");
+            String email = (String) userMap.get("email");
+            String password = (String) userMap.get("password");
+            String passwordHash = (String) userMap.get("passwordHash");
+            users.add(new TestUser(userName, email, password, passwordHash));
+         }
+
+         for(Object group : ((Map<?, ?>) orgMap.get("groups")).keySet()) {
+            groups.add((String) group);
+         }
+
+         for(Object role : ((Map<?, ?>) orgMap.get("roles")).keySet()) {
+            roles.add((String) role);
+         }
+
+         for(Map.Entry<?, ?> entry : ((Map<?, ?>) orgMap.get("userRoles")).entrySet()) {
+            String userName = (String) entry.getKey();
+            List<?> roleList = (List<?>) entry.getValue();
+            userRoles.put(userName, roleList.stream().map(String.class::cast).toList());
+         }
+
+         for(Map.Entry<?, ?> entry : ((Map<?, ?>) orgMap.get("groupUsers")).entrySet()) {
+            String groupName = (String) entry.getKey();
+            List<?> userList = (List<?>) entry.getValue();
+            groupUsers.put(groupName, userList.stream().map(String.class::cast).toList());
+         }
+
+         expectedData.add(new TestOrganization(id, name, users, groups, roles, userRoles, groupUsers));
+      }
+   }
 
    @BeforeEach
    void setup() throws Exception {
@@ -73,59 +134,357 @@ class DatabaseAuthenticationProviderTests {
       }
    }
 
+   @ParameterizedTest
+   @MethodSource("provideUsersForGetUser")
+   void getUserShouldReturnValidExistingUser(IdentityID id, String name, String orgId, String email) {
+      waitForCache();
+      User actual = provider.getUser(id);
+      assertNotNull(actual);
+      assertEquals(name, actual.getName());
+      assertEquals(orgId, actual.getOrganizationID());
+      assertArrayEquals(new String[] { email }, actual.getEmails());
+   }
+
+   private static Stream<Arguments> provideUsersForGetUser() {
+      List<Arguments> args = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         for(TestUser user : org.users()) {
+            args.add(Arguments.of(new IdentityID(user.name(), org.id()), user.name(), org.id(), user.email()));
+         }
+      }
+
+      return args.stream();
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideOrgsForGetOrganizations")
+   void getOrganizationShouldReturnValidExistingOrganization(String id, String name) {
+      waitForCache();
+      Organization actual = provider.getOrganization(id);
+      assertNotNull(actual);
+      assertEquals(id, actual.getId());
+      assertEquals(name, actual.getName());
+   }
+
+   static Stream<Arguments> provideOrgsForGetOrganizations() {
+      return expectedData.stream()
+         .map(o -> Arguments.of(o.id(), o.name()));
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideOrgsForGetOrgIdFromName")
+   void getOrgIdFromNameShouldReturnCorrectValue(String name, String id) {
+      waitForCache();
+      String actual = provider.getOrgIdFromName(name);
+      assertEquals(id, actual);
+   }
+
+   static Stream<Arguments> provideOrgsForGetOrgIdFromName() {
+      return expectedData.stream()
+         .map(o -> Arguments.of(o.name(), o.id()));
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideNamesForGetOrganizationId")
+   void getOrganizationIdShouldReturnCorrectValue(String name, String id) {
+      waitForCache();
+      String actual = provider.getOrganizationId(name);
+      assertEquals(id, actual);
+   }
+
+   static Stream<Arguments> provideNamesForGetOrganizationId() {
+      return expectedData.stream()
+         .map(o -> Arguments.of(o.name(), o.id()));
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideNamesForGetOrgNameFromID")
+   void getOrgNameFromIDShouldReturnCorrectValue(String id, String name) {
+      waitForCache();
+      String actual = provider.getOrgNameFromID(id);
+      assertEquals(name, actual);
+   }
+
+   static Stream<Arguments> provideNamesForGetOrgNameFromID() {
+      return expectedData.stream()
+         .map(o -> Arguments.of(o.id(), o.name()));
+   }
+
    @Test
    void getOrganizationIdsShouldReturnCorrectValues() {
       waitForCache();
-      String[] expected = { "host-org" };
+      String[] expected = expectedData.stream().map(TestOrganization::id).toArray(String[]::new);
+      Arrays.sort(expected);
       String[] actual = provider.getOrganizationIDs();
       assertNotNull(actual);
+      Arrays.sort(actual);
       assertArrayEquals(expected, actual);
    }
 
    @Test
-   void getOrganizationNameShouldReturnCorrectValue() {
+   void getOrganizationNamesShouldReturnCorrectValues() {
       waitForCache();
-      String expected = "Host Organization";
-      String actual = provider.getOrganizationName("host-org");
-      assertEquals(expected, actual);
+      String[] expected = expectedData.stream().map(TestOrganization::name).toArray(String[]::new);
+      Arrays.sort(expected);
+      String[] actual = provider.getOrganizationNames();
+      assertNotNull(actual);
+      Arrays.sort(actual);
+      assertArrayEquals(expected, actual);
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideNamesForGetOrganizationNames")
+   void getOrganizationNameShouldReturnCorrectValue(String id, String name) {
+      waitForCache();
+      String actual = provider.getOrganizationName(id);
+      assertEquals(name, actual);
+   }
+
+   static Stream<Arguments> provideNamesForGetOrganizationNames() {
+      return expectedData.stream()
+         .map(o -> Arguments.of(o.id(), o.name()));
    }
 
    @Test
    void getRolesShouldReturnCorrectValues() {
       waitForCache();
-      IdentityID[] expected = {
-         new IdentityID("Org Admin", null),
-         new IdentityID("Site Admin", null)
-      };
+      List<IdentityID> idList = new ArrayList<>();
+
+      ADMIN_ROLES.stream()
+            .map(role -> new IdentityID(role, null))
+            .forEach(idList::add);
+
+      for(TestOrganization org : expectedData) {
+         org.roles().stream()
+            .filter(role -> !ADMIN_ROLES.contains(role))
+            .forEach(role -> idList.add(new IdentityID(role, org.id())));
+      }
+
+      idList.sort(Comparator.naturalOrder());
+      IdentityID[] expected = idList.toArray(new IdentityID[0]);
       IdentityID[] actual = provider.getRoles();
       assertNotNull(actual);
-      Arrays.sort(expected);
+      Arrays.sort(actual);
       assertArrayEquals(expected, actual);
    }
 
    @Test
    void getUsersShouldReturnCorrectValues() {
       waitForCache();
-      IdentityID[] expected = { new IdentityID("admin", "host-org") };
+      List<IdentityID> idList = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         org.users().stream()
+            .map(user -> new IdentityID(user.name(), org.id()))
+            .forEach(idList::add);
+      }
+
+      idList.sort(Comparator.naturalOrder());
+      IdentityID[] expected = idList.toArray(new IdentityID[0]);
       IdentityID[] actual = provider.getUsers();
       assertNotNull(actual);
+      Arrays.sort(actual);
       assertArrayEquals(expected, actual);
    }
 
-   @Test
-   void getUserRoleShouldReturnCorrectValue() {
+   @ParameterizedTest
+   @MethodSource("providerUsersForGetUserRoles")
+   void getUserRolesShouldReturnCorrectValues(IdentityID id, IdentityID[] roles) {
       waitForCache();
-      IdentityID[] expected = { new IdentityID("Site Admin", null) };
-      IdentityID[] actual = provider.getRoles(new IdentityID("admin", "host-org"));
+      IdentityID[] actual = provider.getRoles(id);
       assertNotNull(actual);
+      Arrays.sort(actual);
+      assertArrayEquals(roles, actual);
+   }
+
+   static Stream<Arguments> providerUsersForGetUserRoles() {
+      List<Arguments> args = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         for(Map.Entry<String, List<String>> entry: org.userRoles().entrySet()) {
+            IdentityID[] roles = entry.getValue().stream()
+               .map(role -> new IdentityID(role, ADMIN_ROLES.contains(role) ? null : org.id()))
+               .toArray(IdentityID[]::new);
+            Arrays.sort(roles);
+            args.add(Arguments.of(new IdentityID(entry.getKey(), org.id()), roles));
+         }
+      }
+
+      return args.stream();
+   }
+
+   @SuppressWarnings("deprecation")
+   @ParameterizedTest
+   @MethodSource("provideUsersForGetEmails")
+   void getEmailsShouldReturnCorrectValue(IdentityID id, String[] emails) {
+      waitForCache();
+      String[] actual = provider.getEmails(id);
+      assertNotNull(actual);
+      Arrays.sort(actual);
+      assertArrayEquals(emails, actual);
+   }
+
+   static Stream<Arguments> provideUsersForGetEmails() {
+      List<Arguments> args = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         for(TestUser user : org.users()) {
+            args.add(Arguments.of(new IdentityID(user.name(), org.id()), new String[] { user.email() }));
+         }
+      }
+
+      return args.stream();
+   }
+
+   @Test
+   void getIndividualUsersShouldReturnCorrectValues() {
+      waitForCache();
+      List<IdentityID> idList = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         for(TestUser user : org.users()) {
+            boolean found = false;
+
+            for(List<String> groupUsers : org.groupUsers().values()) {
+               if(groupUsers.contains(user.name())) {
+                  found = true;
+                  break;
+               }
+            }
+
+            if(!found) {
+               idList.add(new IdentityID(user.name(), org.id()));
+            }
+         }
+      }
+
+      IdentityID[] expected = idList.toArray(new IdentityID[0]);
+      Arrays.sort(expected);
+      IdentityID[] actual = provider.getIndividualUsers();
+      assertNotNull(actual);
+      Arrays.sort(actual);
       assertArrayEquals(expected, actual);
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideRolesForGetRole")
+   void getRoleShouldReturnValidExistingRole(IdentityID id, String role, String orgId) {
+      waitForCache();
+      Role actual = provider.getRole(id);
+      assertNotNull(actual);
+      assertEquals(role, actual.getName());
+      assertEquals(orgId, actual.getOrganizationID());
+   }
+
+   static Stream<Arguments> provideRolesForGetRole() {
+      List<Arguments> args = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         for(String role : org.roles()) {
+            if(ADMIN_ROLES.contains(role)) {
+               if("host-org".equals(org.id())) {
+                  args.add(Arguments.of(new IdentityID(role, null), role, null));
+               }
+            }
+            else {
+               args.add(Arguments.of(new IdentityID(role, org.id()), role, org.id()));
+            }
+         }
+      }
+
+      return args.stream();
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideGroupsForGetGroups")
+   void getGroupShouldReturnValidExistingGroup(IdentityID id, String group, String orgId) {
+      waitForCache();
+      Group actual = provider.getGroup(id);
+      assertNotNull(actual);
+      assertEquals(group, actual.getName());
+      assertEquals(orgId, actual.getOrganizationID());
+   }
+
+   static Stream<Arguments> provideGroupsForGetGroups() {
+      List<Arguments> args = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         for(String group : org.groups()) {
+            args.add(Arguments.of(new IdentityID(group, org.id()), group, org.id()));
+         }
+      }
+
+      return args.stream();
+   }
+
+   @Test
+   void getGroupsShouldReturnCorrectValues() {
+      waitForCache();
+      List<IdentityID> idList = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         org.groups().stream()
+            .map(group -> new IdentityID(group, org.id()))
+            .forEach(idList::add);
+      }
+
+      idList.sort(Comparator.naturalOrder());
+      IdentityID[] expected = idList.toArray(new IdentityID[0]);
+      IdentityID[] actual = provider.getGroups();
+      assertNotNull(actual);
+      Arrays.sort(actual);
+      assertArrayEquals(expected, actual);
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideOrgsForGetOrganizationMembers")
+   void getOrganizationMembersShouldReturnCorrectValues(String orgId, String[] users) {
+      waitForCache();
+      String[] actual = provider.getOrganizationMembers(orgId);
+      assertNotNull(actual);
+      Arrays.sort(actual);
+      assertArrayEquals(users, actual);
+   }
+
+   static Stream<Arguments> provideOrgsForGetOrganizationMembers() {
+      List<Arguments> args = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         String[] users = org.users().stream().map(TestUser::name).toArray(String[]::new);
+         Arrays.sort(users);
+         args.add(Arguments.of(org.id(), users));
+      }
+
+      return args.stream();
+   }
+
+   @ParameterizedTest
+   @MethodSource("provideUsersForAuthenticate")
+   void authenticateShouldSucceedWithValidCredentials(IdentityID id, DefaultTicket credential) {
+      waitForCache();
+      assertTrue(provider.authenticate(id, credential));
+   }
+
+   static Stream<Arguments> provideUsersForAuthenticate() {
+      List<Arguments> args = new ArrayList<>();
+
+      for(TestOrganization org : expectedData) {
+         for(TestUser user : org.users()) {
+            IdentityID id = new IdentityID(user.name(), org.id());
+            DefaultTicket credential = new DefaultTicket(id, user.password());
+            args.add(Arguments.of(id, credential));
+         }
+      }
+
+      return args.stream();
    }
 
    private void waitForCache() {
       provider.getCache(true);
       Awaitility.await()
          .atMost(Duration.ofMinutes(1L))
-         .pollInterval(Duration.ofMillis(500L))
+         .pollInterval(Duration.ofMillis(100L))
          .until(provider::isCacheInitialized);
    }
 
@@ -134,7 +493,7 @@ class DatabaseAuthenticationProviderTests {
       provider.setDriver(DRIVER);
       provider.setUrl(URL);
       provider.setRequiresLogin(false);
-      provider.setUserQuery("SELECT USER_NAME, PW_HASH, PW_SALT FROM INETSOFT_USER WHERE ORG_ID=? AND USER_NAME=?");
+      provider.setUserQuery("SELECT USER_NAME, PW_HASH FROM INETSOFT_USER WHERE ORG_ID=? AND USER_NAME=?");
       provider.setUserListQuery("SELECT USER_NAME, ORG_ID FROM INETSOFT_USER");
       provider.setOrganizationListQuery("SELECT ORG_ID FROM INETSOFT_ORG");
       provider.setOrganizationNameQuery("SELECT ORG_NAME FROM INETSOFT_ORG WHERE ORG_ID=?");
@@ -306,4 +665,18 @@ class DatabaseAuthenticationProviderTests {
 
       return provider;
    }
+
+   public record TestUser(
+      String name,
+      String email,
+      String password,
+      String passwordHash) {}
+   public record TestOrganization(
+      String id,
+      String name,
+      List<TestUser> users,
+      List<String> groups,
+      List<String> roles,
+      Map<String, List<String>> userRoles,
+      Map<String, List<String>> groupUsers) {}
 }
