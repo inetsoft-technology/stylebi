@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.controller.chart;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -72,6 +73,8 @@ public class VSChartMaxModeController extends VSChartController<VSChartEvent> {
     */
    private int toggleMaxMode(VSChartStateInfo chartState, Dimension maxSize) {
       final ChartVSAssemblyInfo info = chartState.getChartAssemblyInfo();
+      RuntimeViewsheet runtimeViewsheet = chartState.getRuntimeViewsheet();
+      boolean isBinding = runtimeViewsheet.isBinding();
       info.setMaxSize(maxSize);
       chartState.getViewsheet().setMaxMode(maxSize != null);
 
@@ -89,7 +92,7 @@ public class VSChartMaxModeController extends VSChartController<VSChartEvent> {
 
       if(maxSize != null) {
          final Assembly[] assemblies = viewsheet.getAssemblies(true, true);
-         int parentZAdjust = embeddedViewsheet ? zAdjust : 0;
+         int parentZAdjust = embeddedViewsheet && !isBinding ? zAdjust : 0;
 
          if(assemblies != null) {
             final VSAssembly topAssembly = (VSAssembly) assemblies[assemblies.length - 1];

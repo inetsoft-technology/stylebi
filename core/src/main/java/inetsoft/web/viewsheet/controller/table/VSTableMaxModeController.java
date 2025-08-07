@@ -62,6 +62,7 @@ public class VSTableMaxModeController {
       String name = event.tableName();
       TableDataVSAssembly tableAssembly = (TableDataVSAssembly) vs.getAssembly(name);
       Dimension maxSize = event.maxSize();
+      boolean isBinding = rvs.isBinding();
 
       if(tableAssembly == null) {
          return;
@@ -90,7 +91,7 @@ public class VSTableMaxModeController {
 
       if(maxSize != null) {
          final Assembly[] assemblies = vs.getAssemblies(true, true);
-         int parentZAdjust = embeddedViewsheet ? zAdjust : 0;
+         int parentZAdjust = embeddedViewsheet && !isBinding ? zAdjust : 0;
 
          if(assemblies != null) {
             final VSAssembly topAssembly = (VSAssembly) assemblies[assemblies.length - 1];
