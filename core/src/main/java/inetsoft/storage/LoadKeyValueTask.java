@@ -80,7 +80,11 @@ public class LoadKeyValueTask<T extends Serializable>
             }
 
             map.clear();
-            map.putAll(temp);
+
+            //avoid putAll on unsorted map to prevent possible distributed deadlock
+            temp.entrySet().stream()
+               .sorted(Map.Entry.comparingByKey())
+               .forEachOrdered(entry -> map.put(entry.getKey(), entry.getValue()));
          }
       }
       catch(Exception e) {
