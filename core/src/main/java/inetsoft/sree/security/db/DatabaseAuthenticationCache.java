@@ -37,13 +37,10 @@ class DatabaseAuthenticationCache implements AutoCloseable {
       this.lastLoad = cluster.getLong(prefix + ".lastLoad");
       this.lastFailure = cluster.getLong(prefix + ".lastFailure");
       this.loadCount = cluster.getLong(prefix + ".loadCount");
+      this.lists = cluster.getReplicatedMap(prefix + ".lists");
       this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
       this.orgMembers = cluster.getReplicatedMap(prefix + ".orgMembers");
       this.orgRoles = cluster.getReplicatedMap(prefix + ".orgRoles");
-      this.organizations = cluster.getReplicatedSet(prefix + ".organizations", true);
-      this.users = cluster.getReplicatedSet(prefix + ".users", true);
-      this.groups = cluster.getReplicatedSet(prefix + ".groups", true);
-      this.roles = cluster.getReplicatedSet(prefix + ".roles", true);
       this.groupUsers = cluster.getReplicatedMap(prefix + ".groupUsers");
       this.userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
       this.userEmails = cluster.getReplicatedMap(prefix + ".userEmails");
@@ -151,17 +148,11 @@ class DatabaseAuthenticationCache implements AutoCloseable {
          }
 
          try(DistributedTransaction tx = cluster.startTx()) {
-            organizations.clear();
-            organizations.addAll(Arrays.asList(newOrganizations.result()));
-
-            users.clear();
-            users.addAll(Arrays.asList(newUsers.result()));
-
-            groups.clear();
-            groups.addAll(Arrays.asList(newGroups.result()));
-
-            roles.clear();
-            roles.addAll(Arrays.asList(newRoles.result()));
+            lists.removeAll();
+            lists.put(ORG_LIST, new TreeSet<>(Arrays.asList(newOrganizations.result())));
+            lists.put(USER_LIST, new TreeSet<>(Arrays.asList(newUsers.result())));
+            lists.put(GROUP_LIST, new TreeSet<>(Arrays.asList(newGroups.result())));
+            lists.put(ROLE_LIST, new TreeSet<>(Arrays.asList(newRoles.result())));
 
             orgNames.removeAll();
             orgNames.putAll(newOrgNames);
@@ -187,11 +178,15 @@ class DatabaseAuthenticationCache implements AutoCloseable {
       return getNextReloadDelay();
    }
 
+   @SuppressWarnings("unchecked")
    public IdentityID[] getUsers() {
+      Set<IdentityID> users = lists.get(USER_LIST);
       return users.toArray(new IdentityID[0]);
    }
 
+   @SuppressWarnings("unchecked")
    public String[] getOrganizations() {
+      Set<String> organizations = lists.get(ORG_LIST);
       return organizations.toArray(new String[0]);
    }
 
@@ -207,7 +202,9 @@ class DatabaseAuthenticationCache implements AutoCloseable {
       return groupUsers.computeIfAbsent(groupIdentity, k -> new IdentityArrayWrapper(provider.getDao().getUsers(k).result())).getValue();
    }
 
+   @SuppressWarnings("unchecked")
    public IdentityID[] getRoles() {
+      Set<IdentityID> roles = lists.get(ROLE_LIST);
       return roles.toArray(new IdentityID[0]);
    }
 
@@ -215,7 +212,9 @@ class DatabaseAuthenticationCache implements AutoCloseable {
       return userRoles.computeIfAbsent(userId, k -> new IdentityArrayWrapper(provider.getDao().getRoles(k).result())).getValue();
    }
 
+   @SuppressWarnings("unchecked")
    public IdentityID[] getGroups() {
+      Set<IdentityID> groups = lists.get(GROUP_LIST);
       return groups.toArray(new IdentityID[0]);
    }
 
@@ -321,16 +320,19 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    private final DistributedLong lastLoad;
    private final DistributedLong lastFailure;
    private final DistributedLong loadCount;
+   @SuppressWarnings("rawtypes")
+   private final DistributedMap<String, Set> lists;
    private final DistributedMap<String, String> orgNames;
    private final DistributedMap<String, String[]> orgMembers;
    private final DistributedMap<String, String[]> orgRoles;
-   private final Set<String> organizations;
-   private final Set<IdentityID> users;
-   private final Set<IdentityID> groups;
-   private final Set<IdentityID> roles;
    private final DistributedMap<IdentityID, IdentityArrayWrapper> groupUsers;
    private final DistributedMap<IdentityID, IdentityArrayWrapper> userRoles;
    private final DistributedMap<IdentityID, String[]> userEmails;
    private final ScheduledExecutorService executor;
+
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationCache.class);
+   private static final String ORG_LIST = "orgs";
+   private static final String USER_LIST = "users";
+   private static final String GROUP_LIST = "groups";
+   private static final String ROLE_LIST = "roles";
 }
