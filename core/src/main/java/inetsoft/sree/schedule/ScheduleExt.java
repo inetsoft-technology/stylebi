@@ -37,6 +37,11 @@ public interface ScheduleExt extends Iterable<ScheduleTask> {
    List<ScheduleTask> getTasks();
 
    /**
+    * Get all the schedule tasks for target org.
+    */
+   List<ScheduleTask> getTasks(String orgID);
+
+   /**
     * Check if contains a task.
     */
    boolean containsTask(String name, String orgId);
