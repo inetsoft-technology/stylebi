@@ -18,168 +18,65 @@
 
 package inetsoft.sree.security.db;
 
-import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 class DatabaseAuthenticationCache implements AutoCloseable {
    public DatabaseAuthenticationCache(DatabaseAuthenticationProvider provider) {
       this.provider = provider;
-      this.cluster = Cluster.getInstance();
-      prefix = "DatabaseSecurity:" + provider.getProviderName();
-      this.lastLoad = cluster.getLong(prefix + ".lastLoad");
-      this.lastFailure = cluster.getLong(prefix + ".lastFailure");
-      this.loadCount = cluster.getLong(prefix + ".loadCount");
-      this.lists = cluster.getReplicatedMap(prefix + ".lists");
-      this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
-      this.orgMembers = cluster.getReplicatedMap(prefix + ".orgMembers");
-      this.orgRoles = cluster.getReplicatedMap(prefix + ".orgRoles");
-      this.groupUsers = cluster.getReplicatedMap(prefix + ".groupUsers");
-      this.userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
-      this.userEmails = cluster.getReplicatedMap(prefix + ".userEmails");
-      this.executor = Executors.newSingleThreadScheduledExecutor(
-         r -> new Thread(r, "DatabaseAuthenticationCache"));
+   }
+
+   private boolean initialize() {
+      if(provider.getProviderName() != null && initialized.compareAndSet(false, true)) {
+         Cluster cluster = Cluster.getInstance();
+         String prefix = "DatabaseSecurity:" + provider.getProviderName();
+         this.service = cluster.getSingletonService(
+            prefix, DatabaseAuthenticationCacheService.class,
+            () -> new DatabaseAuthenticationCacheService(provider.getProviderName()));
+         service.connect();
+         this.lists = cluster.getReplicatedMap(prefix + ".lists");
+         this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
+         this.orgMembers = cluster.getReplicatedMap(prefix + ".orgMembers");
+         this.groupUsers = cluster.getReplicatedMap(prefix + ".groupUsers");
+         this.userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
+         this.userEmails = cluster.getReplicatedMap(prefix + ".userEmails");
+      }
+
+      // can happen when creating data source and connection properties are set.
+      return provider.getProviderName() != null;
    }
 
    @Override
    public void close() throws Exception {
-      executor.shutdown();
+      if(service != null) {
+         service.disconnect();
+      }
    }
 
    public void load() {
-      refresh(false, true);
+      if(initialize()) {
+         service.load();
+      }
    }
 
    public void refresh() {
-      refresh(true, false);
-   }
-
-   private void refresh(boolean force, boolean reschedule) {
-      long next = -1;
-
-      try {
-         if(!Tool.equals(cluster.getServiceOwner(prefix), cluster.getLocalMember())) {
-            next = cluster.submit(
-               prefix, new RefreshCacheTask(provider.getProviderName(), force)).get();
-         }
-         else {
-            next = new RefreshCacheTask(provider.getProviderName(), force).call();
-         }
+      if(initialize()) {
+         service.refresh();
       }
-      catch(Exception e) {
-         LOG.warn("Failed to refresh database authentication cache", e);
-      }
-
-      if(reschedule && next > 0) {
-         executor.schedule(() -> refresh(false, true), next, TimeUnit.MILLISECONDS);
-      }
-   }
-
-   long load(boolean force) {
-      if(loadCount.incrementAndGet() > 1) {
-         loadCount.decrementAndGet();
-         return isFailedState() ? 60000L : provider.getCacheRefreshDelay();
-      }
-
-      try {
-         if(!force && !isReloadRequired()) {
-            return getNextReloadDelay();
-         }
-
-         AuthenticationDAO dao = provider.getDao();
-         QueryResult<IdentityID[]> newUsers = dao.getUsers();
-
-         if(newUsers.failed()) {
-            handleError();
-            return getNextReloadDelay();
-         }
-
-         QueryResult<IdentityID[]> newRoles = dao.getRoles();
-
-         if(newRoles.failed()) {
-            handleError();
-            return getNextReloadDelay();
-         }
-
-         QueryResult<IdentityID[]> newGroups = dao.getGroups();
-
-         if(newGroups.failed()) {
-            handleError();
-            return getNextReloadDelay();
-         }
-
-         QueryResult<String[]> newOrganizations = dao.getOrganizations();
-
-         if(newOrganizations.failed()) {
-            handleError();
-            return getNextReloadDelay();
-         }
-
-         Map<String, String> newOrgNames = new HashMap<>();
-         Map<String, String[]> newOrgMembers = new HashMap<>();
-         Map<String, String[]> newOrgRoles = new HashMap<>();
-
-         for(String orgID : newOrganizations.result()) {
-            String name = dao.getOrganizationName(orgID);
-            newOrgNames.put(orgID, name);
-
-            QueryResult<String[]> result;
-
-            if((result = dao.getOrganizationMembers(orgID)).failed()) {
-               handleError();
-               return getNextReloadDelay();
-            }
-
-            newOrgMembers.put(orgID, result.result());
-
-            if((result = dao.getOrganizationRoles(orgID)).failed()) {
-               handleError();
-               return getNextReloadDelay();
-            }
-
-            newOrgRoles.put(orgID, result.result());
-         }
-
-         try(DistributedTransaction tx = cluster.startTx()) {
-            lists.removeAll();
-            lists.put(ORG_LIST, new TreeSet<>(Arrays.asList(newOrganizations.result())));
-            lists.put(USER_LIST, new TreeSet<>(Arrays.asList(newUsers.result())));
-            lists.put(GROUP_LIST, new TreeSet<>(Arrays.asList(newGroups.result())));
-            lists.put(ROLE_LIST, new TreeSet<>(Arrays.asList(newRoles.result())));
-
-            orgNames.removeAll();
-            orgNames.putAll(newOrgNames);
-
-            orgMembers.removeAll();
-            orgMembers.putAll(newOrgMembers);
-
-            orgRoles.removeAll();
-            orgRoles.putAll(newOrgRoles);
-
-            groupUsers.removeAll();
-            userRoles.removeAll();
-            userEmails.removeAll();
-
-            tx.commit();
-            lastLoad.set(System.currentTimeMillis());
-         }
-      }
-      finally {
-         loadCount.decrementAndGet();
-      }
-
-      return getNextReloadDelay();
    }
 
    @SuppressWarnings("unchecked")
    public IdentityID[] getUsers() {
+      if(!initialize()) {
+         return new IdentityID[0];
+      }
+
       Set<IdentityID> users = lists.get(USER_LIST);
 
       if(users == null) {
@@ -191,6 +88,10 @@ class DatabaseAuthenticationCache implements AutoCloseable {
 
    @SuppressWarnings("unchecked")
    public String[] getOrganizations() {
+      if(!initialize()) {
+         return new String[0];
+      }
+
       Set<String> organizations = lists.get(ORG_LIST);
 
       if(organizations == null) {
@@ -201,19 +102,36 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    public String getOrganizationName(String orgID) {
+      if(!initialize()) {
+         return null;
+      }
+
       return orgNames.get(orgID);
    }
 
    public String[] getOrganizationMembers(String orgID) {
+      if(!initialize()) {
+         return null;
+      }
+
       return orgMembers.get(orgID);
    }
 
    public IdentityID[] getUsers(IdentityID groupIdentity) {
-      return groupUsers.computeIfAbsent(groupIdentity, k -> new IdentityArrayWrapper(provider.getDao().getUsers(k).result())).getValue();
+      if(!initialize()) {
+         return new IdentityID[0];
+      }
+
+      return groupUsers.computeIfAbsent(groupIdentity, k ->
+         new IdentityArray(provider.getDao().getUsers(k).result())).getValue();
    }
 
    @SuppressWarnings("unchecked")
    public IdentityID[] getRoles() {
+      if(!initialize()) {
+         return new IdentityID[0];
+      }
+
       Set<IdentityID> roles = lists.get(ROLE_LIST);
 
       if(roles == null) {
@@ -224,11 +142,20 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    public IdentityID[] getRoles(IdentityID userId) {
-      return userRoles.computeIfAbsent(userId, k -> new IdentityArrayWrapper(provider.getDao().getRoles(k).result())).getValue();
+      if(!initialize()) {
+         return new IdentityID[0];
+      }
+
+      return userRoles.computeIfAbsent(userId, k ->
+         new IdentityArray(provider.getDao().getRoles(k).result())).getValue();
    }
 
    @SuppressWarnings("unchecked")
    public IdentityID[] getGroups() {
+      if(!initialize()) {
+         return new IdentityID[0];
+      }
+
       Set<IdentityID> groups = lists.get(GROUP_LIST);
 
       if(groups == null) {
@@ -239,116 +166,35 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    public String[] getEmails(IdentityID userIdentity) {
+      if(!initialize()) {
+         return new String[0];
+      }
+
       return userEmails.computeIfAbsent(userIdentity, k -> provider.getDao().getEmails(k).result());
    }
 
    public boolean isLoading() {
-      return loadCount.get() > 0;
+      return initialize() && service.isLoading();
    }
 
    public boolean isInitialized() {
-      return lastLoad.get() != 0;
+      return initialize() && service.isInitialized();
    }
 
    public long getAge() {
-      long loaded = lastLoad.get();
-      return loaded == 0L ? 0L : System.currentTimeMillis() - loaded;
-   }
-
-   private Instant getLastLoadTime() {
-      long ts = lastLoad.get();
-
-      if(ts == 0L) {
-         return null;
-      }
-
-      return Instant.ofEpochMilli(ts);
-   }
-
-   private Instant getLastFailureTime() {
-      long ts = lastFailure.get();
-
-      if(ts == 0L) {
-         return null;
-      }
-
-      return Instant.ofEpochMilli(ts);
-   }
-
-   private boolean isFailedState() {
-      Instant loaded = getLastLoadTime();
-      Instant failed = getLastFailureTime();
-      return failed != null && (loaded == null || failed.isAfter(loaded.plusSeconds(60L)));
-   }
-
-   private boolean isReloadRequired() {
-      Instant loaded = getLastLoadTime();
-      Instant failed = getLastFailureTime();
-
-      if(failed != null && (loaded == null || failed.isAfter(loaded.plusSeconds(60L)))) {
-         return true;
-      }
-
-      return loaded == null ||
-         Instant.now().isAfter(loaded.plusMillis(provider.getCacheRefreshDelay()));
-   }
-
-   private long getNextReloadDelay() {
-      Instant loaded = getLastLoadTime();
-      Instant failed = getLastFailureTime();
-
-      if(failed != null && (loaded == null || failed.isAfter(loaded))) {
-         return failed.plusMillis(60L).toEpochMilli();
-      }
-
-      long interval = provider.getCacheRefreshDelay();
-
-      if(loaded == null) {
-         // shouldn't happen based on the sequence of calls, but just in case
-         return interval;
-      }
-
-      long delay = interval - Duration.between(loaded, Instant.now()).toMillis();
-
-      if(delay <= 0) {
-         return 1L;
-      }
-
-      return delay;
-   }
-
-   private void handleError() {
-      lastFailure.set(System.currentTimeMillis());
-      provider.getConnectionProvider().resetConnection();
-   }
-
-   private static class IdentityArrayWrapper {
-      public IdentityArrayWrapper(IdentityID[] value) {
-         this.value = value;
-      }
-
-      public IdentityID[] getValue() {
-         return value;
-      }
-
-      private final IdentityID[] value;
+      return initialize() ? service.getAge() : 0L;
    }
 
    private final DatabaseAuthenticationProvider provider;
-   private final Cluster cluster;
-   private final String prefix;
-   private final DistributedLong lastLoad;
-   private final DistributedLong lastFailure;
-   private final DistributedLong loadCount;
+   private DatabaseAuthenticationCacheService service;
+   private final AtomicBoolean initialized = new AtomicBoolean(false);
    @SuppressWarnings("rawtypes")
-   private final DistributedMap<String, Set> lists;
-   private final DistributedMap<String, String> orgNames;
-   private final DistributedMap<String, String[]> orgMembers;
-   private final DistributedMap<String, String[]> orgRoles;
-   private final DistributedMap<IdentityID, IdentityArrayWrapper> groupUsers;
-   private final DistributedMap<IdentityID, IdentityArrayWrapper> userRoles;
-   private final DistributedMap<IdentityID, String[]> userEmails;
-   private final ScheduledExecutorService executor;
+   private DistributedMap<String, Set> lists;
+   private DistributedMap<String, String> orgNames;
+   private DistributedMap<String, String[]> orgMembers;
+   private DistributedMap<IdentityID, IdentityArray> groupUsers;
+   private DistributedMap<IdentityID, IdentityArray> userRoles;
+   private DistributedMap<IdentityID, String[]> userEmails;
 
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationCache.class);
    private static final String ORG_LIST = "orgs";
