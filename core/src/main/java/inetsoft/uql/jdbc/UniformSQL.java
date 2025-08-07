@@ -714,6 +714,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          if(child != null) {
             selection.setDescription(columnName, Tool.getValue(child));
          }
+
+         list = Tool.getChildNodesByTagName(column, "isExp");
+
+         if(list.getLength() > 0) {
+            child = (Element) list.item(0);
+         }
+
+         if(child != null) {
+            selection.setExpression(selection.getColumnCount() - 1,
+               "true".equals(Tool.getValue(child)));
+         }
       }
 
       nlist = Tool.getChildNodesByTagName(node, "where");
@@ -999,6 +1010,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String type = selection.getType(column);
          String tname = selection.getTable(column);
          String desc = selection.getDescription(column);
+         boolean isExp = selection.isExpression(column);
 
          if(full && tname == null && alias != null) {
             tname = selection.getTable(alias);
@@ -1013,6 +1025,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                         "]]></table>");
          writer.println("<description><![CDATA[" + (desc == null ? "" : desc) +
                         "]]></description>");
+         writer.println("<isExp><![CDATA[" + isExp + "]]></isExp>");
          writer.println("</column>");
       }
 
