@@ -170,15 +170,22 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
          chain.writeLock();
          List<AuthenticationProvider> providerList = chain.getProviders();
          boolean found = false;
+         boolean refreshCache = false;
+         AuthenticationProvider newProvider = null;
 
          for(int i = 0; i < providerList.size(); i++) {
             AuthenticationProvider provider = providerList.get(i);
 
             if(Objects.equals(name, provider.getProviderName())) {
                found = true;
-               AuthenticationProvider newProvider = getProviderFromModel(model).orElseThrow(
+               newProvider = getProviderFromModel(model).orElseThrow(
                   () -> new MessageException("Failed to edit authentication provider"));
                providerList.set(i, newProvider);
+
+               if(Objects.equals(name, newProvider.getProviderName())) {
+                  refreshCache = true;
+               }
+
                provider.tearDown();
                break;
             }
@@ -190,6 +197,10 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
          }
 
          chain.setProviders(providerList);
+
+         if(refreshCache) {
+            newProvider.clearCache();
+         }
       }
       finally {
          chain.writeUnlock();
