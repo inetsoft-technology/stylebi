@@ -32,8 +32,7 @@ import org.apache.ignite.configuration.*;
 import org.apache.ignite.events.*;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.lang.*;
-import org.apache.ignite.services.ServiceConfiguration;
-import org.apache.ignite.services.ServiceDescriptor;
+import org.apache.ignite.services.*;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.internal.TcpDiscoveryNode;
@@ -1337,6 +1336,42 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       Transaction tx = ignite.transactions().txStart(
          TransactionConcurrency.OPTIMISTIC, TransactionIsolation.SERIALIZABLE);
       return new IgniteTransaction(tx);
+   }
+
+   @Override
+   public <T extends Service> T getSingletonService(String serviceName,
+                                                    Class<T> type, Supplier<T> init)
+   {
+      Collection<ServiceDescriptor> services = ignite.services().serviceDescriptors();
+      boolean deployed = false;
+
+      for(ServiceDescriptor service : services) {
+         if(service.name().equals(serviceName)) {
+            // service found, no need to do anything
+            deployed = true;
+            break;
+         }
+      }
+
+      if(!deployed) {
+         ServiceConfiguration config = new ServiceConfiguration();
+         config.setService(init.get());
+         config.setName(serviceName);
+         config.setTotalCount(1);
+         ignite.services().deploy(config);
+      }
+
+      return ignite.services().serviceProxy(serviceName, type, false);
+   }
+
+   @Override
+   public void undeploySingletonService(String serviceName) {
+      try {
+         ignite.services().cancel(serviceName);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to undeploy singleton service", e);
+      }
    }
 
    private final Ignite ignite;
