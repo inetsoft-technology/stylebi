@@ -40,6 +40,7 @@ public class MaxModeAssemblyService {
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly ass = vs.getAssembly(assemblyName);
       int oldShowTypeValue = -1;
+      boolean isBinding = rvs.isBinding();
 
       if(!(ass instanceof MaxModeSupportAssembly)) {
          return;
@@ -84,7 +85,7 @@ public class MaxModeAssemblyService {
 
       if(maxSize != null) {
          final Assembly[] assemblies = vs.getAssemblies(true, true);
-         int parentZAdjust = embeddedViewsheet ? zAdjust : 0;
+         int parentZAdjust = embeddedViewsheet && !isBinding ? zAdjust : 0;
 
          if(assemblies != null) {
             final VSAssembly topAssembly = (VSAssembly) assemblies[assemblies.length - 1];
