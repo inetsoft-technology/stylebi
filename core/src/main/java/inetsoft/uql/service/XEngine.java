@@ -663,7 +663,7 @@ public class XEngine implements XRepository, XQueryRepository {
          String[] names = jds.getDataSourceNames();
 
          for(String name : names) {
-            removeMetaDataFiles(dsname + "__" + name);
+            removeMetaDataFiles(dsname + "^_^" + name);
          }
       }
 
@@ -1530,17 +1530,19 @@ public class XEngine implements XRepository, XQueryRepository {
          dx = odx;
       }
 
-      String key = OrganizationManager.getInstance().getCurrentOrgID() + "__" + dx.getFullName();
+      String key = dx.getFullName();
       boolean mysql = false;
 
       if(dx instanceof AdditionalConnectionDataSource &&
          ((AdditionalConnectionDataSource<?>) dx).getBaseDatasource() != null)
       {
          key = ((AdditionalConnectionDataSource<?>) dx).getBaseDatasource().getFullName() +
-            "__" + key;
+            "^_^" + key;
          mysql = (dx instanceof JDBCDataSource) &&
             ((JDBCDataSource) dx).getDatabaseType() == JDBCDataSource.JDBC_MYSQL;
       }
+
+      key = OrganizationManager.getInstance().getCurrentOrgID() + "__" + key;
 
       boolean cache = true;
       XNode node;

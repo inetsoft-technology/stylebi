@@ -136,7 +136,7 @@ public abstract class AdditionalConnectionDataSource<SELF extends AdditionalConn
          repository = XFactory.getRepository();
 
          if(repository instanceof XEngine) {
-            ((XEngine) repository).removeMetaDataFiles(getFullName() + "__" + name);
+            ((XEngine) repository).removeMetaDataFiles(getFullName() + "^_^" + name);
          }
       }
       catch(RemoteException ex) {
