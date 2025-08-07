@@ -15,7 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Injectable, NgZone } from "@angular/core";
+import { Router } from "@angular/router";
 import { Observable, Subject } from "rxjs";
 import { SsoHeartbeatService } from "../sso/sso-heartbeat.service";
 import { LogoutService } from "../util/logout.service";
@@ -37,7 +39,8 @@ export class StompClientService {
    private _reloadOnFailure: boolean = false;
 
    constructor(private zone: NgZone, private ssoHeartbeatService: SsoHeartbeatService,
-               private logoutService: LogoutService, private baseHrefService: BaseHrefService)
+               private logoutService: LogoutService, private baseHrefService: BaseHrefService,
+               private router: Router, private http: HttpClient)
    {
    }
 
@@ -51,7 +54,7 @@ export class StompClientService {
                endpoint, (key) => this.onDisconnect(key),
                (error) => this.onReconnectError(error),
                this.ssoHeartbeatService, this.logoutService, em, this.baseHrefService.getBaseHref(),
-               customElement);
+               customElement, this.router, this.http, this.zone);
             this.clients.set(endpoint, client);
          }
 

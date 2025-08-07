@@ -26,7 +26,7 @@ export class CanComponentDeactivateService implements CanDeactivate<CanComponent
                  currentState: RouterStateSnapshot,
                  nextState?: RouterStateSnapshot): Observable<boolean> | Promise<boolean> | boolean
    {
-      if(!component) {
+      if(!component || (nextState != null && nextState.url.startsWith("/reload"))) {
          return true;
       }
 
