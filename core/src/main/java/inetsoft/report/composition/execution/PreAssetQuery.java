@@ -1306,7 +1306,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       String alias = getAlias(column);
       alias = Tool.equals(col, alias) ? null : alias;
       int index = nselection.addColumn(col);
-      nselection.setExpression(index, column.isExpression());
+      nselection.setExpression(index, column.isExpression() || column.isQueryExpressionField());
 
       if(alias != null) {
          nselection.setAlias(index, alias, getColumnAliasQuote());
@@ -1424,7 +1424,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          }
 
          int index = nselection.addColumn(col);
-         nselection.setExpression(index, column.isExpression());
+         nselection.setExpression(index, column.isExpression() || column.isQueryExpressionField());
          nselection.setAlias(index, alias);
          ((JDBCSelection) nselection).setAggregate(col, true);
          String ocol = getColumn(column);
@@ -2409,7 +2409,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
          if(!found) {
             int index = selection2.addColumn(col);
-            selection2.setExpression(index, column.isExpression());
+            selection2.setExpression(index, column.isExpression() || column.isQueryExpressionField());
 
             if(alias != null) {
                selection2.setAlias(index, alias);

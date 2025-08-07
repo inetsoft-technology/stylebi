@@ -107,6 +107,13 @@ public interface DataRef
    }
 
    /**
+    * Check whether the attribute is an expression column generated in a query’s fields.
+    */
+   default boolean isQueryExpressionField() {
+      return false;
+   }
+
+   /**
     * Check if the data ref is blank.
     * @return <tt>true</tt> if blank, <tt>false</tt> otherwise.
     */

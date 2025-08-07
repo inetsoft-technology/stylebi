@@ -574,6 +574,12 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
          writer.print(aalias);
          writer.print("\"");
       }
+
+      if(queryExpressionField) {
+         writer.print(" queryExpressionField=\"");
+         writer.print(queryExpressionField);
+         writer.print("\"");
+      }
    }
 
    /**
@@ -589,6 +595,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
          dos.writeBoolean(sql);
          dos.writeUTF(dtype != null ? dtype : XSchema.STRING);
          dos.writeInt(sqlType);
+         dos.writeBoolean(queryExpressionField);
          // transient
          //dos.writeBoolean(aalias);
       }
@@ -648,6 +655,12 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
          catch(NumberFormatException ex) {
             sqlType = Types.VARCHAR;
          }
+      }
+
+      val = Tool.getAttribute(tag, "queryExpressionField");
+
+      if(val != null) {
+         queryExpressionField = "true".equals(val);
       }
    }
 
@@ -815,6 +828,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
             col2.oldName = oldName;
             col2.lastOldName = lastOldName;
             col2.chash = Integer.MIN_VALUE;
+            col2.queryExpressionField = queryExpressionField;
          }
 
          return col2;
@@ -917,6 +931,14 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
       return oldName;
    }
 
+   public boolean isQueryExpressionField() {
+      return queryExpressionField;
+   }
+
+   public void setQueryExpressionField(boolean queryExpressionField) {
+      this.queryExpressionField = queryExpressionField;
+   }
+
    private DataRef ref = null;
    private String alias = null;
    private byte width = 1;
@@ -929,6 +951,7 @@ public class ColumnRef extends AbstractDataRef implements AssetObject, DataRefWr
    private String desc = null;
    private String oldName = null;
    private String lastOldName = null; // using last old name to undo to next action before save.
+   private boolean queryExpressionField = false; // Used to identify an expression column generated in the query's fields.
 
    private transient boolean processed = false;
    private transient boolean aalias = true;
