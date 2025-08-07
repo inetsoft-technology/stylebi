@@ -181,13 +181,13 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    @SuppressWarnings("unchecked")
    public IdentityID[] getUsers() {
       Set<IdentityID> users = lists.get(USER_LIST);
-      return users.toArray(new IdentityID[0]);
+      return users == null ? new IdentityID[0] : users.toArray(new IdentityID[0]);
    }
 
    @SuppressWarnings("unchecked")
    public String[] getOrganizations() {
       Set<String> organizations = lists.get(ORG_LIST);
-      return organizations.toArray(new String[0]);
+      return organizations == null ? new String[0] : organizations.toArray(new String[0]);
    }
 
    public String getOrganizationName(String orgID) {
@@ -205,7 +205,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    @SuppressWarnings("unchecked")
    public IdentityID[] getRoles() {
       Set<IdentityID> roles = lists.get(ROLE_LIST);
-      return roles.toArray(new IdentityID[0]);
+      return roles == null ? new IdentityID[0] :roles.toArray(new IdentityID[0]);
    }
 
    public IdentityID[] getRoles(IdentityID userId) {
@@ -215,7 +215,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    @SuppressWarnings("unchecked")
    public IdentityID[] getGroups() {
       Set<IdentityID> groups = lists.get(GROUP_LIST);
-      return groups.toArray(new IdentityID[0]);
+      return groups == null ? new IdentityID[0] : groups.toArray(new IdentityID[0]);
    }
 
    public String[] getEmails(IdentityID userIdentity) {

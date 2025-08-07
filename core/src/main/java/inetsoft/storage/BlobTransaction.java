@@ -201,6 +201,14 @@ public class BlobTransaction<T extends Serializable> implements Closeable {
 
       storage.commit(blob, context.tempFile);
       BlobReference<T> oldBlob;
+      BlobStorage.BlobLock lock;
+
+      try {
+         lock = storage.lock(blob.getPath(), false);
+      }
+      catch(Exception e) {
+         throw new IOException("Failed to acquire lock for " + blob.getPath() + " in " + storage.getId(), e);
+      }
 
       try {
          oldBlob = storage.putBlob(blob);
@@ -208,12 +216,15 @@ public class BlobTransaction<T extends Serializable> implements Closeable {
       catch(Exception e) {
          throw new IOException("Failed to save metadata for blob " + context.path, e);
       }
+      finally {
+         lock.unlock();
+      }
 
       if(oldBlob.getCount() == 0 && oldBlob.getBlob() != null) {
-         BlobStorage.BlobLock lock = null;
+         lock = null;
 
          try {
-            lock = storage.lock(context.path, false);
+            lock = storage.lock(oldBlob.getBlob().getPath(), false);
             storage.delete(oldBlob.getBlob());
          }
          catch(Exception e) {
