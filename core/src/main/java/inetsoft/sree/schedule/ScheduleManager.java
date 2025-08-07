@@ -144,7 +144,8 @@ public class ScheduleManager {
     * will be discarded and new schedule tasks come from schedule extensions
     * will be loaded.
     */
-   public void reloadExtensions() {
+   public void reloadExtensions(String orgID) {
+      orgID = orgID != null ? orgID : OrganizationManager.getInstance().getCurrentOrgID();
       boolean scheduler = "true".equals(System.getProperty("ScheduleServer"));
       extensionLock.lock();
 
@@ -158,7 +159,7 @@ public class ScheduleManager {
             List<ScheduleTask> tasks;
 
             synchronized(ext) {
-               tasks = new ArrayList<>(ext.getTasks());
+               tasks = new ArrayList<>(ext.getTasks(orgID));
             }
 
             for(ScheduleTask task : tasks) {
@@ -261,7 +262,7 @@ public class ScheduleManager {
       }
 
       if(extChanged) {
-         reloadExtensions();
+         reloadExtensions(orgID);
       }
    }
 
@@ -741,7 +742,7 @@ public class ScheduleManager {
       }
 
       if(extChanged) {
-         reloadExtensions();
+         reloadExtensions(orgID);
       }
    }
 
@@ -1290,98 +1291,6 @@ public class ScheduleManager {
    }
 
    /**
-    * Method will be invoked when a replet is removed.
-    * @param replet the specified replet.
-    * @param owner the specified user.
-    */
-   public synchronized void repletRemoved(String replet, String owner) {
-      Set<ScheduleTask> changedTasks = new HashSet<>();
-
-      try {
-         save(changedTasks);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to save schedule task file after " +
-               "replet was removed: " + replet, ex);
-      }
-
-      boolean extchanged = false;
-
-      for(ScheduleExt ext : extensions) {
-         extchanged = ext.repletRemoved(replet, owner) || extchanged;
-      }
-
-      if(extchanged) {
-         reloadExtensions();
-      }
-   }
-
-   /**
-    * Method will be invoked when an archive is renamed.
-    * @param opath the specified old archive path.
-    * @param npath the specified new archive path.
-    * @param owner the specified user.
-    */
-   public synchronized void archiveRenamed(String opath, String npath,
-                                           String owner)
-   {
-      Set<ScheduleTask> changedTasks = new HashSet<>();
-
-      try {
-         save(changedTasks);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to save schedule task file after " +
-               "archive file was renamed: " + opath + " to " + npath, ex);
-      }
-
-      boolean extchanged = false;
-
-      for(ScheduleExt ext : extensions) {
-         extchanged = ext.archiveRenamed(opath, npath, owner) || extchanged;
-      }
-
-      if(extchanged) {
-         reloadExtensions();
-      }
-   }
-
-   /**
-    * Method will be invoked when a replet is renamed.
-    * @param oreplet the specified old replet.
-    * @param nreplet the specified new replet.
-    * @param owner the specified user.
-    */
-   public synchronized void repletRenamed(String oreplet, String nreplet,
-                                          String owner)
-   {
-      if(RecycleUtils.isInRecycleBin(nreplet)) {
-         repletRemoved(oreplet, owner);
-         return;
-      }
-
-      Set<ScheduleTask> changedTasks = new HashSet<>();
-
-      try {
-         save(changedTasks);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to save schedule task file after " +
-               "replet was renamed: " + oreplet + " to " + nreplet, ex);
-      }
-
-      boolean extchanged = false;
-
-      for(ScheduleExt ext : extensions) {
-         extchanged = ext.repletRenamed(oreplet, nreplet, owner) || extchanged;
-      }
-
-      if(extchanged) {
-         reloadExtensions();
-      }
-   }
-
-   /**
     * Method will be invoked when a viewsheet is renamed.
     * @param oviewSheet the specified old viewsheet.
     * @param nviewSheet the specified new viewsheet.
@@ -1447,7 +1356,7 @@ public class ScheduleManager {
       }
 
       if(extchanged) {
-         reloadExtensions();
+         reloadExtensions(orgID);
       }
    }
 
@@ -1580,7 +1489,7 @@ public class ScheduleManager {
       }
 
       if(extchanged) {
-         reloadExtensions();
+         reloadExtensions(orgID);
       }
    }
 

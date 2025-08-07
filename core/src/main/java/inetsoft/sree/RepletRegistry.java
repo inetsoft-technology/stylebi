@@ -57,19 +57,10 @@ public class RepletRegistry implements Serializable {
     * Add folder event.
     */
    static final String ADD_FOLDER_EVENT = "add_folder";
-
-   /**
-    * Rename replet event.
-    */
-   static final String RENAME_REPLET_EVENT = "rename_replet";
    /**
     * Rename folder event.
     */
    static final String RENAME_FOLDER_EVENT = "rename_folder";
-   /**
-    * Remove replet event.
-    */
-   static final String REMOVE_REPLET_EVENT = "remove_replet";
    /**
     * Remove folder event.
     */

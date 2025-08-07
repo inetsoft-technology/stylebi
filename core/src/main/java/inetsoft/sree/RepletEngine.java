@@ -1878,66 +1878,6 @@ public class RepletEngine extends AbstractAssetEngine
                }
             }
          }
-         // rename registry replet? rename permission as well
-         else if(name.equals(RepletRegistry.RENAME_REPLET_EVENT)) {
-            String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
-            int index = source.indexOf('^');
-            String user = null;
-            boolean directChange = source.endsWith("_true");
-
-            if(index != -1) {
-               user = source.substring(index + 1);
-            }
-
-            String nname = (String) nval;
-            String oname = (String) oval;
-
-            if(!SUtil.isMyReport(oname)) {
-               SecurityEngine security = getSecurity();
-
-               if(security != null) {
-                  security.setPermission(
-                     ResourceType.REPORT, nname, security.getPermission(ResourceType.REPORT, oname));
-
-                  if(!Tool.equals(nname, oname)) {
-                     security.removePermission(ResourceType.REPORT, oname);
-                  }
-               }
-            }
-
-            // @by stephenwebster, For bug1408723303556
-            // If directChange is true, this means it comes from a direct rename of a replet.
-            // Otherwise it is false indicating that the change was triggered by a folder rename.
-            // In that case, the ScheduleManager folderRenamed method will handle updating the path
-            // to any schedule actions having replets defined in that path.
-            if(directChange) {
-               ScheduleManager manager = ScheduleManager.getScheduleManager();
-               manager.repletRenamed(oname, nname, user);
-            }
-         }
-         // remove registry replet? remove permission as well
-         else if(name.equals(RepletRegistry.REMOVE_REPLET_EVENT)) {
-            String path = (String) oval;
-            String source = (String) Util.getSourceNameFromEventSource(evt.getSource());
-            int index = source.indexOf('^');
-            String user = null;
-
-            if(index != -1) {
-               user = source.substring(index + 1);
-            }
-
-            if(!SUtil.isMyReport(path)) {
-               SecurityEngine security = getSecurity();
-
-               if(security != null) {
-                  security.removePermission(ResourceType.REPORT, path);
-               }
-            }
-
-//         ScheduleManager manager = ScheduleManager.getScheduleManager();
-//         manager.repletRemoved(path, user);
-            //Will be remobe
-         }
       }
       finally {
          if(oldCurrentOrgId == null) {
