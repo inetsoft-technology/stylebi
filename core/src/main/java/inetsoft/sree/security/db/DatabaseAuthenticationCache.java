@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,910 +15,344 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 package inetsoft.sree.security.db;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.*;
-import inetsoft.uql.jdbc.JDBCHandler;
+import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.util.Tool;
-import jakarta.validation.constraints.NotNull;
-import org.apache.commons.codec.binary.Hex;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.Driver;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.concurrent.*;
 
-/**
- * Authentication module that stores user, password, group and role information
- * in a database
- *
- * @author InetSoft Technology
- * @since 12.3
- */
-public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvider {
-   public DatabaseAuthenticationProvider() {
-      cacheEnabled = "true".equals(SreeEnv.getProperty("security.cache"));
-      caseSensitive = "true".equals(SreeEnv.getProperty("security.user.caseSensitive", "true"));
+class DatabaseAuthenticationCache implements AutoCloseable {
+   public DatabaseAuthenticationCache(DatabaseAuthenticationProvider provider) {
+      this.provider = provider;
+      this.cluster = Cluster.getInstance();
+      prefix = "DatabaseSecurity:" + provider.getProviderName();
+      this.lastLoad = cluster.getLong(prefix + ".lastLoad");
+      this.lastFailure = cluster.getLong(prefix + ".lastFailure");
+      this.loadCount = cluster.getLong(prefix + ".loadCount");
+      this.lists = cluster.getReplicatedMap(prefix + ".lists");
+      this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
+      this.orgMembers = cluster.getReplicatedMap(prefix + ".orgMembers");
+      this.orgRoles = cluster.getReplicatedMap(prefix + ".orgRoles");
+      this.groupUsers = cluster.getReplicatedMap(prefix + ".groupUsers");
+      this.userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
+      this.userEmails = cluster.getReplicatedMap(prefix + ".userEmails");
+      this.executor = Executors.newSingleThreadScheduledExecutor(
+         r -> new Thread(r, "DatabaseAuthenticationCache"));
    }
 
    @Override
-   public boolean authenticate(IdentityID userIdentity, Object credential) {
-      if(credential == null) {
-         LOG.error("Ticket is null, cannot authenticate.");
-         return false;
-      }
+   public void close() throws Exception {
+      executor.shutdown();
+   }
 
-      DefaultTicket ticket;
+   public void load() {
+      refresh(false, true);
+   }
 
-      if(!(credential instanceof DefaultTicket)) {
-         ticket = DefaultTicket.parse(credential.toString());
-      }
-      else {
-         ticket = (DefaultTicket) credential;
-      }
+   public void refresh() {
+      refresh(true, false);
+   }
 
-      IdentityID username = ticket.getName();
-      String password = ticket.getPassword();
-
-      if(username == null || username.name.isEmpty() || password == null) {
-         return false;
-      }
-
-      if(userQuery.isEmpty()) {
-         LOG.warn("Failed to authenticate, users query is not defined.");
-         return false;
-      }
+   private void refresh(boolean force, boolean reschedule) {
+      long next = -1;
 
       try {
-         Optional<UserCredential> passwordAndSalt = dao.getUserCredential(username);
-
-         if(passwordAndSalt.isPresent()) {
-            return authenticate(password, passwordAndSalt.get().password(), passwordAndSalt.get().salt());
+         if(!Tool.equals(cluster.getServiceOwner(prefix), cluster.getLocalMember())) {
+            next = cluster.submit(
+               prefix, new RefreshCacheTask(provider.getProviderName(), force)).get();
+         }
+         else {
+            next = new RefreshCacheTask(provider.getProviderName(), force).call();
          }
       }
       catch(Exception e) {
-         LOG.error("An exception prevented user \"{}\" from being authenticated", username, e);
+         LOG.warn("Failed to refresh database authentication cache", e);
       }
 
-      return false;
+      if(reschedule && next > 0) {
+         executor.schedule(() -> refresh(false, true), next, TimeUnit.MILLISECONDS);
+      }
    }
 
-   @NotNull
-   public Map<String, Object> queryUser(IdentityID userid) {
-      if(userid == null || userid.name.isEmpty()) {
-         return Collections.emptyMap();
-      }
-
-      if(userQuery.isEmpty()) {
-         LOG.warn("users query is not defined.");
-         return Collections.emptyMap();
+   long load(boolean force) {
+      if(loadCount.incrementAndGet() > 1) {
+         loadCount.decrementAndGet();
+         return isFailedState() ? 60000L : provider.getCacheRefreshDelay();
       }
 
       try {
-         return dao.queryUser(userid).orElse(null);
-      }
-      catch(Exception e) {
-         LOG.error("An exception prevented user query \"{}\"", userid.convertToKey(), e);
-      }
-
-      return Collections.emptyMap();
-   }
-
-   /**
-    * Check if the entered password matches the entry in the database
-    *
-    * @param password   the entered password
-    * @param dbPassword the password hash from the database
-    * @param salt       the salt for the password
-    */
-   private boolean authenticate(String password, String dbPassword, String salt) {
-      if(hashAlgorithm == null || hashAlgorithm.isEmpty() || hashAlgorithm.equals("None")) {
-         return Objects.equals(password, dbPassword);
-      }
-
-      return Tool.checkHashedPassword(
-         dbPassword, password, hashAlgorithm, salt, appendSalt, Hex::encodeHexString);
-   }
-
-   public void testConnection() throws Exception {
-      connectionProvider.testConnection();
-   }
-
-   @Override
-   public void loadCredential(String secretId) {
-      JsonNode jsonNode = Tool.loadCredentials(secretId, !isUseCredential());
-
-      if(jsonNode != null) {
-         try {
-            dbUser = jsonNode.get("user").asText();
-            dbPassword = jsonNode.get("password").asText();
+         if(!force && !isReloadRequired()) {
+            return getNextReloadDelay();
          }
-         catch(Exception e) {
-            throw new RuntimeException("Failed to load credentials!");
+
+         AuthenticationDAO dao = provider.getDao();
+         QueryResult<IdentityID[]> newUsers = dao.getUsers();
+
+         if(newUsers.failed()) {
+            handleError();
+            return getNextReloadDelay();
+         }
+
+         QueryResult<IdentityID[]> newRoles = dao.getRoles();
+
+         if(newRoles.failed()) {
+            handleError();
+            return getNextReloadDelay();
+         }
+
+         QueryResult<IdentityID[]> newGroups = dao.getGroups();
+
+         if(newGroups.failed()) {
+            handleError();
+            return getNextReloadDelay();
+         }
+
+         QueryResult<String[]> newOrganizations = dao.getOrganizations();
+
+         if(newOrganizations.failed()) {
+            handleError();
+            return getNextReloadDelay();
+         }
+
+         Map<String, String> newOrgNames = new HashMap<>();
+         Map<String, String[]> newOrgMembers = new HashMap<>();
+         Map<String, String[]> newOrgRoles = new HashMap<>();
+
+         for(String orgID : newOrganizations.result()) {
+            String name = dao.getOrganizationName(orgID);
+            newOrgNames.put(orgID, name);
+
+            QueryResult<String[]> result;
+
+            if((result = dao.getOrganizationMembers(orgID)).failed()) {
+               handleError();
+               return getNextReloadDelay();
+            }
+
+            newOrgMembers.put(orgID, result.result());
+
+            if((result = dao.getOrganizationRoles(orgID)).failed()) {
+               handleError();
+               return getNextReloadDelay();
+            }
+
+            newOrgRoles.put(orgID, result.result());
+         }
+
+         try(DistributedTransaction tx = cluster.startTx()) {
+            lists.removeAll();
+            lists.put(ORG_LIST, new TreeSet<>(Arrays.asList(newOrganizations.result())));
+            lists.put(USER_LIST, new TreeSet<>(Arrays.asList(newUsers.result())));
+            lists.put(GROUP_LIST, new TreeSet<>(Arrays.asList(newGroups.result())));
+            lists.put(ROLE_LIST, new TreeSet<>(Arrays.asList(newRoles.result())));
+
+            orgNames.removeAll();
+            orgNames.putAll(newOrgNames);
+
+            orgMembers.removeAll();
+            orgMembers.putAll(newOrgMembers);
+
+            orgRoles.removeAll();
+            orgRoles.putAll(newOrgRoles);
+
+            groupUsers.removeAll();
+            userRoles.removeAll();
+            userEmails.removeAll();
+
+            tx.commit();
+            lastLoad.set(System.currentTimeMillis());
          }
       }
+      finally {
+         loadCount.decrementAndGet();
+      }
+
+      return getNextReloadDelay();
    }
 
-   @Override
-   public void tearDown() {
-      connectionProvider.close();
-      closeCache();
-   }
-
-   @Override
+   @SuppressWarnings("unchecked")
    public IdentityID[] getUsers() {
-      if(cacheEnabled && !isIgnoreCache()) {
-         return getCache().getUsers();
+      Set<IdentityID> users = lists.get(USER_LIST);
+
+      if(users == null) {
+         return new IdentityID[0];
       }
 
-      return dao.getUsers().result();
+      return users.toArray(new IdentityID[0]);
    }
 
-   @Override
-   public User getUser(IdentityID userIdentity) {
-      if(userIdentity == null) {
-         return null;
+   @SuppressWarnings("unchecked")
+   public String[] getOrganizations() {
+      Set<String> organizations = lists.get(ORG_LIST);
+
+      if(organizations == null) {
+         return new String[0];
       }
 
-      for(IdentityID userName : getUsers()) {
-         if(caseSensitive && userIdentity.equals(userName) ||
-            !caseSensitive && userIdentity.equalsIgnoreCase(userName))
-         {
-            return new User(userIdentity, getEmails(userIdentity),
-                            getUserGroups(userIdentity, caseSensitive), getRoles(userIdentity), "", "");
-         }
-      }
-
-      return null;
+      return organizations.toArray(new String[0]);
    }
 
-   @Override
-   public Organization getOrganization(String id) {
-      if(id == null) {
-         return null;
-      }
-
-      for(String orgID : this.getOrganizationIDs()) {
-         if(caseSensitive && id.equals(orgID) ||
-            !caseSensitive && id.equalsIgnoreCase(orgID))
-         {
-            return new Organization(getOrganizationName(id), id, getOrganizationMembers(id), "", true);
-         }
-      }
-
-      return null;
+   public String getOrganizationName(String orgID) {
+      return orgNames.get(orgID);
    }
 
-   @Override
-   public String getOrgIdFromName(String name) {
-      for(String orgID : getOrganizationIDs()) {
-         if(getOrganization(orgID).getName().equals(name)) {
-            return orgID;
-         }
-      }
-      return null;
+   public String[] getOrganizationMembers(String orgID) {
+      return orgMembers.get(orgID);
    }
 
-   @Override
-   public String getOrgNameFromID(String id) {
-      return getOrganization(id).getName();
-   }
-
-   @Override
-   public String[] getOrganizationIDs() {
-      if(cacheEnabled && !isIgnoreCache()) {
-         return getCache().getOrganizations();
-      }
-
-      return dao.getOrganizations().result();
-   }
-
-   @Override
-   public String[] getOrganizationNames() {
-      if(cacheEnabled && !isIgnoreCache()) {
-         return Arrays.stream(getCache().getOrganizations())
-            .map(this::getOrganizationName)
-            .toArray(String[]::new);
-      }
-
-      return Arrays.stream(dao.getOrganizations().result())
-         .map(dao::getOrganizationName)
-         .toArray(String[]::new);
-   }
-
-   public String getOrganizationName(String id) {
-      // global
-      if(id == null) {
-         return null;
-      }
-
-      if(cacheEnabled && !isIgnoreCache()) {
-         String cacheid = getCache().getOrganizationName(id);
-
-         return cacheid == null || cacheid.isEmpty() ?
-                 dao.getOrganizationName(id) : cacheid;
-      }
-
-      return dao.getOrganizationName(id);
-   }
-
-   @Override
-   public String getOrganizationId(String name) {
-      // global
-      for(String oid : getOrganizationIDs()) {
-         if(getOrganization(oid).getName().equals(name)) {
-            return oid;
-         }
-      }
-      return null;
-   }
-
-   @Override
-   public String[] getOrganizationMembers(String organizationID) {
-      if(cacheEnabled && !isIgnoreCache()) {
-         return getCache().getOrganizationMembers(organizationID);
-      }
-
-      return dao.getOrganizationMembers(organizationID).result();
-   }
-
-   @Override
-   public Group getGroup(IdentityID groupIdentity) {
-      for(IdentityID groupId : getGroups()) {
-         if(Tool.equals(groupId, groupIdentity)) {
-            return new Group(groupIdentity, null, new String[0], new IdentityID[0]);
-         }
-      }
-      return null;
-   }
-
-   @Override
    public IdentityID[] getUsers(IdentityID groupIdentity) {
-      if(cacheEnabled && !isIgnoreCache()) {
-         return getCache().getUsers(groupIdentity);
-      }
-
-      return dao.getUsers(groupIdentity).result();
+      return groupUsers.computeIfAbsent(groupIdentity, k -> new IdentityArrayWrapper(provider.getDao().getUsers(k).result())).getValue();
    }
 
-   @Override
-   public IdentityID[] getIndividualUsers() {
-      List<IdentityID> individualUserList = new ArrayList<>();
-
-      for(IdentityID user : getUsers()) {
-         if(getUserGroups(user).length == 0) {
-            individualUserList.add(user);
-         }
-      }
-
-      return individualUserList.toArray(new IdentityID[0]);
-   }
-
-   @Override
+   @SuppressWarnings("unchecked")
    public IdentityID[] getRoles() {
-      if(cacheEnabled && !isIgnoreCache()) {
-         return getCache().getRoles();
+      Set<IdentityID> roles = lists.get(ROLE_LIST);
+
+      if(roles == null) {
+         return new IdentityID[0];
       }
 
-      return dao.getRoles().result();
+      return roles.toArray(new IdentityID[0]);
    }
 
-   @Override
-   public IdentityID[] getRoles(IdentityID userID) {
-      if(Arrays.asList(this.getOrganizationIDs()).contains(userID.orgID)) {
-         if(cacheEnabled && !isIgnoreCache()) {
-            return getCache().getRoles(userID);
-         }
+   public IdentityID[] getRoles(IdentityID userId) {
+      return userRoles.computeIfAbsent(userId, k -> new IdentityArrayWrapper(provider.getDao().getRoles(k).result())).getValue();
+   }
 
-         return dao.getRoles(userID).result();
+   @SuppressWarnings("unchecked")
+   public IdentityID[] getGroups() {
+      Set<IdentityID> groups = lists.get(GROUP_LIST);
+
+      if(groups == null) {
+         return new IdentityID[0];
       }
 
-      return new IdentityID[0];
+      return groups.toArray(new IdentityID[0]);
    }
 
-   @Override
-   public Role getRole(IdentityID roleIdentity) {
-      if(!existRole(roleIdentity)) {
+   public String[] getEmails(IdentityID userIdentity) {
+      return userEmails.computeIfAbsent(userIdentity, k -> provider.getDao().getEmails(k).result());
+   }
+
+   public boolean isLoading() {
+      return loadCount.get() > 0;
+   }
+
+   public boolean isInitialized() {
+      return lastLoad.get() != 0;
+   }
+
+   public long getAge() {
+      long loaded = lastLoad.get();
+      return loaded == 0L ? 0L : System.currentTimeMillis() - loaded;
+   }
+
+   private Instant getLastLoadTime() {
+      long ts = lastLoad.get();
+
+      if(ts == 0L) {
          return null;
       }
 
-      return new Role(roleIdentity, "");
+      return Instant.ofEpochMilli(ts);
    }
 
-   @Override
-   public IdentityID[] getGroups() {
-      if(cacheEnabled && !isIgnoreCache()) {
-         return getCache().getGroups();
+   private Instant getLastFailureTime() {
+      long ts = lastFailure.get();
+
+      if(ts == 0L) {
+         return null;
       }
 
-      return dao.getGroups().result();
+      return Instant.ofEpochMilli(ts);
    }
 
-   /**
-    * @deprecated
-    */
-   @SuppressWarnings("deprecation")
-   @Override
-   @Deprecated
-   public String[] getEmails(IdentityID userIdentity) {
-      if(cacheEnabled && !isIgnoreCache()) {
-         return getCache().getEmails(userIdentity);
+   private boolean isFailedState() {
+      Instant loaded = getLastLoadTime();
+      Instant failed = getLastFailureTime();
+      return failed != null && (loaded == null || failed.isAfter(loaded.plusSeconds(60L)));
+   }
+
+   private boolean isReloadRequired() {
+      Instant loaded = getLastLoadTime();
+      Instant failed = getLastFailureTime();
+
+      if(failed != null && (loaded == null || failed.isAfter(loaded.plusSeconds(60L)))) {
+         return true;
       }
 
-      return dao.getEmails(userIdentity).result();
+      return loaded == null ||
+         Instant.now().isAfter(loaded.plusMillis(provider.getCacheRefreshDelay()));
    }
 
-   @Override
-   public boolean isSystemAdministratorRole(IdentityID roleId) {
-      return isSystemAdministratorRole(roleId.name);
-   }
+   private long getNextReloadDelay() {
+      Instant loaded = getLastLoadTime();
+      Instant failed = getLastFailureTime();
 
-   private boolean isSystemAdministratorRole(String roleName) {
-      for(String sysAdminRoles : systemAdministratorRoles) {
-         if(sysAdminRoles.equals(roleName)) {
-            return true;
-         }
+      if(failed != null && (loaded == null || failed.isAfter(loaded))) {
+         return failed.plusMillis(60L).toEpochMilli();
       }
 
-      return false;
-   }
+      long interval = provider.getCacheRefreshDelay();
 
-   @Override
-   public boolean isOrgAdministratorRole(IdentityID roleId) {
-      return isOrgAdministratorRole(roleId.name) &&
-         (roleId.orgID == null || getOrganization(roleId.orgID) != null);
-   }
-
-   private boolean isOrgAdministratorRole(String roleName) {
-      for(String orgAdminRoles : orgAdministratorRoles) {
-         String orgAdminName = IdentityID.getIdentityIDFromKey(orgAdminRoles).name;
-
-         if(orgAdminName.equals(roleName)) {
-            return true;
-         }
+      if(loaded == null) {
+         // shouldn't happen based on the sequence of calls, but just in case
+         return interval;
       }
 
-      return false;
-   }
+      long delay = interval - Duration.between(loaded, Instant.now()).toMillis();
 
-   @Override
-   public boolean isCacheEnabled() {
-      return cacheEnabled;
-   }
-
-   @Override
-   public void clearCache() {
-      if(cacheEnabled) {
-         cacheLock.lock();
-
-         try {
-            DatabaseAuthenticationCache cache = isIgnoreCache() ? securityCache : getCache();
-
-            if(cache != null) {
-               cache.refresh();
-            }
-         }
-         finally {
-            cacheLock.unlock();
-         }
-      }
-   }
-
-   @Override
-   public boolean isLoading() {
-      return cacheEnabled && getCache().isLoading();
-   }
-
-   @Override
-   public long getCacheAge() {
-      return cacheEnabled ? getCache().getAge() : 0L;
-   }
-
-   public String getUserQuery() {
-      return userQuery;
-   }
-
-   public void setUserQuery(String userQuery) {
-      this.userQuery = userQuery;
-      clearCache();
-   }
-
-   public String getGroupListQuery() {
-      return groupListQuery;
-   }
-
-   public void setGroupListQuery(String groupListQuery) {
-      this.groupListQuery = groupListQuery;
-      clearCache();
-   }
-
-   public String getOrganizationListQuery() {
-      return organizationListQuery;
-   }
-
-   public void setOrganizationListQuery(String organizationListQuery) {
-      this.organizationListQuery = organizationListQuery;
-      clearCache();
-   }
-
-   public String getUserListQuery() {
-      return userListQuery;
-   }
-
-   public void setUserListQuery(String userListQuery) {
-      this.userListQuery = userListQuery;
-      clearCache();
-   }
-
-   public String getGroupUsersQuery() {
-      return groupUsersQuery;
-   }
-
-   public void setGroupUsersQuery(String groupUsersQuery) {
-      this.groupUsersQuery = groupUsersQuery;
-      clearCache();
-   }
-
-   public String getOrganizationNameQuery() {
-      return organizationNameQuery;
-   }
-
-   public void setOrganizationNameQuery(String organizationNameQuery) {
-      this.organizationNameQuery = organizationNameQuery;
-      clearCache();
-   }
-
-   public String getOrganizationMembersQuery() {
-      return organizationMembersQuery;
-   }
-
-   public void setOrganizationMembersQuery(String organizationMembersQuery) {
-      this.organizationMembersQuery = organizationMembersQuery;
-      clearCache();
-   }
-
-   public String getOrganizationRolesQuery() {
-      return organizationRolesQuery;
-   }
-
-   public void setOrganizationRolesQuery(String organizationRolesQuery) {
-      this.organizationRolesQuery = organizationRolesQuery;
-      clearCache();
-   }
-
-   public String getRoleListQuery() {
-      return roleListQuery;
-   }
-
-   public void setRoleListQuery(String roleListQuery) {
-      this.roleListQuery = roleListQuery;
-      clearCache();
-   }
-
-   public String getUserRolesQuery() {
-      return userRolesQuery;
-   }
-
-   public void setUserRolesQuery(String userRolesQuery) {
-      this.userRolesQuery = userRolesQuery;
-      clearCache();
-   }
-
-   public String getUserEmailsQuery() {
-      return userEmailsQuery;
-   }
-
-   public void setUserEmailsQuery(String userEmailsQuery) {
-      this.userEmailsQuery = userEmailsQuery;
-      clearCache();
-   }
-
-   public String getHashAlgorithm() {
-      if(hashAlgorithm == null || hashAlgorithm.isEmpty()) {
-         hashAlgorithm = "None";
+      if(delay <= 0) {
+         return 1L;
       }
 
-      return hashAlgorithm;
+      return delay;
    }
 
-   public void setHashAlgorithm(String hashAlgorithm) {
-      if(hashAlgorithm == null || hashAlgorithm.isEmpty()) {
-         this.hashAlgorithm = "None";
-      }
-      else {
-         this.hashAlgorithm = hashAlgorithm;
-      }
-
-      clearCache();
+   private void handleError() {
+      lastFailure.set(System.currentTimeMillis());
+      provider.getConnectionProvider().resetConnection();
    }
 
-   public boolean isAppendSalt() {
-      return appendSalt;
-   }
-
-   public void setAppendSalt(boolean appendSalt) {
-      this.appendSalt = appendSalt;
-      clearCache();
-   }
-
-   public String getDriver() {
-      return driverClass;
-   }
-
-   public void setDriver(String driver) {
-      this.driverClass = driver;
-      resetConnection();
-   }
-
-   public String getUrl() {
-      return url;
-   }
-
-   public void setUrl(String url) {
-      this.url = url;
-      resetConnection();
-   }
-
-   public boolean isRequiresLogin() {
-      return requiresLogin;
-   }
-
-   public void setRequiresLogin(boolean requiresLogin) {
-      this.requiresLogin = requiresLogin;
-   }
-
-   public String getDbUser() {
-      return dbUser;
-   }
-
-   public void setDbUser(String dbUser) {
-      this.dbUser = dbUser;
-      resetConnection();
-   }
-
-   public String getDbPassword() {
-      return dbPassword;
-   }
-
-   public void setDbPassword(String dbPassword) {
-      this.dbPassword = dbPassword;
-      resetConnection();
-   }
-
-   public String[] getSystemAdministratorRoles() {
-      return systemAdministratorRoles;
-   }
-
-   public void setSystemAdministratorRoles(String[] systemAdministratorRoles) {
-      this.systemAdministratorRoles = systemAdministratorRoles;
-      clearCache();
-   }
-
-   public String[] getOrgAdministratorRoles() {
-      return orgAdministratorRoles;
-   }
-
-   public void setOrgAdministratorRoles(String[] orgAdministratorRoles) {
-      this.orgAdministratorRoles = orgAdministratorRoles;
-      clearCache();
-   }
-
-   @Override
-   public void readConfiguration(JsonNode configuration) {
-      ObjectNode config = (ObjectNode) configuration;
-      driverClass = config.get("driver").asText("");
-      url = config.get("url").asText("");
-      hashAlgorithm = config.get("hashAlgorithm").asText("None");
-      appendSalt = config.get("appendSalt").asBoolean(true);
-      requiresLogin = config.get("requiresLogin").asBoolean(true);
-      userQuery = config.get("userQuery").asText("");
-      groupListQuery = config.get("groupListQuery").asText("");
-      organizationListQuery = config.get("organizationListQuery").asText("");
-      userListQuery = config.get("userListQuery").asText("");
-      groupUsersQuery = config.get("groupUsersQuery").asText("");
-      roleListQuery = config.get("roleListQuery").asText("");
-      userRolesQuery = config.get("userRolesQuery").asText("");
-      userEmailsQuery = config.get("userEmailsQuery").asText("");
-      organizationNameQuery = config.get("organizationNameQuery").asText("");
-      organizationMembersQuery = config.get("organizationMembersQuery").asText("");
-      organizationRolesQuery = config.get("organizationRolesQuery").asText("");
-      setUseCredential(config.get("useCredential").asBoolean(false));
-      readCredential(config.get("credential").asText());
-
-      ArrayNode sysAdminConfig = (ArrayNode) config.get("sysAdminRoles");
-      systemAdministratorRoles = new String[sysAdminConfig.size()];
-
-      for(int i = 0; i < sysAdminConfig.size(); i++) {
-         systemAdministratorRoles[i] = sysAdminConfig.get(i).asText();
+   private static class IdentityArrayWrapper {
+      public IdentityArrayWrapper(IdentityID[] value) {
+         this.value = value;
       }
 
-      ArrayNode orgAdminConfig = (ArrayNode) config.get("orgAdminRoles");
-
-      if(orgAdminConfig != null) {
-         orgAdministratorRoles = new String[orgAdminConfig.size()];
-
-         for(int i = 0; i < orgAdminConfig.size(); i++) {
-            orgAdministratorRoles[i] = orgAdminConfig.get(i).asText();
-         }
+      public IdentityID[] getValue() {
+         return value;
       }
 
-      if(hashAlgorithm.isEmpty()) {
-         hashAlgorithm = "None";
-      }
-
-      resetConnection();
+      private final IdentityID[] value;
    }
 
-   private void readCredential(String secretId) {
-      if(!requiresLogin || Tool.isEmptyString(secretId)) {
-         return;
-      }
+   private final DatabaseAuthenticationProvider provider;
+   private final Cluster cluster;
+   private final String prefix;
+   private final DistributedLong lastLoad;
+   private final DistributedLong lastFailure;
+   private final DistributedLong loadCount;
+   @SuppressWarnings("rawtypes")
+   private final DistributedMap<String, Set> lists;
+   private final DistributedMap<String, String> orgNames;
+   private final DistributedMap<String, String[]> orgMembers;
+   private final DistributedMap<String, String[]> orgRoles;
+   private final DistributedMap<IdentityID, IdentityArrayWrapper> groupUsers;
+   private final DistributedMap<IdentityID, IdentityArrayWrapper> userRoles;
+   private final DistributedMap<IdentityID, String[]> userEmails;
+   private final ScheduledExecutorService executor;
 
-      if(isUseCredential()) {
-         setSecretId(secretId);
-      }
-      else {
-         loadCredential(secretId);
-      }
-   }
-
-   @Override
-   public JsonNode writeConfiguration(ObjectMapper mapper) {
-      ObjectNode config = mapper.createObjectNode();
-      config.put("driver", driverClass);
-      config.put("url", url);
-      config.put("useCredential", isUseCredential());
-      config.put("credential", writeCredential());
-      config.put("hashAlgorithm", getHashAlgorithm());
-      config.put("appendSalt", appendSalt);
-      config.put("requiresLogin", requiresLogin);
-      config.put("userQuery", userQuery);
-      config.put("groupListQuery", groupListQuery);
-      config.put("userListQuery", userListQuery);
-      config.put("groupUsersQuery", groupUsersQuery);
-      config.put("organizationListQuery", organizationListQuery);
-      config.put("roleListQuery", roleListQuery);
-      config.put("userRolesQuery", userRolesQuery);
-      config.put("userEmailsQuery", userEmailsQuery);
-      config.put("organizationNameQuery", organizationNameQuery);
-      config.put("organizationMembersQuery", organizationMembersQuery);
-      config.put("organizationRolesQuery", organizationRolesQuery);
-
-      ArrayNode sysAdminConfig = mapper.createArrayNode();
-
-      for(String sysAdminRole : systemAdministratorRoles) {
-         sysAdminConfig.add(sysAdminRole);
-      }
-
-      config.set("sysAdminRoles", sysAdminConfig);
-
-      if(orgAdministratorRoles != null && orgAdministratorRoles.length > 0) {
-         ArrayNode orgAdminConfig = mapper.createArrayNode();
-
-         for(String orgAdminRole : orgAdministratorRoles) {
-            orgAdminConfig.add(orgAdminRole);
-         }
-
-         config.set("orgAdminRoles", orgAdminConfig);
-      }
-
-      return config;
-   }
-
-   private String writeCredential() {
-      if(requiresLogin) {
-         try {
-            if(isUseCredential()) {
-               return getSecretId();
-            }
-            else {
-               ObjectMapper mapper = new ObjectMapper();
-               JsonNode credential = mapper.createObjectNode()
-                  .put("user", dbUser)
-                  .put("password", dbPassword);
-
-               return Tool.encryptPassword(mapper.writeValueAsString(credential));
-            }
-         }
-         catch(Exception e) {
-            throw new RuntimeException("Failed to encrypt credential!");
-         }
-      }
-
-      return null;
-   }
-
-   @Override
-   public void setProviderName(String providerName) {
-      String oldName = getProviderName();
-      super.setProviderName(providerName);
-
-      if(!Objects.equals(providerName, oldName)) {
-         closeCache();
-      }
-   }
-
-   public void resetConnection() {
-      connectionProvider.resetConnection();
-      clearCache();
-   }
-
-   private DatabaseAuthenticationCache getCache() {
-      return getCache(true);
-   }
-
-   DatabaseAuthenticationCache getCache(boolean initialize) {
-      DatabaseAuthenticationCache result = null;
-
-      cacheLock.lock();
-
-      try {
-         if(cacheEnabled) {
-            if(securityCache == null) {
-               securityCache = new DatabaseAuthenticationCache(this);
-            }
-
-            result = securityCache;
-         }
-      }
-      finally {
-         cacheLock.unlock();
-      }
-
-      if(initialize && result != null && !result.isLoading() && !result.isInitialized()) {
-         result.load();
-      }
-
-      return result;
-   }
-
-   private void closeCache() {
-      cacheLock.lock();
-
-      try {
-         if(securityCache != null) {
-            try {
-               securityCache.close();
-            }
-            catch(Exception e) {
-               LOG.warn("Failed to close security cache", e);
-            }
-
-            securityCache = null;
-         }
-      }
-      finally {
-         cacheLock.unlock();
-      }
-   }
-
-   public boolean isIgnoreCache() {
-      return ignoreCache.get() != null && ignoreCache.get();
-   }
-
-   public void setIgnoreCache(boolean ignoreCache) {
-      this.ignoreCache.set(ignoreCache);
-   }
-
-   ConnectionProperties getConnectionProperties() {
-      loadCredential();
-      return new ConnectionProperties(driverClass, url, dbUser, dbPassword, requiresLogin);
-   }
-
-   ConnectionProvider getConnectionProvider() {
-      return connectionProvider;
-   }
-
-   AuthenticationDAO getDao() {
-      return dao;
-   }
-
-   boolean isAdminRole(String roleName) {
-      if(systemAdministratorRoles != null) {
-         int idx = Arrays.asList(systemAdministratorRoles).indexOf(roleName);
-
-         if(idx != -1) {
-            return true;
-         }
-      }
-
-      if(orgAdministratorRoles != null) {
-         int idx = Arrays.asList(orgAdministratorRoles).indexOf(roleName);
-
-         if(idx != -1) {
-            return true;
-         }
-      }
-
-      return false;
-   }
-
-   boolean orgRoleExists(String roleName, String userOrg) {
-      return getRole(new IdentityID(roleName, userOrg)) != null;
-   }
-
-   long getCacheRefreshDelay() {
-      return getCacheInterval();
-   }
-
-   boolean isCacheInitialized() {
-      DatabaseAuthenticationCache cache = getCache(false);
-      return cache != null && cache.isInitialized();
-   }
-
-   void setMultiTenantSupplier(Supplier<Boolean> supplier) {
-      this.multiTenant = supplier;
-   }
-
-   boolean isMultiTenant() {
-      return multiTenant.get();
-   }
-
-   void setDriverAvailable(Function<String, Boolean> driverAvailable) {
-      this.driverAvailable = driverAvailable;
-   }
-
-   boolean isDriverAvailable(String driverClass) {
-      return driverAvailable.apply(driverClass);
-   }
-
-   void setDriverSupplier(DriverSupplier driverSupplier) {
-      this.driverSupplier = driverSupplier;
-   }
-
-   Driver getDriver(String driverClass) throws Exception {
-      return driverSupplier.getDriver(driverClass);
-   }
-
-   private String userQuery;
-   private String userListQuery;
-   private String userRolesQuery;
-   private String userEmailsQuery;
-
-   private String roleListQuery;
-
-   private String groupListQuery;
-   private String groupUsersQuery;
-
-   private String organizationListQuery;
-   private String organizationNameQuery;
-   private String organizationRolesQuery;
-   private String organizationMembersQuery;
-
-   private String hashAlgorithm;
-   private boolean appendSalt;
-   private boolean requiresLogin;
-   private String driverClass;
-   private String url;
-   private String dbUser;
-   private String dbPassword;
-   private String[] systemAdministratorRoles = new String[0];
-   private String[] orgAdministratorRoles = new String[0];
-   private final boolean cacheEnabled;
-   private final boolean caseSensitive;
-   private Supplier<Boolean> multiTenant = SUtil::isMultiTenant;
-   private Function<String, Boolean> driverAvailable = JDBCHandler::isDriverAvailable;
-   private DriverSupplier driverSupplier = JDBCHandler::getDriver;
-   private final AuthenticationDAO dao = new AuthenticationDAO(this);
-   private final Lock cacheLock = new ReentrantLock();
-   private DatabaseAuthenticationCache securityCache;
-   private final ThreadLocal<Boolean> ignoreCache = ThreadLocal.withInitial(() -> false);
-   private final ConnectionProvider connectionProvider = new ConnectionProvider(this);
-
-   private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationProvider.class);
-
-   @FunctionalInterface
-   interface DriverSupplier {
-      Driver getDriver(String driverClass) throws Exception;
-   }
+   private static final Logger LOG = LoggerFactory.getLogger(DatabaseAuthenticationCache.class);
+   private static final String ORG_LIST = "orgs";
+   private static final String USER_LIST = "users";
+   private static final String GROUP_LIST = "groups";
+   private static final String ROLE_LIST = "roles";
 }
