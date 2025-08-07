@@ -67,18 +67,6 @@
       <scope>compile</scope>
     </dependency>
 
-<!--    <dependency>-->
-<!--      <groupId>commons-fileupload</groupId>-->
-<!--      <artifactId>commons-fileupload</artifactId>-->
-<!--      <scope>compile</scope>-->
-<!--    </dependency>-->
-
-<!--    <dependency>-->
-<!--      <groupId>commons-collections</groupId>-->
-<!--      <artifactId>commons-collections</artifactId>-->
-<!--      <scope>compile</scope>-->
-<!--    </dependency>-->
-
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
@@ -826,6 +814,13 @@
     <dependency>
       <groupId>org.wiremock</groupId>
       <artifactId>wiremock</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>net.datafaker</groupId>
+      <artifactId>datafaker</artifactId>
+      <version>2.4.4</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

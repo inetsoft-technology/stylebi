@@ -20,6 +20,7 @@ package inetsoft.test;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.Tool;
+import org.apache.ignite.services.Service;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -520,6 +521,32 @@ public class TestCluster implements Cluster {
       return new TestTransaction();
    }
 
+   @Override
+   public <T extends Service> T getSingletonService(String serviceName, Class<T> type, Supplier<T> init) {
+      return type.cast(singletonServices.computeIfAbsent(serviceName, k -> {
+         T service = init.get();
+
+         try {
+            service.init();
+            service.execute();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to initialize service", e);
+         }
+
+         return service;
+      }));
+   }
+
+   @Override
+   public void undeploySingletonService(String serviceName) {
+      Service service = (Service) singletonServices.remove(serviceName);
+
+      if(service != null) {
+         service.cancel();
+      }
+   }
+
    private final ConcurrentMap<String, Map<String, Object>> clusterNodeProperties =
       new ConcurrentHashMap<>();
    private final ConcurrentMap<String, Lock> locks = new ConcurrentHashMap<>();
@@ -540,6 +567,7 @@ public class TestCluster implements Cluster {
    private final List<MessageListener> messageListeners = new CopyOnWriteArrayList<>();
    private final ConcurrentMap<String, File> transferFiles = new ConcurrentHashMap<>();
    private final String clusterId = UUID.randomUUID().toString();
+   private final Map<String, Object> singletonServices = new ConcurrentHashMap<>();
 
    private final class LocalDistributedMap<K, V> implements DistributedMap<K, V> {
       private LocalDistributedMap(String name) {
