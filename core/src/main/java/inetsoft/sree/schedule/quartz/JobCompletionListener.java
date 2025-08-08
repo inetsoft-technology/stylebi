@@ -22,6 +22,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.Scheduler;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -297,8 +298,7 @@ public class JobCompletionListener extends JobListenerSupport {
       if(task != null && status == Scheduler.Status.FINISHED && task.isDeleteIfNoMoreRun() &&
          !task.hasNextRuntime(System.currentTimeMillis()))
       {
-         // make sure task is removed on all nodes
-         Cluster.getInstance().submitAll(new DeleteTask(taskName, principal));
+         removeTask(taskName, principal);
 
          try {
             context.getScheduler().deleteJob(key);
@@ -306,6 +306,29 @@ public class JobCompletionListener extends JobListenerSupport {
          catch(Exception e) {
             LOG.warn("Failed to remove schedule job", e);
          }
+      }
+   }
+
+   private void removeTask(String taskName, Principal principal) {
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
+
+      try {
+         if(principal != null) {
+            if(principal instanceof XPrincipal) {
+               principal = (Principal) Tool.clone(principal);
+               ((XPrincipal) principal).setIgnoreLogin(true);
+            }
+
+            ThreadContext.setContextPrincipal(principal);
+         }
+
+         ScheduleManager.getScheduleManager().removeScheduleTask(taskName, principal);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove schedule task", e);
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldPrincipal);
       }
    }
 
