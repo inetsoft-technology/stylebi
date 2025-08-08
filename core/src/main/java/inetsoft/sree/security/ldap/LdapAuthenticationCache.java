@@ -20,8 +20,7 @@ package inetsoft.sree.security.ldap;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
-import inetsoft.util.Debouncer;
-import inetsoft.util.DefaultDebouncer;
+import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -84,8 +83,13 @@ class LdapAuthenticationCache implements AutoCloseable, NamespaceChangeListener,
       long next = -1;
 
       try {
-         next =
-            cluster.submit(prefix, new LoadCacheTask(provider.getProviderName(), force)).get();
+         if(!Tool.equals(cluster.getServiceOwner(prefix), cluster.getLocalMember())) {
+            next =
+               cluster.submit(prefix, new LoadCacheTask(provider.getProviderName(), force)).get();
+         }
+         else {
+            next = new LoadCacheTask(provider.getProviderName(), force).call();
+         }
       }
       catch(Exception e) {
          LOG.warn("Failed to refresh LDAP authentication cache", e);
