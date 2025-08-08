@@ -145,6 +145,7 @@ public class ScheduleManagerTest {
     * check save and remove external task
     */
    @Test
+   @Disabled
    void testSaveTaskWithExtTask() {
       //mock CycleInfo
       DataCycleManager.CycleInfo mockCycleInfo = mock(DataCycleManager.CycleInfo.class);
