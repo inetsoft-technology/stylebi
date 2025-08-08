@@ -21,6 +21,7 @@ package inetsoft.sree.security.db;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.IdentityID;
+import org.apache.ignite.services.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,23 +34,39 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    private boolean initialize() {
-      if(provider.getProviderName() != null && initialized.compareAndSet(false, true)) {
-         Cluster cluster = Cluster.getInstance();
-         String prefix = "DatabaseSecurity:" + provider.getProviderName();
-         this.service = cluster.getSingletonService(
-            prefix, DatabaseAuthenticationCacheService.class,
-            () -> new DatabaseAuthenticationCacheService(provider.getProviderName()));
-         service.connect();
-         this.lists = cluster.getReplicatedMap(prefix + ".lists");
-         this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
-         this.orgMembers = cluster.getReplicatedMap(prefix + ".orgMembers");
-         this.groupUsers = cluster.getReplicatedMap(prefix + ".groupUsers");
-         this.userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
-         this.userEmails = cluster.getReplicatedMap(prefix + ".userEmails");
+      if(service != null) {
+         return true;
       }
 
-      // can happen when creating data source and connection properties are set.
-      return provider.getProviderName() != null;
+      if(provider.getProviderName() == null) {
+         return false;
+      }
+
+      synchronized(this) {
+         if(service == null) {
+            try {
+               Cluster cluster = Cluster.getInstance();
+               String prefix = "DatabaseSecurity:" + provider.getProviderName();
+               this.service = cluster.getSingletonService(
+                  prefix, DatabaseAuthenticationCacheService.class,
+                  () -> new DatabaseAuthenticationCacheServiceImp(provider.getProviderName()));
+               service.init();
+               service.connect();
+               this.lists = cluster.getReplicatedMap(prefix + ".lists");
+               this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
+               this.orgMembers = cluster.getReplicatedMap(prefix + ".orgMembers");
+               this.groupUsers = cluster.getReplicatedMap(prefix + ".groupUsers");
+               this.userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
+               this.userEmails = cluster.getReplicatedMap(prefix + ".userEmails");
+            }
+            catch(Exception ex) {
+               service = null;
+               LOG.error("Failed to initialize service for provider: " + provider.getProviderName(), ex);
+            }
+         }
+      }
+
+      return true;
    }
 
    @Override
@@ -186,7 +203,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    private final DatabaseAuthenticationProvider provider;
-   private DatabaseAuthenticationCacheService service;
+   private volatile DatabaseAuthenticationCacheService service;
    private final AtomicBoolean initialized = new AtomicBoolean(false);
    @SuppressWarnings("rawtypes")
    private DistributedMap<String, Set> lists;
