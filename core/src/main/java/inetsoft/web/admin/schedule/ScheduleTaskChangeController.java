@@ -245,11 +245,13 @@ public class ScheduleTaskChangeController {
       }
 
       if(adminSubscribed && checkAdminPermission(task)) {
-         ScheduleTask scheduleTask = ScheduleManager.getScheduleManager()
-            .getScheduleTask(task.getTaskId(), getSubscriberOrgID());
+         if(message.getAction() != ScheduleTaskMessage.Action.REMOVED) {
+            ScheduleTask scheduleTask = ScheduleManager.getScheduleManager()
+               .getScheduleTask(task.getTaskId(), getSubscriberOrgID());
 
-         if(scheduleTask == null && message.getAction() != ScheduleTaskMessage.Action.REMOVED) {
-            return;
+            if(scheduleTask == null) {
+               return;
+            }
          }
 
          ScheduleTaskChange.Type type;
