@@ -227,22 +227,28 @@ public class ScheduleTaskChangeController {
       ScheduleTask task = message.getTask();
       String taskID = task == null ? null : task.getTaskId();
 
+      if(taskID == null) {
+         taskID = message.getTaskName();
+      }
+
       if(!shouldHandleReceivedMessage(taskID)) {
          return;
       }
 
-      try {
-         task = scheduleService.handleInternalTaskConfiguration(task, subscriber);
-      }
-      catch(SecurityException e) {
-         LOG.warn("Failed to check schedule task permission", e);
+      if(task != null) {
+         try {
+            task = scheduleService.handleInternalTaskConfiguration(task, subscriber);
+         }
+         catch(SecurityException e) {
+            LOG.warn("Failed to check schedule task permission", e);
+         }
       }
 
       if(adminSubscribed && checkAdminPermission(task)) {
          ScheduleTask scheduleTask = ScheduleManager.getScheduleManager()
             .getScheduleTask(task.getTaskId(), getSubscriberOrgID());
 
-         if(scheduleTask == null) {
+         if(scheduleTask == null && message.getAction() != ScheduleTaskMessage.Action.REMOVED) {
             return;
          }
 
