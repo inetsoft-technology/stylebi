@@ -50,7 +50,6 @@ class DatabaseAuthenticationCache implements AutoCloseable {
                this.service = cluster.getSingletonService(
                   prefix, DatabaseAuthenticationCacheService.class,
                   () -> new DatabaseAuthenticationCacheServiceImp(provider.getProviderName()));
-               service.init();
                service.connect();
                this.lists = cluster.getReplicatedMap(prefix + ".lists");
                this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
