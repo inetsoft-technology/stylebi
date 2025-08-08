@@ -3029,6 +3029,7 @@ public class JDBCHandler extends XHandler {
       String user = getUser(meta, mtype);
 
       boolean mysql5 = isMySQL5(meta);
+      boolean clickhouse = xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE;
 
       if(mysql5 && cat == null) {
          cat = user;
@@ -3080,7 +3081,7 @@ public class JDBCHandler extends XHandler {
          root.setAttribute("catalogSep", mtype.getAttribute("catalogSep"));
          root.setAttribute("schema", user);
 
-         if(xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
+         if(clickhouse) {
             root.setAttribute("supportCatalog", "" + catalog);
          }
 
@@ -3158,7 +3159,9 @@ public class JDBCHandler extends XHandler {
                   node.setAttribute("ForeignKey", foreignKeys);
                }
 
-               if(resultParam.getChildIndex(node) < 0) {
+               if(resultParam.getChildIndex(node) < 0 &&
+                  (!clickhouse || resultParam.getChild(col) == null))
+               {
                   resultParam.addChild(node);
                }
             }
