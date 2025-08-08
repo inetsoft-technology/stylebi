@@ -84,7 +84,6 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
 
    @Override
    public void init() throws Exception {
-      provider = getProvider(providerName);
       cluster = Cluster.getInstance();
       prefix = "DatabaseSecurity:" + providerName;
       this.lists = cluster.getReplicatedMap(prefix + ".lists");
@@ -125,6 +124,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
    }
 
    public void connect() {
+      provider = getProvider(providerName);
       clientCount.incrementAndGet();
    }
 
