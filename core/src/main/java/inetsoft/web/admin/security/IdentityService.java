@@ -1887,6 +1887,7 @@ public class IdentityService {
       newOrg.setActive(model.status());
 
       String oldID = eprovider.getOrgIdFromName(model.oldName());
+      oldID = oldID != null ? oldID : id;
       Organization fromOrg = eprovider.getOrganization(oldID);
       String fromOrgID = fromOrg != null ? fromOrg.getId() : null;
 
@@ -1953,7 +1954,11 @@ public class IdentityService {
 
             if(theme != null) {
                List<String> themeOrgs = theme.getOrganizations();
-               themeOrgs.add(newOrgID);
+
+               if(!themeOrgs.contains(newOrgID)) {
+                  themeOrgs.add(newOrgID);
+               }
+
                theme.setOrganizations(themeOrgs);
             }
          }
