@@ -87,7 +87,7 @@ public class SecurityTreeServer {
          currOrgID = currOrgID == null ? Organization.getDefaultOrganizationID() : currOrgID;
          String[] orgIds = provider.getOrganizationIDs();
 
-         if(orgIds.length == 0) {
+         if(isMultiTenant && orgIds.length == 0) {
             throw new MessageException(Catalog.getCatalog().getString("em.security.provider.db.noOrg"));
          }
 
@@ -95,7 +95,7 @@ public class SecurityTreeServer {
             throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
          }
 
-         String currOrgName = provider.getOrgNameFromID(currOrgID);
+         String currOrgName = orgIds.length > 0 ? provider.getOrgNameFromID(currOrgID) : Organization.getDefaultOrganizationName();
          boolean isEnterprise = LicenseManager.getInstance().isEnterprise();
          isMultiTenant = isEnterprise && isMultiTenant;
 
