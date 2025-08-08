@@ -51,7 +51,7 @@ public class ScheduleStatusDao implements AutoCloseable {
     * @return the last execution status or <tt>null</tt> if none.
     */
    public Status getStatus(String taskName) {
-      return storage.get(taskName);
+      return storage.get(encodeTaskName(taskName));
    }
 
    /**
@@ -83,7 +83,7 @@ public class ScheduleStatusDao implements AutoCloseable {
       }
 
       try {
-         storage.put(taskName, newStatus).get();
+         storage.put(encodeTaskName(taskName), newStatus).get();
       }
       catch(Exception ex) {
          LOG.error("Failed to put schedule status {} for {}", status, taskName);
@@ -99,9 +99,22 @@ public class ScheduleStatusDao implements AutoCloseable {
     */
    @SuppressWarnings("WeakerAccess")
    public void clearStatus(String taskName) {
-      storage.remove(taskName);
+      storage.remove(encodeTaskName(taskName));
    }
 
+   /**
+    * Encodes the task name to avoid conflicts with reserved keywords.
+    */
+   private String encodeTaskName(String taskName) {
+      if(taskName != null && taskName.matches(RESERVED_PATTERN)) {
+         taskName = ENCODE_PREFIX + taskName.substring(2, taskName.length() - 2);
+      }
+
+      return taskName;
+   }
+
+   private static final String ENCODE_PREFIX = "TASK^^";
+   private static final String RESERVED_PATTERN = "^__.*__$";
    private final KeyValueStorage<Status> storage;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleStatusDao.class);
 
