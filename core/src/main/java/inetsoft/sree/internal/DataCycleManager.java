@@ -260,7 +260,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
 
       if(inited == null || !inited) {
          Organization org = new Organization(new IdentityID(orgID, orgID));
-         generateTasks(null, org, true,  false);
+         generateTasks(null, org, false,  false);
       }
 
       tasks.addAll(pregeneratedTasksMap.get(orgID));
