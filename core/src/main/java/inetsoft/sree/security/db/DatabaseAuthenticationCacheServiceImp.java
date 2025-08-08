@@ -29,6 +29,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthenticationCacheService {
    public DatabaseAuthenticationCacheServiceImp(String providerName) {
@@ -37,47 +38,47 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
 
    @Override
    public void cancel() {
-      cancelled = true;
+      if(cancelled.compareAndSet(false, true)) {
+         if(executor != null) {
+            executor.shutdownNow();
 
-      if (executor != null) {
-         executor.shutdownNow();
-
-         try {
-            //noinspection ResultOfMethodCallIgnored
-            executor.awaitTermination(15, TimeUnit.SECONDS);
-         }
-         catch(InterruptedException e) {
-            LOG.warn("Interrupted while waiting for database authentication cache to shutdown", e);
-         }
-      }
-
-      if(cluster != null) {
-         if(lists != null) {
-            cluster.destroyMap(prefix + ".lists");
+            try {
+               //noinspection ResultOfMethodCallIgnored
+               executor.awaitTermination(15, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException e) {
+               LOG.warn("Interrupted while waiting for database authentication cache to shutdown", e);
+            }
          }
 
-         if(orgNames != null) {
-            cluster.destroyMap(prefix + ".orgNames");
-         }
+         if(cluster != null) {
+            if(lists != null) {
+               cluster.destroyMap(prefix + ".lists");
+            }
 
-         if(orgMembers != null) {
-            cluster.destroyMap(prefix + ".orgMembers");
-         }
+            if(orgNames != null) {
+               cluster.destroyMap(prefix + ".orgNames");
+            }
 
-         if(orgRoles != null) {
-            cluster.destroyMap(prefix + ".orgRoles");
-         }
+            if(orgMembers != null) {
+               cluster.destroyMap(prefix + ".orgMembers");
+            }
 
-         if(groupUsers != null) {
-            cluster.destroyMap(prefix + ".groupUsers");
-         }
+            if(orgRoles != null) {
+               cluster.destroyMap(prefix + ".orgRoles");
+            }
 
-         if(userRoles != null) {
-            cluster.destroyMap(prefix + ".userRoles");
-         }
+            if(groupUsers != null) {
+               cluster.destroyMap(prefix + ".groupUsers");
+            }
 
-         if(userEmails != null) {
-            cluster.destroyMap(prefix + ".userEmails");
+            if(userRoles != null) {
+               cluster.destroyMap(prefix + ".userRoles");
+            }
+
+            if(userEmails != null) {
+               cluster.destroyMap(prefix + ".userEmails");
+            }
          }
       }
    }
@@ -93,7 +94,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
       this.groupUsers = cluster.getReplicatedMap(prefix + ".groupUsers");
       this.userRoles = cluster.getReplicatedMap(prefix + ".userRoles");
       this.userEmails = cluster.getReplicatedMap(prefix + ".userEmails");
-      this.cancelled = false;
+      this.cancelled = new AtomicBoolean(false);
       this.clientCount = cluster.getLong(prefix + ".clientCount");
       this.loadingCount = cluster.getLong(prefix + ".loadingCount");
       this.lastLoadTime = cluster.getLong(prefix + ".lastLoadTime");
@@ -137,7 +138,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
    }
 
    private void loadInternal(boolean scheduled) {
-      if(cancelled) {
+      if(cancelled.get()) {
          return;
       }
 
@@ -153,7 +154,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
          AuthenticationDAO dao = provider.getDao();
          QueryResult<IdentityID[]> newUsers = dao.getUsers();
 
-         if(cancelled) {
+         if(cancelled.get()) {
             return;
          }
 
@@ -164,7 +165,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
 
          QueryResult<IdentityID[]> newRoles = dao.getRoles();
 
-         if(cancelled) {
+         if(cancelled.get()) {
             return;
          }
 
@@ -175,7 +176,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
 
          QueryResult<IdentityID[]> newGroups = dao.getGroups();
 
-         if(cancelled) {
+         if(cancelled.get()) {
             return;
          }
 
@@ -186,7 +187,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
 
          QueryResult<String[]> newOrganizations = dao.getOrganizations();
 
-         if(cancelled) {
+         if(cancelled.get()) {
             return;
          }
 
@@ -202,7 +203,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
          for(String orgID : newOrganizations.result()) {
             String name = dao.getOrganizationName(orgID);
 
-            if(cancelled) {
+            if(cancelled.get()) {
                return;
             }
 
@@ -215,7 +216,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
                return;
             }
 
-            if(cancelled) {
+            if(cancelled.get()) {
                return;
             }
 
@@ -226,7 +227,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
                return;
             }
 
-            if(cancelled) {
+            if(cancelled.get()) {
                return;
             }
 
@@ -378,7 +379,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
    private transient DistributedLong lastLoadTime;
    private transient DistributedLong lastFailureTime;
    private transient DistributedLong loadingCount;
-   private transient boolean cancelled;
+   private transient AtomicBoolean cancelled;
    private transient DistributedLong clientCount;
    private transient ScheduledExecutorService executor;
 
