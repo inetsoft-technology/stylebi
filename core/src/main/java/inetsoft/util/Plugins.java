@@ -569,8 +569,8 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       Drivers.getInstance().pluginRemoved(pluginId);
       DataSourceRegistry.getRegistry().clearCache();
       plugin.getClassLoader().close();
-      delete(plugin.getFolder());
       resetDBProviderConnection();
+      delete(plugin.getFolder());
 
       LOG.info("Removed plugin {}:{}", plugin.getId(), plugin.getVersion());
    }
