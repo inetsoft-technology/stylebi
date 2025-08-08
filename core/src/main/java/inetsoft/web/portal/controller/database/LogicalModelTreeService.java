@@ -123,7 +123,7 @@ public class LogicalModelTreeService {
       throws Exception
    {
       XNode root = getPartitionMetaData(database, name, logicalModelName,
-         logicalModelParent, additional, false);
+         logicalModelParent, additional, true);
       JDBCDataSource dataSource = (JDBCDataSource) repository.getDataSource(database);
       SQLTypes sqlTypes = SQLTypes.getSQLTypes(dataSource);
       List<TreeNodeModel> tables = new ArrayList<>();
