@@ -18,6 +18,7 @@
 package inetsoft.web.composer;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.PropertyChangeEvent;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XPrincipal;
@@ -82,12 +83,18 @@ public class AssetTreeRefreshController {
       registry.addRefreshedListener(event -> {
          // Data Source Entry
          AssetEntry entry = AssetEntry.createAssetEntry("0^65605^__NULL__^/^" + orgId);
-         AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
+         String eventOrgID = ((PropertyChangeEvent) event).getOrgID();
+
+         //only propagate asset changed event to listener if global asset or same organization, extraneous otherwise
+         if(eventOrgID == null || orgId == null || Tool.equals(eventOrgID, orgId)) {
+            AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
             .parentEntry(entry)
             .oldIdentifier(null)
             .newIdentifier(entry.toIdentifier())
             .build();
-         messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel);
+
+            messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel);
+         }
       });
    }
 
