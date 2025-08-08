@@ -1255,8 +1255,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
             try {
                if(manager == null) {
                   manager = new DataCycleManager();
-                  ScheduleManager.getScheduleManager().reloadExtensions(
-                     OrganizationManager.getInstance().getCurrentOrgID());
+                  ScheduleManager.getScheduleManager().initialize();
 
                   try {
                      RepletRegistry.getRegistry().addPropertyChangeListener(manager);

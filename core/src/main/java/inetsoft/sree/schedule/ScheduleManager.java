@@ -22,6 +22,7 @@ import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
@@ -140,69 +141,119 @@ public class ScheduleManager {
    }
 
    /**
+    * Initialize the schedule manager. This method will be called when
+    */
+   public void initialize() {
+      extensionLock.lock();
+
+      try {
+         XPrincipal siteAdminPrincipal = getSiteAdminPrincipal();
+         String[] organizations = SecurityEngine.getSecurity().getOrganizations();
+         Principal oldContextPrincipal = ThreadContext.getContextPrincipal();
+
+         try {
+            ThreadContext.setContextPrincipal(siteAdminPrincipal);
+
+            for(String orgID : organizations) {
+               OrganizationManager.getInstance().setCurrentOrgID(orgID);
+               reloadExtensions0(orgID);
+            }
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldContextPrincipal);
+         }
+      }
+      finally {
+         extensionLock.unlock();
+      }
+   }
+
+   /**
     * Reload extensions. The old schedule tasks come from schedule extensions
     * will be discarded and new schedule tasks come from schedule extensions
     * will be loaded.
     */
    public void reloadExtensions(String orgID) {
-      orgID = orgID != null ? orgID : OrganizationManager.getInstance().getCurrentOrgID();
-      boolean scheduler = "true".equals(System.getProperty("ScheduleServer"));
       extensionLock.lock();
 
       try {
-         ScheduleClient client = ScheduleClient.getScheduleClient();
-         Map<ExtTaskKey, ScheduleTask> oldExtensionTasks = new HashMap<>(extensionTasks);
-         removeExtensionTasksOfOrg(orgID);
-
-         // get ext tasks from the exts
-         for(ScheduleExt ext : extensions) {
-            List<ScheduleTask> tasks;
-
-            synchronized(ext) {
-               tasks = new ArrayList<>(ext.getTasks(orgID));
-            }
-
-            for(ScheduleTask task : tasks) {
-               ExtTaskKey key = createExtensionTaskKey(task);
-
-               if(!extensionTasks.containsKey(key)) {
-                  ScheduleTask oldTask = oldExtensionTasks.remove(key);
-                  extensionTasks.put(key, task);
-
-                  if(!scheduler && !task.equals(oldTask)) {
-                     try {
-                        client.taskAdded(task);
-                     }
-                     catch(RemoteException e) {
-                        LOG.error("Failed to update scheduler with extension task: " +
-                           task.getTaskId(), e);
-                     }
-                  }
-               }
-               else {
-                  LOG.warn("Duplicate task found, not added: " + task);
-               }
-            }
-         }
-
-         if(!scheduler) {
-            for(ExtTaskKey taskKey : oldExtensionTasks.keySet()) {
-               if(!Tool.equals(taskKey.orgId, orgID)) {
-                  continue;
-               }
-
-               // task is no longer in the new task list, remove it
-               try {
-                  client.taskRemoved(taskKey.name);
-               }
-               catch(Exception e) {
-                  LOG.error("Failed to remove extension task: " + taskKey.name, e);
-               }
-            }
-         }
+         reloadExtensions0(orgID);
       }
       finally {
          extensionLock.unlock();
+      }
+   }
+
+   private XPrincipal getSiteAdminPrincipal() {
+      IdentityID[] users = SecurityEngine.getSecurity().getUsers();
+
+      for(IdentityID user : users) {
+         if(OrganizationManager.getInstance().isSiteAdmin(user)) {
+            return SUtil.getPrincipal(user, Tool.getIP(), false);
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Reload extensions. The old schedule tasks come from schedule extensions
+    * will be discarded and new schedule tasks come from schedule extensions
+    * will be loaded.
+    */
+   private void reloadExtensions0(String orgID) {
+      orgID = orgID != null ? orgID : OrganizationManager.getInstance().getCurrentOrgID();
+      boolean scheduler = "true".equals(System.getProperty("ScheduleServer"));
+
+      ScheduleClient client = ScheduleClient.getScheduleClient();
+      Map<ExtTaskKey, ScheduleTask> oldExtensionTasks = new HashMap<>(extensionTasks);
+      removeExtensionTasksOfOrg(orgID);
+
+      // get ext tasks from the exts
+      for(ScheduleExt ext : extensions) {
+         List<ScheduleTask> tasks;
+
+         synchronized(ext) {
+            tasks = new ArrayList<>(ext.getTasks(orgID));
+         }
+
+         for(ScheduleTask task : tasks) {
+            ExtTaskKey key = createExtensionTaskKey(task);
+
+            if(!extensionTasks.containsKey(key)) {
+               ScheduleTask oldTask = oldExtensionTasks.remove(key);
+               extensionTasks.put(key, task);
+
+               if(!scheduler && !task.equals(oldTask)) {
+                  try {
+                     client.taskAdded(task);
+                  }
+                  catch(RemoteException e) {
+                     LOG.error("Failed to update scheduler with extension task: " +
+                                  task.getTaskId(), e);
+                  }
+               }
+            }
+            else {
+               LOG.warn("Duplicate task found, not added: " + task);
+            }
+         }
+      }
+
+      if(!scheduler) {
+         for(ExtTaskKey taskKey : oldExtensionTasks.keySet()) {
+            if(!Tool.equals(taskKey.orgId, orgID)) {
+               continue;
+            }
+
+            // task is no longer in the new task list, remove it
+            try {
+               client.taskRemoved(taskKey.name);
+            }
+            catch(Exception e) {
+               LOG.error("Failed to remove extension task: " + taskKey.name, e);
+            }
+         }
       }
    }
 
