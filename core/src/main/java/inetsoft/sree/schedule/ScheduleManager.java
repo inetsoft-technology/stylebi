@@ -152,7 +152,7 @@ public class ScheduleManager {
       try {
          ScheduleClient client = ScheduleClient.getScheduleClient();
          Map<ExtTaskKey, ScheduleTask> oldExtensionTasks = new HashMap<>(extensionTasks);
-         extensionTasks.clear();
+         removeExtensionTasksOfOrg(orgID);
 
          // get ext tasks from the exts
          for(ScheduleExt ext : extensions) {
