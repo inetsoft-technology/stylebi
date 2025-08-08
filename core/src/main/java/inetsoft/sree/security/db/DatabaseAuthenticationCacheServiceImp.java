@@ -131,6 +131,17 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
    public void disconnect() {
       if(clientCount.decrementAndGet() == 0) {
          if(cluster != null) {
+            cluster.destroyReplicatedMap(prefix + ".lists");
+            cluster.destroyReplicatedMap(prefix + ".orgNames");
+            cluster.destroyReplicatedMap(prefix + ".orgMembers");
+            cluster.destroyReplicatedMap(prefix + ".orgRoles");
+            cluster.destroyReplicatedMap(prefix + ".groupUsers");
+            cluster.destroyReplicatedMap(prefix + ".userRoles");
+            cluster.destroyReplicatedMap(prefix + ".userEmails");
+            cluster.destroyLong(prefix + ".clientCount");
+            cluster.destroyLong(prefix + ".loadingCount");
+            cluster.destroyLong(prefix + ".lastLoadTime");
+            cluster.destroyLong(prefix + ".lastFailureTime");
             cluster.undeploySingletonService(prefix);
          }
       }
