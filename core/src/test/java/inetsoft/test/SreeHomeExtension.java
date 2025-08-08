@@ -17,6 +17,7 @@
  */
 package inetsoft.test;
 
+import com.google.auto.service.AutoService;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
@@ -39,6 +40,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@AutoService(Extension.class)
 public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    @Override
    public void beforeAll(ExtensionContext context) throws Exception {

@@ -957,8 +957,10 @@
             <kryo.unsafe>false</kryo.unsafe>
             <show.license.exception>true</show.license.exception>
             <inetsoft.sree.internal.cluster.implementation>inetsoft.test.TestCluster</inetsoft.sree.internal.cluster.implementation>
-            <sree.home>${project.build.directory}/test-config</sree.home>
+            <sree.home>${project.build.directory}/test-workdir</sree.home>
             <jdbc.driver.dir>${project.build.directory}/jdbc-drivers</jdbc.driver.dir>
+            <junit.jupiter.extensions.autodetection.enabled>true</junit.jupiter.extensions.autodetection.enabled>
+            <junit.jupiter.extensions.autodetection.include>inetsoft.test.SreeHomeExtension</junit.jupiter.extensions.autodetection.include>
             <!--
               The following settings are because there are tests of date formatting and parsing
               and the assertions can be flaky if the time zone or locale changes. More substantial
