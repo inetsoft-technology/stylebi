@@ -187,6 +187,10 @@ public class ScheduleManager {
 
          if(!scheduler) {
             for(ExtTaskKey taskKey : oldExtensionTasks.keySet()) {
+               if(!Tool.equals(taskKey.orgId, orgID)) {
+                  continue;
+               }
+
                // task is no longer in the new task list, remove it
                try {
                   client.taskRemoved(taskKey.name);
