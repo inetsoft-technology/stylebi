@@ -73,7 +73,7 @@ public class OrganizationController {
                                     Principal principal)
    {
       IdentityID identityID = IdentityID.getIdentityIDFromKey(organizationId);
-      return userTreeService.getOrganizationModel(provider, identityID, principal);
+      return userTreeService.getOrganizationModel(provider, identityID, principal, false, null);
    }
 
    @GetMapping("/api/em/security/users/get-all-organization-names/")
