@@ -968,7 +968,9 @@ public class UserTreeService {
       return manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
    }
 
-   public EditOrganizationPaneModel getOrganizationModel(String provider, IdentityID orgID, Principal principal) {
+   public EditOrganizationPaneModel getOrganizationModel(String provider, IdentityID orgID, Principal principal,
+                                                         boolean setTheme, String newTheme)
+   {
       AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(provider);
 
@@ -1024,13 +1026,18 @@ public class UserTreeService {
 
       List<IdentityModel> members = getOrganizationMembers(info.getMembers(), principal);
       Set<CustomTheme> themes = CustomThemesManager.getManager().getCustomThemes();
-      boolean themeFound = false;
+      String themeID = null;
 
-      for(CustomTheme theme : themes) {
-         if(organization.getTheme() != null &&
-            organization.getTheme().equals(theme.getId()))
-         {
-            themeFound = true;
+      if(setTheme) {
+         themeID = newTheme;
+      }
+      else {
+         for(CustomTheme theme : themes) {
+            if(organization.getTheme() != null &&
+               organization.getTheme().equals(theme.getId()))
+            {
+               themeID = organization.getTheme();
+            }
          }
       }
 
@@ -1047,7 +1054,7 @@ public class UserTreeService {
          .editable(organization.isEditable() && currentProvider instanceof EditableAuthenticationProvider)
          .currentUser(orgID.name.equals(pId.name))
          .localesList(localesList)
-         .theme(themeFound ? organization.getTheme() : null)
+         .theme(themeID)
          .currentUserName(pId.name)
          .build();
    }
