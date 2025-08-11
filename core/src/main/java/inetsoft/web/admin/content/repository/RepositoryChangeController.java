@@ -20,7 +20,6 @@ package inetsoft.web.admin.content.repository;
 import inetsoft.report.LibManager;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.asset.*;
@@ -49,12 +48,10 @@ public class RepositoryChangeController {
    @Autowired
    public RepositoryChangeController(
       AssetRepository assetRepository,
-      @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection") SimpMessagingTemplate messagingTemplate,
-      ScheduleManager scheduleManager)
+      SimpMessagingTemplate messagingTemplate)
    {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
-      this.scheduleManager = scheduleManager;
       this.debouncer = new DefaultDebouncer<>();
    }
 
@@ -70,6 +67,7 @@ public class RepositoryChangeController {
 
    @PreDestroy
    public void removeListeners() throws Exception {
+      closed = true;
       RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
       assetRepository.removeAssetChangeListener(this.assetListener);
       assetRepository.removeAssetChangeListener(this.autoSaveListener);
@@ -118,12 +116,7 @@ public class RepositoryChangeController {
          if(roles != null) {
             return Arrays.stream(roles).anyMatch(r -> {
                Role role = securityProvider.getRole(r);
-
-               if(role instanceof FSRole && ((FSRole) role).isSysAdmin()) {
-                  return true;
-               }
-
-               return false;
+               return role instanceof FSRole && ((FSRole) role).isSysAdmin();
             });
          }
       }
@@ -186,7 +179,9 @@ public class RepositoryChangeController {
    }
 
    private void scheduleChangeMessage(String orgId) {
-      debouncer.debounce("change", 1L, TimeUnit.SECONDS, () -> sendChangeMessage(orgId));
+      if(!closed) {
+         debouncer.debounce("change", 1L, TimeUnit.SECONDS, () -> sendChangeMessage(orgId));
+      }
    }
 
    private void sendChangeMessage(String orgId) {
@@ -200,11 +195,11 @@ public class RepositoryChangeController {
       }
    }
 
+   private volatile boolean closed = false;
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
    private Principal principal;
    private final Debouncer<String> debouncer;
-   private final ScheduleManager scheduleManager;
 
    private final PropertyChangeListener reportListener = this::reportPropertyChanged;
    private final AssetChangeListener assetListener = this::assetChanged;
