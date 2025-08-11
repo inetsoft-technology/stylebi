@@ -59,6 +59,9 @@ public class GDataQuery extends TabularQuery {
          return;
       }
 
+      // Update the token expiration to prevent rapid retries when the refresh fails
+      dataSource.setTokenExpiration(Instant.now().toEpochMilli() + 5000);
+
       try {
          Tokens tokens = AuthorizationClient.refresh("google-sheets-picker",
             dataSource.getRefreshToken(), null);
