@@ -60,7 +60,20 @@ public interface TopUsersMonitoringTableModel {
          age(ageString);
          userName(topUser.name().name);
          String orgId = topUser.name().orgID;
-         String orgName = orgId == null ? "" : provider.getOrgNameFromID(orgId);
+         String orgName;
+
+         if(orgId == null) {
+            orgName = "";
+         }
+         else {
+            orgName = provider.getOrgNameFromID(orgId);
+
+            // when org do not exist, show orgId
+            if(orgName == null) {
+               orgName = orgId;
+            }
+         }
+
          organization(orgName);
 
          return this;
