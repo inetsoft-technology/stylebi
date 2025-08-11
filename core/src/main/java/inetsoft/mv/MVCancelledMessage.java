@@ -20,8 +20,8 @@ package inetsoft.mv;
 
 import java.io.Serializable;
 
-public class MVCanceledMessage implements Serializable  {
-   public MVCanceledMessage(String name) {
+public class MVCancelledMessage implements Serializable  {
+   public MVCancelledMessage(String name) {
       this.name = name;
    }
 

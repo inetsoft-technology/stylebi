@@ -110,7 +110,7 @@ public class LocalMVCreator extends AbstractMVCreator implements MessageListener
 
    @Override
    public void messageReceived(MessageEvent event) {
-      if(event.getMessage() instanceof MVCanceledMessage message) {
+      if(event.getMessage() instanceof MVCancelledMessage message) {
          if(Tool.equals(def.getName(), message.getName())) {
             cancel();
          }
