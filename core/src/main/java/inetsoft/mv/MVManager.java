@@ -1188,7 +1188,10 @@ public final class MVManager implements MessageListener {
 
          final String newKey = key.substring(0, key.lastIndexOf("_") + 1) + norgId;
          updateMVDef(newMVDef, oorg, norg);
-         OrganizationManager.runInOrgScope(norgId, () -> mvs.put(newKey, newMVDef, norgId));
+
+         if(newMVDef != null) {
+            OrganizationManager.runInOrgScope(norgId, () -> mvs.put(newKey, newMVDef, norgId));
+         }
       }
 
       migrateMVStorage(oorg, norg, copy);
@@ -1239,7 +1242,7 @@ public final class MVManager implements MessageListener {
    }
 
    private void updateMVDef(MVDef mvDef, Organization oorg, Organization norg) {
-      if (mvDef == null) {
+      if(mvDef == null) {
          return;
       }
 
