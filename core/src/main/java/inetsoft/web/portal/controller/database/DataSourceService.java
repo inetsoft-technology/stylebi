@@ -750,7 +750,7 @@ public class DataSourceService {
    {
       DefaultMetaDataProvider meta = metaDataProviders.stream()
          .filter(p -> Tool.equals(ds, p.getDataSource()) && ds != null &&
-            Tool.equals(ds.getName(), p.getDataSource().getName()))
+            Tool.equals(ds.getFullName(), p.getDataSource().getFullName()))
          .findFirst().orElse(null);
 
       if(meta == null) {
