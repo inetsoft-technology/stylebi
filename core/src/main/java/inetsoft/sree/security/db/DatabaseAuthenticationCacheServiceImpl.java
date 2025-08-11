@@ -31,8 +31,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthenticationCacheService {
-   public DatabaseAuthenticationCacheServiceImp(String providerName) {
+public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthenticationCacheService {
+   public DatabaseAuthenticationCacheServiceImpl(String providerName) {
       this.providerName = providerName;
    }
 
@@ -102,12 +102,12 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
    }
 
    public void disconnect() {
-      if(clientCount.decrementAndGet() == 0) {
+      if(clientCount.compareAndSet(1L, 0L)) {
+         destroyCache();
+
          if(cluster != null) {
             cluster.undeploySingletonService(prefix);
          }
-
-         destroyCache();
       }
    }
 
@@ -140,18 +140,18 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
          if(userEmails != null) {
             cluster.destroyMap(prefix + ".userEmails");
          }
-      }
 
-      if(loadingCount != null) {
-         loadingCount.set(0L);
-      }
+         if(loadingCount != null) {
+            cluster.destroyLong(prefix + ".loadingCount");
+         }
 
-      if(lastLoadTime != null) {
-         lastLoadTime.set(0L);
-      }
+         if(lastLoadTime != null) {
+            cluster.destroyLong(prefix + ".lastLoadTime");
+         }
 
-      if(lastFailureTime != null) {
-         lastFailureTime.set(0L);
+         if(lastFailureTime != null) {
+            cluster.destroyLong(prefix + ".lastFailureTime");
+         }
       }
    }
 
@@ -402,7 +402,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
    private transient ScheduledExecutorService executor;
 
    private static final Logger LOG =
-      LoggerFactory.getLogger(DatabaseAuthenticationCacheServiceImp.class);
+      LoggerFactory.getLogger(DatabaseAuthenticationCacheServiceImpl.class);
 
    private static final String ORG_LIST = "orgs";
    private static final String USER_LIST = "users";
