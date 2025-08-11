@@ -263,7 +263,10 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          generateTasks(null, org, false,  false);
       }
 
-      tasks.addAll(pregeneratedTasksMap.get(orgID));
+      if(pregeneratedTasksMap.get(orgID) != null) {
+         tasks.addAll(pregeneratedTasksMap.get(orgID));
+      }
+
       return tasks;
    }
 
