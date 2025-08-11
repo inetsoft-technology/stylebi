@@ -96,7 +96,7 @@ public class DataTreeChangeController {
 
       // Only notify organizations able to view the asset
       for(IdentityID id : subscriptions.values()) {
-         if(orgId == null || orgId.equals(id.getOrgID())) {
+         if(orgId == null || orgId.equalsIgnoreCase(id.getOrgID())) {
             messagingTemplate.convertAndSendToUser(id.getName(), CHANGE_TOPIC, "");
          }
          else if(isDefaultOrg) {
