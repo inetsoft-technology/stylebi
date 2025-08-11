@@ -416,7 +416,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
             Cluster.getInstance().sendMessage(mvCancelledMessage);
          }
          catch(Exception e){
-            LOG.debug("Failed to send MV canceled message", e);
+            LOG.debug("Failed to send MV cancelled message", e);
          }
 
          mvFuture.cancel(true);
