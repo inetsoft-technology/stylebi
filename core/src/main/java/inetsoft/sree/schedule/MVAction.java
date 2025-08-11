@@ -410,10 +410,10 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
    @Override
    public void cancel() {
       if(mvFuture != null) {
-         MVCanceledMessage mvCanceledMessage = new MVCanceledMessage(mvname);
+         MVCancelledMessage mvCancelledMessage = new MVCancelledMessage(mvname);
 
          try {
-            Cluster.getInstance().sendMessage(mvCanceledMessage);
+            Cluster.getInstance().sendMessage(mvCancelledMessage);
          }
          catch(Exception e){
             LOG.debug("Failed to send MV canceled message", e);
