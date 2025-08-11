@@ -317,6 +317,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
 
       try {
          MVCreator creator = MVTool.newMVCreator(mv);
+         runningCreators.put(mv.getName(), creator);
          creator.create();
          success = true;
       }
@@ -340,6 +341,11 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
          set.remove(vs);
          lockcnd.signalAll();
          lock.unlock();
+
+         if(runningCreators.containsKey(mv.getName())) {
+            MVCreator creator = runningCreators.remove(mv.getName());
+            creator.removeMessageListener();
+         }
       }
 
       return success;
@@ -404,7 +410,20 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
    @Override
    public void cancel() {
       if(mvFuture != null) {
-         mvFuture.cancel(true  );
+         MVCanceledMessage mvCanceledMessage = new MVCanceledMessage(mvname);
+
+         try {
+            Cluster.getInstance().sendMessage(mvCanceledMessage);
+         }
+         catch(Exception e){
+            LOG.debug("Failed to send MV canceled message", e);
+         }
+
+         mvFuture.cancel(true);
+      }
+
+      if(runningCreators.get(mvname) != null) {
+         runningCreators.get(mvname).cancel();
       }
    }
 
@@ -501,5 +520,6 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
    private volatile boolean reloadMv = false;
    private String email;
    private Future<String> mvFuture;
+   private static final Map<String, MVCreator> runningCreators = new ConcurrentHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(MVAction.class);
 }
