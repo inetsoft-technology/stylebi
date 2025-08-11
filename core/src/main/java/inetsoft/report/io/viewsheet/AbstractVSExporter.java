@@ -2367,7 +2367,7 @@ public abstract class AbstractVSExporter implements VSExporter {
             hrow = vsinfo != null ? Math.max(1, vsinfo.getRuntimeColHeaders().length) : 0;
          }
 
-         int tableLineCount = getExpandTableLineCount(table, obj, titleRow, hrow, match);;
+         int tableLineCount = table.getRowCount() - hrow;
          rowCount = Math.min(tableLineCount, getMaxRow(ypos));
       }
 
