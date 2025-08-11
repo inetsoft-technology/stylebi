@@ -21,12 +21,12 @@ package inetsoft.sree.security.db;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.IdentityID;
-import org.apache.ignite.services.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 class DatabaseAuthenticationCache implements AutoCloseable {
    public DatabaseAuthenticationCache(DatabaseAuthenticationProvider provider) {
@@ -42,14 +42,16 @@ class DatabaseAuthenticationCache implements AutoCloseable {
          return false;
       }
 
-      synchronized(this) {
+      serviceLock.lock();
+
+      try {
          if(service == null) {
             try {
                Cluster cluster = Cluster.getInstance();
                String prefix = "DatabaseSecurity:" + provider.getProviderName();
                this.service = cluster.getSingletonService(
                   prefix, DatabaseAuthenticationCacheService.class,
-                  () -> new DatabaseAuthenticationCacheServiceImp(provider.getProviderName()));
+                  () -> new DatabaseAuthenticationCacheServiceImpl(provider.getProviderName()));
                service.connect();
                this.lists = cluster.getReplicatedMap(prefix + ".lists");
                this.orgNames = cluster.getReplicatedMap(prefix + ".orgNames");
@@ -65,16 +67,24 @@ class DatabaseAuthenticationCache implements AutoCloseable {
             }
          }
       }
+      finally {
+         serviceLock.unlock();
+      }
 
       return true;
    }
 
    @Override
    public void close() throws Exception {
-      synchronized(this) {
+      serviceLock.lock();
+
+      try {
          if(service != null) {
             service.disconnect();
          }
+      }
+      finally {
+         serviceLock.unlock();
       }
    }
 
@@ -206,7 +216,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
 
    private final DatabaseAuthenticationProvider provider;
    private volatile DatabaseAuthenticationCacheService service;
-   private final AtomicBoolean initialized = new AtomicBoolean(false);
+   private final Lock serviceLock = new ReentrantLock();
    @SuppressWarnings("rawtypes")
    private DistributedMap<String, Set> lists;
    private DistributedMap<String, String> orgNames;
