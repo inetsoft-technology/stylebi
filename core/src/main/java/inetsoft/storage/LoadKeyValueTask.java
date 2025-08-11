@@ -81,10 +81,9 @@ public class LoadKeyValueTask<T extends Serializable>
 
             map.clear();
 
-            //avoid putAll on unsorted map to prevent possible distributed deadlock
-            temp.entrySet().stream()
-               .sorted(Map.Entry.comparingByKey())
-               .forEachOrdered(entry -> map.put(entry.getKey(), entry.getValue()));
+            //explicitly pass as TreeMap to prevent extraneous warning that putAll() could cause deadlock
+            Map<String, T> tempAsTree = new TreeMap<>(temp);
+            map.putAll(tempAsTree);
          }
       }
       catch(Exception e) {
