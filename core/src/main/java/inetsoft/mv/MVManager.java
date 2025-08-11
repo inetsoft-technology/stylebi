@@ -502,17 +502,22 @@ public final class MVManager implements MessageListener {
 
                pending.put(key, job);
 
-               if(job.create()) {
-                  getOrgLock(orgId).writeLock().lock();
+               try {
+                  if(job.create()) {
+                     getOrgLock(orgId).writeLock().lock();
 
-                  try {
-                     mv.updateLastUpdateTime(); // set update ts
-                     add(mv);
-                     SharedMVUtil.shareCreatedMV(mv);
+                     try {
+                        mv.updateLastUpdateTime(); // set update ts
+                        add(mv);
+                        SharedMVUtil.shareCreatedMV(mv);
+                     }
+                     finally {
+                        getOrgLock(orgId).writeLock().unlock();
+                     }
                   }
-                  finally {
-                     getOrgLock(orgId).writeLock().unlock();
-                  }
+               }
+               finally {
+                  job.removeMessageListener();
                }
             }
          }
@@ -1625,6 +1630,11 @@ public final class MVManager implements MessageListener {
       @Override
       public boolean create() {
          return true;
+      }
+
+      @Override
+      public void removeMessageListener() {
+         // no-op
       }
    };
 
