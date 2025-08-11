@@ -61,6 +61,7 @@ class DatabaseAuthenticationCache implements AutoCloseable {
             catch(Exception ex) {
                service = null;
                LOG.error("Failed to initialize service for provider: " + provider.getProviderName(), ex);
+               return false;
             }
          }
       }
@@ -70,8 +71,10 @@ class DatabaseAuthenticationCache implements AutoCloseable {
 
    @Override
    public void close() throws Exception {
-      if(service != null) {
-         service.disconnect();
+      synchronized(this) {
+         if(service != null) {
+            service.disconnect();
+         }
       }
    }
 
