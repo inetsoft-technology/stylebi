@@ -80,22 +80,6 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
                cluster.destroyMap(prefix + ".userEmails");
             }
          }
-
-         if(clientCount != null) {
-            clientCount.set(0L);
-         }
-
-         if(loadingCount != null) {
-            loadingCount.set(0L);
-         }
-
-         if(lastLoadTime != null) {
-            lastLoadTime.set(0L);
-         }
-
-         if(lastFailureTime != null) {
-            lastFailureTime.set(0L);
-         }
       }
    }
 
