@@ -51,35 +51,7 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
             }
          }
 
-         if(cluster != null) {
-            if(lists != null) {
-               cluster.destroyMap(prefix + ".lists");
-            }
-
-            if(orgNames != null) {
-               cluster.destroyMap(prefix + ".orgNames");
-            }
-
-            if(orgMembers != null) {
-               cluster.destroyMap(prefix + ".orgMembers");
-            }
-
-            if(orgRoles != null) {
-               cluster.destroyMap(prefix + ".orgRoles");
-            }
-
-            if(groupUsers != null) {
-               cluster.destroyMap(prefix + ".groupUsers");
-            }
-
-            if(userRoles != null) {
-               cluster.destroyMap(prefix + ".userRoles");
-            }
-
-            if(userEmails != null) {
-               cluster.destroyMap(prefix + ".userEmails");
-            }
-         }
+         clientCount.decrementAndGet();
       }
    }
 
@@ -134,6 +106,52 @@ public class DatabaseAuthenticationCacheServiceImp implements DatabaseAuthentica
          if(cluster != null) {
             cluster.undeploySingletonService(prefix);
          }
+
+         destroyCache();
+      }
+   }
+
+   private void destroyCache() {
+      if(cluster != null) {
+         if(lists != null) {
+            cluster.destroyMap(prefix + ".lists");
+         }
+
+         if(orgNames != null) {
+            cluster.destroyMap(prefix + ".orgNames");
+         }
+
+         if(orgMembers != null) {
+            cluster.destroyMap(prefix + ".orgMembers");
+         }
+
+         if(orgRoles != null) {
+            cluster.destroyMap(prefix + ".orgRoles");
+         }
+
+         if(groupUsers != null) {
+            cluster.destroyMap(prefix + ".groupUsers");
+         }
+
+         if(userRoles != null) {
+            cluster.destroyMap(prefix + ".userRoles");
+         }
+
+         if(userEmails != null) {
+            cluster.destroyMap(prefix + ".userEmails");
+         }
+      }
+
+      if(loadingCount != null) {
+         loadingCount.set(0L);
+      }
+
+      if(lastLoadTime != null) {
+         lastLoadTime.set(0L);
+      }
+
+      if(lastFailureTime != null) {
+         lastFailureTime.set(0L);
       }
    }
 
