@@ -22,7 +22,6 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.OrganizationManager;
-import inetsoft.util.*;
 import inetsoft.util.Debouncer;
 import inetsoft.util.DefaultDebouncer;
 import jakarta.annotation.PostConstruct;
@@ -42,6 +41,7 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -99,35 +99,28 @@ public class MVChangeController implements MessageListener {
    private void mvPropertyChanged(PropertyChangeEvent event) {
       if(MVManager.MV_CHANGE_EVENT.equals(event.getPropertyName())) {
          String orgId = Util.getOrgIdFromEventSource(event.getSource());
-
-         if(orgId != null &&
-            !Tool.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal)))
-         {
-            return;
-         }
-
-         scheduleChangeMessage();
+         scheduleChangeMessage(orgId);
       }
    }
 
-   private void scheduleChangeMessage() {
-      debouncer.debounce("change", 1L, TimeUnit.SECONDS, this::sendChangeMessage);
+   private void scheduleChangeMessage(String orgId) {
+      debouncer.debounce("change-" + orgId, 1L, TimeUnit.SECONDS, () -> sendChangeMessage(orgId));
    }
 
-   private void sendChangeMessage() {
+   private void sendChangeMessage(String orgId) {
       for(Principal principal : subscriptions.values()) {
-         messagingTemplate
-            .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+         if(Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal))) {
+            messagingTemplate
+               .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+         }
       }
    }
 
    @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof SimpleMessage simpleMessage) {
-         if(MVManager.MV_CHANGE_EVENT.equals(simpleMessage.getMessage()) &&
-            Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal), simpleMessage.getOrgID()))
-         {
-            scheduleChangeMessage();
+         if(MVManager.MV_CHANGE_EVENT.equals(simpleMessage.getMessage())) {
+            scheduleChangeMessage(simpleMessage.getOrgID());
          }
       }
    }

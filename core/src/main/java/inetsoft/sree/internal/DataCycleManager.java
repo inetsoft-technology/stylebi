@@ -19,6 +19,7 @@ package inetsoft.sree.internal;
 
 import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -232,7 +233,6 @@ public class DataCycleManager
 
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
       List<ScheduleTask> tasks = new ArrayList<>();
-      allMVs = oorg == null && norg == null && allMVs;
 
       for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
          Set<String> assetIds = storage.getKeys(key -> {
@@ -545,7 +545,7 @@ public class DataCycleManager
    }
 
    public void save() throws Exception {
-      generateTasks(null, null, true, false, true);
+      generateTasks(null, null, true, false);
    }
 
    /**
@@ -851,7 +851,7 @@ public class DataCycleManager
          }
       }
 
-      generateTasks(oorg, norg, true, false, replace);
+      generateTasks(oorg, norg, false, replace);
    }
 
    public void updateCycleInfoNotify(String oldIdentity , String newIdentity, boolean isUser) throws Exception {
@@ -1003,13 +1003,9 @@ public class DataCycleManager
       }
    }
 
-   private Map<DataCycleId, Vector<ScheduleCondition>> dataCycleMap =
-      new LinkedHashMap<>();
-   private Map<DataCycleId, Boolean> cycleStatusMap = new LinkedHashMap<>();
-   private Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
-   private Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
-   private Map<DataCycleId, CycleInfo> cycleInfoMap = new HashMap<>();
-   private String dcycle;   private static final Logger LOG = LoggerFactory.getLogger(DataCycleManager.class);
+   private final Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
+   private final Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
+   private static final Logger LOG = LoggerFactory.getLogger(DataCycleManager.class);
 
    private final String PREFIX = "/__DATA_CYCLE__";
 

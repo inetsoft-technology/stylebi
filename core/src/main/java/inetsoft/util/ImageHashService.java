@@ -21,16 +21,15 @@ import inetsoft.report.gui.viewsheet.VSImage;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.service.BinaryTransferService;
+import inetsoft.web.viewsheet.controller.AssemblyImageService;
 
-import jakarta.servlet.ServletOutputStream;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.security.MessageDigest;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.zip.GZIPOutputStream;
 
 /**
  * Creates a hash for an image and stores the image information so that the image can
@@ -119,42 +118,26 @@ public class ImageHashService {
       return hash;
    }
 
-   public void sendImageResponse(String hash, Viewsheet viewsheet, HttpServletRequest request,
-                                 HttpServletResponse response)
-      throws Exception
+   public AssemblyImageService.ImageRenderResult sendImageResponse(
+      String hash, Viewsheet viewsheet, String runtimeId,
+      BinaryTransferService binaryTransferService) throws Exception
    {
       ImageInfo imageInfo = hashToInfo.get(hash);
 
       if(imageInfo == null) {
-         return;
+         return null;
       }
-
-      response.setHeader("Cache-Control", "public, max-age=86400"); // 1 day
-      response.setHeader("Pragma", "");
 
       byte[] buf = getImageBytes(imageInfo, viewsheet);
       boolean dynamicImage = imageInfo.shadow || imageInfo.highlight || imageInfo.scale9 != null;
       boolean svg = imageInfo.path != null && imageInfo.path.endsWith(".svg");
+      boolean isPNG = !svg || dynamicImage;
 
-      if(svg && !dynamicImage) {
-         response.setContentType("image/svg+xml");
-      }
-      else {
-         response.setContentType("image/png");
-      }
-
-      final String encodingTypes = request.getHeader("Accept-Encoding");
-      final ServletOutputStream outputStream = response.getOutputStream();
-
-      if(encodingTypes != null && encodingTypes.contains("gzip")) {
-         try(final GZIPOutputStream out = new GZIPOutputStream(outputStream)) {
-            response.addHeader("Content-Encoding", "gzip");
-            out.write(buf);
-         }
-      }
-      else {
-         outputStream.write(buf);
-      }
+      String key = "/" + ImageHashService.class.getName() + "_" + runtimeId + "_" + hash;
+      BinaryTransfer imageData = binaryTransferService.createBinaryTransfer(key);
+      binaryTransferService.setData(imageData, buf);
+      return new AssemblyImageService.ImageRenderResult(
+         isPNG, imageData, imageInfo.width, imageInfo.height);
    }
 
    private String getImageHash(ImageInfo imageInfo, Viewsheet vs) {

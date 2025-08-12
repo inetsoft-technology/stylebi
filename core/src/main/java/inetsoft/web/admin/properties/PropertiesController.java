@@ -29,6 +29,7 @@ import inetsoft.web.admin.security.PropertyModel;
 import inetsoft.web.security.DeniedMultiTenancyOrgUser;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;

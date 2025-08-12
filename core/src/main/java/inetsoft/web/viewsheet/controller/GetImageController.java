@@ -149,7 +149,9 @@ public class GetImageController {
       HttpServletRequest request,
       HttpServletResponse response) throws Exception
    {
-      imageService.processImageFromHash(vid, hash, principal, request, response);
+      AssemblyImageService.ImageRenderResult result =
+         imageServiceProxy.processImageFromHash(vid, hash, principal);
+      processImageRenderResult(result, request, response);
    }
 
    /**

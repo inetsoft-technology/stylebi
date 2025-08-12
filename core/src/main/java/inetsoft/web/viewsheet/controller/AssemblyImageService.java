@@ -54,12 +54,14 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 import inetsoft.util.cachefs.BinaryTransfer;
-import inetsoft.web.service.BinaryTransferService;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.ProfileUtils;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.VSExportService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -441,10 +443,9 @@ public class AssemblyImageService {
       return map;
    }
 
-   public void processImageFromHash(String vid, String hashEncoded,
-                                    Principal principal, HttpServletRequest request,
-                                    HttpServletResponse response)
-      throws Exception
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ImageRenderResult processImageFromHash(@ClusterProxyKey String vid, String hashEncoded,
+                                                 Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(Tool.byteDecode(vid), principal);
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
@@ -456,10 +457,10 @@ public class AssemblyImageService {
             groupedThread.addRecord(LogContext.DASHBOARD.getRecord(sheetName));
          });
          // for Feature #26586, add ui processing time record.
-         ProfileUtils.addExecutionBreakDownRecord(box.getID(),
+         return (ImageRenderResult) ProfileUtils.addExecutionBreakDownRecord(box.getID(),
                                                   ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
                ImageHashService imageHashService = rvs.getImageHashService();
-               imageHashService.sendImageResponse(hash, rvs.getViewsheet(), request, response);
+               return imageHashService.sendImageResponse(hash, rvs.getViewsheet(), vid, binaryTransferService);
             });
       }
       finally {
