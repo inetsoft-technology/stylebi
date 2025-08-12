@@ -40,7 +40,12 @@ class CachedRowSelector extends AbstractGroupRowSelector {
 
       synchronized(selectorCache) {
          SelectorKey key = new SelectorKey(table, specs.keySet());
-         ref = selectorCache.computeIfAbsent(key, k -> new CachedRowSelectorRef(table, specs));
+         ref = selectorCache.get(key);
+
+         if(ref == null) {
+            ref = new CachedRowSelectorRef(table, specs);
+            selectorCache.put(key, ref);
+         }
       }
 
       return ref.get();
@@ -296,5 +301,6 @@ class CachedRowSelector extends AbstractGroupRowSelector {
    private Map<Tuple, BitSet> groupmap = new Object2ObjectOpenHashMap<>(); // Vector values -> BitSet
    private ReentrantLock procLock = new ReentrantLock();
    // HashMap with custom SelectorKey ([XTable, Set]) -> CachedRowSelectorRef
-   private static final HashMap<SelectorKey, CachedRowSelectorRef> selectorCache = new HashMap<>();
+   private static final DataCache<SelectorKey, CachedRowSelectorRef> selectorCache =
+      new DataCache<>(20, 60000);
 }
