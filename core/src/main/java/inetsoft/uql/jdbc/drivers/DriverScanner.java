@@ -39,9 +39,9 @@ public class DriverScanner {
       long start = System.currentTimeMillis();
       Set<String> drivers = new HashSet<>();
 
-      try {
-         ClassLoader classLoader =
-            new URLClassLoader(new URL[]{ file.toURI().toURL() }, getClass().getClassLoader());
+      try(URLClassLoader classLoader =
+             new URLClassLoader(new URL[]{ file.toURI().toURL() }, getClass().getClassLoader()))
+      {
          CachingMetadataReaderFactory readerFactory =
             new CachingMetadataReaderFactory(classLoader);
          AssignableTypeFilter filter = new AssignableTypeFilter(Driver.class);
