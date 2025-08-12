@@ -382,7 +382,7 @@ public class VSExportService {
 
       for(VSBookmarkInfo vsBookmarkInfo : allBookmarks) {
          if(vsBookmarkInfo.getName().equals(VSBookmark.HOME_BOOKMARK)) {
-            allBookmarkNames.add(Catalog.getCatalog().getString(vsBookmarkInfo.getName()));
+            allBookmarkNames.add(vsBookmarkInfo.getName());
          }
          else if(vsBookmarkInfo.getOwner() == null ||
             principal != null && Tool.equals(vsBookmarkInfo.getOwner().convertToKey(), principal.getName()))
