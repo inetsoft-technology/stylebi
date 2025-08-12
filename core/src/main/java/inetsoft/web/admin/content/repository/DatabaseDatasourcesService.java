@@ -369,6 +369,16 @@ public class DatabaseDatasourcesService {
          return new ConnectionStatus("Duplicate");
       }
 
+
+      //also check additional connection datasources for duplicates
+      String[] additionalConnectionsNames = Arrays.stream(getAdditionals.get())
+                                                  .map(DatabaseDefinition::getName)
+                                                  .toArray(String[]::new);
+
+      if(checkAdditionalConnectionsDuplicate(oname, additionalConnectionsNames)) {
+         return new ConnectionStatus("Duplicate");
+      }
+
       if(dataSource != null) {
          int index = fullName.lastIndexOf('/');
          String newPath = index == -1 ? name : fullName.substring(0, index) + "/" + name;
@@ -729,6 +739,58 @@ public class DatabaseDatasourcesService {
       for(String exitName : existDataSourceNames) {
          if(Tool.equals(ndsname, exitName)) {
             return true;
+         }
+      }
+
+      //also check against additional connection datasources to prevent duplicates internally
+      for(String exitName : repository.getDataSourceFullNames()) {
+         XDataSource ds = repository.getDataSource(exitName);
+
+         if(ds instanceof AdditionalConnectionDataSource) {
+            for(String additionalDS: ((AdditionalConnectionDataSource)ds).getDataSourceNames()) {
+
+               if(Tool.equals(ndsname, additionalDS)) {
+                  return true;
+               }
+            }
+         }
+      }
+
+      return false;
+   }
+
+   /**
+    * Check if any additional connections are duplicated with other existing datasources.
+    * @param baseDataSource   the name of the parent datasource holding additional connections
+    * @param additionalConnections  array of additional connections in updating datasource to check
+    * @return  true if duplicated, else false.
+    * @throws RemoteException
+    */
+   private boolean checkAdditionalConnectionsDuplicate(String baseDataSource, String[] additionalConnections)
+      throws RemoteException
+   {
+      XRepository repository = XFactory.getRepository();
+      String[] existDataSourceNames = repository.getDataSourceNames();
+      String[] existDataSourceFullNames = repository.getDataSourceFullNames();
+
+      for(String additionalDS : additionalConnections) {
+         for(String exitName : existDataSourceNames) {
+            if(Tool.equals(additionalDS, exitName)) {
+               return true;
+            }
+         }
+
+         //also check against other additional connection datasources to prevent duplicates internally
+         for(String exitName : existDataSourceFullNames) {
+            XDataSource ds = repository.getDataSource(exitName);
+
+            if(ds instanceof AdditionalConnectionDataSource && !Tool.equals(ds.getName(), baseDataSource)) {
+               for(String dsAdditionalConn: ((AdditionalConnectionDataSource)ds).getDataSourceNames()) {
+                  if(Tool.equals(dsAdditionalConn, additionalDS)) {
+                     return true;
+                  }
+               }
+            }
          }
       }
 
