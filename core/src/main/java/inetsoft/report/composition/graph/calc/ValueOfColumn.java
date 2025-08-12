@@ -372,6 +372,8 @@ public class ValueOfColumn extends AbstractColumn {
       }
       else {
          Object val = data.getData(ndim, row);
+
+
          Object tval = null;
 
          if(ctype >= ValueOfCalc.PREVIOUS_YEAR) {
@@ -379,6 +381,10 @@ public class ValueOfColumn extends AbstractColumn {
                VSDataSet vsDataSet = getVSDataset(data);
 
                if(vsDataSet != null && vsDataSet.isOthers(ndim, String.valueOf(val))) {
+                  return INVALID;
+               }
+
+               if(!(val instanceof Date)) {
                   return INVALID;
                }
 

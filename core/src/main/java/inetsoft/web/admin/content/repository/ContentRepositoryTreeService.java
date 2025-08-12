@@ -126,81 +126,88 @@ public class ContentRepositoryTreeService {
       ExecutorService executor =
          Executors.newFixedThreadPool(Math.min(Runtime.getRuntime().availableProcessors(), 6));
 
-      // global viewsheets/worksheets/reports
-      CompletableFuture<List<ContentRepositoryTreeNode>> assetNodesFuture =
-         getNodesCompletableFuture(contextPrincipal, "Failed to get asset nodes", () -> {
-            try {
-               return getAssetNodes(principal, registryFn);
-            }
-            catch(Exception e) {
-               throw new RuntimeException(e);
-            }
-         }, executor);
+      try {
+         // global viewsheets/worksheets/reports
+         CompletableFuture<List<ContentRepositoryTreeNode>> assetNodesFuture =
+            getNodesCompletableFuture(contextPrincipal, "Failed to get asset nodes", () -> {
+               try {
+                  return getAssetNodes(principal, registryFn);
+               }
+               catch(Exception e) {
+                  throw new RuntimeException(e);
+               }
+            }, executor);
 
-      // data source/library
-      CompletableFuture<List<ContentRepositoryTreeNode>> objectNodesFuture =
-         getNodesCompletableFuture(contextPrincipal, "Failed to get object nodes", this::getObjectNodes, executor);
+         // data source/library
+         CompletableFuture<List<ContentRepositoryTreeNode>> objectNodesFuture =
+            getNodesCompletableFuture(contextPrincipal, "Failed to get object nodes", this::getObjectNodes, executor);
 
-      // prototype/trashcan/my reports
-      CompletableFuture<List<ContentRepositoryTreeNode>> repositoryNodesFuture =
-         getNodesCompletableFuture(contextPrincipal, "Failed to get asset nodes", () -> {
-            try {
-               return getRepositoryNodes(userNodes, principal, registryFn);
-            }
-            catch(Exception e) {
-               throw new RuntimeException(e);
-            }
-         }, executor);
+         // prototype/trashcan/my reports
+         CompletableFuture<List<ContentRepositoryTreeNode>> repositoryNodesFuture =
+            getNodesCompletableFuture(contextPrincipal, "Failed to get asset nodes", () -> {
+               try {
+                  return getRepositoryNodes(userNodes, principal, registryFn);
+               }
+               catch(Exception e) {
+                  throw new RuntimeException(e);
+               }
+            }, executor);
 
-      // global dashboards/user dashboards
-      CompletableFuture<List<ContentRepositoryTreeNode>> dashboardNodesFuture =
-         getNodesCompletableFuture(contextPrincipal, "Failed to get dashboard nodes", () -> {
-            try {
-               return getDashboardNodes(userNodes, principal);
-            }
-            catch(Exception e) {
-               throw new RuntimeException(e);
-            }
-         }, executor);
+         // global dashboards/user dashboards
+         CompletableFuture<List<ContentRepositoryTreeNode>> dashboardNodesFuture =
+            getNodesCompletableFuture(contextPrincipal, "Failed to get dashboard nodes", () -> {
+               try {
+                  return getDashboardNodes(userNodes, principal);
+               }
+               catch(Exception e) {
+                  throw new RuntimeException(e);
+               }
+            }, executor);
 
-      CompletableFuture<List<ContentRepositoryTreeNode>> schedulerTaskNodesFuture =
-         getNodesCompletableFuture(contextPrincipal, "Failed to get scheduler task nodes", () -> {
-            try {
-               return getSchedulerNodes(principal);
-            }
-            catch(Exception e) {
-               throw new RuntimeException(e);
-            }
-         }, executor);
+         CompletableFuture<List<ContentRepositoryTreeNode>> schedulerTaskNodesFuture =
+            getNodesCompletableFuture(contextPrincipal, "Failed to get scheduler task nodes", () -> {
+               try {
+                  return getSchedulerNodes(principal);
+               }
+               catch(Exception e) {
+                  throw new RuntimeException(e);
+               }
+            }, executor);
 
-      //recycle bin node
-      CompletableFuture<List<ContentRepositoryTreeNode>> recycleNodesFuture =
-         getNodesCompletableFuture(contextPrincipal, catalog.getString("Failed to get asset nodes"), () -> {
-            try {
-               return getRecycleNodes(userNodes, principal, registryFn);
-            }
-            catch(Exception e) {
-               throw new RuntimeException(e);
-            }
-         }, executor);
+         //recycle bin node
+         CompletableFuture<List<ContentRepositoryTreeNode>> recycleNodesFuture =
+            getNodesCompletableFuture(contextPrincipal, catalog.getString("Failed to get asset nodes"), () -> {
+               try {
+                  return getRecycleNodes(userNodes, principal, registryFn);
+               }
+               catch(Exception e) {
+                  throw new RuntimeException(e);
+               }
+            }, executor);
 
-      CompletableFuture.allOf(assetNodesFuture, objectNodesFuture, repositoryNodesFuture,
-                              dashboardNodesFuture, schedulerTaskNodesFuture, recycleNodesFuture).join();
-      List<ContentRepositoryTreeNode> assetNodes = assetNodesFuture.join();
-      List<ContentRepositoryTreeNode> objectNodes = objectNodesFuture.join();
-      List<ContentRepositoryTreeNode> repositoryNodes = repositoryNodesFuture.join();
-      List<ContentRepositoryTreeNode> dashboardNodes = dashboardNodesFuture.join();
-      List<ContentRepositoryTreeNode> schedulerTaskNodes = schedulerTaskNodesFuture.join();
-      List<ContentRepositoryTreeNode> recycleNodes = recycleNodesFuture.join();
+         CompletableFuture.allOf(assetNodesFuture, objectNodesFuture, repositoryNodesFuture,
+                                 dashboardNodesFuture, schedulerTaskNodesFuture, recycleNodesFuture).join();
+         List<ContentRepositoryTreeNode> assetNodes = assetNodesFuture.join();
+         List<ContentRepositoryTreeNode> objectNodes = objectNodesFuture.join();
+         List<ContentRepositoryTreeNode> repositoryNodes = repositoryNodesFuture.join();
+         List<ContentRepositoryTreeNode> dashboardNodes = dashboardNodesFuture.join();
+         List<ContentRepositoryTreeNode> schedulerTaskNodes = schedulerTaskNodesFuture.join();
+         List<ContentRepositoryTreeNode> recycleNodes = recycleNodesFuture.join();
 
-      // merge all and return
-      return Stream.of(assetNodes.stream(), objectNodes.stream(), repositoryNodes.stream(),
-            dashboardNodes.stream(), schedulerTaskNodes.stream(), recycleNodes.stream())
-         .flatMap(Function.identity())
-         .map(n -> applyPermissions(n, principal))
-         .filter(Optional::isPresent)
-         .map(Optional::get)
-         .collect(Collectors.toList());
+         // merge all and return
+         return Stream.of(assetNodes.stream(), objectNodes.stream(), repositoryNodes.stream(),
+                          dashboardNodes.stream(), schedulerTaskNodes.stream(), recycleNodes.stream())
+            .flatMap(Function.identity())
+            .map(n -> applyPermissions(n, principal))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
+      }
+      finally {
+         if(!executor.isShutdown()) {
+            executor.shutdown();
+         }
+      }
    }
 
    private CompletableFuture<List<ContentRepositoryTreeNode>> getNodesCompletableFuture(

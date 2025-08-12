@@ -18,8 +18,8 @@
 package inetsoft.web;
 
 import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -63,13 +63,31 @@ public class ErrorController {
 
       errorPage.addObject("errorTitle", errorTitle);
       errorPage.addObject("errorMsg", errorMsg);
-      errorPage.addObject("customTheme",
-                          !"default".equals(CustomThemesManager.getManager().getSelectedTheme()));
+      boolean isCustomTheme = !Tool.isEmptyString(CustomThemesManager.getManager().getSelectedTheme()) &&
+                              !"default".equals(CustomThemesManager.getManager().getSelectedTheme());
+      errorPage.addObject("customTheme", isCustomTheme);
       return errorPage;
    }
 
    private int getErrorCode(HttpServletRequest httpRequest) {
       return (Integer) httpRequest
          .getAttribute("jakarta.servlet.error.status_code");
+   }
+
+   /**
+    * Shows the login page.
+    * @return the error page model and view.
+    */
+   @RequestMapping(value = "common/error", method = { RequestMethod.GET, RequestMethod.POST })
+   public ModelAndView showErrorPage(HttpServletRequest request) {
+      final Catalog catalog = Catalog.getCatalog();
+      final ModelAndView model = new ModelAndView("error/error-template");
+      final String error = WebUtils.getErrorMessage(request);
+      model.addObject("errorMsg", error);
+      model.addObject("errorTitle", catalog.getString("Error"));
+      boolean isCustomTheme = !Tool.isEmptyString(CustomThemesManager.getManager().getSelectedTheme()) &&
+                              !"default".equals(CustomThemesManager.getManager().getSelectedTheme());
+      model.addObject("customTheme", isCustomTheme);
+      return model;
    }
 }

@@ -18,6 +18,7 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.mv.MVManager;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.OrganizationManager;
@@ -97,7 +98,7 @@ public class MVChangeController implements MessageListener {
 
    private void mvPropertyChanged(PropertyChangeEvent event) {
       if(MVManager.MV_CHANGE_EVENT.equals(event.getPropertyName())) {
-         String orgId = MVManager.getOrgIdFromEventSource(event.getSource());
+         String orgId = Util.getOrgIdFromEventSource(event.getSource());
 
          if(orgId != null &&
             !Tool.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal)))
@@ -123,7 +124,9 @@ public class MVChangeController implements MessageListener {
    @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof SimpleMessage simpleMessage) {
-         if(MVManager.MV_CHANGE_EVENT.equals(simpleMessage.getMessage())) {
+         if(MVManager.MV_CHANGE_EVENT.equals(simpleMessage.getMessage()) &&
+            Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal), simpleMessage.getOrgID()))
+         {
             scheduleChangeMessage();
          }
       }

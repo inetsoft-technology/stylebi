@@ -24,6 +24,7 @@ import inetsoft.report.composition.*;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractModelTrapContext;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
@@ -58,13 +59,25 @@ public class ConditionTrapService extends WorksheetControllerService {
       TableAssembly table = (TableAssembly) ws.getAssembly(model.tableName());
 
       if(table != null) {
-         SourceInfo sourceInfo = table instanceof BoundTableAssembly ?
+         final SourceInfo sourceInfo = table instanceof BoundTableAssembly ?
             ((BoundTableAssembly) table).getSourceInfo() : null;
-         ConditionList oldConditionList = ConditionUtil.fromModelToConditionList(
-            model.oldConditionList(), sourceInfo, viewsheetService, principal, rws);
-         ConditionList newConditionList = ConditionUtil.fromModelToConditionList(
-            model.newConditionList(), sourceInfo, viewsheetService, principal, rws);
+         String source = sourceInfo == null ? null : sourceInfo.getSource();
+         ConditionList[] conditionLists = new ConditionList[2];
 
+         XUtil.withFixedDateFormat(source, () -> {
+            try {
+               conditionLists[0] = ConditionUtil.fromModelToConditionList(
+                  model.oldConditionList(), sourceInfo, viewsheetService, principal, rws);
+               conditionLists[1] = ConditionUtil.fromModelToConditionList(
+                  model.newConditionList(), sourceInfo, viewsheetService, principal, rws);
+            }
+            catch(Exception ex) {
+               throw new RuntimeException(ex.getMessage(), ex);
+            }
+         });
+
+         ConditionList oldConditionList = conditionLists[0];
+         ConditionList newConditionList = conditionLists[1];
          TableAssembly otable = (TableAssembly) table.clone();
          otable.setPreConditionList(oldConditionList);
          WSModelTrapContext mtc =

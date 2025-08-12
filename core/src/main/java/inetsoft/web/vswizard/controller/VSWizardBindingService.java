@@ -23,6 +23,7 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.Util;
+import inetsoft.report.internal.graph.MapHelper;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
@@ -35,8 +36,7 @@ import inetsoft.util.Catalog;
 import inetsoft.web.binding.command.SetGrayedOutFieldsCommand;
 import inetsoft.web.binding.command.VSTrapCommand;
 import inetsoft.web.binding.drm.DataRefModel;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.binding.handler.VSTreeHandler;
+import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.SourceChangeMessage;
@@ -69,7 +69,8 @@ public class VSWizardBindingService {
                                  VSWizardBindingHandler bindingHandler,
                                  VSAssemblyInfoHandler assemblyHandler,
                                  VSWizardTemporaryInfoService temporaryInfoService,
-                                 VSRecommendationFactoryService recommenderService)
+                                 VSRecommendationFactoryService recommenderService,
+                                 VSChartHandler chartHandler)
    {
       this.treeHandler = treeHandler;
       this.bindingHandler = bindingHandler;
@@ -78,6 +79,7 @@ public class VSWizardBindingService {
       this.wizardDataServiceProxy = wizardDataServiceProxy;
       this.recommenderService = recommenderService;
       this.temporaryInfoService = temporaryInfoService;
+      this.chartHandler = chartHandler;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -203,8 +205,7 @@ public class VSWizardBindingService {
             boolean change = bindingHandler.changeSource(newSource, oldSource, vsTemporaryInfo, vs);
 
             if(change || oldSource == null) {
-               VSUtil.setDefaultGeoColumns(vsTemporaryInfo.getTempChart().getVSChartInfo(), rvs,
-                                           event.tableName());
+               setDefaultGeoColumns(rvs, vsTemporaryInfo.getTempChart(), event.tableName());
                dispatcher.sendCommand(new RefreshWizardTreeTriggerCommand());
             }
          }
@@ -387,6 +388,21 @@ public class VSWizardBindingService {
       }
 
       return null;
+   }
+
+   private void setDefaultGeoColumns(RuntimeViewsheet rvs, ChartVSAssembly tempChart, String tableName) {
+      VSChartInfo cinfo = tempChart.getVSChartInfo();
+      int ogeoCounts = cinfo.getGeoColumns() == null ? 0 : cinfo.getGeoColumns().getAttributeCount();
+      VSUtil.setDefaultGeoColumns(cinfo, rvs, tableName);
+      int nogeoCounts = cinfo.getGeoColumns() == null ? 0 : cinfo.getGeoColumns().getAttributeCount();
+
+      if(ogeoCounts != nogeoCounts) {
+         chartHandler.updateGeoColumns(rvs.getViewsheetSandbox(), rvs.getViewsheet(), tempChart, cinfo);
+
+         if(!MapHelper.isValidType(cinfo.getMapType())) {
+            cinfo.setMeasureMapType("World");
+         }
+      }
    }
 
    public Void wizardRecommendation(AssetEntry[] entries, RuntimeViewsheet rvs,
@@ -581,6 +597,7 @@ public class VSWizardBindingService {
    private final VSWizardDataServiceProxy wizardDataServiceProxy;
    private final VSWizardTemporaryInfoService temporaryInfoService;
    private final VSRecommendationFactoryService recommenderService;
+   private final VSChartHandler chartHandler;
 
    private static final Logger LOGGER = LoggerFactory.getLogger(VSWizardBindingService.class);
 

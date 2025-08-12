@@ -27,12 +27,7 @@
   <baseDirectory></baseDirectory>
   <dependencySets>
     <dependencySet>
-      <outputDirectory>files/lib</outputDirectory>
-      <scope>runtime</scope>
-      <useProjectArtifact>false</useProjectArtifact>
-    </dependencySet>
-    <dependencySet>
-      <outputDirectory>files/plugins</outputDirectory>
+      <outputDirectory>plugins</outputDirectory>
       <scope>provided</scope>
       <useProjectArtifact>false</useProjectArtifact>
       <includes>
@@ -43,7 +38,7 @@
   <fileSets>
     <fileSet>
       <outputDirectory>/</outputDirectory>
-      <directory>${project.basedir}/src/main/docker</directory>
+      <directory>${project.basedir}/src/main/docker/files</directory>
       <includes>
         <include>**/*</include>
       </includes>

@@ -18,6 +18,7 @@
 package inetsoft.web.composer.ws.dialog;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.VariableTable;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.*;
@@ -72,6 +73,14 @@ public class TabularQueryDialogController extends WorksheetController {
       TabularQuery query = TabularUtil.createQuery(dataSource);
 
       if(query != null) {
+         if(runtimeId != null) {
+            VariableTable vars = dialogServiceProxy.updateVariableTable(runtimeId, principal);
+
+            if(vars != null) {
+               query.setVariableTable(vars);
+            }
+         }
+
          if(tabularView == null) {
             LayoutCreator layoutCreator = new LayoutCreator();
             tabularView = layoutCreator.createLayout(query);

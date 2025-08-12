@@ -19,9 +19,11 @@ package inetsoft.mv.local;
 
 import inetsoft.mv.*;
 import inetsoft.mv.fs.*;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.ConditionListWrapper;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
+import inetsoft.util.Tool;
 
 /**
  * DefaultMVCreator, determine to use incremental create mv or newly create mv.
@@ -29,7 +31,7 @@ import inetsoft.uql.asset.Worksheet;
  * @version 11.2
  * @author InetSoft Technology Corp
  */
-public class LocalMVCreator extends AbstractMVCreator {
+public class LocalMVCreator extends AbstractMVCreator implements MessageListener {
    /**
     * Creates a new instance of <tt>LocalMVCreator</tt>.
     *
@@ -37,6 +39,7 @@ public class LocalMVCreator extends AbstractMVCreator {
     */
    public LocalMVCreator(MVDef def) {
       super(def);
+      Cluster.getInstance().addMessageListener(this);
    }
 
    /**
@@ -77,7 +80,7 @@ public class LocalMVCreator extends AbstractMVCreator {
       if(def.isAssociationMV() || file == null ||
          (conds == null || conds.isEmpty()) && !assembly.isMVForceAppendUpdates())
       {
-         if(canceled) {
+         if(canceled || Thread.currentThread().isInterrupted()) {
             return false;
          }
 
@@ -87,7 +90,7 @@ public class LocalMVCreator extends AbstractMVCreator {
 
          dispatcher = new MVDispatcher(def);
 
-         if(canceled) {
+         if(canceled || Thread.currentThread().isInterrupted()) {
             return false;
          }
 
@@ -97,12 +100,25 @@ public class LocalMVCreator extends AbstractMVCreator {
 
       incremental = new LocalMVIncremental(def);
 
-      if(canceled) {
+      if(canceled || Thread.currentThread().isInterrupted()) {
          return false;
       }
 
       incremental.update();
       return true;
+   }
+
+   @Override
+   public void messageReceived(MessageEvent event) {
+      if(event.getMessage() instanceof MVCancelledMessage message) {
+         if(Tool.equals(def.getName(), message.getName())) {
+            cancel();
+         }
+      }
+   }
+
+   public void removeMessageListener() {
+      Cluster.getInstance().removeMessageListener(this);
    }
 
    private MVDispatcher dispatcher;

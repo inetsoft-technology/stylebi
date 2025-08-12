@@ -28,6 +28,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.Organization;
 import inetsoft.util.*;
 import jakarta.servlet.http.HttpServletResponse;
+import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.util.*;
 
@@ -136,7 +138,11 @@ public class TableViewStylePaneController {
                Graphics g = img.getGraphics();
                g.translate(0, 1);
                pt.paint(g);
-               CoreTool.writePNG(img, out);
+
+               //write to in-memory buffer first to prevent issues with Spring async response output stream
+               ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+               CoreTool.writePNG(img, buffer);
+               IOUtils.write(buffer.toByteArray(), out);
             }
             else {
                Rectangle rect = pt.getBounds();
@@ -145,7 +151,11 @@ public class TableViewStylePaneController {
                Graphics g = img.getGraphics();
                g.translate(-rect.x, -rect.y);
                pt.paint(g);
-               CoreTool.writePNG(img, out);
+
+               //write to in-memory buffer first to prevent issues with Spring async response output stream
+               ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+               CoreTool.writePNG(img, buffer);
+               IOUtils.write(buffer.toByteArray(), out);
             }
          }
 

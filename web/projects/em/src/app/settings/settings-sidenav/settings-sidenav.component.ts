@@ -19,9 +19,10 @@ import { BreakpointObserver } from "@angular/cdk/layout";
 import { Component, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { MatSidenav } from "@angular/material/sidenav";
 import { Router } from "@angular/router";
-import { Subject } from "rxjs";
+import { Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { AuthorizationService } from "../../authorization/authorization.service";
+import { LoadingSpinnerService } from "../../common/util/loading-spinner/loading-spinner.service";
 import { Secured } from "../../secured";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
@@ -45,11 +46,13 @@ export class SettingsSidenavComponent implements OnInit, OnDestroy {
    presentationVisible = false;
    loggingVisible = false;
    propertiesVisible = false;
-
+   loading = false;
+   private loadingSub: Subscription;
    private destroy$ = new Subject<void>();
 
    constructor(private router: Router, zone: NgZone, private authzService: AuthorizationService,
-               private breakpointObserver: BreakpointObserver)
+               private breakpointObserver: BreakpointObserver,
+               private loadingSpinnerService: LoadingSpinnerService)
    {
    }
 
@@ -71,11 +74,19 @@ export class SettingsSidenavComponent implements OnInit, OnDestroy {
          this.loggingVisible = p.permissions.logging;
          this.propertiesVisible = p.permissions.properties;
       });
+
+      this.loadingSub = this.loadingSpinnerService.loading$.subscribe(isLoading => {
+         this.loading = isLoading;
+      });
    }
 
    ngOnDestroy(): void {
       this.destroy$.next();
       this.destroy$.unsubscribe();
+
+      if(this.loadingSub) {
+         this.loadingSub.unsubscribe();
+      }
    }
 
    isScreenSmall(): boolean {

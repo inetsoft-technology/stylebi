@@ -162,6 +162,17 @@ public class CoreLifecycleControllerService {
          rvs.setEmbedAssemblyInfo(embedAssemblyInfo);
       }
 
+      if(event.isEmbed()) {
+         boolean scaleToScreen = "true".equals(variables.get("__scaleToScreen__"));
+
+         if(scaleToScreen) {
+            Viewsheet vs = rvs.getViewsheet();
+            ViewsheetInfo info = vs.getViewsheetInfo();
+            info.setScaleToScreen(true);
+            info.setFitToWidth(false);
+         }
+      }
+
       if(rlistener != null) {
          rlistener.setRuntimeSheet(rvs);
          rlistener.setID(id);

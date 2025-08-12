@@ -998,7 +998,9 @@ public class PoiExcelVSUtil {
          return;
       }
 
-      if(value == null || (value instanceof String) || value instanceof Object[]) {
+      if(value == null || (value instanceof String) ||
+         value instanceof Object[] || value instanceof byte[])
+      {
          try {
             cell.setCellValue(defaultText);
          }

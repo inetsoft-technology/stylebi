@@ -21,6 +21,8 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +33,7 @@ import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Component that ensures that open viewsheets are closed when the client that opened them
@@ -81,6 +84,17 @@ public class RuntimeViewsheetManager {
    }
 
    public void sessionEnded(Principal user) {
+      // websocket might reconnect right away, wait a little before closing the viewsheets
+      VSUtil.getDebouncer().debounce(getDebounceKey(user), 1L, TimeUnit.MINUTES, () -> {
+         closeViewsheets(user);
+      });
+   }
+
+   public void sessionConnected(Principal user) {
+      VSUtil.getDebouncer().cancel(getDebounceKey(user));
+   }
+
+   private void closeViewsheets(Principal user) {
       String sessionId = getSessionId(user);
       Set<String> sheetsToClose;
 
@@ -117,7 +131,12 @@ public class RuntimeViewsheetManager {
       return user != null && user instanceof XPrincipal ? ((XPrincipal) user).getSessionID() : "unknown-session";
    }
 
+   private String getDebounceKey(Principal user) {
+      return "RuntimeViewsheetManager." + getSessionId(user);
+   }
+
    private final Map<String, Set<String>> openSheets = new HashMap<>();
+         private final Map<String, AssetEntry> openWorksheets = new HashMap<>();
    private final ViewsheetService viewsheetService;
    private final WorksheetService worksheetService;
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);

@@ -85,13 +85,13 @@ or on Windows:
 If you have already built the Java libraries, you can then run the following command:
 
 ```shell
-./mvnw clean package -o -f docker -PdockerImage
+./mvnw clean package jib:dockerBuild -pl docker
 ```
 
 or on Windows:
 
 ```powershell
-.\mvnw.cmd clean package -o -f docker -PdockerImage
+.\mvnw.cmd clean package jib:dockerBuild -pl docker
 ```
 
 > **NOTE** 1) Docker engine should be running for this command. 2) The first time a docker image is built it may require online access to download necessary dependencies. Remove the -o command option.

@@ -22,8 +22,11 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.Scheduler;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import org.quartz.*;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.listeners.JobListenerSupport;
@@ -120,20 +123,55 @@ public class JobCompletionListener extends JobListenerSupport {
 
       try {
          //Bug #29106, Add record to audit and show it in Schedule History audit report.
+         String actionName = ActionRecord.ACTION_NAME_FINISH;
+         String objectType = ActionRecord.OBJECT_TYPE_TASK;
          ScheduleTask taskValue = (ScheduleTask)
             context.getJobDetail().getJobDataMap().get(ScheduleTask.class.getName());
          Identity identity = taskValue != null ? taskValue.getIdentity() : null;
          IdentityID owner = taskValue != null ? taskValue.getOwner() : null;
          String addr = Tool.getIP();
+         Principal contextPrincipal = ThreadContext.getContextPrincipal();
+         Object triggerUser = context.getMergedJobDataMap().get("principal");
+
+         if(triggerUser instanceof Principal) {
+            contextPrincipal = (Principal) triggerUser;
+         }
 
          // Bug #40798, don't audit logins for internal tasks
-         if(!ScheduleManager.isInternalTask(Objects.requireNonNull(taskValue).getTaskId())) {
+         if(!ScheduleManager.isInternalTask(Objects.requireNonNull(taskValue).getTaskId()) ||
+            contextPrincipal == null)
+         {
             if(identity == null) {
                principal = SUtil.getPrincipal(owner, addr, true);
             }
             else {
                principal = SUtil.getPrincipal(identity, addr, true);
             }
+         }
+
+         ActionRecord finishActionRecord = SUtil.getActionRecord(
+            principal, actionName, taskName, objectType);
+
+         if(principal == null && contextPrincipal != null) {
+            String user = SUtil.getUserName(contextPrincipal);
+            finishActionRecord.setUserSessionID(user);
+            principal = contextPrincipal;
+         }
+
+         if(ScheduleManager.isInternalTask(taskValue.getName())) {
+            finishActionRecord.setObjectUser(owner.getName());
+         }
+
+         if(finishActionRecord != null) {
+            String seeScheduleLog = Catalog.getCatalog().getString("em.task.runStatus");
+            String actionError = status ==Scheduler.Status.FAILED ?
+               jobException.getMessage() + "." + seeScheduleLog : null;
+            finishActionRecord.setActionStatus(status == Scheduler.Status.FINISHED ?
+                                                  ActionRecord.ACTION_STATUS_SUCCESS :
+                                                  ActionRecord.ACTION_STATUS_FAILURE);
+            finishActionRecord.setActionError(status == Scheduler.Status.FINISHED ?
+                                                 seeScheduleLog : actionError);
+            Audit.getInstance().auditAction(finishActionRecord, principal);
          }
 
          if(status == Scheduler.Status.FAILED) {
@@ -260,8 +298,7 @@ public class JobCompletionListener extends JobListenerSupport {
       if(task != null && status == Scheduler.Status.FINISHED && task.isDeleteIfNoMoreRun() &&
          !task.hasNextRuntime(System.currentTimeMillis()))
       {
-         // make sure task is removed on all nodes
-         Cluster.getInstance().submitAll(new DeleteTask(taskName, principal));
+         removeTask(taskName, principal);
 
          try {
             context.getScheduler().deleteJob(key);
@@ -269,6 +306,29 @@ public class JobCompletionListener extends JobListenerSupport {
          catch(Exception e) {
             LOG.warn("Failed to remove schedule job", e);
          }
+      }
+   }
+
+   private void removeTask(String taskName, Principal principal) {
+      Principal oldPrincipal = ThreadContext.getContextPrincipal();
+
+      try {
+         if(principal != null) {
+            if(principal instanceof XPrincipal) {
+               principal = (Principal) Tool.clone(principal);
+               ((XPrincipal) principal).setIgnoreLogin(true);
+            }
+
+            ThreadContext.setContextPrincipal(principal);
+         }
+
+         ScheduleManager.getScheduleManager().removeScheduleTask(taskName, principal);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to remove schedule task", e);
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldPrincipal);
       }
    }
 

@@ -59,7 +59,22 @@ public interface TopUsersMonitoringTableModel {
             Util.formatAge(new Date(topUser.age()), false);
          age(ageString);
          userName(topUser.name().name);
-         organization(provider.getOrgNameFromID(topUser.name().orgID));
+         String orgId = topUser.name().orgID;
+         String orgName;
+
+         if(orgId == null) {
+            orgName = "";
+         }
+         else {
+            orgName = provider.getOrgNameFromID(orgId);
+
+            // when org do not exist, show orgId
+            if(orgName == null) {
+               orgName = orgId;
+            }
+         }
+
+         organization(orgName);
 
          return this;
       }

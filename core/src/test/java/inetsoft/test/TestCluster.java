@@ -26,6 +26,7 @@ import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.query.*;
 import org.apache.ignite.cluster.ClusterGroup;
 import org.apache.ignite.lang.*;
+import org.apache.ignite.services.Service;
 import org.apache.ignite.transactions.TransactionException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -312,6 +313,16 @@ public class TestCluster implements Cluster {
    }
 
    @Override
+   public <E> Set<E> getReplicatedSet(String name, boolean transactional) {
+      return getSet(name);
+   }
+
+   @Override
+   public void destroyReplicatedSet(String name) {
+      destroySet(name);
+   }
+
+   @Override
    public DistributedLong getLong(String name) {
       return longs.computeIfAbsent(name, k -> new LocalDistributedLong());
    }
@@ -361,12 +372,12 @@ public class TestCluster implements Cluster {
 
    @Override
    public <T extends Serializable> Future<T> submit(String serviceId, SingletonCallableTask<T> task) {
-      return executor.submit(task);
+      return getSingletonExecutor(serviceId).submit(task);
    }
 
    @Override
    public Future<?> submit(String serviceId, SingletonRunnableTask task) {
-      return executor.submit(task);
+      return getSingletonExecutor(serviceId).submit(task);
    }
 
    @Override
@@ -505,6 +516,12 @@ public class TestCluster implements Cluster {
    @Override
    public void close() throws Exception {
       executor.shutdown();
+
+      for(ExecutorService service : singletonExecutors.values()) {
+         service.shutdown();
+      }
+
+      singletonExecutors.clear();
       scheduledExecutor.shutdown();
    }
 
@@ -553,6 +570,43 @@ public class TestCluster implements Cluster {
       // no-op
    }
 
+   private ExecutorService getSingletonExecutor(String serviceId) {
+      synchronized(singletonExecutors) {
+         return singletonExecutors.computeIfAbsent(serviceId, k -> Executors.newSingleThreadScheduledExecutor());
+      }
+   }
+
+   @Override
+   public DistributedTransaction startTx() {
+      return new TestTransaction();
+   }
+
+   @Override
+   public <T extends Service> T getSingletonService(String serviceName, Class<T> type, Supplier<T> init) {
+      return type.cast(singletonServices.computeIfAbsent(serviceName, k -> {
+         T service = init.get();
+
+         try {
+            service.init();
+            service.execute();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to initialize service", e);
+         }
+
+         return service;
+      }));
+   }
+
+   @Override
+   public void undeploySingletonService(String serviceName) {
+      Service service = (Service) singletonServices.remove(serviceName);
+
+      if(service != null) {
+         service.cancel();
+      }
+   }
+
    private final ConcurrentMap<String, Map<String, Object>> clusterNodeProperties =
       new ConcurrentHashMap<>();
    private final ConcurrentMap<String, Lock> locks = new ConcurrentHashMap<>();
@@ -566,12 +620,14 @@ public class TestCluster implements Cluster {
    private final ConcurrentMap<String, DistributedLong> longs = new ConcurrentHashMap<>();
    private final ConcurrentMap<String, DistributedReference<?>> references =
       new ConcurrentHashMap<>();
+   private final Map<String, ExecutorService> singletonExecutors = new HashMap<>();
    private final ExecutorService executor = Executors.newSingleThreadScheduledExecutor();
    private final DistributedScheduledExecutorService scheduledExecutor =
       new LocalDistributedScheduledExecutorService();
    private final List<MessageListener> messageListeners = new CopyOnWriteArrayList<>();
    private final ConcurrentMap<String, File> transferFiles = new ConcurrentHashMap<>();
    private final String clusterId = UUID.randomUUID().toString();
+   private final Map<String, Object> singletonServices = new ConcurrentHashMap<>();
 
    private final class LocalDistributedMap<K, V> implements DistributedMap<K, V> {
       private LocalDistributedMap(String name) {
@@ -792,6 +848,11 @@ public class TestCluster implements Cluster {
       @Override
       public void removeAll(Set<? extends K> keys) {
          delegate.keySet().removeAll(keys);
+      }
+
+      @Override
+      public void removeAll() {
+         delegate.clear();
       }
 
       @Override
@@ -1906,5 +1967,61 @@ public class TestCluster implements Cluster {
 
          return null;
       }
+   }
+
+   private static final class TestTransaction implements DistributedTransaction {
+      @Override
+      public long startTime() {
+         return startTime;
+      }
+
+      @Override
+      public long timeout() {
+         return timeout;
+      }
+
+      @Override
+      public long timeout(long timeout) {
+         return this.timeout = timeout;
+      }
+
+      @Override
+      public boolean setRollbackOnly() {
+         return rollbackOnly = true;
+      }
+
+      @Override
+      public boolean isRollbackOnly() {
+         return rollbackOnly;
+      }
+
+      @Override
+      public void commit() {
+      }
+
+      @Override
+      public void close() {
+      }
+
+      @Override
+      public void rollback() {
+      }
+
+      @Override
+      public void resume() {
+      }
+
+      @Override
+      public void suspend() {
+      }
+
+      @Override
+      public String label() {
+         return null;
+      }
+
+      private final long startTime = System.currentTimeMillis();
+      private long timeout = 0L;
+      private boolean rollbackOnly = false;
    }
 }

@@ -83,8 +83,20 @@ public class ExpandedJsonTable extends BaseJsonTable {
    public void finishStreamedLoading() {
       rows.complete();
 
+      ExpandedJsonTable metadata = null;
+
+      // create a metadata table
+      if(getJsonMetadata() != null) {
+         metadata = new ExpandedJsonTable(getJsonMetadata(), expandedPath);
+         metadata.setExpandLevels(expandLevels);
+         metadata.setAllowEmptyLists(allowEmptyLists);
+
+         // add headers from metadata
+         headers.addAll(metadata.headers);
+      }
+
       // get headers
-      Set<String> names = new HashSet<>();
+      Set<String> names = new HashSet<>(headers);
       int rcnt = Math.min(rows.size(), 10000);
 
       for(int r = 0; r < rcnt; r++) {
@@ -104,6 +116,11 @@ public class ExpandedJsonTable extends BaseJsonTable {
       types = new Class[headers.size()];
 
       for(int i = 0; i < types.length; i++) {
+         // load type from metadata
+         if(metadata != null && i < metadata.types.length) {
+            types[i] = metadata.types[i];
+         }
+
          for(int r = 0; r < rcnt; r++) {
             Map<String, Object> row = rows.get(r);
             Object val = row == null ? null : row.get(headers.get(i));

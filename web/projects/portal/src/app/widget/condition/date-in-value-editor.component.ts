@@ -40,6 +40,7 @@ export class DateInValueEditor implements OnInit {
    @Output() valueChange: EventEmitter<string> = new EventEmitter<string>();
    private _rangeVal: string;
    dateRanges: string[];
+   dateRangeLabels: string[];
 
    ngOnInit(): void {
       this.fetchDateRanges();
@@ -51,6 +52,7 @@ export class DateInValueEditor implements OnInit {
       if(observable != null) {
          observable.subscribe((data) => {
             this.dateRanges = data.values;
+            this.dateRangeLabels = data.labels;
 
             if(!this._rangeVal) {
                this.value = data[0];

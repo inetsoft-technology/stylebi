@@ -1932,10 +1932,14 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       return identifier;
    }
 
+   public String getSheetName() {
+      return getSheetName(false);
+   }
+
    /**
     * If the entry is sheet, get fullpath and scope as the sheet name.
     */
-   public String getSheetName() {
+   public String getSheetName(boolean sharedGlobal) {
       if(type == null || !isSheet()) {
          return "";
       }
@@ -1950,7 +1954,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       }
 
       if(scope == AssetRepository.GLOBAL_SCOPE) {
-         root.append("(Global Scope) ");
+         root.append(sharedGlobal ? "(Shared Host Global Scope) " : "(Global Scope) ");
       }
       else if(scope == AssetRepository.REPORT_SCOPE) {
          root.append("(Report Scope) ");

@@ -2902,8 +2902,7 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
       private XNode readMetaData(String key) {
          XNode node = null;
          FileSystemService fileSystemService = FileSystemService.getInstance();
-         File dir = fileSystemService.getFile(
-            System.getProperty("user.home", ".") + "/.srMetaData");
+         File dir = fileSystemService.getMetadataDirectory();
          File file = fileSystemService.getFile(dir, key);
 
          if(file.exists()) {
@@ -2939,12 +2938,7 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
        */
       private void writeMetaData(String key, XNode meta) {
          FileSystemService fileSystemService = FileSystemService.getInstance();
-         File dir = fileSystemService.getFile(
-            System.getProperty("user.home", ".") + "/.srMetaData");
-
-         if(!dir.exists() && !dir.mkdir()) {
-            LOG.warn("Failed to create meta-data directory: {}", dir);
-         }
+         File dir = fileSystemService.getMetadataDirectory();
 
          try(FileOutputStream file = new FileOutputStream(fileSystemService.getFile(dir, key));
              ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(file)))
@@ -2963,11 +2957,10 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
          key = Tool.normalizeFileName(key);
          metaDataCache.remove(key);
          FileSystemService fileSystemService = FileSystemService.getInstance();
-         File dir = fileSystemService.getFile(
-            System.getProperty("user.home", ".") + "/.srMetaData");
+         File dir = fileSystemService.getMetadataDirectory();
          File file = fileSystemService.getFile(dir, key);
 
-         if(!file.delete()) {
+         if(file.exists() && !file.delete()) {
             LOG.warn("Failed to delete meta-data file: {}", file);
          }
       }

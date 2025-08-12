@@ -16,7 +16,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-FROM ${docker.base.image}
+FROM eclipse-temurin:21.0.7_6-jdk
 
 ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=50.0'
 ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC'
@@ -24,9 +24,9 @@ ENV JAVA_LOCALE_OPTS='-Duser.language=en -Duser.country=US -Djava.locale.provide
 ENV JAVA_CODECACHE_OPTS='-XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize=200m -XX:+UseCodeCacheFlushing'
 ENV JAVA_NETWORK_OPTS='-Djava.net.preferIPv4Stack=true'
 ENV JAVA_DEBUG_OPTS=''
-ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS $JAVA_DEBUG_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs -DIGNITE_NO_ASCII=true -DIGNITE_QUIET=true -DIGNITE_TO_STRING_INCLUDE_SENSITIVE=false -DIGNITE_PERFORMANCE_SUGGESTIONS_DISABLED=true'
+ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS $JAVA_DEBUG_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs -Dinetsoft.metadata.dir=/var/lib/inetsoft/metadata'
+ENV INETSOFTENV_FONT_TRUETYPE_PATH='/usr/share/fonts/truetype/;$(sree.home)/fonts'
 ENV JAVA_CLASSPATH=''
-ENV INETSOFT_SERVER_MAIN='inetsoft.web.InetsoftApplication'
 
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends fonts-dejavu \
@@ -36,16 +36,13 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && userdel -rf ubuntu \
   && groupadd -g 1000 inetsoft \
-  && useradd -u 1000 -g 1000 -d /usr/local/inetsoft -s /bin/bash -m inetsoft \
+  && useradd -u 1000 -g 1000 -d /var/lib/inetsoft -s /bin/bash -m inetsoft \
   && mkdir -p /usr/local/inetsoft/classes \
-  && chown -R inetsoft:inetsoft /usr/local/inetsoft/classes \
+  && chown -R inetsoft:inetsoft /usr/local/inetsoft \
   && mkdir -p /var/lib/inetsoft/config \
   && mkdir -p /var/lib/inetsoft/temp \
   && chown -R inetsoft:inetsoft /var/lib/inetsoft \
   && fc-cache
-
-COPY --chown=inetsoft:inetsoft files/ /usr/local/inetsoft/
-RUN chmod +x /usr/local/inetsoft/bin/*
 
 EXPOSE 1099
 EXPOSE 5701
@@ -54,5 +51,3 @@ EXPOSE 8081
 
 WORKDIR /var/lib/inetsoft
 USER inetsoft
-
-ENTRYPOINT ["/usr/local/inetsoft/bin/entrypoint.sh"]

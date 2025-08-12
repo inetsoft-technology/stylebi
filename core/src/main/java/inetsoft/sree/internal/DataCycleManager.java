@@ -39,6 +39,7 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.function.Consumer;
 
@@ -87,7 +88,7 @@ public class DataCycleManager
    private void init() {
       // read in the properties specified for cycles in the EM
       try {
-         generateTasks(false, true);
+         generateTasks(false);
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize data cycle manager", ex);
@@ -100,12 +101,11 @@ public class DataCycleManager
    @Override
    public void propertyChange(PropertyChangeEvent evt) {
       String name = evt.getPropertyName();
+      String orgId = Util.getOrgIdFromEventSource(evt.getSource());
 
-      if(RepletRegistry.CHANGE_EVENT.equals(name)) {
-         generateTasks(true, false);
-      }
-      else if(MVManager.MV_CHANGE_EVENT.equals(name)) {
-         generateTasks(true, false);
+      if(MVManager.MV_CHANGE_EVENT.equals(name) || RepletRegistry.CHANGE_EVENT.equals(name)) {
+         generateTasks(null, orgId != null ? new Organization(new IdentityID(orgId, orgId)) : null,
+                       true, false);
       }
    }
 
@@ -173,17 +173,35 @@ public class DataCycleManager
     */
    @Override
    public List<ScheduleTask> getTasks() {
+      return getTasks(OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Get the pregenerated tasks for the ScheduleManager.
+    * @return Vector of ScheduleTask.
+    */
+   @Override
+   public List<ScheduleTask> getTasks(String orgID) {
       List<ScheduleTask> tasks = new ArrayList<>();
-      pregeneratedTasksMap.values().forEach(tasks::addAll);
+      Boolean inited = orgPregeneratedTaskLoadedStatus.get(orgID);
+
+      if(inited == null || !inited) {
+         Organization org = new Organization(new IdentityID(orgID, orgID));
+         generateTasks(null, org, false,  false);
+      }
+
+      if(pregeneratedTasksMap.get(orgID) != null) {
+         tasks.addAll(pregeneratedTasksMap.get(orgID));
+      }
+
       return tasks;
    }
 
    public void clearOrgTasks(String orgId) {
-      pregeneratedTasksMap.remove(orgId);
-   }
-
-   public List<ScheduleTask> getTasks(String orgId) {
-      return pregeneratedTasksMap.get(orgId);
+      if(pregeneratedTasksMap.containsKey(orgId)) {
+         pregeneratedTasksMap.remove(orgId);
+         orgPregeneratedTaskLoadedStatus.remove(orgId);
+      }
    }
 
    @Override
@@ -191,22 +209,26 @@ public class DataCycleManager
       return getTasks().iterator();
    }
 
-   private void generateTasks(boolean reloadExtensions, boolean allMVs) {
-      generateTasks(null, null, reloadExtensions, allMVs, false);
+   private void generateTasks(boolean reloadExtensions) {
+      generateTasks(null, null, reloadExtensions, false);
    }
 
    /**
     * Internal method used to set pregeneratedTasks.
     */
    private void generateTasks(Organization oorg, Organization norg, boolean reloadExtensions,
-                              boolean allMVs, boolean replace)
+                              boolean replace)
    {
-      // don't load in secondary schedulers
-      if(Scheduler.getSchedulerCount() != 1 &&
-         "true".equals(System.getProperty("ScheduleServer")))
-      {
-         return;
-      }
+      String currOrgID = norg != null ?
+         norg.getOrganizationID() : OrganizationManager.getInstance().getCurrentOrgID();
+
+      try {
+         // don't load in secondary schedulers
+         if(Scheduler.getSchedulerCount() != 1 &&
+            "true".equals(System.getProperty("ScheduleServer")))
+         {
+            return;
+         }
 
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
       List<ScheduleTask> tasks = new ArrayList<>();
@@ -253,36 +275,36 @@ public class DataCycleManager
          }
       }
 
-      synchronized(this) {
-         if(allMVs) {
-            pregeneratedTasksMap.clear();
-         }
-         else {
+         synchronized(this) {
             if(replace && oorg != null) {
                pregeneratedTasksMap.remove(oorg.getOrganizationID());
+               orgPregeneratedTaskLoadedStatus.remove(oorg.getOrganizationID());
             }
             else {
                String org = norg != null ?
                   norg.getOrganizationID() : OrganizationManager.getInstance().getCurrentOrgID();
                pregeneratedTasksMap.put(org, new Vector<>());
             }
-         }
 
-         for(ScheduleTask task : tasks) {
-            String orgID = task.getOwner() != null ?
-               task.getOwner().getOrgID() : OrganizationManager.getInstance().getCurrentOrgID();
-            pregeneratedTasksMap.computeIfAbsent(orgID, k -> new Vector<>());
-            List<ScheduleTask> taskList = pregeneratedTasksMap.get(orgID);
+            for(ScheduleTask task : tasks) {
+               String orgID = task.getOwner() != null ?
+                  task.getOwner().getOrgID() : OrganizationManager.getInstance().getCurrentOrgID();
+               pregeneratedTasksMap.computeIfAbsent(orgID, k -> new Vector<>());
+               List<ScheduleTask> taskList = pregeneratedTasksMap.get(orgID);
 
-            if(!taskList.contains(task)) {
-               taskList.add(task);
-               taskAdded(task);
+               if(!taskList.contains(task)) {
+                  taskList.add(task);
+                  taskAdded(task);
+               }
             }
          }
       }
+      finally {
+         orgPregeneratedTaskLoadedStatus.put(currOrgID, true);
+      }
 
       if(reloadExtensions) {
-         ScheduleManager.getScheduleManager().reloadExtensions();
+         ScheduleManager.getScheduleManager().reloadExtensions(currOrgID);
       }
    }
 
@@ -981,8 +1003,14 @@ public class DataCycleManager
       }
    }
 
-   private final Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
-   private static final Logger LOG = LoggerFactory.getLogger(DataCycleManager.class);
+   private Map<DataCycleId, Vector<ScheduleCondition>> dataCycleMap =
+      new LinkedHashMap<>();
+   private Map<DataCycleId, Boolean> cycleStatusMap = new LinkedHashMap<>();
+   private Map<String, Boolean> orgPregeneratedTaskLoadedStatus = new ConcurrentHashMap<>();
+   private Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
+   private Map<DataCycleId, CycleInfo> cycleInfoMap = new HashMap<>();
+   private String dcycle;   private static final Logger LOG = LoggerFactory.getLogger(DataCycleManager.class);
+
    private final String PREFIX = "/__DATA_CYCLE__";
 
    public static class CycleInfo implements Cloneable, XMLSerializable, Serializable {
@@ -1370,7 +1398,7 @@ public class DataCycleManager
             try {
                if(manager == null) {
                   manager = new DataCycleManager();
-                  ScheduleManager.getScheduleManager().reloadExtensions();
+                  ScheduleManager.getScheduleManager().initialize();
 
                   try {
                      RepletRegistry.getRegistry().addPropertyChangeListener(manager);

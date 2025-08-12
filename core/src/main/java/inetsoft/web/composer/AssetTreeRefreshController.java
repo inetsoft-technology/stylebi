@@ -44,6 +44,7 @@ import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.security.Principal;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -120,18 +121,39 @@ public class AssetTreeRefreshController {
          // Data Source Entry
          String orgId = ((XPrincipal) principal).getOrgId();
          AssetEntry entry = AssetEntry.createAssetEntry("0^65605^__NULL__^/^" + orgId);
-         AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
-            .parentEntry(entry)
-            .oldIdentifier(null)
-            .newIdentifier(entry.toIdentifier())
-            .build();
-         messagingTemplate.convertAndSendToUser(
-            SUtil.getUserDestination(principal), "/asset-changed", eventModel);
+         String eventOrgID = getOrgId(event);
+
+         //only propagate asset changed event to listener if global asset or same organization, extraneous otherwise
+         if(eventOrgID == null || orgId == null || Tool.equals(eventOrgID, orgId)) {
+            AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
+               .parentEntry(entry)
+               .oldIdentifier(null)
+               .newIdentifier(entry.toIdentifier())
+               .build();
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(principal), "/asset-changed", eventModel);
+         }
       }
    }
 
-   private void sendMessages(AssetChangeEventModel eventModel) {
-      sendMessages(eventModel, p -> true);
+   private String getOrgId(PropertyChangeEvent event) {
+      if(event instanceof inetsoft.report.PropertyChangeEvent e) {
+         return e.getOrgID();
+      }
+
+      return null;
+   }
+
+   private String getOrgId(ActionEvent event) {
+      if(event instanceof inetsoft.report.ActionEvent e) {
+         return e.getOrgID();
+      }
+
+      return null;
+   }
+
+   private void sendMessages(AssetChangeEventModel eventModel, String orgId) {
+      sendMessages(eventModel, p -> Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(p)));
    }
 
    private void sendMessages(AssetChangeEventModel eventModel, Predicate<Principal> cond) {
@@ -219,7 +241,7 @@ public class AssetTreeRefreshController {
          }
 
          if(eventModel != null) {
-            sendMessages(eventModel);
+            sendMessages(eventModel, getOrgId(event));
          }
       }
    };

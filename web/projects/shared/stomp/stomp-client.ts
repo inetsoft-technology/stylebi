@@ -15,7 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { EventEmitter } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { EventEmitter, NgZone } from "@angular/core";
+import { Router } from "@angular/router";
 import { AsyncSubject, Observable, of as observableOf, Subject } from "rxjs";
 import { SsoHeartbeatService } from "../sso/sso-heartbeat.service";
 import { LogoutService } from "../util/logout.service";
@@ -39,13 +41,16 @@ export class StompClient {
    private pendingConnections: Subject<StompClientConnection>[] = [];
    private heartbeat: EventEmitter<any> = new EventEmitter<any>();
    private emClient: boolean = false;
+   private redirecting = false;
 
    public reloadOnFailure: boolean;
 
    constructor(private endpoint: string, private onDisconnect: (endpoint: string) => any,
+               private onReconnectError: (error: string) => any,
                private ssoHeartbeatService: SsoHeartbeatService,
                private logoutService: LogoutService, emClient: boolean, private baseHref: string,
-               private customElement: boolean)
+               private customElement: boolean,
+               private router: Router, private http: HttpClient, private zone: NgZone)
    {
       this.emClient = emClient;
       this.client = this.createStompClient();
@@ -61,7 +66,7 @@ export class StompClient {
             this.pendingConnections = null;
          },
          (error: any) => {
-            if(this.pendingConnections || (this.customElement && this.connected)) {
+            if(this.pendingConnections) {
                console.error("Disconnected from server: ", error);
 
                if(this.pendingConnections != null) {
@@ -138,6 +143,23 @@ export class StompClient {
                // session timeout with security enabled
                this.logoutService.sessionExpired();
             }
+            else if(event?.code === 1001 || event?.code === 1006) {
+               // 1001 Connection intentionally closed
+               // 1006 Abnormal closure — possibly due to 502/503 errors
+               this.zone.run(() =>{
+                  this.http.get("../ping", { responseType: "text" }).subscribe({
+                     next: () => {},
+                     error:  (error) => {
+                        // Check to make sure that it is a 502/503 error
+                        if(error.status === 502 || error.status == 503) {
+                           this.redirecting = true;
+                           this.router.navigate(['/reload'],
+                              {queryParams: {redirectTo: this.router.url}, replaceUrl: true});
+                        }
+                     }
+                  });
+               })
+            }
          }
 
          if(onclose) {
@@ -155,22 +177,32 @@ export class StompClient {
             this.reconnectCnt = 0;
             this.attachOnClose();
             this.clientSubject.next(this.client);
+            this.onReconnectError(null);
          },
          (error: any) => {
-            if(this.reconnectCnt > 30) {
-               if(this.reloadOnFailure) {
-                  console.error("Failed to reconnect to server, reloading: ", error);
-                  window.location.reload(true);
-               }
+            if(this.reconnectCnt > 0) {
+               this.onReconnectError(error);
+            }
 
-               console.error("Failed to reconnect to server: ", error);
-               this.connected = false;
-               this.pendingConnections = [];
-               this.onDisconnect(this.endpoint);
-               this.clientSubject.complete();
+            if(this.redirecting) {
+               this.redirecting = false
             }
             else {
-               setTimeout(() => this.reconnect(), 10000);
+               if(this.reconnectCnt > 30) {
+                  if(this.reloadOnFailure) {
+                     console.error("Failed to reconnect to server, reloading: ", error);
+                     window.location.reload(true);
+                  }
+
+                  console.error("Failed to reconnect to server: ", error);
+                  this.connected = false;
+                  this.pendingConnections = [];
+                  this.onDisconnect(this.endpoint);
+                  this.clientSubject.complete();
+               }
+               else {
+                  setTimeout(() => this.reconnect(), 10000);
+               }
             }
          });
    }

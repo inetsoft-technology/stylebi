@@ -420,7 +420,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    void parse(String sql, int parseType, long time) throws Exception {
       clear();
-      SQLLexer lexer = new SQLLexer(new StringReader(sql));
+      SQLLexer lexer = new SQLLexer(new StringReader(getQuotedSqlString(sql)));
       SQLParser parser = new SQLParser(lexer);
       parser.setTime(time);
       setParseResult(PARSE_FAILED);
@@ -714,6 +714,17 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          if(child != null) {
             selection.setDescription(columnName, Tool.getValue(child));
          }
+
+         list = Tool.getChildNodesByTagName(column, "isExp");
+
+         if(list.getLength() > 0) {
+            child = (Element) list.item(0);
+         }
+
+         if(child != null) {
+            selection.setExpression(selection.getColumnCount() - 1,
+               "true".equals(Tool.getValue(child)));
+         }
       }
 
       nlist = Tool.getChildNodesByTagName(node, "where");
@@ -999,6 +1010,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
          String type = selection.getType(column);
          String tname = selection.getTable(column);
          String desc = selection.getDescription(column);
+         boolean isExp = selection.isExpression(column);
 
          if(full && tname == null && alias != null) {
             tname = selection.getTable(alias);
@@ -1013,6 +1025,7 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
                         "]]></table>");
          writer.println("<description><![CDATA[" + (desc == null ? "" : desc) +
                         "]]></description>");
+         writer.println("<isExp><![CDATA[" + isExp + "]]></isExp>");
          writer.println("</column>");
       }
 
@@ -3613,9 +3626,10 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
     */
    public boolean isLossy() {
       if(parseIt && lossy == null && sqlstring != null) {
-         SQLLexer lexer = new SQLLexer(new StringReader(sqlstring));
+         SQLLexer lexer = new SQLLexer(new StringReader(getQuotedSqlString(sqlstring)));
          SQLParser parser = new SQLParser(lexer);
          UniformSQL sql = new UniformSQL();
+         sql.setDataSource(getDataSource());
 
          try {
             parser.direct_select_stmt_n_rows(sql);
@@ -3627,6 +3641,16 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
       }
 
       return lossy != null && lossy;
+   }
+
+   private String getQuotedSqlString(String sql) {
+      if(dataSource != null && (dataSource.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE ||
+         "databricks".equals(SQLHelper.getProductName(dataSource))))
+      {
+         return JDBCUtil.quoteMapKeyAccessForParsing(sql);
+      }
+
+      return sql;
    }
 
    /**

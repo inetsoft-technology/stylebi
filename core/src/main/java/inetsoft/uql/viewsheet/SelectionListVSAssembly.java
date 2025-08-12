@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet;
 import inetsoft.report.TableDataPath;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -297,37 +298,39 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
     * @return the selected objects.
     */
    private List<Object> getSelectedObjects0(boolean applied) {
-      //fix bug #3983
-      checkScriptSelectedValues();
+      return XUtil.withFixedDateFormat(this, () -> {
+         //fix bug #3983
+         checkScriptSelectedValues();
 
-      DataRef ref = getDataRef();
-      SelectionList slist = getStateSelectionList();
-      List<Object> list = new ArrayList<>();
+         DataRef ref = getDataRef();
+         SelectionList slist = getStateSelectionList();
+         List<Object> list = new ArrayList<>();
 
-      if(slist == null || ref == null) {
+         if(slist == null || ref == null) {
+            return list;
+         }
+
+         SelectionValue[] vals = slist.getSelectionValues();
+
+         for(SelectionValue val : vals) {
+            if(!val.isSelected()) {
+               continue;
+            }
+
+            if(applied && ((val.getState() & SelectionValue.STATE_EXCLUDED) != 0 &&
+               !getSelectionListInfo().isSingleSelection()))
+            {
+               continue;
+            }
+
+            String vstr = val.getValue();
+            String dtype = ref.getDataType();
+            Object obj = Tool.getData(dtype, vstr, false);
+            list.add(obj);
+         }
+
          return list;
-      }
-
-      SelectionValue[] vals = slist.getSelectionValues();
-
-      for(SelectionValue val : vals) {
-         if(!val.isSelected()) {
-            continue;
-         }
-
-         if(applied && ((val.getState() & SelectionValue.STATE_EXCLUDED) != 0 &&
-            !getSelectionListInfo().isSingleSelection()))
-         {
-            continue;
-         }
-
-         String vstr = val.getValue();
-         String dtype = ref.getDataType();
-         Object obj = Tool.getData(dtype, vstr, false);
-         list.add(obj);
-      }
-
-      return list;
+      });
    }
 
    /**

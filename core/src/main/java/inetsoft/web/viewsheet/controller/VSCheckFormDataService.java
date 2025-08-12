@@ -84,7 +84,12 @@ public class VSCheckFormDataService {
    public Boolean checkTables(@ClusterProxyKey String runtimeId, Principal principal) throws Exception
    {
       try {
-         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         RuntimeSheet sheet = viewsheetService.getSheet(runtimeId, principal);
+
+         if(!(sheet instanceof RuntimeViewsheet rvs)) {
+            return false;
+         }
+
          Viewsheet viewsheet = rvs.getViewsheet();
          ViewsheetSandbox box = rvs.getViewsheetSandbox();
          Assembly[] assemblies = viewsheet.getAssemblies();

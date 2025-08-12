@@ -75,8 +75,6 @@ public class SchedulerConfigurationService {
          .rmiPort(Integer.parseInt(SreeEnv.getProperty("scheduler.rmi.port")))
          .classpath(SreeEnv.computePropertyIfAbsent(
             "scheduler.classpath", () -> SUtil.getApplicationClasspath()))
-         .autoStart(getBooleanProperty("schedule.auto.start"))
-         .autoStop(getBooleanProperty("schedule.auto.down"))
          .notificationEmail(getBooleanProperty("schedule.options.notificationEmail"))
          .saveToDisk(getBooleanProperty("schedule.options.saveToDisk"))
          .emailDelivery(getBooleanProperty("schedule.options.emailDelivery"))
@@ -122,8 +120,6 @@ public class SchedulerConfigurationService {
       SreeEnv.setProperty("schedule.status.check.email", model.emailAddress());
       SreeEnv.setProperty("schedule.status.check.email.subject", model.emailSubject());
       SreeEnv.setProperty("schedule.status.check.email.message", model.emailMessage());
-      SreeEnv.setProperty("schedule.auto.start", Boolean.toString(model.autoStart()));
-      SreeEnv.setProperty("schedule.auto.down", Boolean.toString(model.autoStop()));
       SreeEnv.setProperty("schedule.options.notificationEmail", Boolean.toString(model.notificationEmail()));
       SreeEnv.setProperty("schedule.options.saveToDisk", Boolean.toString(model.saveToDisk()));
       SreeEnv.setProperty("schedule.options.emailDelivery", Boolean.toString(model.emailDelivery()));
@@ -302,7 +298,7 @@ public class SchedulerConfigurationService {
       }
       else {
          ArrayList<String> paths = new ArrayList<>();
-         Map<String, String> oldPwdMap = getPwdMap();
+         Map<String, String> oldPwdMap = SUtil.getServerLocationsPwdMap();
 
          for(ServerLocation location : locations) {
             String path = location.path();
@@ -352,29 +348,6 @@ public class SchedulerConfigurationService {
          String property = String.join(";", paths);
          SreeEnv.setProperty("server.save.locations", property);
       }
-   }
-
-   private Map<String, String> getPwdMap() {
-      HashMap map = new HashMap();
-      String val = SreeEnv.getProperty("server.save.locations");
-
-      if(Tool.isEmptyString(val)) {
-         return map;
-      }
-
-      String[] paths = val.split(";");
-
-      for(int i = 0; i < paths.length; i++) {
-         String path = paths[i];
-         String[] parts = path.split("\\|");
-
-         if(parts.length == 4) {
-            String pwd = parts[3];
-            map.put(Tool.buildString(parts[0], parts[1], parts[2]), pwd);
-         }
-      }
-
-      return map;
    }
 
    private final ScheduleClient scheduleClient;

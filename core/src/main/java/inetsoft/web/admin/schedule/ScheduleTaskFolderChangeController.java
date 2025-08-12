@@ -19,6 +19,7 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.asset.*;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Debouncer;
 import inetsoft.util.DefaultDebouncer;
 import jakarta.annotation.PostConstruct;
@@ -32,8 +33,7 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
-import java.util.Collection;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -76,15 +76,17 @@ public class ScheduleTaskFolderChangeController {
 
    private void folderChanged(AssetChangeEvent event) {
       if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED &&
-         event.getAssetEntry() != null && event.getAssetEntry().isScheduleTaskFolder()) {
+         event.getAssetEntry() != null && event.getAssetEntry().isScheduleTaskFolder())
+      {
+         String orgId = event.getAssetEntry().getOrgID();
          debouncer.debounce(
-            "task_folder_change", 1L, TimeUnit.SECONDS, () -> sendFolderChanged(true));
+            "task_folder_change", 1L, TimeUnit.SECONDS, () -> sendFolderChanged(true, orgId));
          debouncer.debounce(
-            "em_task_folder_change", 1L, TimeUnit.SECONDS, () -> sendFolderChanged(false));
+            "em_task_folder_change", 1L, TimeUnit.SECONDS, () -> sendFolderChanged(false, orgId));
       }
    }
 
-   private void sendFolderChanged(boolean portal) {
+   private void sendFolderChanged(boolean portal, String orgId) {
       Collection<Principal> subscribers;
       String topic;
 
@@ -98,7 +100,9 @@ public class ScheduleTaskFolderChangeController {
       }
 
       for(Principal subscriber : subscribers) {
-         messagingTemplate.convertAndSendToUser(SUtil.getUserDestination(subscriber), topic, "");
+         if(Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(subscriber))) {
+            messagingTemplate.convertAndSendToUser(SUtil.getUserDestination(subscriber), topic, "");
+         }
       }
    }
 

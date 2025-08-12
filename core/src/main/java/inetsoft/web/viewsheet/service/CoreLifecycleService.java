@@ -650,10 +650,14 @@ public class CoreLifecycleService {
                // so the check for whether a component is in container is correct
                refreshContainer(rvs);
 
-               // make sure embedded viewsheet is created before the children so
-               // the position is available in VSObject.getPixelPosition
-               refreshEmbeddedViewsheet(rvs, rvs.getViewsheet(), uri, dispatcher,
-                                        manualRefresh, manualRefresh && !resetRuntime);
+               // Bug #71955, don't add embedded assemblies until the parameters are entered
+               if(parameterService.getPromptParameters(sheet, box, initvars).isEmpty()) {
+                  // make sure embedded viewsheet is created before the children so
+                  // the position is available in VSObject.getPixelPosition
+                  refreshEmbeddedViewsheet(rvs, rvs.getViewsheet(), uri, dispatcher,
+                                           manualRefresh, manualRefresh && !resetRuntime);
+               }
+
                // @by mikec, collect parameters before reset the sandbox seems
                // more reasonable, otherwise if during reset box the code need
                // parameters to access database, error will be thrown.
@@ -837,8 +841,8 @@ public class CoreLifecycleService {
       }
       finally {
          box.clearDelayedVisibilityAssemblies();
-         viewsheetService.removeExecution(id);
          box.unlockWrite();
+         viewsheetService.removeExecution(id);
       }
 
       // loading table can take a long time, move it out of the locked block

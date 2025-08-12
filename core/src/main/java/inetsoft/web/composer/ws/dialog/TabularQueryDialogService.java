@@ -20,9 +20,9 @@ package inetsoft.web.composer.ws.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.*;
 import inetsoft.report.composition.event.AssetEventUtil;
+import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -191,6 +191,26 @@ public class TabularQueryDialogService extends WorksheetControllerService {
          final MessageCommand messageCommand = MessageCommand.fromUserMessage(msg);
          messageCommand.setAssemblyName(assembly.getName());
          commandDispatcher.sendCommand(messageCommand);
+      }
+
+      return null;
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public VariableTable updateVariableTable(@ClusterProxyKey String runtimeId, Principal principal)
+      throws Exception
+   {
+      // set the box variable table in case current parameter values are needed in the query
+      if(runtimeId != null) {
+         RuntimeSheet rs = getWorksheetEngine().getSheet(runtimeId, principal);
+
+         if(rs instanceof RuntimeWorksheet) {
+            AssetQuerySandbox box = ((RuntimeWorksheet) rs).getAssetQuerySandbox();
+
+            if(box != null) {
+               return box.getVariableTable();
+            }
+         }
       }
 
       return null;

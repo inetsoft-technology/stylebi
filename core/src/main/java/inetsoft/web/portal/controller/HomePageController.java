@@ -21,6 +21,7 @@ import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -56,7 +57,7 @@ public class HomePageController {
       "/app", "/app/", "/app/index.html", "/app/adhoc", "/app/composer",
       "/app/portal", "/app/portal/**", "/app/viewer", "/app/viewer/**",
       "/app/wizard", "/app/wizard/**", "/app/reportviewer", "/app/reportviewer/**",
-      "/app/embed/**"
+      "/app/embed/**", "/app/reload"
    })
    public ModelAndView showHomePage(HttpServletRequest request, HttpServletResponse response,
                                     @LinkUri String linkUri)
@@ -72,11 +73,26 @@ public class HomePageController {
          .mustRevalidate()
          .getHeaderValue();
       response.setHeader(HttpHeaders.CACHE_CONTROL, header);
+
+      boolean hasOrgTheme = false;
+
+      if(OrganizationManager.getInstance().getCurrentOrgID() != null) {
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+         if(provider.getOrganization(orgId) != null &&
+            !Tool.isEmptyString(provider.getOrganization(orgId).getTheme()) &&
+            !(Tool.equals("default", provider.getOrganization(orgId).getTheme())))
+         {
+            hasOrgTheme = true;
+         }
+      }
+
       CustomThemesManager themes = CustomThemesManager.getManager();
       String customLoadingText = SreeEnv.getProperty("portal.customLoadingText").replaceAll("\\s", " ");
       ModelAndView model = new ModelAndView("app/index");
       model.addObject("linkUri", linkUri);
-      model.addObject("customTheme", themes.isCustomThemeApplied());
+      model.addObject("customTheme", themes.isCustomThemeApplied() || hasOrgTheme);
       model.addObject("scriptThemeCssPath", themes.getScriptThemeCssPath(true));
       model.addObject("customLoadingText", customLoadingText);
 
@@ -87,6 +103,17 @@ public class HomePageController {
 
       return model;
    }
+
+
+//   @GetMapping({"/app/reload"})
+//   public ModelAndView pingServer(HttpServletRequest request, HttpServletResponse response,
+//                                    @LinkUri String linkUri)
+//   {
+//      // Handle ping
+////      return null;
+//
+//      return showHomePage(request, response, linkUri);
+//   }
 
    @PostMapping({"/app/portal/**", "/app/viewer/**", "/app/reportviewer/**"})
    public ModelAndView postHomePage(HttpServletRequest request, HttpServletResponse response,

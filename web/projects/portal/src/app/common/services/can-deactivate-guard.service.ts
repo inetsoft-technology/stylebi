@@ -24,6 +24,10 @@ export class CanDeactivateGuard implements CanDeactivate<CanComponentDeactivate>
    canDeactivate(component: CanComponentDeactivate, route: ActivatedRouteSnapshot,
                  currentState: RouterStateSnapshot, nextState?: RouterStateSnapshot)
    {
+      if(nextState != null && nextState.url.startsWith("/reload")) {
+         return true;
+      }
+
       return !!component.canDeactivate ? component.canDeactivate(component, route, currentState, nextState) : true;
    }
 }

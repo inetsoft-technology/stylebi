@@ -774,9 +774,21 @@ public class SUtil {
             }
             else {
                // for sso user.
-               String orgID = remoteUserID.name.equals("INETSOFT_SYSTEM")  && remoteUserID.orgID == null ?
-                  Organization.getDefaultOrganizationID() :
-                  provider.getOrganization(remoteUserID.orgID).getId();
+               String orgID = null;
+
+               if(remoteUserID.name.equals("INETSOFT_SYSTEM")  && remoteUserID.orgID == null) {
+                  orgID = Organization.getDefaultOrganizationID();
+               }
+               else {
+                  Organization organization = provider.getOrganization(remoteUserID.orgID);
+
+                  if(organization == null) {
+                     throw new RuntimeException("Cannot find organization by remote user: " + remoteUserID);
+                  }
+
+                  orgID = organization.getId();
+               }
+
                res = new SRPrincipal(new ClientInfo(remoteUserID, remoteAddr, sessionId, locale),
                                      new IdentityID[0], new String[0], orgID,
                                      getRandom().nextLong(), null);
@@ -3087,14 +3099,27 @@ public class SUtil {
       String currOrgId = organizationManager.getCurrentOrgID();
 
       if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
-         IdentityID[] orgUsers = SecurityEngine.getSecurity().getOrgUsers(currOrgId);
+         SecurityEngine security = SecurityEngine.getSecurity();
+         IdentityID[] orgUsers = security.getOrgUsers(currOrgId);
+         UserProvider userProvider = UserProvider.getInstance();
+         IdentityID orgAdmin = null;
 
          if(orgUsers != null) {
-            IdentityID orgAdmin = Arrays.stream(orgUsers)
+            orgAdmin = Arrays.stream(orgUsers)
                .filter(organizationManager::isOrgAdmin)
                .findFirst().orElse(null);
-            return orgAdmin == null ? new IdentityID(user.name, currOrgId) : orgAdmin;
          }
+
+         if(orgAdmin == null && userProvider != null) {
+            List<IdentityID> users = userProvider.getUsers();
+
+            orgAdmin = users.stream()
+               .filter(u -> Tool.equals(u.getOrgID(), currOrgId) && organizationManager.isOrgAdmin(u))
+               .findFirst()
+               .orElse(null);
+         }
+
+         return orgAdmin == null ? new IdentityID(user.name, currOrgId) : orgAdmin;
       }
 
       return user;
@@ -3269,6 +3294,29 @@ public class SUtil {
 
       locations.sort(Comparator.comparing(ServerLocation::label));
       return locations;
+   }
+
+   public static Map<String, String> getServerLocationsPwdMap() {
+      HashMap map = new HashMap();
+      String val = SreeEnv.getProperty("server.save.locations");
+
+      if(Tool.isEmptyString(val)) {
+         return map;
+      }
+
+      String[] paths = val.split(";");
+
+      for(int i = 0; i < paths.length; i++) {
+         String path = paths[i];
+         String[] parts = path.split("\\|");
+
+         if(parts.length == 4) {
+            String pwd = parts[3];
+            map.put(Tool.buildString(parts[0], parts[1], parts[2]), pwd);
+         }
+      }
+
+      return map;
    }
 
    public static String writeCookiesString(Cookie[] cookies) {

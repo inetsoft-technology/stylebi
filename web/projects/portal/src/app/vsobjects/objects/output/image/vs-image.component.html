@@ -39,11 +39,13 @@
      [style.border-right]="model.objectFormat.border.right"
      [style.border-radius.px]="model.objectFormat.roundCorner">
   <div class="image-container"
+       [style.align-items]="model.objectFormat.alignItems"
+       [style.justify-content]="model.objectFormat.justifyContent"
        [class.cursor-pointer]="viewer && (model.hyperlinks && model.hyperlinks.length || model.hasOnClick || model.popComponent)">
     <ng-container *ngIf="!model.noImageFlag && vsInfo?.linkUri">
-      <img *ngIf="!model.scaleInfo.tiled" class="image-content"
+      <img #imageElement *ngIf="!model.scaleInfo.tiled" class="image-content"
            (click)="clicked($event)"
-           (load)="onImageLoad($event)" (error)="finishLoad()"
+           (load)="onImageLoad()" (error)="finishLoad()"
            [class.image-content-shadow]="model.shadow && model.animateGif"
            [style.width.px]="imageSize.width"
            [style.height.px]="imageSize.height"

@@ -33,6 +33,7 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.internal.*;
@@ -46,14 +47,13 @@ import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.table.BaseTableEvent;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSFormatModel;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import inetsoft.web.viewsheet.model.table.BaseTableModel;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.messaging.handler.annotation.Payload;
 
 import java.awt.*;
 import java.security.Principal;
@@ -298,8 +298,14 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          addScriptables(lens, vsassembly, box);
 
          if(refreshData) {
-            BaseTableCellModel[][] tableCells = getTableCells(vsassembly.getVSAssemblyInfo(), lens,
-                                                              start, end, formLens, rvs.isRuntime());
+            final VSAssembly assembly = vsassembly;
+            final VSTableLens lens0 = lens;
+            final FormTableLens formLens0 = formLens;
+
+            BaseTableCellModel[][] tableCells = XUtil.withFixedDateFormat(vsassembly, () -> {
+               return getTableCells(assembly.getVSAssemblyInfo(), lens0, start, end, formLens0, rvs.isRuntime());
+            });
+
             BaseTableCellModel[][] tableHeaderCells = null;
 
             //if assembly is Table, and start != 0, then should send table header to web when load

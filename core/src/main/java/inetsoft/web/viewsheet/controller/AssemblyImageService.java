@@ -441,6 +441,34 @@ public class AssemblyImageService {
       return map;
    }
 
+   public void processImageFromHash(String vid, String hashEncoded,
+                                    Principal principal, HttpServletRequest request,
+                                    HttpServletResponse response)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(Tool.byteDecode(vid), principal);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      String sheetName = box.getAssetEntry() == null ? "" : box.getAssetEntry().getPath();
+      String hash = Tool.byteDecode(hashEncoded);
+
+      try {
+         GroupedThread.withGroupedThread(groupedThread -> {
+            groupedThread.addRecord(LogContext.DASHBOARD.getRecord(sheetName));
+         });
+         // for Feature #26586, add ui processing time record.
+         ProfileUtils.addExecutionBreakDownRecord(box.getID(),
+                                                  ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
+               ImageHashService imageHashService = rvs.getImageHashService();
+               imageHashService.sendImageResponse(hash, rvs.getViewsheet(), request, response);
+            });
+      }
+      finally {
+         GroupedThread.withGroupedThread(groupedThread -> {
+            groupedThread.removeRecord(LogContext.DASHBOARD.getRecord(sheetName));
+         });
+      }
+   }
+
    /**
     * Get assembly image.
     */
@@ -469,9 +497,7 @@ public class AssemblyImageService {
          if(imgInfo.getImage() != null) {
 //            obj.setDataTipView(dataTip);
             obj.setAssemblyInfo(imgInfo);
-            String path = imgInfo.getImage();
-            Image rimg = VSUtil.getVSImage(imgInfo.getRawImage(),
-                                           path, vs,
+            Image rimg = VSUtil.getVSImage(imgInfo, vs,
                                            obj.getContentWidth(),
                                            obj.getContentHeight(),
                                            imgInfo.getFormat(),

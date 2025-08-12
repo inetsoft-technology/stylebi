@@ -151,7 +151,7 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
                this.plotResizable && !this.isPopComponent() &&
                (!GraphTypes.isPolar(this.model.chartType) ||
                 this.model.facets && this.model.facets.length > 0) &&
-               this.isActionVisible("Reset Size")
+               this.isActionVisible("Reset Size") && !this.annotationsSelected
          },
       ]));
       groups.push(new AssemblyActionGroup([

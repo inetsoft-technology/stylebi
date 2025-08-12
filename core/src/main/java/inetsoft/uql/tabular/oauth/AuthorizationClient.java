@@ -186,7 +186,9 @@ public class AuthorizationClient {
    private String login() {
       String license = "";
 
-      if(Tool.isServer() || "true".equals(System.getProperty("ScheduleServer"))) {
+      if(Tool.isServer() || "true".equals(System.getProperty("ScheduleServer")) ||
+         !Tool.isEmptyString(System.getProperty("ScheduleTaskRunner")))
+      {
          license = SreeEnv.getProperty("license.key");
 
          if(!LicenseManager.getInstance().isEnterprise() && (license == null || license.isEmpty())) {

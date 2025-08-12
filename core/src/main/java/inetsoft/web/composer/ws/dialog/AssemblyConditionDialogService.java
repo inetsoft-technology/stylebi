@@ -31,7 +31,9 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.erm.DataRefWrapper;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.VSScriptableController;
 import inetsoft.web.binding.drm.*;
@@ -48,8 +50,6 @@ import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.joins.JoinUtil;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.apache.commons.lang.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 
@@ -77,8 +77,25 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
    {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
-      TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
+      final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
+      String source = tableAssembly == null ? null : tableAssembly.getSource();
 
+      return XUtil.withFixedDateFormat(source, () -> {
+         try {
+            return createAssemblyConditionDialogModel(rws, tableAssembly, principal);
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex.getMessage(), ex);
+         }
+      });
+   }
+
+   private AssemblyConditionDialogModel createAssemblyConditionDialogModel(RuntimeWorksheet rws,
+                                                                           TableAssembly tableAssembly,
+                                                                           Principal principal)
+      throws Exception
+   {
+      Worksheet ws = tableAssembly.getWorksheet();
       ConditionList preConds =
          getConditionList(tableAssembly.getPreConditionList());
       ConditionList postConds =
@@ -224,12 +241,32 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
                         AssemblyConditionDialogModel model, Principal principal,
                         CommandDispatcher commandDispatcher) throws Exception
    {
-      assemblyName = Tool.byteDecode(assemblyName);
+      final String tableAssemblyName = Tool.byteDecode(assemblyName);
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
+      final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(tableAssemblyName);
+      String source = tableAssembly == null ? null : tableAssembly.getSource();
+
+      XUtil.withFixedDateFormat(source, () -> {
+         try {
+            updateByModel(rws, tableAssembly, tableAssemblyName, model, principal, commandDispatcher);
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex.getMessage(), ex);
+         }
+      });
+
+      return null;
+   }
+
+   private void updateByModel(RuntimeWorksheet rws, TableAssembly tableAssembly, String assemblyName,
+                              AssemblyConditionDialogModel model, Principal principal,
+                              CommandDispatcher commandDispatcher)
+      throws Exception
+   {
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
       VariableTable variableTable = box.getVariableTable();
-      TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
+      Worksheet ws = rws.getWorksheet();
       SourceInfo sourceInfo = tableAssembly instanceof BoundTableAssembly ?
          ((BoundTableAssembly) tableAssembly).getSourceInfo() : null;
       ConditionList preConds = ConditionUtil
@@ -303,7 +340,7 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       if(WorksheetEventUtil.refreshVariables(
          rws, super.getWorksheetEngine(), assemblyName, commandDispatcher))
       {
-         return null;
+         return;
       }
 
       WorksheetEventUtil.refreshColumnSelection(rws, assemblyName, true, commandDispatcher);
@@ -318,8 +355,6 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       }
 
       AssetEventUtil.refreshTableLastModified(ws, assemblyName, true);
-
-      return null;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -344,9 +379,11 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       List<String> dateRanges = new ArrayList<>();
+      List<String> dateRangeLabels = new ArrayList<>();
 
       for(DateCondition dateCondition : DateCondition.getBuiltinDateConditions()) {
          dateRanges.add(dateCondition.getName());
+         dateRangeLabels.add(Catalog.getCatalog().getString(dateCondition.getLabel()));
       }
 
       for(Assembly assembly : ws.getAssemblies()) {
@@ -357,6 +394,7 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
 
       return BrowseDataModel.builder()
          .values(dateRanges.toArray(new Object[0]))
+         .labels(dateRangeLabels.toArray(new Object[0]))
          .build();
    }
 

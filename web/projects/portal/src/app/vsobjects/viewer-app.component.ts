@@ -100,6 +100,7 @@ import { ExpandStringDirective } from "../widget/expand-string/expand-string.dir
 import { ActionsContextmenuComponent } from "../widget/fixed-dropdown/actions-contextmenu.component";
 import { DropdownOptions } from "../widget/fixed-dropdown/dropdown-options";
 import { DropdownRef } from "../widget/fixed-dropdown/fixed-dropdown-ref";
+import { FixedDropdownDirective } from "../widget/fixed-dropdown/fixed-dropdown.directive";
 import { FixedDropdownService } from "../widget/fixed-dropdown/fixed-dropdown.service";
 import { PreviousSnapshotType } from "../widget/hyperlink/previous-snapshot";
 import { NotificationsComponent } from "../widget/notifications/notifications.component";
@@ -199,6 +200,7 @@ import { GlobalSubmitService } from "./util/global-submit.service";
 import { ViewerResizeService } from "./util/viewer-resize.service";
 import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
+import { BaseHrefService } from "../common/services/base-href.service";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -313,6 +315,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @ViewChild("viewerToolbar") viewerToolbar: ElementRef;
    @ViewChild("fileSelector") importExcelFileSelector: ElementRef<HTMLInputElement>;
    @ViewChild("scaleContainer") scaleContainer: ElementRef<HTMLInputElement>;
+   @ViewChild("bookmarkDropdownBtn", { read: FixedDropdownDirective }) bookmarkDropdownBtn: FixedDropdownDirective;
    @ViewChildren(VsToolbarButtonDirective) toolbarButtons: QueryList<VsToolbarButtonDirective>;
    @Input() touchDevice: boolean = false;
    @Input() annotationChanged: boolean = false;
@@ -514,7 +517,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private miniToolbarService: MiniToolbarService,
                private featureFlagService: FeatureFlagsService,
                private assetLoadingService: AssetLoadingService,
-               private viewContainerRef: ViewContainerRef)
+               private viewContainerRef: ViewContainerRef,
+               private baseHrefService: BaseHrefService)
    {
       super(viewsheetClient, zone, true);
       tooltipConfig.tooltipClass = "top-tooltip";
@@ -778,7 +782,14 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          const rect = this.viewerToolbar.nativeElement.getBoundingClientRect();
          const screenSize = this.screenSize;
 
-         if(window.visualViewport) {
+         // web component
+         if(this.embed) {
+            const viewerRect = this.viewerRoot.nativeElement.getBoundingClientRect();
+            ratio = 1;
+            left = Math.round(Math.max(0, -viewerRect.left));
+            top = Math.round(Math.max(0, -viewerRect.top + rect.height));
+         }
+         else if(window.visualViewport) {
             ratio = 1 / window.visualViewport.scale;
 
             // original dist to top of page
@@ -807,6 +818,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             const shrunk = Math.round((rect.height / ratio) - rect.height);
             this.bodyTransform = this.sanitizer.bypassSecurityTrustStyle(
                "translate(0, " + -shrunk + "px)");
+            this.changeDetectorRef.detectChanges();
          }
       }
    }
@@ -1807,6 +1819,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
          .then((buttonClicked) => {
             if(buttonClicked === "yes") {
+               this.bookmarkDropdownBtn?.close();
                this.sendBookmarkEvent("delete", bookmark);
 
                if(bookmark.currentBookmark) {
@@ -2530,7 +2543,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.virtualScroll = command.info["virtualScroll"];
 
       if(command.info["hasWatermark"]) {
-         const imageUrl = "url('assets/elastic_watermark.png')";
+         const url = this.baseHrefService.getBaseHref() + "/assets/elastic_watermark.png";
+         const imageUrl = `url('${url}')`;
          this.backgroundImage = this.sanitizer.bypassSecurityTrustStyle(imageUrl);
          this.backgroundImageRepeat = "repeat";
       }
@@ -4003,7 +4017,13 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          defaultButtons++;
       }
 
-      return Math.floor(window.innerWidth / ToolbarActionsHandler.MOBILE_BUTTON_WIDTH) - defaultButtons;
+      let width = window.innerWidth;
+
+      if(this.embed && this.viewerRoot) {
+         width = this.viewerRoot.nativeElement.getBoundingClientRect().width;
+      }
+
+      return Math.floor(width / ToolbarActionsHandler.MOBILE_BUTTON_WIDTH) - defaultButtons;
    }
 
    isPageControlVisible(): boolean {

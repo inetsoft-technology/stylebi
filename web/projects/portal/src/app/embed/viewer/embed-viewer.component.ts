@@ -93,9 +93,19 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
       return this._hideToolbar;
    }
 
+   @Input()
+   set scale(value: boolean | string) {
+      this._scale = this.isTrue(value);
+   }
+
+   get scale(): boolean {
+      return this._scale;
+   }
+
    private _hideToolbar: boolean = true;
    private _hideMiniToolbar: boolean = true;
    private _globalLoadingIndicator: boolean = true;
+   private _scale: boolean = false;
    assetId: string;
    queryParams: Map<string, string[]>;
    mobileDevice: boolean = GuiTool.isMobileDevice();
@@ -139,6 +149,11 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
          this.assetId = result.posParams?.assetId?.path;
          this.queryParams = new Map();
          this.queryParams.set("disableParameterSheet", ["true"]);
+
+         if(this.scale) {
+            this.queryParams.set("__scaleToScreen__", ["true"]);
+         }
+
          const paramMap = tree.queryParamMap;
 
          paramMap.keys.forEach(key => {
@@ -201,6 +216,8 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
          this.loading = false;
          console.error(message);
       }
+
+      this.cdRef.detectChanges();
    }
 
    onLoadingStateChanged(event: { name: string, loading: boolean }) {

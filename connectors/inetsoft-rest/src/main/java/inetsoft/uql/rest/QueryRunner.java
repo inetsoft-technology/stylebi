@@ -56,4 +56,8 @@ public interface QueryRunner {
 
       return table;
    }
+
+   default String generateMetadata() {
+      return null;
+   }
 }

@@ -67,18 +67,6 @@
       <scope>compile</scope>
     </dependency>
 
-<!--    <dependency>-->
-<!--      <groupId>commons-fileupload</groupId>-->
-<!--      <artifactId>commons-fileupload</artifactId>-->
-<!--      <scope>compile</scope>-->
-<!--    </dependency>-->
-
-<!--    <dependency>-->
-<!--      <groupId>commons-collections</groupId>-->
-<!--      <artifactId>commons-collections</artifactId>-->
-<!--      <scope>compile</scope>-->
-<!--    </dependency>-->
-
     <dependency>
       <groupId>commons-io</groupId>
       <artifactId>commons-io</artifactId>
@@ -691,6 +679,12 @@
     </dependency>
 
     <dependency>
+      <groupId>org.apache.derby</groupId>
+      <artifactId>derbytools</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>
       <scope>provided</scope>
@@ -842,6 +836,13 @@
       <artifactId>wiremock</artifactId>
       <scope>test</scope>
     </dependency>
+
+    <dependency>
+      <groupId>net.datafaker</groupId>
+      <artifactId>datafaker</artifactId>
+      <version>2.4.4</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -926,6 +927,45 @@
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.7.1</version>
+        <executions>
+          <execution>
+            <id>copy-jdbc-driver</id>
+            <phase>generate-test-resources</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>org.apache.derby</groupId>
+                  <artifactId>derby</artifactId>
+                  <version>10.17.1.0</version>
+                  <type>jar</type>
+                  <outputDirectory>${project.build.directory}/jdbc-drivers</outputDirectory>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>org.apache.derby</groupId>
+                  <artifactId>derbyshared</artifactId>
+                  <version>10.17.1.0</version>
+                  <type>jar</type>
+                  <outputDirectory>${project.build.directory}/jdbc-drivers</outputDirectory>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>org.apache.derby</groupId>
+                  <artifactId>derbytools</artifactId>
+                  <version>10.17.1.0</version>
+                  <type>jar</type>
+                  <outputDirectory>${project.build.directory}/jdbc-drivers</outputDirectory>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
         <configuration>
@@ -937,6 +977,10 @@
             <kryo.unsafe>false</kryo.unsafe>
             <show.license.exception>true</show.license.exception>
             <inetsoft.sree.internal.cluster.implementation>inetsoft.test.TestCluster</inetsoft.sree.internal.cluster.implementation>
+            <sree.home>${project.build.directory}/test-workdir</sree.home>
+            <jdbc.driver.dir>${project.build.directory}/jdbc-drivers</jdbc.driver.dir>
+            <junit.jupiter.extensions.autodetection.enabled>true</junit.jupiter.extensions.autodetection.enabled>
+            <junit.jupiter.extensions.autodetection.include>inetsoft.test.SreeHomeExtension</junit.jupiter.extensions.autodetection.include>
             <!--
               The following settings are because there are tests of date formatting and parsing
               and the assertions can be flaky if the time zone or locale changes. More substantial

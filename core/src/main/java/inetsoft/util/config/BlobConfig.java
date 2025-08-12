@@ -51,6 +51,18 @@ public class BlobConfig implements Serializable {
    }
 
    /**
+    * The maximum size of the local cache in megabytes. This is not used with local filesystem
+    * storage. If not set, the local cache will be unbounded.
+    */
+   public Long getCacheMaxSize() {
+      return cacheMaxSize;
+   }
+
+   public void setCacheMaxSize(Long cacheMaxSize) {
+      this.cacheMaxSize = cacheMaxSize;
+   }
+
+   /**
     * The Azure configuration.
     */
    public AzureBlobConfig getAzure() {
@@ -97,6 +109,8 @@ public class BlobConfig implements Serializable {
    @CRDProperty(description = "The type of blob store", allowedValues = { "azure", "filesystem", "gcs", "s3" })
    private String type;
    private String cacheDirectory;
+   @CRDProperty(description = "The maximum size of the local blob cache in MB")
+   private Long cacheMaxSize;
    @CRDProperty(description = "The Azure Blob storage configuration")
    private AzureBlobConfig azure;
    @CRDProperty(description = "The shared filesystem storage configuration")

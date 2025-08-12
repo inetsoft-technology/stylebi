@@ -19,6 +19,7 @@ import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
 import { CanActivateComposerService } from "./composer/services/can-activate-composer.service";
 import { CanActivateRootService } from "./can-activate-root.service";
+import { ReloadPageComponent } from "./reload/reload-page.component";
 
 const routes: Routes = [
    {
@@ -41,6 +42,10 @@ const routes: Routes = [
          {
             path: "embed/chart",
             loadChildren: () => import("./embed/chart/embed-chart.module").then(m => m.EmbedChartModule)
+         },
+         {
+            path: "reload",
+            component: ReloadPageComponent
          },
          {
             path: "**",

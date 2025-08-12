@@ -41,7 +41,6 @@ import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
-import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.event.VSOnClickEvent;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
@@ -53,6 +52,7 @@ import inetsoft.web.composer.vs.objects.controller.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.*;
 import inetsoft.web.vswizard.model.VSWizardConstants;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -60,8 +60,8 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.security.Principal;
 import java.text.Format;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.regex.Pattern;
 
 @Service
@@ -639,6 +639,8 @@ public class VSInputService {
       DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
       TextInputColumnOptionPaneModel textInputColumnOptionPaneModel = result.getTextInputColumnOptionPaneModel();
       ClickableScriptPaneModel.Builder clickableScriptPaneModel = ClickableScriptPaneModel.builder();
+      String defaultText = textInputGeneralPaneModel.getDefaultText();
+      defaultText = StringUtils.isBlank(defaultText) ? null : defaultText;
 
       generalPropPaneModel.setShowEnabledGroup(true);
       generalPropPaneModel.setEnabled(textInputAssemblyInfo.getEnabledValue());
@@ -659,7 +661,7 @@ public class VSInputService {
       basicGeneralPaneModel.setRefresh(textInputAssemblyInfo.isRefresh());
 
       textInputGeneralPaneModel.setToolTip(textInputAssemblyInfo.getToolTipValue());
-      textInputGeneralPaneModel.setDefaultText(textInputAssemblyInfo.getDefaultTextValue());
+      textInputGeneralPaneModel.setDefaultText(defaultText);
       textInputGeneralPaneModel.setInsetStyle(textInputAssemblyInfo.isInsetStyle());
       textInputGeneralPaneModel.setMultiLine(textInputAssemblyInfo.isMultiline());
 
@@ -2897,6 +2899,16 @@ public class VSInputService {
                   }
 
                   clist.getDataList().add(a.getAssemblyEntry());
+               }
+               // Update hyperlink variable tables for otherwise unrelated assemblies
+               else if(a instanceof OutputVSAssembly && !clist.contains(a.getAssemblyEntry())) {
+                  OutputVSAssemblyInfo assemblyInfo = (OutputVSAssemblyInfo) a.getInfo();
+
+                  if(assemblyInfo.getHyperlink() != null &&
+                     assemblyInfo.getHyperlink().isSendReportParameters())
+                  {
+                     clist.getDataList().add(a.getAssemblyEntry());
+                  }
                }
             }
 

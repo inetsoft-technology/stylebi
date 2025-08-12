@@ -19,12 +19,12 @@ package inetsoft.uql;
 
 import inetsoft.report.Comparer;
 import inetsoft.report.filter.*;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.DateCondition;
 import inetsoft.uql.asset.ExpressionValue;
 import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.*;
+import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import org.pojava.datetime.DateTime;
 import org.slf4j.Logger;
@@ -1644,10 +1644,12 @@ public class Condition extends AbstractCondition {
     */
    @Override
    public void writeContents(PrintWriter writer) {
-      for(int j = 0; j < getValueCount(); j++) {
-         Object val = getValue(j);
-         writeConditionValue(writer, val);
-      }
+      XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
+         for(int j = 0; j < getValueCount(); j++) {
+            Object val = getValue(j);
+            writeConditionValue(writer, val);
+         }
+      });
    }
 
    /**
@@ -1748,13 +1750,20 @@ public class Condition extends AbstractCondition {
 
          Element atag = (Element) nlist.item(i);
 
-         if(atag.getTagName().equals("condition_data")) {
-            Object val = parseConditionValue(atag);
+         XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
+            try {
+               if(atag.getTagName().equals("condition_data")) {
+                  Object val = parseConditionValue(atag);
 
-            if(val != null) {
-               addValue(val);
+                  if(val != null) {
+                     addValue(val);
+                  }
+               }
             }
-         }
+            catch(Exception ex) {
+               throw new RuntimeException(ex.getMessage(), ex);
+            }
+         });
       }
    }
 

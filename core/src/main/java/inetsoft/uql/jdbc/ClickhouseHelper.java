@@ -38,13 +38,34 @@ public class ClickhouseHelper extends SQLHelper {
    protected String transformDate(String str) {
       str = str.trim();
 
-      if(str.startsWith("{ts") || str.startsWith("({ts") ) {
+      if(str.startsWith("{ts") || str.startsWith("({ts")) {
          Pattern pattern = Pattern.compile("\\{ts\\s*'(.*?)'\\}");
          Matcher matcher = pattern.matcher(str);
-         return matcher.replaceAll("'$1'");
+
+         return matcher.replaceAll("toDateTime('$1')");
+      }
+      else if(str.startsWith("{d") || str.startsWith("({d") ) {
+         Pattern pattern = Pattern.compile("\\{d\\s*'(.*?)'\\}");
+         Matcher matcher = pattern.matcher(str);
+
+         return matcher.replaceAll("toDate('$1')");
       }
       else {
          return super.transformDate(str);
       }
+   }
+
+   /**
+    * Check if a word is a keyword.
+    * @param word the specified keyword.
+    * @return <tt>true</tt> is a keyword, <tt>false</tt> otherwise.
+    */
+   @Override
+   public boolean isKeyword(String word) {
+      if(word.equals("default")) {
+         return false;
+      }
+
+      return super.isKeyword(word);
    }
 }

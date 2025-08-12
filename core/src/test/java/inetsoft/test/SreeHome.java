@@ -29,4 +29,7 @@ public @interface SreeHome {
    String[] importUrls() default {};
    String[] importResources() default {};
    String[] materialize() default {};
+   DataSpaceFile[] dataSpace() default {};
+   SreeProperty[] properties() default {};
+   boolean security() default false;
 }

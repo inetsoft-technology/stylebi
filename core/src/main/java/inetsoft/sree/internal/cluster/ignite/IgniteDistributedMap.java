@@ -93,6 +93,14 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
       });
    }
 
+   @Override
+   public void removeAll() {
+      executeWithRetry(() -> {
+         cache.removeAll();
+         return null;
+      });
+   }
+
    public void delete(K key) {
       executeWithRetry(() -> {
          cache.remove(key);

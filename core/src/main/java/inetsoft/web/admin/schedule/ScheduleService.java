@@ -50,6 +50,7 @@ import inetsoft.web.admin.deploy.DeployUtil;
 import inetsoft.web.admin.model.NameLabelTuple;
 import inetsoft.web.admin.presentation.PresentationFormatsSettingsService;
 import inetsoft.web.admin.schedule.model.*;
+import inetsoft.web.admin.security.SSOType;
 import inetsoft.web.composer.model.vs.DynamicValueModel;
 import inetsoft.web.portal.model.CSVConfigModel;
 import inetsoft.web.viewsheet.controller.dialog.EmailDialogController;
@@ -764,7 +765,8 @@ public class ScheduleService {
          .owners(allowedUsers)
          .groups(allowedGroups)
          .emailUsers(emailUsers)
-         .emailGroups(sortedEmailGroups);
+         .emailGroups(sortedEmailGroups)
+         .ssoEnable(SSOType.forName(SreeEnv.getProperty("sso.protocol.type")) != SSOType.NONE);
 
       if(allowedUsers.length > 0) {
          model.adminName(principal.getName());
@@ -977,9 +979,18 @@ public class ScheduleService {
             .collect(Collectors.toList());
 
          List<ServerPathInfoModel> filePathInfos = Arrays.stream(viewsheetAction.getSaveFormats())
-            .mapToObj(viewsheetAction::getFilePathInfo)
+            .mapToObj(format -> {
+               ServerPathInfo info = viewsheetAction.getFilePathInfo(format);
+
+               if(info != null) {
+                  return ServerPathInfoModel.builder()
+                     .from(info)
+                     .oldFormat(format)
+                     .build();
+               }
+               return null;
+            })
             .filter(Objects::nonNull)
-            .map(info -> ServerPathInfoModel.builder().from(info).build())
             .collect(Collectors.toList());
 
          actionModel
@@ -1241,10 +1252,11 @@ public class ScheduleService {
                   int format = Integer.parseInt(saveFormats[i]);
                   ServerPathInfoModel pModel = serverFilePaths.get(i);
                   String password = pModel.password();
-                  ServerPathInfo oldInfo = clone.get(format);
+                  int oldFormat = pModel.oldFormat();
+                  ServerPathInfo oldInfo = clone.get(oldFormat);
 
-                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null &&
-                     oldInfo.getUsername().equals(pModel.username()) && !clone.isEmpty())
+                  if(Util.PLACEHOLDER_PASSWORD.equals(password) && oldInfo != null
+                     && !clone.isEmpty())
                   {
                      password = oldInfo.getPassword();
                   }
@@ -2081,7 +2093,37 @@ public class ScheduleService {
    }
 
    List<ServerLocation> getServerLocations(Catalog catalog) {
-      return SUtil.getServerLocations();
+      List<ServerLocation> serverLocations = new ArrayList<>();
+      Map<String, String> oldPwdMap = SUtil.getServerLocationsPwdMap();
+
+      for(ServerLocation location : SUtil.getServerLocations()) {
+         ServerPathInfoModel infoModel = location.pathInfoModel();
+
+         if(infoModel != null) {
+            String password = infoModel.password();
+
+            if(Util.PLACEHOLDER_PASSWORD.equals(password)) {
+               password = oldPwdMap.get(infoModel.oldPasswordKey());
+            }
+
+            ServerPathInfoModel newLocation = ServerPathInfoModel.builder()
+               .path(infoModel.path())
+               .username(infoModel.username())
+               .password(password)
+               .secretId(infoModel.secretId())
+               .useCredential(infoModel.useCredential())
+               .ftp(infoModel.ftp())
+               .build();
+
+            serverLocations.add(ServerLocation.builder()
+               .path(location.path())
+               .label(catalog.getString(location.label()))
+               .pathInfoModel(newLocation)
+               .build());
+         }
+      }
+
+      return serverLocations;
    }
 
    public ScheduleTaskNamesModel getScheduleTaskNamesModel(Principal principal) {

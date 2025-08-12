@@ -46,8 +46,7 @@ import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
-import java.util.Arrays;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -75,6 +74,7 @@ public class RepositoryChangeController {
 
    @PreDestroy
    public void removeListeners() throws Exception {
+      closed = true;
       RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
       assetRepository.removeAssetChangeListener(this.assetListener);
       assetRepository.removeAssetChangeListener(this.autoSaveListener);
@@ -181,35 +181,59 @@ public class RepositoryChangeController {
 
    private void assetChanged(AssetChangeEvent event) {
       if(event.getChangeType() != AssetChangeEvent.ASSET_TO_BE_DELETED) {
-         scheduleChangeMessage(null);
+         scheduleChangeMessage(null, getOrgId(event));
       }
    }
 
    private void libraryChanged(ActionEvent event) {
-      scheduleChangeMessage(null);
+      scheduleChangeMessage(null, getOrgId(event));
    }
 
    private void dashboardChanged(DashboardChangeEvent event) {
-      scheduleChangeMessage(null);
+      scheduleChangeMessage(null, event == null ? null : event.getOrgID());
    }
 
    private void dataSourceChanged(PropertyChangeEvent event) {
-      scheduleChangeMessage(null);
+      scheduleChangeMessage(null, getOrgId(event));
    }
 
    private void autoSaveChanged(AssetChangeEvent event) {
       if(event.getChangeType() != AssetChangeEvent.AUTO_SAVE_ADD) {
-         scheduleChangeMessage(null);
+         scheduleChangeMessage(null, getOrgId(event));
       }
    }
 
-   private void scheduleChangeMessage(Principal principal) {
-      if(principal == null) {
-         debouncer.debounce("change", 1L, TimeUnit.SECONDS, () -> sendChangeMessage());
+   private String getOrgId(AssetChangeEvent event) {
+      AssetEntry entry = event.getAssetEntry();
+      return entry == null ? null : entry.getOrgID();
+   }
+
+   private String getOrgId(PropertyChangeEvent event) {
+      if(event instanceof inetsoft.report.PropertyChangeEvent e) {
+         return e.getOrgID();
       }
-      else {
+
+      return null;
+   }
+
+   private String getOrgId(ActionEvent event) {
+      if(event instanceof inetsoft.report.ActionEvent e) {
+         return e.getOrgID();
+      }
+
+      return null;
+   }
+
+   private void scheduleChangeMessage(Principal principal, String orgId) {
+      if(principal != null) {
          debouncer.debounce(
             principal.getName(), 1L, TimeUnit.SECONDS, () -> sendChangeMessage(principal));
+      }
+      else if(orgId != null) {
+         debouncer.debounce(orgId, 1L, TimeUnit.SECONDS, () -> sendChangeMessage(orgId));
+      }
+      else {
+         debouncer.debounce("change", 1L, TimeUnit.SECONDS, () -> sendChangeMessage());
       }
    }
 
@@ -224,6 +248,16 @@ public class RepositoryChangeController {
          .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
    }
 
+   private void sendChangeMessage(String orgId) {
+      for(Principal principal : subscriptions.values()) {
+         if(Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal))) {
+            messagingTemplate
+               .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
+         }
+      }
+   }
+
+   private volatile boolean closed = false;
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
    private final Debouncer<String> debouncer;
@@ -251,7 +285,7 @@ public class RepositoryChangeController {
          if(!RepletRegistry.EDIT_CYCLE_EVENT.equals(event.getPropertyName()) &&
             !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()))
          {
-            scheduleChangeMessage(principal);
+            scheduleChangeMessage(principal, getOrgId(event));
          }
       }
 

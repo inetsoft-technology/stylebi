@@ -34,8 +34,7 @@ import org.apache.ignite.failure.StopNodeFailureHandler;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.lang.*;
 import org.apache.ignite.logger.slf4j.Slf4jLogger;
-import org.apache.ignite.services.ServiceConfiguration;
-import org.apache.ignite.services.ServiceDescriptor;
+import org.apache.ignite.services.*;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.internal.TcpDiscoveryNode;
@@ -43,6 +42,7 @@ import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.multicast.TcpDiscoveryMulticastIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.ssl.SslContextFactory;
+import org.apache.ignite.transactions.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -631,7 +631,14 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public Lock getLock(String name) {
-      return ignite.reentrantLock(name, true, false, true);
+      return DISTRIBUTED_LOCK_MAP.compute(name, (k, existingProxy) -> {
+         DistributedLockProxy wrapper = (existingProxy != null) ? existingProxy :
+            new DistributedLockProxy(name);
+
+         Lock lock = ignite.reentrantLock(name, true, false, true);
+         wrapper.setRealLock(lock);
+         return wrapper;
+      });
    }
 
    @Override
@@ -1070,6 +1077,22 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public <E> Set<E> getReplicatedSet(String name, boolean transactional) {
+      CollectionConfiguration setConfig = new CollectionConfiguration();
+      setConfig.setBackups(getDefaultBackupCount());
+      setConfig.setCacheMode(CacheMode.REPLICATED);
+      setConfig.setAtomicityMode(transactional ?
+                                    CacheAtomicityMode.TRANSACTIONAL :
+                                    CacheAtomicityMode.ATOMIC);
+      return ignite.set(name, setConfig);
+   }
+
+   @Override
+   public void destroyReplicatedSet(String name) {
+      destroySet(name);
+   }
+
+   @Override
    public DistributedLong getLong(String name) {
       return new IgniteDistributedLong(ignite.atomicLong(name, 0, true));
    }
@@ -1106,8 +1129,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       // Do not use lambda expression to submit the task to ignite, it can not run with JDK21.
       ClusterGroup clusterGroup = scheduler ? ignite.cluster().forPredicate(SCHEDULE_SELECTOR) :
          ignite.cluster().forServers();
-      return CompletableFuture.supplyAsync(new IgniteTaskFuture<>(ignite, clusterGroup, task, level),
-         getExecutorService(level));
+      IgniteTaskCallable<T> igniteTask  = new IgniteTaskCallable<>(task, level);
+      return new IgniteFutureWrapper<>(getIgniteCompute(ignite, clusterGroup, level).callAsync(igniteTask));
    }
 
    @Override
@@ -1465,6 +1488,49 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
    }
 
+   @Override
+   public DistributedTransaction startTx() {
+      Transaction tx = ignite.transactions().txStart(
+         TransactionConcurrency.OPTIMISTIC, TransactionIsolation.SERIALIZABLE);
+      return new IgniteTransaction(tx);
+   }
+
+   @Override
+   public <T extends Service> T getSingletonService(String serviceName,
+                                                    Class<T> type, Supplier<T> init)
+   {
+      Collection<ServiceDescriptor> services = ignite.services().serviceDescriptors();
+      boolean deployed = false;
+
+      for(ServiceDescriptor service : services) {
+         if(service.name().equals(serviceName)) {
+            // service found, no need to do anything
+            deployed = true;
+            break;
+         }
+      }
+
+      if(!deployed) {
+         ServiceConfiguration config = new ServiceConfiguration();
+         config.setService(init.get());
+         config.setName(serviceName);
+         config.setTotalCount(1);
+         ignite.services().deploy(config);
+      }
+
+      return ignite.services().serviceProxy(serviceName, type, false);
+   }
+
+   @Override
+   public void undeploySingletonService(String serviceName) {
+      try {
+         ignite.services().cancel(serviceName);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to undeploy singleton service", e);
+      }
+   }
+
    private final Ignite ignite;
    private final Set<inetsoft.sree.internal.cluster.MessageListener> messageListeners = new CopyOnWriteArraySet<>();
    private final Set<inetsoft.sree.internal.cluster.MembershipListener> membershipListeners = new CopyOnWriteArraySet<>();
@@ -1498,6 +1564,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final ThreadLocal<Integer> TASK_EXECUTE_LEVEL = new ThreadLocal<>();
    private static final String IGNITE_EXECUTE_POOL = "IGNITE_EXECUTE_POOL";
    private static final int IGNITE_EXECUTE_POOL_COUNT = 2;
+   private static final Map<String, DistributedLockProxy> DISTRIBUTED_LOCK_MAP = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(IgniteCluster.class);
 
@@ -1881,6 +1948,51 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       private final Ignite igniteInstance;
       private final ClusterGroup clusterGroup;
       private final IgniteTaskCallable<T> task;
+   }
+
+   private static class IgniteFutureWrapper<T> implements Future<T> {
+      private final IgniteFuture<T> igniteFuture;
+
+      public IgniteFutureWrapper(IgniteFuture<T> igniteFuture) {
+         this.igniteFuture = igniteFuture;
+      }
+
+      @Override
+      public boolean cancel(boolean mayInterruptIfRunning) {
+         return igniteFuture.cancel();
+      }
+
+      @Override
+      public boolean isCancelled() {
+         return igniteFuture.isCancelled();
+      }
+
+      @Override
+      public boolean isDone() {
+         return igniteFuture.isDone();
+      }
+
+      @Override
+      public T get() throws InterruptedException, ExecutionException {
+         try {
+            return igniteFuture.get();
+         }
+         catch (Exception e) {
+            throw new ExecutionException(e);
+         }
+      }
+
+      @Override
+      public T get(long timeout, TimeUnit unit)
+         throws InterruptedException, ExecutionException, java.util.concurrent.TimeoutException
+      {
+         try {
+            return igniteFuture.get(timeout, unit);
+         }
+         catch (Exception e) {
+            throw new ExecutionException(e);
+         }
+      }
    }
 
    private static class IgniteTaskCallable<T> implements IgniteCallable<T> {

@@ -46,8 +46,7 @@ import java.lang.reflect.Method;
 import java.security.Principal;
 import java.sql.*;
 import java.util.*;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.*;
 
 /**
  * JDBC query handler. It is responsible for executing all JDBC queries.
@@ -908,6 +907,9 @@ public class JDBCHandler extends XHandler {
                               ((PreparedStatement) stmt).
                                  setString(inIdx, Tool.toString(val));
                            }
+                           else if(clickhouse && val instanceof java.sql.Date) {
+                              ((PreparedStatement) stmt).setDate(inIdx, (java.sql.Date) val);
+                           }
                            else if(clickhouse && val instanceof Timestamp) {
                               ((PreparedStatement) stmt).setObject(inIdx, Tool.toString(val));
                            }
@@ -1037,6 +1039,12 @@ public class JDBCHandler extends XHandler {
                      String column = query.getSelection().getAlias(0);
                      String oldSelect = column + " as " + column;
                      String newSelect = "CAST("+ column + " as STRING) as " + column;
+
+                     if(column == null) {
+                        column = query.getSelection().getColumn(0);
+                        oldSelect = column;
+                        newSelect = "CAST("+ column + " as STRING)";
+                     }
 
                      if(origSQL.contains(oldSelect)) {
                         origSQL = origSQL.replace(oldSelect, newSelect);
@@ -1517,7 +1525,9 @@ public class JDBCHandler extends XHandler {
       // [schema]
       // procedure name
 
-      synchronized(metaLock) {
+      metaLock.lock();
+
+      try {
          Connection conn = null;
 
          String additional = null;
@@ -1621,16 +1631,18 @@ public class JDBCHandler extends XHandler {
             Tool.closeQuietly(conn);
          }
       }
+      finally {
+         metaLock.unlock();
+      }
    }
 
    /**
     * Release the get meta lock
-    *
-    * @param timeout wait timeout
-    * @throws InterruptedException
     */
-   public void waitMetaLock(int timeout) throws InterruptedException {
-      metaLock.wait(timeout);
+   public void waitMetaLock() {
+      if(metaLock.isHeldByCurrentThread()) {
+         metaLock.unlock();
+      }
    }
 
    public XNode getRootMetaData(JDBCDataSource dataSource, String queryType) throws Exception {
@@ -1810,7 +1822,7 @@ public class JDBCHandler extends XHandler {
             }
          }
 
-         if((mysql5 || sqlServer) && cnt > 1) {
+         if((mysql5 || sqlServer || clickHouse) && cnt > 1) {
             if(db == null) {
                defaultCatalog = meta.getConnection().getCatalog();
             }
@@ -2176,6 +2188,15 @@ public class JDBCHandler extends XHandler {
                            }
                         }
                      }
+                     else if(xds.getURL().startsWith("jdbc:databricks:")) {
+                        String catalogName =
+                           results.getMetaData().getColumnCount() < 2 ?
+                              null : results.getString(2);
+
+                        if(!"workspace".equals(catalogName)) {
+                           continue;
+                        }
+                     }
 
                      parent.addChild(node, true, false);
                   }
@@ -2258,6 +2279,11 @@ public class JDBCHandler extends XHandler {
       }
       else if(xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
          catalogName = xds.getDefaultDatabase();
+
+         if(catalogName == null) {
+            catalogName = getClickHouseDefaultCatalog(meta);
+         }
+
          escapedCatalogName = escapeSchemaName(catalogName);
       }
 
@@ -3003,6 +3029,7 @@ public class JDBCHandler extends XHandler {
       String user = getUser(meta, mtype);
 
       boolean mysql5 = isMySQL5(meta);
+      boolean clickhouse = xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE;
 
       if(mysql5 && cat == null) {
          cat = user;
@@ -3054,7 +3081,7 @@ public class JDBCHandler extends XHandler {
          root.setAttribute("catalogSep", mtype.getAttribute("catalogSep"));
          root.setAttribute("schema", user);
 
-         if(xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE) {
+         if(clickhouse) {
             root.setAttribute("supportCatalog", "" + catalog);
          }
 
@@ -3132,7 +3159,9 @@ public class JDBCHandler extends XHandler {
                   node.setAttribute("ForeignKey", foreignKeys);
                }
 
-               if(resultParam.getChildIndex(node) < 0) {
+               if(resultParam.getChildIndex(node) < 0 &&
+                  (!clickhouse || resultParam.getChild(col) == null))
+               {
                   resultParam.addChild(node);
                }
             }
@@ -3555,7 +3584,9 @@ public class JDBCHandler extends XHandler {
    }
 
    public void resetConnection() {
-      synchronized(metaLock) {
+      metaLock.lock();
+
+      try {
          try {
             reset();
             xds = null;
@@ -3563,6 +3594,9 @@ public class JDBCHandler extends XHandler {
          catch(Exception ex) {
             LOG.error("Failed to reset JDBC handler on data source change", ex);
          }
+      }
+      finally {
+         metaLock.unlock();
       }
    }
 
@@ -3588,6 +3622,28 @@ public class JDBCHandler extends XHandler {
     */
    public JDBCDataSource getDataSource() {
       return xds;
+   }
+
+   public static String getClickHouseDefaultCatalog(DatabaseMetaData meta) throws Exception {
+      List<String> catalogs = new ArrayList<>();
+
+      try(ResultSet rs = meta.getCatalogs()) {
+         while(rs.next()) {
+            catalogs.add(rs.getString("TABLE_CAT"));
+         }
+      }
+
+      if(catalogs.contains("default")) {
+         return "default";
+      }
+
+      for(String catalog : catalogs) {
+         if(!"INFORMATION_SCHEMA".equalsIgnoreCase(catalog) && !"SYSTEM".equalsIgnoreCase(catalog)) {
+            return catalog;
+         }
+      }
+
+      return catalogs.isEmpty() ? null : catalogs.get(0);
    }
 
    /**
@@ -3807,7 +3863,7 @@ public class JDBCHandler extends XHandler {
 
    private JDBCDataSource xds = null;
    private SQLTypes sqlTypes = null;
-   private Object metaLock = new Object();
+   private final ReentrantLock metaLock = new ReentrantLock();
    private transient boolean login = false; // require login
    private transient boolean schema = false;
    private transient boolean catalog = false;

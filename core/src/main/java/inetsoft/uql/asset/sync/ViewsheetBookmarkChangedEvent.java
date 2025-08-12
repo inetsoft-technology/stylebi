@@ -17,15 +17,16 @@
  */
 package inetsoft.uql.asset.sync;
 
-import at.favre.lib.bytes.BytesValidator;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetChangedEvent;
 import inetsoft.uql.asset.AssetEntry;
 
 public class ViewsheetBookmarkChangedEvent extends AssetChangedEvent {
    public ViewsheetBookmarkChangedEvent(AssetEntry viewsheetEntry) {
       super(viewsheetEntry);
+      this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
    }
 
    public ViewsheetBookmarkChangedEvent(RuntimeViewsheet rvs, boolean deleted, String bookmark) {
@@ -34,10 +35,12 @@ public class ViewsheetBookmarkChangedEvent extends AssetChangedEvent {
       rvsID = rvs.getID();
       this.deleted = deleted;
       this.bookmark = bookmark;
+      this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
    }
 
    public ViewsheetBookmarkChangedEvent(RuntimeViewsheet rvs, String oname, String nname,
-                                        IdentityID owner) {
+                                        IdentityID owner)
+   {
       super(rvs.getEntry());
 
       rvsID = rvs.getID();
@@ -45,10 +48,15 @@ public class ViewsheetBookmarkChangedEvent extends AssetChangedEvent {
       this.oldBookmark = oname;
       this.bookmark = nname;
       this.owner = owner;
+      this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
    }
 
    public String getID() {
       return rvsID;
+   }
+
+   public String getOrgID() {
+      return orgID;
    }
 
    public String getBookmark() {
@@ -68,6 +76,7 @@ public class ViewsheetBookmarkChangedEvent extends AssetChangedEvent {
    }
 
    public String rvsID;
+   public String orgID;
    public boolean deleted = false;
    public String bookmark = "";
    public String oldBookmark = null;

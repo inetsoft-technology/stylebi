@@ -20,6 +20,7 @@ package inetsoft.web.portal.controller;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -40,6 +41,7 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -137,10 +139,28 @@ public class RepositoryTreeChangeController {
          !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()))
       {
          for(Principal principal : subscriptions.values()) {
-            messagingTemplate
-               .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
+            if(Objects.equals(getOrgId(event), OrganizationManager.getInstance().getCurrentOrgID(principal))) {
+               messagingTemplate
+                  .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");
+            }
          }
       }
+   }
+
+   private String getOrgId(PropertyChangeEvent event) {
+      if(event instanceof inetsoft.report.PropertyChangeEvent e) {
+         return e.getOrgID();
+      }
+
+      return null;
+   }
+
+   private String getOrgId(AssetChangeEvent event) {
+      if(event.getAssetEntry() != null) {
+         return event.getAssetEntry().getOrgID();
+      }
+
+      return null;
    }
 
    private static final String COMMANDS_TOPIC = "/repository-changed";
@@ -173,7 +193,8 @@ public class RepositoryTreeChangeController {
       @Override
       public void propertyChange(PropertyChangeEvent event) {
          if(!RepletRegistry.EDIT_CYCLE_EVENT.equals(event.getPropertyName()) &&
-            !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()))
+            !RepletRegistry.CHANGE_EVENT.equals(event.getPropertyName()) &&
+            Objects.equals(getOrgId(event), OrganizationManager.getInstance().getCurrentOrgID(principal)))
          {
             messagingTemplate
                .convertAndSendToUser(SUtil.getUserDestination(principal), COMMANDS_TOPIC, "");

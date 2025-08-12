@@ -26,6 +26,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.RMICallThread;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.*;
 import inetsoft.util.health.HealthService;
@@ -46,6 +47,7 @@ import java.lang.management.RuntimeMXBean;
 import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -116,19 +118,32 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
     */
    @Override
    public void runNow(String taskName) throws RemoteException {
-      String taskNameForLog = SUtil.getTaskNameForLogging(taskName);
+      runNow(taskName, null);
+   }
+
+   @Override
+   public void runNow(String task, IdentityID triggerUser) throws RemoteException {
+      String taskNameForLog = SUtil.getTaskNameForLogging(task);
       MDC.put("SCHEDULE_TASK", taskNameForLog);
       LOG.debug(
          "Received start task [" + taskNameForLog + "] request on " +
-         Tool.getRmiIP() + " with config directory " +
-         ConfigurationContext.getContext().getHome());
+            Tool.getRmiIP() + " with config directory " +
+            ConfigurationContext.getContext().getHome());
       MDC.remove("SCHEDULE_TASK");
+      Principal oldContextPrincipal = ThreadContext.getContextPrincipal();
 
       try {
-         Scheduler.getScheduler().runTask(taskName);
+         if(triggerUser != null) {
+            ThreadContext.setContextPrincipal(SUtil.getPrincipal(triggerUser, Tool.getIP(), false));
+         }
+
+         Scheduler.getScheduler().runTask(task);
       }
       catch(Exception exc) {
-         throw new RemoteException("Unable to startup task " + taskName, exc);
+         throw new RemoteException("Unable to startup task " + task, exc);
+      }
+      finally {
+         ThreadContext.setContextPrincipal(oldContextPrincipal);
       }
    }
 

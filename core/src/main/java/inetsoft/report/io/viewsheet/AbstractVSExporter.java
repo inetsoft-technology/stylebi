@@ -2367,7 +2367,7 @@ public abstract class AbstractVSExporter implements VSExporter {
             hrow = vsinfo != null ? Math.max(1, vsinfo.getRuntimeColHeaders().length) : 0;
          }
 
-         int tableLineCount = getExpandTableLineCount(table, obj, titleRow, hrow, match);;
+         int tableLineCount = table.getRowCount() - hrow;
          rowCount = Math.min(tableLineCount, getMaxRow(ypos));
       }
 
@@ -2375,6 +2375,11 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       for(int i = 0; i < rowCount; i++) {
          double rowHeight = info.getRowHeight(i);
+
+         if(Double.isNaN(rowHeight) && table instanceof VSTableLens) {
+            rowHeight = getCellHeight(i, (VSTableLens) table);
+         }
+
          expandedHeight += Double.isNaN(rowHeight) ? AssetUtil.defh : rowHeight;
       }
 
@@ -2384,6 +2389,17 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       return expandedHeight;
+   }
+
+   private int getCellHeight(int r, VSTableLens lens) {
+      // get cell height from table lens.
+      if(lens == null || lens.getRowHeights() == null || r >= lens.getRowHeights().length) {
+         return lens != null ? (int) lens.getRowHeightWithPadding(AssetUtil.defh, r) :
+            AssetUtil.defh;
+      }
+
+      int h = lens.getWrappedHeight(r, true);
+      return (int) lens.getRowHeightWithPadding(Double.isNaN(h) ? AssetUtil.defh : h, r);
    }
 
    private int getTotalHeight(TableDataVSAssemblyInfo info, XTable table) {

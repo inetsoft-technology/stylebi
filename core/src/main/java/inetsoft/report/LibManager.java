@@ -17,9 +17,11 @@
  */
 package inetsoft.report;
 
+import inetsoft.report.ActionEvent;
 import inetsoft.report.lib.ScriptEntry;
 import inetsoft.report.lib.logical.*;
 import inetsoft.report.lib.physical.*;
+import inetsoft.report.PropertyChangeEvent;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
@@ -29,9 +31,7 @@ import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.util.*;

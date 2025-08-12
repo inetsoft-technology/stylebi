@@ -29,8 +29,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.web.binding.drm.AggregateRefModel;
-import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.drm.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -219,7 +218,9 @@ public class VSFormulaService {
                   String attr = nagg.getRef().getAttribute();
 
                   for(int j = 0; j < columns.size(); j++) {
-                     if(Tool.equals(attr, columns.get(j).getAttribute())) {
+                     if(!(columns.get(j) instanceof CalculateRefModel) &&
+                        Tool.equals(attr, columns.get(j).getAttribute()))
+                     {
                         nagg.setRef(columns.get(j));
                         break;
                      }

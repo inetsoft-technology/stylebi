@@ -24,8 +24,6 @@ export interface ScheduleConfigurationModel {
    rmiPort: number;
    classpath: string;
    pathSeparator: string;
-   autoStart: boolean;
-   autoStop: boolean;
    notificationEmail: boolean;
    saveToDisk: boolean;
    emailDelivery: boolean;

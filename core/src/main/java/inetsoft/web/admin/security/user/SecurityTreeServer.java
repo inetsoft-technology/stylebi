@@ -21,10 +21,10 @@ package inetsoft.web.admin.security.user;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XUtil;
-import inetsoft.util.Catalog;
-import inetsoft.util.InvalidOrgException;
+import inetsoft.util.*;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.admin.server.LicenseInfo;
 import inetsoft.web.admin.server.ServerService;
@@ -61,59 +61,75 @@ public class SecurityTreeServer {
                                                 boolean hideOrgAdminRole, boolean isTimeRange)
    {
       boolean isMultiTenant = SUtil.isMultiTenant();
-
       securityProvider = securityEngine.getSecurityProvider();
-
       final AuthenticationProvider provider = providerName == null ?
          securityProvider.getAuthenticationProvider() :
          authenticationProviderService.getProviderByName(providerName);
       boolean editable = providerName == null || provider instanceof EditableAuthenticationProvider;
 
-      if(providerChanged) {
-         Comparator<String> comp = XUtil.getOrganizationComparator();
-         List<String> orgIDs = Arrays.stream(provider.getOrganizationIDs())
-            .filter(o -> securityProvider.checkPermission(
-               principal, ResourceType.SECURITY_ORGANIZATION, o, ResourceAction.ADMIN))
-            .sorted(comp)
-            .collect(Collectors.toList());
-         String currOrgId = orgIDs.size() > 0 ? orgIDs.get(0) :
-            Organization.getDefaultOrganizationID();
-         ((XPrincipal) principal).setProperty("curr_org_id", currOrgId);
-         ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
+      try {
+         if(providerChanged) {
+            Comparator<String> comp = XUtil.getOrganizationComparator();
+            List<String> orgIDs = Arrays.stream(provider.getOrganizationIDs())
+               .filter(o -> securityProvider.checkPermission(
+                  principal, ResourceType.SECURITY_ORGANIZATION, o, ResourceAction.ADMIN))
+               .sorted(comp)
+               .collect(Collectors.toList());
+            String currOrgId = orgIDs.size() > 0 ? orgIDs.get(0) :
+               Organization.getDefaultOrganizationID();
+            ((XPrincipal) principal).setProperty("curr_org_id", currOrgId);
+            ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
+         }
+
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         String currOrgID = isTimeRange ? identityID.getOrgID() :
+            OrganizationManager.getInstance().getCurrentOrgID(principal);
+         currOrgID = currOrgID == null ? Organization.getDefaultOrganizationID() : currOrgID;
+         String[] orgIds = provider.getOrganizationIDs();
+
+         if(isMultiTenant && orgIds.length == 0) {
+            throw new MessageException(Catalog.getCatalog().getString("em.security.provider.db.noOrg"));
+         }
+
+         if(orgIds.length != 0 && !Arrays.stream(orgIds).toList().contains(currOrgID)) {
+            throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
+         }
+
+         String currOrgName = orgIds.length > 0 ? provider.getOrgNameFromID(currOrgID) : Organization.getDefaultOrganizationName();
+         boolean isEnterprise = LicenseManager.getInstance().isEnterprise();
+         isMultiTenant = isEnterprise && isMultiTenant;
+
+         if(!isMultiTenant) {
+            return SecurityTreeRootModel.builder()
+               .users(userTreeService.getUserRoot(provider, principal, isMultiTenant, currOrgID, currOrgName))
+               .groups(userTreeService.getGroupRoot(provider, principal, isMultiTenant, currOrgID))
+               .roles(userTreeService.getRoleTree(provider, principal, isMultiTenant, currOrgID))
+               .editable(editable)
+               .isMultiTenant(isMultiTenant)
+               .namedUsers(namedUsers)
+               .build();
+         }
+         else {
+            return SecurityTreeRootModel.builder()
+               .roles(userTreeService.getRoleTree(provider, principal, isMultiTenant, currOrgID))
+               .organizations(userTreeService.createOrgSecurityTreeNode(new IdentityID(currOrgName, currOrgID), currOrgName, provider, principal, false, isPermissions, hideOrgAdminRole))
+               .editable(editable)
+               .isMultiTenant(isMultiTenant)
+               .namedUsers(namedUsers)
+               .build();
+         }
       }
+      catch(Exception ex) {
+         if(provider instanceof DatabaseAuthenticationProvider dbProvider) {
+            try {
+               dbProvider.testConnection();
+            }
+            catch(Exception ex0) {
+               throw new MessageException(Catalog.getCatalog().getString("em.security.provider.db.failedConnected"));
+            }
+         }
 
-      IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
-      String currOrgID = isTimeRange ? identityID.getOrgID() :
-         OrganizationManager.getInstance().getCurrentOrgID(principal);
-      currOrgID = currOrgID == null ? Organization.getDefaultOrganizationID() : currOrgID;
-      String[] orgIds = provider.getOrganizationIDs();
-
-      if(orgIds.length != 0 && !Arrays.stream(orgIds).toList().contains(currOrgID)) {
-         throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
-      }
-
-      String currOrgName = provider.getOrgNameFromID(currOrgID);
-      boolean isEnterprise = LicenseManager.getInstance().isEnterprise();
-      isMultiTenant = isEnterprise && isMultiTenant;
-
-      if(!isMultiTenant) {
-         return SecurityTreeRootModel.builder()
-            .users(userTreeService.getUserRoot(provider, principal, isMultiTenant, currOrgID, currOrgName))
-            .groups(userTreeService.getGroupRoot(provider, principal, isMultiTenant, currOrgID))
-            .roles(userTreeService.getRoleTree(provider, principal, isMultiTenant, currOrgID))
-            .editable(editable)
-            .isMultiTenant(isMultiTenant)
-            .namedUsers(namedUsers)
-            .build();
-      }
-      else {
-         return SecurityTreeRootModel.builder()
-            .roles(userTreeService.getRoleTree(provider, principal, isMultiTenant, currOrgID))
-            .organizations(userTreeService.createOrgSecurityTreeNode(new IdentityID(currOrgName, currOrgID), currOrgName, provider, principal, false, isPermissions, hideOrgAdminRole))
-            .editable(editable)
-            .isMultiTenant(isMultiTenant)
-            .namedUsers(namedUsers)
-            .build();
+         throw ex;
       }
    }
 

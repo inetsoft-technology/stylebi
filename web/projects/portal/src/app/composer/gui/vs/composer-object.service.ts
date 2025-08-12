@@ -671,7 +671,7 @@ export class ComposerObjectService {
 
    checkTableTransferDataType(viewsheetService: ViewsheetClientService, tableData: TableTransfer) {
       return this.modelService.sendModel<any>("../api/composer/viewsheet/objects/getTableTransferDataType/" +
-         encodeURIComponent(viewsheetService.runtimeId), tableData);
+         Tool.encodeURIComponentExceptSlash(viewsheetService.runtimeId), tableData);
    }
 
    applyChangeBinding(viewsheetService: ViewsheetClientService, objectName: string,

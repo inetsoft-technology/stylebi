@@ -30,6 +30,8 @@ import java.io.PrintWriter;
 import java.time.Instant;
 import java.util.*;
 
+import static inetsoft.util.AbstractPasswordEncryption.MASTER_PREFIX;
+
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
@@ -223,7 +225,17 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
       clientId = Tool.getChildValueByTagName(element, "client-id");
       tenantId = Tool.getChildValueByTagName(element, "tenant-id");
       accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(element, "access-token"));
-      refreshToken = Tool.decryptPassword(Tool.getChildValueByTagName(element, "refresh-token"));
+
+      refreshToken = Tool.getChildValueByTagName(element, "refresh-token");
+
+      if(refreshToken != null) {
+         refreshToken = Tool.decryptPassword(refreshToken, true);
+
+         if(refreshToken.startsWith(MASTER_PREFIX)) {
+            LOG.warn("Password decryption failed to decrypt refreshToken for data source: {}, Master Key has likely been changed", getFullName());
+         }
+      }
+
       String expires = Tool.getChildValueByTagName(element, "tokenExpiration");
 
       if(expires != null) {

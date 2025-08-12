@@ -161,6 +161,7 @@ public class ScheduleManagerTest {
       ScheduleExt mockScheduleExt = mock(ScheduleExt.class);
       when(mockScheduleExt.containsTask("tuser0~;~host-org:tk1", "host-org")).thenReturn(true);
       when(mockScheduleExt.getTasks()).thenReturn(List.of(tk1));
+      when(mockScheduleExt.getTasks("host-org")).thenReturn(List.of(tk1));
       when(mockScheduleExt.isEnable("tuser0~;~host-org:tk1", "host-org")).thenReturn(false);
       when(mockScheduleExt.deleteTask("tuser0~;~host-org:tk1")).thenReturn(true);
 

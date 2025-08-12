@@ -24,4 +24,5 @@ export interface UsersModel {
    groups: IdentityId[];
    emailUsers: IdentityId[];
    emailGroups: IdentityId[];
+   ssoEnable: boolean;
 }

@@ -47,6 +47,8 @@ import java.sql.Statement;
 import java.util.List;
 import java.util.*;
 import java.util.function.BiFunction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -489,6 +491,7 @@ public class JDBCUtil {
          newSelect.setDescription(path, select.getDescription(path));
          newSelect.setTable(path, select.getTable(path));
          newSelect.setXMetaInfo(aidx, select.getXMetaInfo(i));
+         newSelect.setExpression(aidx, select.isExpression(i));
       }
 
       sql.setSelection(newSelect);
@@ -1623,6 +1626,32 @@ public class JDBCUtil {
       return new XExpression(value, type);
    }
 
+   public static String quoteMapKeyAccessForParsing(String sqlString) {
+      if(Tool.isEmptyString(sqlString)) {
+         return sqlString;
+      }
+
+      Pattern pattern = Pattern.compile(MAP_KEY_ACCESS_PATTERN);
+      Matcher matcher = pattern.matcher(sqlString);
+
+      if(!matcher.find()) {
+         return sqlString;
+      }
+
+      StringBuilder result = new StringBuilder();
+      matcher.reset();
+
+      while(matcher.find()) {
+         String matchedWhole = matcher.group();
+         matchedWhole = Tool.buildString("\"", matchedWhole, "\"");
+         matcher.appendReplacement(result, Matcher.quoteReplacement(matchedWhole));
+      }
+
+      matcher.appendTail(result);
+
+      return result.toString();
+   }
+
    // table xnode->XTypeNode(columns)
    private static Hashtable<Pair, XTypeNode> tablemeta = new Hashtable<>();
 
@@ -1630,6 +1659,7 @@ public class JDBCUtil {
       {"sum", "count", "avg", "min", "max"};
 
    private static final List<DatabaseType> databaseTypes;
+   private static final String MAP_KEY_ACCESS_PATTERN = "([^\\s\\[\\]]+)\\[\\s*'([^\\s']+)'\\s*\\]";
 
    static {
       databaseTypes = new ArrayList<>();

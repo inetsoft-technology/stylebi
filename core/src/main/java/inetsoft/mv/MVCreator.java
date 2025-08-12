@@ -34,4 +34,6 @@ public interface MVCreator {
     * @throws Exception if an error prevented the view from being created.
     */
    boolean create() throws Exception;
+
+   void removeMessageListener();
 }

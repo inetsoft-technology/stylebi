@@ -67,7 +67,43 @@ public class DatabricksHelper extends SQLHelper {
             path = path.substring(lastIndex + 1);
          }
       }
+      else if(path.contains("['")) {
+         path = path.replace("['", "[");
+         path = path.replace("']", "]");
+      }
 
       return super.quotePath(path, physical, force, selectClause);
+   }
+
+   /**
+    * Get the order by column of a field.
+    */
+   protected String getOrderByColumn(String field) {
+      JDBCSelection xselect = (JDBCSelection) uniformSql.getSelection();
+      int index = xselect.indexOfColumn(field);
+
+      if(index >= 0) {
+         String alias = xselect.getValidAlias(index, this);
+
+         if(alias != null) {
+            return alias;
+         }
+      }
+
+      return super.getOrderByColumn(field);
+   }
+
+   /**
+    * Check if a word is a keyword.
+    * @param word the specified keyword.
+    * @return <tt>true</tt> is a keyword, <tt>false</tt> otherwise.
+    */
+   @Override
+   public boolean isKeyword(String word) {
+      if(word.equals("default")) {
+         return false;
+      }
+
+      return super.isKeyword(word);
    }
 }

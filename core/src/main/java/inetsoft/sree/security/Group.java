@@ -105,20 +105,22 @@ public class Group extends AbstractIdentity {
     */
    @Override
    public Object clone() {
-      try {
-         IdentityID[] croles = new IdentityID[roles.length];
-         System.arraycopy(roles, 0, croles, 0, roles.length);
+      Group group = (Group) super.clone();
+      group.name = name;
+      group.organizationID = organizationID;
+      group.locale = locale;
 
+      if(roles != null) {
+         group.roles = (IdentityID[]) Tool.clone(roles);
+      }
+
+      if(groups != null) {
          String[] cgroups = new String[groups.length];
          System.arraycopy(groups, 0, cgroups, 0, groups.length);
+         group.groups = cgroups;
+      }
 
-         Group group = new Group(new IdentityID(name, organizationID), locale, cgroups, croles);
-         return group;
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to clone object", ex);
-         return null;
-      }
+      return group;
    }
 
    /**

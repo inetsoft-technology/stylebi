@@ -20,6 +20,7 @@ package inetsoft.web.portal.controller;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -73,8 +74,9 @@ public class SessionErrorController {
       final String errorMsg = String.format("%s %s", error, contactAdmin);
       model.addObject("errorMsg", errorMsg);
       model.addObject("errorTitle", title);
-      model.addObject("customTheme",
-                      !"default".equals(CustomThemesManager.getManager().getSelectedTheme()));
+      boolean isCustomTheme = !Tool.isEmptyString(CustomThemesManager.getManager().getSelectedTheme()) &&
+                              !"default".equals(CustomThemesManager.getManager().getSelectedTheme());
+      model.addObject("customTheme", isCustomTheme);
       return model;
    }
 

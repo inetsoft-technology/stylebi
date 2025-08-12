@@ -31,6 +31,7 @@ import { MatTableModule } from "@angular/material/table";
 import { MatToolbarModule } from "@angular/material/toolbar";
 import { BrowserModule, HammerModule } from "@angular/platform-browser";
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
+import { RouteReuseStrategy } from "@angular/router";
 import { EmClientInterceptor } from "../../../portal/src/app/common/services/emclient-interceptor";
 import { HttpParamsCodecInterceptor } from "../../../portal/src/app/common/services/http-params-codec-interceptor";
 import { RequestedWithInterceptor } from "../../../portal/src/app/common/services/requested-with-interceptor";
@@ -45,6 +46,7 @@ import { AppComponent } from "./app.component";
 import { MessageDialogModule } from "./common/util/message-dialog.module";
 import { ModalHeaderModule } from "./common/util/modal-header/modal-header.module";
 import { CsrfInterceptor } from "./csrf-interceptor";
+import { CustomRouteReuseStrategy } from "./custom-route-reuse-strategy";
 import { InvalidSessionInterceptor } from "./invalid-session-interceptor";
 import { ManageFavoritesComponent } from "./manage-favorites/manage-favorites.component";
 import { NavbarComponent } from "./navbar/navbar.component";
@@ -93,7 +95,8 @@ export const httpInterceptorProviders = [
       SsoHeartbeatService,
       httpInterceptorProviders,
       ScheduleUsersService,
-      ScheduleTaskNamesService
+      ScheduleTaskNamesService,
+      { provide: RouteReuseStrategy, useClass: CustomRouteReuseStrategy }
    ],
    declarations: [
       AppComponent,

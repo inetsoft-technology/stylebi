@@ -1011,6 +1011,41 @@ public final class VSUtil {
 
    /**
     * Get an image from either updated (in viewsheet) or from server.
+    * @param info image vs info.
+    * @param width the width of dynamically generated images.
+    * @param height the height of dynamically generated images.
+    * @param fmt default format settings.
+    */
+   public static Image getVSImage(ImageVSAssemblyInfo info, Viewsheet vs,
+                                  int width, int height,
+                                  VSCompositeFormat fmt, XPortalHelper helper)
+   {
+      String path = info.getImage();
+      boolean svg = path != null && path.endsWith(".svg");
+      int maxWidth = -1;
+      int maxHeight = -1;
+
+      // unscaled svg, only set max width,height
+      if(svg && !info.isScaleImage()) {
+         maxWidth = width;
+         maxHeight = height;
+
+         // account for shadow
+         if(info.isShadow()) {
+            maxWidth -= 6;
+            maxHeight -= 6;
+         }
+
+         width = -1;
+         height = -1;
+      }
+
+      return getVSImage(info.getRawImage(), path, vs, width, height,
+                        maxWidth, maxHeight, fmt, helper);
+   }
+
+   /**
+    * Get an image from either updated (in viewsheet) or from server.
     * @param path image path.
     * @param width the width of dynamically generated images.
     * @param height the height of dynamically generated images.
@@ -1020,7 +1055,22 @@ public final class VSUtil {
                                   int width, int height,
                                   VSCompositeFormat fmt, XPortalHelper helper)
    {
-      String name;
+      return getVSImage(rawImage, path, vs, width, height, -1, -1, fmt, helper);
+   }
+
+   /**
+    * Get an image from either updated (in viewsheet) or from server.
+    * @param path image path.
+    * @param width the width of dynamically generated images.
+    * @param height the height of dynamically generated images.
+    * @param maxWidth the max width of dynamically generated images.
+    * @param maxHeight the max height of dynamically generated images.
+    * @param fmt default format settings.
+    */
+   public static Image getVSImage(Image rawImage, String path, Viewsheet vs,
+                                  int width, int height, int maxWidth, int maxHeight,
+                                  VSCompositeFormat fmt, XPortalHelper helper)
+   {
       Image rimg = rawImage;
 
       if(rawImage != null) {
@@ -1051,7 +1101,8 @@ public final class VSUtil {
                buf = isTIF ? transcodeTiffToJpg(buf) : buf;
                ByteArrayInputStream baos = new ByteArrayInputStream(buf);
                rimg = isSVG ?
-                  SVGSupport.getInstance().getSVGImage(baos, width, height) : ImageIO.read(baos);
+                  SVGSupport.getInstance().getSVGImage(
+                     baos, width, height, maxWidth, maxHeight) : ImageIO.read(baos);
             }
          }
          catch(Exception ex) {
@@ -1074,7 +1125,8 @@ public final class VSUtil {
             try {
                buf = isTIF ? transcodeTiffToJpg(buf) : buf;
                ByteArrayInputStream baos = new ByteArrayInputStream(buf);
-               rimg = isSVG ? SVGSupport.getInstance().getSVGImage(baos) : ImageIO.read(baos);
+               rimg = isSVG ? SVGSupport.getInstance().getSVGImage(
+                  baos, width, height, maxWidth, maxHeight) : ImageIO.read(baos);
             }
             catch(Exception ex) {
                LOG.error("Failed to get uploaded image: " + path, ex);

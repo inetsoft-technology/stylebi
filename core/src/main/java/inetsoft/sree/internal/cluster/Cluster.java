@@ -19,6 +19,7 @@ package inetsoft.sree.internal.cluster;
 
 import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.util.SingletonManager;
+import org.apache.ignite.services.Service;
 
 import javax.cache.Cache;
 import javax.cache.expiry.ExpiryPolicy;
@@ -27,8 +28,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.function.*;
 
 /**
  * Class that provides support for the clustering sub-system.
@@ -327,6 +327,14 @@ public interface Cluster extends AutoCloseable {
 
    void destroySet(String name);
 
+   default <E> Set<E> getReplicatedSet(String name) {
+      return getReplicatedSet(name, false);
+   }
+
+   <E> Set<E> getReplicatedSet(String name, boolean transactional);
+
+   void destroyReplicatedSet(String name);
+
    DistributedLong getLong(String name);
 
    void destroyLong(String name);
@@ -548,6 +556,31 @@ public interface Cluster extends AutoCloseable {
    }
 
    List<String> getClusterAddresses();
+
+   DistributedTransaction startTx();
+
+   /**
+    * Gets a stub for a cluster singleton service. If the service is not deployed, it will be. This
+    * method leaks Ignite implementation details because trying to wrap it would require too many
+    * levels of reflection and implementation would be a burden.
+    *
+    * @param serviceName the name of the service.
+    * @param type        the class of the service implementation.
+    * @param init        a supplier that creates a new instance of the service if it needs to be
+    *                    deployed.
+    *
+    * @return the service stub.
+    *
+    * @param <T> the type of the service implementation.
+    */
+   <T extends Service> T getSingletonService(String serviceName, Class<T> type, Supplier<T> init);
+
+   /**
+    * Undeploys a cluster singleton service.
+    *
+    * @param serviceName the name of the service.
+    */
+   void undeploySingletonService(String serviceName);
 
    final class Reference extends SingletonManager.Reference<Cluster> {
       @Override

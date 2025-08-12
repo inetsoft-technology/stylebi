@@ -30,7 +30,6 @@ import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -71,12 +70,6 @@ public class DataTreeChangeController {
    }
 
    @EventListener
-   public void onSessionUnsubscribe(SessionUnsubscribeEvent event) {
-      StompHeaderAccessor stompHeaders = StompHeaderAccessor.wrap(event.getMessage());
-      subscriptions.remove(stompHeaders.getSessionId());
-   }
-
-   @EventListener
    public void onSessionDisconnect(SessionDisconnectEvent event) {
       subscriptions.remove(event.getSessionId());
    }
@@ -92,7 +85,8 @@ public class DataTreeChangeController {
    }
 
    private void dataSourceChanged(PropertyChangeEvent event) {
-      sendChangeMessage((String) event.getOldValue());
+      sendChangeMessage(event instanceof inetsoft.report.PropertyChangeEvent e ? e.getOrgID() :
+         (String) event.getOldValue());
    }
 
    private void sendChangeMessage(String orgId) {
@@ -102,7 +96,7 @@ public class DataTreeChangeController {
 
       // Only notify organizations able to view the asset
       for(IdentityID id : subscriptions.values()) {
-         if(orgId == null || orgId.equals(id.getOrgID())) {
+         if(orgId == null || orgId.equalsIgnoreCase(id.getOrgID())) {
             messagingTemplate.convertAndSendToUser(id.getName(), CHANGE_TOPIC, "");
          }
          else if(isDefaultOrg) {

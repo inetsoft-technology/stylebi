@@ -24,6 +24,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.*;
 import inetsoft.util.cachefs.BinaryTransfer;
+import inetsoft.web.WebUtils;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.factory.RemainingPath;
@@ -103,52 +104,61 @@ public class ExportController {
                                HttpServletResponse response, HttpServletRequest request, Principal principal)
       throws Exception
    {
-      path = Tool.byteDecode(path);
-      int format = formatParam.orElse(FileFormatInfo.EXPORT_TYPE_PDF);
-      String type = outtypeParam.orElse(null);
-      boolean exportAllTabbedTables = exportAllTabbedTablesParam.orElse(false);
-      boolean expandSelections = expandSelectionsParam.orElse(false);
-      boolean current = currentParam.orElse(true);
-      boolean previewPrintLayout = previewPrintLayoutParam.orElse(false);
-      boolean print = printParam.orElse(false);
-      String bookmarkString = bookmarksParam.orElse("");
-      String[] bookmarks = bookmarkString.length() > 0 ?
-         bookmarkString.split(",") : new String[0];
-      boolean onlyDataComponents = onlyDataComponentsParam.orElse(false);
-      CSVConfig csvConfig = new CSVConfig();
+      try {
+         path = Tool.byteDecode(path);
+         int format = formatParam.orElse(FileFormatInfo.EXPORT_TYPE_PDF);
+         String type = outtypeParam.orElse(null);
+         boolean exportAllTabbedTables = exportAllTabbedTablesParam.orElse(false);
+         boolean expandSelections = expandSelectionsParam.orElse(false);
+         boolean current = currentParam.orElse(true);
+         boolean previewPrintLayout = previewPrintLayoutParam.orElse(false);
+         boolean print = printParam.orElse(false);
+         String bookmarkString = bookmarksParam.orElse("");
+         String[] bookmarks = bookmarkString.length() > 0 ?
+            bookmarkString.split(",") : new String[0];
+         boolean onlyDataComponents = onlyDataComponentsParam.orElse(false);
+         CSVConfig csvConfig = new CSVConfig();
 
-      //expand by default when exporting directly for pdf if match
-      boolean match = matchParam.orElse(!"pdf".equalsIgnoreCase(type));
+         //expand by default when exporting directly for pdf if match
+         boolean match = matchParam.orElse(!"pdf".equalsIgnoreCase(type));
 
-      // always expand tables when export to csv.
-      if(format == FileFormatInfo.EXPORT_TYPE_CSV) {
-         match = false;
+         // always expand tables when export to csv.
+         if(format == FileFormatInfo.EXPORT_TYPE_CSV) {
+            match = false;
+         }
+
+         if(delimiterParam.isPresent()) {
+            csvConfig.setDelimiter(delimiterParam.get());
+         }
+
+         if(quoteParam.isPresent()) {
+            csvConfig.setQuote(quoteParam.get());
+         }
+
+         if(keepHeaderParam.isPresent()) {
+            csvConfig.setKeepHeader(keepHeaderParam.get());
+         }
+
+         if(tabDelimitedParam.isPresent()) {
+            csvConfig.setTabDelimited(tabDelimitedParam.get());
+         }
+
+         String tablesString = tablesParam.orElse("");
+         String[] tables = tablesString.length() > 0 ? tablesString.split(",") : new String[0];
+         csvConfig.setExportAssemblies(Arrays.asList(tables));
+
+
+         exportViewsheet0(path, match, format, type, request.getParameterMap(), request.getSession().getId(),
+                          request.getHeader("user-agent"), previewPrintLayout, expandSelections, current,
+                          print, bookmarks, onlyDataComponents, exportAllTabbedTables, csvConfig, response, principal);
       }
+      catch(Exception e) {
+         if(request.getHeader("referer") != null) {
+            throw e;
+         }
 
-      if(delimiterParam.isPresent()) {
-         csvConfig.setDelimiter(delimiterParam.get());
+         WebUtils.redirectToErrorPage(response, request, e.getMessage());
       }
-
-      if(quoteParam.isPresent()) {
-         csvConfig.setQuote(quoteParam.get());
-      }
-
-      if(keepHeaderParam.isPresent()) {
-         csvConfig.setKeepHeader(keepHeaderParam.get());
-      }
-
-      if(tabDelimitedParam.isPresent()) {
-         csvConfig.setTabDelimited(tabDelimitedParam.get());
-      }
-
-      String tablesString = tablesParam.orElse("");
-      String[] tables = tablesString.length() > 0 ? tablesString.split(",") : new String[0];
-      csvConfig.setExportAssemblies(Arrays.asList(tables));
-
-
-      exportViewsheet0(path, match, format, type, request.getParameterMap(), request.getSession().getId(),
-                       request.getHeader("user-agent"), previewPrintLayout, expandSelections, current,
-                       print, bookmarks, onlyDataComponents, exportAllTabbedTables, csvConfig, response, principal);
    }
 
    private void exportViewsheet0(String path, boolean match, int format, String type,

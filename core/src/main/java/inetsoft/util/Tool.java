@@ -29,17 +29,21 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.XDataSource;
-import inetsoft.uql.asset.DateRangeRef;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssemblyInfo;
-import inetsoft.uql.jdbc.JDBCDataSource;
+import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.viewsheet.BindableVSAssembly;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.affinity.AffinitySupport;
-import inetsoft.util.config.*;
-import inetsoft.util.credential.*;
+import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.config.SecretsType;
+import inetsoft.util.credential.CloudCredential;
+import inetsoft.util.credential.Credential;
 import inetsoft.util.css.*;
 import inetsoft.util.encrypt.HcpVaultSecretsPasswordEncryption;
 import inetsoft.util.swap.XSwapUtil;
@@ -74,8 +78,8 @@ import java.nio.file.*;
 import java.security.*;
 import java.sql.Timestamp;
 import java.text.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -396,8 +400,21 @@ public final class Tool extends CoreTool {
     * @param delim the delimiter to be used in splitting the string.
     * @param escape the escape character.
     */
-   public static String[] splitWithQuote(String str, String delim,
-                                         char escape) {
+   public static String[] splitWithQuote(String str, String delim, char escape) {
+
+      String[] strs = splitWithDelim(str, delim, escape);;
+
+      // strip quotes
+      for(int i = 0; i < strs.length; i++) {
+         if(strs[i].startsWith("\"") && strs[i].endsWith("\"")) {
+            strs[i] = strs[i].substring(1, strs[i].length() - 1);
+         }
+      }
+
+      return strs;
+   }
+
+   public static String[] splitWithDelim(String str, String delim, char escape) {
       if(str == null || str.length() == 0) {
          return new String[] {};
       }
@@ -414,13 +431,6 @@ public final class Tool extends CoreTool {
 
       String[] strs = new String[v.size()];
       v.copyInto(strs);
-
-      // strip quotes
-      for(int i = 0; i < strs.length; i++) {
-         if(strs[i].startsWith("\"") && strs[i].endsWith("\"")) {
-            strs[i] = strs[i].substring(1, strs[i].length() - 1);
-         }
-      }
 
       return strs;
    }
@@ -2873,6 +2883,17 @@ public final class Tool extends CoreTool {
       return dateFmt;
    }
 
+   public static SimpleDateFormat getTimestampWithMillisFormat() {
+      SimpleDateFormat dateFmt = dateFmts.get(DATETIME_WITH_MILLIS_FORMAT_KEY);
+
+      if(dateFmt == null) {
+         dateFmt = Tool.createDateFormat(DATETIME_WITH_MILLIS_PATTERN);
+         dateFmts.put(DATETIME_WITH_MILLIS_FORMAT_KEY, dateFmt);
+      }
+
+      return dateFmt;
+   }
+
    public static String getDateFormatPattern() {
       String dateFormat = SreeEnv.getProperty("format.date.time");
 
@@ -4928,6 +4949,9 @@ public final class Tool extends CoreTool {
       else if(number instanceof Double) {
          return BigDecimal.valueOf(((Number) number).doubleValue());
       }
+      else if(number instanceof Number) {
+         return new BigDecimal(number.toString());
+      }
       else {
          throw new IllegalArgumentException("Unsupported number type: " + number.getClass().getName());
       }
@@ -5165,7 +5189,7 @@ public final class Tool extends CoreTool {
    public static final String DATE_PARAMETER_PREFIX = "^DATE^";
    public static final String TIME_PARAMETER_PREFIX = "^TIME^";
    public static final String TIMESTAMP_PARAMETER_PREFIX = "^TIMESTAMP^";
-
+   public static final String DATETIME_WITH_MILLIS_FORMAT_KEY = "TIMESTAMP:WITHMILLIS";
    private static final Map<String,SimpleDateFormat> dateFmts = new ConcurrentHashMap<>();
    private static SreeEnv.Value firstDayProperty = new SreeEnv.Value("week.start", 30000);
 

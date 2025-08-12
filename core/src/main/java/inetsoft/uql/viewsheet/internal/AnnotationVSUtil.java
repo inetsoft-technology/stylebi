@@ -544,20 +544,15 @@ public final class AnnotationVSUtil {
       }
 
       int hrcnt = lens.getHeaderRowCount();
+      String[] headers = getHeaderArray(lens, hrcnt, row, col);
       int idx = 1;
 
       for(int i = col - 1; i >= 0; i--) {
          boolean check = false;
+         String[] temps = getHeaderArray(lens, hrcnt, row, i);
 
-         for(int r = 0; r < hrcnt; r++) {
-            if(Tool.equals(Tool.toString(lens.getObject(r, col)),
-               Tool.toString(lens.getObject(r, i))))
-            {
-               check = true;
-            }
-            else {
-               check = false;
-            }
+         if(Tool.equals(temps, headers)) {
+            check = true;
          }
 
          if(check) {
@@ -571,6 +566,16 @@ public final class AnnotationVSUtil {
       return 1;
    }
 
+   private static String[] getHeaderArray(TableLens lens, int hrcnt, int row, int col) {
+      int rowHeaderCount = Math.min(hrcnt, row >= hrcnt ? row : row + 1);
+      String[] temps = new String[rowHeaderCount];
+
+      for(int j = 0; j < rowHeaderCount; j++) {
+         temps[j] = Tool.toString(lens.getObject(j, col));
+      }
+
+      return temps;
+   }
    /**
     * Get runtime row and col index by the annotation values.
     */
@@ -1219,7 +1224,7 @@ public final class AnnotationVSUtil {
             if(isMap && regions != null && regions.length > 0 &&
                regions[0] instanceof PolygonRegion) {
                PolygonRegion pregion = getMaxRegion(regions);
-               Shape shape = pregion.createShape();
+               Shape shape = pregion.createScaledShape();
 
                if(shape instanceof Polygon) {
                   Point center = getPolygonCenter((Polygon) shape);

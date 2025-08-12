@@ -20,6 +20,9 @@ package inetsoft.sree.security;
 import inetsoft.sree.SreeEnv;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * {@code UserProvider} is an interface for classes that obtain user information from an external
  * source when using SSO. The user provider is configured by setting the
@@ -36,6 +39,15 @@ public interface UserProvider {
     * source.
     */
    User getUser(IdentityID userID);
+
+   /**
+    * Gets a list of all users.
+    *
+    * @return a list of all users or an empty list if no users are available.
+    */
+   default List<IdentityID> getUsers() {
+      return Collections.emptyList();
+   }
 
    /**
     * Performs any additional configuration of a principal that identifies a remote user.

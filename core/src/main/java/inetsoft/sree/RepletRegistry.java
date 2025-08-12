@@ -17,6 +17,8 @@
  */
 package inetsoft.sree;
 
+import inetsoft.report.internal.Util;
+import inetsoft.report.PropertyChangeEvent;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -29,7 +31,6 @@ import org.xml.sax.helpers.DefaultHandler;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.lang.ref.WeakReference;
@@ -56,19 +57,10 @@ public class RepletRegistry implements Serializable {
     * Add folder event.
     */
    static final String ADD_FOLDER_EVENT = "add_folder";
-
-   /**
-    * Rename replet event.
-    */
-   static final String RENAME_REPLET_EVENT = "rename_replet";
    /**
     * Rename folder event.
     */
    static final String RENAME_FOLDER_EVENT = "rename_folder";
-   /**
-    * Remove replet event.
-    */
-   static final String REMOVE_REPLET_EVENT = "remove_replet";
    /**
     * Remove folder event.
     */
@@ -499,7 +491,7 @@ public class RepletRegistry implements Serializable {
          listeners = new Vector<>(this.listeners);
       }
 
-      PropertyChangeEvent evt = new PropertyChangeEvent(src, name, oval, nval);
+      PropertyChangeEvent evt = new PropertyChangeEvent(Util.getOrgEventSourceID(src, orgID), name, oval, nval);
 
       fireEventToListeners(listeners, evt, name);
 

@@ -17,14 +17,14 @@
  */
 package inetsoft.sree.schedule;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import inetsoft.sree.internal.cluster.ClusterCache;
-import inetsoft.util.*;
+import inetsoft.sree.schedule.quartz.JobCompletionListener;
+import inetsoft.storage.KeyValueStorage;
+import inetsoft.util.SingletonManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
-import java.util.*;
+import java.io.Serial;
+import java.io.Serializable;
 
 /**
  * Class that provides access to persistent schedule task status data.
@@ -32,8 +32,7 @@ import java.util.*;
  */
 public class ScheduleStatusDao implements AutoCloseable {
    public ScheduleStatusDao() {
-      this.cache = new StatusCache();
-      cache.initialize();
+      storage = KeyValueStorage.newInstance("scheduleStatus");
    }
 
    public static ScheduleStatusDao getInstance() {
@@ -42,7 +41,7 @@ public class ScheduleStatusDao implements AutoCloseable {
 
    @Override
    public void close() throws Exception {
-      cache.close();
+      storage.close();
    }
 
    /**
@@ -52,7 +51,7 @@ public class ScheduleStatusDao implements AutoCloseable {
     * @return the last execution status or <tt>null</tt> if none.
     */
    public Status getStatus(String taskName) {
-      return cache.getStatus(taskName);
+      return storage.get(encodeTaskName(taskName));
    }
 
    /**
@@ -83,7 +82,13 @@ public class ScheduleStatusDao implements AutoCloseable {
          newStatus.setLastScheduledStartTime(startTime);
       }
 
-      cache.modify(() -> cache.putStatus(taskName, newStatus));
+      try {
+         storage.put(encodeTaskName(taskName), newStatus).get();
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to put schedule status {} for {}", status, taskName);
+      }
+
       return newStatus;
    }
 
@@ -94,10 +99,23 @@ public class ScheduleStatusDao implements AutoCloseable {
     */
    @SuppressWarnings("WeakerAccess")
    public void clearStatus(String taskName) {
-      cache.modify(() -> cache.removeStatus(taskName));
+      storage.remove(encodeTaskName(taskName));
    }
 
-   private final StatusCache cache;
+   /**
+    * Encodes the task name to avoid conflicts with reserved keywords.
+    */
+   private String encodeTaskName(String taskName) {
+      if(taskName != null && taskName.matches(RESERVED_PATTERN)) {
+         taskName = ENCODE_PREFIX + taskName.substring(2, taskName.length() - 2);
+      }
+
+      return taskName;
+   }
+
+   private static final String ENCODE_PREFIX = "TASK^^";
+   private static final String RESERVED_PATTERN = "^__.*__$";
+   private final KeyValueStorage<Status> storage;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleStatusDao.class);
 
    public static final class Status implements Serializable {
@@ -197,126 +215,7 @@ public class ScheduleStatusDao implements AutoCloseable {
       private long endTime;
       private String error;
       private long scheduledStartTime;
+      @Serial
       private static final long serialVersionUID = 1L;
-   }
-
-   public static final class StatusList {
-      public Map<String, Status> getStatuses() {
-         if(statuses == null) {
-            statuses = new HashMap<>();
-         }
-
-         return statuses;
-      }
-
-      public void setStatuses(Map<String, Status> statuses) {
-         this.statuses = statuses;
-      }
-
-      Map<String, Status> statuses;
-   }
-
-   private static final class StatusCache extends ClusterCache<LoadEvent, LoadData, SaveData> {
-      StatusCache() {
-         super(null, STATUSES);
-      }
-
-      @Override
-      protected Map<String, Map> doLoad(boolean initializing, LoadData loadData) {
-         Map<String, Map> maps = new HashMap<>();
-         Map<String, Status> statuses = new HashMap<>();
-
-         DataSpace dataSpace = DataSpace.getDataSpace();
-
-         if(dataSpace.exists(null, "schedule-status.json")) {
-            ObjectMapper mapper = new ObjectMapper();
-
-            try(InputStream input = dataSpace.getInputStream(null, "schedule-status.json")) {
-               if(input != null) {
-                  StatusList list = mapper.readValue(input, StatusList.class);
-                  statuses.putAll(list.getStatuses());
-               }
-            }
-            catch(IOException e) {
-               LOG.warn("Failed to load schedule status from file", e);
-            }
-         }
-
-         maps.put(STATUSES, statuses);
-         return maps;
-      }
-
-      @Override
-      protected void doSave(SaveData saveData) throws Exception {
-         StatusList list = new StatusList();
-         list.getStatuses().putAll(getStatuses());
-
-         DataSpace dataSpace = DataSpace.getDataSpace();
-         ObjectMapper mapper = new ObjectMapper();
-
-         try {
-            dataSpace.withOutputStream(
-               null, "schedule-status.json", output -> mapper.writeValue(output, list));
-         }
-         catch(IOException e) {
-            throw new Exception(Catalog.getCatalog().getString(
-               "Failed to write schedule status to file"), e);
-         }
-      }
-
-      @Override
-      protected LoadData getLoadData(LoadEvent event) {
-         return new LoadData(System.currentTimeMillis());
-      }
-
-      @Override
-      protected SaveData getSaveData() {
-         return new SaveData(System.currentTimeMillis());
-      }
-
-      Status getStatus(String key) {
-         return getStatuses().get(key);
-      }
-
-      Status putStatus(String key, Status status) {
-         return getStatuses().put(key, status);
-      }
-
-      Status removeStatus(String key) {
-         return getStatuses().remove(key);
-      }
-
-      private Map<String, Status> getStatuses() {
-         return getMap(STATUSES);
-      }
-
-      private static final String STATUSES = "statuses";
-   }
-
-   /*
-   These cache data structures are basically empty, but provide a place to pass data or fire events
-    if the future if needed.
-    */
-
-   public static final class LoadEvent extends EventObject {
-      public LoadEvent(Object source) {
-         super(source);
-      }
-   }
-
-   public static final class LoadData implements Serializable {
-      public LoadData(long timestamp) {
-         this.timestamp = timestamp;
-      }
-
-      final long timestamp;
-   }
-
-   public static final class SaveData implements Serializable {
-      public SaveData(long timestamp) {
-         this.timestamp = timestamp;
-      }
-
-      final long timestamp;
    }
 }

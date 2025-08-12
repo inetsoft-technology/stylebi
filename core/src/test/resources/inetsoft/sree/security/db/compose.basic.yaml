@@ -1,0 +1,11 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: inetsoft
+      POSTGRES_PASSWORD: inetsoft
+      POSTGRES_DB: inetsoft
+    ports:
+      - "5432:5432"
+    volumes:
+      - "./basic.sql:/docker-entrypoint-initdb.d/security.sql:ro"

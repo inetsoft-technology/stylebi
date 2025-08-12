@@ -19,8 +19,7 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.graph.internal.GTool;
 import inetsoft.mv.*;
-import inetsoft.report.MemberObjectTableLens;
-import inetsoft.report.TableLens;
+import inetsoft.report.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.TableFormat;
@@ -1505,6 +1504,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          StringBuilder caption = new StringBuilder();
          Object[] objs = new Object[refs.length];
          MemberObject memberObj = null;
+         Object cellData = null;
 
          for(int idx = 0; idx < refs.length; idx++) {
             int j = Util.findColumn(data, refs[idx], columnIndexMap);
@@ -1522,6 +1522,10 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
             Object obj = data instanceof MemberObjectTableLens ?
                ((MemberObjectTableLens) data).getMemberObject(i, j) :
                data.getObject(i, j);
+
+            if(data instanceof DataTableLens) {
+               cellData = ((DataTableLens) data).getData(i, j);
+            }
 
             if(refs[idx].getRefType() == DataRef.CUBE_MODEL_DIMENSION &&
                refs[idx] instanceof ColumnRef && obj != null)
@@ -1570,7 +1574,9 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          }
 
          if(vstr.toString().equals(mobj) || caption.toString().equals(mobj) ||
-           memberObj != null && memberObj.isIdentity(mobj))
+            cellData != null && cellData.toString().equals(mobj) &&
+            assembly.getTableName() != null && assembly.getTableName().startsWith(Assembly.CUBE_VS) ||
+            memberObj != null && memberObj.isIdentity(mobj))
          {
             pos = counter;
          }

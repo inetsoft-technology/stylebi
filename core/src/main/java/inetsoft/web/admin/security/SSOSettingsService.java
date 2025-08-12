@@ -21,6 +21,7 @@ import com.onelogin.saml2.settings.Saml2Settings;
 import com.onelogin.saml2.settings.SettingsBuilder;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.model.NameLabelTuple;
@@ -185,6 +186,7 @@ public class SSOSettingsService {
 
    public void updateSSOSettings(SSOSettingsModel model) {
       final SSOType ssoType = model.activeFilterType();
+      SSOType activeFilterType = getActiveFilterType();
 
       if(ssoType == SSOType.SAML) {
          final SAMLAttributesModel saml = model.samlAttributesModel();
@@ -254,6 +256,15 @@ public class SSOSettingsService {
 
       try {
          SreeEnv.save();
+
+         if(ssoType != activeFilterType) {
+            try {
+               Cluster.getInstance().sendMessage(new SSOTypeChangedMessage(activeFilterType, ssoType));
+            }
+            catch(Exception ex) {
+               LOG.debug("Failed to send sso type changed message", ex);
+            }
+         }
       }
       catch(IOException e) {
          LOG.error("Failed to save properties", e);

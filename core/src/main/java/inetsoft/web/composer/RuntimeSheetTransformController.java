@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.util.Tool;
@@ -80,12 +81,12 @@ public class RuntimeSheetTransformController implements MessageListener {
          return;
       }
 
-      if(event.getMessage() instanceof ViewsheetBookmarkChangedEvent) {
-         AssetEntry asset = ((ViewsheetBookmarkChangedEvent) event.getMessage()).getAssetEntry();
-         String id = ((ViewsheetBookmarkChangedEvent) event.getMessage()).rvsID;
+      if(event.getMessage() instanceof ViewsheetBookmarkChangedEvent bkChangedEvent) {
+         AssetEntry asset = bkChangedEvent.getAssetEntry();
+         String id = bkChangedEvent.rvsID;
          viewsheetService.updateBookmarks(asset);
 
-         if(((ViewsheetBookmarkChangedEvent) event.getMessage()).deleted) {
+         if(bkChangedEvent.deleted) {
             String bookmark = ((ViewsheetBookmarkChangedEvent) event.getMessage()).bookmark;
             handleMessageForBookmarks(asset, id, bookmark, true);
          }
@@ -112,8 +113,8 @@ public class RuntimeSheetTransformController implements MessageListener {
             handleSheetChangeMessageForWs((AssetEntry) asset, renameEvent.getRenameInfo());
          }
       }
-      else if(event.getMessage() instanceof TransformAssetFinishedEvent) {
-         handleAssetTransformFinished((TransformAssetFinishedEvent) event.getMessage());
+      else if(event.getMessage() instanceof TransformAssetFinishedEvent finishedEvent) {
+         handleAssetTransformFinished(finishedEvent);
       }
    }
 
@@ -135,16 +136,22 @@ public class RuntimeSheetTransformController implements MessageListener {
 
       for(RuntimeSheet rs : sheets) {
          if(Tool.equals(rs.getEntry(), event.getEntry())) {
-            sendTransformFinsihedMessage(rs.getID());
+            sendTransformFinsihedMessage(rs.getID(), event.getOrgID());
          }
       }
    }
 
-   private void sendTransformFinsihedMessage(String id) {
+   private boolean isSameOrgId(String orgId, Principal principal) {
+      return Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal));
+   }
+
+   private void sendTransformFinsihedMessage(String id, String orgId) {
       for(Principal subscription : subscriptions.values()) {
-         messagingTemplate.convertAndSendToUser(
-            SUtil.getUserDestination(subscription), "/transform-finished",
-            new TransformFinishedEventModel(id));
+         if(isSameOrgId(orgId, subscription)) {
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(subscription), "/transform-finished",
+               new TransformFinishedEventModel(id));
+         }
       }
    }
 
@@ -294,6 +301,10 @@ public class RuntimeSheetTransformController implements MessageListener {
    }
 
    private void sendMessage(String id, AssetEntry entry, boolean reload) {
+      if(entry == null) {
+         return;
+      }
+
       RenameEventModel model = RenameEventModel.builder()
          .id(id)
          .reload(reload)
@@ -301,8 +312,10 @@ public class RuntimeSheetTransformController implements MessageListener {
          .build();
 
       for(Principal subscription : subscriptions.values()) {
-         messagingTemplate.convertAndSendToUser(
-            SUtil.getUserDestination(subscription), "/dependency-changed", model);
+         if(isSameOrgId(entry.getOrgID(), subscription)) {
+            messagingTemplate.convertAndSendToUser(
+               SUtil.getUserDestination(subscription), "/dependency-changed", model);
+         }
       }
    }
 

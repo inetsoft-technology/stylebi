@@ -21,6 +21,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.*;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.health.HealthStatus;
@@ -37,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.file.*;
 import java.rmi.RemoteException;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -346,7 +348,8 @@ public class ScheduleClient {
          LOG.debug("Send start task request [" + taskName + "] from " + Tool.getIP() +
             " to " + server + " with config directory " +
             ConfigurationContext.getContext().getHome());
-         getSchedule(server).runNow(task);
+         Principal contextPrincipal = ThreadContext.getContextPrincipal();
+         getSchedule(server).runNow(task, contextPrincipal instanceof XPrincipal xPrincipal ? xPrincipal.getIdentityID() : null);
          result = true;
       }
 

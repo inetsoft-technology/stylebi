@@ -2539,6 +2539,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
    }
 
+   public ImageHashService getImageHashService() {
+      return imageHashService;
+   }
+
    @Override
    RuntimeViewsheetState saveState(ObjectMapper mapper) {
       RuntimeViewsheetState state = new RuntimeViewsheetState();
@@ -2641,6 +2645,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private VSTemporaryInfo temporaryInfo;
    private boolean wizardViewsheet = false;
    private EmbedAssemblyInfo embedAssemblyInfo;
+   private final ImageHashService imageHashService = new ImageHashService();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeViewsheet.class);

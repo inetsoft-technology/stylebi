@@ -26,6 +26,7 @@ import inetsoft.mv.trans.UserInfo;
 import inetsoft.mv.util.MVRule;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
@@ -501,17 +502,22 @@ public final class MVManager implements MessageListener {
 
                pending.put(key, job);
 
-               if(job.create()) {
-                  getOrgLock(orgId).writeLock().lock();
+               try {
+                  if(job.create()) {
+                     getOrgLock(orgId).writeLock().lock();
 
-                  try {
-                     mv.updateLastUpdateTime(); // set update ts
-                     add(mv);
-                     SharedMVUtil.shareCreatedMV(mv);
+                     try {
+                        mv.updateLastUpdateTime(); // set update ts
+                        add(mv);
+                        SharedMVUtil.shareCreatedMV(mv);
+                     }
+                     finally {
+                        getOrgLock(orgId).writeLock().unlock();
+                     }
                   }
-                  finally {
-                     getOrgLock(orgId).writeLock().unlock();
-                  }
+               }
+               finally {
+                  job.removeMessageListener();
                }
             }
          }
@@ -1133,6 +1139,11 @@ public final class MVManager implements MessageListener {
          }
 
          Identity[] users = def.getUsers();
+
+         if(users == null) {
+            continue;
+         }
+
          boolean modified = false;
 
          for(int i = 0; i < users.length; i++) {
@@ -1177,7 +1188,10 @@ public final class MVManager implements MessageListener {
 
          final String newKey = key.substring(0, key.lastIndexOf("_") + 1) + norgId;
          updateMVDef(newMVDef, oorg, norg);
-         OrganizationManager.runInOrgScope(norgId, () -> mvs.put(newKey, newMVDef, norgId));
+
+         if(newMVDef != null) {
+            OrganizationManager.runInOrgScope(norgId, () -> mvs.put(newKey, newMVDef, norgId));
+         }
       }
 
       migrateMVStorage(oorg, norg, copy);
@@ -1228,7 +1242,7 @@ public final class MVManager implements MessageListener {
    }
 
    private void updateMVDef(MVDef mvDef, Organization oorg, Organization norg) {
-      if (mvDef == null) {
+      if(mvDef == null) {
          return;
       }
 
@@ -1377,7 +1391,7 @@ public final class MVManager implements MessageListener {
       try {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
          Cluster.getInstance().sendMessage(
-            new MVChangedMessage(getOrgEventSourceID(src, orgId), name, oval, nval));
+            new MVChangedMessage(Util.getOrgEventSourceID(src, orgId), name, oval, nval));
       }
       catch(Exception e) {
          LOG.warn("Failed to send MV changed message", e);
@@ -1603,30 +1617,6 @@ public final class MVManager implements MessageListener {
       mvs.initLastModified();
    }
 
-   private static String getOrgEventSourceID(String sourceID, String orgID) {
-      return Tool.buildString(orgID, MV_CHANGE_EVENT_ORG_DELIMITER, sourceID);
-   }
-
-   /**
-    * Get the organization ID from the event source ID.
-    *
-    * @param source event source.
-    * @return the organization ID or null if the sourceID is empty or does not contain the delimiter.
-    */
-   public static String getOrgIdFromEventSource(Object source) {
-      if(!(source instanceof String sourceID) || Tool.isEmptyString((String) source)) {
-         return null;
-      }
-
-      int index = sourceID.indexOf(MV_CHANGE_EVENT_ORG_DELIMITER);
-
-      if(index < 0) {
-         return null;
-      }
-
-      return sourceID.substring(0, index);
-   }
-
    /**
     * MVFilter filters one MV.
     */
@@ -1644,6 +1634,11 @@ public final class MVManager implements MessageListener {
       public boolean create() {
          return true;
       }
+
+      @Override
+      public void removeMessageListener() {
+         // no-op
+      }
    };
 
    private ReentrantReadWriteLock getOrgLock(String orgId) {
@@ -1653,7 +1648,6 @@ public final class MVManager implements MessageListener {
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(MVManager.class);
-   private static final String MV_CHANGE_EVENT_ORG_DELIMITER = "^~~^";
 
    private final MVDefMap mvs = new MVDefMap();
    private final Map<Object, MVCreator> pending = new ConcurrentHashMap<>();

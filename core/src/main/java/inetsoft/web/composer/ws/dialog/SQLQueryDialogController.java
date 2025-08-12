@@ -663,18 +663,21 @@ public class SQLQueryDialogController extends WorksheetController {
          DataRef ref = conditionItem.getAttribute();
          ColumnRef colRef = getColumnRef(ref);
 
-         if(colRef != null && colRef instanceof ColumnRef) {
-            AttributeRef attRef = (AttributeRef) colRef.getDataRef();
-            String attr = attRef.getAttribute();
-            String newAlias = aliasMapping.get(attr);
-            DataRef newCol = selection.getAttribute(newAlias);
+         if(colRef != null) {
+            DataRef dataRef = colRef.getDataRef();
 
-            if(ref instanceof ColumnRef) {
-               conditionItem.setAttribute(newCol);
-            }
-            else {
-               updateColumnRef(ref, (ColumnRef) newCol);
-               conditionItem.setAttribute(ref);
+            if(dataRef instanceof AttributeRef attRef) {
+               String attr = attRef.getAttribute();
+               String newAlias = aliasMapping.get(attr);
+               DataRef newCol = selection.getAttribute(newAlias);
+
+               if(ref instanceof ColumnRef) {
+                  conditionItem.setAttribute(newCol);
+               }
+               else {
+                  updateColumnRef(ref, (ColumnRef) newCol);
+                  conditionItem.setAttribute(ref);
+               }
             }
          }
       }

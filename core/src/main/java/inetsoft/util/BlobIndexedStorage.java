@@ -60,8 +60,18 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    private BlobStorage<Metadata> getMetadataStorage(String orgID) {
+      if(LOG.isDebugEnabled() && Organization.getSelfOrganizationID().equals(orgID)) {
+         LOG.debug("Getting indexed storage for self organization", new Exception("Stack trace"));
+      }
+
       if(orgID == null) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(LOG.isDebugEnabled() && Organization.getSelfOrganizationID().equals(orgID)) {
+            LOG.debug(
+               "Getting indexed storage for current (self) organization",
+               new Exception("Stack trace"));
+         }
       }
 
       String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
@@ -491,6 +501,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
                }
 
                putXMLSerializable(identifier, data);
+
+               if(!Tool.equals(identifier, key)) {
+                  remove(key);
+               }
             }
          }
          else if((entry.getType().id() & AssetEntry.Type.FOLDER.id()) == AssetEntry.Type.FOLDER.id()) {

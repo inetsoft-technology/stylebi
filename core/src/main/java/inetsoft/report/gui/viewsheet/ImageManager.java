@@ -112,7 +112,8 @@ public class ImageManager {
          g.fillRect(0, 0, imageWidth, imageHeight);
       }
 
-      g.drawImage(image, 0, 0, null);
+      Point pos = getAlignedPosition(image, imageWidth, imageHeight, align);
+      g.drawImage(image, pos.x, pos.y, null);
       g.dispose();
 
       return bimage;
@@ -176,7 +177,7 @@ public class ImageManager {
    private static Image getClippedInstance(Image img, int w, int h, int align) {
       Image buf = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
       Graphics g = buf.getGraphics();
-      int ix = 0, iy = 0;
+      Point pos = getAlignedPosition(img, w, h, align);
 
       if(img instanceof MetaImage) {
          img = ((MetaImage) img).getImage();
@@ -187,6 +188,24 @@ public class ImageManager {
       }
 
       Tool.waitForImage(img);
+      g.drawImage(img, pos.x, pos.y, null);
+      g.dispose();
+
+      return buf;
+   }
+
+   private static Point getAlignedPosition(Image img, int w, int h, int align) {
+      if(img instanceof MetaImage) {
+         img = ((MetaImage) img).getImage();
+
+         if(img == null) {
+            return new Point(0, 0);
+         }
+      }
+
+      Tool.waitForImage(img);
+
+      int ix = 0, iy = 0;
 
       // alignment
       if((align & StyleConstants.V_CENTER) != 0) {
@@ -203,9 +222,6 @@ public class ImageManager {
          ix = w - img.getWidth(null);
       }
 
-      g.drawImage(img, Math.max(0, ix), Math.max(0, iy), null);
-      g.dispose();
-
-      return buf;
+      return new Point(Math.max(0, ix), Math.max(0, iy));
    }
 }

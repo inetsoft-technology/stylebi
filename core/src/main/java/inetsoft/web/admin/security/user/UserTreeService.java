@@ -23,6 +23,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
+import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.XFactory;
@@ -967,7 +968,9 @@ public class UserTreeService {
       return manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
    }
 
-   public EditOrganizationPaneModel getOrganizationModel(String provider, IdentityID orgID, Principal principal) {
+   public EditOrganizationPaneModel getOrganizationModel(String provider, IdentityID orgID, Principal principal,
+                                                         boolean setTheme, String newTheme)
+   {
       AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(provider);
 
@@ -1022,6 +1025,21 @@ public class UserTreeService {
       }
 
       List<IdentityModel> members = getOrganizationMembers(info.getMembers(), principal);
+      Set<CustomTheme> themes = CustomThemesManager.getManager().getCustomThemes();
+      String themeID = null;
+
+      if(setTheme) {
+         themeID = newTheme;
+      }
+      else {
+         for(CustomTheme theme : themes) {
+            if(organization.getTheme() != null &&
+               organization.getTheme().equals(theme.getId()))
+            {
+               themeID = organization.getTheme();
+            }
+         }
+      }
 
       return EditOrganizationPaneModel.builder()
          .name(orgID.name)
@@ -1036,7 +1054,7 @@ public class UserTreeService {
          .editable(organization.isEditable() && currentProvider instanceof EditableAuthenticationProvider)
          .currentUser(orgID.name.equals(pId.name))
          .localesList(localesList)
-         .theme(organization.getTheme())
+         .theme(themeID)
          .currentUserName(pId.name)
          .build();
    }

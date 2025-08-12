@@ -56,8 +56,7 @@ import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.*;
-import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.function.*;
 import java.util.regex.*;
 import javax.xml.XMLConstants;
 import javax.xml.transform.*;
@@ -1269,7 +1268,7 @@ public final class XUtil {
 
       if(providerName != null && securityEngine.getAuthenticationChain().isPresent()) {
          return securityEngine.getAuthenticationChain().get().stream()
-            .filter((p) -> Catalog.getCatalog().getString(p.getProviderName()).equals(providerName))
+            .filter((p) -> (Catalog.getCatalog().getString(p.getProviderName()).equals(providerName)) || p.getProviderName().equals(providerName))
             .findAny()
             .orElseGet(securityEngine::getSecurityProvider);
       }
@@ -4790,6 +4789,68 @@ public final class XUtil {
       return null;
    }
 
+   public static <T> T withFixedDateFormat(Object source, Supplier<T> action) {
+      CoreTool.useDatetimeWithMillisFormat.set(isMillisInFormatRequired(source));
+
+      try {
+         return action.get();
+      }
+      catch(Exception ex) {
+         throw new RuntimeException(ex);
+      }
+      finally {
+         CoreTool.useDatetimeWithMillisFormat.set(false);
+      }
+   }
+
+   public static void withFixedDateFormat(Object source, Runnable action) {
+      CoreTool.useDatetimeWithMillisFormat.set(isMillisInFormatRequired(source));
+
+      try {
+         action.run();
+      }
+      catch(Exception ex) {
+         throw new RuntimeException(ex);
+      }
+      finally {
+         CoreTool.useDatetimeWithMillisFormat.set(false);
+      }
+   }
+
+   public static boolean isMillisInFormatRequired(Object target) {
+      if(target instanceof Boolean) {
+         return (boolean) target;
+      }
+      else if(target instanceof String source) {
+         XDataSource xds = Tool.isEmptyString(source) ?
+            null : DataSourceRegistry.getRegistry().getDataSource(source);
+         return isMillisInFormatRequired(xds);
+      }
+      else if(target instanceof XDataSource xds) {
+         return xds != null ? SQLHelper.getSQLHelper(xds) instanceof DatabricksHelper : false;
+      }
+      // ignore addition usage, since binding timestamp + additional tables is not a common usage,
+      // so no need to spend a lot of effort to figure it out which table the selection value data come from.
+      else if(target instanceof BindableVSAssembly assembly) {
+         AssemblyRef[] assemblyRefs = assembly == null ? null : assembly.getDependedWSAssemblies();
+
+         if(assemblyRefs == null || assemblyRefs.length == 0) {
+            return false;
+         }
+
+         Worksheet ws = assembly.getWorksheet();
+
+         if(ws != null && assemblyRefs.length == 1) {
+            Assembly wsAssembly = ws.getAssembly(assemblyRefs[0].getEntry().getName());
+
+            if(wsAssembly instanceof TableAssembly tableAssembly) {
+               return isMillisInFormatRequired(tableAssembly.getSource());
+            }
+         }
+      }
+
+      return false;
+   }
 
    private static final Map<Integer,String[]> DEFAULT_PATTERN = new HashMap<>();
 

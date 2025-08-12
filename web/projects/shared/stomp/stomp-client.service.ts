@@ -15,7 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Injectable, NgZone } from "@angular/core";
+import { Router } from "@angular/router";
 import { Observable, Subject } from "rxjs";
 import { SsoHeartbeatService } from "../sso/sso-heartbeat.service";
 import { LogoutService } from "../util/logout.service";
@@ -33,10 +35,12 @@ import { BaseHrefService } from "../../portal/src/app/common/services/base-href.
 export class StompClientService {
    private clients: Map<string, StompClient> = new Map<string, StompClient>();
    private disconnectSubject = new Subject<void>();
+   private reconnectErrorSubject = new Subject<string>();
    private _reloadOnFailure: boolean = false;
 
    constructor(private zone: NgZone, private ssoHeartbeatService: SsoHeartbeatService,
-               private logoutService: LogoutService, private baseHrefService: BaseHrefService)
+               private logoutService: LogoutService, private baseHrefService: BaseHrefService,
+               private router: Router, private http: HttpClient)
    {
    }
 
@@ -48,8 +52,9 @@ export class StompClientService {
          if(!client) {
             client = new StompClient(
                endpoint, (key) => this.onDisconnect(key),
+               (error) => this.onReconnectError(error),
                this.ssoHeartbeatService, this.logoutService, em, this.baseHrefService.getBaseHref(),
-               customElement);
+               customElement, this.router, this.http, this.zone);
             this.clients.set(endpoint, client);
          }
 
@@ -67,7 +72,15 @@ export class StompClientService {
       this.disconnectSubject.next();
    }
 
+   private onReconnectError(error: string) {
+      this.reconnectErrorSubject.next(error);
+   }
+
    whenDisconnected(): Observable<void> {
       return this.disconnectSubject.asObservable();
+   }
+
+   reconnectError(): Observable<string> {
+      return this.reconnectErrorSubject.asObservable();
    }
 }

@@ -542,7 +542,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       }
 
       Path cacheDir = Paths.get(config.getBlob().getCacheDirectory());
-      return new CachedBlobStorage<>(id, cacheDir, storage, BlobEngine.getInstance(), preload);
+      return new CachedBlobStorage<>(id, cacheDir, storage, BlobCache.getInstance(), preload);
    }
 
    private Blob<T> getBlob(String path) throws FileNotFoundException {

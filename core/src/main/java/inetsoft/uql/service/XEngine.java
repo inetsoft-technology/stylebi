@@ -17,17 +17,17 @@
  */
 package inetsoft.uql.service;
 
-import inetsoft.sree.security.*;
-import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
+import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.uql.jdbc.*;
 import inetsoft.uql.schema.*;
 import inetsoft.uql.tabular.TabularDataSource;
@@ -663,7 +663,7 @@ public class XEngine implements XRepository, XQueryRepository {
          String[] names = jds.getDataSourceNames();
 
          for(String name : names) {
-            removeMetaDataFiles(dsname + "__" + name);
+            removeMetaDataFiles(dsname + "^_^" + name);
          }
       }
 
@@ -674,7 +674,15 @@ public class XEngine implements XRepository, XQueryRepository {
     * Remove meta data files with specified data source.
     */
    public void removeMetaDataFiles(String key) {
-      key = OrganizationManager.getInstance().getCurrentOrgID() + "__" + getKey(key);
+      removeMetaDataFiles(null, key);
+   }
+
+   /**
+    * Remove meta data files with specified data source.
+    */
+   public void removeMetaDataFiles(String orgId, String key) {
+      key = (Tool.isEmptyString(orgId) ? OrganizationManager.getInstance().getCurrentOrgID() : orgId)
+         + "__" + getKey(key);
       String keyHeader = key + "__";
       // remove the related file caches
       File cacheDir = getMetaDataDir();
@@ -707,8 +715,16 @@ public class XEngine implements XRepository, XQueryRepository {
     * Remove meta data files with specified data source.
     */
    public void removeMetaCache(String key) {
+      removeMetaCache(key, null);
+   }
+
+   /**
+    * Remove meta data files with specified data source.
+    */
+   public void removeMetaCache(String key, String orgId) {
+      orgId = Tool.isEmptyString(orgId) ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
       key = getKey(key);
-      String keyHeader = key + "__";
+      String keyHeader = Tool.buildString(orgId ,"__" ,key);
 
       for(String tempKey : metaDataCache.keySet()) {
          if(tempKey.startsWith(keyHeader) || tempKey.equals(key)) {
@@ -1514,17 +1530,19 @@ public class XEngine implements XRepository, XQueryRepository {
          dx = odx;
       }
 
-      String key = OrganizationManager.getInstance().getCurrentOrgID() + "__" + dx.getFullName();
+      String key = dx.getFullName();
       boolean mysql = false;
 
       if(dx instanceof AdditionalConnectionDataSource &&
          ((AdditionalConnectionDataSource<?>) dx).getBaseDatasource() != null)
       {
          key = ((AdditionalConnectionDataSource<?>) dx).getBaseDatasource().getFullName() +
-            "__" + key;
+            "^_^" + key;
          mysql = (dx instanceof JDBCDataSource) &&
             ((JDBCDataSource) dx).getDatabaseType() == JDBCDataSource.JDBC_MYSQL;
       }
+
+      key = OrganizationManager.getInstance().getCurrentOrgID() + "__" + key;
 
       boolean cache = true;
       XNode node;
@@ -1595,7 +1613,7 @@ public class XEngine implements XRepository, XQueryRepository {
                   // Release the jdbc get meta lock to avoid others thread block
                   // when current thread is padding wait.
                   if(handler instanceof JDBCHandler) {
-                     ((JDBCHandler) handler).waitMetaLock(20);
+                     ((JDBCHandler) handler).waitMetaLock();
                   }
                }
                catch(Exception ex) {
@@ -1951,8 +1969,7 @@ public class XEngine implements XRepository, XQueryRepository {
     * @return the file
     */
    private File getMetaDataDir() {
-      return FileSystemService.getInstance().getFile(
-         System.getProperty("user.home", ".") + File.separator + ".srMetaData");
+      return FileSystemService.getInstance().getMetadataDirectory();
    }
 
    /**
@@ -1969,12 +1986,6 @@ public class XEngine implements XRepository, XQueryRepository {
          @Override
          protected void doRun() {
             try {
-               File dir = getMetaDataDir();
-
-               if(!dir.exists() && !dir.mkdirs()) {
-                  LOG.warn("Failed to create cache directory: {}", dir);
-               }
-
                ObjectOutputStream out = new ObjectOutputStream(
                   new BufferedOutputStream(new FileOutputStream(getMetaDataFile(key))));
 
@@ -2053,13 +2064,14 @@ public class XEngine implements XRepository, XQueryRepository {
     * Process cluster node to refresh meta data.
     */
    private void processClusterNodes(String dxname) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
       Cluster cluster = Cluster.getInstance();
       boolean clusterEnabled = "server_cluster".equals(SreeEnv.getProperty("server.type"));
 
       if(!clusterEnabled) {
          if(cluster != null) {
             try {
-               cluster.sendMessage(new ClearLocalNodeMetaDataCacheMessage(dxname));
+               cluster.sendMessage(new ClearLocalNodeMetaDataCacheMessage(dxname, currentOrgID));
             }
             catch (Exception ex) {
                LOG.error(ex.getMessage(), ex);
@@ -2079,7 +2091,7 @@ public class XEngine implements XRepository, XQueryRepository {
                continue;
             }
 
-            cluster.sendMessage(clusterNode, new RefreshMetaDataMessage(dxname));
+            cluster.sendMessage(clusterNode, new RefreshMetaDataMessage(dxname, currentOrgID));
          }
       }
       catch(Exception ex) {
