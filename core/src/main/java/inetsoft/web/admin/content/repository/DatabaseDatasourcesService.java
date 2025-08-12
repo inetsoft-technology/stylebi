@@ -747,8 +747,8 @@ public class DatabaseDatasourcesService {
          XDataSource ds = repository.getDataSource(exitName);
 
          if(ds instanceof AdditionalConnectionDataSource) {
-            for(String additionalDS: ((AdditionalConnectionDataSource)ds).getDataSourceNames()) {
 
+            for(String additionalDS: ((AdditionalConnectionDataSource)ds).getDataSourceNames()) {
                if(Tool.equals(ndsname, additionalDS)) {
                   return true;
                }
@@ -774,6 +774,7 @@ public class DatabaseDatasourcesService {
       String[] existDataSourceFullNames = repository.getDataSourceFullNames();
 
       for(String additionalDS : additionalConnections) {
+
          for(String exitName : existDataSourceNames) {
             if(Tool.equals(additionalDS, exitName)) {
                return true;
@@ -785,6 +786,7 @@ public class DatabaseDatasourcesService {
             XDataSource ds = repository.getDataSource(exitName);
 
             if(ds instanceof AdditionalConnectionDataSource && !Tool.equals(ds.getName(), baseDataSource)) {
+
                for(String dsAdditionalConn: ((AdditionalConnectionDataSource)ds).getDataSourceNames()) {
                   if(Tool.equals(dsAdditionalConn, additionalDS)) {
                      return true;
