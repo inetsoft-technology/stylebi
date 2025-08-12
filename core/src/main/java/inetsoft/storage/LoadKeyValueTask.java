@@ -56,7 +56,7 @@ public class LoadKeyValueTask<T extends Serializable>
    @Override
    public void run() {
       try {
-         Map<String, T> map = getMap();
+         TreeMap<String, T> map = new TreeMap(getMap());
 
          if(map.isEmpty() || external) {
             Map<String, T> temp = new TreeMap<>();
@@ -81,9 +81,7 @@ public class LoadKeyValueTask<T extends Serializable>
 
             map.clear();
 
-            //explicitly pass as TreeMap to prevent extraneous warning that putAll() could cause deadlock
-            Map<String, T> tempAsTree = new TreeMap<>(temp);
-            map.putAll(tempAsTree);
+            map.putAll(temp);
          }
       }
       catch(Exception e) {
