@@ -152,6 +152,7 @@ export class StompClient {
                      error:  (error) => {
                         // Check to make sure that it is a 502/503 error
                         if(error.status === 502 || error.status == 503) {
+                           this.onDisconnect(this.endpoint);
                            this.redirecting = true;
                            this.router.navigate(['/reload'],
                               {queryParams: {redirectTo: this.router.url}, replaceUrl: true});
