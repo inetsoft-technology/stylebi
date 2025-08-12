@@ -303,5 +303,6 @@ class CachedRowSelector extends AbstractGroupRowSelector {
    private ReentrantLock procLock = new ReentrantLock();
 
    // Vector of [XTable, Set] -> CachedRowSelectorRef
-   private static final DataCache selectorCache = new DataCache(20, 60000);
+   private static final DataCache<SelectorKey, CachedRowSelectorRef> selectorCache =
+      new DataCache(20, 60000);
 }
