@@ -213,9 +213,8 @@ public class JobCompletionListener extends JobListenerSupport {
 
             boolean isDependant = false;
 
-            for(Enumeration<String> e = task.getDependency(); e.hasMoreElements(); )
-            {
-               if(e.nextElement().equals(taskName)) {
+            for(Enumeration<String> e = task.getDependency(); e.hasMoreElements(); ) {
+               if(!Tool.isEmptyString(taskName) && Tool.equals(e.nextElement(), taskName)) {
                   isDependant = true;
                   break;
                }
