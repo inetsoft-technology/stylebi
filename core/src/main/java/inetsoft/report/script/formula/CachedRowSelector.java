@@ -17,7 +17,7 @@
  */
 package inetsoft.report.script.formula;
 
-import inetsoft.uql.XTable;
+import inetsoft.uql.*;
 import inetsoft.util.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
@@ -295,6 +295,12 @@ class CachedRowSelector extends AbstractGroupRowSelector {
    private RangeBitSet currGroup; // current group rows
    private Map<Tuple, BitSet> groupmap = new Object2ObjectOpenHashMap<>(); // Vector values -> BitSet
    private ReentrantLock procLock = new ReentrantLock();
-   // HashMap with custom SelectorKey ([XTable, Set]) -> CachedRowSelectorRef
-   private static final HashMap<SelectorKey, CachedRowSelectorRef> selectorCache = new HashMap<>();
+
+   // LinkedHashMap with custom SelectorKey ([XTable, Set]) -> CachedRowSelectorRef and max size to prevent memory leak
+   private static final Map<SelectorKey, CachedRowSelectorRef> selectorCache = new LinkedHashMap<SelectorKey, CachedRowSelectorRef>(20, 0.75f, true) {
+      @Override
+      protected boolean removeEldestEntry(Map.Entry<SelectorKey, CachedRowSelectorRef> eldest) {
+         return size() > 20;
+      }
+   };
 }
