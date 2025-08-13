@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.mv.MVSession;
 import inetsoft.report.composition.*;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.ConfirmException;
@@ -31,6 +32,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.script.ScriptException;
+import inetsoft.web.ServiceProxyContext;
 import inetsoft.web.composer.vs.controller.VSLayoutServiceProxy;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
 import inetsoft.web.viewsheet.command.*;
@@ -123,34 +125,42 @@ public class EventAspect {
 
    @Before("@annotation(InitWSExecution) && within(inetsoft.web..*)")
    public void setWSExecution(JoinPoint joinPoint) throws Throwable {
-      Object[] args = joinPoint.getArgs();
-      String id = this.runtimeViewsheetRef.getRuntimeId();
-      Principal principal = null;
+      String id = runtimeViewsheetRef.getRuntimeId();
+      ServiceProxyContext.joinPointThreadLocal.set(joinPoint);
+      ServiceProxyContext.eventVsIdThreadLocal.set(id);
+      Cluster cluster = Cluster.getInstance();
 
-      for(Object arg : args) {
-         if(arg instanceof Principal) {
-            principal = (Principal) arg;
+      // ServiceProxyContext preprocessing does not occur if it is a local cache key, so handle it here
+      if(cluster.isLocalCacheKey(WorksheetEngine.CACHE_NAME, id)) {
+         Object[] args = joinPoint.getArgs();
+         Principal principal = null;
+
+         for(Object arg : args) {
+            if(arg instanceof Principal) {
+               principal = (Principal) arg;
+            }
          }
+
+         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+         boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
+         RuntimeWorksheet rws = viewsheetService.getWorksheet(id, principal);
+         MVSession session = rws.getAssetQuerySandbox().getMVSession();
+         WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+
+         // if worksheet changed, re-init sql context so change in table
+         // is reflected in spark sql
+         if(undoable && session != null) {
+            session.clearInitialized();
+         }
+
+         WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
       }
-
-      MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-      boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
-
-      RuntimeWorksheet rws = viewsheetService.getWorksheet(id, principal);
-      MVSession session = rws.getAssetQuerySandbox().getMVSession();
-      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
-
-      // if worksheet changed, re-init sql context so change in table
-      // is reflected in spark sql
-      if(undoable && session != null) {
-         session.clearInitialized();
-      }
-
-      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
    }
 
    @AfterReturning("@annotation(InitWSExecution) && within(inetsoft.web..*)")
    public void clearWSExecution(JoinPoint joinPoint) {
+      ServiceProxyContext.joinPointThreadLocal.remove();
+      ServiceProxyContext.eventVsIdThreadLocal.remove();
       WSExecution.setAssetQuerySandbox(null);
    }
 
@@ -551,13 +561,13 @@ public class EventAspect {
 
    @Around("@annotation(ExecutionMonitoring) && within(inetsoft.web..*)")
    public Object addExecutionMonitoring(ProceedingJoinPoint pjp) throws Throwable {
-      viewsheetService.addExecution(this.runtimeViewsheetRef.getRuntimeId());
+      eventAspectServiceProxy.addExecutionMonitoring(this.runtimeViewsheetRef.getRuntimeId());
 
       try {
          return pjp.proceed();
       }
       finally {
-         viewsheetService.removeExecution(this.runtimeViewsheetRef.getRuntimeId());
+         eventAspectServiceProxy.removeExecutionMonitoring(this.runtimeViewsheetRef.getRuntimeId());
       }
    }
 

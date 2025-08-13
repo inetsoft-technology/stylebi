@@ -19,15 +19,21 @@
 package inetsoft.web;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.mv.MVSession;
+import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.util.*;
 import inetsoft.web.composer.ClipboardService;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
+import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRefServiceProxy;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
+import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
@@ -49,11 +55,17 @@ public class ServiceProxyContext {
    private final Map<String, Object> messageHeaders;
    private final Map<String, Object> messageAttributes;
    private final List<UserMessage> userMessages;
+   public static ThreadLocal<JoinPoint> joinPointThreadLocal = new ThreadLocal<>();
+   public static ThreadLocal<String> eventVsIdThreadLocal = new ThreadLocal<>();
+   private final JoinPoint eventJoinPoint;
+   private final String eventVsId;
 
    public ServiceProxyContext() {
       this.contextPrincipal = ThreadContext.getPrincipal();
       this.userMessages = new ArrayList<>();
       this.threadContextRecords = new HashSet<>();
+      this.eventJoinPoint = this.joinPointThreadLocal.get();
+      this.eventVsId = this.eventVsIdThreadLocal.get();
 
       if(Thread.currentThread() instanceof GroupedThread gt) {
          for(Object record : gt.getRecords()) {
@@ -180,6 +192,39 @@ public class ServiceProxyContext {
 
          MessageContextHolder.setMessageAttributes(messageAttrs);
       }
+
+      if(eventJoinPoint != null) {
+         Object[] args = eventJoinPoint.getArgs();
+         Principal principal = null;
+
+         for(Object arg : args) {
+            if(arg instanceof Principal) {
+               principal = (Principal) arg;
+            }
+         }
+
+         MethodSignature signature = (MethodSignature) eventJoinPoint.getSignature();
+         boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
+
+         try {
+            ViewsheetService viewsheetService = ConfigurationContext.getContext()
+               .getSpringBean(ViewsheetService.class);
+            RuntimeWorksheet rws = viewsheetService.getWorksheet(eventVsId, principal);
+            MVSession session = rws.getAssetQuerySandbox().getMVSession();
+            WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+
+            // if worksheet changed, re-init sql context so change in table
+            // is reflected in spark sql
+            if(undoable && session != null) {
+               session.clearInitialized();
+            }
+
+            WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to set current worksheet", e);
+         }
+      }
    }
 
    public void postprocess() {
@@ -209,6 +254,10 @@ public class ServiceProxyContext {
                threadContextRecords.add(str);
             }
          }
+      }
+
+      if(eventJoinPoint != null) {
+         WSExecution.setAssetQuerySandbox(null);
       }
 
       Tool.clearUserMessage();
