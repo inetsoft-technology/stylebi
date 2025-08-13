@@ -74,28 +74,6 @@ public class EventAspectService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void setWSExecution(@ClusterProxyKey String runtimeId, boolean undoable, Principal principal) throws Exception {
-      RuntimeWorksheet rws = viewsheetService.getWorksheet(runtimeId, principal);
-      MVSession session = rws.getAssetQuerySandbox().getMVSession();
-      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
-
-      // if worksheet changed, re-init sql context so change in table
-      // is reflected in spark sql
-      if(undoable && session != null) {
-         session.clearInitialized();
-      }
-
-      WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
-      return null;
-   }
-
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void clearWSExecution(@ClusterProxyKey String runtimeId) throws Exception {
-      WSExecution.setAssetQuerySandbox(null);
-      return null;
-   }
-
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void addExecutionMonitoring(@ClusterProxyKey String runtimeId) throws Exception {
       viewsheetService.addExecution(runtimeId);
       return null;
