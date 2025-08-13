@@ -37,7 +37,7 @@ export class ReloadPageComponent implements OnInit, OnDestroy {
                private http: HttpClient, private zone: NgZone)
    {
       this.route.queryParamMap.subscribe(params => {
-         this.redirectTo = params.get('redirectTo');
+         this.redirectTo = decodeURIComponent(params.get('redirectTo'));
          console.log(this.redirectTo);
       });
    }
