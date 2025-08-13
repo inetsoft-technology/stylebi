@@ -113,7 +113,7 @@ public class CosmosDBConfig implements Serializable {
       this.emulated = emulated;
    }
 
-   @CRDProperty(description = "The account host")
+   @CRDProperty(description = "The account host", secret = true)
    private String accountHost;
    @CRDProperty(description = "The account key", secret = true)
    private String accountKey;
