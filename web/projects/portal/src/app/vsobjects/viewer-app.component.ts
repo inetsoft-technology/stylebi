@@ -783,11 +783,51 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          const screenSize = this.screenSize;
 
          // web component
-         if(this.embed) {
+         if(this.embed && window.visualViewport) {
             const viewerRect = this.viewerRoot.nativeElement.getBoundingClientRect();
-            ratio = 1;
-            left = Math.round(Math.max(0, -viewerRect.left));
-            top = Math.round(Math.max(0, -viewerRect.top + rect.height));
+            const scrollParent = this.getClosestScrollParent(this.viewerRoot.nativeElement);
+            const parentRect = scrollParent.getBoundingClientRect();
+            const vv = window.visualViewport;
+            ratio = 1 / vv.scale;
+
+            // left
+            const viewerLeft = viewerRect.left;
+            const parentLeft = parentRect.left;
+            const pageOffsetLeft = vv.offsetLeft;
+
+            // parent scrolled left beyond viewport
+            if(parentLeft < pageOffsetLeft) {
+               left = Math.abs(Math.min(pageOffsetLeft, viewerLeft) - pageOffsetLeft);
+            }
+            // viewer is left of parent but parent still visible
+            else if(viewerLeft < parentLeft && pageOffsetLeft < parentLeft) {
+               left = Math.abs(parentLeft - viewerLeft);
+            }
+            // viewer fully in view horizontally
+            else {
+               left = 0;
+            }
+
+            // top
+            const viewerTop = (viewerRect.top - rect.height);
+            const parentTop = parentRect.top;
+            const pageOffsetTop = vv.offsetTop;
+
+            // parent is scrolled above the viewport
+            if(parentTop < pageOffsetTop) {
+               top = Math.abs(Math.min(pageOffsetTop, viewerTop) - pageOffsetTop);
+            }
+            // viewer is above parent but parent is still in view
+            else if(viewerTop < parentTop && pageOffsetTop < parentTop) {
+               top = Math.abs(parentTop - viewerTop);
+            }
+            // viewer is fully in view
+            else {
+               top = 0;
+            }
+
+            left = Math.round(left / ratio);
+            top = Math.round(top / ratio);
          }
          else if(window.visualViewport) {
             ratio = 1 / window.visualViewport.scale;
@@ -821,6 +861,26 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             this.changeDetectorRef.detectChanges();
          }
       }
+   }
+
+   getClosestScrollParent(element: HTMLElement): HTMLElement {
+      let scrollParent: HTMLElement | null = element.parentElement;
+
+      while(scrollParent && scrollParent !== document.body) {
+         const style = getComputedStyle(scrollParent);
+         const overflowY = style.overflowY;
+         const overflowX = style.overflowX;
+
+         if((overflowY === "auto" || overflowY === "scroll") ||
+            (overflowX === "auto" || overflowX === "scroll"))
+         {
+            return scrollParent;
+         }
+
+         scrollParent = scrollParent.parentElement;
+      }
+
+      return document.documentElement;
    }
 
    get screenSize(): Dimension {
@@ -4020,7 +4080,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       let width = window.innerWidth;
 
       if(this.embed && this.viewerRoot) {
-         width = this.viewerRoot.nativeElement.getBoundingClientRect().width;
+         let viewerRect = this.viewerRoot.nativeElement.getBoundingClientRect();
+         width = Math.min(viewerRect.width, this.screenSize.width);
       }
 
       return Math.floor(width / ToolbarActionsHandler.MOBILE_BUTTON_WIDTH) - defaultButtons;
