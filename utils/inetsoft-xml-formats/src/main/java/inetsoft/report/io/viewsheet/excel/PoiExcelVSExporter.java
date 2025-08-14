@@ -1818,6 +1818,11 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
       }
       else {
          p2 = getRowCol(position.x + size.width, position.y + size.height, bottom);
+
+         // ensure the bottom row is exclusive so the last item in larger lists can render
+         if (info instanceof SelectionTreeVSAssemblyInfo) {
+            p2.y = p2.y + 1;
+         }
       }
 
       ClientAnchor anchor = PoiExcelVSUtil.createClientAnchor(book, top.x, top.y,
