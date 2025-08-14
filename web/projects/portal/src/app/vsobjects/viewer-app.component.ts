@@ -1481,7 +1481,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    printViewsheet(): void {
-      const url = "../export/viewsheet/" + Tool.byteEncode(this.runtimeId) +
+      const url = this.baseHrefService.getBaseHref() + "/../export/viewsheet/" + Tool.byteEncode(this.runtimeId) +
          "?match=true&current=true&previewPrintLayout=true";
       GuiTool.openBrowserTab(url);
    }
@@ -1505,7 +1505,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
                      const format = result.fileFormatPaneModel;
 
-                     let url = "../export/viewsheet/" + Tool.byteEncode(this.runtimeId) +
+                     let url = this.baseHrefService.getBaseHref() + "/../export/viewsheet/" + Tool.byteEncode(this.runtimeId) +
                         "?format=" + format.formatType +
                         "&match=" + format.matchLayout +
                         "&expandSelections=" + !!format.expandSelections +
