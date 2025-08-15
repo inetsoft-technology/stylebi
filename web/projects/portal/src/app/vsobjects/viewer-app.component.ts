@@ -1836,7 +1836,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.vsBookmarkList.forEach((bm) => bm.currentBookmark = false);
       bookmark.currentBookmark = true;
 
-      if(this.annotationChanged && !this.isDefaultOrgAsset) {
+      if(this.annotationChanged && !this.isDefaultOrgAsset && !this.embed) {
          ComponentTool.showAnnotationChangedDialog(this.modalService).then((value) => {
             if(value) {
                this.annotationChanged = false;
@@ -2043,7 +2043,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                         ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", msg)
                      ).pipe(map((result) => result === "ok"));
                   }
-                  else if(this.annotationChanged) {
+                  else if(this.annotationChanged && !this.embed) {
                      return from(ComponentTool.showAnnotationChangedDialog(this.modalService));
                   }
                   else {
