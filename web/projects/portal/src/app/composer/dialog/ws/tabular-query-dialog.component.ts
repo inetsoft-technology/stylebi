@@ -17,6 +17,7 @@
  */
 import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output, ChangeDetectorRef } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { flatMap, map } from "rxjs/operators";
 import { TabularDataSourceTypeModel } from "../../../../../../shared/util/model/tabular-data-source-type-model";
@@ -26,6 +27,7 @@ import {
    OAuthAuthorizationService,
    OAuthParameters
 } from "../../../common/services/oauth-authorization.service";
+import { ComponentTool } from "../../../common/util/component-tool";
 import { ModelService } from "../../../widget/services/model.service";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { AbstractTableAssembly } from "../../data/ws/abstract-table-assembly";
@@ -71,7 +73,7 @@ export class TabularQueryDialog implements OnInit {
 
    constructor(private modelService: ModelService, private http: HttpClient,
                private oauthService: OAuthAuthorizationService,
-               private changeRef: ChangeDetectorRef)
+               private changeRef: ChangeDetectorRef, private modalService: NgbModal)
    {
       this.headers = new HttpHeaders({
          "Content-Type": "application/json"
@@ -287,21 +289,26 @@ export class TabularQueryDialog implements OnInit {
       const options = { headers: this.headers, params: params };
 
       this.http.post<TabularView>(this.CONTROLLER_REFRESH_VIEW, this.model.tabularView, options)
-         .subscribe((data) => {
-            clearTimeout(timeout);
-            this.showLoading = false;
+         .subscribe({
+            next: (data) => {
+               clearTimeout(timeout);
+               this.showLoading = false;
 
-            // if cancel button is clicked then don't refresh the view
-            if(!cancelClicked) {
-               this.model.tabularView = data;
-               this.initView();
-            }
-         }, () => {
-            clearTimeout(timeout);
-            this.showLoading = false;
-         }, () => {
+               // if cancel button is clicked then don't refresh the view
+               if(!cancelClicked) {
+                  this.model.tabularView = data;
+                  this.initView();
+               }
+         }, error: (error) => {
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                  error?.error?.message || error?.error || error);
+
+               clearTimeout(timeout);
+               this.showLoading = false;
+               this.clearButtonLoading();
+         }, complete: () => {
             this.clearButtonLoading();
-         });
+         }});
 
       this.clearButtonClicks(this.model.tabularView != null ? this.model.tabularView.views : []);
    }
