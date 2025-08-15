@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {Component, EventEmitter, Input, OnInit, Output} from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, Output, SimpleChanges } from "@angular/core";
 import {
    FormGroupDirective,
    NgForm,
@@ -322,6 +322,12 @@ export class DeliveryEmailsComponent implements OnInit {
       this.initVerifyZipPassword();
       this.initForm();
       this.togglePasswordForm(false);
+   }
+
+   ngOnChanges(changes: SimpleChanges) {
+      if(changes["attachmentName"]) {
+         this.togglePasswordForm(false);
+      }
    }
 
    get bundledDisabled(): boolean {
