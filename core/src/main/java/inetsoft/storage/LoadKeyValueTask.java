@@ -56,7 +56,7 @@ public class LoadKeyValueTask<T extends Serializable>
    @Override
    public void run() {
       try {
-         TreeMap<String, T> map = new TreeMap(getMap());
+         Map<String, T> map = getMap();
 
          if(map.isEmpty() || external) {
             Map<String, T> temp = new TreeMap<>();
