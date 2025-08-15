@@ -144,11 +144,11 @@ public class ActionPermissionController {
       String actionObjectName = path == null || path.isEmpty() ? type : type + ": " + path;
 
       //hardcode end user visible description of permission change for some audit records instead of internal path
-      if("DASHBOARD:*".equals(actionObjectName)) {
+      if("DASHBOARD:*".equals(actionObjectName) || "DASHBOARD: *".equals(actionObjectName)) {
          return "PORTAL TAB: Dashboard";
       }
 
-      if("SCHEDULER:*".equals(actionObjectName)) {
+      if("SCHEDULER:*".equals(actionObjectName) || "SCHEDULER: *".equals(actionObjectName)) {
          return "PORTAL TAB: Scheduler";
       }
 
