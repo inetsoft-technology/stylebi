@@ -37,7 +37,6 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.credential.Credential;
 import inetsoft.util.credential.PasswordCredential;
-import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.content.database.*;
 import inetsoft.web.admin.content.database.types.AccessDatabaseType;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
@@ -46,6 +45,7 @@ import inetsoft.web.admin.general.model.DatabaseSettingsModel;
 import inetsoft.web.admin.security.*;
 import inetsoft.web.portal.data.DeleteDatasourceInfo;
 import inetsoft.web.portal.service.datasource.DataSourceStatusService;
+import inetsoft.web.session.IgniteSessionRepository;
 import inetsoft.web.viewsheet.*;
 import org.apache.commons.io.FileExistsException;
 import org.slf4j.Logger;
@@ -69,7 +69,7 @@ public class DatabaseDatasourcesService {
                                      XRepository repository,
                                      ResourcePermissionService resourcePermissionService,
                                      DataSourceStatusService dataSourceStatusService,
-                                     MapSessionRepository mapSessionRepository)
+                                     IgniteSessionRepository sessionRepository)
    {
       this.databaseTypeService = databaseTypeService;
       this.securityEngine = securityEngine;
@@ -77,7 +77,7 @@ public class DatabaseDatasourcesService {
       this.repository = repository;
       this.resourcePermissionService = resourcePermissionService;
       this.dataSourceStatusService = dataSourceStatusService;
-      this.mapSessionRepository = mapSessionRepository;
+      this.sessionRepository = sessionRepository;
    }
 
    public DriverAvailability getDriverAvailability() {
@@ -1228,9 +1228,9 @@ public class DatabaseDatasourcesService {
          String name = addConnModel.getName();
 
          if(oname != null && name != null && !Tool.equals(oname, name)) {
-            for(SRPrincipal p : mapSessionRepository.getActiveSessions()) {
+            for(SRPrincipal p : sessionRepository.getActiveSessions()) {
                //iterate through property names to properly update connection change
-               for(String propName : Collections.list(p.getPropertyNames())) {
+               for(String propName : p.getPropertyNames()) {
                   if(propName.contains(":"+oname)) {
                      p.setProperty(propName.replace(":"+oname, ":"+name), p.getProperty(propName));
                      p.setProperty(propName, null);
@@ -1248,5 +1248,5 @@ public class DatabaseDatasourcesService {
    private final DatabaseSettingsService databaseSettingsService;
    private final ResourcePermissionService resourcePermissionService;
    private final DataSourceStatusService dataSourceStatusService;
-   private final MapSessionRepository mapSessionRepository;
+   private final IgniteSessionRepository sessionRepository;
 }
