@@ -63,6 +63,7 @@ import { NavigationKeys } from "../navigation-keys";
 import { FocusRegions } from "../selection/vs-selection.component";
 import { SlideOutOptions } from "../../../widget/slide-out/slide-out-options";
 import { GlobalSubmitService } from "../../util/global-submit.service";
+import { XSchema } from "../../../common/data/xschema";
 
 const RANGESLIDER_PROPERTY_URI: string = "composer/vs/range-slider-property-dialog-model/";
 const URI_UPDATE_TITLE_RATIO: string = "/events/composer/viewsheet/currentSelection/titleRatio/";
@@ -113,6 +114,9 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    // Positions on handles from the left
    private _leftHandlePosition: number;
    private _rightHandlePosition: number;
+
+   private timeHandleClicked: number;
+   private clickTime: number = 200;
 
    get mobilePadding(): number {
       return this.hasMobilePadding ? 10 : 0;
@@ -421,6 +425,8 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          return;
       }
 
+      this.timeHandleClicked = Date.now();
+
       if(GuiTool.isButton1(event)) {
          this.mouseHandle = handle;
          this.startingXPosition = GuiTool.pageX(event) * (1 / this.viewsheetScale);
@@ -496,6 +502,12 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          if(moved) {
             this.updateSelections(this.model.selectStart, this.model.selectEnd);
          }
+      }
+
+      const timeHeld = Date.now() - this.timeHandleClicked;
+      console.log(timeHeld);
+      if (timeHeld < this.clickTime) {
+         this.showRangeSliderEditDialog();
       }
 
       this.isMouseDown = false;
@@ -650,34 +662,164 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
             let minFound: boolean = false;
             let maxFound: boolean = false;
             const numLabels = this.model.labels.length;
-            min = +min;
-            max = +max;
+            if (this.model.dataType && XSchema.isDateType(this.model.dataType)){
+               const timeIncrement = editDialog.getTimeIncrement();
 
-            for(let index: number = 0; index < numLabels && !maxFound; index++) {
-               const labelValue = parseFloat(this.model.values[index]);
-
-               if(min <= labelValue && !minFound) {
-                  this.model.selectStart = min === labelValue ? index : index - 1;
-                  minFound = true;
+               if (timeIncrement == 't') {
+                  min = min instanceof Date ? min : new Date(min);
+                  max = max instanceof Date ? max : new Date(max);
+               } else {
+                  min = min instanceof Date ? min : new Date(min + 'T00:00');
+                  max = max instanceof Date ? max : new Date(max + 'T00:00');
                }
 
-               if(max <= labelValue && minFound) {
-                  this.model.selectEnd = Math.max(this.model.selectStart + 1,
-                                                  max === labelValue ? index : index - 1);
-                  maxFound = true;
+               switch (timeIncrement) {
+                  case 'y': {
+                     const minYear = min.getFullYear();
+                     const maxYear = max.getFullYear();
+                     min = `{y '${minYear}'}`;
+                     max = `{y '${maxYear}'}`;
+                     break;
+                  }
+                  case 'm': {
+                     const minYear = min.getFullYear();
+                     const minMonth = String(min.getMonth() + 1).padStart(2, '0');
+                     const maxYear = max.getFullYear();
+                     const maxMonth = String(max.getMonth() + 1).padStart(2, '0');
+                     min = `{m '${minYear}-${minMonth}'}`;
+                     max = `{m '${maxYear}-${maxMonth}'}`;
+                     break;
+                  }
+                  case 'd': {
+                     const minYear = min.getFullYear();
+                     const minMonth = String(min.getMonth() + 1).padStart(2, '0');
+                     const minDay = String(min.getDate()).padStart(3, '0');
+                     const maxYear = max.getFullYear();
+                     const maxMonth = String(max.getMonth() + 1).padStart(2, '0');
+                     const maxDay = String(max.getDate()).padStart(3, '0');
+                     min = `{d '${minYear}-${minMonth}-${minDay}'}`;
+                     max = `{d '${maxYear}-${maxMonth}-${maxDay}'}`;
+                     break;
+                  }
+                  case 't': {
+                     min = min.getTime();
+                     max = max.getTime();
+                     break;
+                  }
+               }
+
+               if (timeIncrement == 't'){
+                  for(let index: number = 0; index < numLabels && !maxFound; index++){
+                     const labelValue = this.model.values[index].replace(/[a-zA-Z'{}]/g, '');
+                     const labelTime = new Date(labelValue).getTime();
+
+                     if(min <= labelTime && !minFound) {
+                        this.model.selectStart = min === labelTime ? index : index - 1;
+                        minFound = true;
+                     }
+
+                     if(max <= labelTime && minFound) {
+                        this.model.selectEnd = Math.max(this.model.selectStart + 1,
+                                                        max === labelTime ? index : index - 1);
+                        maxFound = true;
+                     }
+                  }
+               } else {
+                  for(let index: number = 0; index < numLabels && !maxFound; index++){
+                     const labelValue = this.model.values[index];
+
+                     if(min <= labelValue && !minFound) {
+                        this.model.selectStart = min === labelValue ? index : index - 1;
+                        minFound = true;
+                     }
+
+                     if(max <= labelValue && minFound) {
+                        this.model.selectEnd = Math.max(this.model.selectStart + 1,
+                                                        max === labelValue ? index : index - 1);
+                        maxFound = true;
+                     }
+                  }
+               }
+            } else {
+               min = +min;
+               max = +max;
+
+               for(let index: number = 0; index < numLabels && !maxFound; index++) {
+                  const labelValue = parseFloat(this.model.values[index]);
+
+                  if(min <= labelValue && !minFound) {
+                     this.model.selectStart = min === labelValue ? index : index - 1;
+                     minFound = true;
+                  }
+
+                  if(max <= labelValue && minFound) {
+                     this.model.selectEnd = Math.max(this.model.selectStart + 1,
+                                                     max === labelValue ? index : index - 1);
+                     maxFound = true;
+                  }
                }
             }
 
             this.updateSelections(this.model.selectStart, this.model.selectEnd);
          }, options);
+      if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
 
-      editDialog.currentMin = parseFloat(
-         this.model.values[this.model.selectStart]?.replace(/,/g, ""));
-      editDialog.currentMax = parseFloat(
-         this.model.values[this.model.selectEnd]?.replace(/,/g, ""));
-      editDialog.rangeMin = parseFloat(this.model.values[0]?.replace(/,/g, ""));
-      editDialog.rangeMax = parseFloat(
-         this.model.values[this.model.labels.length - 1]?.replace(/,/g, ""));
+         const timeIncrement = this.model.values[this.model.selectStart].replace(/[{'}`]/g, '').charAt(0);
+         editDialog.setTimeIncrement(timeIncrement);
+
+         switch (timeIncrement) {
+            case 'y': {
+               var currMinStr = this.model.values[this.model.selectStart].replace(
+                                                                     /[a-zA-Z'{}]/g, '') + '-01-01';
+               var currMaxStr = this.model.values[this.model.selectEnd].replace(
+                                                                     /[a-zA-Z'{}]/g, '') + '-12-31';
+               var rangeMinStr = this.model.values[0].replace(/[a-zA-Z'{}]/g, '') + '-01-01';
+               var rangeMaxStr = this.model.values[this.model.labels.length - 1].replace(
+                                                                     /[a-zA-Z'{}]/g, '') + '-12-31';
+               break;
+            }
+            case 'm':
+               currMinStr = this.model.values[this.model.selectStart].replace(/[a-zA-Z'{}]/g, '') + '-01';
+               currMaxStr = this.model.values[this.model.selectEnd].replace(/[a-zA-Z'{}]/g, '') + '-01';
+               const currMaxDate = new Date(currMaxStr);
+               const currMaxMonthDays =  new Date(currMaxDate.getFullYear(),
+                                                   currMaxDate.getMonth() + 1, 0).getDate();
+               currMaxStr = currMaxStr.slice(0, -2) + currMaxMonthDays;
+               rangeMinStr = this.model.values[0].replace(/[a-zA-Z'{}]/g, '') + '-01';
+               rangeMaxStr = this.model.values[this.model.labels.length - 1].replace(
+                                                                        /[a-zA-Z'{}]/g, '') + '-01';
+               const rangeMaxDate = new Date(rangeMaxStr);
+               const rangeMaxMonthDays = new Date(rangeMaxDate.getFullYear(),
+                                                      rangeMaxDate.getMonth() + 1, 0).getDate();
+               rangeMaxStr = rangeMaxStr.slice(0, -2) + rangeMaxMonthDays;
+               break;
+            case 'd':
+               currMinStr = this.model.values[this.model.selectStart].replace(/[a-zA-Z'{}]/g, '');
+               currMaxStr = this.model.values[this.model.selectEnd].replace(/[a-zA-Z'{}]/g, '');
+               rangeMinStr = this.model.values[0].replace(/[a-zA-Z'{}]/g, '');
+               rangeMaxStr = this.model.values[this.model.labels.length - 1].replace(/[a-zA-Z'{}]/g, '');
+               break;
+            case 't':
+               currMinStr = this.model.values[this.model.selectStart].replace(/[a-zA-Z'{}]/g, '');
+               currMaxStr = this.model.values[this.model.selectEnd].replace(/[a-zA-Z'{}]/g, '');
+               rangeMinStr = this.model.values[0].replace(/[a-zA-Z'{}]/g, '');
+               rangeMaxStr = this.model.values[this.model.labels.length - 1].replace(/[a-zA-Z'{}]/g, '');
+               break;
+         }
+
+         editDialog.currentMin = new Date(currMinStr);
+         editDialog.currentMax = new Date(currMaxStr);
+         editDialog.rangeMin = new Date(rangeMinStr);
+         editDialog.rangeMax = new Date(rangeMaxStr);
+      } else {
+         editDialog.currentMin = parseFloat(
+            this.model.values[this.model.selectStart]?.replace(/,/g, ""));
+         editDialog.currentMax = parseFloat(
+            this.model.values[this.model.selectEnd]?.replace(/,/g, ""));
+         editDialog.rangeMin = parseFloat(this.model.values[0]?.replace(/,/g, ""));
+         editDialog.rangeMax = parseFloat(
+            this.model.values[this.model.labels.length - 1]?.replace(/,/g, ""));
+      }
    }
 
    private fixSlideOutOptions(options: SlideOutOptions): void {
