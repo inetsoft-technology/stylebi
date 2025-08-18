@@ -18,6 +18,7 @@
 package inetsoft.uql.tabular;
 
 import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -95,6 +96,10 @@ public class PropertyMeta implements Comparable {
          return val;
       }
       catch(Exception ex) {
+         if(ex.getCause() instanceof MessageException) {
+            throw (MessageException) ex.getCause();
+         }
+
          LOG.error("Failed to get property value: " + desc.getName(), ex);
       }
 

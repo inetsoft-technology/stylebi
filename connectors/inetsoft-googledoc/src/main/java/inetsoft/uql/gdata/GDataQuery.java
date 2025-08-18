@@ -20,7 +20,7 @@ package inetsoft.uql.gdata;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.AuthorizationClient;
 import inetsoft.uql.tabular.oauth.Tokens;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -47,6 +47,11 @@ public class GDataQuery extends TabularQuery {
       }
 
       GDataDataSource dataSource = (GDataDataSource) getDataSource();
+
+      if(dataSource == null) {
+         throw new MessageException(Catalog.getCatalog().getString("data.datasources.problemRetrievingDataSource"));
+      }
+
       refreshToken();
       spreadsheet.setOauthToken(dataSource.getAccessToken());
       return spreadsheet;
