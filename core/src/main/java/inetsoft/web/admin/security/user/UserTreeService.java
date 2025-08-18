@@ -1609,7 +1609,8 @@ public class UserTreeService {
 
    private List<IdentityID> getDefaultRoles(AuthenticationProvider provider, String org) {
       return Arrays.stream(provider.getRoles())
-         .filter(role -> org != null && org.equals(provider.getRole(role).getOrganizationID()))
+         .filter(role -> (org != null && org.equals(provider.getRole(role).getOrganizationID())) ||
+                                   provider.getRole(role).getOrganizationID() == null)
          .filter(role -> provider.getRole(role).isDefaultRole())
          .collect(Collectors.toList());
    }
