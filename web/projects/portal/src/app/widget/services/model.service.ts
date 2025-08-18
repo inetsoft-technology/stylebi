@@ -123,7 +123,9 @@ export class ModelService {
          error && !(error === "" || error instanceof ProgressEvent) ? error :
             res.status ? `${res.status} - ${res.statusText}` : "_#(js:server.error.connectionLost)";
 
-      if(!error || !this.errorHandler || !this.errorHandler(error)) {
+      if((!error || !this.errorHandler || !this.errorHandler(error)) &&
+         res.status != 502 && res.status != 503)
+      {
          ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", errMsg);
       }
 
