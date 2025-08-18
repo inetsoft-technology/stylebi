@@ -116,11 +116,6 @@ public class CoreLifecycleService {
             id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer, uri, variables,
             event, dispatcher, user);
          id = result.getId();
-
-         if(id != null && !id.isEmpty()) {
-            dispatcher.sendCommand(
-               null, new SetRuntimeIdCommand(id, result.getDispatchPermissions()));
-         }
       }
       else {
          id = engine.openViewsheet(entry, user, viewer);
@@ -138,11 +133,6 @@ public class CoreLifecycleService {
 
       if(runtimeViewsheetManager != null && result.getId() != null) {
          runtimeViewsheetManager.sheetOpened(user, result.getId());
-      }
-
-      if(result.getId() != null && !result.getId().isEmpty()) {
-         dispatcher.sendCommand(
-            null, new SetRuntimeIdCommand(result.getId(), result.getDispatchPermissions()));
       }
 
       return result;
