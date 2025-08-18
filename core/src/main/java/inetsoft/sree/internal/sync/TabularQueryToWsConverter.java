@@ -19,7 +19,7 @@ package inetsoft.sree.internal.sync;
 
 import inetsoft.uql.asset.sync.UpdateDependencyHandler;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;

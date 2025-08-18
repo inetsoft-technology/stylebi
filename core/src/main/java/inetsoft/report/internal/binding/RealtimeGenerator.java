@@ -18,7 +18,7 @@
 package inetsoft.report.internal.binding;
 
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 

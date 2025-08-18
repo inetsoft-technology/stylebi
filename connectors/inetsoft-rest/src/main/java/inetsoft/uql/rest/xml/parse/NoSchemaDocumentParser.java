@@ -17,7 +17,7 @@
  */
 package inetsoft.uql.rest.xml.parse;
 
-import org.apache.commons.lang.math.NumberUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 

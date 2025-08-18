@@ -19,7 +19,7 @@ package inetsoft.sree.internal.cluster.ignite;
 
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.FileSystemService;
-import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.resources.IgniteInstanceResource;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;

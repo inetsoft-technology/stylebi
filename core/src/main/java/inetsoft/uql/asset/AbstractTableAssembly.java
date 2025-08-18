@@ -29,7 +29,7 @@ import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.SQLIterator;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.ws.DependencyType;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;

@@ -28,7 +28,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
 import inetsoft.util.css.CSSDictionary;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;

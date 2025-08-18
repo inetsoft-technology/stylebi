@@ -37,7 +37,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.*;
 import inetsoft.util.ContentObject;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;

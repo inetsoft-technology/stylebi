@@ -29,7 +29,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

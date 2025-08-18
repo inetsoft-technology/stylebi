@@ -23,7 +23,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -580,7 +580,7 @@ public class NamedRangeRef extends ExpressionRef implements AssetObject,
          }
 
          sb.append(") {\n");
-         sb.append("   \"" + StringEscapeUtils.escapeJavaScript(names[i]) + "\";");
+         sb.append("   \"").append(StringEscapeUtils.escapeEcmaScript(names[i])).append("\";");
          sb.append("\n}");
       }
 

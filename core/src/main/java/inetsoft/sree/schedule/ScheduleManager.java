@@ -27,7 +27,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

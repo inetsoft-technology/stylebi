@@ -58,7 +58,7 @@ import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

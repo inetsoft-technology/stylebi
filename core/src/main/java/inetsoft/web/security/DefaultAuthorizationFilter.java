@@ -24,11 +24,10 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
-import org.apache.commons.lang.StringUtils;
-import org.apache.hc.core5.net.InetAddressUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
-import java.net.*;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 

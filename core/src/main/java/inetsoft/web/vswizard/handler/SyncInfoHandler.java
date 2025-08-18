@@ -23,7 +23,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;

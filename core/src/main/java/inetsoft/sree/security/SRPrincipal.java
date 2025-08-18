@@ -22,7 +22,6 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;

@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 import javax.naming.NamingException;
 
 import jakarta.mail.MessagingException;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.stereotype.Service;
 
 @Service

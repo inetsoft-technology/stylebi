@@ -42,7 +42,7 @@ import inetsoft.util.audit.Audit;
 import inetsoft.util.dep.*;
 import inetsoft.web.admin.deploy.*;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;

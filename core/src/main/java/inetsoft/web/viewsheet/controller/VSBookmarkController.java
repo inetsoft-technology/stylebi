@@ -42,7 +42,7 @@ import inetsoft.web.viewsheet.event.VSDeletedMatchedBookmarksEvent;
 import inetsoft.web.viewsheet.event.VSEditBookmarkEvent;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;

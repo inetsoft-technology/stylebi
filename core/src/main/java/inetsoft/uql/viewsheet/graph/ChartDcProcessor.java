@@ -32,7 +32,7 @@ import inetsoft.uql.viewsheet.graph.aesthetic.SizeFrameWrapper;
 import inetsoft.uql.viewsheet.graph.aesthetic.StaticColorFrameWrapper;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 
 import java.awt.*;
 import java.util.List;

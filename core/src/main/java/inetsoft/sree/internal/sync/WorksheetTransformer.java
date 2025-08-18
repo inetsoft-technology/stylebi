@@ -22,7 +22,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.sync.UpdateDependencyHandler;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.*;
 
 import java.io.File;

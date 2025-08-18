@@ -55,7 +55,7 @@ import inetsoft.web.viewsheet.event.table.ChangeVSTableCellsTextEvent;
 import inetsoft.web.viewsheet.handler.crosstab.CrosstabDrillHandler;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.service.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

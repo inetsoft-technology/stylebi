@@ -23,7 +23,7 @@ import inetsoft.uql.jdbc.UniformSQL;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;

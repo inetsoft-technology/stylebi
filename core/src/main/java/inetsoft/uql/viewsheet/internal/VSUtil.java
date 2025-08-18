@@ -68,7 +68,7 @@ import inetsoft.web.binding.handler.CrosstabConstants;
 import inetsoft.web.viewsheet.model.table.DrillLevel;
 import org.apache.commons.imaging.ImageFormat;
 import org.apache.commons.imaging.ImageFormats;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

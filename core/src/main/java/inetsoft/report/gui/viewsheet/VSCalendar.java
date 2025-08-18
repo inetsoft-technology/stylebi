@@ -26,8 +26,8 @@ import inetsoft.uql.viewsheet.internal.CalendarUtil;
 import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.ArrayUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.awt.*;
 import java.text.SimpleDateFormat;

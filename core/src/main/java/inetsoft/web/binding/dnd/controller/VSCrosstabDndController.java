@@ -52,7 +52,7 @@ import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
