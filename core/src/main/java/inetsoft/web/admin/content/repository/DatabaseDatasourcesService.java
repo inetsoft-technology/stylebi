@@ -37,6 +37,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.credential.Credential;
 import inetsoft.util.credential.PasswordCredential;
+import inetsoft.web.MapSessionRepository;
 import inetsoft.web.admin.content.database.*;
 import inetsoft.web.admin.content.database.types.AccessDatabaseType;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
@@ -67,7 +68,8 @@ public class DatabaseDatasourcesService {
                                      DatabaseSettingsService databaseSettingsService,
                                      XRepository repository,
                                      ResourcePermissionService resourcePermissionService,
-                                     DataSourceStatusService dataSourceStatusService)
+                                     DataSourceStatusService dataSourceStatusService,
+                                     MapSessionRepository mapSessionRepository)
    {
       this.databaseTypeService = databaseTypeService;
       this.securityEngine = securityEngine;
@@ -75,6 +77,7 @@ public class DatabaseDatasourcesService {
       this.repository = repository;
       this.resourcePermissionService = resourcePermissionService;
       this.dataSourceStatusService = dataSourceStatusService;
+      this.mapSessionRepository = mapSessionRepository;
    }
 
    public DriverAvailability getDriverAvailability() {
@@ -1214,6 +1217,30 @@ public class DatabaseDatasourcesService {
       }
    }
 
+   /**
+    * Iterate through Additional Connections and propagate name change to Principals
+    *
+    * @param model DataSourceSettingsModel containing changed information
+    */
+   public void updateAdditionalConnectionsPrincipalProperties(DataSourceSettingsModel model) {
+      for(DatabaseDefinition addConnModel : model.additionalDataSources()) {
+         String oname = addConnModel.getOldName();
+         String name = addConnModel.getName();
+
+         if(oname != null && name != null && !Tool.equals(oname, name)) {
+            for(SRPrincipal p : mapSessionRepository.getActiveSessions()) {
+               //iterate through property names to properly update connection change
+               for(String propName : Collections.list(p.getPropertyNames())) {
+                  if(propName.contains(":"+oname)) {
+                     p.setProperty(propName.replace(":"+oname, ":"+name), p.getProperty(propName));
+                     p.setProperty(propName, null);
+                  }
+               }
+            }
+         }
+      }
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(DatabaseDatasourcesService.class);
    private final XRepository repository;
    private final SecurityEngine securityEngine;
@@ -1221,4 +1248,5 @@ public class DatabaseDatasourcesService {
    private final DatabaseSettingsService databaseSettingsService;
    private final ResourcePermissionService resourcePermissionService;
    private final DataSourceStatusService dataSourceStatusService;
+   private final MapSessionRepository mapSessionRepository;
 }

@@ -19,8 +19,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.util.Config;
@@ -150,6 +149,10 @@ public class RepositoryDataSourcesController {
       if(model.permissions() != null && model.permissions().changed()) {
          permissionService.setResourcePermissions(
             path, ResourceType.DATA_SOURCE, fullPath, model.permissions(), principal);
+      }
+
+      if(status == null) {
+         databaseDatasourcesService.updateAdditionalConnectionsPrincipalProperties(model);
       }
 
       return status;
