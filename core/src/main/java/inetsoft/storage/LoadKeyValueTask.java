@@ -59,7 +59,7 @@ public class LoadKeyValueTask<T extends Serializable>
          Map<String, T> map = getMap();
 
          if(map.isEmpty() || external) {
-            Map<String, T> temp = new TreeMap<>();
+            TreeMap<String, T> temp = new TreeMap<>();
             getEngine().<T>stream(getId())
                .forEach(p -> temp.put(p.getKey(), p.getValue()));
 
@@ -80,7 +80,6 @@ public class LoadKeyValueTask<T extends Serializable>
             }
 
             map.clear();
-
             map.putAll(temp);
          }
       }
