@@ -1566,6 +1566,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   executeView(entry.getName(), false, initing);
                }
                else if(!(info instanceof ViewsheetVSAssemblyInfo)) {
+                  executeView(entry.getName(), false, initing);
                   thisParameterScriptAssemblies.add(entry.getName());
                }
 
@@ -1662,6 +1663,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          String assemblyName = thisParameterScriptAssemblies.get(i);
 
          try {
+            vset.remove(assemblyName);
             executeView(assemblyName, false, initing);
          }
          catch(Exception ex) {
