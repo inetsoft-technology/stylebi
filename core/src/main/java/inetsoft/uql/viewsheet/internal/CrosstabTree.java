@@ -67,6 +67,10 @@ public class CrosstabTree implements XMLSerializable, Cloneable {
       // of dimensions while drilling up/down.
       if(!Objects.equals(ocube, cube)) {
          childRefs = new HashMap<>();
+
+         if(ocube != null) {
+            collapsedRefs = new HashMap<>();
+         }
       }
 
       parents = new HashMap<>();
@@ -173,6 +177,18 @@ public class CrosstabTree implements XMLSerializable, Cloneable {
    }
 
    public void updateChildRef(String parentRef, VSDimensionRef childRef) {
+      String refName = childRef.getName();
+
+      if(!parentRef.startsWith("root_")) {
+         if(collapsedRefs.containsKey(refName) &&
+            !childRefs.containsKey(NamedRangeRef.getBaseName(parentRef)))
+         {
+            childRef.copyOptions(collapsedRefs.get(refName));
+         }
+
+         collapsedRefs.put(refName, childRef);
+      }
+
       childRefs.put(NamedRangeRef.getBaseName(parentRef), childRef);
    }
 
@@ -1171,6 +1187,14 @@ public class CrosstabTree implements XMLSerializable, Cloneable {
          writer.println("</expanded>");
       }
 
+      updateCollapsedRefs();
+
+      for(String field : collapsedRefs.keySet()) {
+         writer.println("<collapsedRef field=\"" + field + "\">");
+         collapsedRefs.get(field).writeXML(writer);
+         writer.println("</collapsedRef>");
+      }
+
       writer.println("</CrosstabTree>");
    }
 
@@ -1192,6 +1216,27 @@ public class CrosstabTree implements XMLSerializable, Cloneable {
          }
 
          expanded.put(field, set);
+      }
+
+      enodes = Tool.getChildNodesByTagName(tag, "collapsedRef");
+
+      for(int i = 0; i < enodes.getLength(); i++) {
+         Element enode = (Element) enodes.item(i);
+         String field = Tool.getAttribute(enode, "field");
+
+         enode = Tool.getChildNodeByTagName(enode, "dataRef");
+         VSDimensionRef ref = new VSDimensionRef();
+         ref.parseXML(enode);
+
+         collapsedRefs.put(field, ref);
+      }
+   }
+
+   private void updateCollapsedRefs() {
+      for(Set<String> set : expanded.values()) {
+         for(String refName : set) {
+            collapsedRefs.remove(refName);
+         }
       }
    }
 
@@ -1297,6 +1342,8 @@ public class CrosstabTree implements XMLSerializable, Cloneable {
    private Map<String, Set<String>> expanded = new HashMap<>();
    // field -> column index
    private Map<Object,Integer> fieldidx = new HashMap<>();
+   // Unexpanded child refs
+   private Map<String, VSDimensionRef> collapsedRefs = new HashMap<>();
    // XTable for the fieldidx
    private Object idxtbl;
    private String[] colops;
