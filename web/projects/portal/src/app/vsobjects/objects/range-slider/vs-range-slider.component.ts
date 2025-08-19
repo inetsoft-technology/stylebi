@@ -667,19 +667,19 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
             if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
                const timeIncrement = editDialog.getTimeIncrement();
 
-               if (timeIncrement == 't') {
+               if (timeIncrement == "t") {
                   min = min instanceof Date ? min : new Date(min);
                   max = max instanceof Date ? max : new Date(max);
                } else {
-                  min = min instanceof Date ? min : new Date(min + 'T00:00');
-                  max = max instanceof Date ? max : new Date(max + 'T00:00');
+                  min = min instanceof Date ? min : new Date(min + "T00:00");
+                  max = max instanceof Date ? max : new Date(max + "T00:00");
                }
 
                ({ min , max } = this.getLabelValues(timeIncrement, min, max));
 
-               if (timeIncrement == 't'){
+               if (timeIncrement == "t"){
                   for(let index: number = 0; index < numLabels && !maxFound; index++){
-                     const labelValue = this.model.values[index].replace(/[a-zA-Z'{}]/g, '');
+                     const labelValue = this.model.values[index].replace(/[a-zA-Z'{}]/g, "");
                      const labelTime = new Date(labelValue).getTime();
 
                      if(min <= labelTime && !minFound) {
@@ -733,7 +733,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
          }, options);
       if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
 
-         const timeIncrement = this.model.values[this.model.selectStart].replace(/[{'}`]/g, '').charAt(0);
+         const timeIncrement = this.model.values[this.model.selectStart].replace(/[{'}`]/g, "").charAt(0);
          editDialog.setTimeIncrement(timeIncrement);
 
          const { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr } = this.getDateStrings(
@@ -762,28 +762,28 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
 
       const minYear = minDate.getFullYear();
       const maxYear = maxDate.getFullYear();
-      const minMonth = String(minDate.getMonth() + 1).padStart(2, '0');
-      const maxMonth = String(maxDate.getMonth() + 1).padStart(2, '0');
-      const minDay = String(minDate.getDate()).padStart(3, '0');
-      const maxDay = String(maxDate.getDate()).padStart(3, '0');
+      const minMonth = String(minDate.getMonth() + 1).padStart(2, "0");
+      const maxMonth = String(maxDate.getMonth() + 1).padStart(2, "0");
+      const minDay = String(minDate.getDate()).padStart(3, "0");
+      const maxDay = String(maxDate.getDate()).padStart(3, "0");
 
       switch (timeIncrement) {
-         case 'y': {
-            const min = `{y '${minYear}'}`;
-            const max = `{y '${maxYear}'}`;
+         case "y": {
+            const min = `{y "${minYear}"}`;
+            const max = `{y "${maxYear}"}`;
             return { min, max };
          }
-         case 'm': {
-            const min = `{m '${minYear}-${minMonth}'}`;
-            const max = `{m '${maxYear}-${maxMonth}'}`;
+         case "m": {
+            const min = `{m "${minYear}-${minMonth}"}`;
+            const max = `{m "${maxYear}-${maxMonth}"}`;
             return { min, max };
          }
-         case 'd': {
-            const min = `{d '${minYear}-${minMonth}-${minDay}'}`;
-            const max = `{d '${maxYear}-${maxMonth}-${maxDay}'}`;
+         case "d": {
+            const min = `{d "${minYear}-${minMonth}-${minDay}"}`;
+            const max = `{d "${maxYear}-${maxMonth}-${maxDay}"}`;
             return { min, max };
          }
-         case 't': {
+         case "t": {
             const min = minDate.getTime();
             const max = maxDate.getTime();
             return { min, max };
@@ -796,34 +796,34 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
 
    private getDateStrings(timeIncrement, selectStart, selectEnd, rangeMin, rangeMax){
       switch (timeIncrement) {
-         case 'y': {
+         case "y": {
             let { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr} = this.sanitizeDateLabels(
                                                         selectStart, selectEnd, rangeMin, rangeMax);
-            currMinStr += '-01-01';
-            currMaxStr += '-12-31';
-            rangeMinStr += '-01-01';
-            rangeMaxStr += '-12-31';
+            currMinStr += "-01-01";
+            currMaxStr += "-12-31";
+            rangeMinStr += "-01-01";
+            rangeMaxStr += "-12-31";
             return { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr };
          }
-         case 'm': {
+         case "m": {
             let { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr} = this.sanitizeDateLabels(
                                                         selectStart, selectEnd, rangeMin, rangeMax);
-            currMinStr += '-01';
-            currMaxStr += '-01';
+            currMinStr += "-01";
+            currMaxStr += "-01";
             const currMaxDate = new Date(currMaxStr);
             const currMaxMonthDays =  new Date(currMaxDate.getFullYear(),
                                                 currMaxDate.getMonth() + 1, 0).getDate();
             currMaxStr = currMaxStr.slice(0, -2) + currMaxMonthDays;
-            rangeMinStr += '-01';
-            rangeMaxStr += '-01';
+            rangeMinStr += "-01";
+            rangeMaxStr += "-01";
             const rangeMaxDate = new Date(rangeMaxStr);
             const rangeMaxMonthDays = new Date(rangeMaxDate.getFullYear(),
                                                    rangeMaxDate.getMonth() + 1, 0).getDate();
             rangeMaxStr = rangeMaxStr.slice(0, -2) + rangeMaxMonthDays;
             return { currMinStr, currMaxStr, rangeMinStr, rangeMaxStr };
          }
-         case 'd':
-         case 't': {
+         case "d":
+         case "t": {
             return this.sanitizeDateLabels(selectStart, selectEnd, rangeMin, rangeMax);
          }
          default : {
@@ -833,7 +833,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
    }
 
    private sanitizeDateLabels(selectStart, selectEnd, rangeMin, rangeMax) {
-      const sanitize = (val: string) => val.replace(/[a-zA-Z'{}]/g, '');
+      const sanitize = (val: string) => val.replace(/[a-zA-Z'{}]/g, "");
       return {
          currMinStr: sanitize(selectStart),
          currMaxStr: sanitize(selectEnd),

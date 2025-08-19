@@ -42,7 +42,7 @@ export class RangeSliderEditDialog implements OnInit {
 
    initForm(): void {
       this.rangeForm = new UntypedFormGroup({});
-      if(typeof this.rangeMin == 'number' && typeof this.rangeMax == 'number'){
+      if(typeof this.rangeMin == "number" && typeof this.rangeMax == "number"){
          this.isDateType = false;
          this.rangeForm.addControl("min", new UntypedFormControl({}, [
             Validators.required,
@@ -67,10 +67,10 @@ export class RangeSliderEditDialog implements OnInit {
             this.dateRangeValidatorMin(this.rangeMin),
             this.dateRangeValidatorMax(this.rangeMax)
          ]));
-         this.rangeForm.get('min')?.valueChanges.subscribe(value => {
+         this.rangeForm.get("min")?.valueChanges.subscribe(value => {
            this.currentMin = value;
          });
-         this.rangeForm.get('max')?.valueChanges.subscribe(value => {
+         this.rangeForm.get("max")?.valueChanges.subscribe(value => {
            this.currentMax = value;
          });
       }
@@ -79,14 +79,14 @@ export class RangeSliderEditDialog implements OnInit {
    formatDate(date): string {
       const d = new Date(date);
       const year = d.getFullYear();
-      const month = ('0' + (d.getMonth() + 1)).slice(-2);
-      const day = ('0' + d.getDate()).slice(-2);
+      const month = ("0" + (d.getMonth() + 1)).slice(-2);
+      const day = ("0" + d.getDate()).slice(-2);
 
-      if (this.timeIncrement != 't') {
+      if (this.timeIncrement != "t") {
          return `${year}-${month}-${day}`;
       } else {
-         const hours = d.getHours().toString().padStart(2, '0');
-         const minutes = d.getMinutes().toString().padStart(2, '0');
+         const hours = d.getHours().toString().padStart(2, "0");
+         const minutes = d.getMinutes().toString().padStart(2, "0");
          return `${year}-${month}-${day}T${hours}:${minutes}`;
       }
    }
@@ -101,7 +101,7 @@ export class RangeSliderEditDialog implements OnInit {
             return null;
          }
 
-         const valueTime = this.timeIncrement !== 't' ? new Date(value + 'T00:00').getTime() :
+         const valueTime = this.timeIncrement !== "t" ? new Date(value + "T00:00").getTime() :
                                                          new Date(value).getTime();
 
          if (valueTime < minTime){
@@ -127,7 +127,7 @@ export class RangeSliderEditDialog implements OnInit {
             return null;
          }
 
-         const valueTime = this.timeIncrement !== 't' ? new Date(value + 'T00:00').getTime() :
+         const valueTime = this.timeIncrement !== "t" ? new Date(value + "T00:00").getTime() :
                                                                   new Date(value).getTime();
 
          if (valueTime > maxTime) {
