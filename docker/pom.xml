@@ -23,7 +23,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>inetsoft-stylebi</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
   </parent>
 
   <artifactId>inetsoft-docker-community</artifactId>
@@ -253,7 +253,7 @@
       <plugin>
         <groupId>com.inetsoft.stylebi.build</groupId>
         <artifactId>path-utils-maven-plugin</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0</version>
         <executions>
           <execution>
             <id>dockerize-target-directory</id>
