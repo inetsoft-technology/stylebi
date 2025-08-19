@@ -505,8 +505,10 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
       }
 
       const timeHeld = Date.now() - this.timeHandleClicked;
-      console.log(timeHeld);
+
       if (timeHeld < this.clickTime) {
+         event.preventDefault();
+         event.stopPropagation();
          this.showRangeSliderEditDialog();
       }
 

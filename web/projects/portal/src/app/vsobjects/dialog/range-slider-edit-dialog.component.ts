@@ -23,10 +23,10 @@ import { UntypedFormControl, UntypedFormGroup, Validators, AbstractControl, Vali
    templateUrl: "range-slider-edit-dialog.component.html",
 })
 export class RangeSliderEditDialog implements OnInit {
-   @Input() currentMin: number | Date; //selected minimum value
-   @Input() currentMax: number | Date; //selected max value
-   @Input() rangeMin: number | Date; //range slider min value
-   @Input() rangeMax: number | Date; //range slider max value
+   @Input() currentMin: number | Date;
+   @Input() currentMax: number | Date;
+   @Input() rangeMin: number | Date;
+   @Input() rangeMax: number | Date;
 
    @Output() onCommit: EventEmitter<{min: number | Date, max: number | Date}> =
       new EventEmitter<{min: number | Date, max: number | Date}>();
