@@ -126,23 +126,23 @@ public class EventAspect {
    @Before("@annotation(InitWSExecution) && within(inetsoft.web..*)")
    public void setWSExecution(JoinPoint joinPoint) throws Throwable {
       String id = runtimeViewsheetRef.getRuntimeId();
-      ServiceProxyContext.joinPointThreadLocal.set(joinPoint);
       ServiceProxyContext.eventVsIdThreadLocal.set(id);
       Cluster cluster = Cluster.getInstance();
+      Object[] args = joinPoint.getArgs();
+      Principal principal = null;
+
+      for(Object arg : args) {
+         if(arg instanceof Principal) {
+            principal = (Principal) arg;
+         }
+      }
+
+      MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+      boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
+      ServiceProxyContext.eventUndoableThreadLocal.set(undoable);
 
       // ServiceProxyContext preprocessing does not occur if it is a local cache key, so handle it here
       if(cluster.isLocalCacheKey(WorksheetEngine.CACHE_NAME, id)) {
-         Object[] args = joinPoint.getArgs();
-         Principal principal = null;
-
-         for(Object arg : args) {
-            if(arg instanceof Principal) {
-               principal = (Principal) arg;
-            }
-         }
-
-         MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-         boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
          RuntimeWorksheet rws = viewsheetService.getWorksheet(id, principal);
          MVSession session = rws.getAssetQuerySandbox().getMVSession();
          WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
@@ -159,8 +159,8 @@ public class EventAspect {
 
    @AfterReturning("@annotation(InitWSExecution) && within(inetsoft.web..*)")
    public void clearWSExecution(JoinPoint joinPoint) {
-      ServiceProxyContext.joinPointThreadLocal.remove();
       ServiceProxyContext.eventVsIdThreadLocal.remove();
+      ServiceProxyContext.eventUndoableThreadLocal.remove();
       WSExecution.setAssetQuerySandbox(null);
    }
 

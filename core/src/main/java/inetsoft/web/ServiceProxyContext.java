@@ -55,17 +55,17 @@ public class ServiceProxyContext {
    private final Map<String, Object> messageHeaders;
    private final Map<String, Object> messageAttributes;
    private final List<UserMessage> userMessages;
-   public static ThreadLocal<JoinPoint> joinPointThreadLocal = new ThreadLocal<>();
    public static ThreadLocal<String> eventVsIdThreadLocal = new ThreadLocal<>();
-   private final JoinPoint eventJoinPoint;
+   public static ThreadLocal<Boolean> eventUndoableThreadLocal = new ThreadLocal<>();
    private final String eventVsId;
+   private final Boolean eventUndoable;
 
    public ServiceProxyContext() {
       this.contextPrincipal = ThreadContext.getPrincipal();
       this.userMessages = new ArrayList<>();
       this.threadContextRecords = new HashSet<>();
-      this.eventJoinPoint = this.joinPointThreadLocal.get();
-      this.eventVsId = this.eventVsIdThreadLocal.get();
+      this.eventVsId = eventVsIdThreadLocal.get();
+      this.eventUndoable = eventUndoableThreadLocal.get();
 
       if(Thread.currentThread() instanceof GroupedThread gt) {
          for(Object record : gt.getRecords()) {
@@ -193,29 +193,17 @@ public class ServiceProxyContext {
          MessageContextHolder.setMessageAttributes(messageAttrs);
       }
 
-      if(eventJoinPoint != null) {
-         Object[] args = eventJoinPoint.getArgs();
-         Principal principal = null;
-
-         for(Object arg : args) {
-            if(arg instanceof Principal) {
-               principal = (Principal) arg;
-            }
-         }
-
-         MethodSignature signature = (MethodSignature) eventJoinPoint.getSignature();
-         boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
-
+      if(eventVsId != null) {
          try {
             ViewsheetService viewsheetService = ConfigurationContext.getContext()
                .getSpringBean(ViewsheetService.class);
-            RuntimeWorksheet rws = viewsheetService.getWorksheet(eventVsId, principal);
+            RuntimeWorksheet rws = viewsheetService.getWorksheet(eventVsId, contextPrincipal);
             MVSession session = rws.getAssetQuerySandbox().getMVSession();
             WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
 
             // if worksheet changed, re-init sql context so change in table
             // is reflected in spark sql
-            if(undoable && session != null) {
+            if(eventUndoable && session != null) {
                session.clearInitialized();
             }
 
@@ -256,7 +244,7 @@ public class ServiceProxyContext {
          }
       }
 
-      if(eventJoinPoint != null) {
+      if(eventVsId != null) {
          WSExecution.setAssetQuerySandbox(null);
       }
 
