@@ -664,7 +664,7 @@ export class VSRangeSlider extends NavigationComponent<VSRangeSliderModel>
             let minFound: boolean = false;
             let maxFound: boolean = false;
             const numLabels = this.model.labels.length;
-            if (this.model.dataType && XSchema.isDateType(this.model.dataType)){
+            if (this.model.dataType && XSchema.isDateType(this.model.dataType)) {
                const timeIncrement = editDialog.getTimeIncrement();
 
                if (timeIncrement == 't') {
