@@ -23,7 +23,7 @@ import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import inetsoft.util.PasswordEncryption;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.SecretsConfig;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
 import java.util.HashMap;

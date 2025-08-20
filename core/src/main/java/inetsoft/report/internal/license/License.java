@@ -18,7 +18,7 @@
 package inetsoft.report.internal.license;
 
 import inetsoft.sree.internal.SUtil;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;

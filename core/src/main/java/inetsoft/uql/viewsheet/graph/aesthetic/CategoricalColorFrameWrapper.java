@@ -23,7 +23,7 @@ import inetsoft.graph.internal.GTool;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;

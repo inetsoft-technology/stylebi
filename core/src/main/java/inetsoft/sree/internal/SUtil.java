@@ -3449,7 +3449,7 @@ public class SUtil {
       if(index > 0) {
          String port = host.substring(index + 1);
 
-         if(!org.apache.commons.lang.StringUtils.isNumeric(port)) {
+         if(!org.apache.commons.lang3.StringUtils.isNumeric(port)) {
             return false;
          }
 

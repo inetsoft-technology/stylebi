@@ -31,7 +31,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;

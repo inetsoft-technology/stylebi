@@ -34,7 +34,7 @@ import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.data.CheckDuplicateResponse;
 import inetsoft.web.portal.data.TaskFolderBrowserModel;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

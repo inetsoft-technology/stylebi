@@ -20,7 +20,7 @@ package inetsoft.sree;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;

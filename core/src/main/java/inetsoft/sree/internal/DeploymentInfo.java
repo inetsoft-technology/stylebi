@@ -26,7 +26,7 @@ import inetsoft.util.dep.*;
 import inetsoft.web.admin.deploy.*;
 import inetsoft.web.admin.deploy.PartialDeploymentJarInfo.RequiredAsset;
 import inetsoft.web.admin.deploy.PartialDeploymentJarInfo.SelectedAsset;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 

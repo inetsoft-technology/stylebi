@@ -25,7 +25,7 @@ import inetsoft.uql.util.*;
 import inetsoft.util.MigrateUtil;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.*;
 
 import java.net.*;

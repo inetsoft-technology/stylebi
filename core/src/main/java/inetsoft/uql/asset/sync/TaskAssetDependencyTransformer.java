@@ -26,7 +26,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;

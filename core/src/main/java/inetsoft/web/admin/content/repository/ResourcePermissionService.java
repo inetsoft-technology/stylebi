@@ -31,7 +31,7 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.admin.security.ResourcePermissionTableModel;
 import inetsoft.web.viewsheet.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

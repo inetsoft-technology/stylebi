@@ -26,8 +26,7 @@ import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.web.vswizard.model.VSWizardData;
 import inetsoft.web.vswizard.model.recommender.*;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
-import org.apache.commons.lang.ArrayUtils;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
