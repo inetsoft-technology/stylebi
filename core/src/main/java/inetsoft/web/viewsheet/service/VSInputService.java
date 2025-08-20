@@ -483,6 +483,9 @@ public class VSInputService {
                      clist.getDataList().add(a.getAssemblyEntry());
                   }
                }
+               else if(a instanceof Viewsheet) {
+                  addEmbeddedHyperlinkAssemblies((Viewsheet) a, clist);
+               }
             }
 
             vsObjectService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher, true);
@@ -608,6 +611,23 @@ public class VSInputService {
       }
 
       return false;
+   }
+
+   private void addEmbeddedHyperlinkAssemblies(Viewsheet vs, ChangedAssemblyList clist) {
+      for(Assembly a : vs.getAssemblies()) {
+         if(a instanceof OutputVSAssembly && !clist.contains(a.getAssemblyEntry())) {
+            OutputVSAssemblyInfo assemblyInfo = (OutputVSAssemblyInfo) a.getInfo();
+
+            if(assemblyInfo.getHyperlink() != null &&
+               assemblyInfo.getHyperlink().isSendReportParameters())
+            {
+               clist.getDataList().add(a.getAssemblyEntry());
+            }
+         }
+         else if(a instanceof Viewsheet) {
+            addEmbeddedHyperlinkAssemblies((Viewsheet) a, clist);
+         }
+      }
    }
 
    private Map<String, VSAssemblyInfo> getOldCrosstabInfo(Principal principal) throws Exception {
