@@ -1213,7 +1213,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
       if(this.serverTimeZone ||
          (this.startTimeData != null && !this.startTimeData.startTimeSelected))
       {
-         if(this.isTimeCondition(this.condition)) {
+         //only update if timezone is not set, otherwise overwrites user selection if type of time condition is changed
+         if(this.isTimeCondition(this.condition) && this.timeCondition.timeZone == null) {
             this.timeCondition.timeZone = this.serverTimeZoneId;
          }
 
