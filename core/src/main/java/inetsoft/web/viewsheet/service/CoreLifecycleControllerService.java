@@ -263,7 +263,7 @@ public class CoreLifecycleControllerService {
          auditFinish = processSheet(rvs, event, uri, dispatcher, rvs.getAssetRepository(), user);
       }
 
-      return new ProcessSheetResult(id, auditFinish, coreLifecycleService.getPermissions(rvs, user));
+      return new ProcessSheetResult(id, auditFinish);
    }
 
    private boolean processSheet(RuntimeViewsheet rvs, OpenViewsheetEvent event, String linkUri,
@@ -555,16 +555,10 @@ public class CoreLifecycleControllerService {
    public static final class ProcessSheetResult implements Serializable {
       private String id;
       private boolean auditFinish;
-      private Set<String> dispatchPermissions;
-
-      public ProcessSheetResult(String id, boolean auditFinish, Set<String> dispatchPermissions) {
-         this.id = id;
-         this.auditFinish = auditFinish;
-         this.dispatchPermissions = dispatchPermissions;
-      }
 
       public ProcessSheetResult(String id, boolean auditFinish) {
-         this(id, auditFinish, null);
+         this.id = id;
+         this.auditFinish = auditFinish;
       }
 
       public String getId() {
@@ -581,14 +575,6 @@ public class CoreLifecycleControllerService {
 
       public void setAuditFinish(boolean auditFinish) {
          this.auditFinish = auditFinish;
-      }
-
-      public Set<String> getDispatchPermissions() {
-         return dispatchPermissions;
-      }
-
-      public void setDispatchPermissions(Set<String> dispatchPermissions) {
-         this.dispatchPermissions = dispatchPermissions;
       }
    }
 
