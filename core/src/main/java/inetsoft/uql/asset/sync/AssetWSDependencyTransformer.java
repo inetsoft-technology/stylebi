@@ -20,13 +20,13 @@ package inetsoft.uql.asset.sync;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.FunctionIterator;
 import inetsoft.uql.asset.internal.ScriptIterator;
 import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLTool;
-import org.apache.commons.lang.StringUtils;
 import org.w3c.dom.*;
 
 /**

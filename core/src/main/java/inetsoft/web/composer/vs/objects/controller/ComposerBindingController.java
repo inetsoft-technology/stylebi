@@ -51,7 +51,7 @@ import inetsoft.web.viewsheet.controller.table.BaseTableController;
 import inetsoft.web.viewsheet.event.InsertSelectionChildEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.stereotype.Controller;

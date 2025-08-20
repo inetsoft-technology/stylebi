@@ -36,7 +36,7 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.VSExportService;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.awt.*;
 import java.io.*;

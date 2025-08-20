@@ -34,7 +34,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.portal.controller.SearchComparator;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.viewsheet.DatasourceIgnoreGlobalShare;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;

@@ -32,7 +32,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.cube.XMetaInfoModel;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

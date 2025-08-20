@@ -28,7 +28,7 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.*;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.model.database.*;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;

@@ -29,7 +29,7 @@ import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import inetsoft.util.dep.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
 

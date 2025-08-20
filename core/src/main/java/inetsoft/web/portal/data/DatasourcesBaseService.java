@@ -40,7 +40,7 @@ import inetsoft.web.portal.service.datasource.DataSourceStatusService;
 import inetsoft.web.security.PermissionPath;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
