@@ -42,8 +42,7 @@ public class JoinTableMeta extends WorksheetTableMeta {
       private String rightTable;
       private String leftColumn;
       private String rightColumn;
-      private String joinType; // "INNER_JOIN", "LEFT_JOIN", "RIGHT_JOIN", "FULL_JOIN", "CROSS_JOIN", etc.
-      private String operator; // "=", ">", "<", ">=", "<=", "!=", etc.
+      private String joinType;
 
       public String getLeftTable() {
          return leftTable;
@@ -83,14 +82,6 @@ public class JoinTableMeta extends WorksheetTableMeta {
 
       public void setJoinType(String joinType) {
          this.joinType = joinType;
-      }
-
-      public String getOperator() {
-         return operator;
-      }
-
-      public void setOperator(String operator) {
-         this.operator = operator;
       }
    }
 }
