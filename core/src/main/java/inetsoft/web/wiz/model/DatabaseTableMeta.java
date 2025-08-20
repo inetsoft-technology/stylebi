@@ -16,14 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.web.portal.model.database;
-
-import inetsoft.web.portal.controller.database.DatasourceMetaController;
+package inetsoft.web.wiz.model;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TableMeta {
+public class DatabaseTableMeta {
    public String getName() {
       return name;
    }
