@@ -16,9 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.web.portal.data;
+package inetsoft.web.wiz.request;
 
-public class GetTableColumnMetaRequest {
+public class GetDatabaseTableMetaRequest {
    public String getDsName() {
       return dsName;
    }
