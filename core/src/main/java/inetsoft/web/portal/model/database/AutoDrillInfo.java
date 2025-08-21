@@ -17,10 +17,11 @@
  */
 package inetsoft.web.portal.model.database;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AutoDrillInfo {
+public class AutoDrillInfo implements Serializable {
    public List<AutoDrillPathModel> getPaths() {
       return paths;
    }

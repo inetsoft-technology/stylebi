@@ -19,7 +19,9 @@ package inetsoft.web.portal.model.database;
 
 import inetsoft.web.composer.model.ws.FreeFormSQLPaneModel;
 
-public class AdvancedSQLQueryModel {
+import java.io.Serializable;
+
+public class AdvancedSQLQueryModel implements Serializable {
    public AdvancedSQLQueryModel() {
       this.linkPaneModel = new QueryLinkPaneModel();
    }

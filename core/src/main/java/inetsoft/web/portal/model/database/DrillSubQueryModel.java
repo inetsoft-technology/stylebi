@@ -20,9 +20,10 @@ package inetsoft.web.portal.model.database;
 import inetsoft.util.data.CommonKVModel;
 import inetsoft.uql.asset.AssetEntry;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class DrillSubQueryModel {
+public class DrillSubQueryModel implements Serializable {
    public List<CommonKVModel<String, String>> getParams() {
       return params;
    }

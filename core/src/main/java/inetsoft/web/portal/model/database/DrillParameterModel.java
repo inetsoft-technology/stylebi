@@ -17,7 +17,9 @@
  */
 package inetsoft.web.portal.model.database;
 
-public class DrillParameterModel {
+import java.io.Serializable;
+
+public class DrillParameterModel implements Serializable {
    public String getName() {
       return name;
    }

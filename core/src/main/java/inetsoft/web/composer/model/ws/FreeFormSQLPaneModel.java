@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.ws;
 
-public class FreeFormSQLPaneModel {
+import java.io.Serializable;
+
+public class FreeFormSQLPaneModel implements Serializable {
    public FreeFormSQLPaneModel() {
    }
 
