@@ -372,14 +372,15 @@ public class DatabaseDatasourcesService {
          return new ConnectionStatus("Duplicate");
       }
 
+      if(getAdditionals.get() != null) {
+         //also check additional connection datasources for duplicates
+         String[] additionalConnectionsNames = Arrays.stream(getAdditionals.get())
+            .map(DatabaseDefinition::getName)
+            .toArray(String[]::new);
 
-      //also check additional connection datasources for duplicates
-      String[] additionalConnectionsNames = Arrays.stream(getAdditionals.get())
-                                                  .map(DatabaseDefinition::getName)
-                                                  .toArray(String[]::new);
-
-      if(checkAdditionalConnectionsDuplicate(oname, additionalConnectionsNames)) {
-         return new ConnectionStatus("Duplicate");
+         if(checkAdditionalConnectionsDuplicate(oname, additionalConnectionsNames)) {
+            return new ConnectionStatus("Duplicate");
+         }
       }
 
       if(dataSource != null) {
