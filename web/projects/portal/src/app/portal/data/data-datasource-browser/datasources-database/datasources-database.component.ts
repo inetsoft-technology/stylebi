@@ -577,6 +577,10 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
          type === DatasourceDatabaseType.ACCESS;
    }
 
+   setCustomUrl(url: string): void {
+      this.databaseInfo.customUrl = url.trim();
+   }
+
    testQueryEnabled(type: string): boolean {
       return type === DatasourceDatabaseType.CUSTOM;
    }
