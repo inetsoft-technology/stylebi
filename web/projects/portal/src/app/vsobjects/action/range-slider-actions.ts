@@ -73,7 +73,8 @@ export class RangeSliderActions extends AbstractVSActions<VSRangeSliderModel> {
             icon: () => "fa fa-calculator",
             enabled: () => true,
             visible: () => this.isActionVisibleInViewer("Edit")
-               && !this.model.composite && XSchema.isNumericType(this.model.dataType)
+               && !this.model.composite
+               && (XSchema.isNumericType(this.model.dataType) || XSchema.isDateType(this.model.dataType))
                && !this.model.adhocFilter
          },
          {
