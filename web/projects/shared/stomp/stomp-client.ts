@@ -146,20 +146,7 @@ export class StompClient {
             else if(event?.code === 1001 || event?.code === 1006) {
                // 1001 Connection intentionally closed
                // 1006 Abnormal closure — possibly due to 502/503 errors
-               this.zone.run(() =>{
-                  this.http.get("../ping", { responseType: "text" }).subscribe({
-                     next: () => {},
-                     error:  (error) => {
-                        // Check to make sure that it is a 502/503 error
-                        if(error.status === 502 || error.status == 503) {
-                           this.onDisconnect(this.endpoint);
-                           this.redirecting = true;
-                           this.router.navigate(['/reload'],
-                              {queryParams: {redirectTo: this.router.url}, replaceUrl: true});
-                        }
-                     }
-                  });
-               })
+               this.pingServer();
             }
          }
 
@@ -235,10 +222,32 @@ export class StompClient {
       }
    }
 
+   public redirectToErrorPage() {
+      this.onDisconnect(this.endpoint);
+      this.redirecting = true;
+   }
+
+   private pingServer() {
+      if(!this.router.url.startsWith("/reload")) {
+         this.zone.run(() => {
+            this.http.get("../ping", { responseType: "text" }).subscribe({
+               next: () => {},
+               error:  (error) => {
+                  // Check to make sure that it is a 502/503 error
+                  if(error.status === 502 || error.status == 503) {
+                     this.router.navigate(["/reload"],
+                        {queryParams: {redirectTo: this.router.url}, replaceUrl: true});
+                  }
+               }
+            });
+         })
+      }
+   }
+
    private createConnection(): StompClientConnection {
       return new StompClientConnection(
          this.clientChannel, this.heartbeat, () => this.onConnectionDisconnect(),
-         this.ssoHeartbeatService, this.emClient);
+         this.ssoHeartbeatService, this.emClient, () => this.pingServer());
    }
 
    resolveURL(url: string): string {

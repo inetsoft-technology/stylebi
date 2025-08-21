@@ -67,6 +67,12 @@ export class StompClientService {
       this.clients.forEach(v => v.reloadOnFailure = reload);
    }
 
+   public redirectToErrorPage() {
+      for(let client of this.clients.values()) {
+         client.redirectToErrorPage();
+      }
+   }
+
    private onDisconnect(endpoint: string) {
       this.clients.delete(endpoint);
       this.disconnectSubject.next();
