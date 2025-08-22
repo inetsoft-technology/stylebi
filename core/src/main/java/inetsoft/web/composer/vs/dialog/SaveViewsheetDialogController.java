@@ -36,10 +36,10 @@ import java.security.Principal;
 public class SaveViewsheetDialogController {
    @Autowired
    public SaveViewsheetDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                        SaveViewsheetDialogService saveViewsheetDialogService)
+                                        SaveViewsheetDialogServiceProxy saveViewsheetDialogServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.saveViewsheetDialogService = saveViewsheetDialogService;
+      this.saveViewsheetDialogServiceProxy = saveViewsheetDialogServiceProxy;
    }
 
    @RequestMapping(
@@ -51,7 +51,7 @@ public class SaveViewsheetDialogController {
       @RemainingPath String runtimeId, Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      return saveViewsheetDialogService.getSaveViewsheetInfo(runtimeId, principal);
+      return saveViewsheetDialogServiceProxy.getSaveViewsheetInfo(runtimeId, principal);
    }
 
    @RequestMapping(
@@ -63,7 +63,7 @@ public class SaveViewsheetDialogController {
       @RequestBody SaveViewsheetDialogModel model, Principal principal) throws Exception
    {
       runtimeId = Tool.byteDecode(runtimeId);
-      return saveViewsheetDialogService.validateSaveViewSheet(runtimeId, model, principal);
+      return saveViewsheetDialogServiceProxy.validateSaveViewSheet(runtimeId, model, principal);
    }
 
    @MessageMapping("/composer/vs/save-viewsheet-dialog-model")
@@ -72,7 +72,7 @@ public class SaveViewsheetDialogController {
       Principal principal, CommandDispatcher commandDispatcher)
       throws Exception
    {
-      saveViewsheetDialogService.saveViewsheet(runtimeViewsheetRef.getRuntimeId(), model,
+      saveViewsheetDialogServiceProxy.saveViewsheet(runtimeViewsheetRef.getRuntimeId(), model,
                                                linkUri, principal, commandDispatcher);
    }
 
@@ -94,5 +94,5 @@ public class SaveViewsheetDialogController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final SaveViewsheetDialogService saveViewsheetDialogService;
+   private final SaveViewsheetDialogServiceProxy saveViewsheetDialogServiceProxy;
 }
