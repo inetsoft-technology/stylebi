@@ -917,8 +917,9 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             : (TableAssembly) table.clone();
 
          AssetQueryCacheNormalizer cacheNormalizer = new AssetQueryCacheNormalizer(table2, this, mode);
+         long touchTime = vsbox != null ? vsbox.getTouchTimestamp() : -1L;
          AssetQuery query = AssetQuery.createAssetQuery(
-            table2, mode, this, false, -1L, true, false);
+            table2, mode, this, false, touchTime, true, false);
 
          try {
             VariableTable vars2;
