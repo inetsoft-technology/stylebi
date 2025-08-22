@@ -17,11 +17,13 @@
  */
 package inetsoft.web.portal.model.database;
 
+import java.io.Serializable;
+
 /**
  * Columns used for vpm and query clause in condition pane.
  */
 @SuppressWarnings({ "unused", "WeakerAccess" })
-public class Column {
+public class Column implements Serializable {
    public String getName() {
       return name;
    }
