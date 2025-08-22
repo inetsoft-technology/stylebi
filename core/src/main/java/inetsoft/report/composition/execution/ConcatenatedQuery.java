@@ -33,7 +33,7 @@ import inetsoft.uql.path.XSelection;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

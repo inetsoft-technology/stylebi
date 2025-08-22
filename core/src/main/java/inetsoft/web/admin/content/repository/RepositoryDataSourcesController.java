@@ -151,7 +151,7 @@ public class RepositoryDataSourcesController {
             path, ResourceType.DATA_SOURCE, fullPath, model.permissions(), principal);
       }
 
-      if(status == null) {
+      if(status == null && model.additionalDataSources() != null) {
          databaseDatasourcesService.updateAdditionalConnectionsPrincipalProperties(model);
       }
 

@@ -43,7 +43,7 @@ import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.*;
 import inetsoft.web.viewsheet.model.RemoveAnnotationsCondition;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

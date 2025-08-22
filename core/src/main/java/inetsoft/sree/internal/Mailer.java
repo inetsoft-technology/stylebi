@@ -29,7 +29,7 @@ import jakarta.mail.*;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.util.ByteArrayDataSource;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.mail.*;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;

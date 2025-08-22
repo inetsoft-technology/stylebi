@@ -21,7 +21,7 @@ import inetsoft.report.TableLens;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.util.XUtil;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Arrays;
 

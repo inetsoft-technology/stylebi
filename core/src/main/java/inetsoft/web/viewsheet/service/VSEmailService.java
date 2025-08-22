@@ -39,7 +39,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.viewsheet.controller.dialog.ExportDialogController;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import java.io.*;

@@ -19,7 +19,7 @@ package inetsoft.uql.asset.sync;
 
 import inetsoft.uql.asset.internal.ScriptIterator;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 public class CalcScriptTransformHandler {
    public CalcScriptTransformHandler() {

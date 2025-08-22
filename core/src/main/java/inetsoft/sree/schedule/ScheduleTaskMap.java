@@ -67,8 +67,8 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       String identifier = (String) key;
       String curOrg = this.orgID;
 
-      int startIndex = org.apache.commons.lang.StringUtils.ordinalIndexOf((String) key, "^", 3);
-      int endIndex = org.apache.commons.lang.StringUtils.ordinalIndexOf((String) key, "^", 4);
+      int startIndex = org.apache.commons.lang3.StringUtils.ordinalIndexOf((String) key, "^", 3);
+      int endIndex = org.apache.commons.lang3.StringUtils.ordinalIndexOf((String) key, "^", 4);
       String taskName = ((String) key).substring(startIndex + 2, endIndex);
 
       if(InternalScheduledTaskService.isInternalTask(taskName)) {

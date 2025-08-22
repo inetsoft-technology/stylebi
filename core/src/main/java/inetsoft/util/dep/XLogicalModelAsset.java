@@ -26,7 +26,7 @@ import inetsoft.uql.erm.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.w3c.dom.Element;
 
 import java.io.*;

@@ -30,7 +30,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.vswizard.command.UploadImageCommand;
 import inetsoft.web.vswizard.model.VSWizardConstants;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

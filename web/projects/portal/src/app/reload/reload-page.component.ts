@@ -20,6 +20,7 @@ import { Component, NgZone, OnDestroy, OnInit } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { Subscription, throwError, timer } from "rxjs";
 import { mergeMap, retryWhen } from "rxjs/operators";
+import { StompClientService } from "../../../../shared/stomp/stomp-client.service";
 
 @Component({
    selector: "reload-page",
@@ -34,7 +35,7 @@ export class ReloadPageComponent implements OnInit, OnDestroy {
    protected redirectTo: string;
 
    constructor(private route: ActivatedRoute, private router: Router,
-               private http: HttpClient, private zone: NgZone)
+               private http: HttpClient, private zone: NgZone, private stompClientService: StompClientService)
    {
       this.route.queryParamMap.subscribe(params => {
          this.redirectTo = decodeURIComponent(params.get('redirectTo'));
@@ -43,6 +44,8 @@ export class ReloadPageComponent implements OnInit, OnDestroy {
    }
 
    ngOnInit(): void {
+      this.stompClientService.redirectToErrorPage();
+
       this.pingSubscription = this.http.get(this.pingUrl, { responseType: "text" }).pipe(
          retryWhen(errors =>
             errors.pipe(

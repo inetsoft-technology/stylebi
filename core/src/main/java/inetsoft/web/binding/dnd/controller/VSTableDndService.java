@@ -39,7 +39,7 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.vs.objects.controller.ComposerVSTableController;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;

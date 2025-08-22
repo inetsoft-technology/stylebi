@@ -27,7 +27,7 @@ import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.graph.ChartDcProcessor;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.*;
 import java.util.stream.Stream;

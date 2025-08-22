@@ -35,7 +35,7 @@ import inetsoft.web.admin.schedule.model.CheckMailInfo;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import inetsoft.web.viewsheet.Audited;
 import inetsoft.web.viewsheet.model.dialog.schedule.TimeRangeModel;
-import org.apache.commons.lang.time.DurationFormatUtils;
+import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -29,7 +29,7 @@ import inetsoft.web.admin.schedule.ScheduleQueriesStatus;
 import inetsoft.web.admin.schedule.ScheduleViewsheetsStatus;
 import inetsoft.web.admin.server.ServerMetrics;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionTimeoutException;
 import org.slf4j.Logger;

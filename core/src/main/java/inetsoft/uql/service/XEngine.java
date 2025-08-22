@@ -39,7 +39,7 @@ import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
 import inetsoft.web.cluster.ClearLocalNodeMetaDataCacheMessage;
 import inetsoft.web.cluster.RefreshMetaDataMessage;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

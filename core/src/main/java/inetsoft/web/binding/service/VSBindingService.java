@@ -59,7 +59,7 @@ import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.model.VSWizardEditModes;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

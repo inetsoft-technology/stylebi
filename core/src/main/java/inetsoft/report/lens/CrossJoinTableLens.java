@@ -23,7 +23,7 @@ import inetsoft.report.filter.DefaultTableChangeListener;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

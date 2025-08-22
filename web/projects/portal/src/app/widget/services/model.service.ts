@@ -23,6 +23,7 @@ import {
    HttpResponse
 } from "@angular/common/http";
 import { Injectable } from "@angular/core";
+import { Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
@@ -36,7 +37,7 @@ export class ModelService {
    private readonly formHeaders: HttpHeaders;
    private _errorHandler: (error: any) => boolean;
 
-   constructor(private http: HttpClient, private modalService: NgbModal) {
+   constructor(private http: HttpClient, private modalService: NgbModal, private router: Router) {
       this.headers = new HttpHeaders({
          "Content-Type": "application/json",
          "X-Requested-With": "XMLHttpRequest",
@@ -127,6 +128,11 @@ export class ModelService {
          res.status != 502 && res.status != 503)
       {
          ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", errMsg);
+      }
+
+      if(res.status == 502 || res.status == 503) {
+         this.router.navigate(['/reload'],
+            {queryParams: { redirectTo: this.router.url }, replaceUrl: true})
       }
 
       return throwError(errMsg);

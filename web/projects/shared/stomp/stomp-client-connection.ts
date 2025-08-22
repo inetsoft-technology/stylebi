@@ -26,10 +26,11 @@ import { StompMessage } from "./stomp-message";
  */
 export class StompClientConnection {
    private subscriptions: Subscription[]  = [];
+   private lastPing = 0;
 
    constructor(private client: StompClientChannel, private heartbeat: EventEmitter<any>,
                private onDisconnect: () => any, private ssoHeartbeatService: SsoHeartbeatService,
-               private emClient: boolean)
+               private emClient: boolean,  private pingServer: () => any)
    {
    }
 
@@ -65,6 +66,7 @@ export class StompClientConnection {
       }
 
       this.ssoHeartbeat(destination, body);
+      this.checkServiceAvailable()
       this.client.send(destination, headers, body);
    }
 
@@ -84,6 +86,17 @@ export class StompClientConnection {
 
       if(dispatch) {
          this.ssoHeartbeatService.heartbeat();
+      }
+   }
+
+   private checkServiceAvailable() {
+      if(!this.client.hasConnection()) {
+         const now = Date.now();
+
+         if(now - this.lastPing > 5000) {
+            this.lastPing = now;
+            this.pingServer();
+         }
       }
    }
 }

@@ -31,7 +31,7 @@ import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
