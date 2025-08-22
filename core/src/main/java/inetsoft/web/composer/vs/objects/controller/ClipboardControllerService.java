@@ -18,6 +18,8 @@
 
 package inetsoft.web.composer.vs.objects.controller;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -40,17 +42,19 @@ import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.event.CopyHighlightEvent;
 import inetsoft.web.composer.vs.objects.event.PasteHighlightEvent;
+import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.UpdateHighlightPasteCommand;
 import inetsoft.web.viewsheet.service.*;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import inetsoft.web.messaging.MessageContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
+import java.time.Duration;
 import java.util.*;
 import java.util.List;
+import java.util.Queue;
 import java.util.stream.Collectors;
 
 @Service
@@ -74,20 +78,17 @@ public class ClipboardControllerService {
    public Void copyOrCut(@ClusterProxyKey String runtimeId, CopyVSObjectsEvent event,
                          Principal principal, CommandDispatcher dispatcher, String linkUri) throws Exception
    {
-      final SimpMessageHeaderAccessor headerAccessor = MessageContextHolder.getMessageAttributes().getHeaderAccessor();
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       final Viewsheet viewsheet = rvs.getViewsheet();
       final Set<Assembly> oldAssemblies = new HashSet<>();
 
       for(String assemblyName: event.getObjects()) {
-         final Assembly assembly = viewsheet.getAssembly(assemblyName);
+         final VSAssembly assembly = viewsheet.getAssembly(assemblyName);
 
-         if(assembly instanceof VSAssembly) {
-            final VSAssembly vsAssembly = (VSAssembly) assembly;
-            oldAssemblies.add(vsAssembly);
+         if(assembly != null) {
+            oldAssemblies.add(assembly);
 
-            if(vsAssembly instanceof ContainerVSAssembly) {
-               final ContainerVSAssembly container = (ContainerVSAssembly) vsAssembly;
+            if(assembly instanceof ContainerVSAssembly container) {
                final String[] names = container.getAbsoluteAssemblies();
                addAllDescendants(names, viewsheet, oldAssemblies);
             }
@@ -95,7 +96,7 @@ public class ClipboardControllerService {
       }
 
       final List<Assembly> clonedAssemblies = oldAssemblies.stream()
-         .map((assembly) -> assembly.clone())
+         .map(Assembly::clone)
          .map(Assembly.class::cast)
          .collect(Collectors.toList());
 
@@ -122,8 +123,7 @@ public class ClipboardControllerService {
       final VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       final PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       dispatcher.sendCommand(treeCommand);
-      Map<String, Object> attributes = headerAccessor.getSessionAttributes();
-      ClipboardService service = (ClipboardService) attributes.get(ClipboardService.CLIPBOARD);
+      ClipboardService service = clipboardServices.get(principal);
       service.copy(clonedAssemblies);
 
       return null;
@@ -133,14 +133,11 @@ public class ClipboardControllerService {
    public Void pasteObject(@ClusterProxyKey String runtimeId, int x, int y, Principal principal,
                            CommandDispatcher dispatcher, String linkUri) throws Exception
    {
-      final SimpMessageHeaderAccessor headerAccessor = MessageContextHolder.getMessageAttributes().getHeaderAccessor();
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       final Viewsheet viewsheet = rvs.getViewsheet();
       final ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
 
-      final Map<String, Object> attributes = headerAccessor.getSessionAttributes();
-      final ClipboardService service =
-         (ClipboardService) attributes.get(ClipboardService.CLIPBOARD);
+      final ClipboardService service = clipboardServices.get(principal);
 
       if(service == null) {
          return null;
@@ -191,9 +188,8 @@ public class ClipboardControllerService {
 
          // add all assemblies before performing other execution. otherwise if an
          // assembly depends on another pasted assembly, there will be execution error
-         for(int i = 0; i < assemblies.size(); i++) {
-            if(assemblies.get(i) instanceof VSAssembly) {
-               VSAssembly vsAssembly = (VSAssembly) assemblies.get(i);
+         for(Assembly value : assemblies) {
+            if(value instanceof VSAssembly vsAssembly) {
                String name = vsAssembly.getName();
 
                copyImage(viewsheet, vsAssembly);
@@ -208,7 +204,7 @@ public class ClipboardControllerService {
                   namemap.put(oname, name);
                }
 
-               viewsheet.addAssembly((VSAssembly) assemblies.get(i), true, true);
+               viewsheet.addAssembly(vsAssembly, true, true);
             }
          }
 
@@ -217,9 +213,8 @@ public class ClipboardControllerService {
          for(int i = 0; i < assemblies.size(); i++) {
             final Assembly assembly = assemblies.get(i);
 
-            if(assembly instanceof VSAssembly) {
+            if(assembly instanceof VSAssembly vsAssembly) {
                Assembly containerInvolved = null;
-               final VSAssembly vsAssembly = (VSAssembly) assembly;
 
                if(vsAssembly instanceof ImageVSAssembly) {
                   String img = ((ImageVSAssembly) vsAssembly).getImage();
@@ -249,25 +244,25 @@ public class ClipboardControllerService {
                if(containerInvolved == null) {
                   final int assemblyType = vsAssembly.getAssemblyType();
 
-                  if(assemblyType == AbstractSheet.IMAGE_ASSET) {
-                     final ImageVSAssembly image = (ImageVSAssembly) vsAssembly;
+                  if(assemblyType == AbstractSheet.IMAGE_ASSET &&
+                     vsAssembly instanceof ImageVSAssembly image)
+                  {
                      uploadImg(image, viewsheet, viewsheet);
                   }
 
                   vsAssembly.getPixelOffset().translate(dx, dy);
                }
 
-               if(vsAssembly instanceof ContainerVSAssembly) {
-                  final ContainerVSAssembly container = (ContainerVSAssembly) vsAssembly;
+               if(vsAssembly instanceof ContainerVSAssembly container) {
                   final List<VSAssembly> children =
                      Arrays.stream(container.getAbsoluteAssemblies())
-                        .map((name) -> (VSAssembly) viewsheet.getAssembly(namemap.getOrDefault(name, name)))
+                        .map((name) -> viewsheet.getAssembly(namemap.getOrDefault(name, name)))
                         .collect(Collectors.toList());
                   final String[] newChildren = new String[children.size()];
                   int selected = -1;
 
                   if(!(container instanceof TabVSAssembly)) {
-                     children.sort((a1, a2) -> a1.getZIndex() - a2.getZIndex());
+                     children.sort(Comparator.comparingInt(VSAssembly::getZIndex));
                   }
 
                   for(int j = 0; j < children.size(); j++) {
@@ -309,13 +304,12 @@ public class ClipboardControllerService {
                   coreLifecycleService.addDeleteVSObject(rvs, vsAssembly, dispatcher);
                }
 
-               if(vsAssembly instanceof ContainerVSAssembly) {
-                  final ContainerVSAssembly container = (ContainerVSAssembly) vsAssembly;
+               if(vsAssembly instanceof ContainerVSAssembly container) {
                   final List<VSAssembly> children =
                      Arrays.stream(container.getAbsoluteAssemblies())
-                        .map((name) -> (VSAssembly) viewsheet.getAssembly(name))
-                        .sorted((a1, a2) -> a1.getZIndex() - a2.getZIndex())
-                        .collect(Collectors.toList());
+                        .map(viewsheet::getAssembly)
+                        .sorted(Comparator.comparingInt(VSAssembly::getZIndex))
+                        .toList();
 
                   // in case of container, its children would be changed so if it's in
                   // another container, it would already be sent to client by the parent
@@ -331,13 +325,12 @@ public class ClipboardControllerService {
                }
 
                // Load any tables in the embedded viewsheet.
-               if(vsAssembly instanceof Viewsheet) {
-                  final Viewsheet container = (Viewsheet) vsAssembly;
+               if(vsAssembly instanceof Viewsheet container) {
                   final Assembly[] children = container.getAssemblies();
                   final List<TableDataVSAssembly> tables = Arrays.stream(children)
                      .filter(TableDataVSAssembly.class::isInstance)
                      .map(TableDataVSAssembly.class::cast)
-                     .collect(Collectors.toList());
+                     .toList();
 
                   for(TableDataVSAssembly table: tables) {
                      coreLifecycleService
@@ -386,15 +379,16 @@ public class ClipboardControllerService {
    {
       final SimpMessageHeaderAccessor headerAccessor = MessageContextHolder.getMessageAttributes().getHeaderAccessor();
       Viewsheet viewsheet = viewsheetService.getViewsheet(runtimeId, principal).getViewsheet();
-      VSAssembly assembly = (VSAssembly) viewsheet.getAssembly(event.getName());
+      VSAssembly assembly = viewsheet.getAssembly(event.getName());
       TableDataVSAssemblyInfo assemblyInfo = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
 
       TableHighlightAttr tableHighlightAttr = assemblyInfo.getHighlightAttr();
 
       if(tableHighlightAttr != null) {
          Map<String, Object> attributes = headerAccessor.getSessionAttributes();
-         @SuppressWarnings("unchecked")
-         Map<String, HighlightGroup> clipboard = (Map) attributes.get(HIGHLIGHT_CLIPBOARD);
+         @SuppressWarnings({ "unchecked", "rawtypes" })
+         Map<String, HighlightGroup> clipboard =
+            (Map) Objects.requireNonNull(attributes).get(HIGHLIGHT_CLIPBOARD);
 
          if(clipboard == null) {
             clipboard = new HashMap<>();
@@ -442,7 +436,7 @@ public class ClipboardControllerService {
       }
 
       Map<String, Object> attributes = headerAccessor.getSessionAttributes();
-      Map clipboard = (Map) attributes.get(HIGHLIGHT_CLIPBOARD);
+      Map<?, ?> clipboard = (Map<?, ?>) Objects.requireNonNull(attributes).get(HIGHLIGHT_CLIPBOARD);
 
       TableHighlightAttr finalTableHighlightAttr = tableHighlightAttr;
       Arrays.stream(event.getSelectedCells()).
@@ -507,8 +501,7 @@ public class ClipboardControllerService {
       while(!tempList.isEmpty()) {
          final Assembly assembly = tempList.remove();
 
-         if(assembly instanceof ContainerVSAssembly) {
-            final ContainerVSAssembly container = (ContainerVSAssembly) assembly;
+         if(assembly instanceof ContainerVSAssembly container) {
             final String[] childNames = container.getAbsoluteAssemblies();
             Arrays.stream(childNames).map(viewsheet::getAssembly).forEach(tempList::add);
          }
@@ -584,5 +577,8 @@ public class ClipboardControllerService {
    private final ViewsheetService viewsheetService;
    private final VSAssemblyInfoHandler assemblyHandler;
    private final VSObjectPropertyService vsObjectPropertyService;
+   private final LoadingCache<Principal, ClipboardService> clipboardServices = Caffeine.newBuilder()
+      .expireAfterAccess(Duration.ofMinutes(30L))
+      .build(k -> new ClipboardService());
    private static final String HIGHLIGHT_CLIPBOARD = "highlight clipboard";
 }

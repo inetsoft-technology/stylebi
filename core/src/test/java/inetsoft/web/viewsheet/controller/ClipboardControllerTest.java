@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.controller;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.security.*;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
@@ -28,8 +29,6 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.ClipboardService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.objects.controller.*;
-import inetsoft.web.messaging.MessageAttributes;
-import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
@@ -39,12 +38,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 
 import java.awt.*;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.*;
@@ -54,7 +52,7 @@ import static org.mockito.Mockito.*;
 class ClipboardControllerTest {
 
    @BeforeEach
-   void setup() throws Exception {
+   void setup() {
       ConfigurationContext context = ConfigurationContext.getContext();
       ConfigurationContext  spyContext = Mockito.spy(context);
       staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
@@ -83,21 +81,22 @@ class ClipboardControllerTest {
       assemblies.add(gauge);
 
       when(viewsheet.getAssemblies())
-         .thenReturn(assemblies.toArray(new Assembly[assemblies.size()]));
+         .thenReturn(assemblies.toArray(new Assembly[0]));
 
       when(clipboardService.paste()).thenReturn(assemblies);
-      Map<String, Object> headers = new HashMap<>();
-      headers.put(ClipboardService.CLIPBOARD, clipboardService);
+//      Map<String, Object> headers = new HashMap<>();
+//      headers.put(ClipboardService.CLIPBOARD, clipboardService);
+//
+//      MockedStatic<MessageContextHolder> contextHolder = Mockito.mockStatic(MessageContextHolder.class);
+//      MessageAttributes messageAttributes = mock(MessageAttributes.class);
+//      StompHeaderAccessor stompHeaderAccessor = mock(StompHeaderAccessor.class);
+//
+//      contextHolder.when(MessageContextHolder::getMessageAttributes).thenReturn(messageAttributes);
+//      when(messageAttributes.getHeaderAccessor()).thenReturn(stompHeaderAccessor);
+//      when(stompHeaderAccessor.getSessionAttributes()).thenReturn(headers);
 
-      MockedStatic<MessageContextHolder> contextHolder = Mockito.mockStatic(MessageContextHolder.class);
-      MessageAttributes messageAttributes = mock(MessageAttributes.class);
-      StompHeaderAccessor stompHeaderAccessor = mock(StompHeaderAccessor.class);
-
-      contextHolder.when(MessageContextHolder::getMessageAttributes).thenReturn(messageAttributes);
-      when(messageAttributes.getHeaderAccessor()).thenReturn(stompHeaderAccessor);
-      when(stompHeaderAccessor.getSessionAttributes()).thenReturn(headers);
-
-      controller.pasteObject(0, 0, null, commandDispatcher, headerAccessor, linkUri);
+      Principal principal = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()));
+      controller.pasteObject(0, 0, principal, commandDispatcher, headerAccessor, linkUri);
 
       verify(coreLifecycleService, times(2))
          .addDeleteVSObject(any(RuntimeViewsheet.class), argCaptor.capture(),

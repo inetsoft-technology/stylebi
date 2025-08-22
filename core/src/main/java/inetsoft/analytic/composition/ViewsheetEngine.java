@@ -26,6 +26,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.AffinityCallable;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.Organization;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
@@ -817,6 +818,24 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          .toArray(RuntimeViewsheet[]::new);
    }
 
+   @Override
+   public boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId, Principal principal) {
+      if(sheetRuntimeId == null) {
+         return false;
+      }
+
+      SwitchToHostOrgForGlobalShareAssetTask task =
+         new SwitchToHostOrgForGlobalShareAssetTask(principal, sheetRuntimeId);
+      Cluster cluster = Cluster.getInstance();
+
+      if(cluster.isLocalCacheKey(CACHE_NAME, sheetRuntimeId)) {
+         return task.callInternal(this);
+      }
+      else {
+         return cluster.affinityCall(CACHE_NAME, sheetRuntimeId, task);
+      }
+   }
+
    private RuntimeViewsheet[] getRuntimeViewsheets(AssetEntry entry) {
       return Arrays.stream(getAllRuntimeViewsheets())
          .filter(Objects::nonNull)
@@ -873,5 +892,50 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       private final AssetEntry entry;
       private final Principal user;
       private final String id;
+   }
+
+   private static final class SwitchToHostOrgForGlobalShareAssetTask implements AffinityCallable<Boolean> {
+      public SwitchToHostOrgForGlobalShareAssetTask(Principal principal, String runtimeId) {
+         this.principal = principal;
+         this.runtimeId = runtimeId;
+      }
+
+      @Override
+      public Boolean call() {
+         ViewsheetEngine service = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
+         return callInternal(service);
+      }
+
+      private boolean callInternal(ViewsheetEngine service) {
+         try {
+            RuntimeSheet runtimeSheet = service.getSheet(runtimeId, principal);
+
+            if(runtimeSheet == null || runtimeSheet.getEntry() == null ||
+               !(runtimeSheet instanceof RuntimeViewsheet))
+            {
+               return false;
+            }
+
+            AssetEntry entry = runtimeSheet.getEntry();
+
+            if(SUtil.isDefaultVSGloballyVisible(principal) &&
+               !Tool.equals(((XPrincipal) principal).getOrgId(), entry.getOrgID()) &&
+               Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
+            {
+               return true;
+            }
+         }
+         catch(ExpiredSheetException ignored) {
+            // no-op
+         }
+         catch(Exception ignored) {
+            LOG.warn("Can't get runtime viewsheet by id: {}", runtimeId);
+         }
+
+         return false;
+      }
+
+      private final Principal principal;
+      private final String runtimeId;
    }
 }
