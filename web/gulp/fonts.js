@@ -51,10 +51,10 @@ const generateSassVariables = function() {
             };
          }).sort((g1, g2) => g1.code - g2.code);
          const data = { hash, glyphs };
-         gulp.src("gulp-tasks/templates/variables.scss.template")
+         gulp.src("gulp/templates/variables.scss.template")
             .pipe(template(data))
             .pipe(rename("variables.scss"))
-            .pipe(gulp.dest("src/assets/ineticons"));
+            .pipe(gulp.dest("projects/portal/src/assets/ineticons"));
          callback();
       });
    }
