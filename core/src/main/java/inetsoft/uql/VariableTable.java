@@ -882,27 +882,33 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
          generator.writeStartObject();
 
          if(table.session == null) {
-            generator.writeNullField("vartable");
+            generator.writeNullField("session");
          }
          else {
             generator.writeStringField("session", String.valueOf(table.session));
          }
 
-         generator.writeObjectFieldStart("vartable");
+         if(table.vartable != null) {
+            generator.writeObjectFieldStart("vartable");
 
-         for(Map.Entry<String, Object> entry : table.vartable.entrySet()) {
-            if(entry.getValue() == null) {
-               generator.writeNullField(entry.getKey());
+            for(Map.Entry<String, Object> entry : table.vartable.entrySet()) {
+               if(entry.getValue() == null) {
+                  generator.writeNullField(entry.getKey());
+               }
+               else {
+                  generator.writeObjectFieldStart(entry.getKey());
+                  generator.writeStringField("type", entry.getValue().getClass().getName());
+                  generator.writeObjectField("value", entry.getValue());
+                  generator.writeEndObject();
+               }
             }
-            else {
-               generator.writeObjectFieldStart(entry.getKey());
-               generator.writeStringField("type", entry.getValue().getClass().getName());
-               generator.writeObjectField("value", entry.getValue());
-               generator.writeEndObject();
-            }
+
+            generator.writeEndObject(); // vartable
+         }
+         else {
+            generator.writeNullField("vartable");
          }
 
-         generator.writeEndObject(); // vartable
          generator.writeArrayFieldStart("notIgnoreNull");
 
          for(String value : table.notIgnoreNull) {
@@ -910,13 +916,17 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
          }
 
          generator.writeEndArray(); // notIgnoreNull
-         generator.writeArrayFieldStart("asIs");
 
-         for(String value : table.asIs) {
-            generator.writeString(value);
+         if(table.asIs != null && !table.asIs.isEmpty()) {
+            generator.writeArrayFieldStart("asIs");
+
+            for(String value : table.asIs) {
+               generator.writeString(value);
+            }
+
+            generator.writeEndObject(); // asIs
          }
 
-         generator.writeEndObject(); // asIs
          generator.writeObjectField("basetable", table.basetable);
          generator.writeBooleanField("runtimeValue", table.runtimeValue);
          generator.writeNumberField("copyParameterTS", table.copyParameterTS);
@@ -935,14 +945,14 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
       {
          JsonNode node = parser.getCodec().readTree(parser);
          VariableTable table = new VariableTable();
-         table.session = node.get("session").asText();
+         table.session = node.get("session") != null ? node.get("session").asText() : null;
          ObjectNode object = (ObjectNode) node.get("vartable");
 
          for(Map.Entry<String, JsonNode> e : object.properties()) {
             if(e.getValue().isNull()) {
                table.vartable.put(e.getKey(), null);
             }
-            else {
+            else if(object.get("type") != null) {
                String type = object.get("type").asText();
                Class<?> valueClass;
 
@@ -967,8 +977,10 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
 
          array = (ArrayNode) node.get("asIs");
 
-         for(JsonNode child : array) {
-            table.asIs.add(child.asText());
+         if(array != null) {
+            for(JsonNode child : array) {
+               table.asIs.add(child.asText());
+            }
          }
 
          if(!node.get("basetable").isNull()) {
