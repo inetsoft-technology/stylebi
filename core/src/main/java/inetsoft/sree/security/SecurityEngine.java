@@ -753,7 +753,10 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       // To access the resource, admin will create principal to fetch
       // resource properly. The principal is not authenticated. To support
       // this usage, here we ignore the authentication check
-      if(type != ResourceType.MY_DASHBOARDS && !isLogin(principal)) {
+      // This is also used to check through which users have bookmark action permission
+      if(type != ResourceType.MY_DASHBOARDS && type != ResourceType.VIEWSHEET_ACTION &&
+         !isLogin(principal))
+      {
          throw new SecurityException(principal.getName() + " did not login.");
       }
 
