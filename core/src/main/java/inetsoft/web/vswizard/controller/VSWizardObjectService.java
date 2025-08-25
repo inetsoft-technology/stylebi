@@ -35,7 +35,8 @@ import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.command.*;
 import inetsoft.web.vswizard.event.*;
-import inetsoft.web.vswizard.handler.*;
+import inetsoft.web.vswizard.handler.VSWizardBindingHandler;
+import inetsoft.web.vswizard.handler.VSWizardObjectHandler;
 import inetsoft.web.vswizard.model.*;
 import inetsoft.web.vswizard.model.recommender.*;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -56,8 +57,6 @@ import static inetsoft.web.vswizard.recommender.execution.WizardDataExecutor.CAC
 public class VSWizardObjectService {
 
    public VSWizardObjectService(VSTreeHandler treeHandler,
-                                SyncChartHandler syncChartHandler,
-                                SyncTableHandler syncTableHandler,
                                 ViewsheetService viewsheetService,
                                 WizardVSObjectService objectService,
                                 VSWizardObjectHandler objectHandler,
@@ -65,7 +64,6 @@ public class VSWizardObjectService {
                                 VSAssemblyInfoHandler assemblyHandler,
                                 VSWizardBindingHandler bindingHandler,
                                 WizardViewsheetService wizardVSService,
-                                SyncCrosstabHandler syncCrosstabHandler,
                                 VSWizardTemporaryInfoService temporaryInfoService)
    {
       this.treeHandler = treeHandler;
@@ -74,11 +72,8 @@ public class VSWizardObjectService {
       this.bindingHandler = bindingHandler;
       this.assemblyHandler = assemblyHandler;
       this.wizardVSService = wizardVSService;
-      this.syncTableHandler = syncTableHandler;
       this.viewsheetService = viewsheetService;
-      this.syncChartHandler = syncChartHandler;
       this.coreLifecycleService = coreLifecycleService;
-      this.syncCrosstabHandler = syncCrosstabHandler;
       this.temporaryInfoService = temporaryInfoService;
    }
 
@@ -175,7 +170,7 @@ public class VSWizardObjectService {
             }
 
             // reload selected nodes
-            List<String> selectedPaths = null;
+            List<String> selectedPaths;
 
             if(!goBack) {
                selectedPaths = bindingHandler.getSelectedPath(
@@ -224,12 +219,12 @@ public class VSWizardObjectService {
       return null;
    }
 
-   private Void clearOriginalSelections(RuntimeViewsheet rvs, VSAssembly assembly, String uri,
+   private void clearOriginalSelections(RuntimeViewsheet rvs, VSAssembly assembly, String uri,
                                         CommandDispatcher dispatcher)
       throws Exception
    {
-      if(!(assembly instanceof SelectionVSAssembly)) {
-         return null;
+      if(!(assembly instanceof SelectionVSAssembly sassembly)) {
+         return;
       }
 
       Viewsheet vs = rvs.getViewsheet();
@@ -258,7 +253,6 @@ public class VSWizardObjectService {
       final AssemblyRef[] refs = vs.getDependings(assemblyEntry);
       final List<Assembly> rlist = new ArrayList<>();
 
-      final SelectionVSAssembly sassembly = (SelectionVSAssembly) assembly;
       final List<String> tableNames = sassembly.getTableNames();
 
       for(String tname : tableNames) {
@@ -273,8 +267,8 @@ public class VSWizardObjectService {
          relatedSelection.ifPresent(relatedSelections::add);
       }
 
-      for(int i = 0; i < refs.length; i++) {
-         AssemblyEntry entry = refs[i].getEntry();
+      for(AssemblyRef ref : refs) {
+         AssemblyEntry entry = ref.getEntry();
          Assembly tassembly = null;
 
          if(entry.isWSAssembly()) {
@@ -345,8 +339,8 @@ public class VSWizardObjectService {
       }
 
       // refresh views dependings
-      for(int i = 0; i < vrefs.length; i++) {
-         AssemblyEntry entry = vrefs[i].getEntry();
+      for(AssemblyRef vref : vrefs) {
+         AssemblyEntry entry = vref.getEntry();
 
          if(entry.isVSAssembly()) {
             try {
@@ -365,8 +359,6 @@ public class VSWizardObjectService {
             }
          }
       }
-
-      return null;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -485,7 +477,7 @@ public class VSWizardObjectService {
       return null;
    }
 
-   private Void syncDrillFilterAssembly(RuntimeViewsheet orvs, Viewsheet vs, boolean adjust) {
+   private void syncDrillFilterAssembly(RuntimeViewsheet orvs, Viewsheet vs, boolean adjust) {
       for(Assembly assembly : vs.getAssemblies()) {
          if(assembly instanceof DrillFilterVSAssembly &&
             !WizardRecommenderUtil.isTempAssembly(assembly.getName()) &&
@@ -494,8 +486,6 @@ public class VSWizardObjectService {
             orvs.getViewsheet().addAssembly((VSAssembly) assembly, adjust);
          }
       }
-
-      return null;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -525,31 +515,25 @@ public class VSWizardObjectService {
       return null;
    }
 
-   private Void cancelExecution(RuntimeViewsheet rvs) {
+   private void cancelExecution(RuntimeViewsheet rvs) {
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
       box.cancel();
       AssetDataCache.cancel(CACHE_ID_PREFIX + box.getID());
-
-      return null;
    }
 
    /**
     * Get the original runtime viewsheet directly
-    * @param rvs
-    * @param principal
     */
    private RuntimeViewsheet getOriginalRViewsheet(RuntimeViewsheet rvs,Principal principal)
       throws Exception
    {
       String dirOriginalId = objectHandler.getOriginalRuntimeId(rvs.getID(), principal);
-      RuntimeViewsheet dirOriginalVS = viewsheetService.getViewsheet(dirOriginalId, principal);
-
-      return dirOriginalVS;
+      return viewsheetService.getViewsheet(dirOriginalId, principal);
    }
 
-   private Void updateCalcFields(Viewsheet vs, Viewsheet ovs) {
+   private void updateCalcFields(Viewsheet vs, Viewsheet ovs) {
       if(vs == ovs) {
-         return null;
+         return;
       }
 
       // remove old
@@ -585,8 +569,6 @@ public class VSWizardObjectService {
                                                     ovs.addAggrField(source, (AggregateRef) agg.clone()));
          }
       }
-
-      return null;
    }
 
 
@@ -599,9 +581,6 @@ public class VSWizardObjectService {
    private final VSWizardBindingHandler bindingHandler;
    private final WizardViewsheetService wizardVSService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
-   private final SyncChartHandler syncChartHandler;
-   private final SyncTableHandler syncTableHandler;
-   private final SyncCrosstabHandler syncCrosstabHandler;
    private static final Logger LOGGER = LoggerFactory.getLogger(VSWizardObjectService.class);
 
 }

@@ -113,9 +113,7 @@ public class ServiceProxyContext {
       for(Map.Entry<String, Object> e : source.entrySet()) {
          String key = e.getKey();
 
-         if(!key.startsWith(SimpAttributes.DESTRUCTION_CALLBACK_NAME_PREFIX) &&
-            !key.startsWith("scopedTarget.") && !key.equals(ClipboardService.CLIPBOARD))
-         {
+         if(!key.startsWith(SimpAttributes.DESTRUCTION_CALLBACK_NAME_PREFIX)) {
             Object value = e.getValue();
 
             if(value instanceof Map) {
@@ -146,7 +144,7 @@ public class ServiceProxyContext {
          }
 
          if(messageHeaders != null) {
-            LoggerFactory.getLogger(getClass()).warn(
+            LoggerFactory.getLogger(getClass()).debug(
                "APPLY MESSAGE HEADERS: old={}, new={}",
                messageAttrs.getMessage().getHeaders(), messageHeaders);
          }

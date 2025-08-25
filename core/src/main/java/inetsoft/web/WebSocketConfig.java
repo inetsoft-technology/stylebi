@@ -43,6 +43,7 @@ import org.springframework.session.web.socket.config.annotation.AbstractSessionW
 import org.springframework.session.web.socket.server.SessionRepositoryMessageInterceptor;
 import org.springframework.web.socket.config.annotation.*;
 import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
+import org.springframework.web.socket.server.support.HttpSessionHandshakeInterceptor;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -73,7 +74,7 @@ public class WebSocketConfig<S extends Session> extends
    public void configureStompEndpoints(StompEndpointRegistry registry) {
       registry.addEndpoint("/vs-events")
          .addInterceptors(
-            new ClipboardHandshakeInterceptor(),
+            new HttpSessionHandshakeInterceptor(),
             new RequestAttributeHandshakeInterceptor())
          .setAllowedOriginPatterns("*")
          .withSockJS()
@@ -140,7 +141,8 @@ public class WebSocketConfig<S extends Session> extends
       registration
          .interceptors(new MessageScopeInterceptor(),
                        messageInterceptor,
-                       new SessionAccessInterceptor(igniteSessionRepository, objectMapper))
+                       new SessionAccessInterceptor(igniteSessionRepository, objectMapper),
+                       new StompLoggingInterceptor())
          // This is the thread pool used to process asset events. In 12.2 we just spawned a new
          // thread every time that an event was received, so it was basically an unbounded pool.
          .taskExecutor(executor).corePoolSize(executor.getCorePoolSize());

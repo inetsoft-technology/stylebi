@@ -8762,39 +8762,8 @@ public final class VSUtil {
    public static boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId,
                                                          Principal principal)
    {
-
-      if(sheetRuntimeId == null) {
-         return false;
-      }
-
       ViewsheetService service = SingletonManager.getInstance(ViewsheetService.class);
-
-      try {
-         RuntimeSheet runtimeSheet = service.getSheet(sheetRuntimeId, principal);
-
-         if(runtimeSheet == null || runtimeSheet.getEntry() == null ||
-            !(runtimeSheet instanceof RuntimeViewsheet))
-         {
-            return false;
-         }
-
-         AssetEntry entry = runtimeSheet.getEntry();
-
-         if(SUtil.isDefaultVSGloballyVisible(principal) &&
-            !Tool.equals(((XPrincipal) principal).getOrgId(), entry.getOrgID()) &&
-            Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
-         {
-            return true;
-         }
-      }
-      catch(ExpiredSheetException ignored) {
-         // no-op
-      }
-      catch(Exception ignored) {
-         LOG.warn("Can't get runtime viewsheet by id: " + sheetRuntimeId);
-      }
-
-      return false;
+      return service.switchToHostOrgForGlobalShareAsset(sheetRuntimeId, principal);
    }
 
    private static InheritableThreadLocal<Boolean> IGNORE_CSS = new InheritableThreadLocal<>();

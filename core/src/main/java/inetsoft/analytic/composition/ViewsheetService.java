@@ -162,6 +162,8 @@ public interface ViewsheetService extends WorksheetService {
     */
    void updateBookmarks(AssetEntry viewsheet);
 
+   boolean switchToHostOrgForGlobalShareAsset(String sheetRuntimeId, Principal principal);
+
    final class Reference extends SingletonManager.Reference<ViewsheetService> {
       @Override
       public synchronized ViewsheetService get(Object ... parameters) {
