@@ -422,7 +422,8 @@ public class RuntimeSheetCache
          current = null;
       }
 
-      private final Iterator<Map.Entry<String, RuntimeSheet>> iterator = local.entrySet().iterator();
+      private final Iterator<Map.Entry<String, RuntimeSheet>> iterator =
+         new ArrayList<>(local.entrySet()).iterator();
       private Map.Entry<String, RuntimeSheet> current = null;
    }
 
