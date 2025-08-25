@@ -560,7 +560,7 @@ public class VSLayoutTool extends LayoutTool {
       if(ref == null) {
          int option = binding.getDateOption();
 
-         if(option > 0 && cname.endsWith("_" + DateRangeRef.getRangeValue(option))) {
+         if(option > 0 && cname != null && cname.endsWith("_" + DateRangeRef.getRangeValue(option))) {
             int idx = cname.indexOf("_" + DateRangeRef.getRangeValue(option));
             ref = columns.getAttribute(cname.substring(0, idx));
          }
