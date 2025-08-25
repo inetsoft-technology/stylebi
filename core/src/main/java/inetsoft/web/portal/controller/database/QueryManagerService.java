@@ -82,6 +82,7 @@ public class QueryManagerService {
 
       JDBCQuery query = createQueryByBaseModel(queryModel, datasource, principal);
       runtimeQuery.setQuery(query);
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    public JDBCQuery createQueryByBaseModel(BasicSQLQueryModel queryModel, String dataSource,
@@ -109,7 +110,13 @@ public class QueryManagerService {
                            String tab, boolean all)
       throws Exception
    {
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null || query.getSQLDefinition() == null) {
          return;
@@ -200,6 +207,8 @@ public class QueryManagerService {
             setQueryCondition(sql, filterNode, CONDITION_HAVING);
          }
       }
+
+      saveRuntimeQuery(runtimeQuery);
    }
 
    public AdvancedSQLQueryModel getQueryModel(String runtimeId) {
@@ -422,7 +431,13 @@ public class QueryManagerService {
       }
 
       int max = Util.getOrganizationMaxColumn();
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return result;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return result;
@@ -462,6 +477,7 @@ public class QueryManagerService {
       }
 
       result.setColumnMap(nameAliasMap);
+      saveRuntimeQuery(runtimeQuery);
 
       return result;
    }
@@ -471,7 +487,13 @@ public class QueryManagerService {
          return;
       }
 
-      JDBCQuery query = getQuery(event.getRuntimeId());
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(event.getRuntimeId());
+
+      if(runtimeQuery == null) {
+         return;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return;
@@ -508,6 +530,8 @@ public class QueryManagerService {
             newSelection.setExpression(index, selection.isExpression(i));
          }
       }
+
+      saveRuntimeQuery(runtimeQuery);
    }
 
    public void updateColumn(String runtimeId, QueryFieldModel column, String type, String oldAlias)
@@ -581,13 +605,21 @@ public class QueryManagerService {
 
          metaInfo.setXFormatInfo(formatInfo);
       }
+
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    public List<String> browseColumnData(String runtimeId, String col, boolean aliasColumn,
                                         boolean quote)
    {
       List<String> values = new ArrayList<>();
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return values;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return values;
@@ -700,6 +732,7 @@ public class QueryManagerService {
       query = runtimeQuery.getQuery();
       runtimeQuery.initQueryAliasMapping();
       initQuerySelectedTables(runtimeQuery);
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCUtil.fixTableLocation(sql);
       fixUniformSQLInfo(sql, (JDBCDataSource) query.getDataSource(), principal);
@@ -910,11 +943,18 @@ public class QueryManagerService {
          sqlQueryModel.setConditionPaneModel(oldSqlQueryModel.getConditionPaneModel());
       }
 
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
       return sqlQueryModel;
    }
 
    public boolean isExpression(String runtimeId, String column) {
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return false;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return false;
@@ -960,7 +1000,13 @@ public class QueryManagerService {
          return null;
       }
 
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return null;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return null;
@@ -969,14 +1015,18 @@ public class QueryManagerService {
       expression = expression.trim();
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCSelection selection = (JDBCSelection) sql.getSelection();
+      String[] result;
 
       if(add) {
-         return addExpression(sql, selection, expression, (JDBCDataSource) query.getDataSource(),
+         result = addExpression(sql, selection, expression, (JDBCDataSource) query.getDataSource(),
             principal);
       }
       else {
-         return editExpression(sql, selection, expression, columnName, columnAlias);
+         result =  editExpression(sql, selection, expression, columnName, columnAlias);
       }
+
+      saveRuntimeQuery(runtimeQuery);
+      return result;
    }
 
    public String[] addExpression(UniformSQL sql, JDBCSelection selection, String expression,
@@ -1117,6 +1167,7 @@ public class QueryManagerService {
          selection.setXMetaInfo(i, new XMetaInfo());
       }
 
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
       return model;
    }
 
@@ -1167,18 +1218,12 @@ public class QueryManagerService {
       return entry.getProperty("dtype") != null ? entry.getProperty("dtype") : type;
    }
 
-   public JDBCQuery getQuery(String runtimeId) {
-      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
-
-      if(runtimeQuery == null) {
-         return null;
-      }
-
-      return runtimeQuery.getQuery();
-   }
-
    public RuntimeQueryService.RuntimeXQuery getRuntimeQuery(String runtimeId) {
       return runtimeQueryService.getRuntimeQuery(runtimeId);
+   }
+
+   public void saveRuntimeQuery(RuntimeQueryService.RuntimeXQuery runtimeQuery) {
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    private AutoDrillInfo getAutoDrillInfo(XMetaInfo metaInfo) {
@@ -1458,6 +1503,7 @@ public class QueryManagerService {
       RuntimeQueryService.RuntimeXQuery runtimeQuery = runtimeQueryService.getRuntimeQuery(runtimeId);
       VariableTable vtable = runtimeQuery.getVariables();
       vtable.addAll(VariableAssemblyModelInfo.getVariableTable(variables));
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    public GetColumnInfoResult refreshColumnInfo(GetColumnInfoEvent event,
@@ -1516,6 +1562,7 @@ public class QueryManagerService {
       }
 
       initQuerySelectedTables(runtimeQuery);
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
 
       return result;
    }
@@ -1527,6 +1574,7 @@ public class QueryManagerService {
       SQLDefinition sqlDefinition = query.getSQLDefinition();
       UniformSQL sql = (UniformSQL) sqlDefinition;
       sql.setColumnInfo(null);
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
    }
 
    public String setFreeFormSQLPaneModel(UpdateFreeFormSQLPaneEvent event, Principal principal) {
@@ -1575,6 +1623,7 @@ public class QueryManagerService {
          sql.getParseResult() != -1 && !executeQuery &&
          sql.getParseResult() != UniformSQL.PARSE_FAILED)
       {
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          return null;
       }
 
@@ -1582,6 +1631,7 @@ public class QueryManagerService {
       if(StringUtils.isEmpty(nsqlString) && !executeQuery) {
          sql.setSQLString(null);
          sql.setParseResult(UniformSQL.PARSE_FAILED);
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          return null;
       }
 
@@ -1644,6 +1694,7 @@ public class QueryManagerService {
          // run query to get column info
          if(sql.getParseResult() == UniformSQL.PARSE_FAILED || executeQuery) {
             if(!executeQuery) {
+               runtimeQueryService.saveRuntimeQuery(runtimeQuery);
                return Catalog.getCatalog().getString("designer.qb.jdbc.unableParseSql");
             }
 
@@ -1670,6 +1721,7 @@ public class QueryManagerService {
          JDBCUtil.fixUniformSQLSelection(osql, sql);
          JDBCUtil.fixTableLocation(sql);
          initQuerySelectedTables(runtimeQuery);
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
       }
       catch(Exception e) {
          LOG.error(e.getMessage(), e);
@@ -1738,6 +1790,7 @@ public class QueryManagerService {
          vtable.put(XQuery.HINT_MAX_ROWS, "" + maxRow);
       }
 
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
       XDataService service = XFactory.getDataService();
       XNode result = service.execute(principal.getName(), query, vtable,
          principal, true, null);
@@ -2121,7 +2174,13 @@ public class QueryManagerService {
     * @return true if is, false otherwise
     */
    public boolean isValidGroupBy(String runtimeId, String[] groups) {
-      JDBCQuery query = getQuery(runtimeId);
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = getRuntimeQuery(runtimeId);
+
+      if(runtimeQuery == null) {
+         return true;
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null || groups == null) {
          return true;
@@ -2457,6 +2516,7 @@ public class QueryManagerService {
                .build());
          });
 
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
          return TreeNodeModel.builder()
             .label(Catalog.getCatalog().getString("Database fields"))
             .expanded(sort)

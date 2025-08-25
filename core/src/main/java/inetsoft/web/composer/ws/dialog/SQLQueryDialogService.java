@@ -100,6 +100,7 @@ public class SQLQueryDialogService {
 
          if(runtimeQuery != null) {
             queryGraphService.autoLayoutGraph(runtimeQueryId, principal);
+            queryManagerService.saveRuntimeQuery(runtimeQuery);
          }
       }
       else if(!advancedEdit && model.getAdvancedModel() != null) {

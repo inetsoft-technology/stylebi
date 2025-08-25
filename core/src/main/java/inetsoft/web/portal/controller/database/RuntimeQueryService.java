@@ -77,7 +77,6 @@ public class RuntimeQueryService {
    }
 
    public RuntimeXQuery getRuntimeQuery(String id) {
-      LOG.warn("GET RUNTIME QUERY: {}", id);
       return cache.get(id);
    }
 
@@ -86,7 +85,6 @@ public class RuntimeQueryService {
    }
 
    public void saveRuntimeQuery(RuntimeXQuery runtimeQuery) {
-      LOG.warn("SAVE RUNTIME QUERY: {}", runtimeQuery.getId());
       cache.put(runtimeQuery.getId(), runtimeQuery);
    }
 
@@ -108,7 +106,6 @@ public class RuntimeQueryService {
    }
 
    public boolean touch(String id) {
-      LOG.warn("TOUCH RUNTIME QUERY: {}", id);
       return cache.get(id) != null;
    }
 
@@ -116,7 +113,6 @@ public class RuntimeQueryService {
     * Destroy the runtime.
     */
    public void destroy(String id) {
-      LOG.warn("DESTROY RUNTIME QUERY: {}", id);
       cache.remove(id);
    }
 
@@ -124,7 +120,6 @@ public class RuntimeQueryService {
     * Clear the runtime.
     */
    public void clear() {
-      LOG.warn("CLEAR RUNTIME QUERY");
       cache.clear();
    }
 

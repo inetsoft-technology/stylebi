@@ -19,11 +19,8 @@ package inetsoft.web.portal.controller.database;
 
 import inetsoft.uql.XFormatInfo;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.jdbc.JDBCDataSource;
-import inetsoft.uql.jdbc.JDBCQuery;
-import inetsoft.uql.jdbc.UniformSQL;
-import inetsoft.uql.util.XUtil;
-import inetsoft.util.*;
+import inetsoft.uql.jdbc.*;
+import inetsoft.util.Catalog;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -105,8 +102,13 @@ public class QueryController extends WorksheetController {
                                      @RequestParam("columnType") String columnType)
       throws Exception
    {
+      RuntimeQueryService.RuntimeXQuery runtimeQuery = queryManager.getRuntimeQuery(runtimeId);
 
-      JDBCQuery query = queryManager.getQuery(runtimeId);
+      if(runtimeQuery == null) {
+         return new ArrayList<>();
+      }
+
+      JDBCQuery query = runtimeQuery.getQuery();
 
       if(query == null) {
          return new ArrayList<>();
