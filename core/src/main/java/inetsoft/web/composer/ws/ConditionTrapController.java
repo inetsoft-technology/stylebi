@@ -73,25 +73,12 @@ public class ConditionTrapController extends WorksheetController {
       TableAssembly table = (TableAssembly) ws.getAssembly(model.tableName());
 
       if(table != null) {
-         final SourceInfo sourceInfo = table instanceof BoundTableAssembly ?
+         SourceInfo sourceInfo = table instanceof BoundTableAssembly ?
             ((BoundTableAssembly) table).getSourceInfo() : null;
-         String source = sourceInfo == null ? null : sourceInfo.getSource();
-         ConditionList[] conditionLists = new ConditionList[2];
-
-         XUtil.withFixedDateFormat(source, () -> {
-            try {
-               conditionLists[0] = ConditionUtil.fromModelToConditionList(
-                  model.oldConditionList(), sourceInfo, viewsheetService, principal, rws);
-               conditionLists[1] = ConditionUtil.fromModelToConditionList(
-                  model.newConditionList(), sourceInfo, viewsheetService, principal, rws);
-            }
-            catch(Exception ex) {
-               throw new RuntimeException(ex.getMessage(), ex);
-            }
-         });
-
-         ConditionList oldConditionList = conditionLists[0];
-         ConditionList newConditionList = conditionLists[1];
+         ConditionList oldConditionList = ConditionUtil.fromModelToConditionList(
+            model.oldConditionList(), sourceInfo, viewsheetService, principal, rws);
+         ConditionList newConditionList = ConditionUtil.fromModelToConditionList(
+            model.newConditionList(), sourceInfo, viewsheetService, principal, rws);
          TableAssembly otable = (TableAssembly) table.clone();
          otable.setPreConditionList(oldConditionList);
          WSModelTrapContext mtc =

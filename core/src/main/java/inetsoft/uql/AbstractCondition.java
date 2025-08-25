@@ -165,10 +165,6 @@ public abstract class AbstractCondition implements XCondition {
          return CoreTool.timeFmt.get().format(value);
       }
       else if(value instanceof java.sql.Timestamp) {
-         if(Tool.useDatetimeWithMillisFormat.get()) {
-            return CoreTool.timeInstantWithMillisFmt.get().format(value);
-         }
-
          return CoreTool.timeInstantFmt.get().format(value);
       }
       else if(value instanceof UserVariable) {
@@ -243,10 +239,6 @@ public abstract class AbstractCondition implements XCondition {
          return CoreTool.dateFmt.get();
       }
       else if(type.equals(XSchema.TIME_INSTANT)) {
-         if(Tool.useDatetimeWithMillisFormat.get()) {
-            return CoreTool.timeInstantWithMillisFmt.get();
-         }
-
          return CoreTool.timeInstantFmt.get();
       }
       else if(type.equals(XSchema.TIME)) {
@@ -429,10 +421,6 @@ public abstract class AbstractCondition implements XCondition {
          // try new format first, then old format
          if(value.startsWith("{ts")) {
             try {
-               if(Tool.useDatetimeWithMillisFormat.get()) {
-                  return new java.sql.Timestamp(CoreTool.timeInstantWithMillisFmt.get().parse(value).getTime());
-               }
-
                return new java.sql.Timestamp(CoreTool.timeInstantFmt.get().parse(value).getTime());
             }
             catch(Exception ex) {
@@ -727,7 +715,6 @@ public abstract class AbstractCondition implements XCondition {
       writer.print(" negated=\"" + isNegated() + "\"");
       writer.print(" operation=\"" + getOperation() + "\"");
       writer.print(" equal=\"" + isEqual() + "\"");
-      writer.print(" millisInFormatRequired=\"" + isMillisInFormatRequired() + "\"");
    }
 
    /**
@@ -752,10 +739,6 @@ public abstract class AbstractCondition implements XCondition {
 
       if((str = Tool.getAttribute(elem, "equal")) != null) {
          setEqual(str.equalsIgnoreCase("true"));
-      }
-
-      if((str = Tool.getAttribute(elem, "millisInFormatRequired")) != null) {
-         setMillisInFormatRequired(str.equalsIgnoreCase("true"));
       }
    }
 
@@ -832,14 +815,13 @@ public abstract class AbstractCondition implements XCondition {
       eq = eq && op == cond2.op;
       eq = eq && negated == cond2.negated;
       eq = eq && equal == cond2.equal;
-      eq = eq && millisInFormatRequired == cond2.millisInFormatRequired;
 
       return eq;
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(type, op, negated, equal, millisInFormatRequired);
+      return Objects.hash(type, op, negated, equal);
    }
 
    /**
@@ -851,11 +833,7 @@ public abstract class AbstractCondition implements XCondition {
       writer.print("<xCondition class=\"" + getClass().getName() + "\"");
       writeAttributes(writer);
       writer.println(">");
-
-      XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
-         writeContents(writer);
-      });
-
+      writeContents(writer);
       writer.println("</xCondition>");
    }
 
@@ -866,30 +844,13 @@ public abstract class AbstractCondition implements XCondition {
    @Override
    public void parseXML(Element ctag) throws Exception {
       parseAttributes(ctag);
-
-      XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
-         try {
-            parseContents(ctag);
-         }
-         catch(Exception ex) {
-            throw new RuntimeException(ex.getMessage(), ex);
-         }
-      });
-   }
-
-   public boolean isMillisInFormatRequired() {
-      return millisInFormatRequired;
-   }
-
-   public void setMillisInFormatRequired(boolean millisInFormatRequired) {
-      this.millisInFormatRequired = millisInFormatRequired;
+      parseContents(ctag);
    }
 
    protected String type = XSchema.STRING;
    protected int op = EQUAL_TO;
    protected boolean negated = false;
    protected boolean equal = false;
-   private boolean millisInFormatRequired;
 
    static ThreadLocal<DateFormat> allDateFmt = ThreadLocal.withInitial(Tool::createDateFormat);
    private static final Logger LOG = LoggerFactory.getLogger(AbstractCondition.class);
