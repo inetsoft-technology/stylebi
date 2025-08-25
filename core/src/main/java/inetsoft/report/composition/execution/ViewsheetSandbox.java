@@ -538,7 +538,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public long getTouchTimestamp() {
       if(root != null) {
-         return root.touchTS;
+         return Math.max(touchTS, root.touchTS);
       }
 
       return touchTS;

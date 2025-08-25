@@ -114,22 +114,14 @@ public class QueryController extends WorksheetController {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCDataSource xds = (JDBCDataSource) query.getDataSource();
+      List<String> list = queryManager.getBrowseData(sql, tableName, columnName, columnType, xds, true);
 
-      return XUtil.withFixedDateFormat(xds, () -> {
-         try {
-            List<String> list = queryManager.getBrowseData(sql, tableName, columnName, columnType, xds, true);
+      if(list.size() > BrowseDataController.MAX_ROW_COUNT) {
+         list = list.subList(0, BrowseDataController.MAX_ROW_COUNT);
+         list.add("(" + Catalog.getCatalog().getString("data.truncated") + ")");
+      }
 
-            if(list.size() > BrowseDataController.MAX_ROW_COUNT) {
-               list = list.subList(0, BrowseDataController.MAX_ROW_COUNT);
-               list.add("(" + Catalog.getCatalog().getString("data.truncated") + ")");
-            }
-
-            return list;
-         }
-         catch(Exception ex) {
-            throw new RuntimeException(ex.getMessage(), ex);
-         }
-      });
+      return list;
    }
 
    @GetMapping(value = "/api/data/datasource/query/column/check/expression")

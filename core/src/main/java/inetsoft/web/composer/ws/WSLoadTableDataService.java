@@ -80,7 +80,7 @@ public class WSLoadTableDataService extends WorksheetControllerService {
 
       if(table != null) {
          TableLens lens = box.getTableLens(assemblyName, WorksheetEventUtil.getMode(table));
-         Exception[] exs = new Exception[1];
+         Exception ex = null;
 
          if(sortData) {
             if(event.firstChange()) {
@@ -109,61 +109,55 @@ public class WSLoadTableDataService extends WorksheetControllerService {
             lens.moreRows(startRow + event.blockSize());
          }
          catch(ExpressionFailedException e) {
-            exs[0] = e;
+            ex = e;
          }
 
          final int numCols = lens.getColCount();
          final int rowCount = lens.getRowCount();
-         final boolean completed = rowCount >= 0 || exs[0] != null;
+         final boolean completed = rowCount >= 0 || ex != null;
          final int availableRowCount = Math.max((rowCount < 0 ? -rowCount - 1 : rowCount) - 1, 0);
          final int numRows = Math.min(availableRowCount, event.blockSize());
 
          String[][] rows = new String[numRows][numCols];
+         int endRow = Math.min(startRow + numRows, availableRowCount);
+         int dataSize = 0;
+
          // limit size of data to avoid oom (42576).
          final int MAX_DATA = 20 * 1024 * 1024; // 20m
          final int MAX_CELL = 32767; // same as xls
 
-         final TableLens tableLens = lens;
+         for(int row = startRow; row < endRow; row++) {
+            for(int col = 0; col < numCols; col++) {
+               Object val = null;
 
-         int endRowNum = XUtil.withFixedDateFormat(table.getSource(), () -> {
-            int endRow = Math.min(startRow + numRows, availableRowCount);
-            int dataSize = 0;
-
-            for(int row = startRow; row < endRow; row++) {
-               for(int col = 0; col < numCols; col++) {
-                  Object val = null;
-
-                  // script may fail, we just load null for failed cell. (58626)
-                  try {
-                     val = tableLens.getObject(row + 1, col);
-                  }
-                  catch(Exception e) {
-                     exs[0] = e;
-                  }
-
-                  String str = AssetUtil.format(val);
-
-                  if(str.length() > MAX_CELL) {
-                     str = str.substring(0, MAX_CELL);
-                  }
-
-                  rows[row - startRow][col] = str;
-                  dataSize += str.length();
+               // script may fail, we just load null for failed cell. (58626)
+               try {
+                  val = lens.getObject(row + 1, col);
+               }
+               catch(Exception e) {
+                  ex = e;
                }
 
-               if(dataSize > MAX_DATA) {
-                  endRow = row + 1;
-                  break;
+               String str = AssetUtil.format(val);
+
+               if(str.length() > MAX_CELL) {
+                  str = str.substring(0, MAX_CELL);
                }
+
+               rows[row - startRow][col] = str;
+               dataSize += str.length();
             }
 
-            return endRow;
-         });
+            if(dataSize > MAX_DATA) {
+               endRow = row + 1;
+               break;
+            }
+         }
 
          final WSTableData tableData = WSTableData.builder()
             .loadedRows(rows)
             .startRow(startRow)
-            .endRow(endRowNum)
+            .endRow(endRow)
             .completed(completed)
             .build();
 
@@ -174,8 +168,8 @@ public class WSLoadTableDataService extends WorksheetControllerService {
 
          commandDispatcher.sendCommand(assemblyName, command);
 
-         if(exs[0] != null) {
-            throw exs[0];
+         if(ex != null) {
+            throw ex;
          }
       }
 

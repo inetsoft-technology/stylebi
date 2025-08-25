@@ -269,16 +269,8 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
       ProfileUtils.addExecutionBreakDownRecord(getID(),
          ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
             checkAndRunCalcFieldMeasureQuery(measureAggregation);
-
-            XUtil.withFixedDateFormat(getAssembly(), () -> {
-               try {
-                  refreshSelectionValue0(data, allSelections, appliedSelections, values,
-                                         measureAggregation);
-               }
-               catch(Exception ex) {
-                  throw new RuntimeException(ex.getMessage(), ex);
-               }
-            });
+            refreshSelectionValue0(data, allSelections, appliedSelections, values,
+                                   measureAggregation);
          });
    }
 
@@ -309,15 +301,10 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
 
       ProfileUtils.addExecutionBreakDownRecord(getID(),
          ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
-            XUtil.withFixedDateFormat(getAssembly(), () -> {
-               try {
-                  refreshViewSelectionValue0();
-               }
-               catch(Exception ex) {
-                  new RuntimeException(ex);
-               }
-            });
+            refreshViewSelectionValue0();
          });
+
+      //refreshViewSelectionValue0();
    }
 
    /**

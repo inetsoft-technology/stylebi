@@ -43,7 +43,6 @@ public class OnClickController {
    }
 
    @Undoable
-   @LoadingMask
    @MessageMapping("/onclick/{name}/{x}/{y}/{isConfirm}")
    public void onConfirm(@DestinationVariable("name") String name,
                        @DestinationVariable("x") String x,
@@ -58,7 +57,6 @@ public class OnClickController {
    }
 
    @Undoable
-   @LoadingMask
    @MessageMapping("/onclick/{name}/{x}/{y}")
    public void onClick(@DestinationVariable("name") String name,
                        @DestinationVariable("x") String x,

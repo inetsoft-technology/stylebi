@@ -78,16 +78,7 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(assemblyName);
-      String source = tableAssembly == null ? null : tableAssembly.getSource();
-
-      return XUtil.withFixedDateFormat(source, () -> {
-         try {
-            return createAssemblyConditionDialogModel(rws, tableAssembly, principal);
-         }
-         catch(Exception ex) {
-            throw new RuntimeException(ex.getMessage(), ex);
-         }
-      });
+      return createAssemblyConditionDialogModel(rws, tableAssembly, principal);
    }
 
    private AssemblyConditionDialogModel createAssemblyConditionDialogModel(RuntimeWorksheet rws,
@@ -245,17 +236,7 @@ public class AssemblyConditionDialogService extends WorksheetControllerService {
       RuntimeWorksheet rws = super.getRuntimeWorksheet(runtimeId, principal);
       Worksheet ws = rws.getWorksheet();
       final TableAssembly tableAssembly = (TableAssembly) ws.getAssembly(tableAssemblyName);
-      String source = tableAssembly == null ? null : tableAssembly.getSource();
-
-      XUtil.withFixedDateFormat(source, () -> {
-         try {
-            updateByModel(rws, tableAssembly, tableAssemblyName, model, principal, commandDispatcher);
-         }
-         catch(Exception ex) {
-            throw new RuntimeException(ex.getMessage(), ex);
-         }
-      });
-
+      updateByModel(rws, tableAssembly, tableAssemblyName, model, principal, commandDispatcher);
       return null;
    }
 

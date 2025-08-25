@@ -111,9 +111,6 @@ public class CoreTool {
    public static final ThreadLocal<DateFormat> timeInstantFmt =
       ThreadLocal.withInitial(() -> createDateFormat("{'ts' ''yyyy-MM-dd HH:mm:ss''}"));
 
-   public static final ThreadLocal<DateFormat> timeInstantWithMillisFmt =
-      ThreadLocal.withInitial(() -> createDateFormat("{'ts' ''yyyy-MM-dd HH:mm:ss.SSS''}"));
-
    /**
     * Shared thread local GregorianCalendar.
     */
@@ -447,7 +444,7 @@ public class CoreTool {
     * Synchronizely call dateformat format.
     */
    public static String formatDateTime(Date date) {
-      if(useDatetimeWithMillisFormat.get()) {
+      if(date instanceof java.sql.Timestamp && useDatetimeWithMillisFormat.get()) {
          return DATETIME_WITH_MILLIS_FORMAT_CACHE.format(date);
       }
 

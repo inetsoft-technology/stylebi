@@ -40,6 +40,7 @@ import inetsoft.report.internal.table.*;
 import inetsoft.report.io.viewsheet.CoordinateHelper;
 import inetsoft.report.painter.PresenterPainter;
 import inetsoft.report.script.ReportJavaScriptEngine;
+import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.report.style.TableStyle;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
@@ -1515,6 +1516,28 @@ public final class VSUtil {
          if(!token.isRef()) {
             parseText(token.val);
             return;
+         }
+
+         if(vs instanceof Viewsheet && ctoken != null && "refresh".equals(ctoken.val)) {
+            Viewsheet vsToRefresh = null;
+
+            // thisViewsheet, refresh this viewsheet
+            if(ViewsheetScope.VIEWSHEET_SCRIPTABLE.equals(token.val)) {
+               vsToRefresh = (Viewsheet) vs;
+            }
+            else {
+               Assembly assembly = vs.getAssembly(token.val);
+
+               if(assembly instanceof Viewsheet) {
+                  vsToRefresh = (Viewsheet) assembly;
+               }
+            }
+
+            if(vsToRefresh != null) {
+               for(Assembly assembly : vsToRefresh.getAssemblies(true)) {
+                  dset.add(new AssemblyRef(AssemblyRef.OUTPUT_DATA, assembly.getAssemblyEntry()));
+               }
+            }
          }
 
          Assembly assembly = vs.getAssembly(token.val);

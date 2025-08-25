@@ -25,15 +25,15 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.script.viewsheet.VSPropertyDescriptor;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
-import inetsoft.uql.asset.AssemblyEntry;
-import inetsoft.uql.asset.AssemblyRef;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.ScriptIterator;
 import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
 import inetsoft.web.binding.event.VSOnClickEvent;
-import inetsoft.web.viewsheet.command.MessageCommand;
+import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.InputValue;
 import inetsoft.web.viewsheet.event.VSSubmitEvent;
 import inetsoft.web.viewsheet.service.*;
@@ -43,6 +43,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 @ClusterProxy
@@ -144,11 +145,24 @@ public class OnClickService {
 
       WSExecution.setAssetQuerySandbox(rvs.getViewsheetSandbox().getAssetQuerySandbox());
 
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = vs != null ? vs.getAssembly(name) : null;
+      String script = getScript(assembly);
+      boolean loadingMask = shouldShowLoadingMask(assembly, script, vs);
+
       try {
+         if(loadingMask) {
+            dispatcher.sendCommand(new ShowLoadingMaskCommand());
+         }
+
          process0(rvs, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher);
       }
       finally {
          WSExecution.setAssetQuerySandbox(null);
+
+         if(loadingMask) {
+            dispatcher.sendCommand(new ClearLoadingCommand());
+         }
       }
    }
 
@@ -183,14 +197,7 @@ public class OnClickService {
 
       ViewsheetSandbox box0 = getVSBox(name, box);
       ViewsheetScope scope = box0.getScope();
-      String script = null;
-
-      if(assembly.getInfo() instanceof ClickableOutputVSAssemblyInfo) {
-         script = ((ClickableOutputVSAssemblyInfo) assembly.getInfo()).getOnClick();
-      }
-      else {
-         script = ((ClickableInputVSAssemblyInfo) assembly.getInfo()).getOnClick();
-      }
+      String script = getScript(assembly);
 
       if(xstr != null && ystr != null) {
          scope.put("mouseX", scope, xstr);
@@ -381,7 +388,58 @@ public class OnClickService {
       return getVSBox(name.substring(index + 1, name.length()), box0);
    }
 
+   private String getScript(VSAssembly assembly) {
+      if(assembly == null || !assembly.getVSAssemblyInfo().isScriptEnabled()) {
+         return null;
+      }
 
+      String script = null;
+
+      if(assembly.getInfo() instanceof ClickableOutputVSAssemblyInfo) {
+         script = ((ClickableOutputVSAssemblyInfo) assembly.getInfo()).getOnClick();
+      }
+      else if(assembly.getInfo() instanceof ClickableInputVSAssemblyInfo) {
+         script = ((ClickableInputVSAssemblyInfo) assembly.getInfo()).getOnClick();
+      }
+
+      return script;
+   }
+
+   private boolean shouldShowLoadingMask(VSAssembly assembly, String script, Viewsheet vs) {
+      AtomicBoolean loadingMask = new AtomicBoolean(true);
+
+      if(!(assembly instanceof SubmitVSAssembly) ||
+         !((SubmitVSAssemblyInfo) assembly.getInfo()).isRefresh())
+      {
+         ScriptIterator iterator = new ScriptIterator(script);
+         ScriptIterator.ScriptListener listener = (token, pref, cref) -> {
+            if(cref != null && "refresh".equals(cref.val)) {
+               Viewsheet vsToRefresh = null;
+
+               // thisViewsheet
+               if(ViewsheetScope.VIEWSHEET_SCRIPTABLE.equals(token.val)) {
+                  vsToRefresh = assembly.getViewsheet();
+               }
+               else {
+                  Assembly vsAssembly = vs.getAssembly(token.val);
+
+                  if(vsAssembly instanceof Viewsheet) {
+                     vsToRefresh = (Viewsheet) vsAssembly;
+                  }
+               }
+
+               if(vsToRefresh != null) {
+                  loadingMask.set(false);
+               }
+            }
+         };
+
+         iterator.addScriptListener(listener);
+         iterator.iterate();
+      }
+
+      return loadingMask.get();
+   }
 
    private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
