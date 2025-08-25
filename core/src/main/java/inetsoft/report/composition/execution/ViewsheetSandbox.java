@@ -2659,9 +2659,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       BindingInfo binding = outputInfo.getBindingInfo();
       boolean noBinding = binding == null || binding.isEmpty();
       boolean isText = assembly instanceof TextVSAssembly;
+      boolean isImage = assembly instanceof ImageVSAssembly;
 
       // binding is not null, need to set data.
-      if(data != null || !noBinding && (isText || outputNullToZero)) {
+      if(data != null || !noBinding && (isText || outputNullToZero && !isImage)) {
          if(data == null) {
             boolean isDefaultText = assembly instanceof TextVSAssembly &&
                "text".equals(((TextVSAssembly) assembly).getTextValue());
