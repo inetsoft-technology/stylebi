@@ -34,10 +34,6 @@ import {
 } from "@angular/core";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../shared/feature-flags/feature-flags.service";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
@@ -289,7 +285,6 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
                private dropdownService: FixedDropdownService,
                private modelService: ModelService,
                private changeRef: ChangeDetectorRef,
-               private featureFlagsService: FeatureFlagsService,
                private hostElement: ElementRef)
    {
    }

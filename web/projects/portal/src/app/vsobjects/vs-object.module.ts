@@ -30,7 +30,6 @@ import {
 } from "@ng-bootstrap/ng-bootstrap";
 import { ScrollingModule } from "@angular/cdk/scrolling";
 import { CkeditorWrapperModule } from "../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
-import { FeatureFlagsModule } from "../../../../shared/feature-flags/feature-flags.module";
 import { AngularResizeEventModule } from "../../../../shared/resize-event/angular-resize-event.module";
 import { BindingModule } from "../binding/binding.module";
 import { BindingService } from "../binding/services/binding.service";
@@ -224,7 +223,6 @@ import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
       GraphModule,
       FormatModule,
       StatusBarModule,
-      FeatureFlagsModule,
       AngularResizeEventModule,
       VSChartModule,
       VSTitleModule,

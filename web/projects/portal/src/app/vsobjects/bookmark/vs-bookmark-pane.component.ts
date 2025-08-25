@@ -21,7 +21,6 @@ import { GuiTool } from "../../common/util/gui-tool";
 import { VSBookmarkInfoModel } from "../model/vs-bookmark-info-model";
 import { FixedDropdownDirective } from "../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import {FeatureFlagValue} from "../../../../../shared/feature-flags/feature-flags.service";
 import { RemoveAnnotationsCondition } from "../model/remove-annotations-condition";
 import { NgbModalOptions } from "@ng-bootstrap/ng-bootstrap/modal/modal-config";
 
@@ -57,7 +56,6 @@ export class VsBookmarkPaneComponent implements OnInit {
    searchString: string;
    filterByValue: BookmarkFilter = BookmarkFilter.ALL;
    BookmarkFilter = BookmarkFilter;
-   FeatureFlagValue = FeatureFlagValue;
 
    constructor(private modalService: NgbModal,) {
    }

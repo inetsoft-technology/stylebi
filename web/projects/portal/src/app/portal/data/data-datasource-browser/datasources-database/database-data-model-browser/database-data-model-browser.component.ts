@@ -49,10 +49,6 @@ import { DragService } from "../../../../../widget/services/drag.service";
 import { DomService } from "../../../../../widget/dom-service/dom.service";
 import { GuiTool } from "../../../../../common/util/gui-tool";
 import { AssetType } from "../../../../../../../../shared/data/asset-type";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../../../shared/feature-flags/feature-flags.service";
 import { AssetEntry } from "../../../../../../../../shared/data/asset-entry";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import {DataModelBrowserModel} from "./data-model-browser-model";
