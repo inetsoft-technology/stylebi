@@ -17,16 +17,7 @@
  */
 package inetsoft.web.composer.ws;
 
-import inetsoft.report.TableLens;
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.report.composition.execution.AssetQuerySandbox;
-import inetsoft.uql.asset.TableAssembly;
-import inetsoft.uql.asset.Worksheet;
-import inetsoft.util.script.ExpressionFailedException;
-import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
-import inetsoft.web.composer.ws.event.WSLoadTableDataCountCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -36,6 +27,10 @@ import java.security.Principal;
 
 @Controller
 public class WSLoadTableDataCountController extends WorksheetController {
+   public WSLoadTableDataCountController(WSLoadTableDataServiceProxy dataService) {
+      this.dataService = dataService;
+   }
+
    /**
     * From 12.2 LoadTableDataCountEvent.
     */
@@ -44,57 +39,8 @@ public class WSLoadTableDataCountController extends WorksheetController {
       @Payload WSAssemblyEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
-      RuntimeWorksheet rws = getRuntimeWorksheet(principal);
-      Worksheet ws = rws.getWorksheet();
-      AssetQuerySandbox box = rws.getAssetQuerySandbox();
-      String name = event.getAssemblyName();
-      TableAssembly table = (TableAssembly) ws.getAssembly(name);
-
-      if(table == null) {
-         return;
-      }
-
-      int mode = WorksheetEventUtil.getMode(table);
-      TableLens lens = box.getTableLens(name, mode);
-      int count = 0;
-      boolean more = false;
-      Exception ex = null;
-
-      try {
-         if(lens != null) {
-            // force to move ahead
-            count = lens.getRowCount();
-            count = count < 0 ? -count - 1 : count;
-            lens.moreRows(count + WorksheetController.BLOCK * 5);
-
-            count = lens.getRowCount();
-            more = count < 0;
-            count = more ? -count - 1 : count;
-            count = Math.max(0, count - 1); // trim header
-         }
-      }
-      catch(ExpressionFailedException e) {
-         ex = e;
-      }
-
-      WSLoadTableDataCountCommand.Builder commandBuilder = WSLoadTableDataCountCommand.builder()
-         .name(name)
-         .count(count)
-         .completed(!more);
-
-      // set exceeded information if completed
-      if(!more) {
-         String exceededMsg = AssetEventUtil.getExceededMsg(table, count);
-
-         if(exceededMsg != null) {
-            commandBuilder.exceededMsg(exceededMsg);
-         }
-      }
-
-      commandDispatcher.sendCommand(commandBuilder.build());
-
-      if(ex != null) {
-         throw ex;
-      }
+      dataService.loadTableDataCount(getRuntimeId(), event, principal, commandDispatcher);
    }
+
+   private final WSLoadTableDataServiceProxy dataService;
 }

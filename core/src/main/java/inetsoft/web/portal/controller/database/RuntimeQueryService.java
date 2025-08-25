@@ -27,6 +27,8 @@ import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.util.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import javax.cache.Cache;
@@ -127,6 +129,7 @@ public class RuntimeQueryService {
 
    private final Cache<String, RuntimeXQuery> cache;
    private static final String CACHE_NAME = RuntimeQueryService.class.getName() + ".cache";
+   private static final Logger LOG = LoggerFactory.getLogger(RuntimeQueryService.class);
 
    public static class RuntimeXQuery implements Cloneable, Serializable {
       public RuntimeXQuery(JDBCQuery query, String id, String dataSource) {
@@ -284,6 +287,20 @@ public class RuntimeQueryService {
          clone.aliasMapping = (Map<String, String>) Tool.clone(this.aliasMapping);
 
          return clone;
+      }
+
+      @Override
+      public String toString() {
+         return "RuntimeXQuery{" +
+            "query=" + query +
+            ", id='" + id + '\'' +
+            ", maxPreviewRow=" + maxPreviewRow +
+            ", dataSource='" + dataSource + '\'' +
+            ", metadata=" + metadata +
+            ", selectedTables=" + selectedTables +
+            ", initVars=" + initVars +
+            ", aliasMapping=" + aliasMapping +
+            '}';
       }
 
       private JDBCQuery query;
