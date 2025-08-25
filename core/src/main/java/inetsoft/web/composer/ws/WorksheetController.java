@@ -40,10 +40,10 @@ import java.util.Arrays;
 
 @Controller
 public class WorksheetController {
-   protected RuntimeWorksheet getRuntimeWorksheet(Principal principal) throws Exception {
-      WorksheetService engine = getWorksheetEngine();
-      return engine.getWorksheet(getRuntimeId(), principal);
-   }
+//   protected RuntimeWorksheet getRuntimeWorksheet(Principal principal) throws Exception {
+//      WorksheetService engine = getWorksheetEngine();
+//      return engine.getWorksheet(getRuntimeId(), principal);
+//   }
 
    protected WorksheetService getWorksheetEngine() {
       return wsEngine;
@@ -65,39 +65,6 @@ public class WorksheetController {
    @Autowired
    protected void setWsEngine(ViewsheetService viewsheetService) {
       this.wsEngine = viewsheetService;
-   }
-
-   /**
-    * Check if allows deletion.
-    */
-   protected boolean allowsDeletion(Worksheet ws, TableAssembly assembly, ColumnRef ref) {
-      AssemblyRef[] arr = ws.getDependings(assembly.getAssemblyEntry());
-
-      for(AssemblyRef assemblyRef : arr) {
-         String assemblyName = assemblyRef.getEntry().getName();
-         Assembly tmp = ws.getAssembly(assemblyName);
-
-         if(tmp instanceof CompositeTableAssembly) {
-            CompositeTableAssembly table = (CompositeTableAssembly) tmp;
-
-            if(table.isColumnUsed(assembly, ref)) {
-               return false;
-            }
-         }
-
-         if(tmp instanceof TableAssembly) {
-            TableAssembly table = (TableAssembly) tmp;
-            DataRef dataRef = AssetUtil.getOuterAttribute(assemblyName, ref);
-            ColumnRef ref2 =
-               AssetUtil.getColumnRefFromAttribute(table.getColumnSelection(), dataRef);
-
-            if(ref2 != null && !allowsDeletion(ws, table, ref2)) {
-               return false;
-            }
-         }
-      }
-
-      return true;
    }
 
    protected boolean isBeDepend(ColumnSelection columns, DataRef target) {
@@ -465,7 +432,5 @@ public class WorksheetController {
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private WorksheetService wsEngine;
 
-   protected static final int ROW_LIMIT = 10000;
-   protected static final int COL_LIMIT = 1000;
    protected static final int BLOCK = 100; // Table row counts per loading process
 }

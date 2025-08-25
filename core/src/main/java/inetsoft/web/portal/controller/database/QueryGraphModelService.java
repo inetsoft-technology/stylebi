@@ -32,6 +32,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.*;
 import inetsoft.web.portal.model.database.graph.*;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -381,6 +382,7 @@ public class QueryGraphModelService {
          JDBCUtil.fixTableLocation(sql);
       }
 
+      LoggerFactory.getLogger(getClass()).warn("Building graph model for query {}", runtimeQuery);
       for(int i = 0; i < sql.getTableCount(); i++) {
          GraphModel graphModel = new GraphModel();
          SelectTable selectTable = sql.getSelectTable(i);
