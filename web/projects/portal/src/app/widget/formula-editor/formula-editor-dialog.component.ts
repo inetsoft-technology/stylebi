@@ -54,10 +54,6 @@ import { AggregateFormula } from "../../binding/util/aggregate-formula";
 import { BaseResizeableDialogComponent } from "../../vsobjects/dialog/base-resizeable-dialog.component";
 import { FormulaField } from "../../common/data/formula-field";
 import { Subscription } from "rxjs";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../shared/feature-flags/feature-flags.service";
 import { DynamicDate } from "../../portal/schedule/schedule-task-editor/dynamic-date";
 
 const DATE_PARTS: any[] = [
@@ -207,7 +203,6 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
                private modalService: NgbModal,
                protected renderer: Renderer2,
                protected element: ElementRef,
-               private featureFlagsService: FeatureFlagsService,
                private dropdownService: FixedDropdownService)
    {
       super(renderer, element);

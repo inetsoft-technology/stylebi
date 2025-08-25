@@ -21,10 +21,6 @@ import { BehaviorSubject } from "rxjs";
 import { AddParameterDialogModel } from "../../../../../../shared/schedule/model/add-parameter-dialog-model";
 import { AddParameterDialogComponent } from "../add-parameter-dialog/add-parameter-dialog.component";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../shared/feature-flags/feature-flags.service";
 import { ValueTypes } from "../../../../../../portal/src/app/vsobjects/model/dynamic-value-model";
 
 export interface Parameters {

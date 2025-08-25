@@ -17,8 +17,6 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
-import { FeatureFlagDirective } from "../../../../../shared/feature-flags/feature-flag.directive";
-import { FeatureFlagsService } from "../../../../../shared/feature-flags/feature-flags.service";
 import { PageTabService } from "../services/page-tab.service";
 import { PageTabComponent } from "./page-tab.component";
 
@@ -32,10 +30,9 @@ describe("PageTabComponent", () => {
          imports: [
             HttpClientTestingModule
          ],
-         declarations: [PageTabComponent, FeatureFlagDirective],
+         declarations: [PageTabComponent],
          providers: [
             PageTabService,
-            FeatureFlagsService
          ],
       }).compileComponents();
    }));

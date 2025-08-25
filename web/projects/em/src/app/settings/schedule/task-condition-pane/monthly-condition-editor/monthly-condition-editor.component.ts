@@ -25,7 +25,6 @@ import {
    Validators
 } from "@angular/forms";
 import { ErrorStateMatcher } from "@angular/material/core";
-import { FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import {
    TimeConditionModel,
    TimeConditionType, TimeRange
@@ -49,7 +48,6 @@ export class MonthlyConditionEditorComponent implements OnInit {
    @Input() showMeridian: boolean;
    @Output() modelChanged = new EventEmitter<TaskConditionChanges>();
 
-   readonly FeatureFlagValue = FeatureFlagValue;
    readonly TimeConditionType = TimeConditionType;
    dayOfMonthErrorMatcher: ErrorStateMatcher;
    weekOfMonthErrorMatcher: ErrorStateMatcher;

@@ -23,10 +23,6 @@ import {
    OnChanges,
    SimpleChanges
 } from "@angular/core";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../shared/feature-flags/feature-flags.service";
 
 @Component({
    selector: "format-css-pane",
@@ -45,9 +41,8 @@ export class FormatCSSPane implements OnChanges {
    selectedCSSIDIndex: number = -1;
    selectedCSSClassIndexes: number[] = [];
    selectedCSSClassIndex: number = -1;
-   readonly FeatureFlagValue = FeatureFlagValue;
 
-   constructor(private featureFlagsService: FeatureFlagsService) {
+   constructor() {
    }
 
    ngOnChanges(changes: SimpleChanges): void {

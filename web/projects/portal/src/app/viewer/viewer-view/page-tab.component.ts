@@ -24,10 +24,6 @@ import {
    ViewChild
 } from "@angular/core";
 import { Subscription } from "rxjs";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../shared/feature-flags/feature-flags.service";
 import { PageTabService, TabInfoModel } from "../services/page-tab.service";
 
 @Component({
@@ -43,9 +39,8 @@ export class PageTabComponent implements AfterViewInit, OnDestroy {
    leftScrollEnabled: boolean;
    rightScrollEnabled: boolean;
    private subscriptions = new Subscription();
-   FeatureFlagValue = FeatureFlagValue;
 
-   constructor(private pageTabService: PageTabService, private featureFlagsService: FeatureFlagsService) {
+   constructor(private pageTabService: PageTabService) {
       this.subscriptions.add(this.pageTabService.onTabAddedRemoved.subscribe((tabAdded: boolean) => {
          this.refreshScroll(tabAdded);
       }));

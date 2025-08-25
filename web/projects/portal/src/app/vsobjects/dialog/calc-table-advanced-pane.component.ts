@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit, ViewChild } from "@angular/core";
-import { FeatureFlagValue } from "../../../../../shared/feature-flags/feature-flags.service";
 import { TipPane } from "./graph/tip-pane.component";
 import { CalcTableAdvancedPaneModel } from "../model/calc-table-advanced-pane-model";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
@@ -32,7 +31,6 @@ export class CalcTableAdvancedPane implements OnInit {
    @Input() form: UntypedFormGroup;
    @Input() showHeaderRowWarning: boolean = false;
    @Input() showHeaderColumnWarning: boolean = false;
-   readonly FeatureFlagValue = FeatureFlagValue;
    @ViewChild("notifications") notifications: NotificationsComponent;
 
    ngOnInit(): void {

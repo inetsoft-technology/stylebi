@@ -51,7 +51,6 @@ import { SQLBoundTableAssembly } from "../../../data/ws/sql-bound-table-assembly
 import { WSSetColumnVisibilityEvent } from "../socket/ws-set-column-visibility-event";
 import { WSSortColumnEvent } from "../socket/ws-sort-column-event";
 import { UnpivotTableAssembly } from "../../../data/ws/unpivot-table-assembly";
-import { FeatureFlagsService, FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 
 interface ColumnButton {
    label: string;
@@ -108,8 +107,7 @@ export class WSHeaderCell implements OnInit, OnChanges, AfterViewInit {
 
    constructor(public hostRef: ElementRef,
                private worksheetClient: ViewsheetClientService,
-               private dropdownService: FixedDropdownService,
-               private featureFlagService: FeatureFlagsService)
+               private dropdownService: FixedDropdownService)
    {
    }
 

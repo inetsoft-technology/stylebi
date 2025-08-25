@@ -17,7 +17,6 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
-import { FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import {
    TimeConditionModel,
    TimeRange
@@ -76,7 +75,6 @@ export class WeeklyConditionEditorComponent implements OnInit {
          .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
    }
 
-   readonly FeatureFlagValue = FeatureFlagValue;
    form: UntypedFormGroup;
    startTimeData: StartTimeData;
    timeZoneLabel: string;

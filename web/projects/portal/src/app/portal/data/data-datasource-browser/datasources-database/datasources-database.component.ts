@@ -63,7 +63,6 @@ import { DatabaseDefinitionModel } from "../../../../../../../shared/util/model/
 import { InputNameDescDialog } from "../../input-name-desc-dialog/input-name-desc-dialog.component";
 import { AdditionalDatasourceDialog } from "./additional-datasource-dialog";
 import { NetworkLocationModel } from "../../../../../../../shared/util/model/network-location-model";
-import { FeatureFlagsService, FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { DriverWizardComponent } from "./driver-wizard/driver-wizard.component";
 import { EditPropertyDialogComponent } from "./edit-property-dialog.component";
 import {
@@ -102,7 +101,6 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    @ViewChild("databaseForm") databaseForm: NgForm;
    @ViewChild("input") input: ElementRef;
    @ViewChild("editPropertyDialog") editPropertyDialog: TemplateRef<any>;
-   readonly FeatureFlagValue = FeatureFlagValue;
    DatasourceDatabaseType = DatasourceDatabaseType;
    form: UntypedFormGroup;
    model: DataSourceEditorModel;
@@ -134,7 +132,6 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
                private zone: NgZone,
                private httpClient: HttpClient,
                private modalService: NgbModal,
-               private featureFlagsService: FeatureFlagsService,
                private appInfoService: AppInfoService,
                private gettingStartedService: GettingStartedService,
                stompClient: StompClientService)

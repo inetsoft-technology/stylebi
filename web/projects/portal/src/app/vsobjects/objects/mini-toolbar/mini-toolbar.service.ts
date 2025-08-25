@@ -24,7 +24,6 @@ import { GuiTool } from "../../../common/util/gui-tool";
 import { VSCalendarModel } from "../../model/calendar/vs-calendar-model";
 import { VSObjectModel } from "../../model/vs-object-model";
 import { VSSelectionBaseModel } from "../../model/vs-selection-base-model";
-import { FeatureFlagsService, FeatureFlagValue } from "../../../../../../shared/feature-flags/feature-flags.service";
 
 @Injectable()
 export class MiniToolbarService {

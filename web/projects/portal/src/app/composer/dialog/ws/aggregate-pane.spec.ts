@@ -24,7 +24,6 @@ import { TestUtils } from "../../../common/test/test-utils";
 import { AggregateDialogModel } from "../../data/ws/aggregate-dialog-model";
 import { AggregatePane } from "./aggregate-pane.component";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
-import { FeatureFlagsService } from "../../../../../../shared/feature-flags/feature-flags.service";
 import { of as observableOf } from "rxjs";
 
 describe("Aggregate Pane Unit Test", () => {
@@ -64,7 +63,6 @@ describe("Aggregate Pane Unit Test", () => {
       };
    };
    let dateLevelExamplesService = { loadDateLevelExamples: jest.fn(() => observableOf()) };
-   let featureFlagsService = { isFeatureEnabled: jest.fn() };
 
    beforeEach(async(() => {
       TestBed.configureTestingModule({
@@ -75,8 +73,8 @@ describe("Aggregate Pane Unit Test", () => {
             AggregatePane
          ],
          providers: [
-            { provide: DateLevelExamplesService, useValue: dateLevelExamplesService },
-            { provide: FeatureFlagsService, useValue: featureFlagsService }]
+            { provide: DateLevelExamplesService, useValue: dateLevelExamplesService }
+         ]
       });
       TestBed.compileComponents();
    }));

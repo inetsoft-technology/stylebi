@@ -56,7 +56,6 @@ import {DragService} from "../../../widget/services/drag.service";
 import {DomService} from "../../../widget/dom-service/dom.service";
 import {AssetEntry} from "../../../../../../shared/data/asset-entry";
 import {SelectedDataSourcesRequest} from "../commands/selected-datasources-request";
-import {FeatureFlagsService} from "../../../../../../shared/feature-flags/feature-flags.service";
 import {AssetUtil} from "../../../binding/util/asset-util";
 import {MultiObjectSelectList} from "../../../common/util/multi-object-select-list";
 
@@ -131,8 +130,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
                private openComposerService: OpenComposerService,
                private repositoryClient: RepositoryClientService,
                private dragService: DragService,
-               private domService: DomService,
-               private featureFlagsService: FeatureFlagsService)
+               private domService: DomService)
    {
       super(viewsheetClient, zone, true);
       this.multiObjectSelectList = new MultiObjectSelectList<DataSourceInfo>();

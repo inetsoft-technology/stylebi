@@ -17,7 +17,6 @@
  */
 import {Component, EventEmitter, Input, OnInit, Output} from "@angular/core";
 import {UntypedFormBuilder, UntypedFormGroup, Validators} from "@angular/forms";
-import {FeatureFlagValue} from "../../../../../../../shared/feature-flags/feature-flags.service";
 import {TimeConditionModel, TimeRange} from "../../../../../../../shared/schedule/model/time-condition-model";
 import {TimeZoneModel} from "../../../../../../../shared/schedule/model/time-zone-model";
 import {FormValidators} from "../../../../../../../shared/util/form-validators";
@@ -39,7 +38,6 @@ export class DailyConditionEditorComponent implements OnInit {
    @Input() timeRangeEnabled = true;
    @Input() showMeridian: boolean;
    @Output() modelChanged = new EventEmitter<TaskConditionChanges>();
-   readonly FeatureFlagValue = FeatureFlagValue;
 
    @Input()
    get condition(): TimeConditionModel {

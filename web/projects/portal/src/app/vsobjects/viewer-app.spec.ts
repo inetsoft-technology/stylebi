@@ -87,7 +87,6 @@ import { PagingControlService } from "../common/services/paging-control.service"
 import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
 import { GlobalSubmitService } from "./util/global-submit.service";
 import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
-import { FeatureFlagsService } from "../../../../shared/feature-flags/feature-flags.service";
 
 jest.mock("css-element-queries");
 
@@ -144,7 +143,6 @@ describe("ViewerApp Unit Tests", () => {
    let selectionMobileService: any;
    let globalSubmitService: any;
    let miniToolbarService: any;
-   let featureFlagsService: any;
    let assetLoadingService: any;
    let viewContainerRef: any;
 
@@ -267,9 +265,6 @@ describe("ViewerApp Unit Tests", () => {
          mouseVisit: jest.fn(),
          resetMiniToolbarHidden: jest.fn()
       };
-      featureFlagsService = {
-         isFeatureEnabled: jest.fn()
-      };
       assetLoadingService = {
          isLoading: jest.fn(),
          setLoading: jest.fn()
@@ -320,7 +315,6 @@ describe("ViewerApp Unit Tests", () => {
             { provide: GlobalSubmitService, useValue: globalSubmitService},
             { provide: SelectionMobileService, useValue: selectionMobileService},
             { provide: MiniToolbarService, useValue: miniToolbarService },
-            { provide: FeatureFlagsService, useValue: featureFlagsService },
             { provide: AssetLoadingService, useValue: assetLoadingService },
             { provide: ViewContainerRef, useValue: viewContainerRef },
             AppInfoService
@@ -377,7 +371,7 @@ describe("ViewerApp Unit Tests", () => {
          renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
          firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
-         pageTabService, pagingControlService, selectionMobileService, featureFlagsService,
+         pageTabService, pagingControlService, selectionMobileService,
          assetLoadingService, viewContainerRef);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");

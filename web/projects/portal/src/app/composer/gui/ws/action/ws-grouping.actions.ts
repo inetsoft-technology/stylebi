@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpParams } from "@angular/common/http";
-import { FeatureFlagsService } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ModelService } from "../../../../widget/services/model.service";
@@ -35,10 +34,9 @@ export class WSGroupingActions extends WSAssemblyActions {
       private grouping: WSGroupingAssembly,
       worksheet: Worksheet,
       modalService: DialogService,
-      private modelService: ModelService,
-      featureFlagsService: FeatureFlagsService)
+      private modelService: ModelService)
    {
-      super(grouping, worksheet, modalService, featureFlagsService);
+      super(grouping, worksheet, modalService);
    }
 
    protected createMenuActions(groups: AssemblyActionGroup[]): AssemblyActionGroup[] {

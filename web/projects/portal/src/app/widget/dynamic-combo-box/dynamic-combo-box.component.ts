@@ -25,10 +25,6 @@ import { FormulaEditorDialog } from "../formula-editor/formula-editor-dialog.com
 import { TreeNodeModel } from "../tree/tree-node-model";
 import { FormulaType } from "../../common/data/formula-type";
 import { ComponentTool } from "../../common/util/component-tool";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../shared/feature-flags/feature-flags.service";
 import { FormulaEditorDialogModel } from "../formula-editor/formula-editor-dialog-model";
 
 @Component({
@@ -82,7 +78,6 @@ export class DynamicComboBox implements OnInit, OnChanges {
    @ViewChild("textInput") textInput: ElementRef;
    @ViewChild("numberInput") numberInput: ElementRef;
    @ViewChildren(FixedDropdownDirective) dropdowns: QueryList<FixedDropdownDirective>;
-   readonly FeatureFlagValue = FeatureFlagValue;
 
    constructor(private dialogService: NgbModal) {
    }

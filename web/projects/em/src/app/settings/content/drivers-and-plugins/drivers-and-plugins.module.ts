@@ -35,7 +35,6 @@ import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatSortModule } from "@angular/material/sort";
 import { MatStepperModule } from "@angular/material/stepper";
 import { MatTableModule } from "@angular/material/table";
-import { FeatureFlagsModule } from "../../../../../../shared/feature-flags/feature-flags.module";
 import { FileChooserModule } from "../../../common/util/file-chooser/file-chooser.module";
 import { LoadingSpinnerModule } from "../../../common/util/loading-spinner/loading-spinner.module";
 import { TopScrollModule } from "../../../top-scroll/top-scroll.module";
@@ -67,7 +66,6 @@ import { ModalHeaderModule } from "../../../common/util/modal-header/modal-heade
       DriversAndPluginsRoutingModule,
       FileChooserModule,
       TopScrollModule,
-      FeatureFlagsModule,
       MatStepperModule,
       MatRadioModule,
       LoadingSpinnerModule,

@@ -17,7 +17,6 @@
  */
 import { ComponentTool } from "../../common/util/component-tool";
 import { FormulaEditorDialog } from "./formula-editor-dialog.component";
-import { FeatureFlagsService } from "../../../../../shared/feature-flags/feature-flags.service";
 
 let createMockItemObject: () => any = () => {
    return {
@@ -46,7 +45,6 @@ describe("Formula Editor Test", () => {
    let modalService: any;
    let renderer: any;
    let element: any;
-   let featureFlag: FeatureFlagsService;
 
    beforeEach(() => {
       const editorService: any = {
@@ -60,7 +58,7 @@ describe("Formula Editor Test", () => {
       renderer = { };
       element = { };
 
-      formulaEditor = new FormulaEditorDialog(editorService, modalService, renderer, element, featureFlag);
+      formulaEditor = new FormulaEditorDialog(editorService, modalService, renderer, element);
       formulaEditor.formulaName = "formula name";
       formulaEditor.dataType = "string";
    });

@@ -32,7 +32,6 @@ import {FormValidators} from "../../../../../../../shared/util/form-validators";
 import {DashboardOptions} from "../../model/dashboard-options";
 import {ReportOptions} from "../../model/reports-options";
 import {BurstEmailDialogData} from "../burst-email-dialog/burst-email-dialog.component";
-import {FeatureFlagValue} from "../../../../../../../shared/feature-flags/feature-flags.service";
 
 export interface DeliveryEmails {
    valid: boolean;
@@ -65,7 +64,6 @@ export interface DeliveryEmails {
    styleUrls: ["./delivery-emails.component.scss"]
 })
 export class DeliveryEmailsComponent implements OnInit, OnChanges {
-   FeatureFlag = FeatureFlagValue;
    @Input() enabled: boolean = false;
    @Input() senderEnabled: boolean = false;
    @Input() type: string = "";

@@ -18,7 +18,6 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { CalendarAdvancedPaneModel } from "../../data/vs/calendar-advanced-pane-model";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
-import { FeatureFlagValue } from "../../../../../../shared/feature-flags/feature-flags.service";
 import { UntypedFormControl, UntypedFormGroup, ValidationErrors, Validators } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { DynamicValueModel, ValueTypes } from "../../../vsobjects/model/dynamic-value-model";
@@ -37,7 +36,6 @@ export class CalendarAdvancedPane implements OnInit {
    @Input() scriptDefinitions: any = null;
    @Output() viewMode = new EventEmitter<number>();
    @Output() showType = new EventEmitter<number>();
-   FeatureFlag = FeatureFlagValue;
 
    ngOnInit() {
       this.initForm();

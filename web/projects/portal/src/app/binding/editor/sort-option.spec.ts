@@ -33,8 +33,6 @@ import { ModelService } from "../../widget/services/model.service";
 import { NamedGroupInfo } from "../data/named-group-info";
 import { BindingService } from "../services/binding.service";
 import { SortOption } from "./sort-option.component";
-import { FeatureFlagDirective } from "../../../../../shared/feature-flags/feature-flag.directive";
-import { FeatureFlagsService } from "../../../../../shared/feature-flags/feature-flags.service";
 
 const BESIC_SORTOPTION: any[] = ["None", "Ascending", "Descending"];
 const AGG_SORTOPTION: any[] = ["common.widget.SortOption.byAsc",
@@ -52,7 +50,6 @@ describe("Sort Option Unit Test", () => {
    };
    const uiContextService: any = { isAdhoc: jest.fn() };
    const modalService: any = { open: jest.fn() };
-   const featureFlagsService: any = { isFeatureEnabled: jest.fn() };
 
    let fixture: ComponentFixture<SortOption>;
    let sortOption: SortOption;
@@ -78,9 +75,6 @@ describe("Sort Option Unit Test", () => {
                provide: NgbModal, useValue: modalService
             },
             DragService,
-            {
-               provide: FeatureFlagsService, useValue: featureFlagsService
-            }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
@@ -97,7 +91,7 @@ describe("Sort Option Unit Test", () => {
    //for Bug #10416, Bug #10615, Bug #10241, Bug #18018, Bug #10623 should not load Manual in sort combobox if group is date type
    it("Test sort combobox load", () => {
       uiContextService.isAdhoc.mockImplementation(() => false);
-      sortOption = new SortOption(bindingService, modelService, modalService, uiContextService, featureFlagsService);
+      sortOption = new SortOption(bindingService, modelService, modalService, uiContextService);
       sortOption.dimension = TestUtils.createMockBDimensionRef("state");
       sortOption.ngOnInit();
 
@@ -324,7 +318,7 @@ describe("Sort Option Unit Test", () => {
 
    //for Bug #16203, Bug #17714, Bug #17812, Bug #19402 ranking of default value show error
    it("Test ranking input and of default value when ranking is top", () => {
-      sortOption = new SortOption(bindingService, modelService, modalService, uiContextService, featureFlagsService);
+      sortOption = new SortOption(bindingService, modelService, modalService, uiContextService);
       sortOption.dimension = TestUtils.createMockBDimensionRef("state");
       let aggMap: any = {
          label: "Sum(id)",
@@ -346,7 +340,7 @@ describe("Sort Option Unit Test", () => {
 
    //for Bug #19289
    it("Test sort summarize combobox default value", () => {
-      sortOption = new SortOption(bindingService, modelService, modalService, uiContextService, featureFlagsService);
+      sortOption = new SortOption(bindingService, modelService, modalService, uiContextService);
       uiContextService.isAdhoc.mockImplementation(() => false);
       sortOption.dimension = TestUtils.createMockBDimensionRef("state");
       let aggMap: any = {

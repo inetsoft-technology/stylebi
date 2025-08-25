@@ -21,7 +21,6 @@ import { VSObjectModel } from "../../../model/vs-object-model";
 import { Observable, Subject } from "rxjs";
 import { ViewsheetInfo } from "../../../data/viewsheet-info";
 import { GuiTool } from "../../../../common/util/gui-tool";
-import { FeatureFlagsService, FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 
 @Injectable()
 export class SelectionMobileService {
@@ -29,7 +28,7 @@ export class SelectionMobileService {
      new Subject<{obj: VSObjectModel, max: boolean}>();
   private _latestToggleMax: VSObjectModel;
 
-  constructor(private featureFlagsService: FeatureFlagsService) {
+  constructor() {
   }
 
   hasAutoMaxMode(vsInfo: ViewsheetInfo): boolean {

@@ -25,21 +25,18 @@ import { EmbeddedTableAssembly } from "../../../data/ws/embedded-table-assembly"
 import { WSTableAssembly } from "../../../data/ws/ws-table-assembly";
 import { WSTableAssemblyInfo } from "../../../data/ws/ws-table-assembly-info";
 import { WSHeaderCell } from "./ws-header-cell.component";
-import { FeatureFlagsService } from "../../../../../../../shared/feature-flags/feature-flags.service";
 
 describe("WS Header Cell Tests", () => {
    let hostRef;
    let worksheetClient;
    let dropdownService;
    let cell;
-   let featureFlagService;
 
    beforeEach(() => {
       hostRef = { nativeElement: {} };
       worksheetClient = { sendEvent: jest.fn() };
       dropdownService = { open: jest.fn() };
-      featureFlagService = { isFeatureEnabled: jest.fn() };
-      cell = new WSHeaderCell(hostRef, worksheetClient, dropdownService, featureFlagService);
+      cell = new WSHeaderCell(hostRef, worksheetClient, dropdownService);
    });
 
    it("should disable embedded table actions when aggregate", () => {

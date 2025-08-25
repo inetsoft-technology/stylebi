@@ -18,7 +18,6 @@
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
 import dayjs from "dayjs";
-import { FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { TimeConditionModel } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
 import { TimeZoneService } from "../../../../../../../shared/schedule/time-zone.service";
@@ -37,7 +36,6 @@ export class RunOnceConditionEditorComponent implements OnInit {
    @Input() timeZoneOptions: TimeZoneModel[];
    @Input() showMeridian: boolean;
    @Output() modelChanged = new EventEmitter<TaskConditionChanges>();
-   readonly FeatureFlagValue = FeatureFlagValue;
 
    @Input()
    get condition(): TimeConditionModel {

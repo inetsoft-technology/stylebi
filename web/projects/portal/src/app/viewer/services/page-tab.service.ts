@@ -17,10 +17,6 @@
  */
 import { Injectable } from "@angular/core";
 import { Subject } from "rxjs";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../shared/feature-flags/feature-flags.service";
 
 @Injectable()
 export class PageTabService {
@@ -29,7 +25,7 @@ export class PageTabService {
    private _onTabAddedRemoved = new Subject<boolean>();
    currentTab: TabInfoModel;
 
-   constructor(private featureFlagsService: FeatureFlagsService) {
+   constructor() {
       this.clearTabs();
    }
 

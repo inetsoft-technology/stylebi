@@ -25,7 +25,6 @@ import { Observable, Subject, Subscription, throwError, timer } from "rxjs";
 import { catchError, first, map, scan, switchMap, takeUntil, tap } from "rxjs/operators";
 import { CommonKVModel } from "../../../../../../../portal/src/app/common/data/common-kv-model";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
-import { FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { RepositoryEditorModel } from "../../../../../../../shared/util/model/repository-editor-model";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
@@ -88,7 +87,6 @@ export class BackupFileComponent implements OnDestroy {
    @Input() cloudSecrets: boolean;
    @Output() backupPathsChanged = new EventEmitter<BackupPathsSave>();
 
-   FeatureFlagValue = FeatureFlagValue;
    _serverPath: ServerPathInfoModel;
    private destroy$ = new Subject<void>();
    backupForm: UntypedFormGroup;

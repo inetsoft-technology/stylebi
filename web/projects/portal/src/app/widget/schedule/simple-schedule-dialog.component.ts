@@ -47,7 +47,6 @@ import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms
 import { FormValidators } from "../../../../../shared/util/form-validators";
 import { EmailDialogData } from "../email-dialog/email-addr-dialog.component";
 import { ViewsheetActionModel } from "../../vsobjects/model/schedule/viewsheet-action-model";
-import { FeatureFlagValue } from "../../../../../shared/feature-flags/feature-flags.service";
 
 const HISTORY_LIMIT: number = 100;
 const CHECK_EMAIL_VALID_URI: string = "../api/vs/check-email-valid";
@@ -79,7 +78,6 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
                              "_#(js:5th)"];
    daysOfWeek: string[] = ["_#(js:Sunday)", "_#(js:Monday)", "_#(js:Tuesday)", "_#(js:Wednesday)",
                            "_#(js:Thursday)", "_#(js:Friday)", "_#(js:Saturday)"];
-   readonly FeatureFlagValue = FeatureFlagValue;
    FileFormatType = FileFormatType;
    TimeConditionType = TimeConditionType;
    emailModel: EmailAddrDialogModel;

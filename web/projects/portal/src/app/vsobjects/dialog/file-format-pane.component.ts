@@ -22,7 +22,6 @@ import { ComponentTool } from "../../common/util/component-tool";
 import { FileFormatPaneModel } from "../model/file-format-pane-model";
 import { FileFormatType } from "../model/file-format-type";
 import { UntypedFormGroup } from "@angular/forms";
-import { FeatureFlagValue } from "../../../../../shared/feature-flags/feature-flags.service";
 
 @Component({
    selector: "file-format-pane",
@@ -30,7 +29,6 @@ import { FeatureFlagValue } from "../../../../../shared/feature-flags/feature-fl
    styleUrls: ["file-format-pane.component.scss"]
 })
 export class FileFormatPane implements OnInit {
-   FeatureFlag = FeatureFlagValue;
    @Input() model: FileFormatPaneModel;
    @Input() exportTypes: {label: string, value: string}[] = [];
    @Input() email: boolean = false;

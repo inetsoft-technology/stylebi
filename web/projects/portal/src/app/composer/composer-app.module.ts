@@ -306,7 +306,6 @@ import { LineAnchorService } from "./services/line-anchor.service";
 import { WsChangeService } from "./gui/ws/editor/ws-change.service";
 import { TableLayoutPropertyDialog } from "./dialog/vs/table-layout-property-dialog.component";
 import { ModelService } from "../widget/services/model.service";
-import { FeatureFlagsModule } from "../../../../shared/feature-flags/feature-flags.module";
 import { ComposerRecentService } from "./gui/composer-recent.service";
 import { ShowHideColumnsDialogComponent } from "./dialog/ws/show-hide-columns-dialog.component";
 import { StatusBarModule } from "../status-bar/status-bar.module";
@@ -402,7 +401,6 @@ import { ScrollingModule } from "@angular/cdk/scrolling";
       ComposerRoutingModule,
       DownloadModule,
       AngularResizeEventModule,
-      FeatureFlagsModule,
       VSLoadingDisplayModule,
       VSChartModule,
       VSLineModule,

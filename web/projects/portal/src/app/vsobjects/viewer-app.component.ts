@@ -57,7 +57,6 @@ import {
 } from "../../../../em/src/app/settings/security/users/identity-id";
 import { AssetEntry, createAssetEntry } from "../../../../shared/data/asset-entry";
 import { DownloadService } from "../../../../shared/download/download.service";
-import { FeatureFlagsService } from "../../../../shared/feature-flags/feature-flags.service";
 import { DateTypeFormatter } from "../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../shared/util/tool";
 import { AssemblyAction } from "../common/action/assembly-action";
@@ -515,7 +514,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                private pagingControlService: PagingControlService,
                private selectionMobileService: SelectionMobileService,
                private miniToolbarService: MiniToolbarService,
-               private featureFlagService: FeatureFlagsService,
                private assetLoadingService: AssetLoadingService,
                private viewContainerRef: ViewContainerRef,
                private baseHrefService: BaseHrefService)

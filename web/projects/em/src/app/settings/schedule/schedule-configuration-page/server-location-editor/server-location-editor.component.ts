@@ -20,7 +20,6 @@ import { UntypedFormBuilder, UntypedFormGroup, ValidationErrors, Validators } fr
 import { MatCheckboxChange } from "@angular/material/checkbox";
 import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
 import { ServerPathInfoModel } from "../../../../../../../portal/src/app/vsobjects/model/server-path-info-model";
-import { FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { ServerLocation } from "../../../../../../../shared/schedule/model/server-location";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 
@@ -37,7 +36,6 @@ export interface ServerLocationData {
 })
 export class ServerLocationEditorComponent implements OnInit {
    form: UntypedFormGroup;
-   FeatureFlagValue = FeatureFlagValue;
    cloudSecrets: boolean;
    oldPasswordKey: string;
 

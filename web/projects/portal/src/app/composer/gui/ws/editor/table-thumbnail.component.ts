@@ -52,10 +52,6 @@ import { WSTableActions } from "../action/ws-table.actions";
 import { WSInsertColumnsEvent } from "../socket/ws-insert-columns/ws-insert-columns-event";
 import { WSAssemblyThumbnail } from "./ws-assembly-thumbnail";
 import { WSAssemblyThumbnailTitleComponent } from "./ws-assembly-thumbnail-title.component";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../../shared/feature-flags/feature-flags.service";
 
 let timer: any = null;
 const timerFunctions: (() => void)[] = [];
@@ -123,8 +119,7 @@ export class TableThumbnailComponent extends WSAssemblyThumbnail
                protected modalService: DialogService,
                protected ngbModal: NgbModal,
                protected modelService: ModelService,
-               protected thumbnail: ElementRef,
-               protected featureFlagsService: FeatureFlagsService)
+               protected thumbnail: ElementRef)
    {
       super();
    }

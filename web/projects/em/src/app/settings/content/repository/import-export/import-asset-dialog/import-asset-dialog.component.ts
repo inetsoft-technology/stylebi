@@ -21,7 +21,6 @@ import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
 import { Observable, throwError, timer } from "rxjs";
 import { catchError, filter, switchMap, take, timeout } from "rxjs/operators";
-import { FeatureFlagValue } from "../../../../../../../../shared/feature-flags/feature-flags.service";
 import { DateTypeFormatter } from "../../../../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../../../common/util/message-dialog";
@@ -49,7 +48,6 @@ export class ImportAssetDialogComponent implements OnDestroy {
    selected: RequiredAssetModel[] = [];
    uploaded = false;
    private targetNode: RepositoryFlatNode;
-   readonly FeatureFlagValue = FeatureFlagValue;
 
    get loading(): boolean {
       return this._loading;

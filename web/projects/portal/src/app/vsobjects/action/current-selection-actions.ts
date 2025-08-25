@@ -21,7 +21,6 @@ import { VSSelectionContainerModel } from "../model/vs-selection-container-model
 import { SelectionContainerActions } from "./selection-container-actions";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { FeatureFlagsService } from "../../../../../shared/feature-flags/feature-flags.service";
 
 export class CurrentSelectionActions extends SelectionContainerActions {
    constructor(model: VSSelectionContainerModel, contextProvider, securityEnabled: boolean = false,

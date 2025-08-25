@@ -27,7 +27,6 @@ import { ModelService } from "../../../widget/services/model.service";
 import { TooltipDirective } from "../../../widget/tooltip/tooltip.directive";
 import { TooltipService } from "../../../widget/tooltip/tooltip.service";
 import { ReorderColumnsDialog } from "./reorder-columns-dialog.component";
-import { FeatureFlagsService } from "../../../../../../shared/feature-flags/feature-flags.service";
 
 let createModel: () => Observable<any> = () => {
    return observableOf({
@@ -44,7 +43,6 @@ describe("Reorder Columns Dialog Test", () => {
    let fixture: ComponentFixture<ReorderColumnsDialog>;
    let modelService: any;
    let tooltipService: any;
-   let featureFlagsService: any;
    let deUp: DebugElement;
    let deDown: DebugElement;
    let elUp: HTMLElement;
@@ -53,7 +51,6 @@ describe("Reorder Columns Dialog Test", () => {
    beforeEach(async(() => {
       modelService = { getModel: jest.fn(() => createModel()) };
       tooltipService = { createToolTip: jest.fn() };
-      featureFlagsService = { isFeatureEnabled: jest.fn() };
 
       TestBed.configureTestingModule({
          imports: [ NgbModule ],
@@ -63,7 +60,6 @@ describe("Reorder Columns Dialog Test", () => {
          providers: [
             { provide: ModelService, useValue: modelService },
             { provide: TooltipService, useValue: tooltipService },
-            { provide: FeatureFlagsService, useValue: featureFlagsService }
          ],
          schemas: [NO_ERRORS_SCHEMA]
       });

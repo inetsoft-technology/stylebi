@@ -18,7 +18,6 @@
 import { HttpParams } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, Subject } from "rxjs";
-import { FeatureFlagsService } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
 import { ModelService } from "../../../../widget/services/model.service";
@@ -54,10 +53,9 @@ export class WSTableActions extends WSAssemblyActions {
                private ngbModal: NgbModal,
                private modelService: ModelService,
                private sqlEnabled: boolean = true,
-               private freeFormSqlEnabled: boolean = true,
-               featureFlagsService: FeatureFlagsService)
+               private freeFormSqlEnabled: boolean = true)
    {
-      super(table, worksheet, modalService, featureFlagsService);
+      super(table, worksheet, modalService);
    }
 
    public static getEditCompositionLabel(table: AbstractTableAssembly): string {

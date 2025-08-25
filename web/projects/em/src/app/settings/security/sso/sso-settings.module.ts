@@ -30,7 +30,6 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatRadioModule } from "@angular/material/radio";
 import { MatSelectModule } from "@angular/material/select";
-import { FeatureFlagsModule } from "../../../../../../shared/feature-flags/feature-flags.module";
 import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
 import { MessageDialogModule } from "../../../common/util/message-dialog.module";
 import { CustomSsoFormComponent } from "./custom-sso-form/custom-sso-form.component";
@@ -65,7 +64,6 @@ import { SsoSettingsRoutingModule } from "./sso-settings-routing.module";
         MatButtonModule,
         MatIconModule,
         MatCheckboxModule,
-        FeatureFlagsModule,
         MatAutocompleteModule,
         MessageDialogModule,
         MatChipsModule

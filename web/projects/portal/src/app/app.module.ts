@@ -20,7 +20,6 @@ import { NgModule } from "@angular/core";
 import { BrowserModule } from "@angular/platform-browser";
 import { UrlSerializer } from "@angular/router";
 import { NgbModalModule } from "@ng-bootstrap/ng-bootstrap";
-import { FeatureFlagsModule } from "../../../shared/feature-flags/feature-flags.module";
 import { SsoHeartbeatInterceptor } from "../../../shared/sso/sso-heartbeat-interceptor";
 import { SsoHeartbeatService } from "../../../shared/sso/sso-heartbeat.service";
 import { AppRoutingModule } from "./app-routing.module";
@@ -69,7 +68,6 @@ export const httpInterceptorProviders = [
       HttpClientModule,
       AppRoutingModule,
       NgbModalModule,
-      FeatureFlagsModule,
       NotificationsModule,
       FormsModule,
       ReactiveFormsModule,

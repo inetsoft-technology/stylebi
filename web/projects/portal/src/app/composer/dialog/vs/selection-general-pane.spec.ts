@@ -26,8 +26,6 @@ import { TitlePropPane } from "../../../vsobjects/dialog/title-prop-pane.compone
 import { SelectionGeneralPaneModel } from "../../data/vs/selection-general-pane-model";
 import { SelectionGeneralPane } from "./selection-general-pane.component";
 import { TestUtils } from "../../../common/test/test-utils";
-import { FeatureFlagsService } from "../../../../../../shared/feature-flags/feature-flags.service";
-
 
 let createModel: () => SelectionGeneralPaneModel = () => {
    return {
@@ -65,7 +63,6 @@ let createModel: () => SelectionGeneralPaneModel = () => {
 describe("Selection General Pane Unit Tests", () => {
    let fixture: ComponentFixture<SelectionGeneralPane>;
    let selectGeneralPane: SelectionGeneralPane;
-   let featureFlagsService = { isFeatureEnabled: jest.fn() };
 
    beforeEach(async(() => {
       TestBed.configureTestingModule({
@@ -75,9 +72,7 @@ describe("Selection General Pane Unit Tests", () => {
          declarations: [
             SelectionGeneralPane, GeneralPropPane, TitlePropPane, SizePositionPane
          ],
-         providers: [
-            { provide: FeatureFlagsService, useValue: featureFlagsService},
-         ],
+         providers: [],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
       TestBed.compileComponents();

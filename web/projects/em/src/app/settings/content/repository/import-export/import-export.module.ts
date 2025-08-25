@@ -39,7 +39,6 @@ import { ImportAssetDialogComponent } from "./import-asset-dialog/import-asset-d
 import { RequiredAssetListComponent } from "./required-asset-list/required-asset-list.component";
 import { SelectAssetsDialogComponent } from "./select-assets-dialog/select-assets-dialog.component";
 import { SelectedAssetListComponent } from "./selected-asset-list/selected-asset-list.component";
-import { FeatureFlagsModule } from "../../../../../../../shared/feature-flags/feature-flags.module";
 import { SelectAssetFolderDialogComponent } from "./select-asset-folder-dialog/select-asset-folder-dialog.component";
 import { InputNameDialogComponent } from "./input-name-dialog/input-name-dialog.component";
 
@@ -62,7 +61,6 @@ import { InputNameDialogComponent } from "./input-name-dialog/input-name-dialog.
       FlatTreeModule,
       MessageDialogModule,
       ModalHeaderModule,
-      FeatureFlagsModule
    ],
    declarations: [
       ExportAssetDialogComponent,
