@@ -24,10 +24,6 @@ import { AssetConstants } from "../../../../common/data/asset-constants";
 import { AssetEntryHelper } from "../../../../common/data/asset-entry-helper";
 import { WorksheetBrowserInfo } from "../../model/worksheet-browser-info";
 import { DragService } from "../../../../widget/services/drag.service";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { MultiObjectSelectList } from "../../../../common/util/multi-object-select-list";
 
 @Component({

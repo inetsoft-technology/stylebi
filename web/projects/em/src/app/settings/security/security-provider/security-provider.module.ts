@@ -54,7 +54,6 @@ import { SecurityProviderRoutingModule } from "./security-provider-routing.modul
 import { SecurityProviderViewComponent } from "./security-provider-view/security-provider-view.component";
 import { SecurityProviderService } from "./security-provider.service";
 import { SystemAdminRolesDialogComponent } from "./system-admin-roles-dialog/system-admin-roles-dialog.component";
-import { FeatureFlagsModule } from "../../../../../../shared/feature-flags/feature-flags.module";
 
 @NgModule({
    imports: [
@@ -79,7 +78,6 @@ import { FeatureFlagsModule } from "../../../../../../shared/feature-flags/featu
       EditorPanelModule,
       SharedLayoutModule,
       ModalHeaderModule,
-      FeatureFlagsModule
    ],
    exports: [
       SystemAdminRolesDialogComponent

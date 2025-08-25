@@ -37,7 +37,6 @@ describe("chart fieldmc component unit case", () => {
    let uiContextService: any;
    let modalService: any;
    let dcService: any;
-   let featureFlagsService: any;
 
    let chartFieldmc: ChartFieldmc;
    let model: ChartBindingModel;
@@ -56,10 +55,9 @@ describe("chart fieldmc component unit case", () => {
       renderer = {};
       modalService = { open: jest.fn() };
       dcService = {};
-      featureFlagsService = { isFeatureEnabled: jest.fn() };
 
       chartFieldmc = new ChartFieldmc(bindingService, editorService, dndService,
-         modalService, dcService, renderer, featureFlagsService);
+         modalService, dcService, renderer);
    });
 
    //Bug #19209

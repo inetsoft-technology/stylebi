@@ -19,10 +19,6 @@ import { Injectable, NgZone, OnDestroy, Optional } from "@angular/core";
 import { convertToParamMap, NavigationExtras, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject } from "rxjs";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../shared/feature-flags/feature-flags.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import {
    HyperlinkModel,
@@ -55,7 +51,6 @@ export class ShowHyperlinkService extends HyperlinkService implements OnDestroy 
    constructor(zone: NgZone, modelService: ModelService, modalService: NgbModal,
                @Optional() private pageTabService: PageTabService,
                viewDataService: ViewDataService, router: Router,
-               private featureFlagsService: FeatureFlagsService,
                appInfoService: AppInfoService)
    {
       super(zone, modelService, modalService, router, viewDataService, appInfoService);

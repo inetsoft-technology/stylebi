@@ -26,7 +26,6 @@ import {
    Validators
 } from "@angular/forms";
 import {ErrorStateMatcher} from "@angular/material/core";
-import {FeatureFlagValue} from "../../../../../../../shared/feature-flags/feature-flags.service";
 import {TimeConditionModel} from "../../../../../../../shared/schedule/model/time-condition-model";
 import {TimeZoneModel} from "../../../../../../../shared/schedule/model/time-zone-model";
 import {DateTypeFormatter} from "../../../../../../../shared/util/date-type-formatter";
@@ -44,7 +43,6 @@ export class HourlyConditionEditorComponent implements OnInit {
    @Input() showMeridian: boolean;
    @Input()  timeZoneOptions: TimeZoneModel[];
    @Output() modelChanged = new EventEmitter<TaskConditionChanges>();
-   readonly FeatureFlagValue = FeatureFlagValue;
    startTime: string = null;
    endTime: string = null;
 

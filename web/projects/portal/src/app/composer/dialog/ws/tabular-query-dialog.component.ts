@@ -34,7 +34,6 @@ import { AbstractTableAssembly } from "../../data/ws/abstract-table-assembly";
 import { TabularQueryDialogModel } from "../../data/ws/tabular-query-dialog-model";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
-import { FeatureFlagValue } from "../../../../../../shared/feature-flags/feature-flags.service";
 
 @Component({
    selector: "tabular-query-dialog",
@@ -57,7 +56,6 @@ export class TabularQueryDialog implements OnInit {
    private readonly CONTROLLER_BROWSE: string = "../api/composer/ws/tabular-query-dialog/browse";
    private readonly CONTROLLER_OAUTH_PARAMS = "../api/composer/tabular-query-dialog/oauth-params";
    private readonly CONTROLLER_OAUTH_TOKENS = "../api/composer/tabular-query-dialog/oauth-tokens";
-   readonly FeatureFlagValue = FeatureFlagValue;
    model: TabularQueryDialogModel;
    headers: HttpHeaders;
    valid: boolean;

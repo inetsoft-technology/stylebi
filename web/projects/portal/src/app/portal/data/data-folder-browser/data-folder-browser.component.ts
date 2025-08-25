@@ -77,10 +77,6 @@ import { DragService } from "../../../widget/services/drag.service";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { DomService } from "../../../widget/dom-service/dom.service";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../shared/feature-flags/feature-flags.service";
 import { AssetUtil } from "../../../binding/util/asset-util";
 import {
    DataSourcesTreeActionsService

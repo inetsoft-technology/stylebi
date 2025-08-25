@@ -22,7 +22,6 @@ import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ListValuesPaneModel } from "../../data/vs/list-values-pane-model";
 
 import { ListValuesPane } from "./list-values-pane.component";
-import { FeatureFlagsService } from "../../../../../../shared/feature-flags/feature-flags.service";
 
 let createListModel: () => ListValuesPaneModel = () => {
    return {
@@ -72,14 +71,11 @@ class ComboBoxEditor {
 describe("list value component unit case: ", () => {
    let fixture: ComponentFixture<ListValuesPane>;
    let listPane: ListValuesPane;
-   let featureFlagsService = { isFeatureEnabled: jest.fn() };
 
    beforeEach(() => {
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule],
-         providers: [
-            { provide: FeatureFlagsService, useValue: featureFlagsService},
-         ],
+         providers: [],
          declarations: [ListValuesPane, ComboBoxEditor],
          schemas: [NO_ERRORS_SCHEMA]
       }).compileComponents();
