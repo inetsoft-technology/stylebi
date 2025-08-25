@@ -22,7 +22,6 @@ import { HierarchyPropertyPaneModel } from "../../model/hierarchy-property-pane-
 import { HierarchyEditor } from "./hierarchy-editor.component";
 import { HierarchyEditorModel } from "../../model/hierarchy-editor-model";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
-import { FeatureFlagsService } from "../../../../../../shared/feature-flags/feature-flags.service";
 import { of as observableOf } from "rxjs";
 
 let createModel: () => HierarchyPropertyPaneModel = () => {

@@ -81,7 +81,6 @@ import { ThermometerActions } from "./thermometer-actions";
 import { VSThermometerModel } from "../model/output/vs-thermometer-model";
 import { DataTipService } from "../objects/data-tip/data-tip.service";
 import { PopComponentService } from "../objects/data-tip/pop-component.service";
-import { FeatureFlagsService } from "../../../../../shared/feature-flags/feature-flags.service";
 import { MiniToolbarService } from "../objects/mini-toolbar/mini-toolbar.service";
 
 @Injectable()

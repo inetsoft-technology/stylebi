@@ -19,10 +19,6 @@ import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { FormatInfoModel } from "../../common/data/format-info-model";
 import { LabelValueTuple } from "../../../../../shared/util/label-value-tuple";
 import { Format } from "../../common/util/format";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../shared/feature-flags/feature-flags.service";
 
 @Component({
    selector: "formatting-pane",

@@ -37,7 +37,6 @@ import { BindingService } from "../../../services/binding.service";
 import { SortOption } from "../../sort-option.component";
 import { DimensionEditor } from "./dimension-editor.component";
 import { DateLevelExamplesService } from "../../../../common/services/date-level-examples.service";
-import { FeatureFlagsService } from "../../../../../../../shared/feature-flags/feature-flags.service";
 
 describe("Dimension Editor Unit Test", () => {
    let chartBindingModel: ChartBindingModel;
@@ -54,7 +53,6 @@ describe("Dimension Editor Unit Test", () => {
    };
    let uiContextService = { isAdhoc: jest.fn() };
    let examplesService = { loadDateLevelExamples: jest.fn(() => observableOf())};
-   let featureFlagsService = { isFeatureEnabled: jest.fn() };
 
    let fixture: ComponentFixture<DimensionEditor>;
    let dimensionEditor: DimensionEditor;
@@ -72,7 +70,6 @@ describe("Dimension Editor Unit Test", () => {
             { provide: BindingService, useValue: bindingService },
             { provide: UIContextService, useValue: uiContextService },
             { provide: DateLevelExamplesService, useValue: examplesService},
-            { provide: FeatureFlagsService, useValue: featureFlagsService },
             NgbModal
          ],
          schemas: [NO_ERRORS_SCHEMA]

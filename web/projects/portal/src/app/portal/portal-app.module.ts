@@ -31,7 +31,6 @@ import {
 } from "@ng-bootstrap/ng-bootstrap";
 import { MonitoringDataService } from "../../../../em/src/app/monitoring/monitoring-data.service";
 import { CkeditorWrapperModule } from "../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
-import { FeatureFlagsModule } from "../../../../shared/feature-flags/feature-flags.module";
 import { ScheduleTaskNamesService } from "../../../../shared/schedule/schedule-task-names.service";
 import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
@@ -326,7 +325,6 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       ReactiveFormsModule,
       PortalAppRoutingModule,
       FormatModule,
-      FeatureFlagsModule,
       WidgetDirectivesModule,
       AssetTreeModule,
       TreeModule,

@@ -72,10 +72,6 @@ import { OpenComposerService } from "../../../common/services/open-composer.serv
 import { MessageCommand } from "../../../common/viewsheet-client/message-command";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 import { DomService } from "../../../widget/dom-service/dom.service";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../shared/feature-flags/feature-flags.service";
 import { DataSourcesTreeActionsService } from "./data-sources-tree-actions.service";
 import { GettingStartedService } from "../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
@@ -186,8 +182,7 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                private domService: DomService,
                private dataSourcesTreeActionsService: DataSourcesTreeActionsService,
                private gettingStartedService: GettingStartedService,
-               private appInfoService: AppInfoService,
-               private featureFlagService: FeatureFlagsService)
+               private appInfoService: AppInfoService)
    {
       super(clientService, zone, true);
    }

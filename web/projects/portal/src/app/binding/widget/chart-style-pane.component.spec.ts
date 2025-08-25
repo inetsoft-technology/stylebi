@@ -22,14 +22,12 @@ import { GraphTypes } from "../../common/graph-types";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { ChartStylePane } from "./chart-style-pane.component";
 import { ModelService } from "../../widget/services/model.service";
-import { FeatureFlagsService } from "../../../../../shared/feature-flags/feature-flags.service";
 
 describe("chart style pane component unit case", () => {
    let fixture: ComponentFixture<ChartStylePane>;
    let stylePane: ChartStylePane;
    let uiContextService: any;
    let modelService: any = { getModel: jest.fn() };
-   let featureFlagService = { isFeatureEnabled: jest.fn() };
 
    beforeEach(() => {
       uiContextService = { isAdhoc: jest.fn() };
@@ -39,7 +37,6 @@ describe("chart style pane component unit case", () => {
          providers: [
             {provide: UIContextService, useValue: uiContextService},
             {provide: ModelService, useValue: modelService},
-            {provide: FeatureFlagsService, useValue: featureFlagService}
          ]
       }).compileComponents();
 
