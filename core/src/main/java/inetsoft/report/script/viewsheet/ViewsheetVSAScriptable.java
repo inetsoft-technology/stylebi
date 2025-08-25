@@ -19,7 +19,9 @@ package inetsoft.report.script.viewsheet;
 
 import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
+import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.script.VariableScriptable;
 import inetsoft.uql.viewsheet.*;
@@ -29,7 +31,7 @@ import inetsoft.util.Tool;
 import org.apache.commons.lang3.StringUtils;
 import org.mozilla.javascript.Scriptable;
 
-import java.util.Date;
+import java.util.*;
 
 /**
  * The viewsheet scriptable in viewsheet scope.
@@ -77,6 +79,8 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
       if(getInfo().isEmbedded()) {
          addProperty("visible", "isVisible", "setVisible", String.class, getClass(), this);
       }
+
+      addFunctionProperty(getClass(), "refresh");
    }
 
    /**
@@ -189,5 +193,59 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
       VSAssembly vassembly = assembly == null ? null : vs.getAssembly(assembly);
       return vassembly instanceof Viewsheet ? ((Viewsheet) vassembly).getEntry()
          : box.getAssetEntry();
+   }
+
+   /**
+    * Refresh this viewsheet and all the viewsheets under this one.
+    * For example, if A, B, and C are all viewsheets, where A embeds B, B embeds C,
+    * and this function is invoked on B, then B and C will be refreshed.
+    */
+   public void refresh() {
+      ViewsheetSandbox box = this.box;
+      Viewsheet vs = box.getViewsheet();
+
+      // if called from a parent on an embedded viewsheet
+      if(!Tool.equals(vs.getAbsoluteName(), assembly)) {
+         VSAssembly vsAssembly = vs.getAssembly(assembly);
+
+         if(vsAssembly instanceof Viewsheet) {
+            vs = (Viewsheet) vsAssembly;
+            box = box.getSandbox(vs.getAbsoluteName());
+         }
+      }
+
+      long timestamp = System.currentTimeMillis();
+
+      box.setTouchTimestamp(timestamp);
+      box.resetRuntime();
+      box.reset(new ChangedAssemblyList());
+
+      // update the touch timestamp of all the nested viewsheets under this one
+      List<Viewsheet> nestedViewsheets = getNestedViewsheets(vs);
+
+      for(Viewsheet nestedVS : nestedViewsheets) {
+         ViewsheetSandbox nestedBox = box.getSandbox(nestedVS.getAbsoluteName());
+         nestedBox.setTouchTimestamp(timestamp);
+         nestedBox.resetRuntime();
+         nestedBox.reset(new ChangedAssemblyList());
+      }
+   }
+
+   private static List<Viewsheet> getNestedViewsheets(Viewsheet vs) {
+      List<Viewsheet> result = new ArrayList<>();
+      collectNestedViewsheets(vs, result);
+      return result;
+   }
+
+   private static void collectNestedViewsheets(Viewsheet vs, List<Viewsheet> result) {
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof Viewsheet)) {
+            continue;
+         }
+
+         Viewsheet nestedVS = (Viewsheet) assembly;
+         result.add(nestedVS);
+         collectNestedViewsheets(nestedVS, result);
+      }
    }
 }
