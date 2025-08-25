@@ -111,9 +111,6 @@ public class CoreTool {
    public static final ThreadLocal<DateFormat> timeInstantFmt =
       ThreadLocal.withInitial(() -> createDateFormat("{'ts' ''yyyy-MM-dd HH:mm:ss''}"));
 
-   public static final ThreadLocal<DateFormat> timeInstantWithMillisFmt =
-      ThreadLocal.withInitial(() -> createDateFormat("{'ts' ''yyyy-MM-dd HH:mm:ss.SSS''}"));
-
    /**
     * Shared thread local GregorianCalendar.
     */

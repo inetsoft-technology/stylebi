@@ -315,14 +315,12 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
     */
    @Override
    public boolean getSelection(Map<String, Map<String, Collection<Object>>> map, boolean applied) {
-      return XUtil.withFixedDateFormat(this, () -> {
-         if(isIDMode()) {
-            return getIDModeSelection(map, applied);
-         }
-         else {
-            return getColumnModeSelection(map, applied);
-         }
-      });
+      if(isIDMode()) {
+         return getIDModeSelection(map, applied);
+      }
+      else {
+         return getColumnModeSelection(map, applied);
+      }
    }
 
    /**

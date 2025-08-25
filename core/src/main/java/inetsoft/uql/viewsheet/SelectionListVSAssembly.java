@@ -233,9 +233,7 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
          return false;
       }
 
-      List<Object> list = XUtil.withFixedDateFormat(this, () -> {
-         return getSelectedObjects0(applied);
-      });
+      List<Object> list = getSelectedObjects0(applied);
 
       if(list.size() > 0) {
          for(String tableName : getTableNames()) {

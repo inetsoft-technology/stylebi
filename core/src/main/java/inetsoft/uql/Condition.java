@@ -1644,12 +1644,10 @@ public class Condition extends AbstractCondition {
     */
    @Override
    public void writeContents(PrintWriter writer) {
-      XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
-         for(int j = 0; j < getValueCount(); j++) {
-            Object val = getValue(j);
-            writeConditionValue(writer, val);
-         }
-      });
+      for(int j = 0; j < getValueCount(); j++) {
+         Object val = getValue(j);
+         writeConditionValue(writer, val);
+      }
    }
 
    /**
@@ -1750,20 +1748,13 @@ public class Condition extends AbstractCondition {
 
          Element atag = (Element) nlist.item(i);
 
-         XUtil.withFixedDateFormat(isMillisInFormatRequired(), () -> {
-            try {
-               if(atag.getTagName().equals("condition_data")) {
-                  Object val = parseConditionValue(atag);
+         if(atag.getTagName().equals("condition_data")) {
+            Object val = parseConditionValue(atag);
 
-                  if(val != null) {
-                     addValue(val);
-                  }
-               }
+            if(val != null) {
+               addValue(val);
             }
-            catch(Exception ex) {
-               throw new RuntimeException(ex.getMessage(), ex);
-            }
-         });
+         }
       }
    }
 
