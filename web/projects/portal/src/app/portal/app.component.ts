@@ -32,6 +32,7 @@ import { OpenComposerService } from "../common/services/open-composer.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
 import { PortalCreationPermissions } from "./custom/portal-creation-permissions";
+import { AiAssistantDialogComponent } from "./dialog/ai-assistant/ai-assistant-dialog.component";
 import { PreferencesDialog } from "./dialog/preferences-dialog.component";
 import { PortalModel } from "./portal-model";
 import { PortalTab, PortalTabs } from "./portal-tab";
@@ -269,6 +270,15 @@ export class PortalAppComponent implements OnInit, OnDestroy {
          {
             size: "lg",
             backdrop: "static"
+         }
+      );
+   }
+
+   showAiAssistantDialog(): void {
+      ComponentTool.showDialog(this.modalService, AiAssistantDialogComponent, () => {},
+         {
+            backdrop: true,
+            windowClass: "ai-assistant-container"
          }
       );
    }
