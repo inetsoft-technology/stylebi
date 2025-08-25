@@ -309,15 +309,10 @@ public class AbstractSelectionVSAQuery extends VSAQuery implements SelectionVSAQ
 
       ProfileUtils.addExecutionBreakDownRecord(getID(),
          ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
-            XUtil.withFixedDateFormat(getAssembly(), () -> {
-               try {
-                  refreshViewSelectionValue0();
-               }
-               catch(Exception ex) {
-                  new RuntimeException(ex);
-               }
-            });
+            refreshViewSelectionValue0();
          });
+
+      //refreshViewSelectionValue0();
    }
 
    /**
