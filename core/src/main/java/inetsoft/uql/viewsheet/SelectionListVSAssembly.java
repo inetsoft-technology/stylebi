@@ -233,7 +233,9 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
          return false;
       }
 
-      List<Object> list = getSelectedObjects0(applied);
+      List<Object> list = XUtil.withFixedDateFormat(this, () -> {
+         return getSelectedObjects0(applied);
+      });
 
       if(list.size() > 0) {
          for(String tableName : getTableNames()) {
@@ -298,39 +300,37 @@ public class SelectionListVSAssembly extends AbstractSelectionVSAssembly
     * @return the selected objects.
     */
    private List<Object> getSelectedObjects0(boolean applied) {
-      return XUtil.withFixedDateFormat(this, () -> {
-         //fix bug #3983
-         checkScriptSelectedValues();
+      //fix bug #3983
+      checkScriptSelectedValues();
 
-         DataRef ref = getDataRef();
-         SelectionList slist = getStateSelectionList();
-         List<Object> list = new ArrayList<>();
+      DataRef ref = getDataRef();
+      SelectionList slist = getStateSelectionList();
+      List<Object> list = new ArrayList<>();
 
-         if(slist == null || ref == null) {
-            return list;
-         }
-
-         SelectionValue[] vals = slist.getSelectionValues();
-
-         for(SelectionValue val : vals) {
-            if(!val.isSelected()) {
-               continue;
-            }
-
-            if(applied && ((val.getState() & SelectionValue.STATE_EXCLUDED) != 0 &&
-               !getSelectionListInfo().isSingleSelection()))
-            {
-               continue;
-            }
-
-            String vstr = val.getValue();
-            String dtype = ref.getDataType();
-            Object obj = Tool.getData(dtype, vstr, false);
-            list.add(obj);
-         }
-
+      if(slist == null || ref == null) {
          return list;
-      });
+      }
+
+      SelectionValue[] vals = slist.getSelectionValues();
+
+      for(SelectionValue val : vals) {
+         if(!val.isSelected()) {
+            continue;
+         }
+
+         if(applied && ((val.getState() & SelectionValue.STATE_EXCLUDED) != 0 &&
+            !getSelectionListInfo().isSingleSelection()))
+         {
+            continue;
+         }
+
+         String vstr = val.getValue();
+         String dtype = ref.getDataType();
+         Object obj = Tool.getData(dtype, vstr, false);
+         list.add(obj);
+      }
+
+      return list;
    }
 
    /**
