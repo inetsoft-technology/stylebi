@@ -156,7 +156,9 @@ public class ScheduleCycleService {
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
          for(int i = 1; i < Integer.MAX_VALUE; i++) {
-            if(dataCycleManager.getConditions(cycleName + i, orgId) == null) {
+            if(dataCycleManager.getConditions(cycleName + i, orgId) == null ||
+               dataCycleManager.getConditions(cycleName + i, orgId).size() == 0)
+            {
                cycleName += i;
                break;
             }
