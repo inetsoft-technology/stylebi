@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { CommonModule } from "@angular/common";
-import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from "@angular/core";
+import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import {
    NgbCollapseModule,
@@ -30,6 +30,7 @@ import {
    NgbTypeaheadModule
 } from "@ng-bootstrap/ng-bootstrap";
 import { MonitoringDataService } from "../../../../em/src/app/monitoring/monitoring-data.service";
+import { AiAssistantModule } from "../../../../shared/ai-assistant/ai-assistant.module";
 import { CkeditorWrapperModule } from "../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
 import { ScheduleTaskNamesService } from "../../../../shared/schedule/schedule-task-names.service";
 import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
@@ -153,7 +154,6 @@ import { MoveDataSourceDialogComponent } from "./data/move-datasource-dialog/mov
 import { DataModelNameChangeService } from "./data/services/data-model-name-change.service";
 import { DataPhysicalModelService } from "./data/services/data-physical-model.service";
 import { FolderChangeService } from "./data/services/folder-change.service";
-import { AiAssistantDialogComponent } from "./dialog/ai-assistant/ai-assistant-dialog.component";
 import { AnalyzeMVDialog } from "./dialog/analyze-mv/analyze-mv-dialog.component";
 import { AnalyzeMVPane } from "./dialog/analyze-mv/analyze-mv-view/analyze-mv-pane.component";
 import { CreateMVPane } from "./dialog/analyze-mv/create-mv-view/create-mv-pane.component";
@@ -213,7 +213,6 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       AdditionalDatasourceDialog,
       ActionAccordion,
       AddParameterDialog,
-      AiAssistantDialogComponent,
       AnalyzeMVDialog,
       AnalyzeMVPane,
       ArrangeDashboardDialog,
@@ -366,7 +365,8 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       DataConditionModule,
       DynamicComboBoxModule,
       SimpleTableModule,
-      CkeditorWrapperModule
+      CkeditorWrapperModule,
+      AiAssistantModule
    ],
    bootstrap: [
       PortalAppComponent
@@ -411,8 +411,7 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
          useClass: DefaultCodemirrorService
       },
       DataQueryModelService,
-   ],
-   schemas: [CUSTOM_ELEMENTS_SCHEMA]
+   ]
 })
 export class PortalAppModule {
 }
