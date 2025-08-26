@@ -401,6 +401,12 @@ public class RuntimeSheetCache
    private abstract class CacheIterator<T> implements Iterator<T> {
       protected abstract T map(Map.Entry<String, RuntimeSheet> entry);
 
+      public CacheIterator() {
+         lock.readLock().lock();
+         iterator = new ArrayList<>(local.entrySet()).iterator();
+         lock.readLock().unlock();
+      }
+
       @Override
       public boolean hasNext() {
          return iterator.hasNext();
@@ -422,8 +428,7 @@ public class RuntimeSheetCache
          current = null;
       }
 
-      private final Iterator<Map.Entry<String, RuntimeSheet>> iterator =
-         new ArrayList<>(local.entrySet()).iterator();
+      private final Iterator<Map.Entry<String, RuntimeSheet>> iterator;
       private Map.Entry<String, RuntimeSheet> current = null;
    }
 
