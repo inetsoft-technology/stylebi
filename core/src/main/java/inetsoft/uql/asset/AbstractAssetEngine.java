@@ -1337,51 +1337,53 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          List<AssetEntry> list = new ArrayList<>();
          Collections.addAll(list, getPhysicalEntries(entry, selector, user));
 
-         String[] lmodels = XUtil.getLogicalModels(source);
-         Arrays.sort(lmodels, new QueryEntriesComparator());
+         if(!selector.excluded(AssetEntry.Type.LOGIC_MODEL)) {
+            String[] lmodels = XUtil.getLogicalModels(source);
+            Arrays.sort(lmodels, new QueryEntriesComparator());
 
-         for(String lmodel : lmodels) {
-            XLogicalModel logicalModel = model.getLogicalModel(lmodel);
-            String folder = logicalModel.getFolder();
+            for(String lmodel : lmodels) {
+               XLogicalModel logicalModel = model.getLogicalModel(lmodel);
+               String folder = logicalModel.getFolder();
 
-            if(!checkDataModelFolderPermission(folder, source, user)) {
-               continue;
-            }
-
-            String resource = folder != null && !folder.equals("")
-               ? "__^" + folder + "^" + lmodel + "::" + source : lmodel + "::" + source;
-
-            if(checkQueryPermission(resource, user)) {
-               String path = folder != null && !folder.equals("") ?
-                  source + "/" + folder + "/" + lmodel : source + "/" + lmodel;
-               String parr = folder != null && !folder.equals("") ?
-                  source + "^_^" + folder + "^_^" + lmodel : source + "^_^" + lmodel;
-               AssetEntry entry2 = new AssetEntry(
-                  QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL, path, userID);
-               entry2.setProperty(AssetEntry.PATH_ARRAY, parr);
-               entry2.setProperty("prefix", source);
-               entry2.setProperty("source", lmodel);
-               entry2.setProperty("mainType", "logical model");
-               String des =
-                  XUtil.getLogicalModelDescription(source, lmodel);
-               entry2.setProperty("description", des);
-               entry2.setProperty("type", XSourceInfo.MODEL + "");
-               String tip = catalog.getString("Logical Model") + ": " +
-                  lmodel + "[" + catalog.getString("Data Source") +
-                  ": " + source + "; " + catalog.getString("Physical View") + ": " +
-                  logicalModel.getPartition() + "]";
-
-               if(des != null) {
-                  tip += "\n" + des;
+               if(!checkDataModelFolderPermission(folder, source, user)) {
+                  continue;
                }
 
-               if(folder != null) {
-                  entry2.setProperty("folder", logicalModel.getFolder());
-                  entry2.setProperty("folder_description", folder);
-               }
+               String resource = folder != null && !folder.equals("")
+                  ? "__^" + folder + "^" + lmodel + "::" + source : lmodel + "::" + source;
 
-               entry2.setProperty("Tooltip", des);
-               list.add(entry2);
+               if(checkQueryPermission(resource, user)) {
+                  String path = folder != null && !folder.equals("") ?
+                     source + "/" + folder + "/" + lmodel : source + "/" + lmodel;
+                  String parr = folder != null && !folder.equals("") ?
+                     source + "^_^" + folder + "^_^" + lmodel : source + "^_^" + lmodel;
+                  AssetEntry entry2 = new AssetEntry(
+                     QUERY_SCOPE, AssetEntry.Type.LOGIC_MODEL, path, userID);
+                  entry2.setProperty(AssetEntry.PATH_ARRAY, parr);
+                  entry2.setProperty("prefix", source);
+                  entry2.setProperty("source", lmodel);
+                  entry2.setProperty("mainType", "logical model");
+                  String des =
+                     XUtil.getLogicalModelDescription(source, lmodel);
+                  entry2.setProperty("description", des);
+                  entry2.setProperty("type", XSourceInfo.MODEL + "");
+                  String tip = catalog.getString("Logical Model") + ": " +
+                     lmodel + "[" + catalog.getString("Data Source") +
+                     ": " + source + "; " + catalog.getString("Physical View") + ": " +
+                     logicalModel.getPartition() + "]";
+
+                  if(des != null) {
+                     tip += "\n" + des;
+                  }
+
+                  if(folder != null) {
+                     entry2.setProperty("folder", logicalModel.getFolder());
+                     entry2.setProperty("folder_description", folder);
+                  }
+
+                  entry2.setProperty("Tooltip", des);
+                  list.add(entry2);
+               }
             }
          }
 

@@ -32,6 +32,7 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.AssetTreeController;
+import inetsoft.web.composer.AssetTreeService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.condition.ConditionExpression;
 import inetsoft.web.composer.model.condition.ConditionUtil;
@@ -138,7 +139,7 @@ public class GroupingAssemblyDialogController extends WorksheetController {
       TreeNodeModel result;
 
       AssetEntry.Selector selector = new AssetEntry.Selector(AssetEntry.Type.DATA);
-      AssetEntry[] entries = AssetTreeController.getFilterFor(expandedEntry);
+      AssetEntry[] entries = AssetTreeService.getFilterFor(expandedEntry);
 
       AssetTreeModel.Node atmNode = new AssetTreeModel.Node(expandedEntry);
       AssetEntry[] children = assetRepository
@@ -148,11 +149,11 @@ public class GroupingAssemblyDialogController extends WorksheetController {
          principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
 
       for(AssetEntry ae : children) {
-         AssetTreeController.getSubEntries(assetRepository, principal, atmNode, ae,
+         AssetTreeService.getSubEntries(assetRepository, principal, atmNode, ae,
             new ArrayList<>(Arrays.asList(entries)), selector, ResourceAction.READ);
       }
 
-      result = AssetTreeController.convertToTreeNodeModel(
+      result = AssetTreeService.convertToTreeNodeModel(
          atmNode, catalog, GroupingAssemblyDialogController::isLeaf, sqlEnabled, principal);
       return result;
    }
