@@ -73,7 +73,7 @@
                        [startTimeEnabled]="model.startTimeEnabled"
                        [timeRangeEnabled]="model.timeRangeEnabled"
                        [newTask]="newTask"
-                       [saveTask]="saveTask"
+                       [saveTask]="saveTask" [isSaving]="isSaving"
                        (listViewChanged)="conditionListView = $event"
                        (loaded)="updateConditionModel($event)"
                        (updateTaskName)="updateOldTaskName($event)"

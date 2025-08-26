@@ -63,6 +63,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
    conditionListView: boolean;
    returnPath = "";
    newTask: boolean;
+   isSaving: boolean = false;
 
    constructor(private http: HttpClient,
                private router: Router,
@@ -168,6 +169,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
    }
 
    saveTask = () => {
+      this.isSaving = true;
       let taskName: string = this.model.label;
 
       const model: ScheduleTaskEditorModel = {
@@ -192,8 +194,12 @@ export class ScheduleTaskEditorComponent implements OnInit {
 
             resolve(m);
       }).catch((error: any) => {
+            this.isSaving = false;
             ComponentTool.showConfirmDialog(this.modalService, "_#(js:Error)",
                error.error.message || error.error, {"ok": "OK"});
+         })
+         .finally(() => {
+            this.isSaving = false;
          }));
    };
 
