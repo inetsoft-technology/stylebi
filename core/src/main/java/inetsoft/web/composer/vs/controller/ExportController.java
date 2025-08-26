@@ -196,20 +196,18 @@ public class ExportController {
          entry = exportService.handleAttemptExportGloballyVisibleAsset(entry, format);
       }
 
-      if(entry != null) {
-         runtimeId = exportService.openViewsheet(entry, principal, parameters, sessionId, userAgent);
+      runtimeId = entry == null ? path : exportService.openViewsheet(entry, principal, parameters, sessionId, userAgent);
 
-         ExportControllerService.ViewsheetExportResult result = exportControllerServiceProxy.exportViewsheet(
-            runtimeId, type, matchesAssetIdFormat,
-            match, expandSelections, current, previewPrintLayout, print,
-            bookmarks, onlyDataComponents, exportAllTabbedTables, csvConfig, principal);
+      ExportControllerService.ViewsheetExportResult result = exportControllerServiceProxy.exportViewsheet(
+         runtimeId, format, type, matchesAssetIdFormat,
+         match, expandSelections, current, previewPrintLayout, print,
+         bookmarks, onlyDataComponents, exportAllTabbedTables, csvConfig, principal);
 
-         VSExportService.setResponseHeader(
-            new ExportResponse(response), result.getSuffix(), "attachment", result.getFileName(), result.getMime());
+      VSExportService.setResponseHeader(
+         new ExportResponse(response), result.getSuffix(), "attachment", result.getFileName(), result.getMime());
 
-         BinaryTransfer data = result.getData();
-         binaryTransferService.writeData(data, response.getOutputStream());
-      }
+      BinaryTransfer data = result.getData();
+      binaryTransferService.writeData(data, response.getOutputStream());
    }
 
    @GetMapping("/export/vs-table/**")
