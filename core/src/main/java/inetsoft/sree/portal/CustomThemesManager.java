@@ -32,7 +32,7 @@ import java.util.*;
  * @author InetSoft Technology Corp
  */
 @SingletonManager.Singleton(CustomThemesManager.Reference.class)
-public class CustomThemesManager implements XMLSerializable, AutoCloseable {
+public class CustomThemesManager implements AutoCloseable {
    public static synchronized CustomThemesManager getManager() {
       return SingletonManager.getInstance(CustomThemesManager.class);
    }
@@ -78,14 +78,6 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       return impl.getSelectedTheme(user);
    }
 
-   public void save() {
-      impl.save();
-   }
-
-   public void loadThemes() {
-      impl.loadThemes();
-   }
-
    public void reloadThemes(String path) {
       if(getCustomThemes() == null || getCustomThemes().isEmpty()) {
          return;
@@ -109,22 +101,11 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       });
 
       setCustomThemes(newThemes);
-      save();
    }
 
    @Override
    public void close() throws Exception {
       impl.close();
-   }
-
-   @Override
-   public void writeXML(PrintWriter writer) {
-      impl.writeXML(writer);
-   }
-
-   @Override
-   public void parseXML(Element tag) throws Exception {
-      impl.parseXML(tag);
    }
 
    private CustomThemesImpl impl;
@@ -136,7 +117,6 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       public synchronized CustomThemesManager get(Object... parameters) {
          if(manager == null) {
             manager = new CustomThemesManager();
-            manager.loadThemes();
          }
 
          return manager;

@@ -1962,8 +1962,6 @@ public class IdentityService {
                theme.setOrganizations(themeOrgs);
             }
          }
-
-         CustomThemesManager.getManager().save();
       }
    }
 

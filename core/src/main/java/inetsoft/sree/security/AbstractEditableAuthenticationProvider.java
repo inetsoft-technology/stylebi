@@ -281,7 +281,6 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       CustomThemesManager manager = CustomThemesManager.getManager();
-      manager.loadThemes();
       Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
 
       manager.getCustomThemes().stream()
@@ -308,7 +307,6 @@ public abstract class AbstractEditableAuthenticationProvider
          });
 
       manager.setCustomThemes(themes);
-      manager.save();
    }
 
    protected void clearScopedProperties(String oldOrgId) {
