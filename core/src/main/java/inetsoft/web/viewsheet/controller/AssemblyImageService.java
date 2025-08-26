@@ -264,7 +264,7 @@ public class AssemblyImageService {
          lens = formatLens;
       }
 
-      String fileName = fileNameParam == null ? fileNameParam : (Tool.normalizeFileName(
+      String fileName = fileNameParam != null ? fileNameParam : (Tool.normalizeFileName(
          getWorksheetFileName(rws.getEntry()) + "_" + tableAssemblyName));
 
       return exportToMemory(fileName, tableAssemblyName, lens, columns, rws);
