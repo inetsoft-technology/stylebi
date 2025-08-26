@@ -32,7 +32,7 @@ import { OpenComposerService } from "../common/services/open-composer.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
 import { PortalCreationPermissions } from "./custom/portal-creation-permissions";
-import { AiAssistantDialogComponent } from "./dialog/ai-assistant/ai-assistant-dialog.component";
+import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
 import { PreferencesDialog } from "./dialog/preferences-dialog.component";
 import { PortalModel } from "./portal-model";
 import { PortalTab, PortalTabs } from "./portal-tab";
