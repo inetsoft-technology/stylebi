@@ -17,7 +17,6 @@
  */
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
-import { FeatureFlagsModule } from "../../../../../shared/feature-flags/feature-flags.module";
 import { AngularResizeEventModule } from "../../../../../shared/resize-event/angular-resize-event.module";
 import { VSObjectModule } from "../../vsobjects/vs-object.module";
 import { ViewerViewComponent } from "./viewer-view.component";
@@ -28,7 +27,6 @@ import { PageTabComponent } from "./page-tab.component";
       CommonModule,
       VSObjectModule,
       AngularResizeEventModule,
-      FeatureFlagsModule
    ],
    declarations: [
       ViewerViewComponent,

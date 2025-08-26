@@ -35,10 +35,6 @@ import { BindingService } from "../../../services/binding.service";
 import { ChartEditorService } from "../../../services/chart/chart-editor.service";
 import { GraphUtil } from "../../../util/graph-util";
 import { FieldMC } from "../../field-mc";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { StyleConstants } from "../../../../common/util/style-constants";
 
 @Component({
@@ -81,8 +77,7 @@ export class ChartFieldmc extends FieldMC {
                private dndService: DndService,
                private modalService: NgbModal,
                private dcService: DateComparisonService,
-               protected uiContextService: UIContextService,
-               private featureFlagsService: FeatureFlagsService)
+               protected uiContextService: UIContextService)
    {
       super(bindingService, uiContextService);
    }

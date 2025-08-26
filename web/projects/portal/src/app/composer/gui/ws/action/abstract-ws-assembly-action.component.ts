@@ -18,7 +18,6 @@
 import { EventEmitter } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
-import { FeatureFlagsService } from "../../../../../../../shared/feature-flags/feature-flags.service";
 
 import { WSAssemblyActions } from "./ws-assembly.actions";
 import { WSAssembly } from "../../../data/ws/ws-assembly";
@@ -41,7 +40,6 @@ export abstract class AbstractWSAssemblyActionComponent {
    protected abstract ngbModal: NgbModal;
    protected sqlEnabled = true;
    protected freeFormSqlEnabled = true;
-   protected abstract featureFlagsService: FeatureFlagsService;
 
    public abstract onCut: EventEmitter<WSAssembly>;
    public abstract onCopy: EventEmitter<WSAssembly>;
@@ -58,17 +56,17 @@ export abstract class AbstractWSAssemblyActionComponent {
             this.actions = new WSTableActions(
                this.assembly as AbstractTableAssembly, this.worksheet,
                this.modalService, this.ngbModal, this.modelService, this.sqlEnabled,
-               this.freeFormSqlEnabled, this.featureFlagsService);
+               this.freeFormSqlEnabled);
             break;
          case "VariableAssembly":
             this.actions = new WSVariableActions(
                this.assembly as WSVariableAssembly, this.worksheet,
-               this.modalService, this.modelService, this.featureFlagsService);
+               this.modalService, this.modelService);
             break;
          case "GroupingAssembly":
             this.actions = new WSGroupingActions(
                this.assembly as WSGroupingAssembly, this.worksheet,
-               this.modalService, this.modelService, this.featureFlagsService);
+               this.modalService, this.modelService);
             break;
          default:
             console.error("Cannot determine assembly actions");

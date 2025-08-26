@@ -48,9 +48,6 @@ import { CrosstabOptionInfo } from "../../data/table/crosstab-option-info";
 import { CrosstabBindingModel } from "../../data/table/crosstab-binding-model";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { DateComparisonService } from "../../../vsobjects/util/date-comparison.service";
-import {
-   FeatureFlagsService,
-} from "../../../../../../shared/feature-flags/feature-flags.service";
 
 @Component({
    selector: "table-fieldmc",
@@ -95,8 +92,7 @@ export class TableFieldmc extends FieldMC {
                       private dialogService: NgbModal,
                       private dndService: DndService,
                       private dcService: DateComparisonService,
-                      protected uiContextService: UIContextService,
-                      private featureFlagsService: FeatureFlagsService)
+                      protected uiContextService: UIContextService)
    {
       super(bindingService, uiContextService);
    }
