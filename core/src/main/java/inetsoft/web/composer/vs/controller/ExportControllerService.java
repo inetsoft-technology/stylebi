@@ -63,7 +63,7 @@ public class ExportControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public ViewsheetExportResult exportViewsheet(@ClusterProxyKey String runtimeId, String type, boolean matchesAssetIdFormat,
+   public ViewsheetExportResult exportViewsheet(@ClusterProxyKey String runtimeId, int format, String type, boolean matchesAssetIdFormat,
                                                 boolean match, boolean expandSelections, boolean current,
                                                 boolean previewPrintLayout, boolean print, String[] bookmarks,
                                                 boolean onlyDataComponents, boolean exportAllTabbedTables,
@@ -99,9 +99,7 @@ public class ExportControllerService {
       boolean embedded = "embed".equalsIgnoreCase(SreeEnv.getProperty("pdf.output.attachment"))
          && !matchesAssetIdFormat;
 
-      int format = VSExportService.getFormatNumberFromExtension(type);
-
-      String key = "/" + ExportControllerService.class.getName() + "_" + runtimeId + "_" + type;
+      String key = "/" + ExportControllerService.class.getName() + "_" + runtimeId + "_" + format;
       BinaryTransfer data = binaryTransferService.createBinaryTransfer(key);
       DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
 
