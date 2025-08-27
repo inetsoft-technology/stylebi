@@ -937,11 +937,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          try {
             return job.call();
          }
-         catch(ExpiredSheetException ex) {
+         catch(RuntimeException ex) {
             throw ex;
          }
-         catch(Exception e) {
-            throw new RuntimeException(e);
+         catch(Exception ex) {
+            throw new RuntimeException(ex);
          }
       }
 
