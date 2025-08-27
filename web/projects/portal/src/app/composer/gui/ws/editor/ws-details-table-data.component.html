@@ -85,7 +85,9 @@
       <div *ngFor="let _rowIndex of rowIndexRange"
            class="table-data__row"
            [style.height.px]="TABLE_CELL_HEIGHT"
-           (contextmenu)="contextmenuRow($event, _rowIndex)">
+           (contextmenu)="contextmenuRow($event, _rowIndex)"
+           (click)="highlightRowOnClick(_rowIndex)"
+           [ngClass]="{ 'highlighted' : this.selectedRowIndex === _rowIndex }">
         <div *ngFor="let _columnIndex of columnIndexRange" data-column-name
              [title]="tableData.loadedRows[_rowIndex][_columnIndex]"
              class="table-data__cell"
