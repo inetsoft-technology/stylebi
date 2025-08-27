@@ -32,6 +32,7 @@ import inetsoft.util.audit.Audit;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.composer.AssetTreeController;
+import inetsoft.web.composer.AssetTreeService;
 import inetsoft.web.portal.controller.SearchComparator;
 import inetsoft.web.viewsheet.*;
 import org.apache.commons.io.FileExistsException;
@@ -500,7 +501,7 @@ public class DataSetService {
          .editable(editable)
          .canWorksheet(canWorksheet)
          .deletable(deletable)
-         .materialized(AssetTreeController.getMaterialized(entry, principal))
+         .materialized(AssetTreeService.getMaterialized(entry, principal))
          .canMaterialize(canMaterialize)
          .canWorksheet(canWorksheet)
          .parentPath(parentPath)
