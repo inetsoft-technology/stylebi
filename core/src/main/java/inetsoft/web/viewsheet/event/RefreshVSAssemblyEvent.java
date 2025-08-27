@@ -17,12 +17,16 @@
  */
 package inetsoft.web.viewsheet.event;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.admin.cache.CacheMetrics;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
 @Value.Immutable
 @Serial.Structural
+@JsonSerialize(as = ImmutableRefreshVSAssemblyEvent.class)
+@JsonDeserialize(as = ImmutableRefreshVSAssemblyEvent.class)
 public abstract class RefreshVSAssemblyEvent {
    @Value.Default
    public String getVsRuntimeId() {
