@@ -22,14 +22,12 @@ import { of as observableOf } from "rxjs";
 import { ShapeItem } from "./shape-item.component";
 import { StaticShapePane } from "./static-shape-pane.component";
 import { HttpClient } from "@angular/common/http";
-import { FeatureFlagsService } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { ModelService } from "../../../../widget/services/model.service";
 
 describe("Static Shape Pane Unit Test", () => {
    let fixture: ComponentFixture<StaticShapePane>;
    let shapePane: StaticShapePane;
    let httpService = { get: jest.fn(), post: jest.fn() };
-   let featureFlagsService = { isFeatureEnabled: jest.fn() };
    let modelService = { getModel: jest.fn(() => observableOf({})) };
 
    beforeEach(async(() => {
@@ -43,7 +41,6 @@ describe("Static Shape Pane Unit Test", () => {
          providers: [
             { provide: HttpClient, useValue: httpService },
             { provide: ModelService, useValue: modelService },
-            { provide: FeatureFlagsService, useValue: featureFlagsService }
          ]
       }).compileComponents();
    }));

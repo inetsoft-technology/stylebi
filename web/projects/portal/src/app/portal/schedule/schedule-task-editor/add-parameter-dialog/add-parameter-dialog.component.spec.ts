@@ -31,7 +31,6 @@ import { TimepickerComponent } from "../../../../widget/date-type-editor/timepic
 import { EnterSubmitDirective } from "../../../../widget/directive/enter-submit.directive";
 import { AddParameterDialog } from "./add-parameter-dialog.component";
 import { ValueTypes } from "../../../../vsobjects/model/dynamic-value-model";
-import {FeatureFlagsService} from "../../../../../../../shared/feature-flags/feature-flags.service";
 
 const createModel: () => AddParameterDialogModel = () => {
    return {
@@ -57,7 +56,6 @@ class TestApp {
 
 describe("Add Parameter Dialog Unit Test", () => {
    let ngbService = { open: jest.fn() };
-   let featureFlagsService = { isFeatureEnabled: jest.fn() };
    let fixture: ComponentFixture<TestApp>;
    let addParaDialog: AddParameterDialog;
 
@@ -72,7 +70,6 @@ describe("Add Parameter Dialog Unit Test", () => {
          ],
          providers: [
             { provide: NgbModal, useValue: ngbService },
-            { provide: FeatureFlagsService, useValue: featureFlagsService }
          ]
       });
       TestBed.compileComponents();

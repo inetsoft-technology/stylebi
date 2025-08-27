@@ -910,17 +910,20 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
          }
 
          generator.writeArrayFieldStart("notIgnoreNull");
+         Set<String> notIgnoreNull = table.notIgnoreNull;
 
-         for(String value : table.notIgnoreNull) {
+         for(String value : notIgnoreNull) {
             generator.writeString(value);
          }
 
          generator.writeEndArray(); // notIgnoreNull
 
-         if(table.asIs != null && !table.asIs.isEmpty()) {
+         Set<String> asIs = table.asIs;
+
+         if(asIs != null && !asIs.isEmpty()) {
             generator.writeArrayFieldStart("asIs");
 
-            for(String value : table.asIs) {
+            for(String value : asIs) {
                generator.writeString(value);
             }
 

@@ -43,9 +43,6 @@ import { ManualOrderingDialog } from "./manual-ordering-dialog.component";
 import { ComponentTool } from "../../common/util/component-tool";
 import { XConstants } from "../../common/util/xconstants";
 import { SourceInfo } from "../data/source-info";
-import {
-   FeatureFlagsService,
-} from "../../../../../shared/feature-flags/feature-flags.service";
 
 const GENERAL_SORT_OPTIONS: any[] = [
    {label: "_#(js:None)", value: StyleConstants.SORT_NONE},
@@ -107,8 +104,7 @@ export class SortOption implements OnInit {
    public constructor(private bindingService: BindingService,
                       private modelService: ModelService,
                       private modalService: NgbModal,
-                      private uiContextService: UIContextService,
-                      private featureFlagsService: FeatureFlagsService)
+                      private uiContextService: UIContextService)
    {
    }
 

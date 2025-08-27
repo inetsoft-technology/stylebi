@@ -28,7 +28,6 @@ import {
    SimpleChanges
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { FeatureFlagsService } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { Notification } from "../../../../common/data/notification";
 import { Point } from "../../../../common/data/point";
 import { ModelService } from "../../../../widget/services/model.service";
@@ -67,8 +66,7 @@ export class GroupingThumbnail extends WSAssemblyThumbnail
    constructor(protected ngbModal: NgbModal,
                protected modelService: ModelService,
                protected modalService: DialogService,
-               protected thumbnail: ElementRef,
-               protected featureFlagsService: FeatureFlagsService)
+               protected thumbnail: ElementRef)
    {
       super();
    }

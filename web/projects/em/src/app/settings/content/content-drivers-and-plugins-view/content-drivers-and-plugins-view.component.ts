@@ -17,7 +17,6 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, OnInit } from "@angular/core";
-import { FeatureFlagValue } from "../../../../../../shared/feature-flags/feature-flags.service";
 import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
@@ -45,7 +44,6 @@ import { Secured } from "../../../secured";
 })
 export class ContentDriversAndPluginsViewComponent implements OnInit {
    pluginsModel: PluginsModel;
-   FeatureFlag = FeatureFlagValue;
 
    constructor(private pageTitle: PageHeaderService, private http: HttpClient) {
    }

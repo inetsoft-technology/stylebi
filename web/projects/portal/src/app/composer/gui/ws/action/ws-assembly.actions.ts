@@ -17,10 +17,6 @@
  */
 import { Type } from "@angular/core";
 import { Subject } from "rxjs";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
 import { ComponentTool } from "../../../../common/util/component-tool";
 
@@ -44,8 +40,7 @@ export class WSAssemblyActions extends AssemblyActions<WSAssembly> {
    public onSelectDependent: Subject<void> = new Subject<void>();
 
    constructor(protected assembly: WSAssembly, protected worksheet: Worksheet,
-               protected modalService: DialogService,
-               protected featureFlagsService: FeatureFlagsService)
+               protected modalService: DialogService)
    {
       super();
    }

@@ -27,10 +27,6 @@ import {
 import { GraphTypes } from "../../common/graph-types";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { ModelService } from "../../widget/services/model.service";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../shared/feature-flags/feature-flags.service";
 
 export interface ChartStyle {
    label: string;
@@ -66,8 +62,7 @@ export class ChartStylePane implements OnInit, OnChanges {
    stylesRows: Array<Array<{label: string, data: number}>>;
 
    constructor(private uiContextService: UIContextService,
-               private modelService: ModelService,
-               private featureFlagService: FeatureFlagsService)
+               private modelService: ModelService)
    {
    }
 

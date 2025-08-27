@@ -25,7 +25,6 @@ import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { DynamicValueModel, ValueTypes } from "../../../../vsobjects/model/dynamic-value-model";
 import { dynamicDates } from "../dynamic-date";
-import { FeatureFlagsService, FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { ComboMode } from "../../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { FormulaEditorDialogModel } from "../../../../widget/formula-editor/formula-editor-dialog-model";
 import { HttpClient } from "@angular/common/http";
@@ -54,7 +53,6 @@ export class AddParameterDialog implements OnInit {
    model: AddParameterDialogModel;
    title: string;
    currentType: string;
-   readonly FeatureFlagValue = FeatureFlagValue;
 
    constructor(private modalService: NgbModal,
                private http: HttpClient)

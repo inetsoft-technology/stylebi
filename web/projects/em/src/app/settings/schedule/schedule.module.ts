@@ -122,7 +122,6 @@ import { WeeklyConditionEditorComponent } from "./task-condition-pane/weekly-con
 import { ExecuteAsDialogComponent } from "./task-options-pane/execute-as-dialog.component";
 import { TaskOptionsPane } from "./task-options-pane/task-options-pane.component";
 import { TimePickerComponent } from "./task-condition-pane/time-picker/time-picker.component";
-import { FeatureFlagsModule } from "../../../../../shared/feature-flags/feature-flags.module";
 
 @NgModule({
    imports: [
@@ -176,7 +175,6 @@ import { FeatureFlagsModule } from "../../../../../shared/feature-flags/feature-
       LoadingSpinnerModule,
       MatToolbarModule,
       ModalHeaderModule,
-      FeatureFlagsModule,
       MatCkeditorModule
    ],
    exports: [
