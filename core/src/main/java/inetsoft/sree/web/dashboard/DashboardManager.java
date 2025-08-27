@@ -100,7 +100,9 @@ public class DashboardManager implements AutoCloseable {
    public synchronized String[] getDashboards(Identity identity, boolean sync) {
       init();
 
-      if(identity.getType() == Identity.USER && sync) {
+      if(identity.getType() == Identity.USER && sync &&
+         !ClientInfo.ANONYMOUS.equals(identity.getName()))
+      {
          try {
             syncUserDashboards(identity);
          }
