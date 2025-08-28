@@ -120,8 +120,8 @@ public class ExportControllerService {
          throw ex;
       }
       finally {
-         if(matchesAssetIdFormat ||
-            rvs != null && "true".equals(rvs.getProperty("_CLOSE_AFTER_EXPORT_")))
+         if(!previewPrintLayout && (matchesAssetIdFormat ||
+            rvs != null && "true".equals(rvs.getProperty("_CLOSE_AFTER_EXPORT_"))))
          {
             viewsheetService.closeViewsheet(runtimeId, principal);
          }
