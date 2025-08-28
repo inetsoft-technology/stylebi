@@ -285,8 +285,10 @@ public class VSBookmarkService {
                                             rvs.getID(), commandDispatcher);
          }
 
-         Cluster.getInstance().sendMessage(new ViewsheetBookmarkChangedEvent(rvs,
-                                                                             true, currBookmark.getName()));
+         if(currBookmark != null) {
+            Cluster.getInstance().sendMessage(new ViewsheetBookmarkChangedEvent(rvs,
+                                                                                true, currBookmark.getName()));
+         }
       }
       catch(MessageException ex) {
          MessageCommand command = new MessageCommand();
