@@ -43,7 +43,7 @@ export class MonitoringDataService {
          this.connection.subscribe((connection) => {
             subscription.add(
                connection.subscribe("/user/" + topic + "/" + endpoint, (message) => {
-                  let body = JSON.parse(message.frame.body);
+                  let body = !!message.frame.body ? JSON.parse(message.frame.body) : null;
                   this.zone.run(() => {
                      observer.next(body);
                   });
