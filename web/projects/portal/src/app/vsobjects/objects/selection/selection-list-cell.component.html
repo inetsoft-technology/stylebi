@@ -67,7 +67,9 @@
              [class.mobile-max-mode-icon]="mobile && maxMode"
              [style.padding-left.px]="isFolder() ? 1 : nodeIndent"
              [style.color]="cellFormat.foreground"
-             (click)="click($event)">
+             (click)="click($event)"
+             (touchstart)="onTouchStart($event)"
+             (touchend)="onTouchEnd()">
         </div>
         <div class="selection-list-cell-label" tooltipIf
              [style.justify-content]="cellFormat.justifyContent"

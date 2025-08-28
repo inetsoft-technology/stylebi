@@ -106,6 +106,9 @@ export class SelectionListCell implements OnInit, OnChanges {
    htmlLabel: SafeHtml;
    mobile: boolean = GuiTool.isMobileDevice();
 
+   touchTimeout: any;
+   longPressDuration = 500;
+
    constructor(public vsSelectionComponent: VSSelection,
                private sanitization: DomSanitizer,
                private renderer: Renderer2,
@@ -277,6 +280,32 @@ export class SelectionListCell implements OnInit, OnChanges {
 
       this.selectionStateChanged.emit({ toggle, toggleAll });
       this.selectRegion(event, CellRegion.LABEL);
+   }
+
+   private onTouchStart(event: TouchEvent): void {
+      this.touchTimeout = setTimeout(() => {
+         this.triggerAltClick(event.target as HTMLElement, event);
+      }, this.longPressDuration);
+   }
+
+   private onTouchEnd(): void {
+      clearTimeout(this.touchTimeout);
+      this.touchTimeout = null;
+   }
+
+   private triggerAltClick(target: HTMLElement, touchEvent: TouchEvent): void {
+
+      const touch = touchEvent.changedTouches[0];
+
+      const simulatedClick = new MouseEvent("click", {
+         bubbles: true,
+         cancelable: true,
+         view: window,
+         clientX: touch.clientX,
+         clientY: touch.clientY,
+         altKey: true
+      });
+      this.click(simulatedClick);
    }
 
    // toggle tree node expanded status
