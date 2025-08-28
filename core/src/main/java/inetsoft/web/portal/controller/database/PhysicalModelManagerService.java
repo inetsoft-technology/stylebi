@@ -697,6 +697,7 @@ public class PhysicalModelManagerService {
          tableName = physicalModelService.addPartitionTable(partition, table);
 
          if(fixBounds) {
+            runtimePartitionService.saveRuntimePartition(rp);
             fixTableBounds(rp.getId(), partition, tableName);
          }
       }
