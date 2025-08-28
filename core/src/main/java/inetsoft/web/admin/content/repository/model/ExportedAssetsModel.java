@@ -30,6 +30,7 @@ import java.util.List;
 @JsonSerialize(as = ImmutableExportedAssetsModel.class)
 @JsonDeserialize(as = ImmutableExportedAssetsModel.class)
 public interface ExportedAssetsModel {
+   @Nullable
    String importId();
 
    @Value.Default

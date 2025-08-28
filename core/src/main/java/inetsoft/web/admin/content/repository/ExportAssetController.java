@@ -22,8 +22,8 @@ import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.deploy.DeployService;
 import inetsoft.web.admin.deploy.ExportJarProperties;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import inetsoft.web.session.IgniteSessionRepository;
+import jakarta.servlet.http.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,8 +37,11 @@ import java.util.concurrent.ExecutionException;
 @RestController
 public class ExportAssetController {
    @Autowired
-   public ExportAssetController(DeployService deployService) {
+   public ExportAssetController(DeployService deployService,
+                                IgniteSessionRepository igniteSessionRepository)
+   {
       this.deployService = deployService;
+      this.igniteSessionRepository = igniteSessionRepository;
    }
 
    @PostMapping("/api/em/content/repository/export/check-permission")
@@ -46,7 +49,8 @@ public class ExportAssetController {
                                     HttpServletRequest request, Principal principal)
    {
       CompletableFuture<SelectedAssetModelList> future = new CompletableFuture<>();
-      request.getSession(true).setAttribute(PERM_ATTR, future);
+      HttpSession session = request.getSession(true);
+      session.setAttribute(PERM_ATTR, future);
 
       ThreadPool.addOnDemand(() -> {
          try {
@@ -56,6 +60,9 @@ public class ExportAssetController {
          }
          catch(Exception e) {
             future.completeExceptionally(e);
+         }
+         finally {
+            igniteSessionRepository.setSessionAttributeAndSave(session.getId(), PERM_ATTR, future);
          }
       });
    }
@@ -80,7 +87,8 @@ public class ExportAssetController {
                                   HttpServletRequest request, Principal principal)
    {
       CompletableFuture<RequiredAssetModelList> future = new CompletableFuture<>();
-      request.getSession(true).setAttribute(DEPS_ATTR, future);
+      HttpSession session = request.getSession(true);
+      session.setAttribute(DEPS_ATTR, future);
 
       ThreadPool.addOnDemand(() -> {
          try {
@@ -91,6 +99,9 @@ public class ExportAssetController {
          }
          catch(Exception e) {
             future.completeExceptionally(e);
+         }
+         finally {
+            igniteSessionRepository.setSessionAttributeAndSave(session.getId(), DEPS_ATTR, future);
          }
       });
    }
@@ -118,7 +129,8 @@ public class ExportAssetController {
                             Principal principal)
    {
       CompletableFuture<ExportJarProperties> future = new CompletableFuture<>();
-      req.getSession(true).setAttribute(PROPS_ATTR, future);
+      HttpSession session = req.getSession(true);
+      session.setAttribute(PROPS_ATTR, future);
 
       ThreadPool.addOnDemand(() -> {
          try {
@@ -131,6 +143,9 @@ public class ExportAssetController {
             future.completeExceptionally(new MessageException(
                catalog.getString("common.repletAction.exportFailed", exportedAssetsModel.name()) +
                   " " + catalog.getString("repository.fileDeleted"), e));
+         }
+         finally {
+            igniteSessionRepository.setSessionAttributeAndSave(session.getId(), PROPS_ATTR, future);
          }
       });
    }
@@ -218,6 +233,7 @@ public class ExportAssetController {
    }
 
    private final DeployService deployService;
+   private final IgniteSessionRepository igniteSessionRepository;
    private static final String PERM_ATTR =
       ExportAssetController.class.getName() + ".deployPermissions";
    private static final String DEPS_ATTR =
