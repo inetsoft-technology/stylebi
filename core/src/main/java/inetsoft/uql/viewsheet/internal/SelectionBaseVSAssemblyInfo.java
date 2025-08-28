@@ -940,7 +940,7 @@ public abstract class SelectionBaseVSAssemblyInfo extends MaxModeSelectionVSAsse
          maxlabel = Math.max(maxlabel, sval.getLabel().length());
 
          if(sval.getMeasureLabel() != null) {
-            maxmtext = Math.max(maxmtext, sval.getMeasureLabel().length());
+            maxmtext = Math.max(maxmtext, sval.getMeasureLabel().length() + 1);
          }
       }
 
