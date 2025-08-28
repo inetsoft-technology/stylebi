@@ -100,6 +100,15 @@ public class QueryManagerService {
 
       if(queryModel.isSqlEdited()) {
          sql.setSQLString(queryModel.getSqlString());
+
+         // it is waiting for the parser finish parsing the sql string.
+         if(!Tool.equals(queryModel.getSqlString(), sql.getSQLString()) && sql.isParseSQL()) {
+            try {
+               sql.wait();
+            }
+            catch(InterruptedException e) {
+            }
+         }
       }
 
       query.setSQLDefinition(sql);
