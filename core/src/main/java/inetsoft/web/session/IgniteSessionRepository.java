@@ -121,6 +121,20 @@ public class IgniteSessionRepository
             session.maxInactiveIntervalChanged ? session.getMaxInactiveInterval() : null;
          Map<String, Object> delta = session.delta.isEmpty() ? null : session.delta;
 
+         if(delta == null) {
+            delta = new HashMap<>();
+            Object emPrincipal = session.getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
+            Object principal = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+            if(emPrincipal != null) {
+               delta.put(RepletRepository.EM_PRINCIPAL_COOKIE, emPrincipal);
+            }
+
+            if(principal != null) {
+               delta.put(RepletRepository.PRINCIPAL_COOKIE, principal);
+            }
+         }
+
          boolean principalChanged = false;
          SRPrincipal oldPrincipal = null;
          SRPrincipal newPrincipal = null;
