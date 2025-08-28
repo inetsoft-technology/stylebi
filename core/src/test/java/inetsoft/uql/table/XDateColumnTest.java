@@ -64,7 +64,7 @@ class XDateColumnTest {
    }
 
    @Test
-   void testAddObjectWithString() {
+   void testValidString() {
       column.addObject("2010-01-01");
       Date result = (Date) column.getObject(0);
       assertNotNull(result);
@@ -80,20 +80,20 @@ class XDateColumnTest {
    }
 
    @Test
-   void testAddObjectWithInvalidString() {
+   void testInvalidString() {
       column.addObject("invalid-date-string");
       assertNull(column.getObject(0));
    }
 
    @Test
-   void testAddObjectWithEmptyString() {
+   void testEmptyString() {
       column.addObject("");
       assertNull(column.getObject(0));
       assertTrue(column.isNull(0));
    }
 
    @Test
-   void testAddObjectWithNull() {
+   void testNull() {
       column.addObject(null);
       assertNull(column.getObject(0));
       assertTrue(column.isNull(0));
@@ -140,11 +140,6 @@ class XDateColumnTest {
    @Test
    void testIsSerializable() {
       assertTrue(column.isSerializable());
-   }
-
-   @Test
-   void testComplete() {
-      column.complete();
    }
 
    @Test

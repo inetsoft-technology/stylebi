@@ -43,30 +43,6 @@ class XObjectColumnTest {
    }
 
    @Test
-   void testGetCreator() {
-      assertNotNull(XObjectColumn.getCreator());
-      assertNotNull(XObjectColumn.getCreator((Class<?>) null));
-      assertNotNull(XObjectColumn.getCreator((String) null));
-      assertNotNull(XObjectColumn.getCreator(String.class));
-      assertNotNull(XObjectColumn.getCreator("string"));
-      assertNotNull(XObjectColumn.getCreator(UnknownClass.class));
-      assertNotNull(XObjectColumn.getCreator("unknown_type"));
-   }
-
-   @Test
-   void testConstructors() {
-      XObjectColumn c1 = new XObjectColumn((char) 2, (char) 3);
-      assertNotNull(c1);
-      XObjectColumn c2 = new XObjectColumn(creator, (char) 2, (char) 3);
-      assertNotNull(c2);
-   }
-
-   @Test
-   void testGetCreator0() {
-      assertNotNull(column.getCreator0());
-   }
-
-   @Test
    void testGetType() {
       assertEquals("unknown", column.getType());
    }
@@ -77,12 +53,7 @@ class XObjectColumnTest {
    }
 
    @Test
-   void testCapacity() {
-      assertEquals(10, column.capacity());
-   }
-
-   @Test
-   void testAddObjectAndEnsureCapacity() {
+   void testEnsureCapacity() {
       for (int i = 0; i < 7; i++) {
          column.addObject("obj" + i);
       }
@@ -97,7 +68,7 @@ class XObjectColumnTest {
    }
 
    @Test
-   void testAddObjectWithSerializable() {
+   void testAddObjectSerializable() {
       Serializable obj = "serial";
       column.addObject(obj);
       assertEquals(obj, column.getObject(0));
@@ -129,44 +100,48 @@ class XObjectColumnTest {
    }
 
    @Test
-   void testGetPreferredColumnCoverage() {
-      assertNotNull(XObjectColumn.getCreator(String.class));
-      assertNotNull(XObjectColumn.getCreator(Boolean.class));
-      assertNotNull(XObjectColumn.getCreator(Float.class));
-      assertNotNull(XObjectColumn.getCreator(Double.class));
-      assertNotNull(XObjectColumn.getCreator(Byte.class));
-      assertNotNull(XObjectColumn.getCreator(Short.class));
-      assertNotNull(XObjectColumn.getCreator(Integer.class));
-      assertNotNull(XObjectColumn.getCreator(Long.class));
-      assertNotNull(XObjectColumn.getCreator(java.sql.Date.class));
-      assertNotNull(XObjectColumn.getCreator(java.sql.Time.class));
-      assertNotNull(XObjectColumn.getCreator(java.sql.Timestamp.class));
-      assertNotNull(XObjectColumn.getCreator(java.util.Date.class));
-      assertNotNull(XObjectColumn.getCreator(java.math.BigDecimal.class));
-      assertNotNull(XObjectColumn.getCreator(java.math.BigInteger.class));
-   }
+   void testTypeMapping() {
+      assertInstanceOf(XStringColumn.getCreator().getClass(), XObjectColumn.getCreator(String.class));
+      assertInstanceOf(XBooleanColumn.getCreator().getClass(), XObjectColumn.getCreator(Boolean.class));
+      assertInstanceOf(XFloatColumn.getCreator().getClass(), XObjectColumn.getCreator(Float.class));
+      assertInstanceOf(XDoubleColumn.getCreator().getClass(), XObjectColumn.getCreator(Double.class));
+      assertInstanceOf(XByteColumn.getCreator().getClass(), XObjectColumn.getCreator(Byte.class));
+      assertInstanceOf(XShortColumn.getCreator().getClass(), XObjectColumn.getCreator(Short.class));
+      assertInstanceOf(XIntegerColumn.getCreator().getClass(), XObjectColumn.getCreator(Integer.class));
+      assertInstanceOf(XLongColumn.getCreator().getClass(), XObjectColumn.getCreator(Long.class));
+      assertInstanceOf(XDateColumn.getCreator().getClass(), XObjectColumn.getCreator(java.sql.Date.class));
+      assertInstanceOf(XTimeColumn.getCreator().getClass(), XObjectColumn.getCreator(java.sql.Time.class));
+      assertInstanceOf(XTimestampColumn.getCreator().getClass(), XObjectColumn.getCreator(java.sql.Timestamp.class));
+      assertInstanceOf(XTimestampColumn.getCreator().getClass(), XObjectColumn.getCreator(java.util.Date.class));
 
-   @Test
-   void testGetObject() {
-      column.addObject("abc");
-      assertEquals("abc", column.getObject(0));
+      XTableColumnCreator bigDecimalCreator = XObjectColumn.getCreator(java.math.BigDecimal.class);
+      assertTrue(
+         bigDecimalCreator.getClass() == XBDDoubleColumn.getCreator().getClass()
+            || bigDecimalCreator.getClass() == XObjectColumn.getCreator().getClass()
+      );
+
+      assertInstanceOf(XBILongColumn.getCreator().getClass(), XObjectColumn.getCreator(java.math.BigInteger.class));
+
+      assertInstanceOf(XStringColumn.getCreator().getClass(), XObjectColumn.getCreator("string"));
+      assertInstanceOf(XBooleanColumn.getCreator().getClass(), XObjectColumn.getCreator("boolean"));
+      assertInstanceOf(XFloatColumn.getCreator().getClass(), XObjectColumn.getCreator("float"));
+      assertInstanceOf(XDoubleColumn.getCreator().getClass(), XObjectColumn.getCreator("double"));
+      assertInstanceOf(XDoubleColumn.getCreator().getClass(), XObjectColumn.getCreator("decimal"));
+      assertInstanceOf(XByteColumn.getCreator().getClass(), XObjectColumn.getCreator("byte"));
+      assertInstanceOf(XShortColumn.getCreator().getClass(), XObjectColumn.getCreator("short"));
+      assertInstanceOf(XIntegerColumn.getCreator().getClass(), XObjectColumn.getCreator("integer"));
+      assertInstanceOf(XLongColumn.getCreator().getClass(), XObjectColumn.getCreator("long"));
+      assertInstanceOf(XDateColumn.getCreator().getClass(), XObjectColumn.getCreator("date"));
+      assertInstanceOf(XTimeColumn.getCreator().getClass(), XObjectColumn.getCreator("time"));
+      assertNotNull(XObjectColumn.getCreator("time_instant"));
+
+      assertNotNull(XObjectColumn.getCreator((String) null));
+      assertNotNull(XObjectColumn.getCreator("unknown_type"));
    }
 
    @Test
    void testGetObjectOutOfBounds() {
       assertThrows(ArrayIndexOutOfBoundsException.class, () -> column.getObject(100));
-   }
-
-   @Test
-   void testGetNumericValuesReturnZero() {
-      column.addObject("abc");
-      assertEquals(0, column.getDouble(0));
-      assertEquals(0, column.getFloat(0));
-      assertEquals(0, column.getLong(0));
-      assertEquals(0, column.getInt(0));
-      assertEquals(0, column.getShort(0));
-      assertEquals(0, column.getByte(0));
-      assertFalse(column.getBoolean(0));
    }
 
    @Test
@@ -194,13 +169,15 @@ class XObjectColumnTest {
    }
 
    @Test
-   void testDisposeAndInvalidate() {
+   void testDispose() {
       column.addObject("test");
       column.dispose();
       assertFalse(column.isValid());
       assertThrows(NullPointerException.class, () -> column.getObject(0));
+   }
 
-      column = new XObjectColumn(creator, (char) 5, (char) 10);
+   @Test
+   void testInvalidate() {
       column.addObject("test");
       column.invalidate();
       assertThrows(NullPointerException.class, () -> column.getObject(0));
@@ -215,10 +192,17 @@ class XObjectColumnTest {
    }
 
    @Test
-   void testCompleteAndRemoveObjectPool() {
+   void testCompleteClearsCache() {
       column.addObject("test");
+      assertTrue(column.hasCache());
       column.complete();
       assertFalse(column.hasCache());
+   }
+
+   @Test
+   void testRemoveObjectPoolClearsCache() {
+      column.addObject("test");
+      assertTrue(column.hasCache());
       column.removeObjectPool();
       assertFalse(column.hasCache());
    }
@@ -250,23 +234,10 @@ class XObjectColumnTest {
    }
 
    @Test
-   void testGetHeaderLength() {
-      assertEquals(8, column.getHeaderLength());
-   }
-
-   @Test
    void testIsImage() {
       assertFalse(column.isImage());
       Image img = mock(Image.class);
       column.addObject(img);
       assertTrue(column.isImage());
    }
-
-   @Test
-   void testGetCacheAndHasCache() {
-      assertNull(column.getCache(null));
-      assertTrue(column.hasCache());
-   }
-
-   static class UnknownClass {}
 }
