@@ -52,7 +52,8 @@ public class ImportXLSControllerService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
 
-      String key = "/" + ImportXLSControllerService.class + "_" + vsId + "_" + type;
+      vsId = vsId.replace('/', '_');
+      String key = "/" + ImportXLSControllerService.class.getName() + "_" + vsId + "_" + type;
       Path excelPath = CacheFS.getPath("tempStorage", key);
 
       if(!Files.exists(excelPath)) {
