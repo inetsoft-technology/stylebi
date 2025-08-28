@@ -143,6 +143,7 @@ public class ComposerViewsheetController {
                                 CommandDispatcher dispatcher,
                                 @LinkUri String linkUri) throws Exception
    {
+      runtimeViewsheetRef.setRuntimeId(event.getRuntimeViewsheetId());
       composerViewsheetService.previewViewsheet(runtimeViewsheetRef.getRuntimeId(),
                                                 event, principal, dispatcher, linkUri);
    }
