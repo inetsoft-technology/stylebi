@@ -15,20 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { AfterViewInit, Component, OnInit, ViewChild } from "@angular/core";
+import { UntypedFormControl } from "@angular/forms";
 import { MatInput } from "@angular/material/input";
 import { MatPaginator } from "@angular/material/paginator";
 import { MatSort } from "@angular/material/sort";
-import { data } from "jquery";
 import { merge as mergeObservables, Observable } from "rxjs";
-import { map, tap } from "rxjs/operators";
+import { delay, map, tap } from "rxjs/operators";
 import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
 import { PropertySettingsDatasourceService } from "../property-settings-services/property-settings-datasource.service";
-import { HttpClient } from "@angular/common/http";
-import { UntypedFormControl } from "@angular/forms";
 import { PropertiesTool } from "./properties-tool";
 
 export interface PropertySetting {
@@ -230,6 +229,14 @@ export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
 
    deleteRow(row: PropertySetting) {
       this.dataService.deleteRow(row)
+         .pipe(
+            tap(() => {
+               this.dataSource = this.dataSource.filter(p => p.propertyName != row.propertyName);
+            }),
+            // SreeEnv debounces change notifications, so if the fetchData call goes to a different
+            // instance it is likely that its local capy doesn't have the row removed yet.
+            delay(1000)
+         )
          .subscribe(() => this.fetchData());
    }
 
