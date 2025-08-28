@@ -6778,6 +6778,10 @@ public final class VSUtil {
     * Get viewsheet bookmark owner alias.
     */
    public static String getUserAlias(IdentityID owner) {
+      if(owner == null) {
+         return null;
+      }
+
       SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
 
       if(securityProvider == null || securityProvider.isVirtual()) {
