@@ -79,7 +79,7 @@ public class MVController {
       AnalyzeMVResponse response = mvService.checkAnalyzeStatus(jobs, principal);
 
       if(jobs.isCompleted()) {
-         session.setAttribute("mvstatus", jobs.getStatus());
+         session.setAttribute("mvstatus", jobs.getAnalysisStatusResult());
       }
 
       return response;
@@ -92,19 +92,19 @@ public class MVController {
                                      @RequestParam("hideExist") boolean hideExist)
    {
       HttpSession session = req.getSession(true);
-      List<MVSupportService.MVStatus> mvstatus0 = (List) session.getAttribute("mvstatus");
+      MVSupportService.AnalysisStatus mvstatus0 = (MVSupportService.AnalysisStatus) session.getAttribute("mvstatus");
 
       if(mvstatus0 == null) {
-         mvstatus0 = support.getMVStatus(null);
+         mvstatus0 = new MVSupportService.AnalysisStatus(null, null, null, support.getMVStatus(null), null);
          session.setAttribute("mvstatus", mvstatus0);
       }
       else {
-         for(MVSupportService.MVStatus status : mvstatus0) {
+         for(MVSupportService.MVStatus status : mvstatus0.getResults()) {
             status.updateStatus();
          }
       }
 
-      List<MaterializedModel> models = mvService.getMaterializedModel(mvstatus0, hideData, hideExist);
+      List<MaterializedModel> models = mvService.getMaterializedModel(mvstatus0.getResults(), hideData, hideExist);
       return AnalyzeMVResponse.builder()
          .completed(true)
          .exception(false)
@@ -118,11 +118,11 @@ public class MVController {
                           @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
    {
       HttpSession session = req.getSession(true);
-      List<MVSupportService.MVStatus> mvstatus = (List<MVSupportService.MVStatus>)
+      MVSupportService.AnalysisStatus mvstatus = (MVSupportService.AnalysisStatus)
          session.getAttribute("mvstatus");
       MVSupportService.AnalysisResult jobs = (MVSupportService.AnalysisResult)
          session.getAttribute("mv_jobs");
-      StringBuffer info = mvService.processPlan(createUpdateMVRequest.mvNames(), jobs, mvstatus);
+      StringBuffer info = mvService.processPlan(createUpdateMVRequest.mvNames(), jobs, mvstatus.getResults());
       session.setAttribute("info", info);
       return info.toString();
    }
@@ -197,7 +197,7 @@ public class MVController {
          }
 
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-         List<MVSupportService.MVStatus> mvstatus = (List<MVSupportService.MVStatus>)
+         MVSupportService.AnalysisStatus mvstatus = (MVSupportService.AnalysisStatus)
             session.getAttribute("mvstatus");
          DataCycleManager dcmanager = DataCycleManager.getDataCycleManager();
          dcmanager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
@@ -206,7 +206,7 @@ public class MVController {
             principal = (XPrincipal) ((XPrincipal) principal).clone();
          }
 
-         String exception = support.createMV(createUpdateMVRequest.mvNames(), mvstatus,
+         String exception = support.createMV(createUpdateMVRequest.mvNames(), mvstatus.getResults(),
                                              createUpdateMVRequest.runInBackground(),
                                              createUpdateMVRequest.noData(),
                                              principal);
@@ -234,9 +234,9 @@ public class MVController {
                         @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
    {
       HttpSession session = req.getSession(true);
-      List<MVSupportService.MVStatus> mvstatus = (List<MVSupportService.MVStatus>)
+      MVSupportService.AnalysisStatus mvstatus = (MVSupportService.AnalysisStatus)
          session.getAttribute("mvstatus");
-      support.setDataCycle(createUpdateMVRequest.mvNames(), mvstatus,
+      support.setDataCycle(createUpdateMVRequest.mvNames(), mvstatus.getResults(),
                            createUpdateMVRequest.cycle());
    }
 

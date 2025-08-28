@@ -485,7 +485,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    /**
     * Get all removed columns.
     */
-   private List<MVColumn> getRemovedColumns() {
+   public List<MVColumn> getRemovedColumns() {
       MVContainer container = getContainer();
       return container == null ? Collections.emptyList() : container.rcolumns;
    }
@@ -828,11 +828,21 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          }
 
          container = this.container;
+
          // release memory in time, container pointed to by cref (weak ref)
          this.container = null;
       }
 
       return container;
+   }
+
+   public void restoreContainer(Worksheet ws, List<MVColumn> columns, List<MVColumn> rcolumns) {
+      if(getContainer() == null) {
+         this.container = new MVContainer(columns, ws);
+         this.container.rcolumns = rcolumns;
+         this.incremental = checkIncremental(ws);
+         this.containerRef = new SoftReference<>(container);
+      }
    }
 
    public MVMetaData getMetaData() {
