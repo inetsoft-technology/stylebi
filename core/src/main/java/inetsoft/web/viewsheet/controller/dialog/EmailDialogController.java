@@ -189,6 +189,7 @@ public class EmailDialogController {
                                             @LinkUri String linkUri)
       throws Exception
    {
+      runtimeId = Tool.byteDecode(runtimeId);
       return emailDialogServiceProxy.emailViewsheet(runtimeId, value, principal, linkUri);
    }
 
