@@ -199,7 +199,7 @@ public class PortalController {
       }
 
       IdentityID pId = principal == null ? null :IdentityID.getIdentityIDFromKey(principal.getName());
-      String alias = VSUtil.getUserAlias(pId);
+      String alias = pId == null ? null : VSUtil.getUserAlias(pId);
 
       return CurrentUserModel.builder()
          .anonymous(principal == null || pId.name.equals(XPrincipal.ANONYMOUS))
