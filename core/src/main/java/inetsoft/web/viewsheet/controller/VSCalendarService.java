@@ -61,7 +61,7 @@ public class VSCalendarService {
       Viewsheet viewsheet = rvs.getViewsheet();
       CalendarVSAssembly calendarAssembly = (CalendarVSAssembly) viewsheet.getAssembly(assemblyName);
       CalendarVSAssemblyInfo calendarInfo = (CalendarVSAssemblyInfo) Tool.clone(calendarAssembly.getVSAssemblyInfo());
-      calendarInfo.setPeriod(event.isPeriod());
+      calendarInfo.setPeriod(event.period());
       calendarInfo.setDates(event.getDates(), true);
       calendarInfo.setCurrentDate1(event.getCurrentDate1());
       calendarInfo.setCurrentDate2(event.getCurrentDate2());
@@ -84,7 +84,7 @@ public class VSCalendarService {
          viewsheet.getAssembly(assemblyName);
       CalendarVSAssemblyInfo calendarInfo = (CalendarVSAssemblyInfo)
          Tool.clone(calendarAssembly.getVSAssemblyInfo());
-      calendarInfo.setYearViewValue(event.isYearView());
+      calendarInfo.setYearViewValue(event.yearView());
       // dates are reset when toggling year view
       calendarInfo.setDates(new String[0]);
       calendarInfo.setCurrentDate1(event.getCurrentDate1());
@@ -129,7 +129,7 @@ public class VSCalendarService {
          calendarInfo.getLayoutSize() != null && !viewsheet.getViewsheetInfo().isScaleToScreen() ?
             calendarInfo.getLayoutSize() : rvs.getViewsheet().getPixelSize(calendarInfo);
 
-      if(event.isDoubleCalendar()) {
+      if(event.doubleCalendar()) {
          calendarInfo.setViewModeValue(CalendarVSAssemblyInfo.DOUBLE_CALENDAR_MODE);
          rvs.setProperty("calendar.submitOnChangeValue",
                          String.valueOf(calendarInfo.getSubmitOnChangeValue()));

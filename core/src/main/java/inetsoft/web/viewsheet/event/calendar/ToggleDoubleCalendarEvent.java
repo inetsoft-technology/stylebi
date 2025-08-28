@@ -17,6 +17,8 @@
  */
 package inetsoft.web.viewsheet.event.calendar;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
@@ -27,6 +29,8 @@ import org.immutables.value.Value;
  */
 @Value.Immutable
 @Serial.Structural
+@JsonSerialize(as = ImmutableToggleDoubleCalendarEvent.class)
+@JsonDeserialize(as = ImmutableToggleDoubleCalendarEvent.class)
 public abstract class ToggleDoubleCalendarEvent extends CalendarSelectionEvent {
-   public abstract boolean isDoubleCalendar();
+   public abstract boolean doubleCalendar();
 }
