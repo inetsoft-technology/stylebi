@@ -237,7 +237,7 @@ export class DataSpaceFileSettingsViewComponent implements OnInit, OnChanges, On
    }
 
    enableApplyButton(): void {
-      this.editorPanel?.changeApplyDisabledState(false);
+      this.editorPanel?.changeApplyDisabledState(!this.nameControl?.valid);
    }
 }
 
