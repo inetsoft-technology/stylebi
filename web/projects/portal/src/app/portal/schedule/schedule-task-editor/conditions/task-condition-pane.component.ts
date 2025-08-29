@@ -73,6 +73,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    @Input() oldTaskName: string;
    @Input() taskName: string;
    @Input() timeZone: string;
+   @Input() isSaving: boolean = false;
    @Input() timeZoneOptions: TimeZoneModel[];
    @Input() taskDefaultTimeProperty: boolean; // Indicates the value of the sree property
    @Input() parentForm: UntypedFormGroup;
@@ -208,7 +209,6 @@ export class TaskConditionPane implements OnInit, OnChanges {
    localTimeZoneOffset = 0;
    localTimeZoneId: string;
    localTimeZoneLabel: string;
-   isSaving:boolean = false;
 
    get startTime(): NgbTimeStruct {
       return this._startTime;
@@ -617,9 +617,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    public save(ok: boolean): void {
-      this.isSaving = true;
       this.saveTask().then(() => {
-         this.isSaving = false;
          storeCondition(this.condition);
          this.updateTimesAndDates();
          this.form.markAsPristine();
@@ -628,8 +626,6 @@ export class TaskConditionPane implements OnInit, OnChanges {
          if(ok && this.model.conditions.length > 1 && !this.listView) {
             this.changeView(true);
          }
-      }).finally(() => {
-         this.isSaving = false;
       });
    }
 
