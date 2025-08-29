@@ -70,7 +70,7 @@ public class PresenterController {
       BinaryTransfer imageData = presenterServiceProxy
          .getPresenterImage(runtimeId, assembly, row, column, width, height, principal);
 
-      if(binaryTransferService.isEmpty(imageData)) {
+      if(!binaryTransferService.isEmpty(imageData)) {
          response.setContentType("image/png");
          OutputStream out = response.getOutputStream();
          binaryTransferService.writeData(imageData, out);
