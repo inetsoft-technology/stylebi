@@ -20,8 +20,10 @@ package inetsoft.web.binding.handler;
 import inetsoft.report.BaseLayout.Region;
 import inetsoft.report.*;
 import inetsoft.report.TableLayout.RegionIndex;
+import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.binding.OrderInfo;
 import inetsoft.report.internal.binding.TopNInfo;
+import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
@@ -32,8 +34,7 @@ import inetsoft.util.Tool;
 import org.springframework.stereotype.Component;
 
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Map;
+import java.util.*;
 
 @Component
 public class TableLayoutHandler {
@@ -146,10 +147,10 @@ public class TableLayoutHandler {
 
    private void insertRows(CalcTableVSAssemblyInfo info, int r, int n, boolean append) {
       TableLayout layout = info.getTableLayout();
+      int adj = append ? 1 : 0;
 
       for(int i = 0; i < n; i++) {
          RegionIndex reg = layout.getRegionIndex(r);
-         int adj = append ? 1 : 0;
          int start = reg.getRow() + adj;
          int height = layout.getRowCount() - r - adj;
          Object[][] clip = null;
@@ -182,6 +183,9 @@ public class TableLayoutHandler {
          updateHyperlinkPath(info, n, r, true);
          updateHighlightPath(info, n, r, true);
       }
+
+      moveCellFormats(info, n + adj, r, true);
+      moveHighlightGroups(info, n + adj, r, true);
    }
 
    private void deleteRows(CalcTableVSAssemblyInfo info, int r, int n) {
@@ -215,6 +219,8 @@ public class TableLayoutHandler {
       updateHyperlinkPath(info, n, r, false);
       updateHighlightPath(info, n, r, false);
       updateHeaderCount(info, n, r, true, false);
+      moveCellFormats(info, -1 * n, r + n, true);
+      moveHighlightGroups(info, -1 * n, r + n, true);
    }
 
    private void insertCols(CalcTableVSAssemblyInfo info, int c, int n, boolean append) {
@@ -258,6 +264,8 @@ public class TableLayoutHandler {
       }
 
       updateHeaderCount(info, n, c, false, true);
+      moveCellFormats(info, n, c, false);
+      moveHighlightGroups(info, n, c, false);
    }
 
    private void deleteCols(CalcTableVSAssemblyInfo info, int c, int n) {
@@ -281,6 +289,8 @@ public class TableLayoutHandler {
       }
 
       updateHeaderCount(info, n, c, false, false);
+      moveCellFormats(info, -1 * n, c + n, false);
+      moveHighlightGroups(info, -1 * n, c + n, false);
    }
 
    private void mergeCells(CalcTableVSAssemblyInfo info, int r, int c, int w, int h) {
@@ -343,6 +353,137 @@ public class TableLayoutHandler {
             }
          }
       }
+   }
+
+   private void moveCellFormats(CalcTableVSAssemblyInfo info, int cnt, int idx, boolean isRow) {
+      FormatInfo formatInfo = info.getFormatInfo().clone();
+      Map<TableDataPath, VSCompositeFormat> formatMap = formatInfo.getFormatMap();
+      Iterator<Map.Entry<TableDataPath, VSCompositeFormat>> iterator = formatMap.entrySet().iterator();
+      Map<TableDataPath, VSCompositeFormat> newEntries = new HashMap<>();
+
+      while(iterator.hasNext()) {
+         Map.Entry<TableDataPath, VSCompositeFormat> entry = iterator.next();
+         TableDataPath newPath = (TableDataPath) entry.getKey().clone();
+         String[] dataPath = newPath.getPath();
+         boolean deleted = false;
+
+         for(int i = 0; i < dataPath.length; i++) {
+            String path = dataPath[i];
+
+            int l = path.indexOf("[");
+            int r = path.indexOf("]");
+            int commaIdx = path.indexOf(',');
+
+            if(l == -1 || r == -1 || commaIdx == -1) {
+               continue;
+            }
+
+            if(isRow) {
+               int cellRow = Integer.parseInt(path.substring(l + 1, commaIdx));
+
+               if(cellRow >= idx) {
+                  cellRow += cnt;
+                  path = path.substring(0, l + 1) + cellRow + path.substring(commaIdx);
+                  dataPath[i] = path;
+               }
+               else if(cellRow >= idx + cnt) {
+                  deleted = true;
+                  break;
+               }
+            }
+            else {
+               int cellCol = Integer.parseInt(path.substring(commaIdx + 1, r));
+
+               if(cellCol >= idx) {
+                  cellCol += cnt;
+                  path = path.substring(0, commaIdx + 1) + cellCol + path.substring(r);
+                  dataPath[i] = path;
+               }
+               else if(cellCol >= idx + cnt) {
+                  deleted = true;
+                  break;
+               }
+            }
+         }
+
+         if(!deleted) {
+            newEntries.put(newPath, entry.getValue());
+         }
+      }
+
+      FormatInfo nFormatInfo = new FormatInfo();
+
+      for(Map.Entry<TableDataPath, VSCompositeFormat> entry : newEntries.entrySet()) {
+         nFormatInfo.setFormat(entry.getKey(), entry.getValue());
+      }
+
+      info.setFormatInfo(nFormatInfo);
+   }
+
+   private void moveHighlightGroups(CalcTableVSAssemblyInfo info, int cnt, int idx, boolean isRow) {
+      TableHighlightAttr tableHighlightAttr = info.getHighlightAttr();
+      Map<TableDataPath, HighlightGroup> highlightMap = tableHighlightAttr.getHighlightMap();
+      Iterator<Map.Entry<TableDataPath, HighlightGroup>> iterator = highlightMap.entrySet().iterator();
+      Map<TableDataPath, HighlightGroup> newEntries = new HashMap<>();
+
+      while(iterator.hasNext()) {
+         Map.Entry<TableDataPath, HighlightGroup> entry = iterator.next();
+         TableDataPath newPath = (TableDataPath) entry.getKey().clone();
+         String[] dataPath = newPath.getPath();
+         boolean deleted = false;
+
+         for(int i = 0; i < dataPath.length; i++) {
+            String path = dataPath[i];
+
+            int l = path.indexOf("[");
+            int r = path.indexOf("]");
+            int commaIdx = path.indexOf(',');
+
+            if(l == -1 || r == -1 || commaIdx == -1) {
+               continue;
+            }
+
+            if(isRow) {
+               int cellRow = Integer.parseInt(path.substring(l + 1, commaIdx));
+
+               if(cellRow >= idx) {
+                  cellRow += cnt;
+                  path = path.substring(0, l + 1) + cellRow + path.substring(commaIdx);
+                  dataPath[i] = path;
+               }
+               else if(cellRow >= idx + cnt) {
+                  deleted = true;
+                  break;
+               }
+            }
+            else {
+               int cellCol = Integer.parseInt(path.substring(commaIdx + 1, r));
+
+               if(cellCol >= idx) {
+                  cellCol += cnt;
+                  path = path.substring(0, commaIdx + 1) + cellCol + path.substring(r);
+                  dataPath[i] = path;
+               }
+               else if(cellCol >= idx + cnt) {
+                  deleted = true;
+                  break;
+               }
+            }
+         }
+
+         if(!deleted) {
+            newEntries.put(newPath, entry.getValue());
+         }
+      }
+
+      TableHighlightAttr nHighlightAttr = new TableHighlightAttr();
+
+      for(Map.Entry<TableDataPath, HighlightGroup> entry : newEntries.entrySet()) {
+         nHighlightAttr.setHighlight(entry.getKey(), entry.getValue());
+      }
+
+      info.setHighlightAttr(nHighlightAttr);
+
    }
 
    /**
