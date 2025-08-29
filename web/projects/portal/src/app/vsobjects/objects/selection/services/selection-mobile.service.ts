@@ -46,7 +46,7 @@ export class SelectionMobileService {
   }
 
   toggleSelectionMaxMode(vsObject: VSObjectModel, max: boolean = true) {
-    let selectType = vsObject.objectType;
+     let selectType = !!vsObject ? vsObject.objectType : null;
 
     if(GuiTool.isMobileDevice() && (selectType == "VSSelectionList" || selectType == "VSSelectionTree" ||
        selectType == "VSSelectionContainer"))
