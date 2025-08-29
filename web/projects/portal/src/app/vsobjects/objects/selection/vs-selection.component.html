@@ -266,7 +266,7 @@
   <ng-template [ngIf]="resizeColumns.length > 0" ngFor let-column [ngForOf]="resizeColumns">
     <div class="resize-template" [style.width.px]="resizeColumnWidth"></div>
   </ng-template>
-  <i *ngIf="pendingSubmit" class="pending-submit-icon pending-alert"
+  <i *ngIf="pendingSubmit" class="submit-icon pending-alert"
      [class.left]="model.dropdown || model.maxMode || inContainer"
      [class.top]="!model.titleVisible"
      title="_#(common.viewsheet.pending.submit)"></i>
