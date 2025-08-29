@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.schedule.ServerPathInfo;
+import inetsoft.util.Tool;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -78,7 +79,7 @@ public abstract class ServerPathInfoModel {
          }
          else {
             username(info.getUsername());
-            password(Util.PLACEHOLDER_PASSWORD);
+            password(Tool.isEmptyString(info.getPassword()) ? null : Util.PLACEHOLDER_PASSWORD);
          }
 
          return this;
