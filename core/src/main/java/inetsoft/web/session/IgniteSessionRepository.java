@@ -183,11 +183,6 @@ public class IgniteSessionRepository
             session.getId(), new SessionUpdateEntryProcessor(),
             lastAccessedTime, maxInactiveInterval, delta);
 
-         if(delta != null && !delta.isEmpty()) {
-            SRPrincipal attribute = (SRPrincipal)this.sessions.get(session.getId()).getAttribute(RepletRepository.PRINCIPAL_COOKIE);
-            System.out.println(attribute == null ? null : attribute.getProperty("showGettingStated"));
-         }
-
          if(principalChanged) {
             eventPublisher.publishEvent(
                new PrincipalChangedEvent(this, oldPrincipal, newPrincipal, session));
