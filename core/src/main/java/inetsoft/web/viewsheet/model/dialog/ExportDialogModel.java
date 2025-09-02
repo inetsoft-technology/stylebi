@@ -27,7 +27,7 @@ import org.immutables.value.Value;
 @Value.Immutable
 @JsonSerialize(as = ImmutableExportDialogModel.class)
 @JsonDeserialize(as = ImmutableExportDialogModel.class)
-public class ExportDialogModel {
+public class ExportDialogModel implements Serializable {
    @Value.Default
    public FileFormatPaneModel fileFormatPaneModel() {
       return ImmutableFileFormatPaneModel.builder().build();
