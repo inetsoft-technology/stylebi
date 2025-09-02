@@ -70,13 +70,20 @@ public class QueryGraphModelService {
       if(query != null) {
          UniformSQL sql = (UniformSQL) query.getSQLDefinition();
          String database = query.getDataSource().getFullName();
+         JoinGraphModel graphModel = null;
 
          if(joinInfo == null) {
-            return buildGraphViewModel(runtimeQuery, sql, database, principal);
+            graphModel = buildGraphViewModel(runtimeQuery, sql, database, principal);
+            runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+
+            return graphModel;
          }
 
-         return buildJoinEditPaneModel(
+         graphModel = buildJoinEditPaneModel(
             runtimeQuery, sql, joinInfo, runtimeID, database, query.getName(), principal);
+         runtimeQueryService.saveRuntimeQuery(runtimeQuery);
+
+         return graphModel;
       }
 
       return null;
