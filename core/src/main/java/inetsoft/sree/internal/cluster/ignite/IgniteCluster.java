@@ -928,9 +928,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    @Override
    public <T> T affinityCall(String cache, String key, AffinityCallable<T> job) {
       String id = UUID.randomUUID().toString();
-      ClusterNode localNode = ignite.cluster().localNode();
-      boolean localProcess = "true".equals(localNode.attribute("scheduler")) || localNode.isClient();
-      ClusterNode node = localProcess ? localNode : ignite.affinity(cache).mapKeyToNode(key);
+      ClusterNode node = ignite.affinity(cache).mapKeyToNode(key);
       LOG.debug("AFFINITY CALL START: cache={}, key={}, node={}, id={}", cache, key, node, id);
 
       if(Objects.equals(node, ignite.cluster().localNode())) {
