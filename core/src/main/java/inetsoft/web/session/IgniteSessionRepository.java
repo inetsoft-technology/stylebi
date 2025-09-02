@@ -21,6 +21,7 @@ package inetsoft.web.session;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.util.audit.SessionRecord;
 import inetsoft.web.admin.server.NodeProtectionService;
 import org.slf4j.Logger;
@@ -151,12 +152,20 @@ public class IgniteSessionRepository
             Object emPrincipal = session.getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
             Object principal = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
-            if(emPrincipal != null) {
+            if(emPrincipal != null && (!(emPrincipal instanceof XPrincipal p) || p.isChanged())) {
                delta.put(RepletRepository.EM_PRINCIPAL_COOKIE, emPrincipal);
             }
 
-            if(principal != null) {
+            if(emPrincipal instanceof XPrincipal p) {
+               p.clearChanged();
+            }
+
+            if(principal != null && (!(principal instanceof XPrincipal p) || p.isChanged())) {
                delta.put(RepletRepository.PRINCIPAL_COOKIE, principal);
+            }
+
+            if(principal instanceof XPrincipal p) {
+               p.clearChanged();
             }
          }
 
@@ -173,6 +182,11 @@ public class IgniteSessionRepository
          this.sessions.invoke(
             session.getId(), new SessionUpdateEntryProcessor(),
             lastAccessedTime, maxInactiveInterval, delta);
+
+         if(delta != null && !delta.isEmpty()) {
+            SRPrincipal attribute = (SRPrincipal)this.sessions.get(session.getId()).getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+            System.out.println(attribute == null ? null : attribute.getProperty("showGettingStated"));
+         }
 
          if(principalChanged) {
             eventPublisher.publishEvent(
