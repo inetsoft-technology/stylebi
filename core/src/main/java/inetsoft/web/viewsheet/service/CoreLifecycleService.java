@@ -78,12 +78,14 @@ public class CoreLifecycleService {
    @Autowired
    public CoreLifecycleService(
       VSObjectModelFactoryService objectModelService, ViewsheetService viewsheetService,
-      VSLayoutService vsLayoutService, ParameterService parameterService)
+      VSLayoutService vsLayoutService, ParameterService parameterService,
+      VSCompositionService vsCompositionService)
    {
       this.objectModelService = objectModelService;
       this.viewsheetService = viewsheetService;
       this.vsLayoutService = vsLayoutService;
       this.parameterService = parameterService;
+      this.vsCompositionService = vsCompositionService;
    }
 
    public String openViewsheet(ViewsheetService engine, OpenViewsheetEvent event,
@@ -1084,6 +1086,10 @@ public class CoreLifecycleService {
             if(vs == null) {
                return;
             }
+
+            // recalculate the z-index of assemblies after the calls to Viewsheet.udpate() are
+            // made which update embedded vs assemblies and reset the z-index to base
+            vsCompositionService.shrinkZIndex(vs);
 
             assemblies = vs.getAssemblies(false, true, !ignoreRefreshTempAssembly, false);
             Arrays.sort(assemblies, new TabAnnotationComparator());
@@ -3035,6 +3041,7 @@ public class CoreLifecycleService {
    private final ViewsheetService viewsheetService;
    private final VSLayoutService vsLayoutService;
    private final ParameterService parameterService;
+   private final VSCompositionService vsCompositionService;
    private static final Logger LOG = LoggerFactory.getLogger(CoreLifecycleService.class);
 
    /**
