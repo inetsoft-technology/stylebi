@@ -132,17 +132,46 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
     * Get the query execution or MV creation time.
     */
    private Date getUpdateTime() {
+      ViewsheetSandbox box = this.box;
+      Viewsheet vs = box.getViewsheet();
+
+      // if called from a parent on an embedded viewsheet
+      if(!Tool.equals(vs.getAbsoluteName(), assembly)) {
+         VSAssembly vsAssembly = vs.getAssembly(assembly);
+
+         if(vsAssembly instanceof Viewsheet) {
+            vs = (Viewsheet) vsAssembly;
+            box = box.getSandbox(vs.getAbsoluteName());
+         }
+      }
+
       if(box.isMVEnabled()) {
          AssetEntry ventry = box.getAssetEntry();
          final String vsId = ventry.toIdentifier();
          MVManager manager = MVManager.getManager();
+         List<String> parentVsIds = box.getParentVsIds();
+
          MVDef[] list = manager.list(false,
-                                     def -> !def.isWSMV() && def.getMetaData().isRegistered(vsId));
+                                     def -> !def.isWSMV() && def.getMetaData().isRegistered(vsId) &&
+                                        (def.getParentVsIds() == null || def.getParentVsIds().equals(parentVsIds)));
 
          if(list.length > 0) {
             long last = 0;
+            List<MVDef> withParent = new ArrayList<>();
+            List<MVDef> withoutParent = new ArrayList<>();
 
             for(MVDef def : list) {
+               if(def.getParentVsIds() != null) {
+                  withParent.add(def);
+               }
+               else {
+                  withoutParent.add(def);
+               }
+            }
+
+            List<MVDef> selectedList = withParent.isEmpty() ? withoutParent : withParent;
+
+            for(MVDef def : selectedList) {
                last = Math.max(last, def.lastModified());
             }
 
