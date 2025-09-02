@@ -77,6 +77,7 @@ public class PhysicalGraphModelController {
             box.width = width;
             partition.setRuntimeAliasTableBounds(alias, box);
             changed = true;
+            runtimePartitionService.saveRuntimePartition(runtimePartition);
          }
       }
 
@@ -165,6 +166,8 @@ public class PhysicalGraphModelController {
       if(!StringUtils.isEmpty(aliasName)) {
          partition.setRuntimeAliasTableBounds(aliasName, rectangle);
       }
+
+      runtimePartitionService.saveRuntimePartition(rp);
    }
 
    @PostMapping("/api/data/physicalmodel/join")
