@@ -36,6 +36,7 @@ import javax.annotation.Nullable;
 public abstract class CalendarSelectionEvent {
    public abstract String getCurrentDate1();
 
+   @Nullable
    public abstract String getCurrentDate2();
 
    @Nullable
