@@ -1384,8 +1384,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
             return XPrincipal.SYSTEM.equals(identity.getName()) ||
                (ClientInfo.ANONYMOUS.equals(identity.getName()) &&
                (provider == null || provider.getAuthenticationProvider().isVirtual() ||
-                  containsAnonymous(identity.getOrgID()))) ||
-               "true".equals(((SRPrincipal) principal).getProperty("skipLoginCheck"));
+                  containsAnonymous(identity.getOrgID())));
          }
 
          ClientInfo user1 = srPrincipal.getUser();
