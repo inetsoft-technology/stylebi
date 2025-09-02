@@ -97,7 +97,7 @@ public class OrganizationChangedController implements MessageListener {
                                   .build());
    }
 
-   private final SimpMessagingTemplate messagingTemplate;
+   private final transient SimpMessagingTemplate messagingTemplate;
    private Principal principal;
    private static final String CHANGE_TOPIC = "/current-org-changed";
 }
