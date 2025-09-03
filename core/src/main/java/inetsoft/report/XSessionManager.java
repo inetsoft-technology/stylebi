@@ -482,6 +482,7 @@ public class XSessionManager {
 
       try {
          queryId = addQueryInfo(query.getName(), user);
+         qvars.put(XQuery.HINT_TOUCH_TIMESTAMP, ts);
          TableLens table = null;
          XNode node;
 
@@ -530,6 +531,7 @@ public class XSessionManager {
       }
       finally {
          removeQueryInfo(queryId);
+         qvars.remove(XQuery.HINT_TOUCH_TIMESTAMP);
       }
    }
 

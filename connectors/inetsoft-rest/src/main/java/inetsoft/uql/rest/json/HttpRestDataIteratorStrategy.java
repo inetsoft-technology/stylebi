@@ -91,7 +91,8 @@ public abstract class HttpRestDataIteratorStrategy<Q extends AbstractRestQuery, 
    }
 
    protected RestErrorResponse<Object> handleRequest(RestRequest request) throws Exception {
-      final HttpResponse cachedResponse = isCacheActive() ? cache.get(request.key(), isLiveMode()) : null;
+      final HttpResponse cachedResponse = isCacheActive() ? cache.get(request.key(), isLiveMode(),
+                                                                      getTouchTimestamp()) : null;
       final RestErrorResponse<Object> response;
 
       if(cachedResponse != null) {

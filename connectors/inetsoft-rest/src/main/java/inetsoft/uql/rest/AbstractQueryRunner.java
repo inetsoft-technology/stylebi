@@ -113,6 +113,15 @@ public abstract class AbstractQueryRunner<T extends AbstractRestQuery> implement
       this.livemode = livemode;
    }
 
+   @Override
+   public long getTouchTimestamp() {
+      return touchTimestamp;
+   }
+
+   public void setTouchTimestamp(long touchTimestamp) {
+      this.touchTimestamp = touchTimestamp;
+   }
+
    protected void logException(Exception ex) {
       if(ex instanceof InvalidJsonException || ex instanceof JsonParseException) {
          CoreTool.addUserMessage(ResourceBundle.getBundle("inetsoft.uql.rest.json.Bundle",
@@ -141,6 +150,7 @@ public abstract class AbstractQueryRunner<T extends AbstractRestQuery> implement
 
    private volatile boolean cancelled = false;
    private volatile boolean livemode = false;
+   private volatile long touchTimestamp = -1;
    private Thread executionThread;
 
    protected final T query;
