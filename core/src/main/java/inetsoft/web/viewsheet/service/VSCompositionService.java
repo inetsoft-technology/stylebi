@@ -110,14 +110,14 @@ public class VSCompositionService {
     * Adjust the z-index for all the components in the viewsheet.
     */
    public void shrinkZIndex(Viewsheet vs, CommandDispatcher dispatcher) {
-      shrinkZIndex0(vs);
+      shrinkZIndex(vs);
       addLayerCommand(vs, dispatcher);
    }
 
    /**
     * Shrink all object in viewsheet, include child viewsheets.
     */
-   private void shrinkZIndex0(Viewsheet vs) {
+   public void shrinkZIndex(Viewsheet vs) {
       if(vs == null) {
          return;
       }
@@ -128,7 +128,7 @@ public class VSCompositionService {
       Arrays.stream(ass)
          .forEach(assembly -> {
             if(assembly instanceof Viewsheet) {
-               shrinkZIndex0((Viewsheet) assembly);
+               shrinkZIndex((Viewsheet) assembly);
             }
          });
    }
