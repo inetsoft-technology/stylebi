@@ -53,10 +53,6 @@ public class MVController {
       this.mvService = mvService;
       this.support = support;
       this.securityProvider = securityProvider;
-      this.createMVCache = Caffeine.newBuilder()
-         .expireAfterAccess(10L, TimeUnit.MINUTES)
-         .maximumSize(1000L)
-         .build();
    }
 
    @PostMapping("/api/em/content/repository/mv/analyze")
@@ -132,100 +128,10 @@ public class MVController {
    public CreateMVResponse create(HttpServletRequest req,
                       @RequestParam(name = "createId", required = false) String createId,
                       @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
-                      Principal principal) throws Throwable
-   {
-      HttpSession session = req.getSession(true);
-
-      if(createId != null) {
-         CompletableFuture<CreateMVResponse> future = createMVCache.getIfPresent(createId);
-
-         if(future != null) {
-            if(future.isDone()) {
-               createMVCache.invalidate(createId);
-               return future.get();
-            }
-            else {
-               return CreateMVResponse.builder().complete(false).build();
-            }
-         }
-      }
-
-      if(createId == null) {
-         create0(session, createUpdateMVRequest, principal);
-         return CreateMVResponse.builder().complete(true).build();
-      }
-      else if(createMVCache.getIfPresent(createId) == null) {
-         CompletableFuture<CreateMVResponse> future = new CompletableFuture<>();
-         createMVCache.put(createId, future);
-         ThreadPool.addOnDemand(() -> {
-            Principal oPrincipal = ThreadContext.getPrincipal();
-            ThreadContext.setPrincipal(principal);
-
-            try {
-               create0(session, createUpdateMVRequest, principal);
-               future.complete(CreateMVResponse.builder().complete(true).build());
-            }
-            catch(Throwable e) {
-               future.completeExceptionally(e);
-            }
-            finally {
-               ThreadContext.setPrincipal(oPrincipal);
-            }
-         });
-      }
-
-      return CreateMVResponse.builder().complete(false).build();
-   }
-
-   public void create0(HttpSession session, CreateUpdateMVRequest createUpdateMVRequest,
-                       Principal principal)
+                      Principal principal)
       throws Throwable
    {
-      ActionRecord actionRecord = SUtil.getActionRecord(
-         principal, ActionRecord.ACTION_NAME_CREATE,
-         (DataCycleManager.TASK_PREFIX + createUpdateMVRequest.cycle()).trim(),
-         ActionRecord.OBJECT_TYPE_TASK);
-
-      try {
-         IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
-
-         if(createUpdateMVRequest.runInBackground() && Cluster.getInstance().isSchedulerRunning() &&
-            !SUtil.getRepletRepository().checkPermission(
-               principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
-         {
-            throw new RuntimeException("User '" + user.getName() + "' doesn't have schedule permission.");
-         }
-
-         String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-         MVSupportService.AnalysisStatus mvstatus = (MVSupportService.AnalysisStatus)
-            session.getAttribute("mvstatus");
-         DataCycleManager dcmanager = DataCycleManager.getDataCycleManager();
-         dcmanager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
-
-         if(principal instanceof XPrincipal) {
-            principal = (XPrincipal) ((XPrincipal) principal).clone();
-         }
-
-         String exception = support.createMV(createUpdateMVRequest.mvNames(), mvstatus.getResults(),
-                                             createUpdateMVRequest.runInBackground(),
-                                             createUpdateMVRequest.noData(),
-                                             principal);
-
-         if(exception != null) {
-            throw new RuntimeException(exception);
-         }
-      }
-      catch(Exception e) {
-         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
-         actionRecord.setActionError(e.getMessage());
-         throw e;
-      }
-      finally {
-         if(actionRecord != null) {
-            actionRecord.setObjectUser(XPrincipal.SYSTEM);
-            Audit.getInstance().auditAction(actionRecord, principal);
-         }
-      }
+      return mvService.create(req, createId, createUpdateMVRequest, principal);
    }
 
    @SuppressWarnings("unchecked")
@@ -350,5 +256,5 @@ public class MVController {
    private final MVService mvService;
    private final MVSupportService support;
    private final SecurityProvider securityProvider;
-   private final Cache<String, CompletableFuture<CreateMVResponse>> createMVCache;
+
 }

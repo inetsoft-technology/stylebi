@@ -24,14 +24,19 @@ import inetsoft.mv.fs.*;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.util.Identity;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.model.NameLabelTuple;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -49,6 +54,118 @@ public class MVService {
    public MVService(ContentRepositoryTreeService treeService, MVSupportService support) {
       this.treeService = treeService;
       this.support = support;
+      creteMvMap = Cluster.getInstance().getMap(CRETE_MV_STATUS_MAP);
+   }
+
+   public CreateMVResponse create(HttpServletRequest req, String createId,
+                                  CreateUpdateMVRequest createUpdateMVRequest,
+                                  Principal principal)
+      throws Throwable
+   {
+      if(createId != null) {
+         CreateMVResponse createMVResponse = creteMvMap.get(createId);
+
+         if(createMVResponse != null) {
+            if(createMVResponse.complete()) {
+               creteMvMap.remove(createId);
+            }
+
+            if(createMVResponse.failed()) {
+               throw new RuntimeException(createMVResponse.error());
+            }
+
+            return createMVResponse;
+         }
+      }
+
+      HttpSession session = req.getSession(true);
+
+      if(createId == null) {
+         create0(session, createUpdateMVRequest, principal);
+         return CreateMVResponse.builder().complete(true).build();
+      }
+      else if(creteMvMap.get(createId) == null) {
+         creteMvMap.put(createId, CreateMVResponse.builder().complete(false).build());
+         ThreadPool.addOnDemand(() -> {
+            Principal oPrincipal = ThreadContext.getPrincipal();
+            ThreadContext.setPrincipal(principal);
+
+            try {
+               create0(session, createUpdateMVRequest, principal);
+               creteMvMap.put(createId, CreateMVResponse.builder().complete(true).build());
+            }
+            catch(Throwable e) {
+               creteMvMap.put(createId, CreateMVResponse.builder()
+                  .complete(true)
+                  .failed(true)
+                  .error(e.getMessage())
+                  .build());
+            }
+            finally {
+               ThreadContext.setPrincipal(oPrincipal);
+
+               try {
+                  Thread.sleep(10_000);
+                  creteMvMap.remove(createId);
+               }
+               catch(InterruptedException ignore) {
+               }
+            }
+         });
+      }
+
+      return CreateMVResponse.builder().complete(false).build();
+   }
+
+   public void create0(HttpSession session, CreateUpdateMVRequest createUpdateMVRequest,
+                       Principal principal)
+      throws Throwable
+   {
+      ActionRecord actionRecord = SUtil.getActionRecord(
+         principal, ActionRecord.ACTION_NAME_CREATE,
+         (DataCycleManager.TASK_PREFIX + createUpdateMVRequest.cycle()).trim(),
+         ActionRecord.OBJECT_TYPE_TASK);
+
+      try {
+         IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+
+         if(createUpdateMVRequest.runInBackground() && Cluster.getInstance().isSchedulerRunning() &&
+            !SUtil.getRepletRepository().checkPermission(
+               principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
+         {
+            throw new RuntimeException("User '" + user.getName() + "' doesn't have schedule permission.");
+         }
+
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         MVSupportService.AnalysisStatus mvstatus = (MVSupportService.AnalysisStatus)
+            session.getAttribute("mvstatus");
+         DataCycleManager dcmanager = DataCycleManager.getDataCycleManager();
+         dcmanager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
+
+         if(principal instanceof XPrincipal) {
+            principal = (XPrincipal) ((XPrincipal) principal).clone();
+         }
+
+         String exception = support.createMV(createUpdateMVRequest.mvNames(), mvstatus.getResults(),
+                                             createUpdateMVRequest.runInBackground(),
+                                             createUpdateMVRequest.noData(),
+                                             principal);
+
+         if(exception != null) {
+            throw new RuntimeException(exception);
+         }
+      }
+      catch(Exception e) {
+         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+         actionRecord.setActionError(e.getMessage());
+         throw e;
+      }
+      finally {
+         if(actionRecord != null) {
+            actionRecord.setObjectUser(XPrincipal.SYSTEM);
+            Audit.getInstance().auditAction(actionRecord, principal);
+         }
+      }
    }
 
    public MVSupportService.AnalysisResult analyze(AnalyzeMVRequest analyzeMVRequest,
@@ -510,4 +627,6 @@ public class MVService {
    private static final long ONE_DAY = 24 * ONE_HOUR;
    private final MVSupportService support;
    private final ContentRepositoryTreeService treeService;
+   private final Map<String, CreateMVResponse> creteMvMap;
+   private final static String CRETE_MV_STATUS_MAP = "CRETE_MV_STATUS_MAP";
 }
