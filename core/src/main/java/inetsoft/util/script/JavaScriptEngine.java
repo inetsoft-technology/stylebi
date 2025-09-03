@@ -2119,6 +2119,14 @@ public class JavaScriptEngine {
       }
    }
 
+   public static void setOnClickScript(boolean value) {
+      onClickScript.set(value);
+   }
+
+   public static boolean isOnClickScript() {
+      return onClickScript.get();
+   }
+
    /**
     * A wrapper to prevent any name lookup to be returned as a symbol in the
     * scope. The NativeJavaPackage class returns another package object for
@@ -2314,6 +2322,7 @@ public class JavaScriptEngine {
       ThreadLocal.withInitial(HashMap::new);
    private static final ThreadLocal<Map<String, DateFormat>> dateFormats =
       ThreadLocal.withInitial(ConcurrentHashMap::new);
+   private static final ThreadLocal<Boolean> onClickScript = ThreadLocal.withInitial(() -> Boolean.FALSE);
 
    private static final String GLOBAL_SCOPE_KEY =
       JavaScriptEngine.class.getName() + ".globalScope";
