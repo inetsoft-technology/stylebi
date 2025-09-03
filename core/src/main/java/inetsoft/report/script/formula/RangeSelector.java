@@ -21,7 +21,7 @@ import inetsoft.report.internal.FastDouble2String;
 import inetsoft.uql.XTable;
 import inetsoft.util.Tool;
 
-import java.util.ArrayList;
+import java.util.*;
 
 /**
  * An interface for selecting rows.
@@ -102,6 +102,31 @@ public abstract class RangeSelector {
          obj = toGroupString(obj);
          return super.add(obj);
       }
+   }
+
+   static class SelectorKey {
+      SelectorKey(XTable table, Set<String> groupKeys) {
+         this.tableId = System.identityHashCode(table);
+         this.groupKeys = new HashSet<>(groupKeys);
+      }
+
+      @Override
+      public boolean equals(Object obj) {
+         if(!(obj instanceof SelectorKey)) {
+            return false;
+         }
+
+         SelectorKey other = (SelectorKey) obj;
+         return tableId == other.tableId && groupKeys.equals(other.groupKeys);
+      }
+
+      @Override
+      public int hashCode() {
+         return Objects.hash(tableId, groupKeys);
+      }
+
+      private final int tableId;
+      private final Set<String> groupKeys;
    }
 
    protected boolean processCalc = false;

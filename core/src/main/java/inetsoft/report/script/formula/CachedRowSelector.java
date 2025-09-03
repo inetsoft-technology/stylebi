@@ -17,11 +17,13 @@
  */
 package inetsoft.report.script.formula;
 
+import com.google.common.util.concurrent.Striped;
 import inetsoft.uql.XTable;
 import inetsoft.util.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -35,17 +37,24 @@ class CachedRowSelector extends AbstractGroupRowSelector {
    /**
     * Get a selector for the table and groups.
     */
-   public static CachedRowSelector getSelector(XTable table, Map specs) {
+   public static CachedRowSelector getSelector(XTable table,
+                                               Map<String, NamedCellRange.GroupSpec> specs)
+   {
       CachedRowSelectorRef ref;
+      SelectorKey key = new SelectorKey(table, specs.keySet());
+      Lock lock = locks.get(key);
+      lock.lock();
 
-      synchronized(selectorCache) {
-         SelectorKey key = new SelectorKey(table, specs.keySet());
+      try {
          ref = selectorCache.get(key);
 
          if(ref == null) {
             ref = new CachedRowSelectorRef(table, specs);
             selectorCache.put(key, ref);
          }
+      }
+      finally {
+         lock.unlock();
       }
 
       return ref.get();
@@ -251,33 +260,8 @@ class CachedRowSelector extends AbstractGroupRowSelector {
       private int baseIdx; // all set() must be >= baseIdx
    }
 
-   private static class SelectorKey {
-      private final XTable table;
-      private final Set groupKeys;
-
-      SelectorKey(XTable table, Set groupKeys) {
-         this.table = table;
-         this.groupKeys = new HashSet(groupKeys);
-      }
-
-      @Override
-      public boolean equals(Object obj) {
-         if(!(obj instanceof SelectorKey)) {
-            return false;
-         }
-
-         SelectorKey other = (SelectorKey) obj;
-         return table == other.table && groupKeys.equals(other.groupKeys);
-      }
-
-      @Override
-      public int hashCode() {
-         return Objects.hash(System.identityHashCode(table), groupKeys);
-      }
-   }
-
    private static final class CachedRowSelectorRef {
-      CachedRowSelectorRef(XTable table, Map specs) {
+      CachedRowSelectorRef(XTable table, Map<String, NamedCellRange.GroupSpec> specs) {
          this.table = table;
          this.specs = specs;
       }
@@ -291,7 +275,7 @@ class CachedRowSelector extends AbstractGroupRowSelector {
       }
 
       private final XTable table;
-      private final Map specs;
+      private final Map<String, NamedCellRange.GroupSpec> specs;
       private volatile CachedRowSelector selector;
    }
 
@@ -303,4 +287,5 @@ class CachedRowSelector extends AbstractGroupRowSelector {
    // HashMap with custom SelectorKey ([XTable, Set]) -> CachedRowSelectorRef
    private static final DataCache<SelectorKey, CachedRowSelectorRef> selectorCache =
       new DataCache<>(20, 60000);
+   private static final Striped<Lock> locks = Striped.lazyWeakLock(256);
 }

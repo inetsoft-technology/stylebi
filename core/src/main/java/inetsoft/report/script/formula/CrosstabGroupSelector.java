@@ -17,6 +17,7 @@
  */
 package inetsoft.report.script.formula;
 
+import com.google.common.util.concurrent.Striped;
 import inetsoft.report.TableDataDescriptor;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.filter.CalcFilter;
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 
 /**
  * Select crosstab cells based on group spec.
@@ -42,35 +44,41 @@ public class CrosstabGroupSelector extends RangeSelector {
    /**
     * Get a selector for the table and groups.
     */
-   public static synchronized CrosstabGroupSelector getSelector(
-      String colname, CrossFilter table, Map specs)
+   public static CrosstabGroupSelector getSelector(
+      String colname, CrossFilter table, Map<String, NamedCellRange.GroupSpec> specs)
    {
-      specs = new Object2ObjectOpenHashMap(specs);
-      Iterator iter = specs.keySet().iterator();
+      specs = new Object2ObjectOpenHashMap<>(specs);
+      Iterator<String> iter = specs.keySet().iterator();
 
       // remove wildcard spec
       while(iter.hasNext()) {
-         Object key = iter.next();
-         NamedCellRange.GroupSpec spec = (NamedCellRange.GroupSpec) specs.get(key);
+         String key = iter.next();
+         NamedCellRange.GroupSpec spec = specs.get(key);
 
          if("*".equals(spec.getValue()) && spec.isByValue()) {
             iter.remove();
          }
       }
 
-      Vector key = new Vector();
-      key.add(table);
-      key.add(specs.keySet());
+      CrosstabGroupSelector selector;
+      SelectorKey key =  new SelectorKey(table, specs.keySet());
+      Lock lock = locks.get(key);
+      lock.lock();
 
-      CrosstabGroupSelector selector = (CrosstabGroupSelector)
-      selectorcache.get(key);
+      try {
+          selector = selectorcache.get(key);
 
-      if(selector == null) {
-         selector = new CrosstabGroupSelector(table, specs);
-         selectorcache.put(key, selector);
+         if(selector == null) {
+            selector = new CrosstabGroupSelector(table, specs);
+            selectorcache.put(key, selector);
+         }
+
+         selector.init(colname, specs);
+      }
+      finally {
+         lock.unlock();
       }
 
-      selector.init(colname, specs);
       return selector;
    }
 
@@ -299,7 +307,9 @@ public class CrosstabGroupSelector extends RangeSelector {
    private Map<Tuple, Collection<Point>> groupmap = new HashMap<>();
 
    // Vector of [XTable, Set] -> CrosstabGroupSelector
-   private static DataCache selectorcache = new DataCache(20, 60000);
+   private static final DataCache<SelectorKey, CrosstabGroupSelector> selectorcache =
+      new DataCache<>(20, 60000);
+   private static final Striped<Lock> locks = Striped.lazyWeakLock(256);
    private static final Logger LOG =
       LoggerFactory.getLogger(CrosstabGroupSelector.class);
 }
