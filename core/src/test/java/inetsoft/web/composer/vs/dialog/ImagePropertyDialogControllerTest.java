@@ -66,7 +66,8 @@ class ImagePropertyDialogControllerTest {
    void setup() throws Exception {
       trapService = new VSTrapService();
       coreLifecycleService = new CoreLifecycleService(objectModelService, viewsheetEngine,
-                                                  vsLayoutService, parameterService);
+                                                      vsLayoutService, parameterService,
+                                                      vsCompositionService);
       temporaryInfoService = new VSWizardTemporaryInfoService(viewsheetService);
       vsObjectPropertyService = spy(new VSObjectPropertyService(coreLifecycleService,
                                                                 vsInputService,
