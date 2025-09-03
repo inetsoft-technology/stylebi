@@ -121,7 +121,7 @@ public class ControllersExtension extends MockMessageExtension {
       ParameterService parameterService = new ParameterService(viewsheetService);
       coreLifecycleService =
          new CoreLifecycleService(objectModelFactoryService, viewsheetService,
-                                  vsLayoutService, parameterService);
+                                  vsLayoutService, parameterService, vsCompositionService);
       assetRepository = (AssetRepository) SUtil.getRepletRepository();
       objectTreeService = new VSObjectTreeService(objectModelFactoryService);
       securityEngine = SecurityEngine.getSecurity();
