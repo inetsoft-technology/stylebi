@@ -35,7 +35,10 @@
     </ng-container>
     <ng-container *ngIf="recentEnabled && getRecentTreeFun">
       <div class="p-1 search-icon-container">
-        <i class="recent-icon icon-size-medium" [class.bb-highlight-primary]="isRecentView"
+        <i class="icon-size-medium"
+           [class.recent-outline-icon]="!isRecentView"
+           [class.recent-icon]="isRecentView"
+           [class.focus-icon-color]="isRecentView"
            aria-hidden="true" (click)="switchRecent()" title="_#(Recent)">
         </i>
       </div>
