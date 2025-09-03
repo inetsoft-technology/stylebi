@@ -110,8 +110,12 @@ public class BlobCache {
    }
 
    protected void remove(String storeId, String digest, Path file) throws IOException {
-      if(file.toFile().exists()) {
-         Files.delete(file);
+      try {
+         if(file.toFile().exists()) {
+            Files.delete(file);
+         }
+      }
+      catch(NoSuchFileException ignore) {
       }
    }
 
