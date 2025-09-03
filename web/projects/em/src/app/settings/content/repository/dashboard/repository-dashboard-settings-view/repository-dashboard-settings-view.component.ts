@@ -156,6 +156,7 @@ export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnIn
       oldModel.oname = "";
       const currModel = Tool.clone(this.model);
       currModel.oname = "";
+      console.log(this.form.invalid ,!this.form.valid, Tool.isEquals(oldModel, currModel), !this.dashboardChanged);
       return this.form.invalid || !this.form.valid || Tool.isEquals(oldModel, currModel) || !this.dashboardChanged;
    }
 
@@ -172,6 +173,7 @@ export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnIn
 
    apply() {
       this.dashboardChanged = false;
+      this._oldModel = Tool.clone(this.model);
       this.dashboardSettingsChanged.emit(this.model);
    }
 
