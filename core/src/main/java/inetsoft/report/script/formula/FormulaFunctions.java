@@ -1373,7 +1373,7 @@ public class FormulaFunctions {
       TableRangeProcessor proc = new TableRangeProcessor(table, scope);
       Vector locs = new Vector();
       NamedCellRange range = new NamedCellRange(spec);
-      Map groups = range.getRuntimeGroups();
+      Map<String, NamedCellRange.GroupSpec> groups = range.getRuntimeGroups();
       String expr = range.getColumn();
 
       RangeSelector selector = null;
