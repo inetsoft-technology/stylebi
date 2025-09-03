@@ -22,12 +22,14 @@ import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.audit.SessionRecord;
 import inetsoft.web.admin.server.NodeProtectionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.*;
@@ -390,7 +392,14 @@ public class IgniteSessionRepository
       }
    }
 
-   private ApplicationEventPublisher eventPublisher = e -> {};
+   private ApplicationEventPublisher eventPublisher = e -> {
+      ApplicationContext context = ConfigurationContext.getContext().getApplicationContext();
+
+      if(context != null) {
+         context.publishEvent(e);
+      }
+   };
+
    private String sessionMapName = DEFAULT_SESSION_MAP_NAME;
    private FlushMode flushMode = FlushMode.ON_SAVE;
    private SaveMode saveMode = SaveMode.ON_SET_ATTRIBUTE;

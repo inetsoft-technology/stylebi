@@ -568,6 +568,20 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       return null;
    }
 
+   @Override
+   public void copyContent(XPrincipal from) {
+      super.copyContent(from);
+
+      if(!(from instanceof SRPrincipal)) {
+         return;
+      }
+
+      SRPrincipal fromPrincipal = (SRPrincipal) from;
+      client = client == null ? null : (ClientInfo) fromPrincipal.client.clone();
+      host = fromPrincipal.host;
+      locale = fromPrincipal.locale == null ? null : (Locale) fromPrincipal.locale.clone();
+   }
+
    /**
     * Get the host this principal object is created.
     */

@@ -439,6 +439,25 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       return null;
    }
 
+   public void copyContent(XPrincipal from) {
+      if(from == null) {
+         return;
+      }
+
+      name = from.name;
+      orgId = from.orgId;
+      roles = (IdentityID[]) Tool.clone(from.roles);
+      groups = (String[]) Tool.clone(from.groups);
+      allRoles = (IdentityID[]) Tool.clone(from.allRoles);
+      allGroups = (IdentityID[]) Tool.clone(from.allGroups);
+      sessionID = from.sessionID;
+      prop = Tool.deepCloneMap(from.prop);
+      params = from.params;
+      paramTS = from.paramTS;
+      ignoreLogin = from.ignoreLogin;
+      profiling = from.profiling;
+   }
+
    /**
     * Set ignore login status.
     * @param ignoreLogin true if should not check login status of this
