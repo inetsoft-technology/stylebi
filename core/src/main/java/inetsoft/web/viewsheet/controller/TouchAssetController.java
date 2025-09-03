@@ -17,6 +17,7 @@
  */
 package inetsoft.web.viewsheet.controller;
 
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.event.TouchAssetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -40,8 +41,12 @@ public class TouchAssetController {
                           CommandDispatcher commandDispatcher, @LinkUri String linkUri)
       throws Exception
    {
-         touchAssetServiceProxy.touchAsset(runtimeViewsheetRef.getRuntimeId(), event, principal,
-                                           commandDispatcher, linkUri);
+      String runtimeId = runtimeViewsheetRef.getRuntimeId();
+
+      if(!Tool.isEmptyString(runtimeId)) {
+         touchAssetServiceProxy.touchAsset(runtimeId, event, principal,
+                                             commandDispatcher, linkUri);
+      }
    }
 
    private RuntimeViewsheetRef runtimeViewsheetRef;
