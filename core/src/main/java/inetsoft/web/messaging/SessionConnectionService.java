@@ -25,13 +25,13 @@ import inetsoft.util.Tool;
 import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.AbstractLogoutFilter;
 import inetsoft.web.session.IgniteSessionRepository;
+import inetsoft.web.session.PrincipalChangedEvent;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.ApplicationListener;
+import org.springframework.context.*;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.Session;
 import org.springframework.session.events.SessionExpiredEvent;
@@ -45,7 +45,7 @@ import java.security.Principal;
 import java.util.*;
 
 @Component
-public class SessionConnectionService implements ApplicationListener<SessionExpiredEvent> {
+public class SessionConnectionService implements ApplicationListener<ApplicationEvent> {
 
    @Autowired
    public SessionConnectionService(IgniteSessionRepository sessionRepository,
@@ -111,7 +111,16 @@ public class SessionConnectionService implements ApplicationListener<SessionExpi
    }
 
    @Override
-   public void onApplicationEvent(SessionExpiredEvent event) {
+   public void onApplicationEvent(ApplicationEvent event) {
+      if(event instanceof SessionExpiredEvent) {
+         onSessionExpiredEvent((SessionExpiredEvent) event);
+      }
+      else if(event instanceof PrincipalChangedEvent) {
+         handlePrincipalChanged((PrincipalChangedEvent) event);
+      }
+   }
+
+   private void onSessionExpiredEvent(SessionExpiredEvent event) {
       cleanReferences();
       Session httpSession = event.getSession();
       String httpSessionId = httpSession.getId();
@@ -163,6 +172,37 @@ public class SessionConnectionService implements ApplicationListener<SessionExpi
 
             if(webSocketSessions.isEmpty()) {
                nodeProtectionService.updateNodeProtection(false);
+            }
+         }
+      }
+   }
+
+   private void handlePrincipalChanged(PrincipalChangedEvent event) {
+      Session httpSession = event.getSession();
+      String httpSessionId = httpSession.getId();
+      Set<String> wsSessionIds = httpSessions.get(httpSessionId);
+
+      if(wsSessionIds != null) {
+         for(String wsSessionId : wsSessionIds) {
+            WebSocketSessionRef ref = webSocketSessions.get(wsSessionId);
+            WebSocketSession session = ref == null ? null : ref.getSession();
+
+            if(session != null) {
+               SRPrincipal principal = event.getNewPrincipal();
+
+               if(session.getAttributes().get(RepletRepository.PRINCIPAL_COOKIE) != null) {
+                  session.getAttributes().put(RepletRepository.PRINCIPAL_COOKIE, principal);
+               }
+
+               if(session.getAttributes().get(RepletRepository.EM_PRINCIPAL_COOKIE) != null) {
+                  session.getAttributes().put(RepletRepository.EM_PRINCIPAL_COOKIE, principal);
+               }
+
+               XPrincipal user = (XPrincipal) session.getPrincipal();
+
+               if(user != null) {
+                  user.copyContent(principal);
+               }
             }
          }
       }

@@ -158,6 +158,10 @@ public class ConfigurationContext implements AutoCloseable {
       this.applicationContext = applicationContext;
    }
 
+   public ApplicationContext getApplicationContext() {
+      return applicationContext;
+   }
+
    public <T> T getSpringBean(Class<T> type) {
       return applicationContext.getBean(type);
    }
