@@ -197,7 +197,7 @@
                         [selectedCol]="leftCalendar ? SelectionRegions.NONE : selectedCellCol"></year-calendar>
       </ng-template>
    </div>
-  <i *ngIf="pendingChange" class="pending-submit-icon pending-alert"
+  <i *ngIf="pendingChange" class="submit-icon pending-alert"
      [class.left]="model.dropdownCalendar"
      [style.right.px]="getPendingIconPosition(this.model)" [style.color]="iconColor"
      title="_#(common.viewsheet.pending.submit)"></i>
