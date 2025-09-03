@@ -308,7 +308,8 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       newTask.parseXML(Tool.getChildNodeByTagName(elem, "Task"));
       String parentPath = newTask.getPath();
 
-      Principal principal = new SRPrincipal(newTask.getOwner());
+      SRPrincipal principal = new SRPrincipal(newTask.getOwner());
+      principal.setIgnoreLogin(true);
       ScheduleManager manager = ScheduleManager.getScheduleManager();
       boolean overwriting = config != null && config.isOverwriting();
       ScheduleTask existing = manager.getScheduleTask(newTask.getTaskId());
