@@ -21,13 +21,15 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
 
+import java.io.Serializable;
+
 /**
  * Data transfer object that represents the {@link ExportDialogModel}
  */
 @Value.Immutable
 @JsonSerialize(as = ImmutableExportDialogModel.class)
 @JsonDeserialize(as = ImmutableExportDialogModel.class)
-public class ExportDialogModel {
+public class ExportDialogModel implements Serializable {
    @Value.Default
    public FileFormatPaneModel fileFormatPaneModel() {
       return ImmutableFileFormatPaneModel.builder().build();
