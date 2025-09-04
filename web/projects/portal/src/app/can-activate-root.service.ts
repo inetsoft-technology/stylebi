@@ -19,7 +19,8 @@ import { DOCUMENT } from "@angular/common";
 import { Inject, Injectable } from "@angular/core";
 import { ActivatedRouteSnapshot, CanActivate, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
-import { map, tap } from "rxjs/operators";
+import { map } from "rxjs/operators";
+import { AiAssistantService } from "../../../shared/ai-assistant/ai-assistant.service";
 import { LicenseInfo } from "./common/data/license-info";
 import { LicenseInfoService } from "./common/services/license-info.service";
 
@@ -29,6 +30,7 @@ const REMOTE_DEVELOPER_LICENSE = "../error/remote-developer-license";
 @Injectable()
 export class CanActivateRootService implements CanActivate {
    constructor(private licenseInfoService: LicenseInfoService,
+               private aiAssistantService: AiAssistantService,
                @Inject(DOCUMENT) private document: any)
    {
    }
@@ -58,6 +60,8 @@ export class CanActivateRootService implements CanActivate {
                this.document.defaultView.location.replace(INVALID_LICENSE_URL);
                return false;
             }
+
+            this.aiAssistantService.loadCurrentUser();
 
             return true;
          })
