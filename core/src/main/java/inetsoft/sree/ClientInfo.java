@@ -223,7 +223,10 @@ public class ClientInfo implements Cloneable, Serializable, XMLSerializable {
     */
    @Override
    public Object clone() {
-      return new ClientInfo(userID, addr, session, locale);
+      ClientInfo newClient = new ClientInfo(userID, addr, session, locale);
+      newClient.loginUser = loginUser;
+
+      return newClient;
    }
 
    /**
