@@ -17,6 +17,7 @@
  */
 
 import { Component } from "@angular/core";
+import { AiAssistantService } from "./ai-assistant.service";
 
 @Component({
   selector: "ai-assistant-dialog",
@@ -24,6 +25,11 @@ import { Component } from "@angular/core";
   styleUrls: ["./ai-assistant-dialog.component.scss"]
 })
 export class AiAssistantDialogComponent {
-   userId: string = "507f1f77bcf86cd799439011";
-   context: string = "chart";
+   userId: string = "";
+   context: string = "";
+
+   constructor(private aiAssistantService: AiAssistantService) {
+      this.userId = this.aiAssistantService.userId;
+      this.context = this.aiAssistantService.context;
+   }
 }
