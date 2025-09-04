@@ -467,7 +467,7 @@ public class ComposerAdhocFilterService {
          }
       }
 
-      info.setZIndex(object.getVSAssemblyInfo().getZIndex() + 1);
+      info.setZIndex(getFilterZIndex(object));
       int width =
          containerInfo.getLayoutSize() != null && containerInfo.isVisible() ?
             containerInfo.getLayoutSize().width : 2 * AssetUtil.defw;
