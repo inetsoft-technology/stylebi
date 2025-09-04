@@ -181,6 +181,7 @@ public class PhysicalGraphModelController {
             partition));
 
       partition.addRelationship(join);
+      runtimePartitionService.updatePartition(joinInfo.getRuntimeId(), partition);
    }
 
    @DeleteMapping("/api/data/physicalmodel/table/{runtimeId}")
@@ -188,6 +189,7 @@ public class PhysicalGraphModelController {
       XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
       partition.clearTable();
       partition.clearRelationship();
+      runtimePartitionService.updatePartition(runtimeId, partition);
    }
 
    @DeleteMapping("/api/data/physicalmodel/join/{runtimeId}")
@@ -195,6 +197,7 @@ public class PhysicalGraphModelController {
       XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
       partition.clearRelationship();
       partition.removeAllAutoAliases();
+      runtimePartitionService.updatePartition(runtimeId, partition);
    }
 
    @PostMapping("/api/data/physicalmodel/join/delete")
@@ -214,9 +217,10 @@ public class PhysicalGraphModelController {
       joinInfo.setTargetTable(DatabaseModelUtil.getOutgoingAutoAliasSourceOrTable(
          joinInfo.getTargetTable(), partition, applyAliasPartition));
 
-      List<XRelationship> joins = this.findJoin(joinInfo);
+      List<XRelationship> joins = this.findJoin(partition, joinInfo);
 
       joins.forEach(join -> physicalModelManager.deleteJoin(partition, join));
+      runtimePartitionService.updatePartition(joinInfo.getRuntimeId(), partition);
    }
 
    @GetMapping("/api/data/physicalmodel/graph/node/refresh")
@@ -226,20 +230,23 @@ public class PhysicalGraphModelController {
 
       if(partitionTable != null) {
          partitionTable.removeMetaData();
+         runtimePartitionService.updatePartition(runtimeId, partition);
       }
    }
 
    @PutMapping("/api/data/physicalmodel/join")
    public void editJoin(@RequestBody EditJoinEvent event) {
-      List<XRelationship> joins = findJoin(event.getDetailJoinInfo());
+      XPartition partition =
+         runtimePartitionService.getPartition(event.getDetailJoinInfo().getRuntimeId());
+      List<XRelationship> joins = findJoin(partition, event.getDetailJoinInfo());
 
-      if(joins.size() < 1) {
+      if(joins.isEmpty()) {
          return;
       }
 
-      XRelationship join = joins.get(0);
-
+      XRelationship join = joins.getFirst();
       event.getJoinModel().store(join.getDependentTable(), join);
+      runtimePartitionService.updatePartition(event.getDetailJoinInfo().getRuntimeId(), partition);
    }
 
    @PutMapping("/api/data/physicalmodel/graph/alias/status")
@@ -272,8 +279,7 @@ public class PhysicalGraphModelController {
       return null;
    }
 
-   private List<XRelationship> findJoin(TableJoinInfo joinInfo) {
-      XPartition partition = this.runtimePartitionService.getPartition(joinInfo.getRuntimeId());
+   private List<XRelationship> findJoin(XPartition partition, TableJoinInfo joinInfo) {
       Enumeration<XRelationship> relationships = partition.getRelationships(true);
 
       List<XRelationship> result = new ArrayList<>();

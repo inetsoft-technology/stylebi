@@ -133,6 +133,7 @@ public class PhysicalGraphModelService {
       RuntimePartitionService.RuntimeXPartition runtimePartition =
          this.partitionService.getRuntimePartition(runtimeId);
       managerService.editAlias(alias, oldAlias, runtimePartition);
+      partitionService.saveRuntimePartition(runtimePartition);
    }
 
    private final RuntimePartitionService partitionService;
