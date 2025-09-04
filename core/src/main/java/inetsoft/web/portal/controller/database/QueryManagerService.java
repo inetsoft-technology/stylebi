@@ -943,6 +943,7 @@ public class QueryManagerService {
       }
       else {
          parseSqlString(model.getRuntimeId(), simpleModel.getSqlString(), false, true, principal);
+         runtimeQuery = runtimeQueryService.getRuntimeQuery(model.getRuntimeId());
       }
 
       AdvancedSQLQueryModel sqlQueryModel = getAdvancedQueryModel(runtimeQuery);
@@ -1622,6 +1623,19 @@ public class QueryManagerService {
          }
          else {
             sql.setColumnInfo(null);
+         }
+      }
+
+      synchronized(sql) {
+         sql.setSQLString(nsqlString);
+
+         // it is waiting for the parser finish parsing the sql string.
+         if(!Tool.equals(nsqlString, sql.getSQLString()) && sql.isParseSQL()) {
+            try {
+               sql.wait();
+            }
+            catch(InterruptedException e) {
+            }
          }
       }
 
