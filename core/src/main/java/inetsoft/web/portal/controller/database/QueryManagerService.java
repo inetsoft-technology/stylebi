@@ -1626,19 +1626,6 @@ public class QueryManagerService {
          }
       }
 
-      synchronized(sql) {
-         sql.setSQLString(nsqlString);
-
-         // it is waiting for the parser finish parsing the sql string.
-         if(!Tool.equals(nsqlString, sql.getSQLString()) && sql.isParseSQL()) {
-            try {
-               sql.wait();
-            }
-            catch(InterruptedException e) {
-            }
-         }
-      }
-
       // @by larryl, if text is not changed, don't parse sql
       // @by stevenkuo bug1418866999436 2015-1-8
       // added condition to check for initial parsing
