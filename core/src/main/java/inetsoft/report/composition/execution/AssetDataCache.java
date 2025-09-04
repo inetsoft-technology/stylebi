@@ -478,6 +478,8 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
                }
                catch(Exception e) {
                   LOG.warn("Failed to load table lens from distributed table cache store", e);
+
+                  cache.remove(key);
                }
             }
          }
