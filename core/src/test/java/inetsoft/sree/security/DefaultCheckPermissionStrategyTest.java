@@ -22,13 +22,18 @@ import inetsoft.test.SreeHome;
 import inetsoft.util.Tool;
 
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SreeHome()
-@Disabled
 class DefaultCheckPermissionStrategyTest {
    static DefaultCheckPermissionStrategy defaultCheckPermissionStrategy;
    static SRPrincipal org_admin, normalUser;
@@ -43,12 +48,12 @@ class DefaultCheckPermissionStrategyTest {
          new DefaultCheckPermissionStrategy(engine.getSecurityProvider());
 
       IdentityID[] orgAdministrator = {new IdentityID("Organization Administrator",null)};
-      org_admin = new SRPrincipal(new IdentityID("org_admin", "org0"), orgAdministrator, new String[0], "org0",
-                                  Tool.getSecureRandom().nextLong());
+      org_admin = new SRPrincipal(new IdentityID("org_admin", "org0"), orgAdministrator,
+                                  new String[0], "org0", Tool.getSecureRandom().nextLong());
 
       IdentityID[] everyoneRoles = {new IdentityID("Everyone", "org0")};
-      normalUser = new SRPrincipal(new IdentityID("normalUser", "org0"), everyoneRoles, new String[0], "org0",
-                                   Tool.getSecureRandom().nextLong());
+      normalUser = new SRPrincipal(new IdentityID("normalUser", "org0"), everyoneRoles,
+                                   new String[0], "org0", Tool.getSecureRandom().nextLong());
    }
 
    @AfterAll
@@ -59,102 +64,71 @@ class DefaultCheckPermissionStrategyTest {
 
    @Test
    void checkNormalUserNoPermissionOfEM() {
-      Boolean r1 = defaultCheckPermissionStrategy.checkPermission(normalUser, ResourceType.EM,
-                                                                  "*", ResourceAction.ACCESS);
-      assertFalse(r1, "normal user no permission of em");
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+
+         assertFalse(
+            defaultCheckPermissionStrategy.checkPermission(normalUser, ResourceType.EM, "*", ResourceAction.ACCESS),
+                     "normal user no permission of em");
+      }
    }
 
-   @Test
-   void checkOrgAdminPermssionOnMonitor() {
-      String[] monitorPages = {"monitoring/cache", "monitoring/cluster", "monitoring/log",
-                               "monitoring/viewsheets", "monitoring/queries","monitoring/summary",
-                               "monitoring/users"};
-      ArrayList<Boolean> monitorResults = new ArrayList<>();
+   @ParameterizedTest
+   @MethodSource("provideEMTestCases")
+   void checkOrgAdminEMPermissions(String[] pages, Boolean[] expectedResults, String message) {
+      ArrayList<Boolean> actualResults = new ArrayList<>();
 
-      for(String str:monitorPages) {
-         monitorResults.add(
-            defaultCheckPermissionStrategy.checkPermission(org_admin, ResourceType.EM_COMPONENT, str,
-                                                           ResourceAction.ACCESS));
+      try(MockedStatic<SUtil> mocked = Mockito.mockStatic(SUtil.class, Mockito.CALLS_REAL_METHODS)) {
+         mocked.when(SUtil::isMultiTenant).thenReturn(true);
+
+         for(String page : pages) {
+            actualResults.add(
+               defaultCheckPermissionStrategy.checkPermission(org_admin, ResourceType.EM_COMPONENT, page,
+                                                              ResourceAction.ACCESS));
+         }
       }
-
-      Boolean[] monitorExps = {false, false, false, true, true, false, true};
-
-      assertArrayEquals(monitorResults.toArray(new Boolean[0]), monitorExps,
-                        "The org administrator permission of monitor not right: \nExpected: " +
-                           Arrays.toString(monitorExps) + ", \nActual: " + monitorResults);
+      assertArrayEquals(expectedResults, actualResults.toArray(new Boolean[0]), message);
    }
 
-   @Test
-   void checkOrgAdminPermissionOfEM() {
-      String[] components = {"auditing", "notification", "settings", "monitoring",
-                             "settings/general", "settings/content", "settings/logging",
-                             "settings/presentation", "settings/properties", "settings/schedule",
-                             "settings/security"};
-
-      ArrayList<Boolean> results = new ArrayList<>();
-
-      for(String str:components) {
-         results.add(defaultCheckPermissionStrategy.checkPermission(org_admin, ResourceType.EM_COMPONENT,
-                                                                    str, ResourceAction.ACCESS));
-      }
-      Boolean[]  exps = {true, false, true, true, false, true, false, true, false, true, true};
-      assertArrayEquals(results.toArray(new Boolean[0]), exps,
-                        "The org administrator permission not right: \nExpected: " +
-                           Arrays.toString(exps) + ", \nActual: " + results);
-   }
-
-   @Test
-   void checkOrgAdminPermissionOnSecurityContent() {
-      String[] securityPages = {"settings/security/provider", "settings/security/sso",
-                                "settings/security/actions", "settings/security/users"};
-      String[] contentPages = {"settings/content/data-space", "settings/content/drivers-and-plugins",
-                               "settings/content/repository", "settings/content/materialized-views"};
-
-      ArrayList<Boolean> securityResults = new ArrayList<>();
-      ArrayList<Boolean> contentResults = new ArrayList<>();
-
-      for(String str:securityPages) {
-         securityResults.add(
-            defaultCheckPermissionStrategy.checkPermission(org_admin, ResourceType.EM_COMPONENT, str,
-                                                           ResourceAction.ACCESS));
-      }
-
-      Boolean[] securityExps = {false, false, true, true};
-
-      assertArrayEquals(securityResults.toArray(new Boolean[0]), securityExps,
-                        "The org administrator permission of security not right: \nExpected: " +
-                           Arrays.toString(securityExps) + ", \nActual: " + securityResults);
-
-      for(String str:contentPages) {
-         contentResults.add(
-            defaultCheckPermissionStrategy.checkPermission(org_admin, ResourceType.EM_COMPONENT, str,
-                                                           ResourceAction.ACCESS));
-      }
-      Boolean[] contentExps = {false, false, true, true};
-      assertArrayEquals(contentResults.toArray(new Boolean[0]), contentExps,
-                        "The org administrator permission of security content not right: \nExpected: " +
-                           Arrays.toString(contentExps) + ", \nActual: " + contentResults);
-   }
-
-   @Test
-   void checkOrgAdminPermissionSchedulePages() {
-      String[] schedulePages = {"settings/schedule/settings", "settings/schedule/cycles",
-                                "settings/schedule/status", "settings/schedule/tasks",
-                                "settings/presentation/themes", "settings/presentation/org-settings",
-                                "settings/presentation/settings"};
-
-      ArrayList<Boolean> scheduleResults = new ArrayList<>();
-
-      for(String str:schedulePages) {
-         scheduleResults.add(
-            defaultCheckPermissionStrategy.checkPermission(org_admin, ResourceType.EM_COMPONENT, str,
-                                                           ResourceAction.ACCESS));
-      }
-
-      Boolean[] scheduleExps = {false, true, false, true, true, false, true};
-
-      assertArrayEquals(scheduleResults.toArray(new Boolean[0]), scheduleExps,
-                        "The org administrator permission of schedule,presentation not right: \nExpected: " +
-                           Arrays.toString(scheduleExps) + ", \nActual: " + scheduleResults);
+   private static Stream<Arguments> provideEMTestCases() {
+      return Stream.of(
+         Arguments.of(
+            new String[]{"monitoring/cache", "monitoring/cluster", "monitoring/log",
+                         "monitoring/viewsheets", "monitoring/queries", "monitoring/summary", "monitoring/users"},
+            new Boolean[]{false, false, false, true, true, false, true},
+            "The org administrator permission of monitor not right"
+         ),
+         Arguments.of(
+            new String[]{"auditing", "notification", "settings", "monitoring",
+                         "settings/general", "settings/content", "settings/logging", "settings/presentation",
+                         "settings/properties", "settings/schedule", "settings/security"},
+            new Boolean[]{true, false, true, true, false, true, false, true, false, true, true},
+            "The org administrator permission of EM not right"
+         ),
+         Arguments.of(
+            new String[]{"settings/security/provider", "settings/security/sso",
+                         "settings/security/actions", "settings/security/users", "settings/security/googleSignIn"},
+            new Boolean[]{false, false, true, true, false},
+            "The org administrator permission of security not right"
+         ),
+         Arguments.of(
+            new String[]{"settings/content/data-space", "settings/content/drivers-and-plugins",
+                         "settings/content/repository", "settings/content/materialized-views"},
+            new Boolean[]{false, false, true, true},
+            "The org administrator permission of content not right"
+         ),
+         Arguments.of(
+            new String[]{"settings/schedule/settings", "settings/schedule/cycles",
+                         "settings/schedule/status", "settings/schedule/tasks"},
+            new Boolean[]{false, true, false, true},
+            "The org administrator permission of schedule not right"
+         ),
+         Arguments.of(
+            new String[]{"settings/presentation/themes",
+                         "settings/presentation/org-settings", "settings/presentation/settings"},
+            new Boolean[]{true, false, true},
+            "The org administrator permission of presentation not right"
+         )
+      );
    }
 }
