@@ -153,17 +153,17 @@ public final class AuditRecordUtils {
       if(!newName.equals(origInfo.getName())) {
          origInfo.setName(newName);
          AuditRecordUtils.executeBookmarkRecord(
-            rvs.getViewsheet(), origInfo, BookmarkRecord.ACTION_TYPE_RENAME);
+            rvs.getViewsheet(), origInfo, BookmarkRecord.ACTION_TYPE_RENAME, null);
       }
 
       if(newInfo.getType() != origInfo.getType() || newInfo.isReadOnly() != origInfo.isReadOnly()) {
          AuditRecordUtils.executeBookmarkRecord(
-            rvs.getViewsheet(), newInfo, BookmarkRecord.ACTION_TYPE_MODIFY);
+            rvs.getViewsheet(), newInfo, BookmarkRecord.ACTION_TYPE_MODIFY, null);
       }
    }
 
    public static void executeBookmarkRecord(Viewsheet vs, VSBookmarkInfo bookmarkInfo,
-                                            String actionType)
+                                            String actionType, Principal principal)
    {
       // Ignore 'Initial' and 'Home' bookmarks.
       if(vs == null || vs.getRuntimeEntry() == null || bookmarkInfo == null ||
@@ -174,7 +174,11 @@ public final class AuditRecordUtils {
       }
 
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      Principal principal = ThreadContext.getContextPrincipal();
+
+      if(principal == null) {
+         principal = ThreadContext.getContextPrincipal();
+      }
+
       String userName = "";
       String userRole = "";
       String userEmail = "";
@@ -199,7 +203,7 @@ public final class AuditRecordUtils {
          }
       }
 
-      String activeStatus = String.valueOf(getUserActive());
+      String activeStatus = String.valueOf(getUserActive(principal));
       Timestamp lastLogin = new Timestamp(((SRPrincipal) principal).getAge());
       String dashboardName = vs.getRuntimeEntry().getDescription();
       String dashboardAlias = vs.getRuntimeEntry().getAlias();
@@ -231,8 +235,15 @@ public final class AuditRecordUtils {
    }
 
    public static boolean getUserActive() {
+      return getUserActive(null);
+   }
+
+   public static boolean getUserActive(Principal principal) {
       AuthenticationProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      Principal principal = ThreadContext.getContextPrincipal();
+
+      if(principal == null) {
+         principal = ThreadContext.getContextPrincipal();
+      }
       IdentityID name = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
       if(provider instanceof CompositeSecurityProvider) {

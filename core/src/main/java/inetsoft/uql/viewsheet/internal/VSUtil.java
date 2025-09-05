@@ -6961,11 +6961,11 @@ public final class VSUtil {
     * @param bookmarkName bookmark name the viewsheet will goto.
     * @param rep AssetRepository to update the bookmark.
     */
-   public static Viewsheet vsGotoBookmark(Viewsheet vs, VSBookmark bookmark, String bookmarkName, AssetRepository rep)
+   public static Viewsheet vsGotoBookmark(Viewsheet vs, VSBookmark bookmark, String bookmarkName, AssetRepository rep, Principal principal)
    {
       vs = bookmark.getBookmark(bookmarkName, vs);
       AuditRecordUtils.executeBookmarkRecord(
-         vs, bookmark.getBookmarkInfo(bookmarkName), BookmarkRecord.ACTION_TYPE_ACCESS);
+         vs, bookmark.getBookmarkInfo(bookmarkName), BookmarkRecord.ACTION_TYPE_ACCESS, principal);
       VSBookmarkInfo bookmarkInfo = bookmark.getBookmarkInfo(bookmarkName);
 
       if(!VSBookmark.HOME_BOOKMARK.equals(bookmarkName) && !VSBookmark.INITIAL_STATE.equals(bookmarkName) &&

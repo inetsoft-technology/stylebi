@@ -276,7 +276,7 @@ public class VSBookmarkService {
          VSBookmarkInfo bookmarkInfo = rvs.getBookmarkInfo(name, IdentityID.getIdentityIDFromKey(principal.getName()));
          rvs.removeBookmark(name, owner);
          AuditRecordUtils.executeBookmarkRecord(
-            rvs.getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE);
+            rvs.getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE, null);
 
          // After remove bookmark, go to home bookmark.
          if(currBookmark != null && currBookmark.getName().equals(name)) {
@@ -593,7 +593,7 @@ public class VSBookmarkService {
          }
 
          AuditRecordUtils.executeBookmarkRecord(rvs.getViewsheet(),
-            rvs.getBookmarkInfo(bookmarkName, pId), bookmarkActionType);
+            rvs.getBookmarkInfo(bookmarkName, pId), bookmarkActionType, null);
          commandDispatcher.sendCommand(AnnotationChangedCommand.of(false));
       }
    }
@@ -713,12 +713,12 @@ public class VSBookmarkService {
       boolean mobile = mobile0 != null && mobile0;
       Assembly[] oldArr = getAssemblies(rvs.getViewsheet());
       rvs.resetUserBookmark(owner.convertToKey());
-      boolean result = rvs.gotoBookmark(name, owner);
+      boolean result = rvs.gotoBookmark(name, owner, user);
 
       if(!result) {
          // reload vs bookmark from the storage and try again
          rvs.reloadVSBookmark(owner);
-         result = rvs.gotoBookmark(name, owner);
+         result = rvs.gotoBookmark(name, owner, user);
 
          if(!result) {
             throw new RuntimeException(catalog.getString(
