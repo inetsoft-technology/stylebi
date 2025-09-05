@@ -435,7 +435,9 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeSelectionTree(SelectionTreeVSAssembly assembly) {
-      new PDFSelectionTreeHelper(helper).write(assembly);
+      PDFSelectionTreeHelper selectionTreeHelper = new PDFSelectionTreeHelper(helper);
+      selectionTreeHelper.setExporter(this);
+      selectionTreeHelper.write(assembly);
    }
 
    /**

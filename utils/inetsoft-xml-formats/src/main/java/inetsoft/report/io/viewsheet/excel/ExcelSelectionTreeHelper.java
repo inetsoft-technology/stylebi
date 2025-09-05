@@ -65,7 +65,8 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
       StringBuilder sTitle = new StringBuilder();
       List<SelectionValue> dispList = new ArrayList<>();
 
-      prepareDisplayList(info, dispList, sTitle, true);
+      boolean rootOnly = getExporter() != null && !getExporter().isExpandSelections();
+      prepareDisplayList(info, dispList, sTitle, true, rootOnly);
       writeTree(assembly, sheet, dispList);
 
       if(info.isTitleVisible()) {

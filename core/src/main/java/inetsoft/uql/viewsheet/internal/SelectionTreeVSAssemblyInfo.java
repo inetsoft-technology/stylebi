@@ -713,7 +713,7 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
     * @param dispList the vector of the "lines" to be displayed .
     */
    public void visitCompositeChild(CompositeSelectionValue csv, List<SelectionValue> dispList) {
-      visitCompositeChild(csv, dispList, false);
+      visitCompositeChild(csv, dispList, false, false);
    }
 
    /**
@@ -721,7 +721,9 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
     * @param csv the tree to be visited.
     * @param dispList the vector of the "lines" to be displayed .
     */
-   public void visitCompositeChild(CompositeSelectionValue csv, List<SelectionValue> dispList, boolean isExport) {
+   public void visitCompositeChild(CompositeSelectionValue csv, List<SelectionValue> dispList,
+                                   boolean isExport, boolean rootOnly)
+   {
       if(csv == null) {
          return;
       }
@@ -744,9 +746,9 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
       SelectionValue[] values = sl.getSelectionValues();
 
       for(SelectionValue selectionValue : values) {
-         if(selectionValue instanceof CompositeSelectionValue) {
+         if(selectionValue instanceof CompositeSelectionValue && !rootOnly) {
             // visit child if it is a tree
-            visitCompositeChild((CompositeSelectionValue) selectionValue, dispList, isExport);
+            visitCompositeChild((CompositeSelectionValue) selectionValue, dispList, isExport, false);
          }
          else {
             // a normal leaf
@@ -864,7 +866,7 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
    public List<Double> getRowHeights() {
       List<SelectionValue> dispList = new ArrayList<>();
       List<Double> rowHeights = new ArrayList<>();
-      visitCompositeChild(getCompositeSelectionValue(), dispList, true);
+      visitCompositeChild(getCompositeSelectionValue(), dispList, true, false);
       double cellWidth = getPixelSize().width;
 
       if(isShowBar() && getMeasure() != null) {

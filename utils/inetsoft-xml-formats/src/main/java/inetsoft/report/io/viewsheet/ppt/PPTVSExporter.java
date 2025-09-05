@@ -520,6 +520,7 @@ public class PPTVSExporter extends AbstractVSExporter {
       try {
          PPTSelectionTreeHelper helper = new PPTSelectionTreeHelper(
             coordinator, slide, this);
+         helper.setExporter(this);
          helper.write(assembly);
       }
       catch(Exception e) {
