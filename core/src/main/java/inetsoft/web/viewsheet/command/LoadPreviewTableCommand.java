@@ -48,14 +48,13 @@ public abstract class LoadPreviewTableCommand implements ViewsheetCommand {
    @Nullable
    public abstract int[] colWidths();
 
-   // prototype cache for table cells
-   @Value.Derived
-   public Map<Integer, PreviewTableCellModel.PrototypedPreviewTableCellModel> prototypeCache() {
+   public abstract Map<Integer, PreviewTableCellModel.PrototypedPreviewTableCellModel> prototypeCache();
+
+   public static Map<Integer, PreviewTableCellModel.PrototypedPreviewTableCellModel> createPrototypeCache(PreviewTableCellModel[][] tableData) {
       final Map<PreviewTableCellModel.PrototypedPreviewTableCellModel, Integer> dataPathToIndex =
          new HashMap<>();
       final Map<Integer, PreviewTableCellModel.PrototypedPreviewTableCellModel> prototypeIndexes =
          new HashMap<>();
-      final PreviewTableCellModel[][] tableData = tableData();
 
       if(tableData != null) {
          for(PreviewTableCellModel[] cells : tableData) {
@@ -82,5 +81,6 @@ public abstract class LoadPreviewTableCommand implements ViewsheetCommand {
    }
 
    public static class Builder extends ImmutableLoadPreviewTableCommand.Builder {
+
    }
 }

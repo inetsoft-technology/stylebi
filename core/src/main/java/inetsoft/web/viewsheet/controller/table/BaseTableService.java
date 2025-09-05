@@ -329,7 +329,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                .tableHeaderCells(tableHeaderCells)
                .rowHyperlinks(rowHyperlinks);
             setLayout((TableDataVSAssembly) vsassembly, lens, command);
-            command.prototypeCache(getPrototypeCache(tableCells));
+            command.prototypeCache(LoadTableDataCommand.createPrototypeCache(tableCells));
             dispatcher.sendCommand(name, command.build());
          }
 
@@ -376,23 +376,6 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          scmd.setType(MessageCommand.Type.ERROR);
          dispatcher.sendCommand(scmd);
       }
-   }
-
-   public static Map<Integer, ModelPrototype> getPrototypeCache(BaseTableCellModel[][] cellsData) {
-      final Map<BaseTableCellModelPrototype, Integer> dataPathToIndex = new HashMap<>();
-      final Map<Integer, ModelPrototype> prototypeIndexes = new HashMap<>();
-
-      for(BaseTableCellModel[] cells : cellsData) {
-         for(BaseTableCellModel cell : cells) {
-            BaseTableCellModelPrototype prototype = cell.createModelPrototype();
-            dataPathToIndex.putIfAbsent(prototype, dataPathToIndex.size());
-            final Integer index = dataPathToIndex.get(prototype);
-            prototypeIndexes.put(index, prototype);
-            cell.setModelPrototypeIndex(index);
-         }
-      }
-
-      return prototypeIndexes;
    }
 
    public static int getHeaderRowCount(TableDataVSAssembly assembly, VSTableLens lens) {
