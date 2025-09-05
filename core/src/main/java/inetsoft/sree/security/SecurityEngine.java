@@ -404,6 +404,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                if(internal) {
                   principal.setProperty("__internal__", "true");
                }
+               else {
+                  principal.setUser(user);
+               }
 
                users.remove(user);
                principal.setProperty("login.user", "true");
