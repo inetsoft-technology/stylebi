@@ -943,6 +943,7 @@ public class QueryManagerService {
       }
       else {
          parseSqlString(model.getRuntimeId(), simpleModel.getSqlString(), false, true, principal);
+         runtimeQuery = runtimeQueryService.getRuntimeQuery(model.getRuntimeId());
       }
 
       AdvancedSQLQueryModel sqlQueryModel = getAdvancedQueryModel(runtimeQuery);
