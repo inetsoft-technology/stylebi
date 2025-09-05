@@ -46,9 +46,9 @@ import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.table.BaseTableEvent;
+import inetsoft.web.viewsheet.model.ModelPrototype;
 import inetsoft.web.viewsheet.model.VSFormatModel;
-import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
-import inetsoft.web.viewsheet.model.table.BaseTableModel;
+import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
@@ -329,6 +329,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                .tableHeaderCells(tableHeaderCells)
                .rowHyperlinks(rowHyperlinks);
             setLayout((TableDataVSAssembly) vsassembly, lens, command);
+            command.prototypeCache(getPrototypeCache(tableCells));
             dispatcher.sendCommand(name, command.build());
          }
 
@@ -375,6 +376,23 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          scmd.setType(MessageCommand.Type.ERROR);
          dispatcher.sendCommand(scmd);
       }
+   }
+
+   public static Map<Integer, ModelPrototype> getPrototypeCache(BaseTableCellModel[][] cellsData) {
+      final Map<BaseTableCellModelPrototype, Integer> dataPathToIndex = new HashMap<>();
+      final Map<Integer, ModelPrototype> prototypeIndexes = new HashMap<>();
+
+      for(BaseTableCellModel[] cells : cellsData) {
+         for(BaseTableCellModel cell : cells) {
+            BaseTableCellModelPrototype prototype = cell.createModelPrototype();
+            dataPathToIndex.putIfAbsent(prototype, dataPathToIndex.size());
+            final Integer index = dataPathToIndex.get(prototype);
+            prototypeIndexes.put(index, prototype);
+            cell.setModelPrototypeIndex(index);
+         }
+      }
+
+      return prototypeIndexes;
    }
 
    public static int getHeaderRowCount(TableDataVSAssembly assembly, VSTableLens lens) {

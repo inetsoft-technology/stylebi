@@ -21,11 +21,9 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.web.composer.model.vs.HyperlinkModel;
 import inetsoft.web.viewsheet.model.ModelPrototype;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
-import inetsoft.web.viewsheet.model.table.BaseTableCellModelPrototype;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -68,24 +66,7 @@ public abstract class LoadTableDataCommand implements ViewsheetCommand {
    public abstract int runtimeDataRowCount();
    public abstract HyperlinkModel[] rowHyperlinks();
 
-   // prototype cache for table cells
-   @Value.Derived
-   public Map<Integer, ModelPrototype> prototypeCache() {
-      final Map<BaseTableCellModelPrototype, Integer> dataPathToIndex = new HashMap<>();
-      final Map<Integer, ModelPrototype> prototypeIndexes = new HashMap<>();
-
-      for(BaseTableCellModel[] cells : tableCells()) {
-         for(BaseTableCellModel cell : cells) {
-            BaseTableCellModelPrototype prototype = cell.createModelPrototype();
-            dataPathToIndex.putIfAbsent(prototype, dataPathToIndex.size());
-            final Integer index = dataPathToIndex.get(prototype);
-            prototypeIndexes.put(index, prototype);
-            cell.setModelPrototypeIndex(index);
-         }
-      }
-
-      return prototypeIndexes;
-   }
+   public abstract Map<Integer, ModelPrototype> prototypeCache();
 
    public static Builder builder() {
       return new Builder();
