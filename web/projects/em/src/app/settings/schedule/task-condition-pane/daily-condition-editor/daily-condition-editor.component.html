@@ -34,7 +34,7 @@
     </em-start-time-editor>
     <mat-checkbox formControlName="weekdayOnly" (change)="fireModelChanged()">_#(Weekdays)</mat-checkbox>
     <mat-form-field *ngIf="!weekdayOnly" appearance="outline" color="accent">
-      <mat-label>_#(Interval)</mat-label>
+      <mat-label>_#(schedule.interval)</mat-label>
       <input type="number" matInput formControlName="interval" placeholder="_#(Interval)" (input)="fireModelChanged()"/>
       <mat-error>_#(schedule.task.condition.dayCheck)</mat-error>
       <mat-hint>_#(Every) <i>n</i> _#(Day_s)</mat-hint>

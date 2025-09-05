@@ -65,4 +65,11 @@ public interface RestDataIteratorStrategy<E> extends Closeable {
     */
    default void setLookup(boolean lookup) {
    }
+
+   default long getTouchTimestamp() {
+      return -1L;
+   }
+
+   default void setTouchTimestamp(long touchTimestamp) {
+   }
 }

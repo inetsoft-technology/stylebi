@@ -196,6 +196,8 @@ export class WSDetailsTableDataComponent extends CommandProcessor
    searchIndices: number[];
    searchMatches: number[];
 
+   selectedRowIndex: number = -1;
+
    @Input() set searchQuery(value: string) {
       this._searchQuery = value;
 
@@ -836,6 +838,10 @@ export class WSDetailsTableDataComponent extends CommandProcessor
       }
 
       this.updateCanRemoveSelectedHeaders();
+   }
+
+   highlightRowOnClick(rowIndex: number): void {
+      this.selectedRowIndex = this.selectedRowIndex !== rowIndex ? rowIndex : -1;
    }
 
    headerInputKeyup(event: KeyboardEvent): void {

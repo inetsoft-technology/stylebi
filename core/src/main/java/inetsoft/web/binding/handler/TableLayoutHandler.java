@@ -182,6 +182,8 @@ public class TableLayoutHandler {
          updateHyperlinkPath(info, n, r, true);
          updateHighlightPath(info, n, r, true);
       }
+
+      updateMapPaths(info, n, r, true);
    }
 
    private void deleteRows(CalcTableVSAssemblyInfo info, int r, int n) {
@@ -214,6 +216,7 @@ public class TableLayoutHandler {
       updateFormatPath(info, n, r, false);
       updateHyperlinkPath(info, n, r, false);
       updateHighlightPath(info, n, r, false);
+      updateMapPaths(info, n, r, true);
       updateHeaderCount(info, n, r, true, false);
    }
 
@@ -681,6 +684,68 @@ public class TableLayoutHandler {
          updatePaths(info, cnt, row, add,
             info.getHighlightAttr().getHighlightMap().keySet().toArray(new TableDataPath[0]),
             info.getHighlightAttr().getHighlightMap());
+      }
+   }
+
+   private void updateMapPaths(CalcTableVSAssemblyInfo info, int cnt, int row, boolean add) {
+      int startIdx;
+      int endIdx;
+      int trailerRowCount = info.getTrailerRowCount();
+      int totalRowCount = info.getTableLayout().getRowCount();
+      int trailerStartRow = totalRowCount - trailerRowCount;
+
+      if(add) {
+         int endMoveRange = row + cnt;
+         int oldTrailerStartRow = trailerStartRow - cnt;
+         startIdx = oldTrailerStartRow;
+         endIdx = endMoveRange;
+      }
+      else {
+         int endMoveRange = row - cnt;
+         startIdx = trailerStartRow;
+         endIdx = endMoveRange;
+      }
+
+      updatePathTypes(info, startIdx, endIdx,
+                      info.getHighlightAttr().getHighlightMap().keySet().toArray(new TableDataPath[0]),
+                      info.getHighlightAttr().getHighlightMap());
+      updatePathTypes(info, startIdx, endIdx,
+                      info.getHyperlinkAttr().getHyperlinkMap().keySet().toArray(new TableDataPath[0]),
+                      info.getHyperlinkAttr().getHyperlinkMap());
+      updatePathTypes(info, startIdx, endIdx,
+                      info.getFormatInfo().getFormatMap().keySet().toArray(new TableDataPath[0]),
+                      info.getFormatInfo().getFormatMap());
+   }
+
+   /**
+    * Updates TableDataPath types for trailer rows that would turn into trailer rows
+    */
+   private void updatePathTypes(CalcTableVSAssemblyInfo info, int start, int end, TableDataPath[] paths, Map map) {
+      for(TableDataPath path : paths) {
+         String[] arr = path.getPath();
+
+         for(int i = 0; i < arr.length; i ++) {
+            int l = arr[i].indexOf("[");
+            int r = arr[i].indexOf("]");
+            int dot = arr[i].indexOf(",");
+
+            if(l < 0 || r < 0 || dot < 0) {
+               continue;
+            }
+
+            int ridx = Integer.parseInt(arr[i].substring(l + 1, dot));
+            int cidx = Integer.parseInt(arr[i].substring(dot + 1, r));
+
+            if(ridx >= start && ridx <= end) {
+               // getCellDataPath will get the correct type for the path
+               TableDataPath newPath = info.getCellDataPath(ridx, cidx);
+
+               if(!newPath.equals(path)) {
+                  map.put(newPath, map.get(path));
+                  map.remove(path);
+               }
+            }
+         }
       }
    }
 

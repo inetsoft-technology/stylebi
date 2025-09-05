@@ -454,7 +454,9 @@ public class CalcTablePropertyDialogController {
 
             // check if this path is valid for the current calc table and not leftover from
             // the crosstab conversion
-            if(layoutPath == null || layoutPath.getType() != path.getType()) {
+            if(layoutPath == null || (layoutPath.getType() != path.getType() &&
+               path.getType() != TableDataPath.TRAILER && layoutPath.getType() != TableDataPath.DETAIL))
+            {
                continue;
             }
          }

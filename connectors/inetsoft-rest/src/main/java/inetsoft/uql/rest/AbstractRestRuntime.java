@@ -61,6 +61,12 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
                   AbstractQueryRunner<?> queryRunner2 = (AbstractQueryRunner<?>) queryRunner;
                   queryRunner2.setExecutionThread(Thread.currentThread());
                   queryRunner2.setLiveMode("true".equals(params.get(XQuery.HINT_PREVIEW)));
+
+                  Object ts = params.get(XQuery.HINT_TOUCH_TIMESTAMP);
+
+                  if(ts instanceof Number) {
+                     queryRunner2.setTouchTimestamp(((Number) ts).longValue());
+                  }
                }
 
                try {

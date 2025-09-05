@@ -65,6 +65,8 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
         table.beginStreamedLoading();
 
         try(RestDataIteratorStrategy<Object> strategy = factory.createStrategy(query)) {
+            strategy.setTouchTimestamp(getTouchTimestamp());
+
             while(hasNext(strategy, table)) {
                 final Object json = strategy.next();
 
@@ -195,6 +197,7 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
 
         try(final RestDataIteratorStrategy<Object> strategy = factory.createStrategy(lookupQuery)) {
             strategy.setLiveMode(isLiveMode());
+            strategy.setTouchTimestamp(getTouchTimestamp());
             strategy.setLookup(true);
 
             while(strategy.hasNext()) {
@@ -229,6 +232,7 @@ public class RestJsonQueryRunner extends AbstractQueryRunner<RestJsonQuery> {
    @Override
    public String generateMetadata() {
       try(RestDataIteratorStrategy<Object> strategy = factory.createStrategy(query)) {
+         strategy.setTouchTimestamp(getTouchTimestamp());
          final Object json = strategy.next();
 
          if(json == null) {
