@@ -369,7 +369,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          try {
             if(getDefaultContainer(defBookmark) != null) {
                VSBookmark cbookmark = getDefaultContainer(defBookmark);
-               vs = VSUtil.vsGotoBookmark(vs, cbookmark, defBookmark.getName(), rep);
+               vs = VSUtil.vsGotoBookmark(vs, cbookmark, defBookmark.getName(), rep, null);
                userDefined = true;
                VSBookmarkInfo dInfo = cbookmark.getBookmarkInfo(defBookmark.getName());
                setOpenedBookmark(dInfo);
@@ -467,7 +467,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
                containsEmbeddedVs(vs))
             {
                try {
-                  gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner());
+                  gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner(), null);
                }
                catch(Exception e) {
                   LOG.warn("Failed to go to bookmark after reset", e);
@@ -677,7 +677,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * @return <tt>true</tt> if go to bookmark successfully, <tt>false</tt>
     * otherwise.
     */
-   public boolean gotoBookmark(String name, IdentityID user) throws Exception {
+   public boolean gotoBookmark(String name, IdentityID user, Principal principal) throws Exception {
       boolean isHome = VSBookmark.HOME_BOOKMARK.equals(name);
       VSBookmark bookmark = null;
 
@@ -713,7 +713,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
             processedViewsheet = (Viewsheet) vs.clone();
          }
 
-         processedViewsheet = VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep);
+         processedViewsheet = VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep, principal);
       }
 
       // Apply the updated viewsheet
@@ -793,7 +793,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       // goto the refreshed bookmark
-      gotoBookmark(name, user);
+      gotoBookmark(name, user, null);
 
       return true;
    }
@@ -899,7 +899,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          return null;
       }
 
-      return VSUtil.vsGotoBookmark(vs.clone(), bookmark, name, rep);
+      return VSUtil.vsGotoBookmark(vs.clone(), bookmark, name, rep, null);
    }
 
    /**
@@ -947,7 +947,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
                                                     processedViewsheet);
       }
 
-      return VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep);
+      return VSUtil.vsGotoBookmark(processedViewsheet, bookmark, name, rep, user);
    }
 
    /**
@@ -1144,7 +1144,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
             VSBookmarkInfo bookmarkInfo = getBookmarkInfo(name, user);
             bookmark.removeBookmark(name);
             AuditRecordUtils.executeBookmarkRecord(
-               getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE);
+               getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE, null);
          }
 
          AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
