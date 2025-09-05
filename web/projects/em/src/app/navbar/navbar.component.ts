@@ -23,6 +23,7 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { NavigationEnd, Router } from "@angular/router";
 import { Observable, Subject, Subscription, throwError } from "rxjs";
 import { catchError, concatMap, filter, map, takeUntil, tap } from "rxjs/operators";
+import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { LogoutService } from "../../../../shared/util/logout.service";
 import { Tool } from "../../../../shared/util/tool";
@@ -234,6 +235,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
                   .subscribe(() => {});
             }
          });
+   }
+
+   showAiAssistantDialog(): void {
+      this.dialog.open(AiAssistantDialogComponent, {
+         width: "1300px",
+         height: "850px",
+         disableClose: false,
+         panelClass: "ai-assistant-container"
+      });
    }
 
    private setFavorite(route: string, favorite: boolean): void {
