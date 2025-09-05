@@ -23,7 +23,6 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
-import inetsoft.web.binding.handler.VSTreeHandler;
 import inetsoft.web.binding.model.ScriptPaneTreeModel;
 import inetsoft.web.binding.model.ScriptTreeNodeData;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -400,10 +399,10 @@ public class VSScriptableController {
     */
    @Autowired
    public VSScriptableController(VSScriptableServiceProxy vsScriptableServiceProxy,
-                                 VSScriptableService vsScriptableService, VSTreeHandler treeHandler) {
+                                 VSScriptableService vsScriptableService)
+   {
       this.vsScriptableServiceProxy = vsScriptableServiceProxy;
       this.vsScriptableService = vsScriptableService;
-      this.treeHandler = treeHandler;
    }
 
    @GetMapping("/api/vsscriptable/scriptTree")
@@ -472,7 +471,7 @@ public class VSScriptableController {
       @RequestParam(name = "isVSOption", required = false) boolean isVSOption,
       Principal principal) throws Exception
    {
-      return vsScriptableServiceProxy.getColumnTree(vsId, assemblyName, tableName, isCondition, isVSOption, treeHandler, principal);
+      return vsScriptableServiceProxy.getColumnTree(vsId, assemblyName, tableName, isCondition, isVSOption, principal);
    }
 
    @GetMapping("/api/vsscriptable/functionTree")
@@ -714,5 +713,4 @@ public class VSScriptableController {
 
    private final VSScriptableServiceProxy vsScriptableServiceProxy;
    private final VSScriptableService vsScriptableService;
-   private final VSTreeHandler treeHandler;
 }
