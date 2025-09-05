@@ -90,7 +90,7 @@
               <input class="form-control" id="emailCode"
                      name="signupVerifyPassword" placeholder="We sent a verification code to Your email, Please enter it."
                      data-th-attr="placeholder=#{signup.email.verify.code.tooltip}"/>
-              <span type="button" id="resendCodeBtn" class="btn resendCodeBtn text-primary">Resend the code</span>
+              <span type="button" id="resendCodeBtn" class="btn resendCodeBtn text-primary">_#(signup.resend.code)</span>
             </div>
             <div id="emailCodeError" class="invalid-feedback" style="display: none;">
               <span id="emailCodeRequiredError" data-th-text="#{signup.email.verify.code.required}">We sent a verification code to Your email, Please enter it.</span>
@@ -101,7 +101,7 @@
       </div>
       <div class="card-footer">
         <button type="button" id="signupButton" class="btn btn-primary btn-block">
-          Sign Up
+          _#(signup.title)
         </button>
       </div>
     </div>
