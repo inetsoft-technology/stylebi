@@ -55,6 +55,7 @@ public class EndpointJsonQueryRunner extends RestJsonQueryRunner {
 
       try(RestDataIteratorStrategy<Object> strategy = factory.createStrategy(query)) {
          strategy.setLiveMode(isLiveMode());
+         strategy.setTouchTimestamp(getTouchTimestamp());
 
          while(hasNext(strategy, table)) {
             final Object json = strategy.next();

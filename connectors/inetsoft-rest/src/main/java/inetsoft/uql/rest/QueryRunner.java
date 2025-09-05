@@ -37,6 +37,8 @@ public interface QueryRunner {
     */
    boolean isLiveMode();
 
+   long getTouchTimestamp();
+
    /**
     * Runs the query and returns result.
     */
