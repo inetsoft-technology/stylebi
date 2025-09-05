@@ -216,7 +216,7 @@ public class TableLayoutHandler {
       updateFormatPath(info, n, r, false);
       updateHyperlinkPath(info, n, r, false);
       updateHighlightPath(info, n, r, false);
-      updateMapPaths(info, n, r, true);
+      updateMapPaths(info, n, r, false);
       updateHeaderCount(info, n, r, true, false);
    }
 
