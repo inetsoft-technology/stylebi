@@ -18,13 +18,21 @@
 
 package inetsoft.web.metrics;
 
-public record ScalingMetricData(double jvmCpu, double jvmCpuDetail,
-                                double jvmMemory, double jvmMemoryDetail,
-                                double systemCpu, double systemCpuDetail,
-                                double systemMemory, double systemMemoryDetail,
-                                double scheduler, double schedulerDetail,
-                                double cacheSwapMemory, double cacheSwapMemoryDetail,
-                                double cacheSwapWait, double cacheSwapWaitDetail,
-                                double activeSession, double serverUtilization)
-{
+import inetsoft.sree.SreeEnv;
+import inetsoft.web.MapSessionRepository;
+
+public class ActiveSessionScalingMetric extends ScalingMetric {
+   public ActiveSessionScalingMetric(MapSessionRepository sessionRepository) {
+      super(false, 0);
+      this.sessionRepository = sessionRepository;
+   }
+
+   @Override
+   protected double calculate() {
+      double activeValue = Double.parseDouble(
+         SreeEnv.getProperty("metric.activeSession.metricValue", "0.5"));
+      return Math.clamp(sessionRepository.getActiveSessions().isEmpty() ? 0D : activeValue, 0D, 1D);
+   }
+
+   private final MapSessionRepository sessionRepository;
 }
