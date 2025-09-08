@@ -92,6 +92,14 @@ public class MetricsConfig implements Serializable {
       this.cacheSwapWait = cacheSwapWait;
    }
 
+   public boolean isActiveSessions() {
+      return activeSessions;
+   }
+
+   public void setActiveSessions(boolean activeSessions) {
+      this.activeSessions = activeSessions;
+   }
+
    public boolean isMovingAverage() {
       return movingAverage;
    }
@@ -154,6 +162,8 @@ public class MetricsConfig implements Serializable {
    private boolean cacheSwapMemory = true;
    @CRDProperty(description = "A flag that indicates if the number of threads waiting for cache swapping should be used as a scaling metric.")
    private boolean cacheSwapWait = true;
+   @CRDProperty(description = "A flag that indicates if the presence of active sessions should be used as a scaling metric.")
+   private boolean activeSessions = false;
    private boolean movingAverage = false;
    @CRDProperty(description = "The interval at which the metric values are recorded for the moving average")
    private int movingAveragePeriodSeconds = 15;
