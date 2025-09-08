@@ -150,7 +150,7 @@ public class GetImageController {
       HttpServletResponse response) throws Exception
    {
       AssemblyImageService.ImageRenderResult result =
-         imageServiceProxy.processImageFromHash(vid, hash, principal);
+         imageServiceProxy.processImageFromHash(Tool.byteDecode(vid), hash, principal);
       processImageRenderResult(result, request, response);
    }
 
