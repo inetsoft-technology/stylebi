@@ -477,7 +477,7 @@ public class ComposerAdhocFilterController {
          }
       }
 
-      vs.addAssembly(vsassembly, false);
+      vs.addAssembly(vsassembly, !vs.isEmbedded());
       coreLifecycleService.addDeleteVSObject(rvs, vsassembly, dispatcher);
    }
 

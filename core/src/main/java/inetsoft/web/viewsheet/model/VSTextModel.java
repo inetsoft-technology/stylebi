@@ -63,11 +63,10 @@ public class VSTextModel extends VSOutputModel<TextVSAssembly> {
          this.hyperlinks = new HyperlinkModel[0];
       }
       else {
-         this.hyperlinks = new HyperlinkModel[hrefs.length];
-
-         for(int i = 0; i < hyperlinks.length; i++) {
-            hyperlinks[i] = HyperlinkModel.createHyperlinkModel(hrefs[i]);
-         }
+         this.hyperlinks = Arrays.stream(hrefs)
+            .map(HyperlinkModel::createHyperlinkModel)
+            .filter(this::isValidLink)
+            .toArray(HyperlinkModel[]::new);
       }
 
       if(info.isUrl()) {
@@ -87,6 +86,25 @@ public class VSTextModel extends VSOutputModel<TextVSAssembly> {
             }
          }
       }
+   }
+
+   private boolean isValidLink(HyperlinkModel model) {
+      if(model == null) {
+         return false;
+      }
+
+      if(model.getLinkType() == Hyperlink.WEB_LINK) {
+         String link = model.getLink();
+
+         if(link == null) {
+            return false;
+         }
+
+         // bound to missing data, not valid
+         return !link.matches("^hyperlink:\\w+$");
+      }
+
+      return true;
    }
 
    /**

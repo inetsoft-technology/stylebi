@@ -576,7 +576,7 @@ public class JDBCQuery extends XQuery {
          return;
       }
 
-      if(xFilterNode instanceof XBinaryCondition ) {
+      if(xFilterNode instanceof XBinaryCondition) {
          fixConditionVariable((XBinaryCondition) xFilterNode, selection);
       }
       else if(xFilterNode instanceof XTrinaryCondition trinaryCondition) {
@@ -594,6 +594,9 @@ public class JDBCQuery extends XQuery {
             }
             else if(condition instanceof XSet) {
                fixXFilterVariable((XSet) condition, selection);
+            }
+            else if(condition instanceof XTrinaryCondition) {
+               fixConditionVariable((XTrinaryCondition) condition, selection);
             }
          }
       }

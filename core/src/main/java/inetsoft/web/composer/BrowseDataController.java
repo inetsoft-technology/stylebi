@@ -128,7 +128,7 @@ public class BrowseDataController {
             VSAQuery.appendCalcField((TableAssembly) assembly, name, true, viewsheet);
          }
 
-         model = executeByColumnCache(assembly);
+         model = executeByColumnCache(assembly, box.getBrowseUser());
 
          if(model == null) {
             model = executeByQuery(box, (TableAssembly) assembly);
@@ -169,9 +169,14 @@ public class BrowseDataController {
    /**
     * Execute data from column cache.
     */
-   private BrowseDataModel executeByColumnCache(Assembly assembly) {
+   private BrowseDataModel executeByColumnCache(Assembly assembly, Principal user) {
       if(sinfo == null && assembly instanceof BoundTableAssembly) {
-         sinfo = ((BoundTableAssembly) assembly).getSourceInfo();
+         SourceInfo modelSourceInfo = ((BoundTableAssembly) assembly).getSourceInfo();
+
+         // Bug #72342, use the model as source info only if it contains a custom browse query
+         if(XUtil.hasCustomBrowseDataQuery(modelSourceInfo, column, user)) {
+            sinfo = modelSourceInfo;
+         }
       }
 
       // only process model here, cause the column cache get data

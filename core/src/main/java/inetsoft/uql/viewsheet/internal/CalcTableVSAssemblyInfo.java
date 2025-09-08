@@ -464,7 +464,8 @@ public class CalcTableVSAssemblyInfo extends TableDataVSAssemblyInfo {
     */
    public TableDataPath getCellDataPath(int row, int col) {
       if(tlayout.getMode() == TableLayout.CALC) {
-         return new TableDataPath(-1, row < hrow ? TableDataPath.HEADER : TableDataPath.DETAIL,
+         return new TableDataPath(-1, row < hrow ? TableDataPath.HEADER :
+            row + trow >= tlayout.getRowCount() ? TableDataPath.TRAILER : TableDataPath.DETAIL,
                                   XSchema.STRING, new String[]{ "Cell [" + row + "," + col + "]" });
       }
 

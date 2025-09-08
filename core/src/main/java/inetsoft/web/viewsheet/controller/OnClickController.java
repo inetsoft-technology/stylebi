@@ -30,6 +30,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.util.UserMessage;
+import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.binding.event.VSOnClickEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -219,12 +220,14 @@ public class OnClickController {
       // the runtime values. If the changes in onClick is applied to RValue,
       // they will be lost immediately.
       VSPropertyDescriptor.setUseDValue(true);
+      JavaScriptEngine.setOnClickScript(true);
 
       try {
          scope.execute(script, assembly.getName());
       }
       finally {
          VSPropertyDescriptor.setUseDValue(false);
+         JavaScriptEngine.setOnClickScript(false);
       }
 
       UserMessage msg = Tool.getUserMessage();
