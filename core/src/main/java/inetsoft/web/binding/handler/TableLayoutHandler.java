@@ -695,15 +695,17 @@ public class TableLayoutHandler {
       int trailerStartRow = totalRowCount - trailerRowCount;
 
       if(add) {
-         int endMoveRange = row + cnt;
          int oldTrailerStartRow = trailerStartRow - cnt;
          startIdx = oldTrailerStartRow;
-         endIdx = endMoveRange;
+         endIdx = oldTrailerStartRow + cnt;
       }
       else {
-         int endMoveRange = row - cnt;
          startIdx = trailerStartRow;
-         endIdx = endMoveRange;
+         endIdx = trailerStartRow + cnt;
+      }
+
+      if(row < startIdx) {
+         return;
       }
 
       if(info.getHighlightAttr() != null) {
@@ -744,7 +746,7 @@ public class TableLayoutHandler {
             int ridx = Integer.parseInt(arr[i].substring(l + 1, dot));
             int cidx = Integer.parseInt(arr[i].substring(dot + 1, r));
 
-            if(ridx >= start && ridx <= end) {
+            if(ridx >= start && ridx < end) {
                // getCellDataPath will get the correct type for the path
                TableDataPath newPath = info.getCellDataPath(ridx, cidx);
 
