@@ -706,15 +706,23 @@ public class TableLayoutHandler {
          endIdx = endMoveRange;
       }
 
-      updatePathTypes(info, startIdx, endIdx,
-                      info.getHighlightAttr().getHighlightMap().keySet().toArray(new TableDataPath[0]),
-                      info.getHighlightAttr().getHighlightMap());
-      updatePathTypes(info, startIdx, endIdx,
-                      info.getHyperlinkAttr().getHyperlinkMap().keySet().toArray(new TableDataPath[0]),
-                      info.getHyperlinkAttr().getHyperlinkMap());
-      updatePathTypes(info, startIdx, endIdx,
-                      info.getFormatInfo().getFormatMap().keySet().toArray(new TableDataPath[0]),
-                      info.getFormatInfo().getFormatMap());
+      if(info.getHighlightAttr() != null) {
+         updatePathTypes(info, startIdx, endIdx,
+                         info.getHighlightAttr().getHighlightMap().keySet().toArray(new TableDataPath[0]),
+                         info.getHighlightAttr().getHighlightMap());
+      }
+
+      if(info.getHyperlinkAttr() != null) {
+         updatePathTypes(info, startIdx, endIdx,
+                         info.getHyperlinkAttr().getHyperlinkMap().keySet().toArray(new TableDataPath[0]),
+                         info.getHyperlinkAttr().getHyperlinkMap());
+      }
+
+      if(info.getFormatInfo() != null) {
+         updatePathTypes(info, startIdx, endIdx,
+                         info.getFormatInfo().getFormatMap().keySet().toArray(new TableDataPath[0]),
+                         info.getFormatInfo().getFormatMap());
+      }
    }
 
    /**
