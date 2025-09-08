@@ -186,9 +186,11 @@ public class DashboardController {
          if(identifier != null) {
             DashboardService.DashboardModelInfo modelInfo = serviceProxy.getDashboardModelInfo(identifier, principal);
 
-            composedDashboard = modelInfo.composedDashboard;
-            scaleToScreen = modelInfo.scaleToScreen;
-            fitToWidth = modelInfo.fitToWidth;
+            if(modelInfo != null) {
+               composedDashboard = modelInfo.composedDashboard;
+               scaleToScreen = modelInfo.scaleToScreen;
+               fitToWidth = modelInfo.fitToWidth;
+            }
          }
 
          return DashboardModel.builder()
