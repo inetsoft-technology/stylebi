@@ -23,6 +23,7 @@ import { ActivatedRoute, Router } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
 import { takeUntil } from "rxjs/operators";
+import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
 import { LogoutService } from "../../../../shared/util/logout.service";
 import { AssetEntry, createAssetEntry } from "../../../../shared/data/asset-entry";
 import { LicenseInfo } from "../common/data/license-info";
@@ -32,7 +33,6 @@ import { OpenComposerService } from "../common/services/open-composer.service";
 import { ComponentTool } from "../common/util/component-tool";
 import { GuiTool } from "../common/util/gui-tool";
 import { PortalCreationPermissions } from "./custom/portal-creation-permissions";
-import { AiAssistantDialogComponent } from "../../../../shared/ai-assistant/ai-assistant-dialog.component";
 import { PreferencesDialog } from "./dialog/preferences-dialog.component";
 import { PortalModel } from "./portal-model";
 import { PortalTab, PortalTabs } from "./portal-tab";
@@ -77,22 +77,25 @@ export class PortalAppComponent implements OnInit, OnDestroy {
       return this.model.composerEnabled;
    }
 
-   constructor(private modalService: NgbModal, private http: HttpClient,
-      private portalTabsService: PortalTabsService,
-      private ngbDatepickerConfig: NgbDatepickerConfig,
-      private route: ActivatedRoute,
-      private router: Router,
-      private hideNavService: HideNavService,
-      private portalModelService: PortalModelService,
-      private historyBarService: HistoryBarService,
-      private licenseInfoService: LicenseInfoService,
-      private openComposerService: OpenComposerService,
-      currentRouteService: CurrentRouteService,
-      @Inject(DOCUMENT) private document: Document,
-      private firstDayOfWeekService: FirstDayOfWeekService,
-      private bodyTitle: Title,
-      private logoutService: LogoutService,
-      private gettingStartedService: GettingStartedService) {
+   constructor(public aiAssistantService: AiAssistantService,
+               private modalService: NgbModal,
+               private http: HttpClient,
+               private portalTabsService: PortalTabsService,
+               private ngbDatepickerConfig: NgbDatepickerConfig,
+               private route: ActivatedRoute,
+               private router: Router,
+               private hideNavService: HideNavService,
+               private portalModelService: PortalModelService,
+               private historyBarService: HistoryBarService,
+               private licenseInfoService: LicenseInfoService,
+               private openComposerService: OpenComposerService,
+               currentRouteService: CurrentRouteService,
+               @Inject(DOCUMENT) private document: Document,
+               private firstDayOfWeekService: FirstDayOfWeekService,
+               private bodyTitle: Title,
+               private logoutService: LogoutService,
+               private gettingStartedService: GettingStartedService)
+   {
       ngbDatepickerConfig.minDate = { year: 1900, month: 1, day: 1 };
       ngbDatepickerConfig.maxDate = { year: 2099, month: 12, day: 31 };
 
@@ -270,15 +273,6 @@ export class PortalAppComponent implements OnInit, OnDestroy {
          {
             size: "lg",
             backdrop: "static"
-         }
-      );
-   }
-
-   showAiAssistantDialog(): void {
-      ComponentTool.showDialog(this.modalService, AiAssistantDialogComponent, () => {},
-         {
-            backdrop: true,
-            windowClass: "ai-assistant-container"
          }
       );
    }
