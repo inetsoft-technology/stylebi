@@ -80,22 +80,3 @@
 .no-hover {
   pointer-events: none;
 }
-
-::ng-deep .ai-assistant-container {
-  .modal-dialog {
-    max-width: 1300px;
-    width: 1300px;
-    max-height: 850px;
-    height: 850px;
-  }
-
-  .modal-content {
-    height: 100%;
-    width: 100%;
-  }
-
-  ai-assistant-dialog {
-    height: 100%;
-    max-height: 100%;
-  }
-}
