@@ -361,15 +361,22 @@ public class CellInfoHandler {
       TableDataPath path = info.getCellDataPath(row, col);
       path = getRuntimeTableDataPath(path, row, col);
 
+      // When clearing TableDataPaths, the new paths may be outdated, so also clear out other types
+      TableDataPath otherTypePath = (TableDataPath) path.clone();
+      otherTypePath.setType(path.getType() == TableDataPath.DETAIL ? TableDataPath.TRAILER : TableDataPath.DETAIL);
+
       if(path != null) {
          info.getFormatInfo().setFormat(path, null);
+         info.getFormatInfo().setFormat(otherTypePath, null);
 
          if(info.getHyperlinkAttr() != null) {
             info.getHyperlinkAttr().setHyperlink(path, null);
+            info.getHyperlinkAttr().setHyperlink(otherTypePath, null);
          }
 
          if(info.getHighlightAttr() != null) {
             info.getHighlightAttr().setHighlight(path, null);
+            info.getHighlightAttr().setHighlight(otherTypePath, null);
          }
       }
    }
