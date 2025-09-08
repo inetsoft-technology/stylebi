@@ -144,6 +144,7 @@ public class MVController {
          session.getAttribute("mvstatus");
       support.setDataCycle(createUpdateMVRequest.mvNames(), mvstatus.getResults(),
                            createUpdateMVRequest.cycle());
+      session.setAttribute("mvstatus", mvstatus);
    }
 
    @GetMapping("/api/em/content/repository/mv/exceptions")
