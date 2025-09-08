@@ -447,7 +447,7 @@ public class AssemblyImageService {
    public ImageRenderResult processImageFromHash(@ClusterProxyKey String vid, String hashEncoded,
                                                  Principal principal) throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(Tool.byteDecode(vid), principal);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(vid, principal);
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
       String sheetName = box.getAssetEntry() == null ? "" : box.getAssetEntry().getPath();
       String hash = Tool.byteDecode(hashEncoded);
