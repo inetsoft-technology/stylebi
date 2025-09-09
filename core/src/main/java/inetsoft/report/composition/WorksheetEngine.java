@@ -929,6 +929,11 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       DependencyTransformer.fixRenameDepEntry(rid, entry, newEntry, renameInfoMap);
    }
 
+   @Override
+   public void flushRuntimeSheet(String rid) {
+      amap.flush(rid);
+   }
+
    private List<RenameInfo> createCauseWSColRenameInfos(RenameInfo renameInfo, AssetEntry entry ,
                                                         String rid)
    {
