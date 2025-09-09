@@ -314,9 +314,16 @@ public class AssetUtil {
    }
 
    public static String getEntryLabel(AssetEntry entry, Catalog catalog) {
+      // do not localize the table style and its folder except "Table Styles" folder
+      if(entry.getType() == AssetEntry.Type.TABLE_STYLE ||
+         (entry.getType() == AssetEntry.Type.TABLE_STYLE_FOLDER && !Objects.equals(entry.toView(), "Table Styles"))) {
+         return entry.toView();
+      }
+
       String label = entry.getProperty("localStr");
       label = label != null && !label.equals("") ?
          label : catalog.getString(entry.toView());
+
       return label;
    }
 
