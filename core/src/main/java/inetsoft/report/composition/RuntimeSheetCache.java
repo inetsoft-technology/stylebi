@@ -244,7 +244,7 @@ public class RuntimeSheetCache
          cache.removeAllAsync(ids);
       }
       finally {
-         lock.writeLock().lock();
+         lock.writeLock().unlock();
       }
    }
 
