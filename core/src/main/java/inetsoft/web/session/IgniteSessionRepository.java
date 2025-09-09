@@ -331,6 +331,7 @@ public class IgniteSessionRepository
 
       if(session != null) {
          this.sessions.remove(id);
+         this.eventPublisher.publishEvent(new SessionExpiredEvent(this, session));
       }
    }
 
