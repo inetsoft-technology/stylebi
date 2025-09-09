@@ -34,13 +34,14 @@ import java.security.Principal;
 @ClusterProxy
 public class VSSourceChangeService {
 
-   public VSSourceChangeService(ViewsheetService viewsheetService) {
+   public VSSourceChangeService(ViewsheetService viewsheetService, VSAssemblyInfoHandler handler) {
       this.viewsheetService = viewsheetService;
+      this.handler = handler;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public SourceChangeMessage checkSourceChanged(@ClusterProxyKey String vsId, String aname, String table,
-                                                         VSAssemblyInfoHandler handler, Principal principal)
+   public SourceChangeMessage checkSourceChanged(@ClusterProxyKey String vsId, String aname,
+                                                 String table, Principal principal)
       throws Exception
    {
       ViewsheetService engine = viewsheetService;
@@ -63,4 +64,5 @@ public class VSSourceChangeService {
 
 
    private ViewsheetService viewsheetService;
+   private final VSAssemblyInfoHandler handler;
 }

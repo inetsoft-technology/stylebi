@@ -17,7 +17,9 @@
  */
 package inetsoft.web.composer.model.vs;
 
-public class SourceChangeMessage {
+import java.io.Serializable;
+
+public class SourceChangeMessage implements Serializable {
 
    public boolean getChanged() {
       return changed;
