@@ -387,6 +387,7 @@ public class CalcTablePropertyDialogController {
       CalcTableAdvancedPaneModel advPane = value.getCalcTableAdvancedPaneModel();
       TipPaneModel tipPaneModel = advPane.getTipPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
+      int oldTrailerRows = calcTableAssemblyInfo.getTrailerRowCount();
 
       calcTableAssemblyInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
       calcTableAssemblyInfo.setTitleValue(titlePropPaneModel.getTitle());
@@ -463,8 +464,9 @@ public class CalcTablePropertyDialogController {
 
          int r = loc.y;
          int type = getRowType(r, rowCnt, headerRows, trailerRows);
+         int oldType = getRowType(r, rowCnt, headerRows, oldTrailerRows);
 
-         if(type != path.getType()) {
+         if(type != path.getType() && path.getType() == oldType) {
             VSCompositeFormat fmt = calcTableAssemblyInfo.getFormatInfo().getFormat(path);
             Hyperlink link = calcTableAssemblyInfo.getHyperlinkAttr() != null ?
                   calcTableAssemblyInfo.getHyperlinkAttr().getHyperlink(path) : null;
