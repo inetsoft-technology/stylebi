@@ -874,6 +874,48 @@ public class MVSupportService {
          this.plans = plans;
          this.results = results;
          this.error = error;
+         backUpInfo();
+      }
+
+      private void backUpInfo() {
+         if(results == null) {
+            return;
+         }
+
+         Map<Worksheet, String> reverseMap = new HashMap<>();
+
+         for(MVStatus result : results) {
+            if(result == null) {
+               continue;
+            }
+
+            MVDef mvDef = result.mvDef;
+
+            if(mvDef == null) {
+               continue;
+            }
+
+            Worksheet worksheet = mvDef.getWorksheet();
+
+            if(worksheet == null) {
+               continue;
+            }
+
+            String wsId = reverseMap.get(worksheet);
+            MVDContainerInfo info = new MVDContainerInfo();
+
+            if(wsId == null) {
+               wsId = UUID.randomUUID().toString();
+               reverseMap.put(worksheet, wsId);
+               wsMap.put(wsId, worksheet);
+            }
+
+            info.wsId = wsId;
+            info.columns = mvDef.getColumns();
+            info.rcolumns = mvDef.getRemovedColumns();
+
+            infoMap.put(mvDef.getMVName(), info);
+         }
       }
 
       public List<MVCandidate> getCandidates() {
@@ -889,7 +931,36 @@ public class MVSupportService {
       }
 
       public List<MVStatus> getResults() {
+         restoreContainerInfo();
          return results;
+      }
+
+      private void restoreContainerInfo() {
+         if(results == null) {
+            return;
+         }
+
+         for(MVStatus result : results) {
+            if(result == null) {
+               continue;
+            }
+
+            MVDef mvDef = result.mvDef;
+
+            if(mvDef == null) {
+               continue;
+            }
+
+            MVDContainerInfo mvdContainerInfo = infoMap.get(mvDef.getMVName());
+
+            if(mvdContainerInfo == null) {
+               continue;
+            }
+
+
+            mvDef.restoreContainer(wsMap.get(mvdContainerInfo.wsId), mvdContainerInfo.columns,
+                                   mvdContainerInfo.rcolumns);
+         }
       }
 
       public Exception getError() {
@@ -901,6 +972,14 @@ public class MVSupportService {
       private final Map<MVCandidate, StringBuffer> plans;
       private final List<MVStatus> results;
       private final Exception error;
+      private final Map<String, Worksheet> wsMap = new HashMap<>();
+      private final Map<String, MVDContainerInfo> infoMap = new HashMap<>();
+   }
+
+   private static class MVDContainerInfo {
+      private String wsId;
+      private List<MVColumn> columns = new ArrayList<>();
+      private List<MVColumn> rcolumns = new ArrayList<>();
    }
 
    /**
@@ -975,6 +1054,11 @@ public class MVSupportService {
          Awaitility.await()
             .pollInterval(500, TimeUnit.MILLISECONDS)
             .until(this::isCompleted);
+      }
+
+      public AnalysisStatus getAnalysisStatusResult() {
+         return getAnalysisStatus().orElseThrow(
+            () -> new IllegalStateException("The analysis job is not valid"));
       }
 
       private synchronized Optional<AnalysisStatus> getAnalysisStatus() {

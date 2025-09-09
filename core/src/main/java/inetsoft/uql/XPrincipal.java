@@ -135,6 +135,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       if(!Arrays.equals(this.roles, roles)) {
          this.roles = roles == null ? new IdentityID[0] : roles;
          this.allRoles = null;
+         setChanged();
       }
    }
 
@@ -147,6 +148,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       if(!Arrays.equals(this.groups, groups)) {
          this.groups = groups == null ? new String[0] : groups;
          this.allGroups = null;
+         setChanged();
       }
    }
 
@@ -158,6 +160,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    public void setOrgId(String orgId) {
       if(orgId != null && !orgId.isEmpty()) {
          this.orgId = orgId;
+         setChanged();
       }
    }
 
@@ -218,6 +221,8 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
 
          prop.put(name, val);
       }
+
+      setChanged();
    }
 
    /**
@@ -434,6 +439,25 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       return null;
    }
 
+   public void copyContent(XPrincipal from) {
+      if(from == null) {
+         return;
+      }
+
+      name = from.name;
+      orgId = from.orgId;
+      roles = (IdentityID[]) Tool.clone(from.roles);
+      groups = (String[]) Tool.clone(from.groups);
+      allRoles = (IdentityID[]) Tool.clone(from.allRoles);
+      allGroups = (IdentityID[]) Tool.clone(from.allGroups);
+      sessionID = from.sessionID;
+      prop = Tool.deepCloneMap(from.prop);
+      params = from.params;
+      paramTS = from.paramTS;
+      ignoreLogin = from.ignoreLogin;
+      profiling = from.profiling;
+   }
+
    /**
     * Set ignore login status.
     * @param ignoreLogin true if should not check login status of this
@@ -441,6 +465,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     */
    public void setIgnoreLogin(boolean ignoreLogin) {
       this.ignoreLogin = ignoreLogin;
+      setChanged();
    }
 
    /**
@@ -469,6 +494,8 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
          params.put(name, JavaScriptEngine.unwrap(value));
          paramTS.put(name, ts);
       }
+
+      setChanged();
    }
 
    /**
@@ -519,6 +546,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
 
    public void setProfiling(boolean profiling) {
       this.profiling = profiling;
+      setChanged();
    }
 
    public void updateRoles(AuthenticationProvider provider) {
@@ -544,6 +572,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
          .forEach(baseRoles::add);
 
       this.allRoles = provider.getAllRoles(baseRoles.toArray(new IdentityID[0]));
+      setChanged();
    }
 
    /**
@@ -618,6 +647,18 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       return currentOrgId;
    }
 
+   protected void setChanged() {
+      this.changed = true;
+   }
+
+   public void clearChanged() {
+      this.changed = false;
+   }
+
+   public boolean isChanged() {
+      return changed;
+   }
+
    // for backward compatibility
    private static final long serialVersionUID = 615300870728701542L;
    private static final Logger LOG = LoggerFactory.getLogger(XPrincipal.class);
@@ -631,6 +672,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    private Map<String, Long> paramTS = new ConcurrentHashMap<>();
    private boolean ignoreLogin = false;
    private boolean profiling = false;
+   private boolean changed = true;
 
    private static long TIMEOUT = 10000;
    private transient IdentityID[] allRoles;

@@ -51,6 +51,7 @@ public class PhysicalGraphModelService {
 
       runtimePartition.setGraphWidth(width);
       runtimePartition.setGraphHeight(height);
+      partitionService.saveRuntimePartition(runtimePartition);
    }
 
    public boolean updateGraphNodeWidth(String runtimeId, String table, int width) {
@@ -76,6 +77,7 @@ public class PhysicalGraphModelService {
 
       if(bounds.width != width) {
          bounds.width = width;
+         partitionService.saveRuntimePartition(runtimePartition);
          changed = true;
       }
 
@@ -131,6 +133,7 @@ public class PhysicalGraphModelService {
       RuntimePartitionService.RuntimeXPartition runtimePartition =
          this.partitionService.getRuntimePartition(runtimeId);
       managerService.editAlias(alias, oldAlias, runtimePartition);
+      partitionService.saveRuntimePartition(runtimePartition);
    }
 
    private final RuntimePartitionService partitionService;

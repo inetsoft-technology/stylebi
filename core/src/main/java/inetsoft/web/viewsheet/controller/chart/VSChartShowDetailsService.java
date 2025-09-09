@@ -516,6 +516,7 @@ public class VSChartShowDetailsService extends VSChartControllerService<VSChartS
             .sortInfo(sortModel)
             .colWidths(colWidths)
             .styleModel(styleModel)
+            .prototypeCache(LoadPreviewTableCommand.createPrototypeCache(tableCells))
             .build();
 
          dispatcher.sendCommand(name, command);

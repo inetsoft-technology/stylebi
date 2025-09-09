@@ -18,11 +18,15 @@
 
 package inetsoft.util.cachefs;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.io.Serializable;
 import java.util.Arrays;
 
 public final class CacheMetadata implements Serializable {
-   public CacheMetadata(long creationTime) {
+   @JsonCreator
+   public CacheMetadata(@JsonProperty("creationTime")long creationTime) {
       this.creationTime = creationTime;
    }
 

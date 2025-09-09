@@ -157,7 +157,7 @@ public class ScheduleCycleService {
 
          for(int i = 1; i < Integer.MAX_VALUE; i++) {
             if(dataCycleManager.getConditions(cycleName + i, orgId) == null ||
-               dataCycleManager.getConditions(cycleName + i, orgId).size() == 0)
+               dataCycleManager.getConditions(cycleName + i, orgId).isEmpty())
             {
                cycleName += i;
                break;

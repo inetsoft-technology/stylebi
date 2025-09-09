@@ -100,7 +100,9 @@ public class DashboardManager implements AutoCloseable {
    public synchronized String[] getDashboards(Identity identity, boolean sync) {
       init();
 
-      if(identity.getType() == Identity.USER && sync) {
+      if(identity.getType() == Identity.USER && sync &&
+         !ClientInfo.ANONYMOUS.equals(identity.getName()))
+      {
          try {
             syncUserDashboards(identity);
          }
@@ -405,11 +407,11 @@ public class DashboardManager implements AutoCloseable {
    public synchronized String[] getUserDashboards(IdentityID userName) {
       init();
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      User user;
+      Identity user;
 
       // treat user anonymous as a special role
       if(provider.isVirtual() || ClientInfo.ANONYMOUS.equals(userName.name)) {
-         return getDashboards(new DefaultIdentity(userName, Identity.ROLE));
+         user = new DefaultIdentity(userName, Identity.USER);
       }
       else if((user = provider.getUser(userName)) == null) {
          return new String[0];

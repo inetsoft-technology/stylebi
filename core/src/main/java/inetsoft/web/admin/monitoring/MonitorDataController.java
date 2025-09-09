@@ -40,7 +40,7 @@ public class MonitorDataController {
       final MessageHeaders messageHeaders = stompHeaderAccessor.getMessageHeaders();
       final String sessionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
-      this.dataServiceProxy.refresh(sessionId, stompHeaderAccessor);
+      this.dataServiceProxy.refresh(sessionId);
    }
 
    private final MonitorDataServiceProxy dataServiceProxy;

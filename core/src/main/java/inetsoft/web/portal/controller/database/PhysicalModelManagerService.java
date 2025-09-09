@@ -697,7 +697,9 @@ public class PhysicalModelManagerService {
          tableName = physicalModelService.addPartitionTable(partition, table);
 
          if(fixBounds) {
+            runtimePartitionService.saveRuntimePartition(rp);
             fixTableBounds(rp.getId(), partition, tableName);
+            runtimePartitionService.saveRuntimePartition(rp);
          }
       }
 
@@ -737,6 +739,8 @@ public class PhysicalModelManagerService {
       if(autoAlias != null) {
          autoAlias.removeIncomingJoin(qualifiedName);
       }
+
+      runtimePartitionService.saveRuntimePartition(rp);
    }
 
    /**
@@ -967,6 +971,8 @@ public class PhysicalModelManagerService {
       if(runtimePartition.removeMovedTable(oldAlias)) {
          runtimePartition.addMovedTable(alias);
       }
+
+      runtimePartitionService.saveRuntimePartition(runtimePartition);
    }
 
    /**

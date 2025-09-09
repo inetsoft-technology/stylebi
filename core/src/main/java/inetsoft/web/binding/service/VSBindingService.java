@@ -1747,6 +1747,7 @@ public class VSBindingService {
       nrvs.setOriginalID(vsId);
       nrvs.setViewsheet(vs);
       nrvs.setVSTemporaryInfo(wizardTemporaryInfoService.getVSTemporaryInfo(rvs));
+      engine.flushRuntimeSheet(id);
 
       AssetQuerySandbox wbox = nrvs.getViewsheetSandbox().getAssetQuerySandbox();
 

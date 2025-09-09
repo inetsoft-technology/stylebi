@@ -68,13 +68,13 @@ public abstract class LoadTableDataCommand implements ViewsheetCommand {
    public abstract int runtimeDataRowCount();
    public abstract HyperlinkModel[] rowHyperlinks();
 
-   // prototype cache for table cells
-   @Value.Derived
-   public Map<Integer, ModelPrototype> prototypeCache() {
+   public abstract Map<Integer, ModelPrototype> prototypeCache();
+
+   public static Map<Integer, ModelPrototype> createPrototypeCache(BaseTableCellModel[][] cellsData) {
       final Map<BaseTableCellModelPrototype, Integer> dataPathToIndex = new HashMap<>();
       final Map<Integer, ModelPrototype> prototypeIndexes = new HashMap<>();
 
-      for(BaseTableCellModel[] cells : tableCells()) {
+      for(BaseTableCellModel[] cells : cellsData) {
          for(BaseTableCellModel cell : cells) {
             BaseTableCellModelPrototype prototype = cell.createModelPrototype();
             dataPathToIndex.putIfAbsent(prototype, dataPathToIndex.size());

@@ -152,7 +152,7 @@ public class DateComparisonDialogService {
       }
 
       DateComparisonPaneModel dateComparisonModel =
-         getDateComparison(Tool.isEmptyString(shareFrom) ? objectId : shareFrom, runtimeId, principal);
+         getDateComparison(runtimeId, Tool.isEmptyString(shareFrom) ? objectId : shareFrom, principal);
       DateComparisonUtil.fixDCModelProperties(vs, dateComparisonModel, objectId, shareFrom);
 
       DateComparisonDialogModel model = new DateComparisonDialogModel();

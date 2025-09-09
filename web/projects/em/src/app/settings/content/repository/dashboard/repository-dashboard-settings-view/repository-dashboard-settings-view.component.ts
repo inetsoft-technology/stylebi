@@ -172,6 +172,7 @@ export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnIn
 
    apply() {
       this.dashboardChanged = false;
+      this._oldModel = Tool.clone(this.model);
       this.dashboardSettingsChanged.emit(this.model);
    }
 

@@ -469,6 +469,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
     */
    public void setUser(ClientInfo client) {
       this.client = client;
+      setChanged();
    }
 
    /**
@@ -565,6 +566,20 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       }
 
       return null;
+   }
+
+   @Override
+   public void copyContent(XPrincipal from) {
+      super.copyContent(from);
+
+      if(!(from instanceof SRPrincipal)) {
+         return;
+      }
+
+      SRPrincipal fromPrincipal = (SRPrincipal) from;
+      client = client == null ? null : (ClientInfo) fromPrincipal.client.clone();
+      host = fromPrincipal.host;
+      locale = fromPrincipal.locale == null ? null : (Locale) fromPrincipal.locale.clone();
    }
 
    /**
@@ -773,6 +788,8 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       if(locale != null && getProperty(XPrincipal.LOCALE) == null) {
          setProperty(XPrincipal.LOCALE, locale.toString());
       }
+
+      setChanged();
    }
 
    /**
@@ -781,6 +798,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
    public void setSession(Object session) {
       if(session != null) {
          sref = new WeakReference<>(session);
+         setChanged();
       }
    }
 
@@ -900,6 +918,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       accessed = in.readLong();
       host = (String) in.readObject();
       locale = (Locale) in.readObject();
+      clearChanged();
    }
 
    private String readStringExternal(ObjectInput in) throws IOException {

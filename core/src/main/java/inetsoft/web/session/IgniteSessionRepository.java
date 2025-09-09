@@ -21,12 +21,15 @@ package inetsoft.web.session;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.util.audit.SessionRecord;
 import inetsoft.web.admin.server.NodeProtectionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.*;
@@ -103,6 +106,31 @@ public class IgniteSessionRepository
       return session;
    }
 
+   /**
+    * Sets an attribute in the specified session and immediately saves it.
+    *
+    * In asynchronous or external threads, the automatic save mechanism triggered by
+    * FlushMode or SaveMode may not execute, so changes to the session might not persist.
+    * This method bypasses that limitation by directly updating the internal delegate
+    * (MapSession), marking the attribute as changed in the delta, and calling save immediately.
+    *
+    * Use this method when you need to guarantee that session updates are persisted
+    * from threads that are not part of the original HTTP request handling.
+    *
+    * @param sessionId     The ID of the session to update
+    * @param attributeName The name of the attribute to set
+    * @param value         The value of the attribute
+    */
+   public void setSessionAttributeAndSave(String sessionId, String attributeName, Object value) {
+      IgniteSession session = findById(sessionId);
+
+      if(session != null) {
+         session.delegate.setAttribute(attributeName, value);
+         session.delta.put(attributeName, value);
+         save(session);
+      }
+   }
+
    @SuppressWarnings("ClassEscapesDefinedScope")
    @Override
    public void save(IgniteSession session) {
@@ -120,6 +148,28 @@ public class IgniteSessionRepository
          Duration maxInactiveInterval =
             session.maxInactiveIntervalChanged ? session.getMaxInactiveInterval() : null;
          Map<String, Object> delta = session.delta.isEmpty() ? null : session.delta;
+
+         if(delta == null) {
+            delta = new HashMap<>();
+            Object emPrincipal = session.getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
+            Object principal = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+            if(emPrincipal != null && (!(emPrincipal instanceof XPrincipal p) || p.isChanged())) {
+               delta.put(RepletRepository.EM_PRINCIPAL_COOKIE, emPrincipal);
+            }
+
+            if(emPrincipal instanceof XPrincipal p) {
+               p.clearChanged();
+            }
+
+            if(principal != null && (!(principal instanceof XPrincipal p) || p.isChanged())) {
+               delta.put(RepletRepository.PRINCIPAL_COOKIE, principal);
+            }
+
+            if(principal instanceof XPrincipal p) {
+               p.clearChanged();
+            }
+         }
 
          boolean principalChanged = false;
          SRPrincipal oldPrincipal = null;
@@ -163,7 +213,9 @@ public class IgniteSessionRepository
 
    @Override
    public void deleteById(String id) {
+      Session session = this.sessions.get(id);
       this.sessions.remove(id);
+      this.eventPublisher.publishEvent(new SessionExpiredEvent(this, session));
    }
 
    @SuppressWarnings("ClassEscapesDefinedScope")
@@ -281,6 +333,7 @@ public class IgniteSessionRepository
 
       if(session != null) {
          this.sessions.remove(id);
+         this.eventPublisher.publishEvent(new SessionExpiredEvent(this, session));
       }
    }
 
@@ -342,7 +395,14 @@ public class IgniteSessionRepository
       }
    }
 
-   private ApplicationEventPublisher eventPublisher = e -> {};
+   private ApplicationEventPublisher eventPublisher = e -> {
+      ApplicationContext context = ConfigurationContext.getContext().getApplicationContext();
+
+      if(context != null) {
+         context.publishEvent(e);
+      }
+   };
+
    private String sessionMapName = DEFAULT_SESSION_MAP_NAME;
    private FlushMode flushMode = FlushMode.ON_SAVE;
    private SaveMode saveMode = SaveMode.ON_SET_ATTRIBUTE;

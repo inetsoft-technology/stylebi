@@ -17,8 +17,12 @@
  */
 package inetsoft.web.viewsheet.event.calendar;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.serial.Serial;
 import org.immutables.value.Value;
+
+import javax.annotation.Nullable;
 
 /**
  * Class that encapsulates the parameters for applying a selection.
@@ -27,13 +31,18 @@ import org.immutables.value.Value;
  */
 @Value.Immutable
 @Serial.Structural
+@JsonSerialize(as = ImmutableCalendarSelectionEvent.class)
+@JsonDeserialize(as = ImmutableCalendarSelectionEvent.class)
 public abstract class CalendarSelectionEvent {
    public abstract String getCurrentDate1();
 
+   @Nullable
    public abstract String getCurrentDate2();
 
+   @Nullable
    public abstract String[] getDates();
 
+   @Nullable
    public abstract String getEventSource();
 }
 

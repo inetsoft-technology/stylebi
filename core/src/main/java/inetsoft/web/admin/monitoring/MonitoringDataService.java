@@ -152,16 +152,33 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
    /**
     * Update all subscribers of a websocket session
     */
+   public void updateSession(String sessionId) {
+      updateSession(sessionId, 1L, TimeUnit.SECONDS);
+   }
+
+   /**
+    * Update all subscribers of a websocket session
+    */
    public void updateSession(StompHeaderAccessor headerAccessor,  long interval,
                              TimeUnit intervalUnit)
    {
       final MessageHeaders messageHeaders = headerAccessor.getMessageHeaders();
       final String sessionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
-      debouncer.debounce(sessionId, interval, intervalUnit, () -> updateSession(sessionId));
+      updateSession(sessionId, interval, intervalUnit);
+
    }
 
-   private void updateSession(String sessionId) {
+   /**
+    * Update all subscribers of a websocket session
+    */
+   private void updateSession(String sessionId,  long interval,
+                             TimeUnit intervalUnit)
+   {
+      debouncer.debounce(sessionId, interval, intervalUnit, () -> updateSession0(sessionId));
+   }
+
+   private void updateSession0(String sessionId) {
       lock();
 
       try {

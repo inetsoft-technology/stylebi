@@ -219,6 +219,12 @@ public interface WorksheetService {
     */
    void fixRenameDepEntry(String rid, AssetObject newEntry);
 
+   /**
+    * Flush the runtime sheet to cluster cache.
+    * @param rid runtime id.
+    */
+   void flushRuntimeSheet(String rid);
+
    final class Reference extends SingletonManager.Reference<WorksheetService> {
       @SuppressWarnings("unchecked")
       @Override

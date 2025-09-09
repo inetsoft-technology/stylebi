@@ -33,7 +33,6 @@ public class VSSourceChangeController {
    public VSSourceChangeController(VSSourceChangeServiceProxy vsSourceChangeServiceProxy,
                                    VSAssemblyInfoHandler handler)
    {
-      this.handler = handler;
       this.vsSourceChangeServiceProxy = vsSourceChangeServiceProxy;
    }
 
@@ -49,9 +48,8 @@ public class VSSourceChangeController {
       @RequestParam("table") String table, Principal principal)
       throws Exception
    {
-      return vsSourceChangeServiceProxy.checkSourceChanged(vsId, aname, table, handler, principal);
+      return vsSourceChangeServiceProxy.checkSourceChanged(vsId, aname, table, principal);
    }
 
    private VSSourceChangeServiceProxy vsSourceChangeServiceProxy;
-   private final VSAssemblyInfoHandler handler;
 }

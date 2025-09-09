@@ -535,6 +535,12 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          }
       }
 
+      Principal principal = ThreadContext.getContextPrincipal();
+
+      if(user != null && principal == null) {
+         ThreadContext.setContextPrincipal(user);
+      }
+
       // debounce and execute in a different thread the call to accessSheet as it
       // serializes the runtime sheet and saves it in the distributed cache
       debouncer.debounce("accessSheet_" + id, 1L,
@@ -921,6 +927,11 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
 
       AssetObject entry = runtimeSheet.getEntry();
       DependencyTransformer.fixRenameDepEntry(rid, entry, newEntry, renameInfoMap);
+   }
+
+   @Override
+   public void flushRuntimeSheet(String rid) {
+      amap.flush(rid);
    }
 
    private List<RenameInfo> createCauseWSColRenameInfos(RenameInfo renameInfo, AssetEntry entry ,

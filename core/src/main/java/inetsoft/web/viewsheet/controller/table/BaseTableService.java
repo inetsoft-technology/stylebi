@@ -46,9 +46,9 @@ import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.table.BaseTableEvent;
+import inetsoft.web.viewsheet.model.ModelPrototype;
 import inetsoft.web.viewsheet.model.VSFormatModel;
-import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
-import inetsoft.web.viewsheet.model.table.BaseTableModel;
+import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
@@ -329,6 +329,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                .tableHeaderCells(tableHeaderCells)
                .rowHyperlinks(rowHyperlinks);
             setLayout((TableDataVSAssembly) vsassembly, lens, command);
+            command.prototypeCache(LoadTableDataCommand.createPrototypeCache(tableCells));
             dispatcher.sendCommand(name, command.build());
          }
 

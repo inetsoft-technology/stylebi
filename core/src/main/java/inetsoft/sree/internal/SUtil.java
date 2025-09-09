@@ -724,7 +724,9 @@ public class SUtil {
     * Get principal.
     */
    public static SRPrincipal getPrincipal(IdentityID remoteUser, String remoteAddr, boolean fireEvent) {
-      return getPrincipal(remoteUser, remoteAddr, (String) null, fireEvent, null);
+      SRPrincipal principal = getPrincipal(remoteUser, remoteAddr, (String) null, fireEvent, null);
+      principal.setIgnoreLogin(true);
+      return principal;
    }
 
    /**

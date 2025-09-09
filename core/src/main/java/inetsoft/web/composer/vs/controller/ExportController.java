@@ -196,7 +196,13 @@ public class ExportController {
          entry = exportService.handleAttemptExportGloballyVisibleAsset(entry, format);
       }
 
-      runtimeId = entry == null ? path : exportService.openViewsheet(entry, principal, parameters, sessionId, userAgent);
+      if(entry != null) {
+         runtimeId = exportService.openViewsheet(entry, principal, parameters, sessionId, userAgent);
+      }
+      else {
+         runtimeId = path;
+         matchesAssetIdFormat = false;
+      }
 
       ExportControllerService.ViewsheetExportResult result = exportControllerServiceProxy.exportViewsheet(
          runtimeId, format, type, matchesAssetIdFormat,
@@ -291,6 +297,7 @@ public class ExportController {
                                HttpServletResponse response, Principal principal)
       throws Exception
    {
+      path = Tool.byteDecode(path);
       int index = path.lastIndexOf('/');
       String runtimeId = path.substring(0, index);
       String tableAssemblyName = path.substring(index + 1);

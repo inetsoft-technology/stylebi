@@ -162,6 +162,7 @@ public class BaseTableShowDetailsService extends BaseTableService<ShowDetailsEve
          LoadPreviewTableCommand command =
             LoadPreviewTableCommand.builder()
                .styleModel(new TableStylePaneModel())
+               .prototypeCache(LoadPreviewTableCommand.createPrototypeCache(new PreviewTableCellModel[0][0]))
                .build();
          dispatcher.sendCommand(name, command);
          return null;
@@ -411,6 +412,7 @@ public class BaseTableShowDetailsService extends BaseTableService<ShowDetailsEve
                .sortInfo(detailsTableSortInfo)
                .colWidths(colWidths)
                .styleModel(styleModel)
+               .prototypeCache(LoadPreviewTableCommand.createPrototypeCache(tableCells))
                .build();
          dispatcher.sendCommand(name, command);
       }

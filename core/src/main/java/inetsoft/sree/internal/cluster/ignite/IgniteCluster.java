@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
+import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.util.*;
@@ -936,8 +937,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          try {
             return job.call();
          }
-         catch(Exception e) {
-            throw new RuntimeException(e);
+         catch(RuntimeException ex) {
+            throw ex;
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex);
          }
       }
 

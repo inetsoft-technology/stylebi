@@ -170,12 +170,12 @@ public class LibManager implements AutoCloseable {
             orgID = OrganizationManager.getInstance().getCurrentOrgID();
          }
 
-         final String currentOrg = orgID;
+         final String storageId = getStorageId(orgID);
          OrganizationManager.runInOrgScope(orgID, () -> {
-            BlobStorage<Metadata> orgStorage = storages.get(currentOrg);
+            BlobStorage<Metadata> orgStorage = storages.get(storageId);
 
             if(orgStorage != null) {
-               loadLibrary(storages.get(currentOrg));
+               loadLibrary(storages.get(storageId));
             }
 
             return null;

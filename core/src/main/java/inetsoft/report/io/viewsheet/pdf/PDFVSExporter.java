@@ -1069,16 +1069,16 @@ public class PDFVSExporter extends AbstractVSExporter {
          ReportSheet[] reportSheets = reportList.toArray(new ReportSheet[0]);
          CompositeSheet compositeSheet = new CompositeSheet(reportSheets);
          generator.generate(compositeSheet);
+         return;
       }
-      else {
-         LicenseManager licenseManager = LicenseManager.getInstance();
 
-         if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
-            Size pageSize = helper.getPrinter().getPageSize();
-            Dimension pageDimension = new Dimension((int) pageSize.width * 72,
-               (int) pageSize.height * 72);
-            Util.drawWatermark(helper.getPrinter(), pageDimension);
-         }
+      LicenseManager licenseManager = LicenseManager.getInstance();
+
+      if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+         Size pageSize = helper.getPrinter().getPageSize();
+         Dimension pageDimension = new Dimension((int) pageSize.width * 72,
+            (int) pageSize.height * 72);
+         Util.drawWatermark(helper.getPrinter(), pageDimension);
       }
 
       helper.write();

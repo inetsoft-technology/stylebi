@@ -32,8 +32,8 @@ public class MonitorDataService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Boolean refresh(@ClusterProxyKey String sessionId, StompHeaderAccessor stompHeaderAccessor) {
-      this.monitoringDataService.updateSession(stompHeaderAccessor);
+   public Boolean refresh(@ClusterProxyKey String sessionId) {
+      this.monitoringDataService.updateSession(sessionId);
       return true;
    }
 

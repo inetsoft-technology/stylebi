@@ -59,7 +59,7 @@ public class SSOFilterPublisher implements ApplicationEventPublisherAware, Messa
    @Override
    public void messageReceived(MessageEvent event) {
       if(!event.isLocal() && (event.getMessage() instanceof ChangeSSOFilterMessage)) {
-         publisher.publishEvent(((ChangeSSOFilterMessage) event.getMessage()).getType());
+         publishEvent(((ChangeSSOFilterMessage) event.getMessage()).getType());
       }
    }
 

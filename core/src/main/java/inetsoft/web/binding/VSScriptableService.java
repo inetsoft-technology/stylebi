@@ -70,8 +70,9 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class VSScriptableService {
 
-   public VSScriptableService(ViewsheetService viewsheetService) {
+   public VSScriptableService(ViewsheetService viewsheetService, VSTreeHandler treeHandler) {
       this.viewsheetService = viewsheetService;
+      this.treeHandler = treeHandler;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -118,7 +119,7 @@ public class VSScriptableService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public TreeNodeModel getColumnTree(@ClusterProxyKey String vsId, String assemblyName, String tableName,
-                                      boolean isCondition, boolean isVSOption, VSTreeHandler treeHandler, Principal principal) throws Exception
+                                      boolean isCondition, boolean isVSOption, Principal principal) throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
@@ -151,7 +152,7 @@ public class VSScriptableService {
 
       if(assemblyName != null || isVSOption) {
          TreeNodeModel tablesNode = createTablesNode(viewsheetService, rvs, vsName, rootName,
-                                                     rootLabel, rootData, catalog, treeHandler, principal);
+                                                     rootLabel, rootData, catalog, principal);
 
          if(tablesNode != null) {
             children.add(tablesNode);
@@ -440,7 +441,7 @@ public class VSScriptableService {
                                           RuntimeViewsheet rvs, String vsName,
                                           String parentName, String parentLabel,
                                           Object parentData, Catalog catalog,
-                                          VSTreeHandler treeHandler, Principal principal)
+                                          Principal principal)
    {
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
@@ -1829,12 +1830,8 @@ public class VSScriptableService {
       return XUtil.getScriptType(schemaType);
    }
 
-
-
-
-
-
    private ViewsheetService viewsheetService;
+   private VSTreeHandler treeHandler;
    private static final Map<String, String> FUNCTION_CSHIDS = new HashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(VSScriptableService.class);
 
