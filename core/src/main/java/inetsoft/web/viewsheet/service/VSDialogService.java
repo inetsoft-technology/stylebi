@@ -296,7 +296,6 @@ public class VSDialogService {
    private String getDisplayName(String path) {
       int index = path.lastIndexOf(LibManager.SEPARATOR);
       String name;
-      Catalog catalog = Catalog.getCatalog();
 
       if(index < 0) {
          name = path;
@@ -304,8 +303,7 @@ public class VSDialogService {
       else {
          name = path.substring(index + 1);
       }
-
-      return catalog.getString(name);
+      return name;
    }
 
 
