@@ -52,5 +52,4 @@ public class VSSourceChangeController {
    }
 
    private VSSourceChangeServiceProxy vsSourceChangeServiceProxy;
-
 }
