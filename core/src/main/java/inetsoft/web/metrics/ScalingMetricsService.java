@@ -20,7 +20,7 @@ package inetsoft.web.metrics;
 
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.MetricsConfig;
-import inetsoft.web.MapSessionRepository;
+import inetsoft.web.session.IgniteSessionRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
@@ -32,7 +32,7 @@ import java.util.concurrent.*;
 @Component
 @Lazy(false)
 public class ScalingMetricsService {
-   public ScalingMetricsService(MapSessionRepository sessionRepository) {
+   public ScalingMetricsService(IgniteSessionRepository sessionRepository) {
       this.sessionRepository = sessionRepository;
    }
 
@@ -208,7 +208,7 @@ public class ScalingMetricsService {
          .orElse(0D);
    }
 
-   private final MapSessionRepository sessionRepository;
+   private final IgniteSessionRepository sessionRepository;
    private JvmCpuScalingMetric jvmCpu;
    private JvmMemoryScalingMetric jvmMemory;
    private SystemCpuScalingMetric systemCpu;
