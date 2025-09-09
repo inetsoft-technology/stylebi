@@ -20,6 +20,7 @@ package inetsoft.web.metrics;
 
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.MetricsConfig;
+import inetsoft.web.MapSessionRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
@@ -31,6 +32,9 @@ import java.util.concurrent.*;
 @Component
 @Lazy(false)
 public class ScalingMetricsService {
+   public ScalingMetricsService(MapSessionRepository sessionRepository) {
+      this.sessionRepository = sessionRepository;
+   }
 
    @PostConstruct
    public void initEnabledMetrics() {
@@ -46,6 +50,7 @@ public class ScalingMetricsService {
       scheduler = new SchedulerScalingMetric(movingAverage, movingAverageCount);
       cacheSwapMemory = new CacheSwapMemoryScalingMetric(movingAverage, movingAverageCount);
       cacheSwapWait = new CacheSwapWaitScalingMetric(movingAverage, movingAverageCount);
+      activeSession = new ActiveSessionScalingMetric(sessionRepository);
 
       if(config == null) {
          enabledMetrics = List.of(jvmCpu, scheduler, cacheSwapMemory, cacheSwapWait);
@@ -81,6 +86,10 @@ public class ScalingMetricsService {
             enabledMetrics.add(cacheSwapWait);
          }
 
+         if(config.isActiveSessions()) {
+            enabledMetrics.add(activeSession);
+         }
+
          for(ScalingMetricPublisherFactory factory :
              ServiceLoader.load(ScalingMetricPublisherFactory.class))
          {
@@ -111,6 +120,7 @@ public class ScalingMetricsService {
       scheduler.update();
       cacheSwapMemory.update();
       cacheSwapWait.update();
+      activeSession.update();
 
       if(publisher != null) {
          ScalingMetricData data = new ScalingMetricData(
@@ -121,7 +131,7 @@ public class ScalingMetricsService {
             scheduler.get(), scheduler.calculate(),
             cacheSwapMemory.get(), cacheSwapMemory.calculate(),
             cacheSwapWait.get(), cacheSwapWait.calculate(),
-            getServerUtilization()
+            activeSession.get(), getServerUtilization()
          );
          publisher.publish(data);
       }
@@ -183,6 +193,10 @@ public class ScalingMetricsService {
       return cacheSwapWait.calculate();
    }
 
+   public double getActiveSessionDetail() {
+      return activeSession.calculate();
+   }
+
    public double getServerUtilization() {
       if(enabledMetrics == null || enabledMetrics.isEmpty()) {
          return 0D;
@@ -194,6 +208,7 @@ public class ScalingMetricsService {
          .orElse(0D);
    }
 
+   private final MapSessionRepository sessionRepository;
    private JvmCpuScalingMetric jvmCpu;
    private JvmMemoryScalingMetric jvmMemory;
    private SystemCpuScalingMetric systemCpu;
@@ -201,6 +216,7 @@ public class ScalingMetricsService {
    private SchedulerScalingMetric scheduler;
    private CacheSwapMemoryScalingMetric cacheSwapMemory;
    private CacheSwapWaitScalingMetric cacheSwapWait;
+   private ActiveSessionScalingMetric activeSession;
    private List<ScalingMetric> enabledMetrics;
    private ScheduledExecutorService executor;
    private ScalingMetricPublisher publisher;

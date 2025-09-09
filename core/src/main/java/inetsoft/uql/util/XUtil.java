@@ -4789,6 +4789,36 @@ public final class XUtil {
       return null;
    }
 
+   public static boolean hasCustomBrowseDataQuery(XSourceInfo sourceInfo, DataRef column,
+                                                  Principal user)
+   {
+      XLogicalModel lmodel = XUtil.getLogicModel(sourceInfo, user);
+
+      if(lmodel == null) {
+         return false;
+      }
+
+      String entity = column.getEntity();
+      String attr = column.getAttribute();
+      int idx = attr == null ? -1 : attr.indexOf(":");
+
+      if(entity != null) {
+         attr = AssetUtil.trimEntity(attr, entity);
+      }
+      else if(idx != -1) {
+         entity = attr.substring(0, idx);
+         attr = attr.substring(idx + 1);
+      }
+
+      if(entity == null) {
+         return false;
+      }
+
+      XEntity xentity = lmodel.getEntity(entity);
+      XAttribute xattr = xentity.getAttribute(attr);
+      return xattr != null && xattr.getBrowseDataQuery() != null;
+   }
+
    private static final Map<Integer,String[]> DEFAULT_PATTERN = new HashMap<>();
 
    static {

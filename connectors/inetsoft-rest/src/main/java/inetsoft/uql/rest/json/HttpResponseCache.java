@@ -26,12 +26,12 @@ import java.io.*;
 
 public class HttpResponseCache extends TwoLevelCache<String, HttpResponse> {
    public HttpResponseCache() {
-      super(10, 2000);
+      super(10, 600000L);
       setId("RestResponseCache");
    }
 
-   public HttpResponse get(String key, boolean livemode) {
-      return get(key, livemode ? -1L : System.currentTimeMillis() - getL2Timeout());
+   public HttpResponse get(String key, boolean livemode, long touchTimestamp) {
+      return get(key, livemode ? -1L : touchTimestamp);
    }
 
    @Override
@@ -52,6 +52,12 @@ public class HttpResponseCache extends TwoLevelCache<String, HttpResponse> {
       return serializableResponse;
    }
 
+   @Override
+   public long getEntryTimeout(String key, HttpResponse val) {
+      return getL2Timeout();
+   }
+
+   @Override
    protected long getL2Timeout() {
       final Long timeout = SreeEnv.getLong("rest.cache.timeout.millis");
       return timeout != null ? timeout : 0;

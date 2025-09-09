@@ -777,6 +777,10 @@ schema-column, edit-join-table-column {
   background-color: var(--inet-hover-primary-bg-color);
 }
 
+.table-data__row.highlighted {
+  background-color: var(--inet-hover-primary-bg-color);
+}
+
 /********************************** Buttons and Icons *********************************************/
 .btn-default {
   @include button-outline-variant($secondary, $secondary-light);
@@ -1090,7 +1094,7 @@ binding-editor {
   }
 }
 
-.favorites-focus-icon {
+.focus-icon-color {
   color: var(--inet-primary-color);
 }
 

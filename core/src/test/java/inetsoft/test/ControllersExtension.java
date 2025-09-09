@@ -119,9 +119,11 @@ public class ControllersExtension extends MockMessageExtension {
       objectModelFactoryService = new VSObjectModelFactoryService(modelFactories);
       VSLayoutService vsLayoutService = new VSLayoutService(objectModelFactoryService);
       ParameterService parameterService = new ParameterService(viewsheetService);
+      vsCompositionService = new VSCompositionService();
       coreLifecycleService =
          new CoreLifecycleService(objectModelFactoryService, viewsheetService,
-                                  vsLayoutService, parameterService, new CoreLifecycleControllerServiceProxy());
+                                  vsLayoutService, parameterService, new CoreLifecycleControllerServiceProxy(),
+                                  vsCompositionService);
       BaseTableLoadDataServiceProxy tableLoadDataServiceProxy = new BaseTableLoadDataServiceProxy();
       assetRepository = (AssetRepository) SUtil.getRepletRepository();
       objectTreeService = new VSObjectTreeService(objectModelFactoryService);
@@ -148,7 +150,6 @@ public class ControllersExtension extends MockMessageExtension {
          new NumericRangeRefModel.NumericRangeRefModelFactory()
       );
       dataRefModelFactoryService = new DataRefModelFactoryService(dataRefModelFactories);
-      vsCompositionService = new VSCompositionService();
       vsLifecycleService = new VSLifecycleService(
          viewsheetService, assetRepository, coreLifecycleService, bookmarkService,
          dataRefModelFactoryService, vsCompositionService, parameterService, new VSLifecycleControllerServiceProxy());

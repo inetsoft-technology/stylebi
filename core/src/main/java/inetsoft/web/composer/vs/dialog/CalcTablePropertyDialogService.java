@@ -348,6 +348,7 @@ public class CalcTablePropertyDialogService {
       CalcTableAdvancedPaneModel advPane = value.getCalcTableAdvancedPaneModel();
       TipPaneModel tipPaneModel = advPane.getTipPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
+      int oldTrailerRows = calcTableAssemblyInfo.getTrailerRowCount();
 
       calcTableAssemblyInfo.setTitleVisibleValue(titlePropPaneModel.isVisible());
       calcTableAssemblyInfo.setTitleValue(titlePropPaneModel.getTitle());
@@ -415,15 +416,18 @@ public class CalcTablePropertyDialogService {
 
             // check if this path is valid for the current calc table and not leftover from
             // the crosstab conversion
-            if(layoutPath == null || layoutPath.getType() != path.getType()) {
+            if(layoutPath == null || (layoutPath.getType() != path.getType() &&
+               path.getType() != TableDataPath.TRAILER && layoutPath.getType() != TableDataPath.DETAIL))
+            {
                continue;
             }
          }
 
          int r = loc.y;
          int type = getRowType(r, rowCnt, headerRows, trailerRows);
+         int oldType = getRowType(r, rowCnt, headerRows, oldTrailerRows);
 
-         if(type != path.getType()) {
+         if(type != path.getType() && path.getType() == oldType) {
             VSCompositeFormat fmt = calcTableAssemblyInfo.getFormatInfo().getFormat(path);
             Hyperlink link = calcTableAssemblyInfo.getHyperlinkAttr() != null ?
                calcTableAssemblyInfo.getHyperlinkAttr().getHyperlink(path) : null;

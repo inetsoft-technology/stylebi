@@ -193,12 +193,23 @@ public abstract class AbstractRestDataIteratorStrategy<Q extends AbstractRestQue
       this.lookup = lookup;
    }
 
+   @Override
+   public long getTouchTimestamp() {
+      return touchTimestamp;
+   }
+
+   @Override
+   public void setTouchTimestamp(long touchTimestamp) {
+      this.touchTimestamp = touchTimestamp;
+   }
+
    protected RestErrorHandler errorHandler;
 
    protected final Q query;
    protected final T transformer;
    private boolean livemode;
    private boolean lookup;
+   private long touchTimestamp;
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }

@@ -17,28 +17,28 @@
   -->
 <div *ngIf="isCandle()" class="aesthetic-pane m-1">
   <div class="field-row mt-1">
-    <div class="aesthetic-row-label">_#(High)</div>
+    <div class="aesthetic-row-label">_#(stock.field.high)</div>
     <field-pane class="fill-width" [field]="bindingModel.highField" [fieldType]="'high'"
                 [isPrimaryField]="true" dropHighlight
                 [displayLabel]="'_#(Measure)'" [binding]="bindingModel"
                 [grayedOutValues]="grayedOutValues"></field-pane>
   </div>
   <div class="field-row mt-1">
-    <div class="aesthetic-row-label">_#(stock.filed.close)</div>
+    <div class="aesthetic-row-label">_#(stock.field.close)</div>
     <field-pane class="fill-width" [field]="bindingModel.closeField" [fieldType]="'close'"
                 [isPrimaryField]="true" dropHighlight
                 [displayLabel]="'_#(Measure)'" [binding]="bindingModel"
                 [grayedOutValues]="grayedOutValues"></field-pane>
   </div>
   <div class="field-row mt-1">
-    <div class="aesthetic-row-label">_#(Open)</div>
+    <div class="aesthetic-row-label">_#(stock.field.open)</div>
     <field-pane class="fill-width" [field]="bindingModel.openField" [fieldType]="'open'"
                 [isPrimaryField]="true" dropHighlight
                 [displayLabel]="'_#(Measure)'" [binding]="bindingModel"
                 [grayedOutValues]="grayedOutValues"></field-pane>
   </div>
   <div class="field-row mt-1">
-    <div class="aesthetic-row-label">_#(Low)</div>
+    <div class="aesthetic-row-label">_#(stock.field.low)</div>
     <field-pane class="fill-width" [field]="bindingModel.lowField" [fieldType]="'low'"
                 [isPrimaryField]="true" dropHighlight
                 [displayLabel]="'_#(Measure)'" [binding]="bindingModel"

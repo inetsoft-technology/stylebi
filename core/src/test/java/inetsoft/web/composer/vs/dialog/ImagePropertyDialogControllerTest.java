@@ -73,7 +73,8 @@ class ImagePropertyDialogControllerTest {
 
       trapService = new VSTrapService();
       coreLifecycleService = new CoreLifecycleService(objectModelService, viewsheetEngine,
-                                                  vsLayoutService, parameterService, new CoreLifecycleControllerServiceProxy());
+                                                  vsLayoutService, parameterService, new CoreLifecycleControllerServiceProxy(),
+                                                      vsCompositionService);
       temporaryInfoService = new VSWizardTemporaryInfoService(viewsheetService);
       vsObjectPropertyService = spy(new VSObjectPropertyService(coreLifecycleService,
                                                                 vsColumnHandler,

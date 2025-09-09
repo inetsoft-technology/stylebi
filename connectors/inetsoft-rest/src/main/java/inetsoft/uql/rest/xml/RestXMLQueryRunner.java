@@ -38,6 +38,7 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
         try(AbstractRestDataIteratorStrategy<RestXMLQuery, ? extends AbstractXMLStreamTransformer> strategy =
                factory.createStrategy(query))
         {
+            strategy.setTouchTimestamp(getTouchTimestamp());
             final AbstractXMLStreamTransformer transformer = strategy.getTransformer();
             transformer.initializeColumnTypes(table);
             table.applyQueryColumnTypes(query);
@@ -125,6 +126,7 @@ public class RestXMLQueryRunner extends AbstractQueryRunner<RestXMLQuery> {
              factory.createStrategy((RestXMLQuery) lookupQuery))
       {
          strategy.setLiveMode(isLiveMode());
+         strategy.setTouchTimestamp(getTouchTimestamp());
          strategy.setLookup(true);
 
          while(strategy.hasNext()) {

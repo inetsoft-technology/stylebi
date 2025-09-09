@@ -378,6 +378,7 @@ public class HTMLVSExporter extends AbstractVSExporter {
    protected void writeSelectionTree(SelectionTreeVSAssembly assembly) {
       HTMLSelectionTreeHelper thelper = new HTMLSelectionTreeHelper(
          helper, assembly.getViewsheet(), assembly);
+      thelper.setExporter(this);
       thelper.write(writer, assembly);
    }
 

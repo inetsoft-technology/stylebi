@@ -103,6 +103,11 @@ public class UtilizationMeterService implements MeterBinder {
          .tag("scope", "jvm")
          .tag("type", "cacheSwapWait")
          .register(registry);
+      Gauge.builder("inetsoft.scaling.utilizationModel", service::getActiveSessionDetail)
+         .description("The server utilization detail")
+         .tag("scope", "jvm")
+         .tag("type", "activeSession")
+         .register(registry);
       Gauge.builder("inetsoft.scaling.systemUtilization", service::getServerUtilization)
          .description("The server utilization")
          .register(registry);

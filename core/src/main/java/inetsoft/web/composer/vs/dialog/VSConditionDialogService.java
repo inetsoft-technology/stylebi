@@ -34,8 +34,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.uql.util.XNamedGroupInfo;
-import inetsoft.uql.util.XSourceInfo;
+import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
@@ -305,12 +304,19 @@ public class VSConditionDialogService {
       SourceInfo sourceInfo = null;
 
       if(wentry != null && wentry.isLogicModel()) {
-         sourceInfo = new SourceInfo(XSourceInfo.MODEL, wentry.getParentPath(), wentry.getName());
+         SourceInfo modelSourceInfo = new SourceInfo(XSourceInfo.MODEL, wentry.getParentPath(),
+                                                     wentry.getName());
+         // Bug #72342, use the model as source info only if it contains a custom browse query
+         if(XUtil.hasCustomBrowseDataQuery(modelSourceInfo, dataRef, principal)) {
+            sourceInfo = modelSourceInfo;
+         }
       }
-      else {
+
+      if(sourceInfo == null) {
          sourceInfo = assembly instanceof DataVSAssembly ?
             ((DataVSAssembly) assembly).getSourceInfo() : null;
       }
+
 
       browseDataController.setSourceInfo(sourceInfo);
       browseDataController.setVSAssemblyName(assemblyName);

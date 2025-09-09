@@ -230,7 +230,9 @@ public class SVGVSExporter extends AbstractVSExporter {
 
    @Override
    protected void writeSelectionTree(SelectionTreeVSAssembly assembly) {
-      new SVGSelectionTreeHelper(helper).write(assembly);
+      SVGSelectionTreeHelper selectionTreeHelper = new SVGSelectionTreeHelper(helper);
+      selectionTreeHelper.setExporter(this);
+      selectionTreeHelper.write(assembly);
    }
 
    @Override

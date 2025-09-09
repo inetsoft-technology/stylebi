@@ -258,7 +258,7 @@ public class NamedCellRange extends CellRange {
    /**
     * Resolve the variables and index in group specification.
     */
-   public Map getRuntimeGroups() {
+   public Map<String, GroupSpec> getRuntimeGroups() {
       Map<String, GroupSpec> groups = new HashMap<>(groupspecs);
       RuntimeCalcTableLens calc = null;
       XTable table = (XTable) FormulaContext.getTable();
@@ -352,7 +352,7 @@ public class NamedCellRange extends CellRange {
       }
 
       if(groupspecs.size() > 0) {
-         Map specs = getRuntimeGroups();
+         Map<String, GroupSpec> specs = getRuntimeGroups();
          GroupRowSelector groupsel = new GroupRowSelector(table, specs);
 
          if(summary) {
@@ -385,7 +385,7 @@ public class NamedCellRange extends CellRange {
       }
 
       Vector cells = new Vector();
-      Map specs = getRuntimeGroups();
+      Map<String, GroupSpec> specs = getRuntimeGroups();
       RangeSelector selector = CrosstabGroupSelector.getSelector(
               Tool.replaceAll(colexpr, LayoutTool.SCRIPT_ESCAPED_COLON, ":"), table, specs);
       CrosstabRangeProcessor proc = new CrosstabRangeProcessor(table, FormulaContext.getScope());
@@ -401,7 +401,7 @@ public class NamedCellRange extends CellRange {
     */
    private Collection getCalcCells(RuntimeCalcTableLens table, boolean position) {
       Vector cells = new Vector();
-      Map specs = getRuntimeGroups();
+      Map<String, GroupSpec> specs = getRuntimeGroups();
       RangeSelector selector = new CalcGroupSelector(table, specs);
       CalcRangeProcessor proc = new CalcRangeProcessor(table, FormulaContext.getScope());
 
@@ -431,7 +431,7 @@ public class NamedCellRange extends CellRange {
 
          try {
             if(groupspecs.size() > 0) {
-               Map specs = getRuntimeGroups();
+               Map<String, GroupSpec> specs = getRuntimeGroups();
                //selector = new ValueRowSelector(table, specs);
                // optimization
                selector = CachedRowSelector.getSelector(table, specs);
@@ -459,7 +459,7 @@ public class NamedCellRange extends CellRange {
    /**
     * Group value specification, an index or a group value.
     */
-   static class GroupSpec {
+   public static class GroupSpec {
       public GroupSpec(String str) {
          if(str.startsWith("\"") && str.endsWith("\"") ||
             str.startsWith("'") && str.endsWith("'"))

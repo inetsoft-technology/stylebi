@@ -76,6 +76,11 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
    public static final String HINT_IGNORE_MAX_ROWS = "__HINT_IGNORE_MAX_ROWS__";
 
    /**
+    * A hint to get the touch timestamp.
+    */
+   public static final String HINT_TOUCH_TIMESTAMP = "__HINT_TOUCH_TIMESTAMP__";
+
+   /**
     * Create a query object with the specified type.
     * @param type data source type. One of values defined in XDataSource.
     */
