@@ -154,7 +154,9 @@
         </li>
       </ng-template>
       <li *ngIf="!mobile" class="nav-item portal-nav-item bb-highlight-filler" [class.disabled]="!model.helpVisible">
-        <a class="nav-link nav-icon nav-icon-size" (click)="showAiAssistantDialog()" (keyup.enter)="showAiAssistantDialog()"
+        <a class="nav-link nav-icon nav-icon-size"
+           (click)="aiAssistantService.openAiAssistantDialog()"
+           (keyup.enter)="aiAssistantService.openAiAssistantDialog()"
            title="_#(Assistant)" aria-label="_#(Assistant)" tabindex="0" enterClick>
           <i class="ai-assistant-icon nav-icon-size portal-toolbar-icon"></i>
           <span class="visually-hidden">_#(Assistant)</span>

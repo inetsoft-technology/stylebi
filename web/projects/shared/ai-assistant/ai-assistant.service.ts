@@ -18,8 +18,11 @@
 
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
+import { ComponentTool } from "../../portal/src/app/common/util/component-tool";
 import { CurrentUser } from "../../portal/src/app/portal/current-user";
+import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
 
 const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
 const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
@@ -47,7 +50,9 @@ export class AiAssistantService {
       this._context = value;
    }
 
-   constructor(private http: HttpClient) {
+   constructor(private http: HttpClient,
+               private modalService: NgbModal)
+   {
    }
 
    loadCurrentUser(em: boolean = false): void {
@@ -55,5 +60,14 @@ export class AiAssistantService {
       this.http.get(uri).subscribe((model: CurrentUser) => {
          this.userId = convertToKey(model.name);
       });
+   }
+
+   openAiAssistantDialog(): void {
+      ComponentTool.showDialog(this.modalService, AiAssistantDialogComponent, () => {},
+         {
+            backdrop: true,
+            windowClass: "ai-assistant-container"
+         }
+      );
    }
 }
