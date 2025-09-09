@@ -213,7 +213,9 @@ public class IgniteSessionRepository
 
    @Override
    public void deleteById(String id) {
+      Session session = this.sessions.get(id);
       this.sessions.remove(id);
+      this.eventPublisher.publishEvent(new SessionExpiredEvent(this, session));
    }
 
    @SuppressWarnings("ClassEscapesDefinedScope")
