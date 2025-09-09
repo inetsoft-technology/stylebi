@@ -25,6 +25,6 @@ public record ScalingMetricData(double jvmCpu, double jvmCpuDetail,
                                 double scheduler, double schedulerDetail,
                                 double cacheSwapMemory, double cacheSwapMemoryDetail,
                                 double cacheSwapWait, double cacheSwapWaitDetail,
-                                double activeSession, double serverUtilization)
+                                double serverUtilization)
 {
 }
