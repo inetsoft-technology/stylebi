@@ -2445,7 +2445,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
 
       this.setKeydownListener();
-      this.refreshContextType();
    }
 
    refreshChangedAssembly(command: AssemblyChangedCommand): void {
