@@ -93,6 +93,13 @@
                [style.wordWrap]="cellFormat.wrapping.wordWrap">
             {{selectionValue.label}}
           </div>
+          <div *ngIf="isList"
+               class="toggle-mode-btn"
+               type="button"
+               (click)="click($event, true)"
+               [title]="singleSelection ? '_#(multi.switchTip)' : '_#(single.switchTip)'">
+            {{ singleSelection ? '_#(multi.switch)' : '_#(single.switch)' }}
+          </div>
         </div>
       </div>
     </div>

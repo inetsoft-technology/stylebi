@@ -27,6 +27,10 @@
     height: 100%;
     margin-left: 2px;
 
+    &:hover .toggle-mode-btn{
+      display: flex;
+    }
+
     .label-container {
       display: table-cell;
       height: auto;
@@ -146,4 +150,10 @@
   vertical-align: middle;
   text-align: center;
   padding: 2px;
+}
+
+.toggle-mode-btn {
+  display: none;
+  font-weight:bold;
+  margin-left: auto;
 }

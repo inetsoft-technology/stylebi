@@ -261,7 +261,7 @@ export class SelectionListCell implements OnInit, OnChanges {
       }
    }
 
-   click(event: MouseEvent) {
+   click(event: MouseEvent, switching?: boolean) {
       if(event.button != 0 || this.contextProvider.vsWizard) {
          return;
       }
@@ -269,12 +269,21 @@ export class SelectionListCell implements OnInit, OnChanges {
       let toggleAll = false;
       let toggle = false;
 
-      if(this.toggleEnabled && event.altKey) {
-         if(event.shiftKey || this.isParentIDTree) {
-            toggleAll = true;
-         }
-         else {
-            toggle = true;
+      if(this.toggleEnabled){
+         if (switching) {
+            event.stopPropagation();
+            if(this.isParentIDTree){
+               toggleAll = true;
+            } else {
+               toggle=true;
+            }
+         } else if (event.altKey) {
+           if(event.shiftKey || this.isParentIDTree) {
+              toggleAll = true;
+           }
+           else {
+              toggle = true;
+           }
          }
       }
 
