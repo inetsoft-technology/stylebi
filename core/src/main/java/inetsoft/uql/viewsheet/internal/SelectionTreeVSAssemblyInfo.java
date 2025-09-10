@@ -36,6 +36,7 @@ import org.w3c.dom.NodeList;
 
 import java.io.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * SelectionTreeVSAssemblyInfo, the assembly info of a selection list assembly.
@@ -713,7 +714,7 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
     * @param dispList the vector of the "lines" to be displayed .
     */
    public void visitCompositeChild(CompositeSelectionValue csv, List<SelectionValue> dispList) {
-      visitCompositeChild(csv, dispList, false, false);
+      visitCompositeChild(csv, dispList, false, true, null);
    }
 
    /**
@@ -722,7 +723,7 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
     * @param dispList the vector of the "lines" to be displayed .
     */
    public void visitCompositeChild(CompositeSelectionValue csv, List<SelectionValue> dispList,
-                                   boolean isExport, boolean rootOnly)
+                                   boolean isExport, boolean expandAll, String[] expandedPaths)
    {
       if(csv == null) {
          return;
@@ -746,9 +747,20 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
       SelectionValue[] values = sl.getSelectionValues();
 
       for(SelectionValue selectionValue : values) {
-         if(selectionValue instanceof CompositeSelectionValue && !rootOnly) {
+         String[] paths = new String[0];
+
+         if(!expandAll && expandedPaths != null) {
+            String pathPrefix = "/" + selectionValue.getLabel();
+
+            paths = Arrays.stream(expandedPaths)
+               .filter(path -> path.startsWith(pathPrefix))
+               .map(path -> path.substring(pathPrefix.length()))
+               .toArray(String[]::new);
+         }
+
+         if(selectionValue instanceof CompositeSelectionValue && (expandAll || paths.length > 0)) {
             // visit child if it is a tree
-            visitCompositeChild((CompositeSelectionValue) selectionValue, dispList, isExport, false);
+            visitCompositeChild((CompositeSelectionValue) selectionValue, dispList, isExport, true, paths);
          }
          else {
             // a normal leaf
@@ -866,7 +878,7 @@ public class SelectionTreeVSAssemblyInfo extends SelectionBaseVSAssemblyInfo {
    public List<Double> getRowHeights() {
       List<SelectionValue> dispList = new ArrayList<>();
       List<Double> rowHeights = new ArrayList<>();
-      visitCompositeChild(getCompositeSelectionValue(), dispList, true, false);
+      visitCompositeChild(getCompositeSelectionValue(), dispList, true, true, null);
       double cellWidth = getPixelSize().width;
 
       if(isShowBar() && getMeasure() != null) {
