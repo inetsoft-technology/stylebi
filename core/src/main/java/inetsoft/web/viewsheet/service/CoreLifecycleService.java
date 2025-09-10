@@ -75,7 +75,7 @@ public class CoreLifecycleService {
    @Autowired
    public CoreLifecycleService(
       VSObjectModelFactoryService objectModelService, ViewsheetService viewsheetService,
-      VSLayoutService vsLayoutService, ParameterService parameterService, , CoreLifecycleControllerServiceProxy serviceProxy,
+      VSLayoutService vsLayoutService, ParameterService parameterService, CoreLifecycleControllerServiceProxy serviceProxy,
       VSCompositionService vsCompositionService)
    {
       this.objectModelService = objectModelService;
