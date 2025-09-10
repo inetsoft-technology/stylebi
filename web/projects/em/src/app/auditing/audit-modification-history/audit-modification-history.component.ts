@@ -25,6 +25,7 @@ import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
 import { Secured } from "../../secured";
 import { IdentityInfo } from "../audit-identity-info/identity-info";
+import { ResourceType } from "../audit-inactive-resource/resource-type";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import {
    ModificationHistory,
@@ -55,7 +56,7 @@ import { Tool } from "../../../../../shared/util/tool";
 })
 export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
    users: string[] = [];
-   objectTypes: string[] = [];
+   objectTypes: ResourceType[] = [];
    hosts: string[] = [];
    organizationNames: string[] = [];
    modifyStatuses: string[] = [];
@@ -165,6 +166,18 @@ export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
 
    getAssetTypeLabel(value: string): string {
       return Tool.startCase(value);
+   }
+
+   getModifyStatusLabel(value: string): string {
+      if(value === "success") {
+         return "_#(js:Success)";
+      }
+      else if(value === "failure") {
+         return "_#(js:Failure)";
+      }
+      else {
+         return value;
+      }
    }
 
    ngOnDestroy(): void {
