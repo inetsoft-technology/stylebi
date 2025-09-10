@@ -50,8 +50,13 @@ import java.util.stream.Stream;
 @ClusterProxy
 public class VSCalculatorService {
 
-   public VSCalculatorService(ViewsheetService viewsheetService) {
+   public VSCalculatorService(ViewsheetService viewsheetService,
+                              VSChartHandler chartHandler,
+                              CalculatorHandler calculatorHandler)
+   {
       this.viewsheetService = viewsheetService;
+      this.chartHandler = chartHandler;
+      this.calculatorHandler = calculatorHandler;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -66,8 +71,8 @@ public class VSCalculatorService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Map<String, List<DimensionInfo>> getDimensionInfos(@ClusterProxyKey String vsId, String assemblyName,
-                                                             VSChartHandler chartHandler, Catalog catalog,
-                                                             Principal principal) throws Exception
+                                                             Catalog catalog, Principal principal)
+      throws Exception
    {
       Assembly assembly = getAssembly(Tool.byteDecode(vsId), assemblyName, principal);
       Map<String, List<DimensionInfo>> map = new HashMap<>();
@@ -126,8 +131,9 @@ public class VSCalculatorService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Map supportReset(@ClusterProxyKey String vsId, String assemblyName, String aggreName, VSChartHandler chartHandler,
-                           CalculatorHandler calculatorHandler, Principal principal) throws Exception
+   public Map supportReset(@ClusterProxyKey String vsId, String assemblyName, String aggreName,
+                           Principal principal)
+      throws Exception
    {
       Assembly assembly = getAssembly(Tool.byteDecode(vsId), assemblyName, principal);
       Map map = new HashMap();
@@ -148,8 +154,9 @@ public class VSCalculatorService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Map getResetOptions(@ClusterProxyKey String vsId, String assemblyName, String aggreName, VSChartHandler chartHandler,
-                              CalculatorHandler calculatorHandler, Principal principal) throws Exception
+   public Map getResetOptions(@ClusterProxyKey String vsId, String assemblyName, String aggreName,
+                              Principal principal)
+      throws Exception
    {
       Assembly assembly = getAssembly(Tool.byteDecode(vsId), assemblyName, principal);
       Map map = new HashMap();
@@ -299,4 +306,6 @@ public class VSCalculatorService {
    }
 
    private ViewsheetService viewsheetService;
+   private VSChartHandler chartHandler;
+   private CalculatorHandler calculatorHandler;
 }

@@ -44,7 +44,7 @@ public class VSCalculatorController {
                                                @RequestParam("assemblyName") String assemblyName,
                                                Principal principal) throws Exception
    {
-      return vsCalculatorServiceProxy.getDimensionInfos(vsId, assemblyName, chartHandler, catalog, principal);
+      return vsCalculatorServiceProxy.getDimensionInfos(vsId, assemblyName, catalog, principal);
    }
 
 
@@ -59,10 +59,8 @@ public class VSCalculatorController {
                                @RequestParam("aggreName") String aggreName, Principal principal)
       throws Exception
    {
-      return vsCalculatorServiceProxy.supportReset(vsId, assemblyName, aggreName, chartHandler, calculatorHandler, principal);
+      return vsCalculatorServiceProxy.supportReset(vsId, assemblyName, aggreName, principal);
    }
-
-
 
    @RequestMapping(value = "/api/composer/resetOptions", method = RequestMethod.GET)
    @ResponseBody
@@ -71,13 +69,9 @@ public class VSCalculatorController {
                                          @RequestParam("aggreName") String aggreName, Principal principal)
       throws Exception
    {
-      return vsCalculatorServiceProxy.getResetOptions(vsId, assemblyName, aggreName, chartHandler, calculatorHandler, principal);
+      return vsCalculatorServiceProxy.getResetOptions(vsId, assemblyName, aggreName, principal);
    }
 
-   @Autowired
-   private VSChartHandler chartHandler;
-   @Autowired
-   private CalculatorHandler calculatorHandler;
    private VSCalculatorServiceProxy vsCalculatorServiceProxy;
    private Catalog catalog = Catalog.getCatalog();
 }
