@@ -483,12 +483,10 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    }
 
    get showScroll(): boolean {
-      let othersCell = this.controller.showOther ? 1 : 0;
-
       return !this.isHidden &&
          // hide scrollbar in selection container so the right resize handle is not covered.
          (this.selectedCells.size == 0 || !this.inContainer || this.context.preview || this.context.viewer) &&
-         this.getBodyHeight() < this.cellHeight * (this.selectionValuesTable.length + othersCell);
+         this.getBodyHeight() < this.scrollHeight;
    }
 
    get isHidden(): boolean {
