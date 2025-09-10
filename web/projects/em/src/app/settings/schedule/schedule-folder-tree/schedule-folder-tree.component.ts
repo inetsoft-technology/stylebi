@@ -21,7 +21,7 @@ import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angu
 import { MatDialog } from "@angular/material/dialog";
 import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
 import { Observable, Subscription, throwError } from "rxjs";
-import { catchError } from "rxjs/operators";
+import { catchError, debounceTime, filter } from "rxjs/operators";
 import { ScheduleTaskList } from "../../../../../../shared/schedule/model/schedule-task-list";
 import { ScheduleTaskModel } from "../../../../../../shared/schedule/model/schedule-task-model";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
