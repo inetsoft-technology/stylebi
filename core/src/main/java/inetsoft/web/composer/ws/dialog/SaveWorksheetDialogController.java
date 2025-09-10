@@ -43,6 +43,7 @@ public class SaveWorksheetDialogController extends WorksheetController {
    public SaveWorksheetDialogModel getSaveWorksheetInfo(
       @PathVariable("runtimeId") String runtimeId, Principal principal) throws Exception
    {
+      runtimeId = Tool.byteDecode(runtimeId);
       return dialogServiceProxy.getSaveWorksheetInfo(runtimeId, principal);
    }
 
