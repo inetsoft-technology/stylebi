@@ -46,13 +46,14 @@ import java.util.stream.Collectors;
 @ClusterProxy
 public class AssetTreeService {
 
-   public AssetTreeService(ViewsheetService viewsheetService) {
+   public AssetTreeService(ViewsheetService viewsheetService, AssetRepository assetRepository) {
       this.viewsheetService = viewsheetService;
+      this.assetRepository = assetRepository;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public LoadAssetTreeNodesValidator getConnectionParameters(@ClusterProxyKey String rid, String cubeData, AssetEntry entry,
-                                                              AssetRepository assetRepository, Principal principal) throws Exception
+                                                              Principal principal) throws Exception
    {
       if(rid == null || "".equals(rid)) {
          return null;
@@ -129,4 +130,5 @@ public class AssetTreeService {
    }
 
    private ViewsheetService viewsheetService;
+   private AssetRepository assetRepository;
 }
