@@ -144,6 +144,17 @@ public class VSSelectionListController {
                                               principal, dispatcher, linkUri);
    }
 
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   @MessageMapping("/selectionTree/updateVisible/{name}")
+   public void updateVisibleValues(@DestinationVariable("name") String assemblyName,
+                                   @Payload ApplyExpandedSelectionTreeEvent event,
+                                   Principal principal, CommandDispatcher dispatcher,
+                                   @LinkUri String linkUri)
+      throws Exception
+   {
+      vsSelectionServiceProxy.updateVisibleValues(
+         runtimeViewsheetRef.getRuntimeId(), assemblyName, event, principal, dispatcher, linkUri);
+   }
+
+      private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSSelectionServiceProxy vsSelectionServiceProxy;
 }

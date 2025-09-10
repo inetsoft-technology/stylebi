@@ -1097,6 +1097,10 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
             assembly2.cval = (CompositeSelectionValue) cval.clone();
          }
 
+         if(expandedValues != null) {
+            assembly2.expandedValues = expandedValues.clone();
+         }
+
          return assembly2;
       }
       catch(Exception ex) {
@@ -1371,9 +1375,18 @@ public class SelectionTreeVSAssembly extends AbstractSelectionVSAssembly
       return deselected;
    }
 
+   public String[] getExpandedValues() {
+      return expandedValues;
+   }
+
+   public void setExpandedValues(String[] expandedValues) {
+      this.expandedValues = expandedValues;
+   }
+
    // output data
    private CompositeSelectionValue cval;
    private Object[] scriptSelectedValues;
+   private String[] expandedValues;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(SelectionTreeVSAssembly.class);

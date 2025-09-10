@@ -31,12 +31,13 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
-import inetsoft.web.viewsheet.event.SortSelectionListEvent;
+import inetsoft.web.viewsheet.event.*;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
+import inetsoft.web.viewsheet.event.SortSelectionListEvent;
 
 import java.awt.*;
 import java.security.Principal;
@@ -496,6 +497,33 @@ public class VSSelectionService {
          sinfo.getCompositeSelectionValue().getSelectionList() != null)
       {
          sinfo.getCompositeSelectionValue().getSelectionList().sort(VSUtil.getSortType(sinfo));
+      }
+   }
+
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public Void updateVisibleValues(@ClusterProxyKey String runtimeId, String assemblyName,
+                                   ApplyExpandedSelectionTreeEvent event, Principal principal,
+                                   CommandDispatcher dispatcher, String linkUri) throws Exception
+   {
+      final Context context = createContext(runtimeId, principal, dispatcher, linkUri);
+      updateVisibleValues(assemblyName, event, context);
+      return null;
+   }
+
+   private void updateVisibleValues(String assemblyName, ApplyExpandedSelectionTreeEvent event,
+                                   Context context)
+   {
+      final RuntimeViewsheet rvs = context.rvs();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+
+      box.lockRead();
+
+      try {
+         SelectionTreeVSAssembly assembly = (SelectionTreeVSAssembly) context.getAssembly(assemblyName);
+         assembly.setExpandedValues(event.getExpandedValues().toArray(new String[0]));
+      }
+      finally {
+         box.unlockRead();
       }
    }
 

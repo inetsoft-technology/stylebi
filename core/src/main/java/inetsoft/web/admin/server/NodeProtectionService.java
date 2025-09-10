@@ -178,7 +178,7 @@ public class NodeProtectionService implements MembershipListener {
    }
 
    private boolean isMinUptimeExpired() {
-      return minUptime != null && getUptime().compareTo(minUptime) <= 0;
+      return minUptime != null && getUptime().compareTo(minUptime) >= 0;
    }
 
    private Cluster cluster = null;

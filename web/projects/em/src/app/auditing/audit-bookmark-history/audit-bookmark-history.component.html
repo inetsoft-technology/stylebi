@@ -26,7 +26,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Action Types)</mat-label>
       <mat-select formControlName="selectedActionTypes" multiple>
-        <mat-option *ngFor="let actionType of actionTypes" [value]="actionType">{{actionType}}</mat-option>
+        <mat-option *ngFor="let actionType of actionTypes" [value]="actionType">{{getActionsTypeLabel(actionType)}}</mat-option>
       </mat-select>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
