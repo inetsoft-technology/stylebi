@@ -35,6 +35,10 @@ import {
 import { Router } from "@angular/router";
 import { NgbModal, NgbModalOptions, NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { AssetEntry, createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../shared/data/asset-type";
 import { Tool } from "../../../../../shared/util/tool";
@@ -301,23 +305,24 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    private propertyDialogModal: NgbModalRef;
 
    constructor(private composerObjectService: ComposerObjectService,
-      private resizeHandlerService: ResizeHandlerService,
-      private clipboardService: ClipboardService,
-      private modalService: NgbModal,
-      private modelService: ModelService,
-      private renderer: Renderer2,
-      private hyperLinkService: ShowHyperlinkService,
-      private assetTreeService: AssetTreeService,
-      private uiContextService: UIContextService,
-      private composerClient: ComposerClientService,
-      private composerRecentService: ComposerRecentService,
-      private changeDetectorRef: ChangeDetectorRef,
-      private http: HttpClient,
-      private zone: NgZone,
-      private gettingStartedService: GettingStartedService,
-      private router: Router,
-      private scriptService: ScriptService,
-      private fontService: FontService)
+               private resizeHandlerService: ResizeHandlerService,
+               private clipboardService: ClipboardService,
+               private modalService: NgbModal,
+               private modelService: ModelService,
+               private renderer: Renderer2,
+               private hyperLinkService: ShowHyperlinkService,
+               private assetTreeService: AssetTreeService,
+               private uiContextService: UIContextService,
+               private composerClient: ComposerClientService,
+               private composerRecentService: ComposerRecentService,
+               private changeDetectorRef: ChangeDetectorRef,
+               private http: HttpClient,
+               private zone: NgZone,
+               private gettingStartedService: GettingStartedService,
+               private router: Router,
+               private scriptService: ScriptService,
+               private fontService: FontService,
+               private aiAssistantService: AiAssistantService)
    {
       GuiTool.isTouchDevice().then((value: boolean) => {
          this.touchDevice = value;
@@ -489,6 +494,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       if(updateFocusedSheet) {
          this.updateFocusedTab(sheet);
       }
+
+      this.refreshContextType();
    }
 
    fixAutoSaveFiles(autoSaveFiles: string[]) {
@@ -2438,6 +2445,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
 
       this.setKeydownListener();
+      this.refreshContextType();
    }
 
    refreshChangedAssembly(command: AssemblyChangedCommand): void {
@@ -3076,5 +3084,10 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.gettingStartedService.isStartFromScratch()) && this.worksheetPermission) {
          this.gettingStartedService.setWorksheetId(ws.id);
       }
+   }
+
+   refreshContextType(): void {
+      this.aiAssistantService.contextType =
+         this.focusedSheet ? this.focusedSheet.type : ContextType.VIEWSHEET;
    }
 }

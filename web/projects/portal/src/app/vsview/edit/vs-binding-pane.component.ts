@@ -113,6 +113,7 @@ import { ConsoleMessage } from "../../widget/console-dialog/console-message";
    templateUrl: "vs-binding-pane.component.html",
    styleUrls: ["vs-binding-pane.component.scss"],
    providers: [
+      AiAssistantService,
       ViewsheetClientService,
       DataTipService,
       AdhocFilterService,
@@ -249,7 +250,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
          return false;
       };
 
-      this.aiAssistantService.setContextType(this.objectType);
+      this.aiAssistantService.loadCurrentUser();
    }
 
    ngOnInit() {
@@ -431,6 +432,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
       this.treeService.changeLoadingState(true);
       this.aiAssistantService.setBindingContext(this.bindingModel);
       this.aiAssistantService.setDataContext(this.bindingModel);
+      this.aiAssistantService.setDateComparisonToBindingContext(this.objectModel);
 
       this.clientService.sendEvent("/events/vs/bindingtree/gettreemodel",
                                       new RefreshBindingTreeEvent(this.assemblyName));
@@ -538,7 +540,9 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    private updateObjectModel(model: VSObjectModel): void {
       this.objectModel = model;
       this.blocking = false;
+      this.aiAssistantService.setContextType(model.objectType);
       this.aiAssistantService.setDateComparisonToBindingContext(model);
+      this.aiAssistantService.setScriptContext(model);
    }
 
    private selectWholes(): void {

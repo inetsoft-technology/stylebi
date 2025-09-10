@@ -18,6 +18,7 @@
 import { Component, EventEmitter, Input, NgZone, OnDestroy, OnInit, Optional, Output,
          ViewChild } from "@angular/core";
 import { Subject } from "rxjs";
+import { AiAssistantService } from "../../../../../../shared/ai-assistant/ai-assistant.service";
 import { CommonKVModel } from "../../../common/data/common-kv-model";
 import { CommandProcessor, ViewsheetClientService, ViewsheetCommand } from "../../../common/viewsheet-client";
 import { SplitPane } from "../../../widget/split-pane/split-pane.component";
@@ -83,6 +84,7 @@ const SWITCH_TO_META = "/events/vs/wizard/use-meta";
    templateUrl: "object-wizard-pane.component.html",
    styleUrls: ["object-wizard-pane.component.scss"],
    providers: [
+      AiAssistantService,
       {
          provide: ContextProvider,
          useFactory: VSWizardPreviewContextProviderFactory,
@@ -131,9 +133,11 @@ export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDest
                private modelService: ModelService,
                private chartService: VSChartService,
                private uiContext: UIContextService,
-               private clientService: ViewsheetClientService)
+               private clientService: ViewsheetClientService,
+               private aiAssistantService: AiAssistantService)
    {
       super(viewsheetClient, zone, true);
+      this.aiAssistantService.loadCurrentUser();
    }
 
    ngOnInit() {
@@ -311,6 +315,9 @@ export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDest
    processRefreshVsWizardBindingCommand(command: RefreshVsWizardBindingCommand): void {
       if(!Tool.isEquals(this._bindingModel, command.bindingModel)) {
          this._bindingModel = command.bindingModel;
+         this.aiAssistantService.setBindingContext(this.chartBindingModel);
+         this.aiAssistantService.setDataContext(this.chartBindingModel);
+         this.aiAssistantService.setDateComparisonToBindingContext(this.vsObject);
       }
 
       // update the tempBinding in treeInfo
@@ -379,6 +386,10 @@ export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDest
       else {
          this.vsObject = VSUtil.replaceObject(Tool.clone(this.vsObject), model);
       }
+
+      this.aiAssistantService.setContextType(this.vsObject.objectType);
+      this.aiAssistantService.setDateComparisonToBindingContext(this.vsObject);
+      this.aiAssistantService.setScriptContext(this.vsObject);
    }
 
    private updateVSObjectModel(model: VSObjectModel): void {

@@ -17,7 +17,7 @@
  */
 
 import { HttpClient } from "@angular/common/http";
-import { Injectable } from "@angular/core";
+import { Injectable, Injector } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
@@ -67,12 +67,17 @@ export class AiAssistantService {
    }
 
    openAiAssistantDialog(): void {
-      ComponentTool.showDialog(this.modalService, AiAssistantDialogComponent, () => {},
-         {
-            backdrop: true,
-            windowClass: "ai-assistant-container"
-         }
-      );
+      const injector = Injector.create({
+         providers: [
+            { provide: AiAssistantService, useValue: this }
+         ],
+      });
+
+      ComponentTool.showDialog(this.modalService, AiAssistantDialogComponent, () => {}, {
+         backdrop: true,
+         windowClass: "ai-assistant-container",
+         injector: injector
+      });
    }
 
    getFullContext(): string {
@@ -91,6 +96,10 @@ export class AiAssistantService {
    }
 
    setBindingContext(objectModel: BindingModel): void {
+      if(!objectModel) {
+         return;
+      }
+
       let bindingContext: string = "";
 
       if(objectModel.type === "chart") {
@@ -161,6 +170,10 @@ export class AiAssistantService {
    }
 
    setDataContext(bindingModel: BindingModel): void {
+      if(!bindingModel) {
+         return;
+      }
+
       let dataContext: string = "";
 
       if(bindingModel.availableFields) {
@@ -181,11 +194,39 @@ export class AiAssistantService {
    }
 
    setDateComparisonToBindingContext(objectModel: VSObjectModel): void {
+      if(!objectModel) {
+         return;
+      }
+
       if(objectModel.objectType === "VSChart") {
          const model: VSChartModel = objectModel as VSChartModel;
 
-         if(model.dateComparisonDefined && !this.bindingContext.includes("Date comparison")) {
-            this.bindingContext += "\nDate comparison: \n" + model.dateComparisonDescription + "\n";
+         if(model.dateComparisonEnabled && model.dateComparisonDescription) {
+            const dcDesc: string =
+               "Date comparison: \n" + model.dateComparisonDescription.replace(/<\/?b>/g, '');
+
+            if(!this.bindingContext.includes("Date comparison")) {
+               this.bindingContext += `\n${dcDesc}`;
+            }
+            else {
+               this.bindingContext =
+                  this.bindingContext.substring(0, this.bindingContext.indexOf("Date comparison")) + dcDesc;
+            }
+         }
+      }
+   }
+
+   setScriptContext(objectModel: VSObjectModel) {
+      if(!objectModel) {
+         return;
+      }
+
+      if(objectModel.objectType === "VSChart") {
+         const model: VSChartModel = objectModel as VSChartModel;
+
+         if(model.scriptEnabled && model.script) {
+            this.contextType = ContextType.CHART_SCRIPT;
+            this.scriptContext = model.script;
          }
       }
    }
