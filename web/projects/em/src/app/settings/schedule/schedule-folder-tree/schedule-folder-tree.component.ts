@@ -88,10 +88,11 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
    ngOnInit(): void {
       this.refreshTree(true, this._path);
       this.subscriptions.add(
-         this.scheduleChangeService.onFolderChange.subscribe(() => {
-            if(!this.suppressFolderChange) {
-               this.refreshTree();
-            }
+         this.scheduleChangeService.onFolderChange.pipe(
+            filter(() => !this.suppressFolderChange),
+            debounceTime(500)
+         ).subscribe(() => {
+            this.refreshTree();
          })
       );
    }
