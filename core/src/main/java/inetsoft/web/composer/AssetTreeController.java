@@ -68,7 +68,7 @@ public class AssetTreeController {
       @RequestBody(required = false) AssetEntry entry,
       Principal principal) throws Exception
    {
-      return assetTreeServiceProxy.getConnectionParameters(rid, cubeData, entry, assetRepository, principal);
+      return assetTreeServiceProxy.getConnectionParameters(rid, cubeData, entry, principal);
    }
 
    /**
