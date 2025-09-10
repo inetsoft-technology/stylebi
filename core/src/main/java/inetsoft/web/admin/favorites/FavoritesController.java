@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.Collections;
+import java.util.concurrent.*;
 
 @RestController
 public class FavoritesController {
@@ -42,11 +43,16 @@ public class FavoritesController {
 
    @PutMapping("/api/em/favorites")
    public void setFavorites(@RequestBody FavoriteList userFavorites, Principal user) {
-      if(userFavorites.getFavorites().isEmpty()) {
-         favorites.remove(user.getName());
+      try {
+         if(userFavorites.getFavorites().isEmpty()) {
+            favorites.remove(user.getName()).get(10L, TimeUnit.SECONDS);
+         }
+         else {
+            favorites.put(user.getName(), userFavorites).get(10L, TimeUnit.SECONDS);
+         }
       }
-      else {
-         favorites.put(user.getName(), userFavorites);
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
+         throw new RuntimeException(e);
       }
    }
 

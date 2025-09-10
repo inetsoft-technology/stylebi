@@ -36,8 +36,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -258,7 +257,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       Blob<T> blob = new Blob<>(path, null, 0L, Instant.now(), metadata);
 
       try {
-         cluster.submit(id, new CreateDirectoryTask<>(id, blob)).get();
+         cluster.submit(id, new CreateDirectoryTask<>(id, blob)).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          throw new IOException("Failed to create directory at " + path, e);
@@ -294,7 +293,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
 
       try {
          BlobReference<T> ref =
-            cluster.submit(id, new DeleteBlobTask<T>(id, path, isLocal())).get();
+            cluster.submit(id, new DeleteBlobTask<T>(id, path, isLocal())).get(10L, TimeUnit.SECONDS);
 
          if(ref.getBlob() == null) {
             throw new FileNotFoundException(path);
@@ -304,7 +303,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
             delete(ref.getBlob());
          }
       }
-      catch(InterruptedException | ExecutionException e) {
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
          throw new IOException("Failed to delete blob at " + path, e);
       }
       finally {
@@ -322,9 +321,9 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     */
    public final void rename(String oldPath, String newPath) throws IOException {
       try {
-         cluster.submit(id, new RenameBlobTask<>(id, oldPath, newPath)).get();
+         cluster.submit(id, new RenameBlobTask<>(id, oldPath, newPath)).get(10L, TimeUnit.SECONDS);
       }
-      catch(InterruptedException e) {
+      catch(InterruptedException | TimeoutException e) {
          throw new IOException("Failed to rename blob " + oldPath + " to " + newPath, e);
       }
       catch(ExecutionException e) {
@@ -349,9 +348,9 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     */
    public final void copy(String oldPath, String newPath) throws IOException {
       try {
-         cluster.submit(id, new CopyBlobTask<>(id, oldPath, newPath)).get();
+         cluster.submit(id, new CopyBlobTask<>(id, oldPath, newPath)).get(10L, TimeUnit.SECONDS);
       }
-      catch(InterruptedException e) {
+      catch(InterruptedException | TimeoutException e) {
          throw new IOException("Failed to copy blob " + oldPath + " to " + newPath, e);
       }
       catch(ExecutionException e) {
@@ -372,7 +371,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @throws Exception if an error occurs.
     */
    public void deleteBlobStorage() throws Exception {
-      storage.deleteStore().get();
+      storage.deleteStore().get(1L, TimeUnit.MINUTES);
       this.close();
    }
 
@@ -481,7 +480,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @throws Exception if the blob could not be added.
     */
    protected final BlobReference<T> putBlob(Blob<T> blob) throws Exception {
-      return cluster.submit(id, new PutBlobTask<>(id, blob, isLocal())).get();
+      return cluster.submit(id, new PutBlobTask<>(id, blob, isLocal())).get(10L, TimeUnit.SECONDS);
    }
 
    /**

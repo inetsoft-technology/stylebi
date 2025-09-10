@@ -58,6 +58,7 @@ import java.io.*;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
@@ -608,7 +609,13 @@ public class IdentityService {
             RepletRegistry.removeUser(user.getIdentityID());
             eprovider.removeUser(user.getIdentityID());
             addCopiedIdentityPermission(user.getIdentityID(), null, "", Identity.USER, false);
-            favorites.remove(user.getIdentityID().convertToKey());
+
+            try {
+               favorites.remove(user.getIdentityID().convertToKey()).get(10L, TimeUnit.SECONDS);
+            }
+            catch(InterruptedException | ExecutionException | TimeoutException e) {
+               LOG.error("Failed to remove organization member: {}", user, e);
+            }
          }
       }
 
@@ -692,8 +699,14 @@ public class IdentityService {
             FavoriteList userFav = favorites.get(oldID.convertToKey());
 
             if(userFav != null) {
-               favorites.put(user.getIdentityID().convertToKey(), userFav);
-               favorites.remove(oldID.convertToKey());
+               try {
+                  favorites.put(user.getIdentityID().convertToKey(), userFav)
+                     .get(10L, TimeUnit.SECONDS);
+                  favorites.remove(oldID.convertToKey()).get(10L, TimeUnit.SECONDS);
+               }
+               catch(InterruptedException | ExecutionException | TimeoutException e) {
+                  LOG.error("Failed to update organization member: {}", user, e);
+               }
             }
          }
          else if(!members.contains(user.getName())) {

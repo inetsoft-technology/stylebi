@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 import java.util.function.Supplier;
 
 /**
@@ -210,14 +210,19 @@ public class DashboardManager implements AutoCloseable {
    public synchronized void renameIdentity(Identity oiden, Identity niden) {
       init();
 
-      if(oiden != null && niden != null && !oiden.equals(niden)) {
-         String okey = getIdentityKey(oiden);
-         String nkey = getIdentityKey(niden);
-         getDashboardStorage().rename(okey, nkey);
+      try {
+         if(oiden != null && niden != null && !oiden.equals(niden)) {
+            String okey = getIdentityKey(oiden);
+            String nkey = getIdentityKey(niden);
+            getDashboardStorage().rename(okey, nkey).get(10L, TimeUnit.SECONDS);
+         }
+         else if(oiden == null && niden != null) {
+            // delete
+            getDashboardStorage().remove(getIdentityKey(niden)).get(10L, TimeUnit.SECONDS);
+         }
       }
-      else if(oiden == null && niden != null) {
-         // delete
-         getDashboardStorage().remove(getIdentityKey(niden));
+      catch(ExecutionException | InterruptedException | TimeoutException e) {
+         throw new RuntimeException(e);
       }
    }
 
@@ -233,7 +238,13 @@ public class DashboardManager implements AutoCloseable {
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
       dashboardStorage.stream()
             .forEach(p -> renameDashboard(oname, name, p, changes));
-      dashboardStorage.putAll(changes);
+
+      try {
+         dashboardStorage.putAll(changes).get(60L, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException | TimeoutException | ExecutionException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    private void renameDashboard(String oname, String nname, KeyValuePair<DashboardData> pair,
@@ -290,7 +301,13 @@ public class DashboardManager implements AutoCloseable {
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
       dashboardStorage.stream()
          .forEach(p -> removeDashboard(name, p, changes));
-      dashboardStorage.putAll(changes);
+
+      try {
+         dashboardStorage.putAll(changes).get(60L, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException | TimeoutException | ExecutionException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    private void removeDashboard(String name, KeyValuePair<DashboardData> pair, Map<String, DashboardData> map) {
@@ -538,9 +555,9 @@ public class DashboardManager implements AutoCloseable {
             data.setDashboards(new ArrayList<>());
 
             try {
-               dashboardStorage.put(key, data).get();
+               dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
             }
-            catch(InterruptedException | ExecutionException e) {
+            catch(InterruptedException | ExecutionException | TimeoutException e) {
                throw new RuntimeException("Failed to save dashboard", e);
             }
          }
@@ -560,9 +577,9 @@ public class DashboardManager implements AutoCloseable {
          }
 
          try {
-            dashboardStorage.put(key, data).get();
+            dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
          }
-         catch(InterruptedException | ExecutionException e) {
+         catch(InterruptedException | ExecutionException | TimeoutException e) {
             throw new RuntimeException("Failed to save dashboard", e);
          }
       }
@@ -580,7 +597,12 @@ public class DashboardManager implements AutoCloseable {
             return;
          }
 
-         dashboardStorage.remove(key);
+         try {
+            dashboardStorage.remove(key).get(10L, TimeUnit.SECONDS);
+         }
+         catch(InterruptedException | ExecutionException | TimeoutException e) {
+            throw new RuntimeException(e);
+         }
       }
    }
 
@@ -603,9 +625,9 @@ public class DashboardManager implements AutoCloseable {
             data.setDeselected(new ArrayList<>());
 
             try {
-               dashboardStorage.put(key, data).get();
+               dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
             }
-            catch(InterruptedException | ExecutionException e) {
+            catch(InterruptedException | ExecutionException | TimeoutException e) {
                throw new RuntimeException("Failed to deselected dashboard", e);
             }
          }
@@ -621,9 +643,9 @@ public class DashboardManager implements AutoCloseable {
          data.setDeselected(new ArrayList<>(Arrays.asList(dashboards)));
 
          try {
-            dashboardStorage.put(key, data).get();
+            dashboardStorage.put(key, data).get(10L, TimeUnit.SECONDS);
          }
-         catch(InterruptedException | ExecutionException e) {
+         catch(InterruptedException | ExecutionException | TimeoutException e) {
             throw new RuntimeException("Failed to deselected dashboard", e);
          }
       }
@@ -664,7 +686,7 @@ public class DashboardManager implements AutoCloseable {
    }
 
    public void removeDashboardStorage(String orgID) throws Exception {
-      getDashboardStorage(orgID).deleteStore();
+      getDashboardStorage(orgID).deleteStore().get(1L, TimeUnit.MINUTES);
       getDashboardStorage(orgID).close();
    }
 
@@ -673,7 +695,13 @@ public class DashboardManager implements AutoCloseable {
       KeyValueStorage<DashboardData> nStorage = getDashboardStorage(id);
       SortedMap<String, DashboardData> data = new TreeMap<>();
       oStorage.stream().forEach(pair -> data.put(pair.getKey(), pair.getValue()));
-      nStorage.putAll(data);
+
+      try {
+         nStorage.putAll(data).get(3L, TimeUnit.MINUTES);
+      }
+      catch(InterruptedException | TimeoutException | ExecutionException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    void fireDashboardChanged(DashboardChangeEvent.Type type, String oldName, String newName,
@@ -706,7 +734,7 @@ public class DashboardManager implements AutoCloseable {
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
       SortedMap<String, DashboardData> changes = new TreeMap<>();
       dashboardStorage.stream().forEach(p -> syncUserDashboards(p, changes));
-      dashboardStorage.putAll(changes);
+      dashboardStorage.putAll(changes).get(3L, TimeUnit.MINUTES);
    }
 
    private void syncUserDashboards(KeyValuePair<DashboardData> pair, Map<String, DashboardData> map) {
@@ -748,7 +776,7 @@ public class DashboardManager implements AutoCloseable {
       data.setDashboards(nselected);
 
       if(!Tool.equals(selected, nselected)) {
-         dashboardStorage.put(getIdentityKey(user), data).get();
+         dashboardStorage.put(getIdentityKey(user), data).get(10L, TimeUnit.SECONDS);
       }
    }
 

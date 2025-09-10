@@ -1763,8 +1763,9 @@ public class UserTreeService {
       if(favorites != null && oldID != null && newID != null &&
          favorites.contains(oldID.convertToKey()))
       {
-         FavoriteList favoriteList = favorites.remove(oldID.convertToKey()).get();
-         favorites.put(newID.convertToKey(), favoriteList);
+         FavoriteList favoriteList = favorites.remove(oldID.convertToKey())
+            .get(10L, TimeUnit.SECONDS);
+         favorites.put(newID.convertToKey(), favoriteList).get(10L, TimeUnit.SECONDS);
       }
 
       storage.migrateStorageData(oldID.getName(), newID.getName());
