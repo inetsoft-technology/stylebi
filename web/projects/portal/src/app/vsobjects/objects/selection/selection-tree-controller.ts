@@ -20,7 +20,7 @@ import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { SelectionValue } from "../../../composer/data/vs/selection-value";
 import { GetVSObjectModelEvent } from "../../../vsview/event/get-vs-object-model-event";
 import { ApplySelectionListEvent } from "../../event/apply-selection-list-event";
-import { ApplyExpandedSelectionTreeEvent } from "../../event/apply-visible-selection-tree-event";
+import { ApplyExpandedSelectionTreeEvent } from "../../event/apply-expanded-selection-tree-event";
 import { SortSelectionListEvent } from "../../event/sort-selection-list-event";
 import { CompositeSelectionValueModel } from "../../model/composite-selection-value-model";
 import { SelectionListModel } from "../../model/selection-list-model";
