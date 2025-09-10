@@ -21,6 +21,7 @@ import { ChangeDetectorRef, Component, EventEmitter, HostListener, Injector, Inp
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
+import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { RefreshBindingTreeCommand } from "../../binding/command/refresh-binding-tree-command";
 import { SetGrayedOutFieldsCommand } from "../../binding/command/set-grayed-out-fields-command";
 import { VSBindingTrapCommand } from "../../binding/command/vs-binding-trap-command";
@@ -227,6 +228,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
                private bindingService: BindingService,
                private chartService: ChartEditorService,
                private dialogService: DialogService,
+               private aiAssistantService: AiAssistantService,
                actionFactory: AssemblyActionFactory,
                protected zone: NgZone)
    {
@@ -246,6 +248,8 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
 
          return false;
       };
+
+      this.aiAssistantService.setContextType(this.objectType);
    }
 
    ngOnInit() {
@@ -425,6 +429,8 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    private processSetVSBindingModelCommand(command: SetVSBindingModelCommand): void {
       this.bindingModel = command.binding;
       this.treeService.changeLoadingState(true);
+      this.aiAssistantService.setBindingContext(this.bindingModel);
+      this.aiAssistantService.setDataContext(this.bindingModel);
 
       this.clientService.sendEvent("/events/vs/bindingtree/gettreemodel",
                                       new RefreshBindingTreeEvent(this.assemblyName));
@@ -532,6 +538,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    private updateObjectModel(model: VSObjectModel): void {
       this.objectModel = model;
       this.blocking = false;
+      this.aiAssistantService.setDateComparisonToBindingContext(model);
    }
 
    private selectWholes(): void {

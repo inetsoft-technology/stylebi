@@ -30,6 +30,6 @@ export class AiAssistantDialogComponent {
 
    constructor(private aiAssistantService: AiAssistantService) {
       this.userId = this.aiAssistantService.userId;
-      this.context = this.aiAssistantService.context;
+      this.context = this.aiAssistantService.getFullContext();
    }
 }
