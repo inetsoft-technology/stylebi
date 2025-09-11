@@ -67,7 +67,9 @@
              [class.mobile-max-mode-icon]="mobile && maxMode"
              [style.padding-left.px]="isFolder() ? 1 : nodeIndent"
              [style.color]="cellFormat.foreground"
-             (click)="click($event)">
+             (click)="click($event)"
+             (touchstart)="onTouchStart($event)"
+             (touchend)="onTouchEnd()">
         </div>
         <div class="selection-list-cell-label" tooltipIf
              [style.justify-content]="cellFormat.justifyContent"
@@ -90,6 +92,13 @@
                [style.justify-content]="cellFormat.justifyContent"
                [style.wordWrap]="cellFormat.wrapping.wordWrap">
             {{selectionValue.label}}
+          </div>
+          <div *ngIf="isList && !mobile"
+               class="switch-mode-btn"
+               type="button"
+               (click)="click($event, true)"
+               [title]="singleSelection ? '_#(multi.switchTip)' : '_#(single.switchTip)'">
+            {{ singleSelection ? '_#(multi.switch)' : '_#(single.switch)' }}
           </div>
         </div>
       </div>
