@@ -49,7 +49,7 @@ export enum ContextType {
 })
 export class AiAssistantService {
    userId: string = "";
-   contextType: string = "chart";
+   contextType: string = "";
    bindingContext: string = "";
    dataContext: string = "";
    scriptContext: string = "";

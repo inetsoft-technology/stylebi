@@ -203,6 +203,7 @@ const CONFIRM_MESSAGE = {
    templateUrl: "composer-main.component.html",
    styleUrls: ["composer-main.component.scss", "tab-selector/tab-selector-shared.scss"],
    providers: [
+      AiAssistantService,
       ComposerClientService,
       {
          provide: ScaleService,
@@ -324,6 +325,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                private fontService: FontService,
                private aiAssistantService: AiAssistantService)
    {
+      this.aiAssistantService.loadCurrentUser();
       GuiTool.isTouchDevice().then((value: boolean) => {
          this.touchDevice = value;
       });
