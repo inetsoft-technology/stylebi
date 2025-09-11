@@ -19,8 +19,7 @@ package inetsoft.web.viewsheet.controller;
 
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.viewsheet.*;
-import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
-import inetsoft.web.viewsheet.event.SortSelectionListEvent;
+import inetsoft.web.viewsheet.event.*;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
