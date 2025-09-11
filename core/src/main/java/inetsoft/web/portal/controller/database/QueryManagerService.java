@@ -99,14 +99,16 @@ public class QueryManagerService {
       query.setDataSource(jdbcDataSource);
 
       if(queryModel.isSqlEdited()) {
-         sql.setSQLString(queryModel.getSqlString());
+         synchronized(sql) {
+            sql.setSQLString(queryModel.getSqlString());
 
-         // it is waiting for the parser finish parsing the sql string.
-         if(!Tool.equals(queryModel.getSqlString(), sql.getSQLString()) && sql.isParseSQL()) {
-            try {
-               sql.wait();
-            }
-            catch(InterruptedException e) {
+            // it is waiting for the parser finish parsing the sql string.
+            if(!Tool.equals(queryModel.getSqlString(), sql.getSQLString()) && sql.isParseSQL()) {
+               try {
+                  sql.wait();
+               }
+               catch(InterruptedException e) {
+               }
             }
          }
       }
