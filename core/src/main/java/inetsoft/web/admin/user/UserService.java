@@ -177,7 +177,6 @@ public class UserService
    List<UserSessionMonitoringTableModel> getServerSessionModel(String address, Principal principal)
    {
       boolean lastAccessEnabled = isLevelQualified("lastAccess");
-      Catalog catalog = Catalog.getCatalog(principal);
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
@@ -187,7 +186,7 @@ public class UserService
          .filter(user -> provider.checkPermission(principal, ResourceType.SECURITY_USER,
                                                   user.user().convertToKey(), ResourceAction.ADMIN))
          .map(s -> UserSessionMonitoringTableModel.builder()
-            .from(s, lastAccessEnabled, catalog)
+            .from(s, lastAccessEnabled)
             .build())
          .collect(Collectors.toList()));
    }
