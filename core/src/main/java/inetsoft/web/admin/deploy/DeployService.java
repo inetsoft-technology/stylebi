@@ -529,7 +529,7 @@ public class DeployService {
       }
    }
 
-   public ExportJarProperties createExport(ExportedAssetsModel exportedAssetsModel, Principal principal)
+   public byte[] createExport(ExportedAssetsModel exportedAssetsModel, Principal principal)
       throws Exception
    {
       String name = Tool.byteDecode(exportedAssetsModel.name());
@@ -550,12 +550,17 @@ public class DeployService {
       info.setSelectedEntries(entryDataArray);
       info.setDependentAssets(assetDataArray);
 
-      File zipfile = FileSystemService.getInstance().getCacheFile(name + ".zip");
-      DeployUtil.createExport(info, new FileOutputStream(zipfile));
+      byte[] zipFileBytes;
 
-      return ExportJarProperties.builder()
-         .zipFilePath(zipfile.getPath())
-         .build();
+      try(ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+         DeployUtil.createExport(info, out);
+         zipFileBytes = out.toByteArray();
+      }
+      catch(Exception e) {
+         throw new Exception("Failed to get byte array of export jar file: " + e.getMessage());
+      }
+
+      return zipFileBytes;
    }
 
    private PartialDeploymentJarInfo.RequiredAsset createRequiredAsset(RequiredAssetModel model) {
