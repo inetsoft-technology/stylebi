@@ -254,6 +254,29 @@ public interface Cluster extends AutoCloseable {
    <K> boolean isLocalCacheKey(String cache, K key);
 
    /**
+    * Determines if should make the call local.
+    *
+    * @return {@code true} if make the call local or {@code false} if not.
+    */
+   <K> boolean isLocalCall();
+
+   /**
+    * Registers a cache name as a Spring Web / proxy related partitioned cache.
+    *
+    * <p>
+    * Caches registered via this method will be treated as "affinity-sensitive":
+    * when creating these caches in Ignite, the scheduler nodes will be excluded
+    * from holding any primary or backup partitions. This ensures that tasks
+    * triggered via Spring Web proxies or affinity calls are never dispatched
+    * to scheduler nodes, avoiding potential issues such as missing
+    * ApplicationContext or NPEs.
+    * </p>
+    *
+    * @param cacheName the name of the cache to register as a Spring Web / proxy partitioned cache.
+    */
+   void registerSpringProxyPartitionedCache(String cacheName);
+
+   /**
     * Executes given job on the node where data for provided affinity key is located.
     *
     * @param cache the name of the cache.

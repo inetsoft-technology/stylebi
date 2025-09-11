@@ -33,7 +33,7 @@ public class {{proxySimpleName}} {
    public {{{returnType}}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
       inetsoft.sree.internal.cluster.Cluster cluster = inetsoft.sree.internal.cluster.Cluster.getInstance();
 
-      if(cluster.isLocalCacheKey("{{cacheName}}", {{keyParam}})) {
+      if(cluster.isLocalCacheKey("{{cacheName}}", {{keyParam}}) || cluster.isLocalCall()) {
          {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
          return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
       }

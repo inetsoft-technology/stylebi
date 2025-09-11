@@ -541,6 +541,15 @@ public class TestCluster implements Cluster {
    }
 
    @Override
+   public <K> boolean isLocalCall() {
+      return true;
+   }
+
+   @Override
+   public void registerSpringProxyPartitionedCache(String cacheName) {
+   }
+
+   @Override
    public <T> T affinityCall(String cache, String key, AffinityCallable<T> job) {
       try {
          return job.call();
