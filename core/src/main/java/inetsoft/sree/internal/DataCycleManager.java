@@ -633,7 +633,9 @@ public class DataCycleManager
     * Set a condition to specified data cycle.
     */
    public void setCondition(String name, String orgId, ScheduleCondition cond, int index) {
-      getConditions(name, orgId).setElementAt(cond, index);
+      Vector<ScheduleCondition> conditions =  getConditions(name, orgId);
+      conditions.set(index, cond);
+      setConditions(name, orgId, conditions);
    }
 
    /**
@@ -766,7 +768,9 @@ public class DataCycleManager
     * Remove the specified condition.
     */
    public void removeCondition(String name, String orgId, int index) {
-      getConditions(name, orgId).removeElementAt(index);
+      Vector<ScheduleCondition> conditions =  getConditions(name, orgId);
+      conditions.remove(index);
+      setConditions(name, orgId, conditions);
    }
 
    /**
