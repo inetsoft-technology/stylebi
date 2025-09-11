@@ -33,4 +33,5 @@ export interface SelectionGeneralPaneModel {
    generalPropPaneModel: GeneralPropPaneModel;
    titlePropPaneModel: TitlePropPaneModel;
    sizePositionPaneModel: SizePositionPaneModel;
+   quickSwitchAllowed: boolean;
 }

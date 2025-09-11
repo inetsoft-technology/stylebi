@@ -543,4 +543,9 @@ export class SelectionListCell implements OnInit, OnChanges {
       const doc = new DOMParser().parseFromString(str, "text/html");
       return Array.from(doc.body.childNodes).some(node => node.nodeType === 1);
    }
+
+   get quickSwitchAllowed() {
+      return (this.vsSelectionComponent.model.quickSwitchAllowed && this.isList
+         && this.toggleEnabled && !this.mobile);
+   }
 }

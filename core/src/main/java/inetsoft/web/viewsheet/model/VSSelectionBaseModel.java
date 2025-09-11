@@ -53,6 +53,8 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
       textWidth = (showText && measure != null) ? assemblyInfo.getMeasureSize() : 0;
       barWidth = (showBar && measure != null) ? assemblyInfo.getBarSize() : 0;
 
+      quickSwitchAllowed = assemblyInfo.getQuickSwitchAllowedValue(); //switched from isQuickSwitchAllowed to getQuickSwitchAllowedValue
+
       Dimension maxSize = assemblyInfo.getMaxSize();
 
       if(assembly.getContainer() != null &&
@@ -193,6 +195,11 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
    public boolean isSubmitOnChange() {
       return submitOnChange;
    }
+
+   public boolean isQuickSwitchAllowed() {
+      return quickSwitchAllowed;
+   }
+
    /**
     * Set the search string.
     */
@@ -232,6 +239,7 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
          ", measure=" + measure +
          ", submitOnChange=" + submitOnChange +
          ", maxMode=" + maxMode +
+         ", quickSwitchAllowed=" + quickSwitchAllowed +
          "} ";
    }
 
@@ -248,6 +256,7 @@ public abstract class VSSelectionBaseModel<T extends AbstractSelectionVSAssembly
    private boolean showText;
    private boolean showBar;
    private boolean submitOnChange;
+   private boolean quickSwitchAllowed;
    private String searchString;
    private String measure;
    private boolean maxMode = false;
