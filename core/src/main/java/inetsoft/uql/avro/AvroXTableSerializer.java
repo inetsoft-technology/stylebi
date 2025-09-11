@@ -18,17 +18,20 @@
 
 package inetsoft.uql.avro;
 
+import inetsoft.report.TableDataDescriptor;
+import inetsoft.report.TableDataPath;
+import inetsoft.uql.XMetaInfo;
 import inetsoft.uql.XTable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.*;
-import inetsoft.util.FileSystemService;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import org.apache.avro.Schema;
 import org.apache.avro.SchemaBuilder;
 import org.apache.avro.file.*;
 import org.apache.avro.generic.*;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
+import org.w3c.dom.Document;
 
 import java.io.*;
 import java.util.Arrays;
@@ -137,11 +140,26 @@ public class AvroXTableSerializer {
       Schema schema = dataFileReader.getSchema(); // Retrieve schema from the file
       List<Schema.Field> fields = schema.getFields();
       String[] colTypes = new String[fields.size()];
+      XMetaInfo[] metaInfos = new XMetaInfo[fields.size()];
       Class<?>[] colClasses = new Class<?>[fields.size()];
 
       for(int i = 0; i < fields.size(); i++) {
          colTypes[i] = fields.get(i).getProp("colType");
          colClasses[i] = Tool.getDataClass(colTypes[i]);
+
+         try {
+            String metaStr = fields.get(i).getProp("meta");
+
+            if(metaStr != null) {
+               XMetaInfo metaInfo = new XMetaInfo();
+               ByteArrayInputStream inputStream = new ByteArrayInputStream(Tool.byteDecode(metaStr).getBytes());
+               Document document = Tool.parseXML(inputStream);
+               metaInfo.parseXML(document.getDocumentElement());
+               metaInfos[i] = metaInfo;
+            }
+         }
+         catch(Exception ignore) {
+         }
       }
 
       if(table == null) {
@@ -170,6 +188,20 @@ public class AvroXTableSerializer {
          table.addRow(values);
       }
 
+      try {
+         for(int i = 0; i < table.getColCount(); i++) {
+            Object header = table.getObject(0, i);
+
+            if(header == null) {
+               continue;
+            }
+
+            table.setXMetaInfo(header.toString(), metaInfos[i]);
+         }
+      }
+      catch(Exception ignore) {
+      }
+
       table.complete();
       return table;
    }
@@ -185,11 +217,43 @@ public class AvroXTableSerializer {
          tableFields
             .name("_" + i)
             .prop("colType", Tool.getDataType(table.getColType(i)))
+            .prop("meta", Tool.byteEncode(getColMetaInfo(table, i)))
             .type().stringType()
             .noDefault();
       }
 
       return tableFields.endRecord();
+   }
+
+   private static String getColMetaInfo(XTable table, int col) {
+      TableDataDescriptor descriptor = table.getDescriptor();
+
+      if(descriptor == null) {
+         return null;
+      }
+
+      TableDataPath cellDataPath;
+      int headerRowCount = table.getHeaderRowCount();
+
+      if(table.moreRows(headerRowCount)) {
+         cellDataPath = descriptor.getCellDataPath(headerRowCount, col);
+      }
+      else {
+         cellDataPath = descriptor.getCellDataPath(0, col);
+      }
+
+      XMetaInfo xMetaInfo = descriptor.getXMetaInfo(cellDataPath);
+
+      try(ByteArrayOutputStream outputStream = new ByteArrayOutputStream();) {
+         PrintWriter writer = new PrintWriter(outputStream);
+         xMetaInfo.writeXML(writer);
+         writer.flush();
+
+         return outputStream.toString();
+      }
+      catch(IOException e) {
+         return "";
+      }
    }
 
    private static String serializeTableData(Object data, boolean headerRow) {
