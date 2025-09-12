@@ -44,6 +44,11 @@ import static org.mockito.Mockito.*;
 public class ScheduleManagerTest {
    private  ScheduleManager scheduleManager;
 
+   @BeforeAll
+   void beforeAll() throws IOException {
+      tuser0.setIgnoreLogin(true);
+   }
+
    @AfterEach
    void clearEnv() {
       clearAllTask("host-org");

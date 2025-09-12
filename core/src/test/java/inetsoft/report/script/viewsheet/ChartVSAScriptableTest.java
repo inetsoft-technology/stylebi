@@ -52,8 +52,6 @@ public class ChartVSAScriptableTest {
    private ChartVSAScriptable chartVSAScriptable, chartVSAScriptable1;
    private ChartVSAssemblyInfo chartVSAssemblyInfo;
    private ChartVSAssembly chartVSAssembly,  chartVSAssembly1;
-   @Mock
-   ViewsheetService viewsheetService;
 
    @BeforeEach
    void setUp() {
@@ -328,9 +326,6 @@ public class ChartVSAScriptableTest {
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
       viewsheetSandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
 
       chartVSAssembly1 = (ChartVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);

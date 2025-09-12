@@ -17,12 +17,13 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { TestBed, inject } from "@angular/core/testing";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { SecurityActionService } from "./security-action.service";
 
 describe("SecurityActionService", () => {
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [HttpClientTestingModule],
+         imports: [HttpClientTestingModule, MatDialogModule],
          providers: [SecurityActionService]
       });
    });

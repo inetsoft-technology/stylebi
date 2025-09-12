@@ -24,6 +24,7 @@ import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.asset.AssetRepository;
+import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.drm.*;
 import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.service.DataRefModelFactory;
@@ -41,9 +42,12 @@ import inetsoft.web.viewsheet.model.chart.VSChartModel;
 import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.mockito.*;
 
 import java.util.Arrays;
 import java.util.List;
+
+import static org.mockito.Mockito.doReturn;
 
 public class ControllersExtension extends MockMessageExtension {
    @Override
@@ -67,6 +71,7 @@ public class ControllersExtension extends MockMessageExtension {
       assetRepository = null;
       openViewsheetController = null;
       selectionService = null;
+      staticConfigurationContext.close();
    }
 
    private void createControllers() {
@@ -164,6 +169,24 @@ public class ControllersExtension extends MockMessageExtension {
                                                 maxModeAssemblyService, sharedFilterService);
       selectionServiceProxy = new VSSelectionServiceProxy();
       maxModeAssemblyService = new MaxModeAssemblyService(viewsheetService, coreLifecycleService);
+
+      coreLifecycleControllerService = new CoreLifecycleControllerService(viewsheetService,
+                                                                          assetRepository,
+                                                                          dataRefModelFactoryService,
+                                                                          vsCompositionService,
+                                                                          coreLifecycleService,
+                                                                          bookmarkService,
+                                                                          runtimeViewsheetRef);
+
+      ConfigurationContext context = ConfigurationContext.getContext();
+      ConfigurationContext spyContext = Mockito.spy(context);
+      staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
+      staticConfigurationContext.when(ConfigurationContext::getContext)
+         .thenReturn(spyContext);
+
+      doReturn(coreLifecycleControllerService)
+         .when(spyContext)
+         .getSpringBean(CoreLifecycleControllerService.class);
    }
 
    @Override
@@ -272,4 +295,6 @@ public class ControllersExtension extends MockMessageExtension {
    private SharedFilterService sharedFilterService;
    private VSCompositionService vsCompositionService;
    private ParameterService parameterService;
+   private CoreLifecycleControllerService coreLifecycleControllerService;
+   MockedStatic<ConfigurationContext> staticConfigurationContext;
 }

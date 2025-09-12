@@ -18,7 +18,6 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.test.*;
@@ -32,9 +31,6 @@ import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.mockito.Mock;
-
-import java.security.Principal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -47,9 +43,6 @@ public class SelectionTreeVSAScriptableTest {
    private SelectionTreeVSAssemblyInfo selectionTreeVSAssemblyInfo;
    private SelectionTreeVSAssembly selectionTreeVSAssembly, selectionTreeVSAssembly1;
    private VSAScriptable vsaScriptable;
-
-   @Mock
-   ViewsheetService viewsheetService;
 
    @BeforeEach
    void setUp() {
@@ -211,9 +204,6 @@ public class SelectionTreeVSAScriptableTest {
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
       ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
 
       selectionTreeVSAssembly1 = (SelectionTreeVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);

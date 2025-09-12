@@ -70,7 +70,7 @@ export class FixedDropdownComponent implements OnInit, AfterViewInit, OnDestroy 
       // component may not have bubbled to the document layer yet
       this.listenerTick = setTimeout(
          () => {
-            if(this.container && this.container.tagName === 'FORM') {
+            if(this.container && this.container.tagName === "FORM") {
                this.listeners.push(
                   this.renderer.listen(this.container, "mousedown", (e) => this.documentMousedown(e)),
                   this.renderer.listen(this.container, "click", (e) => this.documentClick(e)),

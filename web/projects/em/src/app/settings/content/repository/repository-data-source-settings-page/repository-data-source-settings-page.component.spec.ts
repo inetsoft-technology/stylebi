@@ -28,6 +28,8 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { TestUtils } from "../../../../../../../portal/src/app/common/test/test-utils";
+import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 import { DatabaseDefinitionModel } from "../../../../../../../shared/util/model/database-definition-model";
 import { DatasourceDatabaseType } from "../../../../../../../shared/util/model/datasource-database-type";
 import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
@@ -53,6 +55,7 @@ const DEFAULT_DATABASE: DatabaseDefinitionModel = {
 describe("RepositoryDataSourceSettingsPageComponent", () => {
    let component: RepositoryDataSourceSettingsPageComponent;
    let fixture: ComponentFixture<RepositoryDataSourceSettingsPageComponent>;
+   let stompClientService: any = TestUtils.createMockStompClientService();
 
    beforeEach(async(() => {
       TestBed.configureTestingModule({
@@ -61,6 +64,9 @@ describe("RepositoryDataSourceSettingsPageComponent", () => {
             MatCheckboxModule, MatSelectModule, MatOptionModule, MatFormFieldModule, MatInputModule],
          declarations: [RepositoryDataSourceSettingsPageComponent,
             RepositoryDataSourceSettingsViewComponent],
+         providers: [
+            { provide: StompClientService, useValue: stompClientService }
+         ],
          schemas: [NO_ERRORS_SCHEMA]
       })
          .compileComponents();

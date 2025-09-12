@@ -85,6 +85,7 @@ class VSAnnotationToggleControllerTest {
       dispatcher = null;
       rvs = null;
       service = null;
+      staticConfigurationContext.close();
    }
 
    @Test

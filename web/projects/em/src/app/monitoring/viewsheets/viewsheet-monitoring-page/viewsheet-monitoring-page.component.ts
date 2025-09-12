@@ -111,7 +111,7 @@ export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
 
                   seen.add(id);
                   return true;
-               });;
+               });
 
                if(this.executingTableInfo) {
                   this.executingTableInfo.title = this.executingTableTitle;

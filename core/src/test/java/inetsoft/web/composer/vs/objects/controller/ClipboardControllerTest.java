@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.web.viewsheet.controller;
+package inetsoft.web.composer.vs.objects.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -28,12 +28,10 @@ import inetsoft.util.ConfigurationContext;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.ClipboardService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.objects.controller.*;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -59,10 +57,20 @@ class ClipboardControllerTest {
       staticConfigurationContext.when(ConfigurationContext::getContext)
          .thenReturn(spyContext);
 
-      ClipboardControllerService clipboardService = new ClipboardControllerService(coreLifecycleService, vsObjectTreeService,
-                                                                                   viewsheetService, assemblyHandler, vsObjectPropertyService);
-      doReturn(clipboardService).when(spyContext).getSpringBean(ClipboardControllerService.class);
+      ClipboardControllerService clipboardControllerService =
+         Mockito.spy(new ClipboardControllerService(coreLifecycleService, vsObjectTreeService,
+                                                    viewsheetService, assemblyHandler,
+                                                    vsObjectPropertyService));
+      doReturn(clipboardService)
+         .when(clipboardControllerService)
+         .getClipboardService(any(Principal.class));
+      doReturn(clipboardControllerService).when(spyContext).getSpringBean(ClipboardControllerService.class);
       controller = new ClipboardController(runtimeViewsheetRef, new ClipboardControllerServiceProxy());
+   }
+
+   @AfterEach
+   void afterEach() throws Exception {
+      staticConfigurationContext.close();
    }
 
    // Bug #16764 make sure the top left is calculated correctly.

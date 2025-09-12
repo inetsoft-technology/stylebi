@@ -50,7 +50,6 @@ describe("Static Shape Pane Unit Test", () => {
       fixture = TestBed.createComponent(StaticShapePane);
       shapePane = <StaticShapePane>fixture.componentInstance;
       shapePane.shapeStr = "113Face.svg";
-      fixture.detectChanges();
 
       expect(shapePane.currentPage).toEqual(1);
    });
