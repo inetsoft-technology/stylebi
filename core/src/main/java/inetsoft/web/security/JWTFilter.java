@@ -20,12 +20,10 @@ package inetsoft.web.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.ThreadContext;
-import inetsoft.web.security.auth.UnauthorizedAccessError;
-import inetsoft.web.security.auth.UnauthorizedAccessException;
-import inetsoft.web.security.auth.MissingTokenException;
-import inetsoft.web.security.auth.JwtService;
+import inetsoft.web.security.auth.*;
 import jakarta.servlet.*;
-import jakarta.servlet.http.*;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;
@@ -85,10 +83,7 @@ public class JWTFilter extends AbstractSecurityFilter {
          }
 
          try {
-            final HttpSession session = httpRequest.getSession(false);
-            String sessionId = session != null ? session.getId() : null;
-            SRPrincipal principal = service.getPrincipal(
-               request.getRemoteHost(), header, sessionId, request.getLocale());
+            SRPrincipal principal = service.getPrincipal(request.getRemoteHost(), header);
             httpRequest = new AuthenticatedRequest(httpRequest, principal);
             ThreadContext.setContextPrincipal(principal);
             ThreadContext.setLocale(principal.getLocale());
