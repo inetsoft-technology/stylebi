@@ -54,6 +54,7 @@ public class ImportAssetService {
          .expireAfterAccess(10L, TimeUnit.MINUTES)
          .maximumSize(1000L)
          .build();
+      Cluster.getInstance().registerSpringProxyPartitionedCache(CACHE_NAME);
       this.contexts = Cluster.getInstance().getMap(CACHE_NAME);
    }
 

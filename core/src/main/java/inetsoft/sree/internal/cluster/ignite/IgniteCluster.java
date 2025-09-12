@@ -17,11 +17,12 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
-import inetsoft.report.composition.ExpiredSheetException;
+import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
+import inetsoft.web.admin.content.repository.ImportAssetService;
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.affinity.Affinity;
@@ -90,6 +91,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          initLockTimer();
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
       }
+
+      registerSpringProxyPartitionedCache(WorksheetEngine.CACHE_NAME);
    }
 
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
@@ -419,15 +422,37 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       return getCacheConfiguration(name, getDefaultCacheMode(), getDefaultBackupCount());
    }
 
-   private static <K, V> CacheConfiguration<K, V> getCacheConfiguration(String name, CacheMode mode,
-                                                                       int backupCount)
-   {
+   @Override
+   public void registerSpringProxyPartitionedCache(String cacheName) {
+      SPRING_PROXY_PARTITIONED_CACHES.add(cacheName);
+   }
+
+   private static boolean isSpringProxyPartitionedCache(String cacheName) {
+      return SPRING_PROXY_PARTITIONED_CACHES.contains(cacheName);
+   }
+
+   private static <K, V> CacheConfiguration<K, V> getCacheConfiguration(
+      String name, CacheMode mode, int backupCount) {
+
       CacheConfiguration<K, V> cacheConfiguration = new CacheConfiguration<>(name);
       cacheConfiguration.setBackups(backupCount);
       cacheConfiguration.setCacheMode(mode);
       cacheConfiguration.setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL);
       cacheConfiguration.setRebalanceMode(CacheRebalanceMode.SYNC);
       cacheConfiguration.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
+
+      if(isSpringProxyPartitionedCache(name)) {
+         cacheConfiguration.setNodeFilter(node -> {
+            Boolean isScheduler = node.attribute("scheduler");
+
+            if(isScheduler) {
+               LOG.debug("Scheduler node {} is excluded from holding any partition of cache {}", node.id(), name);
+            }
+
+            return isScheduler == null || !isScheduler;
+         });
+      }
+
       return cacheConfiguration;
    }
 
@@ -923,6 +948,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       Affinity<K> affinity = ignite.affinity(cache);
       ClusterNode localNode = ignite.cluster().localNode();
       return affinity.isPrimary(localNode, key);
+   }
+
+   @Override
+   public boolean isLocalCall() {
+      ClusterNode localNode = ignite.cluster().localNode();
+      return localNode.isClient() || Boolean.TRUE.equals(localNode.attribute("scheduler"));
    }
 
    @Override
@@ -1571,6 +1602,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final Map<String, DistributedLockProxy> DISTRIBUTED_LOCK_MAP = new ConcurrentHashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(IgniteCluster.class);
+
+   private static final Set<String> SPRING_PROXY_PARTITIONED_CACHES = Collections.synchronizedSet(new HashSet<>());
 
    private final class AffinityCallProcessor implements IgniteBiPredicate<UUID, Serializable> {
       @SuppressWarnings({ "rawtypes", "unchecked" })
