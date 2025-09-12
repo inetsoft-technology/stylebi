@@ -3738,7 +3738,7 @@ public class CoreTool {
          Method func = cls.getMethod(method, params == null ? new Class[] {} : params);
          return func.invoke(obj, args == null ? new Object[] {} : args);
       }
-      catch(ClassNotFoundException e) {
+      catch(Exception e) {
          try {
             if(obj == null || !(obj.getClass().getClassLoader() instanceof Plugin.PluginClassLoader)) {
                return null;
