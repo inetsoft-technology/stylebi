@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="btn-toolbar composer-btn-toolbar" role="toolbar" aria-label="Composer Toolbar">
+<div class="btn-toolbar composer-btn-toolbar composer-toolbar-container" role="toolbar" aria-label="Composer Toolbar">
   <span *ngIf="!hiddenComposerIcon" class="composer-icon composer-breadcrumb txt-primary"></span>
   <i class="assets-icon composer-breadcrumb-1 icon-size-medium me-2"></i>
   <toolbar-group *ngIf="!deployed" [showTooltips]="true" [actionGroup]="newAssetOperations" [asMenu]="true"></toolbar-group>
@@ -385,6 +385,9 @@
   <toolbar-group *ngIf="mergeMenuCollapsed" [actionGroup]="moreOperations" [showTooltips]="true"
     [mergeActionGroup]="mergeMenuOperations" [asMenu]="true" [placeOnRight]="true"
     [snapToObjects]="snapToObjects" [snapToGrid]="snapToGrid"></toolbar-group>
+  <button type="button" class="btn-toolbar btn composer-btn ai-assistant-icon"
+          (click)="aiAssistantService.openAiAssistantDialog()">
+  </button>
 </div>
 
 <ng-template #importCsvDialog let-close="close" let-dismiss="dismiss">
