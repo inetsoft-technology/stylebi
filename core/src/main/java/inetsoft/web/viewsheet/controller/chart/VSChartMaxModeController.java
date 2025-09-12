@@ -20,7 +20,8 @@ package inetsoft.web.viewsheet.controller.chart;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.event.chart.VSChartEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -32,7 +33,7 @@ import java.security.Principal;
 public class VSChartMaxModeController {
    @Autowired
    public VSChartMaxModeController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                   VSChartMaxModeService vsChartMaxModeService)
+                                   VSChartMaxModeServiceProxy vsChartMaxModeService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.vsChartMaxModeService = vsChartMaxModeService;
@@ -53,9 +54,9 @@ public class VSChartMaxModeController {
       throws Exception
    {
       vsChartMaxModeService.eventHandler(runtimeViewsheetRef.getRuntimeId(), event,
-                                       linkUri, principal, dispatcher);
+                                         linkUri, principal, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSChartMaxModeService vsChartMaxModeService;
+   private final VSChartMaxModeServiceProxy vsChartMaxModeService;
 }
