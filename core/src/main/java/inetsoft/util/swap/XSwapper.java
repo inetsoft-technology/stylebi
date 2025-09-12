@@ -560,34 +560,78 @@ public final class XSwapper {
 
             outer:
             while(!isCancelled()) {
-            cur = System.currentTimeMillis();
+               cur = System.currentTimeMillis();
 
-            if(stopped || list.size() == 0) {
-               waitTime = 5000;
-            }
-            else {
-               // use the waitTime set in the loop
-            }
-
-            try {
-               synchronized(swapLock) {
-                  swapLock.wait(waitTime);
+               if(stopped || list.size() == 0) {
+                  waitTime = 5000;
                }
-            }
-            catch(Throwable ex) {
-               if(isCancelled()) {
+               else {
+                  // use the waitTime set in the loop
+               }
+
+               try {
+                  synchronized(swapLock) {
+                     swapLock.wait(waitTime);
+                  }
+               }
+               catch(Throwable ex) {
+                  if(isCancelled()) {
+                     break;
+                  }
+               }
+
+               state = getMemoryState();
+
+               if(state == GOOD_MEM) {
+                  // clear empty weak references per 10 minutes. It's not a
+                  // memory leak problem. However, it's confusing when memory
+                  // state is always good, for weak references are accumulated
+                  if(cur - lcheck >= 600000L) {
+                     lcheck = cur;
+
+                     for(int i = list.size - 1; i >= 0; i--) {
+                        XSwappable swappable = (XSwappable) list.get(i);
+
+                        if(stopped) {
+                           break;
+                        }
+
+                        if(isCancelled()) {
+                           break outer;
+                        }
+
+                        if(swappable == null || !swappable.isSwappable()) {
+                           synchronized(list) {
+                              list.remove(i);
+                           }
+                        }
+                     }
+                  }
+
+                  continue;
+               }
+
+               lcheck = cur;
+
+               switch(state) {
+               case GOOD_MEM:
+               case NORM_MEM:
+                  setPriority(MIN_PRIORITY);
+                  break;
+               case LOW_MEM:
+                  setPriority(MIN_PRIORITY + 1);
+                  break;
+               case BAD_MEM:
+                  setPriority(NORM_PRIORITY);
+                  break;
+               default: // critical
+                  setPriority(NORM_PRIORITY + 1);
                   break;
                }
-            }
 
-            state = getMemoryState();
-
-            if(state == GOOD_MEM) {
-               // clear empty weak references per 10 minutes. It's not a
-               // memory leak problem. However, it's confusing when memory
-               // state is always good, for weak references are accumulated
-               if(cur - lcheck >= 600000L) {
-                  lcheck = cur;
+               try {
+                  swaplist = new XObjectList();
+                  cur = System.currentTimeMillis();
 
                   for(int i = list.size - 1; i >= 0; i--) {
                      XSwappable swappable = (XSwappable) list.get(i);
@@ -604,119 +648,75 @@ public final class XSwapper {
                         synchronized(list) {
                            list.remove(i);
                         }
+
+                        continue;
                      }
-                  }
-               }
 
-               continue;
-            }
+                     double priority = swappable.getSwapPriority();
 
-            lcheck = cur;
+                     if(priority == 0 || priority < PRIORITY[state]) {
+                        continue;
+                     }
 
-            switch(state) {
-            case GOOD_MEM:
-            case NORM_MEM:
-               setPriority(MIN_PRIORITY);
-               break;
-            case LOW_MEM:
-               setPriority(MIN_PRIORITY + 1);
-               break;
-            case BAD_MEM:
-               setPriority(NORM_PRIORITY);
-               break;
-            default: // critical
-               setPriority(NORM_PRIORITY + 1);
-               break;
-            }
-
-            try {
-               swaplist = new XObjectList();
-               cur = System.currentTimeMillis();
-
-               for(int i = list.size - 1; i >= 0; i--) {
-                  XSwappable swappable = (XSwappable) list.get(i);
-
-                  if(stopped) {
-                     break;
+                     swaplist.add(swappable);
                   }
 
                   if(isCancelled()) {
                      break outer;
                   }
 
-                  if(swappable == null || !swappable.isSwappable()) {
-                     synchronized(list) {
-                        list.remove(i);
-                     }
-
+                  if(swaplist.size <= 3 && state > CRITICAL_MEM) {
+                     waitTime = 3000;
                      continue;
                   }
 
-                  double priority = swappable.getSwapPriority();
+                  Arrays.sort(swaplist.arr, 0, swaplist.size, new XSwappable.PriorityComparator());
+                  int max = (int) (PERCENT[state] * Math.max(100, swaplist.size));
+                  max = Math.min(max, swaplist.size);
 
-                  if(priority == 0 || priority < PRIORITY[state]) {
-                     continue;
+                  swapCnt = 0;
+                  swapIdx = -1;
+                  swapMax = max;
+
+                  swapRemaining();
+
+                  swapIdx = -1;
+                  swaplist.clear();
+
+                  if(swapCnt == 0 && state == CRITICAL_MEM) {
+                     criticalNoSwap++;
                   }
 
-                  swaplist.add(swappable);
+                  // get an acurate memory state after swapping
+                  if(swapCnt > 0 && state <= BAD_MEM) {
+                     doGC();
+                  }
+               }
+               catch(Throwable ex) {
+                  LOG.error(
+                              "Failed to swap objects out of memory", ex);
                }
 
-               if(isCancelled()) {
-                  break outer;
-               }
-
-               if(swaplist.size <= 3 && state > CRITICAL_MEM) {
+               switch(state = getMemoryState()) {
+               case GOOD_MEM:
+                  waitTime = 5000;
+                  break;
+               case NORM_MEM:
                   waitTime = 3000;
-                  continue;
+                  break;
+               case LOW_MEM:
+                  waitTime = 2000;
+                  break;
+               case BAD_MEM:
+                  waitTime = 1000;
+                  break;
+               default: // critical
+                  waitTime = 500;
+                  break;
                }
 
-               Arrays.sort(swaplist.arr, 0, swaplist.size, new XSwappable.PriorityComparator());
-               int max = (int) (PERCENT[state] * Math.max(100, swaplist.size));
-               max = Math.min(max, swaplist.size);
-
-               swapCnt = 0;
-               swapIdx = -1;
-               swapMax = max;
-
-               swapRemaining();
-
-               swapIdx = -1;
-               swaplist.clear();
-
-               if(swapCnt == 0 && state == CRITICAL_MEM) {
-                  criticalNoSwap++;
-               }
-
-               // get an acurate memory state after swapping
-               if(swapCnt > 0 && state <= BAD_MEM) {
-                  doGC();
-               }
+               setPriority(NORM_PRIORITY);
             }
-            catch(Throwable ex) {
-               LOG.error(
-                           "Failed to swap objects out of memory", ex);
-            }
-
-            switch(state = getMemoryState()) {
-            case GOOD_MEM:
-               waitTime = 5000;
-               break;
-            case NORM_MEM:
-               waitTime = 3000;
-               break;
-            case LOW_MEM:
-               waitTime = 2000;
-               break;
-            case BAD_MEM:
-               waitTime = 1000;
-               break;
-            default: // critical
-               waitTime = 500;
-               break;
-            }
-
-	         setPriority(NORM_PRIORITY);
-         }
          }
          finally {
             ThreadContext.setContextPrincipal(oldPrincipal);
