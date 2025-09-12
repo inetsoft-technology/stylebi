@@ -42,6 +42,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 /**
@@ -188,7 +189,8 @@ public class StorageInitializer implements Callable<Integer> {
 
          // send a message to reload the plugins from the kv store
          Cluster.getInstance().submit("plugins",
-                                      new LoadKeyValueTask<>("plugins", true)).get();
+                                      new LoadKeyValueTask<>("plugins", true))
+            .get(5L, TimeUnit.MINUTES);
       }
    }
 

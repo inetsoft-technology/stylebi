@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -62,7 +63,13 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
 
       Map<String, Permission> map = new HashMap<>();
       storage.stream().forEach(pair -> map.put(pair.getKey(), pair.getValue()));
-      storage.removeAll(storage.keys().collect(Collectors.toSet()));
+
+      try {
+         storage.removeAll(storage.keys().collect(Collectors.toSet())).get(1L, TimeUnit.MINUTES);
+      }
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
+         LOG.error("Failed to remove permissions from storage", e);
+      }
 
       for(Map.Entry<String, Permission> entry : map.entrySet()) {
          String key = entry.getKey();
@@ -166,7 +173,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       }
       else {
          try {
-            storage.put(getResourceKey(type, resource, orgID), perm).get();
+            storage.put(getResourceKey(type, resource, orgID), perm).get(10L, TimeUnit.SECONDS);
          }
          catch(Exception e) {
             LOG.error("Failed to set permission on {} {}", type, resource, e);
@@ -187,7 +194,8 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       }
       else {
          try {
-            storage.put(getResourceKey(type, identityID.convertToKey(), orgID), perm).get();
+            storage.put(getResourceKey(type, identityID.convertToKey(), orgID), perm)
+               .get(10L, TimeUnit.SECONDS);
          }
          catch(Exception e) {
             LOG.error("Failed to set permission on {} {}", type, identityID, e);
@@ -201,7 +209,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       orgID = getResourceOrgID(orgID);
 
       try {
-         storage.remove(getResourceKey(type, resource, orgID)).get();
+         storage.remove(getResourceKey(type, resource, orgID)).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to remove permission from {} {}", type, resource, e);
@@ -273,7 +281,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             }
 
             if(changed) {
-               storage.put(pair.getKey(), perm).get();
+               storage.put(pair.getKey(), perm).get(10L, TimeUnit.SECONDS);
             }
          }
       }

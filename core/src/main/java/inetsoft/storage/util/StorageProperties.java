@@ -27,7 +27,7 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -154,9 +154,9 @@ public class StorageProperties extends Properties implements AutoCloseable {
       }
 
       try {
-         return storage.put((String) key, (String) value).get();
+         return storage.put((String) key, (String) value).get(10L, TimeUnit.SECONDS);
       }
-      catch(InterruptedException | ExecutionException e) {
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
          LOG.error("Failed to set property {}", key, e);
          return null;
       }
@@ -169,9 +169,9 @@ public class StorageProperties extends Properties implements AutoCloseable {
       }
 
       try {
-         return storage.remove((String) key).get();
+         return storage.remove((String) key).get(10L, TimeUnit.SECONDS);
       }
-      catch(InterruptedException | ExecutionException e) {
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
          LOG.error("Failed to remove property {}", key, e);
          return null;
       }
@@ -197,9 +197,9 @@ public class StorageProperties extends Properties implements AutoCloseable {
       }
 
       try {
-         storage.putAll(values).get();
+         storage.putAll(values).get(2L, TimeUnit.MINUTES);
       }
-      catch(InterruptedException | ExecutionException e) {
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
          LOG.error("Failed to put values into key-value store", e);
       }
    }
@@ -207,9 +207,9 @@ public class StorageProperties extends Properties implements AutoCloseable {
    @Override
    public synchronized void clear() {
       try {
-         storage.replaceAll(new TreeMap<>()).get();
+         storage.replaceAll(new TreeMap<>()).get(60L, TimeUnit.SECONDS);
       }
-      catch(InterruptedException | ExecutionException e) {
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
          LOG.error("Failed to clear key-value store", e);
       }
    }

@@ -51,7 +51,7 @@ public final class DependencyStorageService {
     *    if key is exist, will replace it.
     */
    public void put(String key, RenameTransformObject obj) throws Exception {
-      getDependencyStorage().put(key, obj).get();
+      getDependencyStorage().put(key, obj).get(10L, TimeUnit.SECONDS);
    }
 
    public RenameTransformObject get(String key) throws Exception {
@@ -83,9 +83,9 @@ public final class DependencyStorageService {
       }
 
       try {
-         storage.rename(oldKey, newKey).get();
+         storage.rename(oldKey, newKey).get(10L, TimeUnit.SECONDS);
       }
-      catch(InterruptedException | ExecutionException e) {
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
          LOG.error("Failed to rename {} to {}", oldKey, newKey, e);
          return false;
       }
@@ -95,9 +95,9 @@ public final class DependencyStorageService {
 
    public boolean remove(String key) {
       try {
-         getDependencyStorage().remove(key).get();
+         getDependencyStorage().remove(key).get(10L, TimeUnit.SECONDS);
       }
-      catch(InterruptedException | ExecutionException e) {
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
          LOG.error("Failed to remove {}", key, e);
          return false;
       }
@@ -107,11 +107,17 @@ public final class DependencyStorageService {
 
    public void clear() {
       Set<String> keys = getKeys(null);
-      getDependencyStorage().removeAll(keys);
+
+      try {
+         getDependencyStorage().removeAll(keys).get(1L, TimeUnit.MINUTES);
+      }
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
+         LOG.error("Failed to clear dependency storage", e);
+      }
    }
 
    public void removeDependencyStorage(String orgID) throws Exception {
-      getDependencyStorage(orgID).deleteStore();
+      getDependencyStorage(orgID).deleteStore().get(1L, TimeUnit.MINUTES);
       getDependencyStorage(orgID).close();
    }
 
@@ -124,7 +130,7 @@ public final class DependencyStorageService {
          String nkey = entry.cloneAssetEntry(nOrg).toIdentifier(true);
          data.put(nkey, syncDependencyData(pair.getValue(), nOrg));
       });
-      nStorage.putAll(data);
+      nStorage.putAll(data).get(5L, TimeUnit.MINUTES);
 
       if(removeOld) {
          removeDependencyStorage(oOrg.getId());
@@ -142,7 +148,7 @@ public final class DependencyStorageService {
          data.put(nkey, syncDependencyUser(pair.getValue(), oldUser, newUser));
       });
 
-      nStorage.putAll(data);
+      nStorage.putAll(data).get(5L, TimeUnit.MINUTES);
    }
 
    private RenameTransformObject syncDependencyUser(RenameTransformObject obj, IdentityID oldUser,
