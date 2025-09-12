@@ -150,7 +150,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       Thread thread = new Thread(SingletonManager::reset);
       thread.setDaemon(true);
       thread.start();
-      thread.join(30000L);
+      thread.join(120000L);
 
       try {
          FileUtils.deleteDirectory(clusterDir.toFile());

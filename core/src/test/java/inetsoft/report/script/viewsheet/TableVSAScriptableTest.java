@@ -18,7 +18,6 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -57,9 +56,6 @@ public class TableVSAScriptableTest {
    private TableVSAssemblyInfo tableVSAssemblyInfo;
    private TableVSAssembly tableVSAssembly, tableVSAssembly2;
    private VSAScriptable vsaScriptable;
-
-   @Mock
-   ViewsheetService viewsheetService;
 
    @BeforeEach
    void setUp() {
@@ -369,9 +365,6 @@ public class TableVSAScriptableTest {
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
       ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
 
       tableVSAssembly2 = (TableVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);

@@ -127,7 +127,7 @@ describe("task options pane componnet unit case: ", () => {
 
       //Bug #21420 should get correct locale info when set 'Default'
       let locale = fixture.nativeElement.querySelectorAll(
-         "div.form-row-float-label.row.form-group")[3];
+         "div.form-row-float-label.row.form-group")[4];
       let defaultElement = locale.querySelectorAll("select")[0];
       expect(defaultElement.getAttribute("ng-reflect-model")).toBe("Default");
    });

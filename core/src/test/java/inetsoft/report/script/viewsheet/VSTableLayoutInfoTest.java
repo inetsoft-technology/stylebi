@@ -42,16 +42,11 @@ public class VSTableLayoutInfoTest {
 
    private ViewsheetSandbox viewsheetSandbox;
    private CalcTableVSAssembly calcTableVSAssembly;
-   @Mock
-   private ViewsheetService viewsheetService = mock(ViewsheetService.class);
 
    @BeforeEach
    void setUp() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
       viewsheetSandbox = rvs.getViewsheetSandbox();
-      Principal principal = mock(Principal.class);
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), principal))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
 
       calcTableVSAssembly = (CalcTableVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly("FreehandTable1");

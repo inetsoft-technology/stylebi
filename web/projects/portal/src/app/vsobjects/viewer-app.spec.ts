@@ -145,6 +145,7 @@ describe("ViewerApp Unit Tests", () => {
    let miniToolbarService: any;
    let assetLoadingService: any;
    let viewContainerRef: any;
+   let baseHrefService: any;
 
    beforeEach(async(() => {
       formDataService = {
@@ -272,6 +273,10 @@ describe("ViewerApp Unit Tests", () => {
       viewContainerRef = {
          element: jest.fn(),
       };
+      baseHrefService = {
+         getBaseHref: jest.fn(),
+      };
+
 
       window.IntersectionObserver = jest.fn().mockImplementation(() => ({
          observe: () => {},
@@ -372,7 +377,7 @@ describe("ViewerApp Unit Tests", () => {
          firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef);
+         assetLoadingService, viewContainerRef, baseHrefService);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");

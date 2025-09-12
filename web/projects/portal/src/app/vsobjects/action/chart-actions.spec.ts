@@ -775,9 +775,9 @@ describe("ChartActions", () => {
       selectMeasureBar(model);
       expect(menuActions2[2].actions[1].visible()).toBe(true);
 
-      //Bug #19149, should not display filter when in maxmize mode
+      //Bug #71598, should display filter when in max mode
       model.maxMode = true;
-      expect(menuActions2[2].actions[1].visible()).toBe(false);
+      expect(menuActions2[2].actions[1].visible()).toBe(true);
    });
 
    it("check status of menu actions and toolbar actions in composer when select measure bar", () => {

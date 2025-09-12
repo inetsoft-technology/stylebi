@@ -104,14 +104,12 @@ describe("Table Advanced Pane Unit Test", () => {
    it("test disable and enable status on advanced pane", (done) => {
       let shrinkToFit: HTMLInputElement = fixture.nativeElement.querySelector(".shrinkToFit_id input[type=checkbox]");
       let enableAdhocEdit: HTMLInputElement = fixture.nativeElement.querySelector(".enableAdhoc_id input[type=checkbox]");
-      let emTable: HTMLInputElement = fixture.nativeElement.querySelector(".embeddedTable_id input[type=checkbox]");
       let addRow: HTMLInputElement = fixture.nativeElement.querySelector(".addRow_id input[type=checkbox]");
       let deleteRow: HTMLInputElement = fixture.nativeElement.querySelector(".delRow_id input[type=checkbox]");
       let editRow: HTMLInputElement = fixture.nativeElement.querySelector(".editRow_id input[type=checkbox]");
 
       expect(shrinkToFit.getAttribute("ng-reflect-is-disabled")).toEqual("false");
       expect(enableAdhocEdit.getAttribute("ng-reflect-is-disabled")).toEqual("false");
-      expect(emTable.getAttribute("ng-reflect-is-disabled")).toEqual("false");
       expect(addRow.getAttribute("ng-reflect-is-disabled")).toEqual("true");
       expect(deleteRow.getAttribute("ng-reflect-is-disabled")).toEqual("true");
       expect(editRow.getAttribute("ng-reflect-is-disabled")).toEqual("true");

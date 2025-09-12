@@ -123,7 +123,7 @@ public class ClipboardControllerService {
       final VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       final PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       dispatcher.sendCommand(treeCommand);
-      ClipboardService service = clipboardServices.get(principal);
+      ClipboardService service = getClipboardService(principal);
       service.copy(clonedAssemblies);
 
       return null;
@@ -137,7 +137,7 @@ public class ClipboardControllerService {
       final Viewsheet viewsheet = rvs.getViewsheet();
       final ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
 
-      final ClipboardService service = clipboardServices.get(principal);
+      final ClipboardService service = getClipboardService(principal);
 
       if(service == null) {
          return null;
@@ -570,6 +570,10 @@ public class ClipboardControllerService {
       }
 
       return false;
+   }
+
+   protected ClipboardService getClipboardService(Principal principal) {
+      return clipboardServices.get(principal);
    }
 
    private final CoreLifecycleService coreLifecycleService;

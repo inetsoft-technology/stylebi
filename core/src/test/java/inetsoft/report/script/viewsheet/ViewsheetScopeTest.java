@@ -18,18 +18,14 @@
 
 package inetsoft.report.script.viewsheet;
 
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.FormTableRow;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.SRPrincipal;
 import inetsoft.test.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XEmbeddedTable;
-import inetsoft.uql.viewsheet.*;
-import inetsoft.util.Tool;
+import inetsoft.uql.viewsheet.ChartVSAssembly;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -40,7 +36,7 @@ import java.net.URL;
 import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -62,20 +58,12 @@ public class ViewsheetScopeTest {
 
    private ViewsheetScope viewsheetScope;
    private ViewsheetSandbox sandbox;
-   ViewsheetService viewsheetService = mock(ViewsheetService.class);
 
    @BeforeEach
    void setUp() throws Exception {
       openMocks(this);
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
       sandbox = rvs.getViewsheetSandbox();
-      SRPrincipal org_admin = new SRPrincipal(new IdentityID("admin", "host-org"),
-                                              new IdentityID[] { new IdentityID("Organization Administrator", null)},
-                                              new String[0], "host-org",
-                                              Tool.getSecureRandom().nextLong());
-      when(viewsheetService.getViewsheet(viewsheetResource.getRuntimeId(), org_admin))
-         .thenReturn(viewsheetResource.getRuntimeViewsheet());
-
       viewsheetScope = new ViewsheetScope(sandbox, false);
    }
 

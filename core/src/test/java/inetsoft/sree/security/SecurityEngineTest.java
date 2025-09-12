@@ -56,7 +56,9 @@ class SecurityEngineTest {
 
    @Test
    void readScriptDefault() throws SecurityException {
-      final SRPrincipal principal = new SRPrincipal(new IdentityID("Alice", OrganizationManager.getInstance().getCurrentOrgID()));
+      final SRPrincipal principal = new SRPrincipal(
+         new IdentityID("Alice", OrganizationManager.getInstance().getCurrentOrgID()));
+      principal.setIgnoreLogin(true);
       final boolean allowed = engine.checkPermission(principal, ResourceType.SCRIPT,
                                                      "createBulletGraph", ResourceAction.READ);
 
@@ -65,7 +67,9 @@ class SecurityEngineTest {
 
    @Test
    void readScriptWhenLibraryHasPermission() throws SecurityException {
-      final SRPrincipal principal = new SRPrincipal(new IdentityID("Alice", OrganizationManager.getInstance().getCurrentOrgID()));
+      final SRPrincipal principal = new SRPrincipal(
+         new IdentityID("Alice", OrganizationManager.getInstance().getCurrentOrgID()));
+      principal.setIgnoreLogin(true);
 
       final Permission rootPerm = new Permission();
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();

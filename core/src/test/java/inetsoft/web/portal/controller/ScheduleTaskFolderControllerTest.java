@@ -57,6 +57,7 @@ class ScheduleTaskFolderControllerTest {
 
       admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()), new IdentityID[] { new IdentityID("Administrator", null)}, new String[0], "host_org",
                               Tool.getSecureRandom().nextLong());
+      admin.setIgnoreLogin(true);
    }
 
    @AfterAll
