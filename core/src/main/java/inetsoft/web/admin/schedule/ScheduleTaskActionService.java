@@ -427,14 +427,15 @@ public class ScheduleTaskActionService {
          .filter(Objects::nonNull)
          .filter(AssetEntry::isViewsheet)
          .filter(e -> checkViewsheetPermission(e, user))
-         .sorted(Comparator.comparing((AssetEntry e) ->
-            !e.toIdentifier().startsWith(Tool.toString(AssetRepository.USER_SCOPE)))
-            .thenComparing(AssetEntry::compareTo))
+         .sorted(
+            Comparator.<AssetEntry, Boolean>comparing(
+                  e -> !(e.getParentPath().contains("/") && !"/".equals(e.getParentPath())))
+               .thenComparing(AssetEntry::getPath)
+               .thenComparing(AssetEntry::compareTo))
          .collect(Collectors.toList()));
 
       HashMap<String, AssetEntry[]> subEntriesMap = new HashMap<>();
       entries.forEach(e -> tree.put(e, buildTree(e, tree, myReportsAvailable, user, subEntriesMap)));
-      tree.values().forEach(this::sortTree);
 
       tree.entrySet().stream()
          .filter(e -> e.getKey().isRoot())
@@ -444,26 +445,6 @@ public class ScheduleTaskActionService {
          .forEach(builder::addNodes);
 
       return builder.build();
-   }
-
-   private void sortTree(ViewsheetTreeModel node) {
-      List<ViewsheetTreeModel> children = node.children();
-
-      if(children == null || children.isEmpty()) {
-         return;
-      }
-
-      children.sort(
-         Comparator.comparing(
-            (ViewsheetTreeModel c) -> {
-               AssetEntry entry = AssetEntry.createAssetEntry(c.id());
-               return entry != null && entry.isFolder();
-            },
-            Comparator.reverseOrder()
-         ).thenComparing(ViewsheetTreeModel::label, String.CASE_INSENSITIVE_ORDER)
-      );
-
-      children.forEach(this::sortTree);
    }
 
    public Map<String, String> getViewsheets(Principal user) throws Exception {
