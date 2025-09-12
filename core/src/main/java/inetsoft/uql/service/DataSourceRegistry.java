@@ -1153,6 +1153,7 @@ public class DataSourceRegistry implements MessageListener {
          long actual = indexedStorage.lastModified(datasourceFilter);
 
          if(currts < actual) {
+            clearCache();
             ts.put(OrganizationManager.getInstance().getCurrentOrgID(), nts);
             PropertyChangeEvent event =
                new PropertyChangeEvent(this, "DataSourceRegistry", null, null);
