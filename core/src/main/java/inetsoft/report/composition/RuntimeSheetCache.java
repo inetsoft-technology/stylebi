@@ -30,14 +30,11 @@ import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.Tool;
 import inetsoft.web.json.ThirdPartySupportModule;
 import org.apache.ignite.IgniteCache;
-import org.apache.ignite.cache.query.ContinuousQuery;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 
 import javax.cache.Cache;
-import javax.cache.event.CacheEntryEvent;
-import javax.cache.event.CacheEntryUpdatedListener;
 import java.io.*;
 import java.security.Principal;
 import java.util.*;
@@ -50,7 +47,7 @@ public class RuntimeSheetCache
 {
    public RuntimeSheetCache(String name) {
       this.cluster = Cluster.getInstance();
-      this.local = new ConcurrentHashMap<>();
+      this.local = new LinkedHashMap<>();
       this.cache = getCache(cluster, name);
       this.maxSheetCount = getMaxSheetCount();
       this.lock = new ReentrantReadWriteLock();
@@ -59,27 +56,6 @@ public class RuntimeSheetCache
 
       this.cluster.addCacheRebalanceListener(name, this);
       this.executor.schedule(this::flushAll, 30L, TimeUnit.SECONDS);
-
-      ContinuousQuery<String, RuntimeSheetState> continuousQuery = new ContinuousQuery<>();
-      continuousQuery.setLocalListener(new CacheEntryUpdatedListener<String, RuntimeSheetState>() {
-         @Override
-         public void onUpdated(Iterable<CacheEntryEvent<? extends String, ? extends RuntimeSheetState>> evts) {
-            for(CacheEntryEvent<? extends String, ? extends RuntimeSheetState> e : evts) {
-               switch(e.getEventType()) {
-               case CREATED:
-               case UPDATED:
-                  local.put(e.getKey(), toSheet(e.getValue()));
-                  break;
-               case REMOVED:
-               case EXPIRED:
-                  local.remove(e.getKey());
-                  break;
-               }
-            }
-         }
-      });
-
-      cache.query(continuousQuery);
    }
 
    private static int getMaxSheetCount() {
@@ -145,26 +121,42 @@ public class RuntimeSheetCache
 
    @Override
    public RuntimeSheet get(Object key) {
-      if(!(key instanceof String id)) {
-         return null;
+      if(key instanceof String id) {
+         boolean loadFromCache = false;
+         lock.readLock().lock();
+
+         try {
+            if(local.containsKey(id)) {
+               return local.get(id);
+            }
+
+            loadFromCache = cache.containsKey(id);
+         }
+         finally {
+            lock.readLock().unlock();
+         }
+
+         if(loadFromCache) {
+            lock.writeLock().lock();
+
+            try {
+               if(!local.containsKey(id) && cache.containsKey(id)) {
+                  RuntimeSheet sheet = toSheet(cache.get(id));
+
+                  if(sheet != null) {
+                     local.put(id, sheet);
+                  }
+
+                  return sheet;
+               }
+            }
+            finally {
+               lock.writeLock().unlock();
+            }
+         }
       }
 
-      RuntimeSheet sheet = local.get(id);
-
-      if(sheet != null) {
-         return sheet;
-      }
-
-      RuntimeSheetState state = cache.get(id);
-
-      if(state == null) {
-         return null;
-      }
-
-      RuntimeSheet loaded = toSheet(state);
-      RuntimeSheet prev = local.putIfAbsent(id, loaded);
-
-      return prev == null ? loaded : prev;
+      return null;
    }
 
    @Override
@@ -186,15 +178,12 @@ public class RuntimeSheetCache
 
          RuntimeSheet sheet = local.put(key, value);
 
-         executor.execute(() -> {
-            try {
-               cache.put(key, value.saveState(mapper));
-            }
-            catch (Exception ex) {
-               local.remove(key);
-               LOG.warn("Put state failed for runtime sheet {}", key, ex);
-            }
-         });
+         try {
+            cache.putAsync(key, value.saveState(mapper));
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to save sheet state to cache", e);
+         }
 
          return sheet;
       }
