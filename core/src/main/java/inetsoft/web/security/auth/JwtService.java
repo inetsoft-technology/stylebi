@@ -42,19 +42,6 @@ public interface JwtService {
     *
     * @throws UnauthorizedAccessException if the authorization token is invalid.
     */
-   SRPrincipal getPrincipal(String host, String token, Locale locale)
-      throws UnauthorizedAccessException;
-
-   /**
-    * Gets the principal associated with the specified authorization token.
-    *
-    * @param host  the host or IP address from which the request originated.
-    * @param token the authorization token.
-    *
-    * @return the associated principal.
-    *
-    * @throws UnauthorizedAccessException if the authorization token is invalid.
-    */
-   SRPrincipal getPrincipal(String host, String token, String sessionId, Locale locale)
+   SRPrincipal getPrincipal(String host, String token)
       throws UnauthorizedAccessException;
 }
