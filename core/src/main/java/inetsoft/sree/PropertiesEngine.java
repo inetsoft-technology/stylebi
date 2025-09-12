@@ -609,7 +609,7 @@ public class PropertiesEngine {
 
    private void saveToStorage(Properties properties, KeyValueStorage<String> storage,
                               Set<String> changedProps)
-      throws ExecutionException, InterruptedException
+      throws ExecutionException, InterruptedException, TimeoutException
    {
       if(properties instanceof DefaultProperties) {
          saveToStorage(((DefaultProperties) properties).getMainProperties(), storage, changedProps);
@@ -638,7 +638,7 @@ public class PropertiesEngine {
          }
 
          for(Future<?> future : futures) {
-            future.get();
+            future.get(2L, TimeUnit.MINUTES);
          }
       }
    }
@@ -965,7 +965,7 @@ public class PropertiesEngine {
       try {
          saveToStorage(prop, storage, changedProps);
       }
-      catch(ExecutionException | InterruptedException e) {
+      catch(ExecutionException | InterruptedException | TimeoutException e) {
          throw new IOException("Failed to store properties in storage", e);
       }
       finally {

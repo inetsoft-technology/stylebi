@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.concurrent.*;
 
 /**
  * Class that provides access to persistent schedule task status data.
@@ -83,7 +84,7 @@ public class ScheduleStatusDao implements AutoCloseable {
       }
 
       try {
-         storage.put(encodeTaskName(taskName), newStatus).get();
+         storage.put(encodeTaskName(taskName), newStatus).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception ex) {
          LOG.error("Failed to put schedule status {} for {}", status, taskName);
@@ -99,7 +100,12 @@ public class ScheduleStatusDao implements AutoCloseable {
     */
    @SuppressWarnings("WeakerAccess")
    public void clearStatus(String taskName) {
-      storage.remove(encodeTaskName(taskName));
+      try {
+         storage.remove(encodeTaskName(taskName)).get(10L, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
+         LOG.error("Failed to clear status for task: {}", taskName, e);
+      }
    }
 
    /**

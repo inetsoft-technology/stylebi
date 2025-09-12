@@ -33,6 +33,7 @@ import org.w3c.dom.NodeList;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -89,7 +90,7 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
       entry.setOriginalScope(originalScope);
 
       try {
-         getStorage().put(path, entry).get();
+         getStorage().put(path, entry).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to add entry {}", path, e);
@@ -113,10 +114,10 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
             entry.setOriginalPath(origPath);
 
             try {
-               storage.put(e.getKey(), entry).get();
+               storage.put(e.getKey(), entry).get(10L, TimeUnit.SECONDS);
             }
             catch(Exception ex) {
-               LOG.error("Failed to rename folder {} to {}", oldPath, newPath, e);
+               LOG.error("Failed to rename folder {} to {}", oldPath, newPath, ex);
             }
          }
       }
@@ -147,11 +148,16 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
     * @param path the path to the entry in the recycle bin.
     */
    public synchronized void removeEntry(String path) {
-      getStorage().remove(path);
+      try {
+         getStorage().remove(path).get(10L, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
+         LOG.error("Failed to remove entry from recycle bin: {}", path, e);
+      }
    }
 
    public void removeStorage(String orgID) throws Exception {
-      getStorage(orgID).deleteStore();
+      getStorage(orgID).deleteStore().get(1L, TimeUnit.MINUTES);
       getStorage(orgID).close();
    }
 
@@ -289,7 +295,13 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
       KeyValueStorage<Entry> nStorage = getStorage(id);
       SortedMap<String, Entry> data = new TreeMap<>();
       oStorage.stream().forEach(pair -> data.put(pair.getKey(), pair.getValue()));
-      nStorage.putAll(data);
+
+      try {
+         nStorage.putAll(data).get(2L, TimeUnit.MINUTES);
+      }
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    @Override
@@ -299,7 +311,7 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
       for(int i = 0; i < nodes.getLength(); i++) {
          Entry entry = new Entry();
          entry.parseXML((Element) nodes.item(i));
-         getStorage().put(entry.getPath(), entry).get();
+         getStorage().put(entry.getPath(), entry).get(10L, TimeUnit.SECONDS);
       }
    }
 

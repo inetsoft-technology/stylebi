@@ -85,7 +85,8 @@ class LdapAuthenticationCache implements AutoCloseable, NamespaceChangeListener,
       try {
          if(!Tool.equals(cluster.getServiceOwner(prefix), cluster.getLocalMember())) {
             next =
-               cluster.submit(prefix, new LoadCacheTask(provider.getProviderName(), force)).get();
+               cluster.submit(prefix, new LoadCacheTask(provider.getProviderName(), force))
+                  .get(10L, TimeUnit.MINUTES);
          }
          else {
             next = new LoadCacheTask(provider.getProviderName(), force).call();

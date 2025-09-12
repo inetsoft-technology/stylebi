@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 @SingletonManager.Singleton(RenameTransformHandler.Reference.class)
 public class RenameTransformHandler implements AutoCloseable {
@@ -59,7 +60,7 @@ public class RenameTransformHandler implements AutoCloseable {
 
       if(waitDone) {
          try {
-            dependencyStorage.get();
+            dependencyStorage.get(3L, TimeUnit.MINUTES);
          }
          catch(Exception e) {
             LOG.error("wait dependencyStorage update failure", e);

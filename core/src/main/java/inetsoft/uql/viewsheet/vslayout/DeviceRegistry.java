@@ -26,7 +26,7 @@ import org.w3c.dom.*;
 
 import java.io.InputStream;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 import java.util.function.Supplier;
 
 /**
@@ -78,19 +78,29 @@ public final class DeviceRegistry {
       }
 
       try {
-         storage.replaceAll(map).get();
+         storage.replaceAll(map).get(60L, TimeUnit.SECONDS);
       }
-      catch(InterruptedException | ExecutionException e) {
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
          LOG.error("Failed to save devices", e);
       }
    }
 
    public synchronized void setDevice(DeviceInfo device) {
-      storage.put(device.getId(), device);
+      try {
+         storage.put(device.getId(), device).get(10L, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    public synchronized void deleteDevice(String id) {
-      storage.remove(id);
+      try {
+         storage.remove(id).get(10L, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    /**
