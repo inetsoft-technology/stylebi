@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -311,10 +312,11 @@ public final class XSwapper {
          }).start();
       }
 
+      Principal principal = ThreadContext.getContextPrincipal();
       threads = new XSwapperThread0[getThreadCount()];
 
       for(int i = 0; i < threads.length; i++) {
-         threads[i] = new XSwapperThread0();
+         threads[i] = new XSwapperThread0(principal);
          threads[i].start();
       }
    }
@@ -528,8 +530,9 @@ public final class XSwapper {
     * XSwapper thread.
     */
    private final class XSwapperThread0 extends XSwapperThread {
-      public XSwapperThread0() {
+      public XSwapperThread0(Principal contextPrincipal) {
          super();
+         this.principal = contextPrincipal;
          setDaemon(true);
       }
 
@@ -547,12 +550,16 @@ public final class XSwapper {
 
       @Override
       protected void doRun() {
-         int state = GOOD_MEM;
-         long waitTime = 0;
-         swapping.set(true);
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
+         ThreadContext.setContextPrincipal(principal);
 
-         outer:
-         while(!isCancelled()) {
+         try {
+            int state = GOOD_MEM;
+            long waitTime = 0;
+            swapping.set(true);
+
+            outer:
+            while(!isCancelled()) {
             cur = System.currentTimeMillis();
 
             if(stopped || list.size() == 0) {
@@ -708,7 +715,11 @@ public final class XSwapper {
                break;
             }
 
-	    setPriority(NORM_PRIORITY);
+	         setPriority(NORM_PRIORITY);
+         }
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldPrincipal);
          }
       }
 
@@ -767,8 +778,8 @@ public final class XSwapper {
       }
 
       private long lcheck = XSwapper.cur;
+      private Principal principal;
       private final XWeakList list = new XWeakList();
-
       private XObjectList swaplist = new XObjectList();
       private int swapIdx; // the current swappable being swapped
       private int swapMax; // max items to swap
