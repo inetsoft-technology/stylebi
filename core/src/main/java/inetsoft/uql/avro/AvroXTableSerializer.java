@@ -229,7 +229,7 @@ public class AvroXTableSerializer {
       TableDataDescriptor descriptor = table.getDescriptor();
 
       if(descriptor == null) {
-         return null;
+         return "";
       }
 
       TableDataPath cellDataPath;
@@ -243,6 +243,10 @@ public class AvroXTableSerializer {
       }
 
       XMetaInfo xMetaInfo = descriptor.getXMetaInfo(cellDataPath);
+
+      if(xMetaInfo == null) {
+         return "";
+      }
 
       try(ByteArrayOutputStream outputStream = new ByteArrayOutputStream();) {
          PrintWriter writer = new PrintWriter(outputStream);
