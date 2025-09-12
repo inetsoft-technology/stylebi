@@ -141,13 +141,18 @@ export class ExportAssetsService {
 
    public createExport(selectedEntities: SelectedAssetModel[],
                        dependentAssets: RequiredAssetModel[], overwriting: boolean, name: string,
-                       newerVersion: boolean): Observable<any> {
+                       newerVersion: boolean): Observable<string> {
       const data = { selectedEntities, dependentAssets, overwriting, name, newerVersion };
       const uri = "../api/em/content/repository/export/create";
-      const statusUri = "../api/em/content/repository/export/create/status";
-      return this.http.post(uri, data)
+      const statusUri = "../api/em/content/repository/export/create/status/";
+      return this.http.post(uri, data, { responseType: 'text' })
          .pipe(
-            switchMap(() => this.pollForStatus(statusUri, 3000, 2500)),
+            map(exportID => JSON.parse(exportID)),
+            switchMap((exportID: string) => {
+               return this.pollForStatus(statusUri + exportID, 3000, 2500).pipe(
+                  map(() => exportID)
+               );
+            })
          );
    }
 
