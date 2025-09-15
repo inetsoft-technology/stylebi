@@ -71,13 +71,17 @@ public class PhysicalGraphModelController {
             this.runtimePartitionService.getRuntimePartition(runtimeId);
          XPartition partition = runtimePartition.getPartition();
 
-         Rectangle box = partition.getRuntimeAliasTableBounds(alias).getBounds();
+         Rectangle rectangle = partition.getRuntimeAliasTableBounds(alias);
 
-         if(box != null && box.width != width) {
-            box.width = width;
-            partition.setRuntimeAliasTableBounds(alias, box);
-            changed = true;
-            runtimePartitionService.saveRuntimePartition(runtimePartition);
+         if(rectangle != null ) {
+            Rectangle box = rectangle.getBounds();
+
+            if(box != null && box.width != width) {
+               box.width = width;
+               partition.setRuntimeAliasTableBounds(alias, box);
+               changed = true;
+               runtimePartitionService.saveRuntimePartition(runtimePartition);
+            }
          }
       }
 
