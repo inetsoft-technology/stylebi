@@ -2476,6 +2476,11 @@ public class SUtil {
 
                if(principal != null && OrganizationManager.getInstance().isSiteAdmin(principal)) {
                   principal = createEMPrincipal(principal);
+
+                  if(principal instanceof XPrincipal xPrincipal) {
+                     xPrincipal.setProperty(EM_USER, "true");
+                  }
+
                   session.setAttribute(RepletRepository.EM_PRINCIPAL_COOKIE, principal);
                }
             }
@@ -2492,6 +2497,10 @@ public class SUtil {
       }
 
       return null;
+   }
+
+   public static boolean isEMPrincipal(XPrincipal principal) {
+      return principal != null && "true".equals(principal.getProperty(EM_USER));
    }
 
    public static boolean isSiteAdminSession(HttpSession session) {
@@ -3503,6 +3512,7 @@ public class SUtil {
     */
    public static final String MAC_LOG_NAME = "inetsoft.sree.MACAudit";
    public static final String VPM_USER = "composer_vpm_user";
+   public static final String EM_USER = "em_user";
    private static final Logger MAC_LOG = LoggerFactory.getLogger(MAC_LOG_NAME);
    private static final ReentrantLock scheduleLock = new ReentrantLock();
 
