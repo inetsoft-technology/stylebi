@@ -1379,7 +1379,7 @@ export class DatabasePhysicalModelComponent implements OnInit, DoCheck, OnDestro
          if(paths.includes(childPath)) {
             this.tableTree.selectNode(child);
          }
-         else if(paths.some(p => p.indexOf(childPath + "/") === 0)) {
+         else if(paths.some(p => !!p && p.indexOf(childPath + "/") === 0)) {
             child.expanded = true;
 
             if(child.children.length == 0) {

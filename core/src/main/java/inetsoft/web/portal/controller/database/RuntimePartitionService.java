@@ -23,6 +23,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.web.portal.model.database.graph.PhysicalGraphLayout;
+import org.apache.commons.collections4.EnumerationUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -266,6 +267,19 @@ public class RuntimePartitionService {
 
       public void setGraphHeight(int graphHeight) {
          this.graphHeight = graphHeight;
+      }
+
+      @Override
+      public String toString() {
+         return "RuntimeXPartition{" +
+            "partition=" + partition +
+            ", relationships=" + EnumerationUtils.toList(partition.getRelationships()) +
+            ", id='" + id + '\'' +
+            ", dataSource='" + dataSource + '\'' +
+            ", graphWidth=" + graphWidth +
+            ", graphHeight=" + graphHeight +
+            ", movedTables=" + movedTables +
+            '}';
       }
 
       private XPartition partition;
