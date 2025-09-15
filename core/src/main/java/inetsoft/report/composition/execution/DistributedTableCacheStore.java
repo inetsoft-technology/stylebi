@@ -25,6 +25,7 @@ import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.XTable;
 import inetsoft.util.*;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -154,7 +155,7 @@ public class DistributedTableCacheStore {
    }
 
    private String getKey(DataKey dataKey) {
-      return clusterId + "__" + dataKey.getValue();
+      return clusterId + "__" + DigestUtils.sha256Hex(dataKey.getValue());
    }
 
    private final String clusterId;
