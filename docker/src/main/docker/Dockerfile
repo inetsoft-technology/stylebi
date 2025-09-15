@@ -16,15 +16,15 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-FROM eclipse-temurin:21.0.7_6-jdk
+FROM eclipse-temurin:21.0.8_9-jdk
 
 ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=50.0'
 ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC'
 ENV JAVA_LOCALE_OPTS='-Duser.language=en -Duser.country=US -Djava.locale.providers=COMPAT,SPI'
 ENV JAVA_CODECACHE_OPTS='-XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize=200m -XX:+UseCodeCacheFlushing'
 ENV JAVA_NETWORK_OPTS='-Djava.net.preferIPv4Stack=true'
-ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs -Dinetsoft.metadata.dir=/var/lib/inetsoft/metadata'
-ENV INETSOFTENV_FONT_TRUETYPE_PATH='/usr/share/fonts/truetype/;$(sree.home)/fonts'
+ENV JAVA_DEBUG_OPTS=''
+ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS $JAVA_DEBUG_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs -Dinetsoft.metadata.dir=/var/lib/inetsoft/metadata'
 ENV JAVA_CLASSPATH=''
 
 RUN apt-get update \

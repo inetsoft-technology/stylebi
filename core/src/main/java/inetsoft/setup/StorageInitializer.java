@@ -148,6 +148,7 @@ public class StorageInitializer implements Callable<Integer> {
 
             service.put("schedule.auto.start", "false");
             service.put("schedule.auto.stop", "false");
+            service.put("font.truetype.path", "/usr/share/fonts/truetype/;$(sree.home)/fonts");
          }
       }
 
