@@ -32,7 +32,7 @@ import java.util.*;
  * @author InetSoft Technology Corp
  */
 @SingletonManager.Singleton(CustomThemesManager.Reference.class)
-public class CustomThemesManager implements AutoCloseable {
+public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    public static synchronized CustomThemesManager getManager() {
       return SingletonManager.getInstance(CustomThemesManager.class);
    }
@@ -108,6 +108,20 @@ public class CustomThemesManager implements AutoCloseable {
       impl.close();
    }
 
+   public void loadThemes() {
+      impl.loadThemes();
+   }
+
+   @Override
+   public void writeXML(PrintWriter writer) {
+      impl.writeXML(writer);
+   }
+
+   @Override
+   public void parseXML(Element tag) throws Exception {
+      impl.parseXML(tag);
+   }
+
    private CustomThemesImpl impl;
    private static final Logger LOG = LoggerFactory.getLogger(CustomThemesManager.class);
 
@@ -117,6 +131,7 @@ public class CustomThemesManager implements AutoCloseable {
       public synchronized CustomThemesManager get(Object... parameters) {
          if(manager == null) {
             manager = new CustomThemesManager();
+            manager.loadThemes();
          }
 
          return manager;

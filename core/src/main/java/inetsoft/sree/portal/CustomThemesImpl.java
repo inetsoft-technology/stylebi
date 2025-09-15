@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
  * @version 14.0, 05/15/2024
  * @author InetSoft Technology Corp
  */
-public class CustomThemesImpl implements AutoCloseable {
+public class CustomThemesImpl implements XMLSerializable, AutoCloseable {
    public Set<CustomTheme> getCustomThemes() {
       return new HashSet<>();
    }
@@ -73,6 +73,17 @@ public class CustomThemesImpl implements AutoCloseable {
 
    public String getSelectedTheme(Principal user) {
       return "default";
+   }
+
+   @Override
+   public void writeXML(PrintWriter writer) {
+   }
+
+   @Override
+   public void parseXML(Element tag) throws Exception {
+   }
+
+   public void loadThemes() {
    }
 
    @Override
