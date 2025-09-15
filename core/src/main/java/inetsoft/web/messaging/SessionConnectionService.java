@@ -18,6 +18,7 @@
 package inetsoft.web.messaging;
 
 import inetsoft.sree.RepletRepository;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
@@ -190,17 +191,21 @@ public class SessionConnectionService implements ApplicationListener<Application
             if(session != null) {
                SRPrincipal principal = event.getNewPrincipal();
 
-               if(session.getAttributes().get(RepletRepository.PRINCIPAL_COOKIE) != null) {
+               if((!event.isEm() || principal == null) &&
+                  session.getAttributes().get(RepletRepository.PRINCIPAL_COOKIE) != null)
+               {
                   session.getAttributes().put(RepletRepository.PRINCIPAL_COOKIE, principal);
                }
 
-               if(session.getAttributes().get(RepletRepository.EM_PRINCIPAL_COOKIE) != null) {
+               if((event.isEm() || principal == null) &&
+                  session.getAttributes().get(RepletRepository.EM_PRINCIPAL_COOKIE) != null)
+               {
                   session.getAttributes().put(RepletRepository.EM_PRINCIPAL_COOKIE, principal);
                }
 
                XPrincipal user = (XPrincipal) session.getPrincipal();
 
-               if(user != null) {
+               if(user != null && (event.isEm() && SUtil.isEMPrincipal(user) || !event.isEm() && !SUtil.isEMPrincipal(user))) {
                   user.copyContent(principal);
                }
             }

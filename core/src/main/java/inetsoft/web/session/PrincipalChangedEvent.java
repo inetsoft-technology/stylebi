@@ -26,14 +26,16 @@ public class PrincipalChangedEvent extends ApplicationEvent {
    private final SRPrincipal oldPrincipal;
    private final SRPrincipal newPrincipal;
    private final Session session;
+   private final boolean em;
 
    public PrincipalChangedEvent(Object source, SRPrincipal oldPrincipal, SRPrincipal newPrincipal,
-                                Session session)
+                                Session session, boolean em)
    {
       super(source);
       this.oldPrincipal = oldPrincipal;
       this.newPrincipal = newPrincipal;
       this.session = session;
+      this.em = em;
    }
 
    public SRPrincipal getOldPrincipal() {
@@ -46,5 +48,9 @@ public class PrincipalChangedEvent extends ApplicationEvent {
 
    public Session getSession() {
       return session;
+   }
+
+   public boolean isEm() {
+      return em;
    }
 }
