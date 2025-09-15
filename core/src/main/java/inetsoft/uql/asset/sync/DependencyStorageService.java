@@ -130,7 +130,10 @@ public final class DependencyStorageService {
          String nkey = entry.cloneAssetEntry(nOrg).toIdentifier(true);
          data.put(nkey, syncDependencyData(pair.getValue(), nOrg));
       });
-      nStorage.putAll(data).get(5L, TimeUnit.MINUTES);
+
+      if(!data.isEmpty()) {
+         nStorage.putAll(data).get(5L, TimeUnit.MINUTES);
+      }
 
       if(removeOld) {
          removeDependencyStorage(oOrg.getId());
@@ -148,7 +151,9 @@ public final class DependencyStorageService {
          data.put(nkey, syncDependencyUser(pair.getValue(), oldUser, newUser));
       });
 
-      nStorage.putAll(data).get(5L, TimeUnit.MINUTES);
+      if(!data.isEmpty()) {
+         nStorage.putAll(data).get(5L, TimeUnit.MINUTES);
+      }
    }
 
    private RenameTransformObject syncDependencyUser(RenameTransformObject obj, IdentityID oldUser,
