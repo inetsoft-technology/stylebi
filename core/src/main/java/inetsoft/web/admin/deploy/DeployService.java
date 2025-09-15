@@ -529,58 +529,6 @@ public class DeployService {
       }
    }
 
-   public byte[] createExport(ExportedAssetsModel exportedAssetsModel, Principal principal)
-      throws Exception
-   {
-      String name = Tool.byteDecode(exportedAssetsModel.name());
-      boolean overwriting = exportedAssetsModel.overwriting();
-      List<SelectedAssetModel> entryData = exportedAssetsModel.selectedEntities();
-      List<RequiredAssetModel> assetData = exportedAssetsModel.dependentAssets();
-      List<XAsset> assets = getEntryAssets(entryData, principal);
-      List<PartialDeploymentJarInfo.SelectedAsset> entryDataArray = DeployUtil.getEntryData(assets);
-      assert assetData != null;
-      List<PartialDeploymentJarInfo.RequiredAsset> assetDataArray = assetData.stream()
-         .map(this::createRequiredAsset)
-         .collect(Collectors.toList());
-
-      PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
-      info.setName(name);
-      info.setDeploymentDate(new Timestamp(System.currentTimeMillis()));
-      info.setOverwriting(overwriting);
-      info.setSelectedEntries(entryDataArray);
-      info.setDependentAssets(assetDataArray);
-
-      byte[] zipFileBytes;
-
-      try(ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-         DeployUtil.createExport(info, out);
-         zipFileBytes = out.toByteArray();
-      }
-      catch(Exception e) {
-         throw new Exception("Failed to get byte array of export jar file: " + e.getMessage());
-      }
-
-      return zipFileBytes;
-   }
-
-   private PartialDeploymentJarInfo.RequiredAsset createRequiredAsset(RequiredAssetModel model) {
-      PartialDeploymentJarInfo.RequiredAsset asset = new PartialDeploymentJarInfo.RequiredAsset();
-      asset.setPath(model.name());
-      asset.setType(model.type());
-      asset.setUser(model.user());
-      asset.setTypeDescription(model.typeDescription());
-      asset.setRequiredBy(model.requiredBy());
-      asset.setDetailDescription(model.detailDescription());
-      asset.setAssetDescription(model.assetDescription());
-      long lastModifiedTime = model.lastModifiedTime();
-
-      if(lastModifiedTime != 0) {
-         asset.setLastModifiedTime(lastModifiedTime);
-      }
-
-      return asset;
-   }
-
    /**
     * Export assets by DeployManagerService.
     *

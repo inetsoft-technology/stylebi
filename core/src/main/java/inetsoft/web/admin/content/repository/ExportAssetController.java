@@ -20,9 +20,10 @@ package inetsoft.web.admin.content.repository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
+import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.deploy.DeployService;
-import inetsoft.web.admin.deploy.ExportJarProperties;
+import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.session.IgniteSessionRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.*;
@@ -31,7 +32,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.UUID;
@@ -43,11 +43,13 @@ public class ExportAssetController {
    @Autowired
    public ExportAssetController(DeployService deployService,
                                 IgniteSessionRepository igniteSessionRepository,
-                                ExportAssetServiceProxy exportAssetServiceProxy)
+                                ExportAssetServiceProxy exportAssetServiceProxy,
+                                BinaryTransferService binaryTransferService)
    {
       this.deployService = deployService;
       this.igniteSessionRepository = igniteSessionRepository;
       this.exportAssetServiceProxy = exportAssetServiceProxy;
+      this.binaryTransferService = binaryTransferService;
    }
 
    @PostConstruct
@@ -156,7 +158,6 @@ public class ExportAssetController {
    public void downloadJar(@PathVariable String exportID, HttpServletRequest req, HttpServletResponse res)
       throws Exception
    {
-      System.out.println("downloadJar exportID: " + exportID);
       String filename = exportAssetServiceProxy.getFileNameFromID(exportID) + ".zip";
       String agent = req.getHeader("USER-AGENT");
 
@@ -185,19 +186,14 @@ public class ExportAssetController {
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
 
-      byte[] fileBytes = exportAssetServiceProxy.getJarFileBytes(exportID);
+      BinaryTransfer data = exportAssetServiceProxy.getJarFileBytes(exportID);
 
-      if(fileBytes == null || fileBytes.length == 0) {
+      if(data == null) {
          res.setStatus(HttpStatus.NOT_FOUND.value());
          return;
       }
 
-      res.setContentLengthLong(fileBytes.length);
-
-      try(OutputStream out = res.getOutputStream()) {
-         out.write(fileBytes);
-         out.flush();
-      }
+      binaryTransferService.writeData(data, res.getOutputStream());
    }
 
    private ResponseEntity<ExportStatusModel> getStatus(String attr, HttpServletRequest request) {
@@ -231,6 +227,7 @@ public class ExportAssetController {
    }
 
    private final ExportAssetServiceProxy exportAssetServiceProxy;
+   private final BinaryTransferService binaryTransferService;
    private final DeployService deployService;
    private final IgniteSessionRepository igniteSessionRepository;
    private static final String PERM_ATTR =
