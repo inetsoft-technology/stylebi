@@ -110,7 +110,10 @@ public class PhysicalGraphModelService {
    }
 
    public void createAlias(String runtimeId, String table, String alias) throws Exception {
-      XPartition partition = this.partitionService.getPartition(runtimeId);
+      RuntimePartitionService.RuntimeXPartition runtimePartition =
+         this.partitionService.getRuntimePartition(runtimeId);
+
+      XPartition partition = runtimePartition.getPartition();
       String sourceTable = DatabaseModelUtil.getOutgoingAutoAliasSource(table, partition);
       XPartition.PartitionTable temp = partition.getPartitionTable(sourceTable);
 
@@ -126,6 +129,8 @@ public class PhysicalGraphModelService {
       }
 
       partition.setAliasTable(alias, sourceTable);
+      runtimePartition.setPartition(partition);
+      partitionService.saveRuntimePartition(runtimePartition);
       modelService.fixTableBounds(runtimeId, partition, alias);
    }
 
