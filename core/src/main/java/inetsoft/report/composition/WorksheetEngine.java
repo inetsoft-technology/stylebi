@@ -40,8 +40,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * The default worksheet service implementation, implements all the methods
@@ -199,7 +198,14 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    {
       String id = getNextID(entry, user);
       sheet.setID(id);
-      amap.put(id, sheet);
+
+      try {
+         amap.putSheet(id, sheet).get();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to create the temporary sheet:{}", id);
+      }
+
       return id;
    }
 
