@@ -63,3 +63,18 @@
   text-align: left;
   white-space: pre-line;
 }
+
+.composer-toolbar-container {
+  .btn-toolbar-pull-right {
+    position: absolute;
+    right: 70px;
+  }
+
+  button.btn.ai-assistant-icon {
+    position: absolute;
+    right: 10px;
+    background-color: transparent;
+    padding: 0;
+    flex-grow: 0;
+  }
+}
