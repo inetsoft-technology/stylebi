@@ -19,8 +19,7 @@ package inetsoft.web.portal.data;
 
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
-import inetsoft.uql.XFactory;
-import inetsoft.uql.XRepository;
+import inetsoft.uql.*;
 import inetsoft.uql.service.XEngine;
 import inetsoft.uql.util.XUtil;
 import inetsoft.web.admin.content.database.DatabaseDefinition;
@@ -29,6 +28,7 @@ import inetsoft.web.admin.content.repository.DataSourceSettingsModel;
 import inetsoft.web.admin.content.repository.DatabaseDatasourcesService;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.portal.controller.database.DatabaseModelBrowserService;
 import inetsoft.web.portal.model.database.StringWrapper;
 import inetsoft.web.portal.model.database.events.CheckDependenciesEvent;
@@ -45,11 +45,13 @@ public class DatabaseDatasourcesController {
    @Autowired
    public DatabaseDatasourcesController(DatabaseDatasourcesService databaseDatasourcesService,
                                         DatabaseModelBrowserService databaseModelBrowserService,
-                                        DataModelFolderManagerService folderManagerService)
+                                        DataModelFolderManagerService folderManagerService,
+                                        DataSourceService dataSourceService)
    {
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.databaseModelBrowserService = databaseModelBrowserService;
       this.folderManagerService = folderManagerService;
+      this.dataSourceService = dataSourceService;
    }
 
 
@@ -124,6 +126,11 @@ public class DatabaseDatasourcesController {
 
          if(dataSource != null && repository instanceof XEngine) {
             repository.refreshMetaData(dataSource);
+            XDataSource ds = repository.getDataSource(dataSource);
+
+            if(ds != null) {
+               dataSourceService.removeDefaultMetaDataProviderCache(ds);
+            }
          }
 
          XFactory.clear();
@@ -277,4 +284,5 @@ public class DatabaseDatasourcesController {
    private final DatabaseDatasourcesService databaseDatasourcesService;
    private final DatabaseModelBrowserService databaseModelBrowserService;
    private final DataModelFolderManagerService folderManagerService;
+   private final DataSourceService dataSourceService;
 }

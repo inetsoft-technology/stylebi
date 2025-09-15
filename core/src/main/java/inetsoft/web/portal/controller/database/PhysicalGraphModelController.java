@@ -101,7 +101,14 @@ public class PhysicalGraphModelController {
          physicalModelService.createModel(ds, dataModel, partition,
             event.getTableJoinInfo() == null);
 
-      return JoinGraphModel.convertModel(pmModel, event, partition);
+      JoinGraphModel graphModel = JoinGraphModel.convertModel(pmModel, event, partition);
+
+      if(event.getTableJoinInfo() != null && event.getTableJoinInfo().isAutoCreateColumnJoin()) {
+         // partition may have been updated, need to save
+         runtimePartitionService.updatePartition(event.getRuntimeID(), partition);
+      }
+
+      return graphModel;
    }
 
    @PutMapping("/api/data/physicalmodel/graph/layout/{col}/**")
