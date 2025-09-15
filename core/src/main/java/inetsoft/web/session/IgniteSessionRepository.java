@@ -181,13 +181,28 @@ public class IgniteSessionRepository
             newPrincipal = (SRPrincipal) delta.get(RepletRepository.PRINCIPAL_COOKIE);
          }
 
+         boolean emPrincipalChanged = false;
+         SRPrincipal emOldPrincipal = null;
+         SRPrincipal emNewPrincipal = null;
+
+         if(delta != null && delta.containsKey(RepletRepository.EM_PRINCIPAL_COOKIE)) {
+            emPrincipalChanged = true;
+            emOldPrincipal = session.getDelegate().getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
+            emNewPrincipal = (SRPrincipal) delta.get(RepletRepository.EM_PRINCIPAL_COOKIE);
+         }
+
          this.sessions.invoke(
             session.getId(), new SessionUpdateEntryProcessor(),
             lastAccessedTime, maxInactiveInterval, delta);
 
          if(principalChanged) {
             eventPublisher.publishEvent(
-               new PrincipalChangedEvent(this, oldPrincipal, newPrincipal, session));
+               new PrincipalChangedEvent(this, oldPrincipal, newPrincipal, session, false));
+         }
+
+         if(emPrincipalChanged) {
+            eventPublisher.publishEvent(
+               new PrincipalChangedEvent(this, emOldPrincipal, emNewPrincipal, session, true));
          }
       }
 
@@ -285,7 +300,7 @@ public class IgniteSessionRepository
             authenticationService.logout(principal, remoteHost, logoffReason);
          }
 
-         this.eventPublisher.publishEvent(new PrincipalChangedEvent(this, srp, null, session));
+         this.eventPublisher.publishEvent(new PrincipalChangedEvent(this, srp, null, session, false));
       }
    }
 
