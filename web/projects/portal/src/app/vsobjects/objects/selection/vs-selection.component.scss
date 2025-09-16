@@ -29,11 +29,7 @@
 }
 
 .selection-list-search-container {
-  z-index: 200;
   width: 100%;
-  position: absolute;
-  left: 0;
-  top: 0;
   border: 1px solid rgb(80, 80, 80);
   background-color: rgb(245, 245, 245);
 }
@@ -42,9 +38,6 @@
   width: 100%;
   height: 100%;
   border: 0;
-  position: absolute;
-  left: 0;
-  top: 0;
   background-color: rgb(245, 245, 245);
 }
 
