@@ -627,9 +627,7 @@ public class DashboardRegistry implements SessionListener {
          }
          else {
             try {
-               if(space.exists(null, path)) {
-                  dmgr.addChangeListener(space, null, path, changeListener);
-               }
+               dmgr.addChangeListener(space, null, path, changeListener);
             }
             catch(Exception ex) {
                String msg = "Merge Dashboard failed!";
