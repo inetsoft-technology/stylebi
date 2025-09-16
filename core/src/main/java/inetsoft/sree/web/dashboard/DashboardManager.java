@@ -736,7 +736,10 @@ public class DashboardManager implements AutoCloseable {
       KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
       SortedMap<String, DashboardData> changes = new TreeMap<>();
       dashboardStorage.stream().forEach(p -> syncUserDashboards(p, changes));
-      dashboardStorage.putAll(changes).get(3L, TimeUnit.MINUTES);
+
+      if(!changes.isEmpty()) {
+         dashboardStorage.putAll(changes).get(3L, TimeUnit.MINUTES);
+      }
    }
 
    private void syncUserDashboards(KeyValuePair<DashboardData> pair, Map<String, DashboardData> map) {
