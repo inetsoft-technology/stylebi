@@ -200,7 +200,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       sheet.setID(id);
 
       try {
-         amap.putSheet(id, sheet).get();
+         amap.putSheet(id, sheet).get(20L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to create the temporary sheet:{}", id);
