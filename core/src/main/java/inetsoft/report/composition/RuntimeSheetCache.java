@@ -30,12 +30,14 @@ import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.Tool;
 import inetsoft.web.json.ThirdPartySupportModule;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.cache.query.ContinuousQuery;
 import org.apache.ignite.lang.IgniteFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 
 import javax.cache.Cache;
+import javax.cache.event.*;
 import java.io.*;
 import java.security.Principal;
 import java.util.*;
@@ -48,7 +50,7 @@ public class RuntimeSheetCache
 {
    public RuntimeSheetCache(String name) {
       this.cluster = Cluster.getInstance();
-      this.local = new LinkedHashMap<>();
+      this.local = new ConcurrentHashMap<>();
       this.cache = getCache(cluster, name);
       this.maxSheetCount = getMaxSheetCount();
       this.lock = new ReentrantReadWriteLock();
@@ -57,6 +59,38 @@ public class RuntimeSheetCache
 
       this.cluster.addCacheRebalanceListener(name, this);
       this.executor.schedule(this::flushAll, 30L, TimeUnit.SECONDS);
+
+      ContinuousQuery<String, RuntimeSheetState> continuousQuery = new ContinuousQuery<>();
+      continuousQuery.setLocalListener(new CacheEntryUpdatedListener<String, RuntimeSheetState>() {
+         @Override
+         public void onUpdated(Iterable<CacheEntryEvent<? extends String, ? extends RuntimeSheetState>> evts) {
+            for(CacheEntryEvent<? extends String, ? extends RuntimeSheetState> e : evts) {
+               final String key = e.getKey();
+               final RuntimeSheetState value = e.getValue();
+               final EventType eventType = e.getEventType();
+
+               asyncProcessor.submit(() -> {
+                  try {
+                     switch(eventType) {
+                     case CREATED:
+                     case UPDATED:
+                        local.put(key, toSheet(value));
+                        break;
+                     case REMOVED:
+                     case EXPIRED:
+                        local.remove(key);
+                        break;
+                     }
+                  }
+                  catch(Exception ex) {
+                     LOG.error("Failed to process cache event for key: " + key, ex);
+                  }
+               });
+            }
+         }
+      });
+
+      cache.query(continuousQuery);
    }
 
    private static int getMaxSheetCount() {
@@ -122,42 +156,26 @@ public class RuntimeSheetCache
 
    @Override
    public RuntimeSheet get(Object key) {
-      if(key instanceof String id) {
-         boolean loadFromCache = false;
-         lock.readLock().lock();
-
-         try {
-            if(local.containsKey(id)) {
-               return local.get(id);
-            }
-
-            loadFromCache = cache.containsKey(id);
-         }
-         finally {
-            lock.readLock().unlock();
-         }
-
-         if(loadFromCache) {
-            lock.writeLock().lock();
-
-            try {
-               if(!local.containsKey(id) && cache.containsKey(id)) {
-                  RuntimeSheet sheet = toSheet(cache.get(id));
-
-                  if(sheet != null) {
-                     local.put(id, sheet);
-                  }
-
-                  return sheet;
-               }
-            }
-            finally {
-               lock.writeLock().unlock();
-            }
-         }
+      if(!(key instanceof String id)) {
+         return null;
       }
 
-      return null;
+      RuntimeSheet sheet = local.get(id);
+
+      if(sheet != null) {
+         return sheet;
+      }
+
+      RuntimeSheetState state = cache.get(id);
+
+      if(state == null) {
+         return null;
+      }
+
+      RuntimeSheet loaded = toSheet(state);
+      RuntimeSheet prev = local.putIfAbsent(id, loaded);
+
+      return prev == null ? loaded : prev;
    }
 
    @Override
@@ -433,7 +451,7 @@ public class RuntimeSheetCache
    private final ScheduledExecutorService executor;
    private final ObjectMapper mapper;
    private boolean applyMaxCount;
-
+   private static final ExecutorService asyncProcessor = Executors.newFixedThreadPool(2);
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeSheetCache.class);
 
    private abstract class CacheIterator<T> implements Iterator<T> {
