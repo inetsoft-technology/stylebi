@@ -121,6 +121,7 @@ public class ExportAssetService {
          catch(IOException e) {
             throw new RuntimeException("Failed to create output stream while export asset file data", e);
          }
+
          return data;
       }
 
