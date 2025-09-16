@@ -211,7 +211,7 @@ public class AssetTreeRefreshController {
    private final ActionListener libraryListener = new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent event) {
-         debouncer.debounce("lib_changed" + getOrgId(event), 2, TimeUnit.SECONDS, () -> {
+         debouncer.debounce("lib_changed" + getOrgId(event), 1, TimeUnit.SECONDS, () -> {
             AssetEntry root = new AssetEntry(
                AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.LIBRARY_FOLDER, "/", null);
 
