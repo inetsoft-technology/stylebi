@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.portal;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +26,7 @@ import org.w3c.dom.*;
 import java.io.*;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -40,6 +42,12 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
    public CustomThemesManager() {
       try {
          impl = (CustomThemesImpl) Class.forName("inetsoft.enterprise.theme.CustomThemesImpl").newInstance();
+         String name = SreeEnv.getPath("custom.themes.file", "customthemes.xml");
+         DataSpace space = DataSpace.getDataSpace();
+
+         space.addChangeListener(null, name, event -> {
+            debouncer.debounce("themes", 500L, TimeUnit.MILLISECONDS, this::loadThemes);
+         });
       }
       catch(Exception ex) {
          impl = new CustomThemesImpl();
@@ -158,4 +166,6 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
 
       private CustomThemesManager manager;
    }
+
+   private final Debouncer<String> debouncer = new DefaultDebouncer<>();
 }
