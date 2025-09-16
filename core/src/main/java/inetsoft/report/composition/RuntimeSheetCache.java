@@ -30,6 +30,7 @@ import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.Tool;
 import inetsoft.web.json.ThirdPartySupportModule;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.lang.IgniteFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -164,31 +165,68 @@ public class RuntimeSheetCache
       lock.writeLock().lock();
 
       try {
-         if(applyMaxCount && local.size() >= maxSheetCount && !local.containsKey(key)) {
-            for(Iterator<String> i = local.keySet().iterator(); i.hasNext(); ) {
-               String id = i.next();
-
-               if(id.startsWith(WorksheetService.PREVIEW_PREFIX)) {
-                  i.remove();
-                  cache.removeAsync(id);
-                  break;
-               }
-            }
-         }
-
-         RuntimeSheet sheet = local.put(key, value);
-
-         try {
-            cache.putAsync(key, value.saveState(mapper));
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to save sheet state to cache", e);
-         }
+         RuntimeSheet sheet = putToLocal(key, value);
+         putToCache(key, value);
 
          return sheet;
       }
       finally {
          lock.writeLock().unlock();
+      }
+   }
+
+   public Future<RuntimeSheet> putSheet(String key, RuntimeSheet value) {
+      lock.writeLock().lock();
+
+      try {
+         putToLocal(key, value);
+         return putToCache(key, value);
+      }
+      finally {
+         lock.writeLock().unlock();
+      }
+   }
+
+   private RuntimeSheet putToLocal(String key, RuntimeSheet value) {
+      if(applyMaxCount && local.size() >= maxSheetCount && !local.containsKey(key)) {
+         for(Iterator<String> i = local.keySet().iterator(); i.hasNext();) {
+            String id = i.next();
+
+            if(id.startsWith(WorksheetService.PREVIEW_PREFIX)) {
+               i.remove();
+               cache.removeAsync(id);
+               break;
+            }
+         }
+      }
+
+      return local.put(key, value);
+   }
+
+   private Future<RuntimeSheet> putToCache(String key, RuntimeSheet value) {
+      try {
+         IgniteFuture<Void> igniteFuture = cache.putAsync(key, value.saveState(mapper));
+         CompletableFuture<RuntimeSheet> future = new CompletableFuture<>();
+
+         igniteFuture.listen(f -> {
+            try {
+               f.get();
+               future.complete(value);
+            }
+            catch (Exception ex) {
+               LOG.warn("Failed to save sheet state to cache", ex);
+               future.completeExceptionally(ex);
+            }
+         });
+
+         return future;
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to save sheet state to cache", e);
+         CompletableFuture<RuntimeSheet> failed = new CompletableFuture<>();
+         failed.completeExceptionally(e);
+
+         return failed;
       }
    }
 
