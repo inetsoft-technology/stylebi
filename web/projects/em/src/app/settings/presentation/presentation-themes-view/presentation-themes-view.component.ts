@@ -185,12 +185,10 @@ export class PresentationThemesViewComponent implements OnInit {
                result.global = this.isSiteAdmin && this.orgId == "host-org";
 
                if(!!result) {
-                  this.http.post<CustomThemeModel>("../api/em/settings/presentation/themes", result).subscribe(model => {
-                     const newThemes = this.themes.slice();
-                     newThemes.push(model);
-                     this.setThemes(newThemes);
-                     this.onThemeSelected(model.id);
-                  });
+                  const newThemes = this.themes.slice();
+                  newThemes.push(result);
+                  this.setThemes(newThemes);
+                  this.onThemeSelected(result.id);
                }
             });
          });
