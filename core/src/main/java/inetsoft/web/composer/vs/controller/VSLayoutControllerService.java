@@ -87,9 +87,8 @@ public class VSLayoutControllerService {
       }
       else {
          // Clone rvs so that we do not change state of Master rvs when creating layouts
-         String rvsCloneID = viewsheetService.openTemporaryViewsheet(
+         RuntimeViewsheet rvsClone = viewsheetService.initializeTemporaryViewsheet(
             (AssetEntry) rvs.getEntry().clone(), principal, null);
-         RuntimeViewsheet rvsClone = viewsheetService.getViewsheet(rvsCloneID, principal);
          // apply same parameters in layout as in master vs. (59025)
          rvsClone.getViewsheetSandbox().getAssetQuerySandbox().getVariableTable()
             .addAll(rvs.getViewsheetSandbox().getAssetQuerySandbox().getVariableTable());
@@ -110,6 +109,7 @@ public class VSLayoutControllerService {
 
             vsLayoutService.sendLayout(rvsClone, layoutClone, dispatcher);
          });
+         viewsheetService.finalizeTemporaryViewsheet(rvsClone);
 
          UpdateLayoutCommand updateLayoutCommand = UpdateLayoutCommand.builder()
             .layoutName(layoutName)

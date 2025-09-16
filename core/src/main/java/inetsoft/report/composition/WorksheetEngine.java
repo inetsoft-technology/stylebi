@@ -209,6 +209,22 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       return id;
    }
 
+   protected String initializeTemporarySheetId(AssetEntry entry, RuntimeSheet sheet,
+                                           Principal user)
+   {
+      String id = getNextID(entry, user);
+      sheet.setID(id);
+      amap.put(id, null);
+      return id;
+   }
+
+   protected String finalizeTemporarySheetId(RuntimeSheet sheet)
+   {
+      String id = sheet.getID();
+      amap.put(sheet.getID(), sheet);
+      return id;
+   }
+
    /**
     * Open a preview worksheet.
     * @param id the specified worksheet id.

@@ -57,6 +57,24 @@ public interface ViewsheetService extends WorksheetService {
       throws Exception;
 
    /**
+    * Begin creating a temporary viewsheet.
+    * It is not submitted to the runtime sheet cache until finalize is called.
+    * @param entry the specified base viewsheet entry.
+    * @param user the specified user.
+    * @param rid the specified report id.
+    * @return the new temporary runtime viewsheet.
+    */
+   RuntimeViewsheet initializeTemporaryViewsheet(AssetEntry entry, Principal user, String rid)
+      throws Exception;
+
+   /**
+    * Finish creating a temporary viewsheet.
+    * @param rvs the temporary runtime viewsheet to submit.
+    * @return the viewsheet id.
+    */
+   String finalizeTemporaryViewsheet(RuntimeViewsheet rvs) throws Exception;
+
+   /**
     * Open a preview viewsheet.
     * @param id the specified viewsheet id.
     * @param user the specified user.

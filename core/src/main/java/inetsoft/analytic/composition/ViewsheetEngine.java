@@ -203,6 +203,35 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    }
 
    /**
+    * Begin creating a temporary viewsheet.
+    * It is not submitted to the runtime sheet cache until finalize is called.
+    * @param wentry the specified base viewsheet entry.
+    * @param user the specified user.
+    * @param rid the specified report id.
+    * @return the new temporary runtime viewsheet.
+    */
+   @Override
+   public RuntimeViewsheet initializeTemporaryViewsheet(AssetEntry wentry, Principal user, String rid) {
+      Viewsheet vs = new Viewsheet(wentry);
+      AssetEntry entry = getTemporaryAssetEntry(user, AssetEntry.Type.VIEWSHEET);
+      vs.update(engine, entry, user);
+      RuntimeViewsheet rvs = new RuntimeViewsheet(entry, vs, user, engine, this, null, false);
+      initializeTemporarySheetId(wentry, rvs, user);
+      return rvs;
+   }
+
+   /**
+    * Finish creating a temporary viewsheet.
+    * @param rvs the temporary runtime viewsheet to submit.
+    * @return the viewsheet id.
+    */
+   @Override
+   public String finalizeTemporaryViewsheet(RuntimeViewsheet rvs) {
+      rvs.setEditable(false);
+      return finalizeTemporarySheetId(rvs);
+   }
+
+   /**
     * {@inheritDoc}
     */
    @Override
