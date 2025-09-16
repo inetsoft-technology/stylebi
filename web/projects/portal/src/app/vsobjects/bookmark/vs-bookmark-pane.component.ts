@@ -100,9 +100,7 @@ export class VsBookmarkPaneComponent implements OnInit {
    }
 
    gotoBookmark(bookmark: VSBookmarkInfoModel) {
-      if(!bookmark.currentBookmark) {
-         this.onGoToBookmark.emit(bookmark);
-      }
+      this.onGoToBookmark.emit(bookmark);
    }
 
    bookmarkVisible(bookmark: VSBookmarkInfoModel): boolean {
