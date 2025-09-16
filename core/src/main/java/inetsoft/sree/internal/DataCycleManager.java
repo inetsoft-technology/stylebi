@@ -234,7 +234,7 @@ public class DataCycleManager
       IndexedStorage storage = IndexedStorage.getIndexedStorage();
       List<ScheduleTask> tasks = new ArrayList<>();
 
-      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+      for(String orgId : SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs()) {
          Set<String> assetIds = storage.getKeys(key -> {
             AssetEntry entry = AssetEntry.createAssetEntry(key);
             return entry != null && entry.getType() == AssetEntry.Type.DATA_CYCLE;
