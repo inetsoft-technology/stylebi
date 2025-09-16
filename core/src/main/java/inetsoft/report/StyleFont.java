@@ -24,6 +24,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.*;
 
 /**
@@ -656,11 +658,68 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
       return SreeEnv.getProperty("default.font.family", "Roboto");
    }
 
+   /**
+    * Custom serialization method.
+    * @param out the ObjectOutputStream to write to
+    * @throws IOException if an I/O error occurs
+    */
+   private void writeObject(java.io.ObjectOutputStream out) throws IOException {
+      // Font fields
+      out.writeObject(this.getName());
+      out.writeInt(this.getStyle() & AWT_FONT_MASK);
+      out.writeInt(this.getSize());
+
+      // StyleFont fields
+      out.writeInt(this.extstyle);
+      out.writeInt(this.underline);
+      out.writeInt(this.strikeline);
+      out.writeBoolean(this.defaultFont);
+      out.writeObject(this.userFontName);
+   }
+
+   /**
+    * Custom deserialization method.
+    * @param in the ObjectInputStream to read from
+    * @throws IOException if an I/O error occurs
+    * @throws ClassNotFoundException if the class of a serialized object could not be found
+    */
+   private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
+      // Font fields
+      String name = (String) in.readObject();
+      int awtStyle = in.readInt();
+      int size = in.readInt();
+
+      // StyleFont fields
+      this.extstyle = in.readInt();
+      this.underline = in.readInt();
+      this.strikeline = in.readInt();
+      this.defaultFont = in.readBoolean();
+      this.userFontName = (String) in.readObject();
+
+      try {
+         Field nameField = Font.class.getDeclaredField("name");
+         nameField.setAccessible(true);
+         nameField.set(this, DEFAULT_FONT_FAMILY.equals(name) ? getDefaultFontFamily() : name);
+
+         Field styleField = Font.class.getDeclaredField("style");
+         styleField.setAccessible(true);
+         styleField.set(this, awtStyle);
+
+         Field sizeField = Font.class.getDeclaredField("size");
+         sizeField.setAccessible(true);
+         sizeField.set(this, size);
+      }
+      catch (NoSuchFieldException | IllegalAccessException e) {
+         throw new IOException("Failed to initialize Font state during deserialization", e);
+      }
+   }
+
    private int extstyle;
    private int underline = 0;
    private int strikeline = 0;
    private boolean defaultFont = false;
    private String userFontName;
+   private static final long serialVersionUID = 1L;
    private static final Map<String, StyleFont> fontcache = new Hashtable<>();
    private static final Logger LOG = LoggerFactory.getLogger(StyleFont.class);
 
