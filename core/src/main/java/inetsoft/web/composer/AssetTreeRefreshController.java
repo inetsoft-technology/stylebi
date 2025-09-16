@@ -211,38 +211,20 @@ public class AssetTreeRefreshController {
    private final ActionListener libraryListener = new ActionListener() {
       @Override
       public void actionPerformed(ActionEvent event) {
-         int changeType = event.getID();
-         AssetChangeEventModel eventModel = null;
+         debouncer.debounce("lib_changed" + getOrgId(event), 2, TimeUnit.SECONDS, () -> {
+            AssetEntry root = new AssetEntry(
+               AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.LIBRARY_FOLDER, "/", null);
 
-         if(changeType == LibManager.SCRIPT_ADDED || changeType == LibManager.SCRIPT_REMOVED ||
-            changeType == LibManager.SCRIPT_MODIFIED)
-         {
-            AssetEntry scriptRootEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
-                                                        AssetEntry.Type.SCRIPT_FOLDER, "/" + SCRIPT, null);
-
-            eventModel = AssetChangeEventModel.builder()
-               .parentEntry(scriptRootEntry)
+            AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
+               .parentEntry(root)
                .oldIdentifier(null)
-               .newIdentifier(scriptRootEntry.toIdentifier())
+               .newIdentifier(root.toIdentifier())
                .build();
-         }
 
-         if(changeType == LibManager.STYLE_ADDED || changeType == LibManager.STYLE_REMOVED ||
-            changeType == LibManager.STYLE_MODIFIED)
-         {
-            AssetEntry scriptRootEntry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
-                                                        AssetEntry.Type.TABLE_STYLE_FOLDER, "/" + TABLE_STYLE, null);
-
-            eventModel = AssetChangeEventModel.builder()
-               .parentEntry(scriptRootEntry)
-               .oldIdentifier(null)
-               .newIdentifier(scriptRootEntry.toIdentifier())
-               .build();
-         }
-
-         if(eventModel != null) {
-            sendMessages(eventModel, getOrgId(event));
-         }
+            if(eventModel != null) {
+               sendMessages(eventModel, getOrgId(event));
+            }
+         });
       }
    };
 
