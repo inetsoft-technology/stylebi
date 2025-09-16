@@ -31,6 +31,7 @@ import java.io.InputStream;
 import java.lang.SecurityException;
 import java.lang.invoke.MethodHandles;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<String> {
@@ -85,6 +86,7 @@ public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<Strin
 
    public List<String> getTableStyleFolders(String folder, boolean filterAudit) {
       final boolean root = folder == null;
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -170,6 +172,7 @@ public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<Strin
                .build());
       }
 
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -189,6 +192,7 @@ public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<Strin
     * name-value mapping is not necessary.
     */
    public void add(String folderName) {
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {

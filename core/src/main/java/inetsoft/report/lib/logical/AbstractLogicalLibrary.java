@@ -58,6 +58,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public List<String> toSecureList() {
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -72,6 +73,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public Enumeration<String> toSecureEnumeration() {
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -90,6 +92,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    }
 
    protected Map<String, LogicalLibraryEntry<T>> toMap() {
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -103,6 +106,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    @Override
    public String caseInsensitiveFindName(String name, boolean secure) {
       final HashSet<String> temp;
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -232,6 +236,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    public int put(String name, T asset) {
       final int id;
       final TransactionType transactionType;
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -297,6 +302,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    }
 
    public LogicalLibraryEntry getLogicalLibraryEntry(String name, String orgID) {
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -342,6 +348,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
             "Permission denied to delete " + getEntryName()));
       }
 
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -442,6 +449,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
             "Permission denied to modify " + getEntryName()));
       }
 
+      ReentrantReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -580,15 +588,13 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
       }
    }
 
-   private ReentrantReadWriteLock getOrgLock(String orgId) {
+   protected ReentrantReadWriteLock getOrgLock(String orgId) {
       orgId = orgId == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
 
       return lockMap.computeIfAbsent(orgId, k -> new ReentrantReadWriteLock());
    }
 
    private final LibrarySecurity security;
-
-   protected final ReadWriteLock lock = new ReentrantReadWriteLock();
    private final Map<String, Map<String, LogicalLibraryEntry<T>>> nameToEntryMaps = new HashMap<>();
    protected final Deque<Transaction<LogicalLibraryEntry<T>>> transactions = new ArrayDeque<>();
    private final ConcurrentHashMap<String, ReentrantReadWriteLock> lockMap = new ConcurrentHashMap<>();
