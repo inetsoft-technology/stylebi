@@ -20,6 +20,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.cluster.*;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.util.FileSystemService;
 import inetsoft.util.Tool;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.util.dep.XAsset;
@@ -44,23 +45,23 @@ public class ExportAssetService {
       this.deployService = deployService;
       this.binaryTransferService = binaryTransferService;
 
-      this.localFileContentCache = new ConcurrentHashMap<>();
+      this.contextCache = new ConcurrentHashMap<>();
       this.fileLocationMap = Cluster.getInstance().getMap(FILE_LOCATION_CACHE_NAME);
       this.filePathMap = new ConcurrentHashMap<>();
    }
 
    @ClusterProxyMethod(FILE_LOCATION_CACHE_NAME)
    public ExportJarProperties createExport(@ClusterProxyKey String exportID, String fileName, ExportedAssetsModel exportedAssetsModel, Principal principal) {
-      byte[] zipFileBytes;
+      ExportJarProperties properties;
 
       try {
-          zipFileBytes = createExport(exportedAssetsModel, principal);
+           properties = createExport(exportID, exportedAssetsModel, principal);
       }
       catch(Exception e) {
          throw new RuntimeException("Could not create export.", e);
       }
 
-      localFileContentCache.put(exportID, zipFileBytes);
+      contextCache.put(exportID, properties);
 
       String localNodeAddress = Cluster.getInstance().getLocalMember();
 
@@ -81,10 +82,10 @@ public class ExportAssetService {
 
    @ClusterProxyMethod(FILE_LOCATION_CACHE_NAME)
    public BinaryTransfer getJarFileBytes(@ClusterProxyKey String exportID) {
-      byte[] fileBytes = localFileContentCache.get(exportID);
+      ExportJarProperties properties = contextCache.get(exportID);
 
-      if(fileBytes != null) {
-         localFileContentCache.remove(exportID);
+      if(properties != null) {
+         contextCache.remove(exportID);
          fileLocationMap.remove(exportID);
 
          BinaryTransfer data = binaryTransferService.createBinaryTransfer(exportID);
@@ -93,9 +94,16 @@ public class ExportAssetService {
             DeferredFileOutputStream out = binaryTransferService.createOutputStream(data);
 
             try {
-               out.write(fileBytes);
+               deployService.downloadJar(properties, in -> {
+                  try {
+                     Tool.copyTo(in, out);
+                  }
+                  catch(Exception e) {
+                     throw new RuntimeException("Failed to copy export JAR to HTTP response", e);
+                  }
+               });
             }
-            catch(IOException e) {
+            catch(Exception e) {
                // Log or handle the exception appropriately
                throw new RuntimeException("Failed to write to BinaryTransfer stream", e);
             }
@@ -124,7 +132,7 @@ public class ExportAssetService {
       return filePathMap.get(exportID);
    }
 
-   private byte[] createExport(ExportedAssetsModel exportedAssetsModel, Principal principal)
+   public ExportJarProperties createExport(String exportId, ExportedAssetsModel exportedAssetsModel, Principal principal)
       throws Exception
    {
       String name = Tool.byteDecode(exportedAssetsModel.name());
@@ -145,17 +153,13 @@ public class ExportAssetService {
       info.setSelectedEntries(entryDataArray);
       info.setDependentAssets(assetDataArray);
 
-      byte[] zipFileBytes;
+      File zipfile = FileSystemService.getInstance().getCacheFile(name + ".zip");
+      DeployUtil.createExport(info, new FileOutputStream(zipfile));
 
-      try(ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-         DeployUtil.createExport(info, out);
-         zipFileBytes = out.toByteArray();
-      }
-      catch(Exception e) {
-         throw new Exception("Failed to get byte array of export jar file: " + e.getMessage());
-      }
-
-      return zipFileBytes;
+      return ExportJarProperties.builder()
+         .zipFilePath(zipfile.getPath())
+         .exportID(exportId)
+         .build();
    }
 
    private PartialDeploymentJarInfo.RequiredAsset createRequiredAsset(RequiredAssetModel model) {
@@ -176,13 +180,13 @@ public class ExportAssetService {
       return asset;
    }
 
-   private final Map<String, byte[]> localFileContentCache;
+   private final Map<String, ExportJarProperties> contextCache;
    private final Map<String, String> fileLocationMap;
    private final Map<String, String> filePathMap;
    private final DeployService deployService;
    private final BinaryTransferService binaryTransferService;
 
-   static final String CONTENT_CACHE_NAME = "exportAssetByteContents";
+   static final String CONTENT_CACHE_NAME = "exportAssetContexts";
    static final String FILE_LOCATION_CACHE_NAME = "exportAssetFileLocations";
 
 }
