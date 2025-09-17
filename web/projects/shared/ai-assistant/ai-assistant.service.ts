@@ -28,6 +28,7 @@ import { CurrentUser } from "../../portal/src/app/portal/current-user";
 import { VSChartModel } from "../../portal/src/app/vsobjects/model/vs-chart-model";
 import { VSObjectModel } from "../../portal/src/app/vsobjects/model/vs-object-model";
 import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
+import { VSCrosstabModel } from "../../portal/src/app/vsobjects/model/vs-crosstab-model";
 
 const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
 const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
@@ -37,11 +38,13 @@ export enum ContextType {
    WORKSHEET = "worksheet",
    FREEHAND = "freehand",
    CHART = "chart",
+   CROSSTAB = "crosstab",
    PORTAL_DATA = "portal",
    EM = "em",
    VIEWSHEET_SCRIPT = "viewsheetScript",
    WORKSHEET_SCRIPT = "worksheetScript",
    CHART_SCRIPT = "chartScript",
+   CROSSTAB_SCRIPT = "crosstabScript",
 }
 
 @Injectable({
@@ -92,6 +95,9 @@ export class AiAssistantService {
    setContextType(objectType: string): void {
       if(objectType === "VSChart") {
          this.contextType = ContextType.CHART;
+      }
+      else if(objectType === "VSCrosstab") {
+         this.contextType = ContextType.CROSSTAB;
       }
    }
 
@@ -226,6 +232,14 @@ export class AiAssistantService {
 
          if(model.scriptEnabled && model.script) {
             this.contextType = ContextType.CHART_SCRIPT;
+            this.scriptContext = model.script;
+         }
+      }
+      else if(objectModel.objectType === "VSCrosstab") {
+         const model: VSCrosstabModel = objectModel as VSCrosstabModel;
+
+         if(model.scriptEnabled && model.script) {
+            this.contextType = ContextType.CROSSTAB_SCRIPT;
             this.scriptContext = model.script;
          }
       }
