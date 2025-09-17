@@ -674,7 +674,7 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
       out.writeInt(this.underline);
       out.writeInt(this.strikeline);
       out.writeBoolean(this.defaultFont);
-      out.writeUTF(this.userFontName);
+      out.writeObject(this.userFontName); // may be null so have to use writeObject instead of writeUTF
    }
 
    /**
@@ -694,7 +694,7 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
       this.underline = in.readInt();
       this.strikeline = in.readInt();
       this.defaultFont = in.readBoolean();
-      this.userFontName = in.readUTF();
+      this.userFontName = (String) in.readObject();
 
       try {
          Field nameField = Font.class.getDeclaredField("name");
