@@ -17,30 +17,18 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.DataCycleManager;
-import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
-import inetsoft.util.audit.ActionRecord;
-import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.security.ConnectionStatus;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @RestController
@@ -56,103 +44,84 @@ public class MVController {
    }
 
    @PostMapping("/api/em/content/repository/mv/analyze")
-   public void analyze(@RequestBody AnalyzeMVRequest analyzeMVRequest, HttpServletRequest req,
-                       Principal principal)
+   public AnalyzeMVResponse analyze(@RequestBody AnalyzeMVRequest analyzeMVRequest,
+                                    Principal principal)
       throws Exception
    {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisResult jobs = mvService.analyze(analyzeMVRequest, principal);
-      session.setAttribute("mv_jobs", jobs);
+      MVSupportService.AnalysisResult analysisResult =
+         mvService.analyze(analyzeMVRequest, principal);
+      return AnalyzeMVResponse.builder()
+         .completed(false)
+         .analysisId(analysisResult.getId())
+         .build();
    }
 
-   @GetMapping("/api/em/content/materialized-view/check-analysis")
-   public AnalyzeMVResponse checkStatus(HttpServletRequest req, Principal principal)
+   @GetMapping("/api/em/content/materialized-view/check-analysis/{analysisId}")
+   public AnalyzeMVResponse checkStatus(Principal principal,
+                                        @PathVariable("analysisId") String analysisId)
       throws Exception
    {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisResult jobs = (MVSupportService.AnalysisResult)
-         session.getAttribute("mv_jobs");
-      AnalyzeMVResponse response = mvService.checkAnalyzeStatus(jobs, principal);
-
-      if(jobs.isCompleted()) {
-         session.setAttribute("mvstatus", jobs.getAnalysisStatusResult());
-      }
-
-      return response;
+      return mvService.checkAnalyzeStatus(analysisId, principal);
    }
 
-   @GetMapping("/api/em/content/repository/mv/get-model")
+   @GetMapping("/api/em/content/repository/mv/get-model/{analysisId}")
    @SuppressWarnings("unchecked")
-   public AnalyzeMVResponse getModel(HttpServletRequest req,
-                                     @RequestParam("hideData") boolean hideData,
-                                     @RequestParam("hideExist") boolean hideExist)
+   public AnalyzeMVResponse getModel(@RequestParam("hideData") boolean hideData,
+                                     @RequestParam("hideExist") boolean hideExist,
+                                     @PathVariable("analysisId") String analysisId)
    {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisStatus mvstatus0 = (MVSupportService.AnalysisStatus) session.getAttribute("mvstatus");
+      List<MVSupportService.MVStatus> mvStatusList = support.getMVStatusList(analysisId);
 
-      if(mvstatus0 == null) {
-         mvstatus0 = new MVSupportService.AnalysisStatus(null, null, null, support.getMVStatus(null), null);
-         session.setAttribute("mvstatus", mvstatus0);
-      }
-      else {
-         for(MVSupportService.MVStatus status : mvstatus0.getResults()) {
-            status.updateStatus();
-         }
+      for(MVSupportService.MVStatus status : mvStatusList) {
+         status.updateStatus();
       }
 
-      List<MaterializedModel> models = mvService.getMaterializedModel(mvstatus0.getResults(), hideData, hideExist);
+      List<MaterializedModel> models = mvService.getMaterializedModel(mvStatusList, hideData, hideExist);
       return AnalyzeMVResponse.builder()
          .completed(true)
          .exception(false)
          .status(models)
          .dateFormat(Tool.getDateFormatPattern())
+         .analysisId(analysisId)
          .build();
    }
 
-   @PostMapping("/api/em/content/repository/mv/show-plan")
-   public String showPlan(HttpServletRequest req,
+   @PostMapping("/api/em/content/repository/mv/show-plan/{analysisId}")
+   public String showPlan(@PathVariable("analysisId") String analysisId,
                           @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
    {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisStatus mvstatus = (MVSupportService.AnalysisStatus)
-         session.getAttribute("mvstatus");
-      MVSupportService.AnalysisResult jobs = (MVSupportService.AnalysisResult)
-         session.getAttribute("mv_jobs");
-      StringBuffer info = mvService.processPlan(createUpdateMVRequest.mvNames(), jobs, mvstatus.getResults());
-      session.setAttribute("info", info);
+      MVSupportService.AnalysisResult analysisResult = support.getAnalysisResult(analysisId);
+      List<MVSupportService.MVStatus> mvStatusList = analysisResult.getStatus();
+      StringBuffer info = mvService.processPlan(createUpdateMVRequest.mvNames(), analysisResult,
+                                                mvStatusList);
       return info.toString();
    }
 
    @SuppressWarnings("unchecked")
    @PostMapping("/api/em/content/repository/mv/create")
-   public CreateMVResponse create(HttpServletRequest req,
-                      @RequestParam(name = "createId", required = false) String createId,
-                      @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
-                      Principal principal)
+   public CreateMVResponse create(@RequestParam(name = "createId") String createId,
+                                  @RequestParam(name = "analysisId") String analysisId,
+                                  @RequestBody CreateUpdateMVRequest createUpdateMVRequest,
+                                  Principal principal)
       throws Throwable
    {
-      return mvService.create(req, createId, createUpdateMVRequest, principal);
+      return mvService.create(createId, analysisId, createUpdateMVRequest, principal);
    }
 
    @SuppressWarnings("unchecked")
-   @PostMapping("/api/em/content/repository/mv/set-cycle")
-   public void setCycle(HttpServletRequest req,
+   @PostMapping("/api/em/content/repository/mv/set-cycle/{analysisId}")
+   public void setCycle(@PathVariable("analysisId") String analysisId,
                         @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
    {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisStatus mvstatus = (MVSupportService.AnalysisStatus)
-         session.getAttribute("mvstatus");
-      support.setDataCycle(createUpdateMVRequest.mvNames(), mvstatus.getResults(),
+      List<MVSupportService.MVStatus> mvstatus = support.getMVStatusList(analysisId);
+      support.setDataCycle(createUpdateMVRequest.mvNames(), mvstatus,
                            createUpdateMVRequest.cycle());
-      session.setAttribute("mvstatus", mvstatus);
    }
 
-   @GetMapping("/api/em/content/repository/mv/exceptions")
-   public MVExceptionResponse setCycle(HttpServletRequest req) {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisResult jobs = (MVSupportService.AnalysisResult) session.getAttribute("mv_jobs");
-      List<UserInfo> exceptions = jobs == null ? null : jobs.getExceptions();
-      assert exceptions != null;
+   @GetMapping("/api/em/content/repository/mv/exceptions/{analysisId}")
+   public MVExceptionResponse setCycle(@PathVariable("analysisId") String analysisId) {
+      MVSupportService.AnalysisResult analysisResult = support.getAnalysisResult(analysisId);
+      List<UserInfo> exceptions = analysisResult.getExceptions();
       List<MVExceptionModel> exceptionModels = exceptions.stream()
          .map(exception -> MVExceptionModel.builder()
             .viewsheet(exception.getSheetName())
@@ -184,15 +153,11 @@ public class MVController {
 
    @PostMapping("/api/em/content/materialized-view/analysis")
    public AnalyzeMVResponse analyze(@RequestBody MVManagementModel model,
-                                    HttpServletRequest request,
                                     Principal principal) throws Exception
    {
       String[] mvNames = model.mvs().stream().map(MaterializedModel::name).toArray(String[]::new);
-      MVSupportService.AnalysisResult jobs = support.analyze(mvNames, principal);
-      HttpSession session = request.getSession(true);
-      session.setAttribute("mv_jobs", jobs);
-
-      return checkStatus(request, principal);
+      MVSupportService.AnalysisResult analysisResult = support.analyze(mvNames, principal);
+      return mvService.checkAnalyzeStatus(analysisResult, principal);
    }
 
    @PostMapping("/api/em/content/materialized-view/remove")
@@ -257,5 +222,4 @@ public class MVController {
    private final MVService mvService;
    private final MVSupportService support;
    private final SecurityProvider securityProvider;
-
 }

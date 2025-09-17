@@ -24,12 +24,11 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.MVService;
 import inetsoft.web.admin.content.repository.MVSupportService;
+import inetsoft.web.admin.content.repository.model.AnalyzeMVResponse;
 import inetsoft.web.admin.content.repository.model.MVManagementModel;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.portal.model.AnalyzeMVPortalRequest;
 import inetsoft.web.portal.model.MVTreeModel;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,14 +45,16 @@ public class PortalMVController {
    }
 
    @PostMapping("/api/portal/content/repository/mv/analyze")
-   public void analyze(@RequestBody AnalyzeMVPortalRequest analyzeMVPortalRequest,
-                       HttpServletRequest req, Principal principal)
+   public AnalyzeMVResponse analyze(@RequestBody AnalyzeMVPortalRequest analyzeMVPortalRequest,
+                                    Principal principal)
       throws Exception
    {
-      HttpSession session = req.getSession(true);
-      MVSupportService.AnalysisResult jobs =
+      MVSupportService.AnalysisResult analysisResult =
          portalMVService.analyze(analyzeMVPortalRequest, principal);
-      session.setAttribute("mv_jobs", jobs);
+      return AnalyzeMVResponse.builder()
+         .completed(false)
+         .analysisId(analysisResult.getId())
+         .build();
    }
 
    @PostMapping("/api/portal/content/materialized-view/info")

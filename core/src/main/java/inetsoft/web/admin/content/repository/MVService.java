@@ -35,8 +35,6 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.model.NameLabelTuple;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -54,20 +52,20 @@ public class MVService {
    public MVService(ContentRepositoryTreeService treeService, MVSupportService support) {
       this.treeService = treeService;
       this.support = support;
-      creteMvMap = Cluster.getInstance().getMap(CRETE_MV_STATUS_MAP);
+      createMVMap = Cluster.getInstance().getMap(CREATE_MV_STATUS_MAP);
    }
 
-   public CreateMVResponse create(HttpServletRequest req, String createId,
+   public CreateMVResponse create(String createId, String analysisId,
                                   CreateUpdateMVRequest createUpdateMVRequest,
                                   Principal principal)
       throws Throwable
    {
       if(createId != null) {
-         CreateMVResponse createMVResponse = creteMvMap.get(createId);
+         CreateMVResponse createMVResponse = createMVMap.get(createId);
 
          if(createMVResponse != null) {
             if(createMVResponse.complete()) {
-               creteMvMap.remove(createId);
+               createMVMap.remove(createId);
             }
 
             if(createMVResponse.failed()) {
@@ -78,24 +76,22 @@ public class MVService {
          }
       }
 
-      HttpSession session = req.getSession(true);
-
       if(createId == null) {
-         create0(session, createUpdateMVRequest, principal);
+         create0(analysisId, createUpdateMVRequest, principal);
          return CreateMVResponse.builder().complete(true).build();
       }
-      else if(creteMvMap.get(createId) == null) {
-         creteMvMap.put(createId, CreateMVResponse.builder().complete(false).build());
+      else if(createMVMap.get(createId) == null) {
+         createMVMap.put(createId, CreateMVResponse.builder().complete(false).build());
          ThreadPool.addOnDemand(() -> {
             Principal oPrincipal = ThreadContext.getPrincipal();
             ThreadContext.setPrincipal(principal);
 
             try {
-               create0(session, createUpdateMVRequest, principal);
-               creteMvMap.put(createId, CreateMVResponse.builder().complete(true).build());
+               create0(analysisId, createUpdateMVRequest, principal);
+               createMVMap.put(createId, CreateMVResponse.builder().complete(true).build());
             }
             catch(Throwable e) {
-               creteMvMap.put(createId, CreateMVResponse.builder()
+               createMVMap.put(createId, CreateMVResponse.builder()
                   .complete(true)
                   .failed(true)
                   .error(e.getMessage())
@@ -106,7 +102,7 @@ public class MVService {
 
                try {
                   Thread.sleep(20_000);
-                  creteMvMap.remove(createId);
+                  createMVMap.remove(createId);
                }
                catch(InterruptedException ignore) {
                }
@@ -117,7 +113,7 @@ public class MVService {
       return CreateMVResponse.builder().complete(false).build();
    }
 
-   public void create0(HttpSession session, CreateUpdateMVRequest createUpdateMVRequest,
+   public void create0(String analysisId, CreateUpdateMVRequest createUpdateMVRequest,
                        Principal principal)
       throws Throwable
    {
@@ -137,8 +133,7 @@ public class MVService {
          }
 
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
-         MVSupportService.AnalysisStatus mvstatus = (MVSupportService.AnalysisStatus)
-            session.getAttribute("mvstatus");
+         List<MVSupportService.MVStatus> mvstatus = support.getMVStatusList(analysisId);
          DataCycleManager dcmanager = DataCycleManager.getDataCycleManager();
          dcmanager.setEnable(createUpdateMVRequest.cycle(), orgId, true);
 
@@ -146,7 +141,7 @@ public class MVService {
             principal = (XPrincipal) ((XPrincipal) principal).clone();
          }
 
-         String exception = support.createMV(createUpdateMVRequest.mvNames(), mvstatus.getResults(),
+         String exception = support.createMV(createUpdateMVRequest.mvNames(), mvstatus,
                                              createUpdateMVRequest.runInBackground(),
                                              createUpdateMVRequest.noData(),
                                              principal);
@@ -314,7 +309,13 @@ public class MVService {
       return info;
    }
 
-   public AnalyzeMVResponse checkAnalyzeStatus(MVSupportService.AnalysisResult jobs,
+   public AnalyzeMVResponse checkAnalyzeStatus(String analysisId, Principal principal)
+      throws Exception
+   {
+      return checkAnalyzeStatus(new MVSupportService.AnalysisResult(analysisId), principal);
+   }
+
+   public AnalyzeMVResponse checkAnalyzeStatus(MVSupportService.AnalysisResult analysisResult,
                                                Principal principal)
       throws Exception
    {
@@ -328,15 +329,15 @@ public class MVService {
       defaultCycle = defaultCycle == null ? "" : defaultCycle;
       List<NameLabelTuple> cycles = getDataCycles(principal);
 
-      if(!jobs.isCompleted()) {
+      if(!analysisResult.isCompleted()) {
          completed = false;
       }
-      else if(!jobs.getExceptions().isEmpty()) {
+      else if(!analysisResult.getExceptions().isEmpty()) {
          exception = true;
       }
 
-      if(jobs.isCompleted()) {
-         status = getMaterializedModel(jobs.getStatus());
+      if(analysisResult.isCompleted()) {
+         status = getMaterializedModel(analysisResult.getStatus());
       }
 
       return AnalyzeMVResponse.builder()
@@ -348,6 +349,7 @@ public class MVService {
          .defaultCycle(defaultCycle)
          .runInBackground(runInBackground)
          .dateFormat(Tool.getDateFormatPattern())
+         .analysisId(analysisResult.getId())
          .build();
    }
 
@@ -627,6 +629,6 @@ public class MVService {
    private static final long ONE_DAY = 24 * ONE_HOUR;
    private final MVSupportService support;
    private final ContentRepositoryTreeService treeService;
-   private final Map<String, CreateMVResponse> creteMvMap;
-   private final static String CRETE_MV_STATUS_MAP = "CRETE_MV_STATUS_MAP";
+   private final Map<String, CreateMVResponse> createMVMap;
+   private final static String CREATE_MV_STATUS_MAP = "CREATE_MV_STATUS_MAP";
 }
