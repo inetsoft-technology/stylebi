@@ -21,8 +21,8 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.composition.*;
-import inetsoft.report.composition.execution.*;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.AffinityCallable;
 import inetsoft.sree.internal.cluster.Cluster;
@@ -32,7 +32,6 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.GroupedThread;
-import inetsoft.util.Tool;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.log.*;
@@ -243,11 +242,11 @@ public class VSLifecycleService {
                   event.getWidth() + ", mobile=" + event.isMobile());
          }
 
-         CoreLifecycleControllerService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
-                                                                     viewsheetService, event, principal, linkUri,
-                                                                     event.getEmbeddedViewsheetId(), entry, dispatcher,
-                                                                     runtimeViewsheetRef, runtimeViewsheetManager, viewer,
-                                                                     event.getDrillFrom(), variables, event.getFullScreenId(), execSessionId);
+         CoreLifecycleService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
+            viewsheetService, event, principal, linkUri,
+            event.getEmbeddedViewsheetId(), entry, dispatcher,
+            runtimeViewsheetRef, runtimeViewsheetManager, viewer,
+            event.getDrillFrom(), variables, event.getFullScreenId(), execSessionId);
 
          runtimeId = result.getId();
          auditFinish = result.getAuditFinish();
