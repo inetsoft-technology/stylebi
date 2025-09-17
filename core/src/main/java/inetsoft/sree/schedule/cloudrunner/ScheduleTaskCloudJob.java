@@ -21,7 +21,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleTask;
-import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.config.*;
 import org.apache.commons.io.IOUtils;
@@ -91,7 +90,7 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
                job = factory.createCloudJob(
                   UriUtils.encode(taskName, StandardCharsets.UTF_8), cycle, orgID);
                job.start();
-               LOG.debug("Started cloud job: " + job.getClass().getName());
+               LOG.debug("Started cloud job: {}", job.getClass().getName());
                break;
             }
          }
