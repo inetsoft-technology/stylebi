@@ -18,7 +18,6 @@
 package inetsoft.web.portal.controller.database;
 
 import com.google.common.collect.Sets;
-import inetsoft.cluster.ClusterProxy;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.erm.XPartition;
@@ -36,7 +35,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @Service
-@ClusterProxy
 public class RuntimePartitionService {
    public RuntimePartitionService() {
       cache = Cluster.getInstance().getCache(
@@ -169,9 +167,12 @@ public class RuntimePartitionService {
 
    /**
     * Process the heartbeat.
+    *
+    * @return {@code true} if the partition has already expired or {@code false} if the partition
+    *         is not expired and the access time has been updated.
     */
    public boolean touch(String id) {
-      return cache.get(id) != null;
+      return isExpired(id);
    }
 
    public boolean isExpired(String id) {
