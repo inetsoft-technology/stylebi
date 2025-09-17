@@ -814,6 +814,7 @@ public class PhysicalModelManagerService {
       }
 
       updateAliasMap(partition, oldName, table.getName());
+      runtimePartitionService.saveRuntimePartition(rp);
    }
 
    /**
