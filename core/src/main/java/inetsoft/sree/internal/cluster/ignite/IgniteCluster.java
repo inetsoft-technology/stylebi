@@ -1031,7 +1031,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             CompletableFuture<T> future = new CompletableFuture<>();
             affinityFutures.put(id, future);
             futures.add(future);
-            ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+            ignite.message(ignite.cluster().forServers()).sendOrdered(AFFINITY_TOPIC, request, 0);
          }
       }
 
