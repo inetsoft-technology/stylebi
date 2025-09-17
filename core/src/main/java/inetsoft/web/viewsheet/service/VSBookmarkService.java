@@ -654,11 +654,15 @@ public class VSBookmarkService {
       Viewsheet vs = rvs.getViewsheet();
       messageCommand.setType(MessageCommand.Type.OK);
 
-      if(vs.getRuntimeEntry().getScope() == AssetRepository.TEMPORARY_SCOPE) {
+      if(vs.getRuntimeEntry() != null &&
+         vs.getRuntimeEntry().getScope() == AssetRepository.TEMPORARY_SCOPE)
+      {
          messageCommand.setMessage(catalog.getString("common.viewsheet.saveViewsheetDependence"));
          messageCommand.setType(MessageCommand.Type.ERROR);
       }
-      else if(!confirmed && rvs.containsBookmark(bookmarkName, IdentityID.getIdentityIDFromKey(principal.getName()))) {
+      else if(vs.getRuntimeEntry() != null && !confirmed &&
+         rvs.containsBookmark(bookmarkName, IdentityID.getIdentityIDFromKey(principal.getName())))
+      {
          messageCommand.setMessage(
                  catalog.getString("viewer.viewsheet.bookmark.replaceWarning", bookmarkName));
          messageCommand.setType(MessageCommand.Type.CONFIRM);
