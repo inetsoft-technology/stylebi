@@ -75,7 +75,10 @@ public class ExportControllerService {
 
       CommandDispatcher.withDummyDispatcher(principal, d -> {
          ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
+         // do not reset the form table.
+         rvs.getViewsheetSandbox().exportRefresh.set(true);
          coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
+         rvs.getViewsheetSandbox().exportRefresh.set(false);
          return null;
       });
 
