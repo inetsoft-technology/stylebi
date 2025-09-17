@@ -1236,7 +1236,10 @@ public class PhysicalModelManagerService {
     * @param tableName the name of the independent table.
     */
    public void addJoin(String runtimeId, JoinModel join, String tableName) {
-      getPartition(runtimeId).ifPresent(p -> addJoin(p, join, tableName));
+      getPartition(runtimeId).ifPresent(p -> {
+         addJoin(p, join, tableName);
+         runtimePartitionService.updatePartition(runtimeId, p);
+      });
    }
 
    private void addJoin(XPartition partition, JoinModel join, String tableName) {
@@ -1253,7 +1256,10 @@ public class PhysicalModelManagerService {
     * @param tableName the name of the independent table.
     */
    public void updateJoin(String runtimeId, JoinModel join, JoinModel oldJoin, String tableName) {
-      getPartition(runtimeId).ifPresent(p -> updateJoin(p, join, oldJoin, tableName));
+      getPartition(runtimeId).ifPresent(p -> {
+         updateJoin(p, join, oldJoin, tableName);
+         runtimePartitionService.updatePartition(runtimeId, p);
+      });
    }
 
    private void updateJoin(XPartition partition, JoinModel join, JoinModel oldJoin,
@@ -1281,7 +1287,10 @@ public class PhysicalModelManagerService {
    public void removeJoin(String runtimeId, JoinModel join, String foreignTable,
                           String tableName)
    {
-      getPartition(runtimeId).ifPresent(p -> removeJoin(p, join, foreignTable, tableName));
+      getPartition(runtimeId).ifPresent(p -> {
+         removeJoin(p, join, foreignTable, tableName);
+         runtimePartitionService.updatePartition(runtimeId, p);
+      });
    }
 
    private void removeJoin(XPartition partition, JoinModel join, String foreignTable,
