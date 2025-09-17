@@ -665,7 +665,7 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
     */
    private void writeObject(java.io.ObjectOutputStream out) throws IOException {
       // Font fields
-      out.writeObject(this.getName());
+      out.writeUTF(this.getName());
       out.writeInt(this.getStyle() & AWT_FONT_MASK);
       out.writeInt(this.getSize());
 
@@ -674,7 +674,7 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
       out.writeInt(this.underline);
       out.writeInt(this.strikeline);
       out.writeBoolean(this.defaultFont);
-      out.writeObject(this.userFontName);
+      out.writeUTF(this.userFontName);
    }
 
    /**
@@ -685,7 +685,7 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
     */
    private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
       // Font fields
-      String name = (String) in.readObject();
+      String name = in.readUTF();
       int awtStyle = in.readInt();
       int size = in.readInt();
 
@@ -694,7 +694,7 @@ public class StyleFont extends Font implements StyleConstants, Cloneable {
       this.underline = in.readInt();
       this.strikeline = in.readInt();
       this.defaultFont = in.readBoolean();
-      this.userFontName = (String) in.readObject();
+      this.userFontName = in.readUTF();
 
       try {
          Field nameField = Font.class.getDeclaredField("name");
