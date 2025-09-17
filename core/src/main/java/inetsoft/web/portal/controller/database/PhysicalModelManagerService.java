@@ -32,7 +32,8 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.DefaultMetaDataProvider;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.rgraph.TableNode;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.portal.model.database.*;
@@ -40,19 +41,17 @@ import inetsoft.web.portal.model.database.events.CheckTableAliasEvent;
 import inetsoft.web.portal.service.database.PhysicalGraphService;
 import inetsoft.web.viewsheet.*;
 import org.apache.commons.io.FileExistsException;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import java.awt.*;
 import java.io.FileNotFoundException;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
-
-import static inetsoft.uql.DataSourceListingService.LOG;
 
 /**
  * {@code PhysicalModelManagerService} provides methods to manage physical models.
@@ -143,7 +142,7 @@ public class PhysicalModelManagerService {
             "Unauthorized access to resource \"" + dataSource + "\" by user " + principal);
       }
 
-      boolean isExtended = !StringUtils.isEmpty(parent);
+      boolean isExtended = !StringUtils.isBlank(parent);
       XPartition partition = physicalModelService.createPartition(model);
       XDataModel dataModel = getDataModel(dataSource);
       partition.setDataModel(dataModel);
@@ -189,7 +188,7 @@ public class PhysicalModelManagerService {
       throws Exception
    {
       XDataModel dataModel = getDataModel(dataSource);
-      boolean isExtended = !StringUtils.isEmpty(parent);
+      boolean isExtended = !StringUtils.isBlank(parent);
       String path;
 
       if(!isExtended) {
@@ -225,7 +224,10 @@ public class PhysicalModelManagerService {
       }
 
       getRuntimePartition(model.getId()).ifPresent(
-         p -> createAndSaveModel(dataModel, p, path, parent, isExtended, principal));
+         p -> {
+            createAndSaveModel(dataModel, p, path, parent, isExtended, principal);
+            runtimePartitionService.saveRuntimePartition(p);
+         });
    }
 
    private void createAndSaveModel(XDataModel dataModel,
@@ -300,7 +302,7 @@ public class PhysicalModelManagerService {
       throws Exception
    {
       XDataModel dataModel = getDataModel(dsName);
-      boolean isExtended = !StringUtils.isEmpty(parent);
+      boolean isExtended = !StringUtils.isBlank(parent);
 
       if(isExtended) {
          XPartition parentPartition = dataModel.getPartition(parent);
@@ -344,13 +346,15 @@ public class PhysicalModelManagerService {
          AssetEntry.Type.PARTITION;
       AssetEntry entry = dataSourceService.getModelAssetEntry(
          new AssetEntry(AssetRepository.QUERY_SCOPE, entryType, path, null));
-      getRuntimePartition(model.getId()).ifPresent(
-         p -> updateAndSaveModel(dataModel, p, parent, name, entry, isExtended));
+      getRuntimePartition(model.getId()).ifPresent(p -> {
+         updateAndSaveModel(dataModel, p, parent, name, entry, isExtended);
+         runtimePartitionService.saveRuntimePartition(p);
+      });
    }
 
    private void renameAttribute(XLogicalModel logicalModel, PhysicalTableModel table) {
-      String path = null;
-      AssetEntry.Type type = null;
+      String path;
+      AssetEntry.Type type;
       Enumeration<XEntity> entities = logicalModel.getEntities();
 
       while(entities.hasMoreElements()) {
@@ -536,7 +540,7 @@ public class PhysicalModelManagerService {
                principal);
       }
 
-      boolean isExtended = !StringUtils.isEmpty(parent);
+      boolean isExtended = !StringUtils.isBlank(parent);
       XPartition partition;
       XPartition basePartition = null;
 
@@ -651,14 +655,15 @@ public class PhysicalModelManagerService {
       table.setPath(path);
       table.setAlias(alias);
       table.setSql(sql);
-      table.setType(!StringUtils.isEmpty(sql) ? TableType.VIEW : TableType.PHYSICAL);
+      table.setType(!StringUtils.isBlank(sql) ? TableType.VIEW : TableType.PHYSICAL);
       table.setJoins(new ArrayList<>());
       table.setAutoAliases(new ArrayList<>());
       table.setAutoAliasesEnabled(false);
       table.setAliasSource(aliasSource);
       table.setBaseTable(false);
 
-      RuntimePartitionService.RuntimeXPartition rp = getRuntimePartition(runtimeId).get();
+      RuntimePartitionService.RuntimeXPartition rp = getRuntimePartition(runtimeId)
+         .orElseThrow(() -> new IllegalArgumentException("Runtime partition " + runtimeId + " does not exist"));
       XDataModel dataModel = getDataModel(rp.getDataSource());
       String additional = rp.getPartition().getConnection();
       JDBCDataSource jdbc = (JDBCDataSource) dataSourceService.
@@ -714,8 +719,11 @@ public class PhysicalModelManagerService {
     * @param tableName     the name of the table.
     */
    public void removeTable(String runtimeId, String qualifiedName, String tableName) {
-      if(!StringUtils.isEmpty(qualifiedName)) {
-         getRuntimePartition(runtimeId).ifPresent(p -> removeTable(p, qualifiedName, tableName));
+      if(!StringUtils.isBlank(qualifiedName)) {
+         getRuntimePartition(runtimeId).ifPresent(p -> {
+            removeTable(p, qualifiedName, tableName);
+            runtimePartitionService.saveRuntimePartition(p);
+         });
       }
    }
 
@@ -753,7 +761,10 @@ public class PhysicalModelManagerService {
       String tableName = addTable(runtimeId, table, false);
 
       if(tableName != null) {
-         getPartition(runtimeId).ifPresent(p -> fixTableBounds(runtimeId, p, tableName));
+         getPartition(runtimeId).ifPresent(p -> {
+            fixTableBounds(runtimeId, p, tableName);
+            runtimePartitionService.updatePartition(runtimeId, p);
+         });
       }
    }
 
@@ -765,8 +776,11 @@ public class PhysicalModelManagerService {
     * @param table     the updated view definition.
     */
    public void updateInlineView(String runtimeId, String oldName, PhysicalTableModel table) {
-      if(table != null && !StringUtils.isEmpty(oldName)) {
-         getRuntimePartition(runtimeId).ifPresent(p -> updateInlineView(p, oldName, table));
+      if(table != null && !StringUtils.isBlank(oldName)) {
+         getRuntimePartition(runtimeId).ifPresent(p -> {
+            updateInlineView(p, oldName, table);
+            runtimePartitionService.saveRuntimePartition(p);
+         });
       }
    }
 
@@ -819,7 +833,6 @@ public class PhysicalModelManagerService {
 
    /**
     * Sync the aliastable map.
-    * @param partition
     * @param oname the old source table name.
     * @param nname the new source table name.
     */
@@ -906,7 +919,10 @@ public class PhysicalModelManagerService {
       String tableName = addTable(runtimeId, table, false);
 
       if(tableName != null) {
-         getPartition(runtimeId).ifPresent(p -> fixTableBounds(runtimeId, p, tableName));
+         getPartition(runtimeId).ifPresent(p -> {
+            fixTableBounds(runtimeId, p, tableName);
+            runtimePartitionService.updatePartition(runtimeId, p);
+         });
       }
 
       return null;
@@ -920,8 +936,11 @@ public class PhysicalModelManagerService {
     * @param table     the updated table definition.
     */
    public void updateAlias(String runtimeId, String oldName, PhysicalTableModel table) {
-      if(table != null && !StringUtils.isEmpty(oldName)) {
-         getRuntimePartition(runtimeId).ifPresent(p -> updateAlias(p, oldName, table));
+      if(table != null && !StringUtils.isBlank(oldName)) {
+         getRuntimePartition(runtimeId).ifPresent(p -> {
+            updateAlias(p, oldName, table);
+            runtimePartitionService.saveRuntimePartition(p);
+         });
       }
    }
 
@@ -984,7 +1003,10 @@ public class PhysicalModelManagerService {
     */
    public void updateAutoAliasing(String runtimeId, PhysicalTableModel table) {
       if(table != null) {
-         getPartition(runtimeId).ifPresent(p -> physicalModelService.addRemoveAutoAlias(p, table));
+         getPartition(runtimeId).ifPresent(p -> {
+            physicalModelService.addRemoveAutoAlias(p, table);
+            runtimePartitionService.updatePartition(runtimeId, p);
+         });
       }
    }
 
@@ -1126,7 +1148,10 @@ public class PhysicalModelManagerService {
     */
    public void addAutoJoin(String runtimeId, JoinModel join, String tableName, Principal principal)
    {
-      getRuntimePartition(runtimeId).ifPresent(p -> addAutoJoin(p, join, tableName, principal));
+      getRuntimePartition(runtimeId).ifPresent(p -> {
+         addAutoJoin(p, join, tableName, principal);
+         runtimePartitionService.saveRuntimePartition(p);
+      });
    }
 
    private void addAutoJoin(RuntimePartitionService.RuntimeXPartition rp, JoinModel join,
@@ -1421,8 +1446,6 @@ public class PhysicalModelManagerService {
     * @param database         the database name.
     * @param partitionId      the partition runtime id in portal data model.
     * @param tname            the target table name.
-    * @return
-    * @throws Exception
     */
    public List<String> loadTableColumns(String database, String partitionId, String tname)
       throws Exception
@@ -1436,8 +1459,6 @@ public class PhysicalModelManagerService {
     * @param partitionId      the partition runtime id in portal data model.
     * @param tname            the target table name.
     * @param preview          whether get table form preview mode.
-    * @return
-    * @throws Exception
     */
    public List<String> loadTableColumns(String database, String partitionId, String tname,
                                         boolean preview)
@@ -1451,7 +1472,7 @@ public class PhysicalModelManagerService {
 
       String additional = partition != null ? partition.getConnection() : null;
 
-      if(StringUtils.isEmpty(additional)) {
+      if(StringUtils.isBlank(additional)) {
          additional = XUtil.OUTER_MOSE_LAYER_DATABASE;
       }
 
@@ -1480,7 +1501,7 @@ public class PhysicalModelManagerService {
 
       List<GraphColumnInfo> cols =
          physicalModelService.getTableColumns(tableNode, metaData, ptable);
-      return cols.stream().map(info -> info.getName()).collect(Collectors.toList());
+      return cols.stream().map(GraphColumnInfo::getName).collect(Collectors.toList());
    }
 
    private void fixTableBounds(String runtimeId, XPartition partition, String tableName) {
@@ -1493,7 +1514,7 @@ public class PhysicalModelManagerService {
    }
 
    private Optional<String> optionalString(String runtimeId) {
-      return StringUtils.isEmpty(runtimeId) ? Optional.empty() : Optional.of(runtimeId);
+      return StringUtils.isBlank(runtimeId) ? Optional.empty() : Optional.of(runtimeId);
    }
 
    private Optional<RuntimePartitionService.RuntimeXPartition> getRuntimePartition(String runtimeId)
@@ -1508,7 +1529,7 @@ public class PhysicalModelManagerService {
    public String checkAliasValid(String runtimeId, String alias, String oldAlias) {
       Catalog catalog = Catalog.getCatalog();
 
-      if(StringUtils.isEmpty(alias)) {
+      if(StringUtils.isBlank(alias)) {
          return catalog.getString("designer.qb.emptyAlias");
       }
 
@@ -1516,7 +1537,7 @@ public class PhysicalModelManagerService {
          return catalog.getString("designer.qb.aliasWithDot");
       }
 
-      if(StringUtils.hasText(oldAlias) && alias.equals(oldAlias)) {
+      if(!StringUtils.isBlank(oldAlias) && alias.equals(oldAlias)) {
          return null;
       }
 
