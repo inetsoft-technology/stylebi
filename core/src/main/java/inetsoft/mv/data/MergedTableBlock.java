@@ -29,7 +29,6 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.List;
@@ -40,7 +39,7 @@ import java.util.List;
  * @author InetSoft Technology
  * @since  10.2
  */
-public abstract class MergedTableBlock implements XTableBlock, Serializable {
+public abstract class MergedTableBlock implements XTableBlock {
    /**
     * Constructor.
     */
@@ -283,5 +282,5 @@ public abstract class MergedTableBlock implements XTableBlock, Serializable {
    final FormulaInfo[] infos;
    private boolean detail;
    boolean dimAggregate;
-   protected transient MVQuery query;
+   protected MVQuery query;
 }
