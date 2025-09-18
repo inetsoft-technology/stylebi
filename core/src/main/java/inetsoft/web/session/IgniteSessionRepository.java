@@ -28,10 +28,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.context.*;
+import org.springframework.context.ApplicationEvent;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.*;
-import org.springframework.session.events.*;
 import org.springframework.util.Assert;
 
 import javax.cache.Cache;
@@ -54,7 +53,7 @@ public class IgniteSessionRepository
    }
 
    @Override
-   public void afterPropertiesSet() throws Exception {
+   public void afterPropertiesSet() {
       authenticationService.addSessionListener(this);
       this.cluster = Cluster.getInstance();
       this.sessions = cluster.getCache(
@@ -87,7 +86,6 @@ public class IgniteSessionRepository
       this.sessionIdGenerator = sessionIdGenerator;
    }
 
-   @SuppressWarnings("ClassEscapesDefinedScope")
    @Override
    public IgniteSession createSession() {
       MapSession cached = new MapSession(this.sessionIdGenerator);
@@ -124,7 +122,6 @@ public class IgniteSessionRepository
       }
    }
 
-   @SuppressWarnings("ClassEscapesDefinedScope")
    @Override
    public void save(IgniteSession session) {
       if(session.isNew) {
@@ -168,7 +165,7 @@ public class IgniteSessionRepository
          SRPrincipal oldPrincipal = null;
          SRPrincipal newPrincipal = null;
 
-         if(delta != null && delta.containsKey(RepletRepository.PRINCIPAL_COOKIE)) {
+         if(delta.containsKey(RepletRepository.PRINCIPAL_COOKIE)) {
             principalChanged = true;
             oldPrincipal = session.getDelegate().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
             newPrincipal = (SRPrincipal) delta.get(RepletRepository.PRINCIPAL_COOKIE);
@@ -178,7 +175,7 @@ public class IgniteSessionRepository
          SRPrincipal emOldPrincipal = null;
          SRPrincipal emNewPrincipal = null;
 
-         if(delta != null && delta.containsKey(RepletRepository.EM_PRINCIPAL_COOKIE)) {
+         if(delta.containsKey(RepletRepository.EM_PRINCIPAL_COOKIE)) {
             emPrincipalChanged = true;
             emOldPrincipal = session.getDelegate().getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
             emNewPrincipal = (SRPrincipal) delta.get(RepletRepository.EM_PRINCIPAL_COOKIE);
@@ -202,7 +199,6 @@ public class IgniteSessionRepository
       session.clearChangeFlags();
    }
 
-   @SuppressWarnings("ClassEscapesDefinedScope")
    @Override
    public IgniteSession findById(String id) {
       MapSession saved = this.sessions.get(id);
@@ -226,7 +222,6 @@ public class IgniteSessionRepository
       sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
    }
 
-   @SuppressWarnings("ClassEscapesDefinedScope")
    @Override
    public Map<String, IgniteSession> findByIndexNameAndIndexValue(String indexName,
                                                                   String indexValue)
@@ -312,12 +307,12 @@ public class IgniteSessionRepository
    }
 
    @Override
-   public void loggedIn(SessionEvent event) {
+   public void loggedIn(inetsoft.sree.security.SessionEvent event) {
       // no-op
    }
 
    @Override
-   public void loggedOut(SessionEvent event) {
+   public void loggedOut(inetsoft.sree.security.SessionEvent event) {
       if(event.isInvalidateSession()) {
          Principal principal = event.getPrincipal();
 
