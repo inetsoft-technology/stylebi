@@ -170,6 +170,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          box = new ViewsheetSandbox(vs, mode, getUser(), entry);
       }
 
+      box.setOriginalID(state.getOriginalId());
       rep = (AssetRepository) AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
       execSessionID = state.getExecSessionId();
       touchts = state.getTouchts();
@@ -218,6 +219,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
       if(state.getEmbedAssemblyInfo() != null) {
          embedAssemblyInfo = loadJson(EmbedAssemblyInfo.class, state.getEmbedAssemblyInfo(), mapper);
       }
+
+      setEntry(entry);
 
       // load base worksheet and create asset query sandbox
       resetRuntime();
@@ -2569,6 +2572,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       state.setTouchts(touchts);
       state.setTipviews(tipviews);
       state.setPopcomponents(popcomponents);
+      state.setOriginalId(getOriginalID());
 
       if(bookmarksMap == null) {
          state.setBookmarksMap(null);

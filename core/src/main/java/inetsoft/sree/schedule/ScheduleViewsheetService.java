@@ -22,10 +22,15 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.sree.RepletRequest;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
+import inetsoft.web.binding.drm.*;
+import inetsoft.web.binding.model.*;
+import inetsoft.web.binding.service.DataRefModelFactory;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.*;
@@ -36,9 +41,11 @@ import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.security.Principal;
-import java.util.*;
+import java.util.Enumeration;
+import java.util.List;
 
 @SingletonManager.Singleton
 public class ScheduleViewsheetService {
@@ -52,13 +59,14 @@ public class ScheduleViewsheetService {
    public ScheduleViewsheetService() {
       this.engine = ViewsheetEngine.getViewsheetEngine();
       this.coreLifecycleService = createCoreLifecycleService();
+      this.vsBookmarkService = createBookmarkService();
    }
 
    /**
     * Only for use within the scheduler
     */
    private CoreLifecycleService createCoreLifecycleService() {
-      List<VSObjectModelFactory<?, ?>> modelFactories = Arrays.asList(
+      List<VSObjectModelFactory<?, ?>> modelFactories = List.of(
          new VSAnnotationModel.VSAnnotationModelFactory(),
          new VSCalcTableModel.VSCalcTableModelFactory(),
          new VSCalendarModel.VSCalendarModelFactory(),
@@ -91,14 +99,45 @@ public class ScheduleViewsheetService {
          new VSThermometerModel.VSThermometerModelFactory(),
          new VSViewsheetModel.VSViewsheetModelFactory()
       );
+
+      List<DataRefModelFactory<?, ?>> dataRefModelFactories = List.of(
+         new AggregateRefModel.AggregateRefModelFactory(),
+         new AliasDataRefModel.AliasDataRefModelFactory(),
+         new AttributeRefModel.AttributeRefModelFactory(),
+         new BaseFieldModel.BaseFieldModelFactory(),
+         new CalculateRefModel.CalculateRefModelFactory(),
+         new ColumnRefModel.ColumnRefModelFactory(),
+         new FormRefModel.FormRefModelFactory(),
+         new FormulaFieldModel.FormulaFieldModelFactory(),
+         new BAggregateRefModel.VSAggregateRefModelFactory(),
+         new BDimensionRefModel.VSChartDimensionRefModelFactory(),
+         new DateRangeRefModel.DateRangeRefModelFactory(),
+         new ExpressionRefModel.ExpressionRefModelFactory(),
+         new GroupRefModel.GroupRefModelFactory(),
+         new NamedRangeRefModel.NamedRangeRefModelFactory(),
+         new NumericRangeRefModel.NumericRangeRefModelFactory()
+      );
+
       VSObjectModelFactoryService objectModelFactoryService =
          new VSObjectModelFactoryService(modelFactories);
       VSLayoutService vsLayoutService = new VSLayoutService(objectModelFactoryService);
       ParameterService parameterService = new ParameterService(engine);
       VSCompositionService vsCompositionService = new VSCompositionService();
+      DataRefModelFactoryService dataRefModelFactoryService =
+         new DataRefModelFactoryService(dataRefModelFactories);
       return new CoreLifecycleService(objectModelFactoryService, engine, vsLayoutService,
-                                      parameterService, new CoreLifecycleControllerServiceProxy(),
-                                      vsCompositionService);
+                                      parameterService, vsCompositionService,
+                                      dataRefModelFactoryService, null,
+                                      this::publishProcessBookmarkEvent);
+
+   }
+
+   private VSBookmarkService createBookmarkService() {
+      SimpMessagingTemplate messagingTemplate = new SimpMessagingTemplate((message, timeout) -> false);
+      SharedFilterService sharedFilterService = new SharedFilterService(messagingTemplate, engine);
+      SecurityEngine security = SecurityEngine.getSecurity();
+      VSObjectService vsObjectService = new VSObjectService(coreLifecycleService, engine, security, sharedFilterService);
+      return new VSBookmarkService(vsObjectService, engine, security, coreLifecycleService);
    }
 
    public String openViewsheet(AssetEntry entry, RepletRequest repletRequest, Principal principal)
@@ -114,7 +153,7 @@ public class ScheduleViewsheetService {
          XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
       return CommandDispatcher.withDummyDispatcher(principal, d -> {
-         CoreLifecycleControllerService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
+         CoreLifecycleService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
          engine, openViewsheetEvent, principal, null, null, entry, d, null,
          null, true, openViewsheetEvent.getDrillFrom(), vt,
          openViewsheetEvent.getFullScreenId(), execSessionId);
@@ -151,7 +190,14 @@ public class ScheduleViewsheetService {
       return VSEventUtil.decodeParameters(params);
    }
 
+   private void publishProcessBookmarkEvent(Object event) {
+      if(vsBookmarkService != null && event instanceof ProcessBookmarkEvent pbe) {
+         vsBookmarkService.onApplicationEvent(pbe);
+      }
+   }
+
    private final ViewsheetService engine;
    private final CoreLifecycleService coreLifecycleService;
+   private final VSBookmarkService vsBookmarkService;
    private final static Logger LOG = LoggerFactory.getLogger(ScheduleViewsheetService.class);
 }

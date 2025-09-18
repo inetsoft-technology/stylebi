@@ -205,6 +205,14 @@ class RuntimeViewsheetState extends RuntimeSheetState {
       this.embedAssemblyInfo = embedAssemblyInfo;
    }
 
+   public String getOriginalId() {
+      return originalId;
+   }
+
+   public void setOriginalId(String originalId) {
+      this.originalId = originalId;
+   }
+
    @Override
    public boolean equals(Object o) {
       if(o == null || getClass() != o.getClass()) {
@@ -230,7 +238,8 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          Objects.equals(openedBookmark, that.openedBookmark) &&
          Objects.equals(rvsLayout, that.rvsLayout) &&
          Objects.equals(layoutPoints, that.layoutPoints) &&
-         Objects.equals(embedAssemblyInfo, that.embedAssemblyInfo);
+         Objects.equals(embedAssemblyInfo, that.embedAssemblyInfo) &&
+         Objects.equals(originalId, that.originalId);
    }
 
    @Override
@@ -239,7 +248,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          super.hashCode(), bindingId, vs, originalVs, vars, viewer, preview, needsRefresh, mode,
          execSessionId, touchts, tipviews, popcomponents, bookmarksMap, ibookmark, openedBookmark,
          lastReset, dateCreated, rvsLayout, layoutPoints, layoutPoint,  wizardViewsheet,
-         embedAssemblyInfo);
+         embedAssemblyInfo, originalId);
    }
 
    @Override
@@ -266,12 +275,14 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          ", layoutPoints='" + layoutPoints + '\'' +
          ", layoutPoint=" + layoutPoint +
          ", wizardViewsheet=" + wizardViewsheet +
+         ", originalId=" + originalId +
          ", embedAssemblyInfo='" + embedAssemblyInfo + '\'' +
          '}';
    }
 
    private String bindingId;
    private String boxRid;
+   private String originalId;
    private String vs;
    private String originalVs;
    private String vars;

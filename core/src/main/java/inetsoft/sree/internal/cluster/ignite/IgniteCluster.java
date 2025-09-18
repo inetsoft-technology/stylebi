@@ -445,7 +445,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          cacheConfiguration.setNodeFilter(node -> {
             Boolean isScheduler = node.attribute("scheduler");
 
-            if(isScheduler) {
+            if(Boolean.TRUE.equals(isScheduler)) {
                LOG.debug("Scheduler node {} is excluded from holding any partition of cache {}", node.id(), name);
             }
 
@@ -1024,14 +1024,14 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                throw new RuntimeException(e);
             }
          }
-         else {
+         else if(!node.isClient()) {
             String id = UUID.randomUUID().toString();
             AffinityCallRequest<T> request = new AffinityCallRequest<>(
                id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
             CompletableFuture<T> future = new CompletableFuture<>();
             affinityFutures.put(id, future);
             futures.add(future);
-            ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+            ignite.message(ignite.cluster().forServers()).sendOrdered(AFFINITY_TOPIC, request, 0);
          }
       }
 

@@ -42,12 +42,12 @@ import inetsoft.web.viewsheet.model.chart.VSChartModel;
 import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import org.mockito.*;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Arrays;
 import java.util.List;
-
-import static org.mockito.Mockito.doReturn;
 
 public class ControllersExtension extends MockMessageExtension {
    @Override
@@ -125,10 +125,15 @@ public class ControllersExtension extends MockMessageExtension {
       VSLayoutService vsLayoutService = new VSLayoutService(objectModelFactoryService);
       ParameterService parameterService = new ParameterService(viewsheetService);
       vsCompositionService = new VSCompositionService();
+      ApplicationEventPublisher eventPublisher = event -> {
+         if(bookmarkService != null && event instanceof ProcessBookmarkEvent pbe) {
+            bookmarkService.onApplicationEvent(pbe);
+         }
+      };
       coreLifecycleService =
          new CoreLifecycleService(objectModelFactoryService, viewsheetService,
-                                  vsLayoutService, parameterService, new CoreLifecycleControllerServiceProxy(),
-                                  vsCompositionService);
+                                  vsLayoutService, parameterService, vsCompositionService,
+                                  dataRefModelFactoryService, null, eventPublisher);
       BaseTableLoadDataServiceProxy tableLoadDataServiceProxy = new BaseTableLoadDataServiceProxy();
       assetRepository = (AssetRepository) SUtil.getRepletRepository();
       objectTreeService = new VSObjectTreeService(objectModelFactoryService);
@@ -137,7 +142,8 @@ public class ControllersExtension extends MockMessageExtension {
 
       objectService = new VSObjectService(coreLifecycleService, viewsheetService, securityEngine,
                                           sharedFilterService);
-      bookmarkService = new VSBookmarkService(objectService, viewsheetService, securityEngine, coreLifecycleService);
+      bookmarkService = new VSBookmarkService(
+         objectService, viewsheetService, securityEngine, coreLifecycleService);
       List<DataRefModelFactory<?, ?>> dataRefModelFactories = Arrays.asList(
          new AggregateRefModel.AggregateRefModelFactory(),
          new AliasDataRefModel.AliasDataRefModelFactory(),
@@ -170,23 +176,11 @@ public class ControllersExtension extends MockMessageExtension {
       selectionServiceProxy = new VSSelectionServiceProxy();
       maxModeAssemblyService = new MaxModeAssemblyService(viewsheetService, coreLifecycleService);
 
-      coreLifecycleControllerService = new CoreLifecycleControllerService(viewsheetService,
-                                                                          assetRepository,
-                                                                          dataRefModelFactoryService,
-                                                                          vsCompositionService,
-                                                                          coreLifecycleService,
-                                                                          bookmarkService,
-                                                                          runtimeViewsheetRef);
-
       ConfigurationContext context = ConfigurationContext.getContext();
       ConfigurationContext spyContext = Mockito.spy(context);
       staticConfigurationContext = Mockito.mockStatic(ConfigurationContext.class);
       staticConfigurationContext.when(ConfigurationContext::getContext)
          .thenReturn(spyContext);
-
-      doReturn(coreLifecycleControllerService)
-         .when(spyContext)
-         .getSpringBean(CoreLifecycleControllerService.class);
    }
 
    @Override
@@ -295,6 +289,5 @@ public class ControllersExtension extends MockMessageExtension {
    private SharedFilterService sharedFilterService;
    private VSCompositionService vsCompositionService;
    private ParameterService parameterService;
-   private CoreLifecycleControllerService coreLifecycleControllerService;
    MockedStatic<ConfigurationContext> staticConfigurationContext;
 }

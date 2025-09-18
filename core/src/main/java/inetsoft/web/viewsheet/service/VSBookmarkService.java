@@ -46,6 +46,7 @@ import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationListener;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -57,7 +58,7 @@ import java.util.stream.Collectors;
 
 @Service
 @ClusterProxy
-public class VSBookmarkService {
+public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEvent> {
    @Autowired
    public VSBookmarkService(VSObjectService vsObjectService,
                             ViewsheetService viewsheetService,
@@ -70,6 +71,18 @@ public class VSBookmarkService {
       this.coreLifecycleService = coreLifecycleService;
    }
 
+   @Override
+   public void onApplicationEvent(ProcessBookmarkEvent event) {
+      try {
+         processBookmark(
+            event.getId(), event.getRvs(), event.getLinkUri(), event.getPrincipal(),
+            event.getBookmarkName(), event.getBookmarkUser(), event.getEvent(),
+            event.getDispatcher());
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to process bookmark", e);
+      }
+   }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void saveBookmark(@ClusterProxyKey String runtimeId, VSEditBookmarkEvent value,
@@ -822,9 +835,9 @@ public class VSBookmarkService {
    }
 
    public void processBookmark(String id, RuntimeViewsheet rvs, String linkUri,
-                                      Principal principal, String bookmarkName,
+                               Principal principal, String bookmarkName,
                                IdentityID bookmarkUser, OpenViewsheetEvent event,
-                                      CommandDispatcher dispatcher)
+                               CommandDispatcher dispatcher)
       throws Exception
    {
       if(principal == null) {

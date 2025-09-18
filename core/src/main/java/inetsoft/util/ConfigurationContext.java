@@ -163,6 +163,11 @@ public class ConfigurationContext implements AutoCloseable {
    }
 
    public <T> T getSpringBean(Class<T> type) {
+      if(applicationContext == null && "true".equals(System.getProperty("ScheduleServer"))) {
+         // scheduler doesn't have spring context, try SingletonManager
+         return SingletonManager.getInstance(type);
+      }
+
       return applicationContext.getBean(type);
    }
 

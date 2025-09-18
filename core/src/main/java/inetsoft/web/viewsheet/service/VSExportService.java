@@ -223,7 +223,7 @@ public class VSExportService {
          XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
       return CommandDispatcher.withDummyDispatcher(principal, d -> {
-         CoreLifecycleControllerService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
+         CoreLifecycleService.ProcessSheetResult result = coreLifecycleService.openViewsheet(
             viewsheetService, openViewsheetEvent, principal, null, null, entry, d, null,
             null, true, openViewsheetEvent.getDrillFrom(), vt,
             openViewsheetEvent.getFullScreenId(), execSessionId);

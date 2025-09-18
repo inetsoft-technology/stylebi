@@ -271,7 +271,7 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
                });
             }
             else {
-               this.analysisCompleted();
+               this.analysisCompleted(response.analysisId);
             }
          }, () => this.loading = false);
    }
@@ -285,10 +285,10 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
          });
    }
 
-   private analysisCompleted(): void {
-      this.http.get("../api/em/content/materialized-view/check-analysis").subscribe((response: AnalyzeMVResponse) => {
+   private analysisCompleted(analysisId: string): void {
+      this.http.get("../api/em/content/materialized-view/check-analysis/" + analysisId).subscribe((response: AnalyzeMVResponse) => {
          if(!response.completed) {
-            setTimeout(() => this.analysisCompleted(), 5000);
+            setTimeout(() => this.analysisCompleted(analysisId), 5000);
             return;
          }
 
@@ -297,7 +297,7 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
          this.loading = false;
 
          if(response.exception) {
-            this.http.get("../api/em/content/repository/mv/exceptions").subscribe(
+            this.http.get("../api/em/content/repository/mv/exceptions/" + analysisId).subscribe(
                (exceptions: MVExceptionResponse) =>
                {
                   // open the exception dialog

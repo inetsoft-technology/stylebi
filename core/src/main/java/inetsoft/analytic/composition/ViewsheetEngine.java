@@ -355,7 +355,14 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          // @by yuz, fix bug1246261678219, should use viewer any time
          entry.setProperty("viewer", "" + viewer);
          OpenViewsheetTask task = new OpenViewsheetTask(entry, user, getNextID(entry, user));
-         id = Cluster.getInstance().affinityCall(CACHE_NAME, task.id, task);
+         Cluster cluster = Cluster.getInstance();
+
+         if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, task.id)) {
+            id = task.callInternal(this);
+         }
+         else {
+            id = Cluster.getInstance().affinityCall(CACHE_NAME, task.id, task);
+         }
       }
       finally {
          entry.setProperty("viewer",  null);
@@ -857,7 +864,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          new SwitchToHostOrgForGlobalShareAssetTask(principal, sheetRuntimeId);
       Cluster cluster = Cluster.getInstance();
 
-      if(cluster.isLocalCacheKey(CACHE_NAME, sheetRuntimeId)) {
+      if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, sheetRuntimeId)) {
          return task.callInternal(this);
       }
       else {
@@ -903,6 +910,10 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       @Override
       public String call() throws Exception {
          ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
+         return callInternal(engine);
+      }
+
+      private String callInternal(ViewsheetEngine engine) throws Exception {
          String rid = engine.openSheet(entry, user, id);
 
          if(user != null) {
