@@ -148,6 +148,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       if(state.getVs() != null) {
          vs = loadXml(new Viewsheet(), state.getVs());
+         vs.setMaxMode(state.isMaxMode());
       }
 
       if(state.getOriginalVs() != null) {
@@ -2559,6 +2560,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
       state.setViewer(viewer);
       state.setPreview(preview);
       state.setNeedsRefresh(needRefresh);
+
+      if(vs != null) {
+         state.setMaxMode(vs.isMaxMode());
+      }
+
       state.setMode(mode);
       state.setExecSessionId(execSessionID);
       state.setTouchts(touchts);

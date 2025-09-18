@@ -54,6 +54,7 @@ public class VSChartMaxModeService extends VSChartControllerService<VSChartEvent
    {
       processEvent(runtimeId, event, principal, linkUri, dispatcher,
                    chartState -> toggleMaxMode(chartState, event.getMaxSize()));
+      getViewsheetEngine().flushRuntimeSheet(runtimeId);
 
       return null;
    }
