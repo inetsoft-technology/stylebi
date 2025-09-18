@@ -219,6 +219,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
             temporaryInfo.getTempChart().setViewsheet(vs);
          }
       }
+     
+      setEntry(entry);
 
       // load base worksheet and create asset query sandbox
       resetRuntime();

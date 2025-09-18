@@ -55,6 +55,8 @@ public interface AnalyzeMVResponse {
    @Value.Default
    default boolean runInBackground() { return false; }
 
+   String analysisId();
+
     static AnalyzeMVResponse.Builder builder() {
         return new AnalyzeMVResponse.Builder();
     }

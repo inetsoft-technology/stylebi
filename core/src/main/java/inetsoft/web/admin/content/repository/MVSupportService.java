@@ -21,7 +21,6 @@ import inetsoft.mv.*;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
@@ -39,6 +38,7 @@ import jakarta.annotation.PreDestroy;
 import org.awaitility.Awaitility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
@@ -497,59 +497,6 @@ public class MVSupportService {
    }
 
    /**
-    * Gets the status of all materialized views associated with a viewsheet.
-    *
-    * @param identifier the viewsheet identifier.
-    *
-    * @return the materialized view statuses.
-    */
-   public List<MVStatus> getMVStatus(String identifier) {
-      MVManager manager = MVManager.getManager();
-      ScheduleManager schedule = ScheduleManager.getScheduleManager();
-      List<MVStatus> list = new ArrayList<>();
-      AssetEntry entry = (identifier != null) ? getEntry(identifier) : null;
-
-      for(MVDef def : manager.list(false)) {
-         if(entry == null || def.matches(entry) ||
-            (def.getMetaData() != null &&
-               def.getMetaData().isRegistered(entry.toIdentifier())))
-         {
-            MVStatus mvstatus = new MVStatus(def, "");
-            mvstatus.setExists(true);
-            mvstatus.setDataPresent(def.hasData());
-            list.add(mvstatus);
-         }
-      }
-
-      // status to be removed
-      for(ScheduleTask task : schedule.getScheduleTasks()) {
-         if(task.getTaskId().startsWith(DataCycleManager.TASK_PREFIX)) {
-            continue;
-         }
-
-         for(int i = 0; i < task.getActionCount(); i++) {
-            ScheduleAction scheduleAction = task.getAction(i);
-
-            if(scheduleAction instanceof MVAction) {
-               MVAction mvaction = (MVAction) scheduleAction;
-               MVDef def = mvaction.getMV();
-
-               if(def.getEntry().toIdentifier().equals(identifier)) {
-                  MVStatus status = new MVStatus(def, "");
-                  status.setScheduled(true);
-
-                  if(!list.contains(status)) {
-                     list.add(status);
-                  }
-               }
-            }
-         }
-      }
-
-      return list;
-   }
-
-   /**
     * Shuts down the thread pools that serve background processing of
     * materialization tasks.
     */
@@ -706,6 +653,26 @@ public class MVSupportService {
       }
 
       currentPath.removeLast();
+   }
+
+   public AnalysisResult getAnalysisResult(String analysisId) {
+      return new AnalysisResult(analysisId);
+   }
+
+   public List<MVStatus> getMVStatusList(String analysisId) {
+      return getAnalysisResult(analysisId).getStatus();
+   }
+
+   @Scheduled(initialDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL, fixedDelay = ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL)
+   public void removeExpiredAnalysis() {
+      Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+
+      long limit = System.currentTimeMillis() - ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL;
+      map.entrySet().stream()
+         .filter(e -> e.getValue().createdTime < limit)
+         .map(Map.Entry::getKey)
+         .toList() // copy to temp list before removing
+         .forEach(map::remove);
    }
 
    /**
@@ -874,48 +841,7 @@ public class MVSupportService {
          this.plans = plans;
          this.results = results;
          this.error = error;
-         backUpInfo();
-      }
-
-      private void backUpInfo() {
-         if(results == null) {
-            return;
-         }
-
-         Map<Worksheet, String> reverseMap = new HashMap<>();
-
-         for(MVStatus result : results) {
-            if(result == null) {
-               continue;
-            }
-
-            MVDef mvDef = result.mvDef;
-
-            if(mvDef == null) {
-               continue;
-            }
-
-            Worksheet worksheet = mvDef.getWorksheet();
-
-            if(worksheet == null) {
-               continue;
-            }
-
-            String wsId = reverseMap.get(worksheet);
-            MVDContainerInfo info = new MVDContainerInfo();
-
-            if(wsId == null) {
-               wsId = UUID.randomUUID().toString();
-               reverseMap.put(worksheet, wsId);
-               wsMap.put(wsId, worksheet);
-            }
-
-            info.wsId = wsId;
-            info.columns = mvDef.getColumns();
-            info.rcolumns = mvDef.getRemovedColumns();
-
-            infoMap.put(mvDef.getMVName(), info);
-         }
+         this.createdTime = System.currentTimeMillis();
       }
 
       public List<MVCandidate> getCandidates() {
@@ -931,36 +857,7 @@ public class MVSupportService {
       }
 
       public List<MVStatus> getResults() {
-         restoreContainerInfo();
          return results;
-      }
-
-      private void restoreContainerInfo() {
-         if(results == null) {
-            return;
-         }
-
-         for(MVStatus result : results) {
-            if(result == null) {
-               continue;
-            }
-
-            MVDef mvDef = result.mvDef;
-
-            if(mvDef == null) {
-               continue;
-            }
-
-            MVDContainerInfo mvdContainerInfo = infoMap.get(mvDef.getMVName());
-
-            if(mvdContainerInfo == null) {
-               continue;
-            }
-
-
-            mvDef.restoreContainer(wsMap.get(mvdContainerInfo.wsId), mvdContainerInfo.columns,
-                                   mvdContainerInfo.rcolumns);
-         }
       }
 
       public Exception getError() {
@@ -972,14 +869,7 @@ public class MVSupportService {
       private final Map<MVCandidate, StringBuffer> plans;
       private final List<MVStatus> results;
       private final Exception error;
-      private final Map<String, Worksheet> wsMap = new HashMap<>();
-      private final Map<String, MVDContainerInfo> infoMap = new HashMap<>();
-   }
-
-   private static class MVDContainerInfo {
-      private String wsId;
-      private List<MVColumn> columns = new ArrayList<>();
-      private List<MVColumn> rcolumns = new ArrayList<>();
+      private final long createdTime;
    }
 
    /**
@@ -991,8 +881,12 @@ public class MVSupportService {
        *
        * @param id the identifier of the analysis task.
        */
-      private AnalysisResult(String id) {
+      public AnalysisResult(String id) {
          this.id = id;
+      }
+
+      public String getId() {
+         return id;
       }
 
       /**
@@ -1056,30 +950,24 @@ public class MVSupportService {
             .until(this::isCompleted);
       }
 
-      public AnalysisStatus getAnalysisStatusResult() {
-         return getAnalysisStatus().orElseThrow(
-            () -> new IllegalStateException("The analysis job is not valid"));
-      }
-
       private synchronized Optional<AnalysisStatus> getAnalysisStatus() {
          if(completed != null) {
             return Optional.of(completed);
          }
 
          Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
-         AnalysisStatus result = map.get(id);
+         AnalysisStatus status = map.get(id);
 
-         if(result == null) {
+         if(status == null) {
             return Optional.empty();
          }
 
-         if(result.getResults() != null || result.getError() != null) {
-            completed = result;
-            map.remove(id);
-            return Optional.of(result);
+         if(status.getResults() != null || status.getError() != null) {
+            completed = status;
+            return Optional.of(status);
          }
 
-         return Optional.of(result);
+         return Optional.of(status);
       }
 
       private final String id;
@@ -1558,6 +1446,7 @@ public class MVSupportService {
    public static final String MV_TASK_STAGE_PREFIX = "MV Task Stage 2: ";
    private static final String ANALYSIS_STATUS_MAP =
       MVSupportService.class.getName() + ".analysisStatusMap";
+   private static final long ANALYSIS_STATUS_MAP_CLEANUP_INTERVAL = 1200000L; // 20 min
 
    private static final Logger LOG = LoggerFactory.getLogger(MVSupportService.class);
 

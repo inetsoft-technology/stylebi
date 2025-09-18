@@ -231,6 +231,11 @@ public class PhysicalModelController {
       runtimeId = Tool.byteDecode(runtimeId);
       WarningModel result = new WarningModel();
       XPartition partition = this.runtimePartitionService.getPartition(runtimeId);
+
+      if(partition == null) {
+         return null;
+      }
+
       Catalog catalog = Catalog.getCatalog(principal);
       partition = partition.applyAutoAliases();
       int status = partition.getStatus();

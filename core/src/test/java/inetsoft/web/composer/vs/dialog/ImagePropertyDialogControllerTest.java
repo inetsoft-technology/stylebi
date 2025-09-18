@@ -31,6 +31,10 @@ import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ImageVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.util.ConfigurationContext;
+import inetsoft.web.binding.drm.*;
+import inetsoft.web.binding.model.*;
+import inetsoft.web.binding.service.DataRefModelFactory;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
@@ -49,10 +53,13 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.awt.*;
 import java.security.Principal;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -72,9 +79,28 @@ class ImagePropertyDialogControllerTest {
          .thenReturn(spyContext);
 
       trapService = new VSTrapService();
-      coreLifecycleService = new CoreLifecycleService(objectModelService, viewsheetEngine,
-                                                  vsLayoutService, parameterService, new CoreLifecycleControllerServiceProxy(),
-                                                      vsCompositionService);
+      List<DataRefModelFactory<?, ?>> dataRefModelFactories = Arrays.asList(
+         new AggregateRefModel.AggregateRefModelFactory(),
+         new AliasDataRefModel.AliasDataRefModelFactory(),
+         new AttributeRefModel.AttributeRefModelFactory(),
+         new BaseFieldModel.BaseFieldModelFactory(),
+         new CalculateRefModel.CalculateRefModelFactory(),
+         new ColumnRefModel.ColumnRefModelFactory(),
+         new FormRefModel.FormRefModelFactory(),
+         new FormulaFieldModel.FormulaFieldModelFactory(),
+         new BAggregateRefModel.VSAggregateRefModelFactory(),
+         new BDimensionRefModel.VSDimensionRefModelFactory(),
+         new DateRangeRefModel.DateRangeRefModelFactory(),
+         new ExpressionRefModel.ExpressionRefModelFactory(),
+         new GroupRefModel.GroupRefModelFactory(),
+         new NumericRangeRefModel.NumericRangeRefModelFactory()
+      );
+      dataRefModelFactoryService = new DataRefModelFactoryService(dataRefModelFactories);
+      ApplicationEventPublisher eventPublisher = event -> {
+      };
+      coreLifecycleService = new CoreLifecycleService(
+         objectModelService, viewsheetEngine, vsLayoutService, parameterService,
+         vsCompositionService, dataRefModelFactoryService, null, eventPublisher);
       temporaryInfoService = new VSWizardTemporaryInfoService(viewsheetService);
       vsObjectPropertyService = spy(new VSObjectPropertyService(coreLifecycleService,
                                                                 vsColumnHandler,
@@ -169,4 +195,5 @@ class ImagePropertyDialogControllerTest {
    private VSObjectPropertyService vsObjectPropertyService;
    private ImagePropertyDialogController controller;
    private VSTrapService trapService;
+   private DataRefModelFactoryService dataRefModelFactoryService;
 }
