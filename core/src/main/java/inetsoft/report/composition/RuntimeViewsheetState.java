@@ -37,6 +37,14 @@ class RuntimeViewsheetState extends RuntimeSheetState {
       this.vs = vs;
    }
 
+   public String getBoxRid() {
+      return boxRid;
+   }
+
+   public void setBoxRid(String boxRid) {
+      this.boxRid = boxRid;
+   }
+
    public String getOriginalVs() {
       return originalVs;
    }
@@ -263,6 +271,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
    }
 
    private String bindingId;
+   private String boxRid;
    private String vs;
    private String originalVs;
    private String vars;

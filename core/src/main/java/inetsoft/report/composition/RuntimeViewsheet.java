@@ -162,7 +162,14 @@ public class RuntimeViewsheet extends RuntimeSheet {
       preview = state.isPreview();
       needRefresh = state.isNeedsRefresh();
       mode = state.getMode();
-      box = new ViewsheetSandbox(vs, mode, getUser(), entry);
+
+      if(state.getBoxRid() != null) {
+         box = new ViewsheetSandbox(vs, mode, getUser(), entry, state.getBoxRid());
+      }
+      else {
+         box = new ViewsheetSandbox(vs, mode, getUser(), entry);
+      }
+
       rep = (AssetRepository) AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
       execSessionID = state.getExecSessionId();
       touchts = state.getTouchts();
@@ -2550,6 +2557,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       RuntimeViewsheetState state = new RuntimeViewsheetState();
       super.saveState(state, mapper);
       state.setBindingId(bindingID);
+      state.setBoxRid(this.box == null ? null : this.box.getID());
       state.setVs(saveXml(vs));
       state.setOriginalVs(saveXml(originalVs));
       state.setVars(saveJson(vars, mapper));

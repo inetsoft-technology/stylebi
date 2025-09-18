@@ -22,8 +22,11 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.util.profile.Profile;
+import inetsoft.util.profile.ProfileInfo;
 import org.springframework.stereotype.Service;
 
+import java.io.Serializable;
 import java.security.Principal;
 
 @Service
@@ -49,6 +52,21 @@ public class PortalProfileService {
       return key;
    }
 
+   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   public ProfileResult getProfileInfo(@ClusterProxyKey String rid, boolean isViewsheet, Principal principal) throws Exception {
+      String key = getRecordsKey(rid, isViewsheet, principal);
+      return new ProfileResult(key, Profile.getInstance().getProfileInfo());
+   }
+
+   public final static class ProfileResult implements Serializable {
+      public final ProfileInfo info;
+      public final String recordsKey;
+
+      public ProfileResult(String recordsKey, ProfileInfo info) {
+         this.recordsKey = recordsKey;
+         this.info = info;
+      }
+   }
 
    private ViewsheetService viewsheetService;
 }
