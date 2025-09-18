@@ -19,14 +19,14 @@ package inetsoft.web.messaging;
 
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.AbstractLogoutFilter;
-import inetsoft.web.session.IgniteSessionRepository;
-import inetsoft.web.session.PrincipalChangedEvent;
+import inetsoft.web.session.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -35,7 +35,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.*;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.Session;
-import org.springframework.session.events.SessionExpiredEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
@@ -46,7 +45,7 @@ import java.security.Principal;
 import java.util.*;
 
 @Component
-public class SessionConnectionService implements ApplicationListener<ApplicationEvent> {
+public class SessionConnectionService {
 
    @Autowired
    public SessionConnectionService(IgniteSessionRepository sessionRepository,
@@ -63,6 +62,8 @@ public class SessionConnectionService implements ApplicationListener<Application
    @PostConstruct
    public void addSessionListener() {
       SecurityEngine.getSecurity().addAuthenticationChangeListener(authenticationChangeListener);
+      cluster = Cluster.getInstance();
+      cluster.addMessageListener(listener);
    }
 
    @PreDestroy
@@ -110,33 +111,32 @@ public class SessionConnectionService implements ApplicationListener<Application
          }
       }
    }
+   
+   private void messageReceived(MessageEvent event) {
+      Object message = event.getMessage();
 
-   @Override
-   public void onApplicationEvent(ApplicationEvent event) {
-      if(event instanceof SessionExpiredEvent) {
-         onSessionExpiredEvent((SessionExpiredEvent) event);
+      if(event.getMessage() instanceof SessionExpiredEvent sessionExpiredEvent) {
+         onSessionExpiredEvent(sessionExpiredEvent);
       }
-      else if(event instanceof PrincipalChangedEvent) {
-         handlePrincipalChanged((PrincipalChangedEvent) event);
+      else if(message instanceof PrincipalChangedEvent principalChangedEvent) {
+         handlePrincipalChanged(principalChangedEvent);
       }
    }
 
    private void onSessionExpiredEvent(SessionExpiredEvent event) {
       cleanReferences();
-      Session httpSession = event.getSession();
-      String httpSessionId = httpSession.getId();
+      String httpSessionId = event.getSessionId();
 
       synchronized(httpSessions) {
          Set<String> wsSessionIds = httpSessions.remove(httpSessionId);
 
          if(wsSessionIds != null) {
-            Principal principal = httpSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+            Principal principal = event.getPrincipalCookie();
             // only redirect if authenticated
             boolean authenticated =
                principal != null && !XPrincipal.ANONYMOUS.equals(principal.getName());
             // don't redirect if already coming from the logout filter
-            boolean fromLogout = Boolean.TRUE.equals(
-               httpSession.getAttribute(AbstractLogoutFilter.LOGGED_OUT));
+            boolean fromLogout = Boolean.TRUE.equals(event.getLoggedOutAttribute());
 
             // redirect to login page if not anonymous, otherwise, allow to reconnect
             CloseStatus status;
@@ -179,8 +179,7 @@ public class SessionConnectionService implements ApplicationListener<Application
    }
 
    private void handlePrincipalChanged(PrincipalChangedEvent event) {
-      Session httpSession = event.getSession();
-      String httpSessionId = httpSession.getId();
+      String httpSessionId = event.getSessionId();
       Set<String> wsSessionIds = httpSessions.get(httpSessionId);
 
       if(wsSessionIds != null) {
@@ -273,6 +272,8 @@ public class SessionConnectionService implements ApplicationListener<Application
       }
    }
 
+   private Cluster cluster;
+   private final MessageListener listener = this::messageReceived;
    private final AuthenticationService authenticationService;
    private final NodeProtectionService nodeProtectionService;
    private final IgniteSessionRepository sessionRepository;

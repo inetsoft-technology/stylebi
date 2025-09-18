@@ -25,16 +25,16 @@ import org.springframework.session.Session;
 public class PrincipalChangedEvent extends ApplicationEvent {
    private final SRPrincipal oldPrincipal;
    private final SRPrincipal newPrincipal;
-   private final Session session;
+   private final String sessionId;
    private final boolean em;
 
    public PrincipalChangedEvent(Object source, SRPrincipal oldPrincipal, SRPrincipal newPrincipal,
-                                Session session, boolean em)
+                                String sessionId, boolean em)
    {
       super(source);
       this.oldPrincipal = oldPrincipal;
       this.newPrincipal = newPrincipal;
-      this.session = session;
+      this.sessionId = sessionId;
       this.em = em;
    }
 
@@ -46,8 +46,8 @@ public class PrincipalChangedEvent extends ApplicationEvent {
       return newPrincipal;
    }
 
-   public Session getSession() {
-      return session;
+   public String getSessionId() {
+      return sessionId;
    }
 
    public boolean isEm() {
