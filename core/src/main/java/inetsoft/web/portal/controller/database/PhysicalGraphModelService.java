@@ -107,6 +107,7 @@ public class PhysicalGraphModelService {
 
       GraphViewModel graphModel = physicalGraphModel.getGraphViewModel();
       new PhysicalGraphLayout(graphModel, rPartition, colPriority).layout();
+      this.partitionService.saveRuntimePartition(rPartition);
    }
 
    public void createAlias(String runtimeId, String table, String alias) throws Exception {
