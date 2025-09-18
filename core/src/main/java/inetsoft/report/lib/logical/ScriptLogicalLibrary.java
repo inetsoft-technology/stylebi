@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.invoke.MethodHandles;
 import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
@@ -36,7 +37,7 @@ public class ScriptLogicalLibrary extends AbstractLogicalLibrary<ScriptEntry> {
 
    @Override
    public Enumeration<String> toSecureEnumeration() {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {

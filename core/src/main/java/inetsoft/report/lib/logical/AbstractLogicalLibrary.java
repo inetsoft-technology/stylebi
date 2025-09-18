@@ -17,6 +17,7 @@
  */
 package inetsoft.report.lib.logical;
 
+import com.google.common.util.concurrent.Striped;
 import inetsoft.report.LibManager;
 import inetsoft.report.SaveOptions;
 import inetsoft.report.lib.Transaction;
@@ -32,9 +33,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.*;
 import java.util.stream.Collectors;
 
 /**
@@ -58,7 +57,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public List<String> toSecureList() {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -73,7 +72,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public Enumeration<String> toSecureEnumeration() {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -92,7 +91,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    }
 
    protected Map<String, LogicalLibraryEntry<T>> toMap() {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -106,7 +105,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    @Override
    public String caseInsensitiveFindName(String name, boolean secure) {
       final HashSet<String> temp;
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -130,7 +129,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public void load(PhysicalLibrary library, LoadOptions options) throws IOException {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -236,7 +235,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    public int put(String name, T asset) {
       final int id;
       final TransactionType transactionType;
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -302,7 +301,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    }
 
    public LogicalLibraryEntry getLogicalLibraryEntry(String name, String orgID) {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -348,7 +347,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
             "Permission denied to delete " + getEntryName()));
       }
 
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -362,7 +361,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public boolean isAudit(String name) {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -377,7 +376,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public boolean rename(String oldName, String newName) {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -418,7 +417,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public String getComment(String name) {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -449,7 +448,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
             "Permission denied to modify " + getEntryName()));
       }
 
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -493,7 +492,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public void clear() {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -507,7 +506,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public void clear(String orgId) {
-      ReentrantReadWriteLock lock = getOrgLock(orgId);
+      ReadWriteLock lock = getOrgLock(orgId);
       lock.writeLock().lock();
 
       try {
@@ -521,7 +520,7 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
 
    @Override
    public List<Transaction<LogicalLibraryEntry<T>>> flushTransactions() {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -588,16 +587,16 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
       }
    }
 
-   protected ReentrantReadWriteLock getOrgLock(String orgId) {
+   protected ReadWriteLock getOrgLock(String orgId) {
       orgId = orgId == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
 
-      return lockMap.computeIfAbsent(orgId, k -> new ReentrantReadWriteLock());
+      return locks.get(orgId);
    }
 
    private final LibrarySecurity security;
    private final Map<String, Map<String, LogicalLibraryEntry<T>>> nameToEntryMaps = new HashMap<>();
    protected final Deque<Transaction<LogicalLibraryEntry<T>>> transactions = new ArrayDeque<>();
-   private final ConcurrentHashMap<String, ReentrantReadWriteLock> lockMap = new ConcurrentHashMap<>();
+   private static final Striped<ReadWriteLock> locks = Striped.lazyWeakReadWriteLock(256);
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 }

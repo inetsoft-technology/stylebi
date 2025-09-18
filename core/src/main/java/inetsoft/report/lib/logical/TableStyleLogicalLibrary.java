@@ -31,7 +31,7 @@ import java.lang.SecurityException;
 import java.lang.invoke.MethodHandles;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReadWriteLock;
 import java.util.stream.Collectors;
 
 public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle> {
@@ -103,7 +103,7 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
 
    public List<XTableStyle> getTableStyles(String folder, boolean filterAudit) {
       final boolean root = folder == null;
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
@@ -138,7 +138,7 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
       final int id;
       final TransactionType transactionType;
       final String styleName = style.getName();
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -205,7 +205,7 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
    }
 
    public String rename(String oldName, String newName, String oid) {
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.writeLock().lock();
 
       try {
@@ -257,7 +257,7 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
    @Override
    protected boolean checkPermission(ResourceType type, String name, ResourceAction action) {
       if(type == ResourceType.TABLE_STYLE) {
-         ReentrantReadWriteLock lock = getOrgLock(null);
+         ReadWriteLock lock = getOrgLock(null);
          lock.readLock().lock();
 
          try {
@@ -297,7 +297,7 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
 
       int idx = name.lastIndexOf(LibManager.SEPARATOR);
       name = idx >= 0 ? name.substring(idx + 1) : name;
-      ReentrantReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getOrgLock(null);
       lock.readLock().lock();
 
       try {
