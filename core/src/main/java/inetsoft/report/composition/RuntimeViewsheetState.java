@@ -197,6 +197,14 @@ class RuntimeViewsheetState extends RuntimeSheetState {
       this.embedAssemblyInfo = embedAssemblyInfo;
    }
 
+   public String getTemporaryInfo() {
+      return temporaryInfo;
+   }
+
+   public void setTemporaryInfo(String temporaryInfo) {
+      this.temporaryInfo = temporaryInfo;
+   }
+
    @Override
    public boolean equals(Object o) {
       if(o == null || getClass() != o.getClass()) {
@@ -212,6 +220,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          needsRefresh == that.needsRefresh && mode == that.mode && touchts == that.touchts &&
          lastReset == that.lastReset && dateCreated == that.dateCreated &&
          layoutPoint == that.layoutPoint && wizardViewsheet == that.wizardViewsheet &&
+         layoutPoint == that.layoutPoint && wizardViewsheet == that.wizardViewsheet &&
          Objects.equals(bindingId, that.bindingId) && Objects.equals(vs, that.vs) &&
          Objects.equals(originalVs, that.originalVs) && Objects.equals(vars, that.vars) &&
          Objects.equals(execSessionId, that.execSessionId) &&
@@ -222,7 +231,8 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          Objects.equals(openedBookmark, that.openedBookmark) &&
          Objects.equals(rvsLayout, that.rvsLayout) &&
          Objects.equals(layoutPoints, that.layoutPoints) &&
-         Objects.equals(embedAssemblyInfo, that.embedAssemblyInfo);
+         Objects.equals(embedAssemblyInfo, that.embedAssemblyInfo) &&
+         Objects.equals(temporaryInfo, that.temporaryInfo);
    }
 
    @Override
@@ -231,7 +241,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          super.hashCode(), bindingId, vs, originalVs, vars, viewer, preview, needsRefresh, mode,
          execSessionId, touchts, tipviews, popcomponents, bookmarksMap, ibookmark, openedBookmark,
          lastReset, dateCreated, rvsLayout, layoutPoints, layoutPoint,  wizardViewsheet,
-         embedAssemblyInfo);
+         embedAssemblyInfo, temporaryInfo);
    }
 
    @Override
@@ -259,6 +269,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          ", layoutPoint=" + layoutPoint +
          ", wizardViewsheet=" + wizardViewsheet +
          ", embedAssemblyInfo='" + embedAssemblyInfo + '\'' +
+         ", temporaryInfo='" + temporaryInfo + '\'' +
          '}';
    }
 
@@ -284,4 +295,5 @@ class RuntimeViewsheetState extends RuntimeSheetState {
    private int layoutPoint;
    private boolean wizardViewsheet;
    private String embedAssemblyInfo;
+   private String temporaryInfo;
 }

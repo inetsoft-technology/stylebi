@@ -17,11 +17,18 @@
  */
 package inetsoft.web.vswizard.model;
 
-import inetsoft.uql.viewsheet.ChartVSAssembly;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.ChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.util.Tool;
+import inetsoft.util.XMLSerializable;
 import inetsoft.web.vswizard.model.recommender.VSRecommendType;
+import org.w3c.dom.Element;
 
-public class VSWizardOriginalModel {
+import java.io.PrintWriter;
+import java.io.Serializable;
+
+public class VSWizardOriginalModel implements Serializable, XMLSerializable {
    public VSWizardOriginalModel() {
    }
 
@@ -78,6 +85,67 @@ public class VSWizardOriginalModel {
 
    public void setOriginalChartInfo(ChartInfo info) {
       origInfo = info;
+   }
+
+   @Override
+   public void writeXML(PrintWriter writer) {
+      writer.print("<vsWizardOriginalModel class=\"" + getClass().getName() + "\"");
+      writeAttributes(writer);
+      writer.println(">");
+      writeContents(writer);
+      writer.print("</vsWizardOriginalModel>");
+   }
+
+   protected void writeAttributes(PrintWriter writer) {
+      if(originalName != null) {
+         writer.print(" originalName=\"" + originalName + "\"");
+      }
+
+      if(originalType != null) {
+         writer.print(" originalType=\"" + originalType.name() + "\"");
+      }
+
+      writer.print(" emptyAssembly=\"" + emptyAssembly + "\"");
+   }
+
+   protected void writeContents(PrintWriter writer) {
+      if(tempBinding != null) {
+         tempBinding.writeXML(writer);
+      }
+
+      if(origInfo != null) {
+         origInfo.writeXML(writer);
+      }
+   }
+
+   @Override
+   public void parseXML(Element elem) throws Exception {
+      parseAttributes(elem);
+      parseContents(elem);
+   }
+
+   protected void parseAttributes(Element elem) {
+      originalName = Tool.getAttribute(elem, "originalName");
+      emptyAssembly = "true".equals(Tool.getAttribute(elem, "emptyAssembly"));
+      String originalTypeVal = Tool.getAttribute(elem, "originalType");
+
+      if(!Tool.isEmptyString(originalTypeVal)) {
+         originalType = VSRecommendType.valueOf(originalTypeVal);
+      }
+   }
+
+   protected void parseContents(Element elem) throws Exception {
+      Element item = Tool.getChildNodeByTagName(elem, "assembly");
+
+      if(item != null) {
+         tempBinding = (ChartVSAssembly) AbstractVSAssembly.createVSAssembly(item, null);
+      }
+
+      item = Tool.getChildNodeByTagName(elem, "VSChartInfo");
+
+      if(item != null) {
+         origInfo = VSChartInfo.createVSChartInfo(item);
+      }
    }
 
    private String originalName;
