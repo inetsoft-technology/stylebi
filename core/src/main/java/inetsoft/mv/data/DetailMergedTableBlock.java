@@ -48,7 +48,7 @@ public final class DetailMergedTableBlock extends MergedTableBlock {
       this.intcols = intcols;
       this.tscols = tscols;
       
-      tbl = new PagedTableLens() {};
+      tbl = new MVQuery.PagedTableLens0();
       // bigdecimal is stored as double mv column. map the types to avoid class exception
       // when double is added to a XBDDoubleColumn
       Class[] types2 = Arrays.stream(types)
