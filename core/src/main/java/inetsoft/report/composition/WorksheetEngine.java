@@ -214,7 +214,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    {
       String id = getNextID(entry, user);
       sheet.setID(id);
-      amap.put(id, null);
+      amap.put(id, sheet);
       return id;
    }
 
