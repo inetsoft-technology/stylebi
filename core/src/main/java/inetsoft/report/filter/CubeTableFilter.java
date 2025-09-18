@@ -125,7 +125,7 @@ public class CubeTableFilter extends DefaultTableFilter {
    /**
     * Indexed comparator compares objects by index.
     */
-   private class IndexedComparator implements Comparator, Serializable {
+   private static class IndexedComparator implements Comparator, Serializable {
       public IndexedComparator(Map<Object, Integer> map) {
          super();
          this.map = map;
