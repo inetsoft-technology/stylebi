@@ -220,6 +220,14 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       setEntry(entry, isUpdate);
 
+      if(state.getTemporaryInfo() != null) {
+         temporaryInfo = loadXml(new VSTemporaryInfo(), state.getTemporaryInfo());
+
+         if(temporaryInfo.getTempChart() != null) {
+            temporaryInfo.getTempChart().setViewsheet(vs);
+         }
+      }
+
       // load base worksheet and create asset query sandbox
       resetRuntime();
    }
@@ -2621,6 +2629,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       state.setLayoutPoint(layoutPoint);
       state.setEmbedAssemblyInfo(saveJson(embedAssemblyInfo, mapper));
+
+      if(temporaryInfo != null) {
+         state.setTemporaryInfo(saveXml(temporaryInfo));
+      }
+
       return state;
    }
 

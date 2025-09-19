@@ -19,7 +19,11 @@ package inetsoft.web.vswizard.model.recommender;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import inetsoft.uql.viewsheet.graph.ChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
 
+import java.io.PrintWriter;
 import java.util.List;
 
 public class ChartSubType extends VSSubType {
@@ -189,6 +193,57 @@ public class ChartSubType extends VSSubType {
       }
 
       return idx;
+   }
+
+
+   @Override
+   public void writeAttributes(PrintWriter writer) {
+      super.writeAttributes(writer);
+
+      writer.print(" facet=\"" + facet + "\"");
+      writer.print(" dualAxis=\"" + dualAxis + "\"");
+      writer.print(" heatMap=\"" + heatMap + "\"");
+      writer.print(" wordCloud=\"" + wordCloud + "\"");
+      writer.print(" scatter=\"" + scatter + "\"");
+      writer.print(" scatterMatrix=\"" + scatterMatrix + "\"");
+      writer.print(" donut=\"" + donut + "\"");
+      writer.print(" rotated=\"" + rotated + "\"");
+      writer.print(" histogram=\"" + histogram + "\"");
+      writer.print(" dotplot=\"" + dotplot + "\"");
+   }
+
+   @Override
+   public void writeContents(PrintWriter writer) {
+      if(chartInfo != null) {
+         chartInfo.writeXML(writer);
+      }
+   }
+
+   @Override
+   public void parseAttributes(Element elem) {
+      super.parseAttributes(elem);
+
+      setFacet("true".equalsIgnoreCase(Tool.getAttribute(elem, "facet")));
+      setDualAxis("true".equalsIgnoreCase(Tool.getAttribute(elem, "dualAxis")));
+      setHeatMap("true".equalsIgnoreCase(Tool.getAttribute(elem, "heatMap")));
+      setWordCloud("true".equalsIgnoreCase(Tool.getAttribute(elem, "wordCloud")));
+      setScatter("true".equalsIgnoreCase(Tool.getAttribute(elem, "scatter")));
+      setScatterMatrix("true".equalsIgnoreCase(Tool.getAttribute(elem, "scatterMatrix")));
+      setDonut("true".equalsIgnoreCase(Tool.getAttribute(elem, "donut")));
+      setRotated("true".equalsIgnoreCase(Tool.getAttribute(elem, "rotated")));
+      setHistogram("true".equalsIgnoreCase(Tool.getAttribute(elem, "histogram")));
+      setDotplot("true".equalsIgnoreCase(Tool.getAttribute(elem, "dotplot")));
+   }
+
+   @Override
+   public void parseContents(Element elem) throws Exception {
+      super.parseContents(elem);
+
+      Element enode = Tool.getChildNodeByTagName(elem, "VSChartInfo");
+
+      if(enode != null) {
+         chartInfo = VSChartInfo.createVSChartInfo(enode);
+      }
    }
 
    private boolean facet = false;

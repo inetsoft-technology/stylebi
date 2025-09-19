@@ -22,18 +22,15 @@ import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.util.ConfigurationContext;
 import inetsoft.util.audit.SessionRecord;
 import inetsoft.web.admin.server.NodeProtectionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.ApplicationEvent;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.session.*;
-import org.springframework.session.events.*;
 import org.springframework.util.Assert;
 
 import javax.cache.Cache;
@@ -56,7 +53,7 @@ public class IgniteSessionRepository
    }
 
    @Override
-   public void afterPropertiesSet() throws Exception {
+   public void afterPropertiesSet() {
       authenticationService.addSessionListener(this);
       this.cluster = Cluster.getInstance();
       this.sessions = cluster.getCache(
@@ -67,11 +64,6 @@ public class IgniteSessionRepository
    @Override
    public void destroy() throws Exception {
       this.cluster.removeReplicatedMapListener(this.sessionMapName, this);
-   }
-
-   public void setApplicationEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-      Objects.requireNonNull(applicationEventPublisher, "ApplicationEventPublisher cannot be null");
-      this.eventPublisher = applicationEventPublisher;
    }
 
    public void setSessionMapName(String sessionMapName) {
@@ -94,7 +86,6 @@ public class IgniteSessionRepository
       this.sessionIdGenerator = sessionIdGenerator;
    }
 
-   @SuppressWarnings("ClassEscapesDefinedScope")
    @Override
    public IgniteSession createSession() {
       MapSession cached = new MapSession(this.sessionIdGenerator);
@@ -131,7 +122,6 @@ public class IgniteSessionRepository
       }
    }
 
-   @SuppressWarnings("ClassEscapesDefinedScope")
    @Override
    public void save(IgniteSession session) {
       if(session.isNew) {
@@ -175,7 +165,7 @@ public class IgniteSessionRepository
          SRPrincipal oldPrincipal = null;
          SRPrincipal newPrincipal = null;
 
-         if(delta != null && delta.containsKey(RepletRepository.PRINCIPAL_COOKIE)) {
+         if(delta.containsKey(RepletRepository.PRINCIPAL_COOKIE)) {
             principalChanged = true;
             oldPrincipal = session.getDelegate().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
             newPrincipal = (SRPrincipal) delta.get(RepletRepository.PRINCIPAL_COOKIE);
@@ -185,7 +175,7 @@ public class IgniteSessionRepository
          SRPrincipal emOldPrincipal = null;
          SRPrincipal emNewPrincipal = null;
 
-         if(delta != null && delta.containsKey(RepletRepository.EM_PRINCIPAL_COOKIE)) {
+         if(delta.containsKey(RepletRepository.EM_PRINCIPAL_COOKIE)) {
             emPrincipalChanged = true;
             emOldPrincipal = session.getDelegate().getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
             emNewPrincipal = (SRPrincipal) delta.get(RepletRepository.EM_PRINCIPAL_COOKIE);
@@ -196,20 +186,19 @@ public class IgniteSessionRepository
             lastAccessedTime, maxInactiveInterval, delta);
 
          if(principalChanged) {
-            eventPublisher.publishEvent(
-               new PrincipalChangedEvent(this, oldPrincipal, newPrincipal, session, false));
+            sendApplicationEvent(
+               new PrincipalChangedEvent(this.getClass().getName(), oldPrincipal, newPrincipal, session.getId(), false));
          }
 
          if(emPrincipalChanged) {
-            eventPublisher.publishEvent(
-               new PrincipalChangedEvent(this, emOldPrincipal, emNewPrincipal, session, true));
+            sendApplicationEvent(
+               new PrincipalChangedEvent(this.getClass().getName(), emOldPrincipal, emNewPrincipal, session.getId(), true));
          }
       }
 
       session.clearChangeFlags();
    }
 
-   @SuppressWarnings("ClassEscapesDefinedScope")
    @Override
    public IgniteSession findById(String id) {
       MapSession saved = this.sessions.get(id);
@@ -230,10 +219,9 @@ public class IgniteSessionRepository
    public void deleteById(String id) {
       Session session = this.sessions.get(id);
       this.sessions.remove(id);
-      this.eventPublisher.publishEvent(new SessionExpiredEvent(this, session));
+      sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
    }
 
-   @SuppressWarnings("ClassEscapesDefinedScope")
    @Override
    public Map<String, IgniteSession> findByIndexNameAndIndexValue(String indexName,
                                                                   String indexValue)
@@ -264,7 +252,7 @@ public class IgniteSessionRepository
 
       if(session.getId().equals(session.getOriginalId())) {
          LOG.debug("Session created with ID: {}", session.getId());
-         this.eventPublisher.publishEvent(new SessionCreatedEvent(this, session));
+         sendApplicationEvent(new SessionCreatedEvent(this.getClass().getName(), session));
       }
    }
 
@@ -279,8 +267,17 @@ public class IgniteSessionRepository
 
       if(session != null) {
          LOG.debug("Session deleted with ID: {}", session.getId());
-         this.eventPublisher.publishEvent(new SessionDeletedEvent(this, session));
+         sendApplicationEvent(new SessionDeletedEvent(this.getClass().getName(), session));
          logout(session, "");
+      }
+   }
+
+   private void sendApplicationEvent(ApplicationEvent event) {
+      try {
+         cluster.sendMessage(event);
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to send application event", e);
       }
    }
 
@@ -288,7 +285,7 @@ public class IgniteSessionRepository
    public void entryExpired(EntryEvent<String, MapSession> event) {
       LOG.debug("Session expired with ID: {}", event.getOldValue().getId());
       logout(event.getOldValue(), SessionRecord.LOGOFF_SESSION_TIMEOUT);
-      this.eventPublisher.publishEvent(new SessionExpiredEvent(this, event.getOldValue()));
+      sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), event.getOldValue()));
    }
 
    private void logout(Session session, String logoffReason) {
@@ -300,7 +297,7 @@ public class IgniteSessionRepository
             authenticationService.logout(principal, remoteHost, logoffReason);
          }
 
-         this.eventPublisher.publishEvent(new PrincipalChangedEvent(this, srp, null, session, false));
+         sendApplicationEvent(new PrincipalChangedEvent(this.getClass().getName(), srp, null, session.getId(), false));
       }
    }
 
@@ -310,12 +307,12 @@ public class IgniteSessionRepository
    }
 
    @Override
-   public void loggedIn(SessionEvent event) {
+   public void loggedIn(inetsoft.sree.security.SessionEvent event) {
       // no-op
    }
 
    @Override
-   public void loggedOut(SessionEvent event) {
+   public void loggedOut(inetsoft.sree.security.SessionEvent event) {
       if(event.isInvalidateSession()) {
          Principal principal = event.getPrincipal();
 
@@ -348,7 +345,7 @@ public class IgniteSessionRepository
 
       if(session != null) {
          this.sessions.remove(id);
-         this.eventPublisher.publishEvent(new SessionExpiredEvent(this, session));
+         sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
       }
    }
 
@@ -376,8 +373,8 @@ public class IgniteSessionRepository
                   (currentTime - lastProtectionWarningTime) >= PROTECTION_EXPIRATION_WARNING_INTERVAL)
                {
                   session.setAttribute(LAST_PROTECTION_WARNING_TIME_ATTR, currentTime);
-                  eventPublisher.publishEvent(new SessionExpiringSoonEvent(
-                     this, new IgniteSession(session, false), protectionRemainingTime, true,
+                  sendApplicationEvent(new SessionExpiringSoonEvent(
+                     this.getClass().getName(), new IgniteSession(session, false), protectionRemainingTime, true,
                      true));
                }
             }
@@ -388,35 +385,27 @@ public class IgniteSessionRepository
                session.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR) != null)
             {
                session.removeAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
-               eventPublisher.publishEvent(new SessionExpiringSoonEvent(
-               this, new IgniteSession(session, false), protectionRemainingTime, false,
+               sendApplicationEvent(new SessionExpiringSoonEvent(
+                  this.getClass().getName(), new IgniteSession(session, false), protectionRemainingTime, false,
                true));
             }
 
             // warn the user if remaining time is less than EXPIRATION_WARNING_TIME
             if(sessionRemainingTime <= SESSION_EXPIRATION_WARNING_TIME) {
                session.setAttribute(EXPIRING_SOON_ATTR, true);
-               eventPublisher.publishEvent(new SessionExpiringSoonEvent(
-                  this, new IgniteSession(session, false), protectionRemainingTime, true,
+               sendApplicationEvent(new SessionExpiringSoonEvent(
+                  this.getClass().getName(), new IgniteSession(session, false), sessionRemainingTime, true,
                   false));
             }
             else if(Boolean.TRUE.equals(session.getAttribute(EXPIRING_SOON_ATTR))) {
                session.removeAttribute(EXPIRING_SOON_ATTR);
-               eventPublisher.publishEvent(new SessionExpiringSoonEvent(
-                  this, new IgniteSession(session, false), protectionRemainingTime, false,
+               sendApplicationEvent(new SessionExpiringSoonEvent(
+                  this.getClass().getName(), new IgniteSession(session, false), sessionRemainingTime, false,
                   false));
             }
          }
       }
    }
-
-   private ApplicationEventPublisher eventPublisher = e -> {
-      ApplicationContext context = ConfigurationContext.getContext().getApplicationContext();
-
-      if(context != null) {
-         context.publishEvent(e);
-      }
-   };
 
    private String sessionMapName = DEFAULT_SESSION_MAP_NAME;
    private FlushMode flushMode = FlushMode.ON_SAVE;

@@ -573,20 +573,18 @@ public class EventAspect {
 
    @Before("@annotation(SwitchOrg) && within(inetsoft.web..*)")
    public void beforeController(JoinPoint joinPoint) throws Exception {
-      Object[] args = joinPoint.getArgs();
+      Principal contextPrincipal = ThreadContext.getContextPrincipal();
 
-      for(Object arg : args) {
-         if(arg instanceof SRPrincipal) {
-            principal = (SRPrincipal) arg;
-         }
-      }
-
-      if(Organization.getDefaultOrganizationID().equals(principal.getOrgId())) {
+      if(!(contextPrincipal instanceof XPrincipal xPrincipal) ||
+         Organization.getDefaultOrganizationID().equals(xPrincipal.getOrgId()))
+      {
          return;
       }
 
+      Object[] args = joinPoint.getArgs();
       Annotation[][] parameterAnnotations =
          ((MethodSignature) joinPoint.getSignature()).getMethod().getParameterAnnotations();
+      String orgId = null;
 
       for(int i = 0; i < parameterAnnotations.length; i++) {
          for(int j = 0; j < parameterAnnotations[i].length; j++) {
@@ -610,7 +608,7 @@ public class EventAspect {
          return;
       }
 
-      switchOrganization(orgId, principal);
+      switchOrganization(orgId);
    }
 
    @After("@annotation(SwitchOrg) && within(inetsoft.web..*)")
@@ -644,9 +642,8 @@ public class EventAspect {
       private Object parameter;
    }
 
-   public static void switchOrganization(String orgID, Principal principal) throws Exception {
+   public static void switchOrganization(String orgID) {
       OrganizationContextHolder.setCurrentOrgId(orgID);
-      ThreadContext.setContextPrincipal(principal);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
@@ -656,7 +653,5 @@ public class EventAspect {
    private final EventAspectServiceProxy eventAspectServiceProxy;
    private final Timer timer = new Timer();
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
-   private String orgId;
-   private SRPrincipal principal;
    private static final Logger LOG = LoggerFactory.getLogger(EventAspect.class);
 }

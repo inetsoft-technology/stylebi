@@ -18,7 +18,17 @@
 package inetsoft.web.vswizard.model.recommender;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import inetsoft.uql.erm.AbstractDataRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.viewsheet.graph.ChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 
 public class VSFilterRecommendation extends VSAbstractObjectRecommendation {
    public VSFilterRecommendation() {
@@ -37,6 +47,36 @@ public class VSFilterRecommendation extends VSAbstractObjectRecommendation {
     */
    public DataRef[] getDataRefs() {
       return this.refs;
+   }
+
+   @Override
+   public void writeContents(PrintWriter writer) {
+      super.writeContents(writer);
+
+      if(refs == null || refs.length == 0) {
+         return;
+      }
+
+      for(int i = 0; i < refs.length; i++) {
+         DataRef ref = refs[i];
+         ref.writeXML(writer);
+      }
+   }
+
+   @Override
+   protected void parseContents(Element elem) throws Exception {
+      super.parseContents(elem);
+
+      NodeList list = Tool.getChildNodesByTagName(elem, "dataRef");
+      refs = new DataRef[list.getLength()];
+
+      for(int i = 0; i < list.getLength(); i++) {
+         Element item = (Element) list.item(i);
+
+         if(item != null) {
+            refs[i] = AbstractDataRef.createDataRef(item);
+         }
+      }
    }
 
    @JsonIgnore
