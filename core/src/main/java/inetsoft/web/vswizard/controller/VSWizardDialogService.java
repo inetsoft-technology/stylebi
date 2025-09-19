@@ -99,6 +99,7 @@ public class VSWizardDialogService {
       }
       finally {
          box.unlockWrite();
+         viewsheetService.flushRuntimeSheet(runtimeId);
       }
 
       SaveSheetCommand command = SaveSheetCommand.builder()

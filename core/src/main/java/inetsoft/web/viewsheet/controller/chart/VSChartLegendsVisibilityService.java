@@ -79,7 +79,9 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
                RuntimeViewsheet rtv = getViewsheetEngine().getViewsheet(runtimeId, principal);
                VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rtv);
                temporaryInfo.setShowLegend(!event.isHide());
-            } catch (Exception ex) {
+               getViewsheetEngine().flushRuntimeSheet(runtimeId);
+            }
+            catch (Exception ex) {
                throw new RuntimeException(ex);
             }
          }

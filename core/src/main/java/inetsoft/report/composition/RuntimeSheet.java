@@ -613,6 +613,14 @@ public abstract class RuntimeSheet {
       }
    }
 
+   public long getModified() {
+      return modified;
+   }
+
+   public void setModified(long modified) {
+      this.modified = modified;
+   }
+
    static final class XSwappableSheetList {
       public XSwappableSheetList(XPrincipal contextPrincipal) {
          this.values = new LinkedList<>();
@@ -901,6 +909,7 @@ public abstract class RuntimeSheet {
    private long heartbeat = System.currentTimeMillis(); // heartbeat timestamp
    private Map<String, Object> prop = new HashMap<>();
    private String previousURL;
+   private long modified;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeSheet.class);

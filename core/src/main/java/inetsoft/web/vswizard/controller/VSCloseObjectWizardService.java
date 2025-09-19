@@ -26,6 +26,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
@@ -85,6 +86,9 @@ public class VSCloseObjectWizardService {
          return null;
       }
 
+      System.err.println("\n----0---closeobject wizard---" + vsId +"----"
+                            + rvs.getViewsheet().getAssemblies().length  + "---" + rvs.hashCode() + "---" + Tool.getIP());
+
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
       // shouldn't hold up save/close a vs by a long running query/filter since the
       // saved info doesn't need the runtime data.
@@ -129,6 +133,11 @@ public class VSCloseObjectWizardService {
                updateAllCalcField(vs, orvs.getViewsheet());
             }
 
+            System.err.println("\n----1---closeobject wizard---" + vsId +"----"
+                                  + rvs.getViewsheet().getAssemblies().length  + "---" + rvs.hashCode() + "---" + Tool.getIP());
+
+
+            viewsheetService.flushRuntimeSheet(vsId);
             return null;
          }
 
@@ -198,6 +207,9 @@ public class VSCloseObjectWizardService {
 
          model = objectModelService.createModel(tempAssembly, orvs);
          orvs.addCheckpoint(orvs.getViewsheet().prepareCheckpoint());
+         String orid = rvs.getOriginalID();
+         orid = orid == null ? vsId : orid;
+         viewsheetService.flushRuntimeSheet(vsId);
 
          UpdateUndoStateCommand command = new UpdateUndoStateCommand();
          command.setPoints(orvs.size());

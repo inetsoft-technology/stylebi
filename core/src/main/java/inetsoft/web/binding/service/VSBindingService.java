@@ -1820,6 +1820,7 @@ public class VSBindingService {
          orvs.addCheckpoint(nvs.prepareCheckpoint());
       }
 
+      engine.flushRuntimeSheet(oid == null ? nid : oid);
       engine.closeViewsheet(nid, principal);
 
       return oid;
