@@ -19,7 +19,13 @@ package inetsoft.web.vswizard.model.recommender;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import inetsoft.uql.viewsheet.graph.ChartInfo;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
+import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.List;
 
 public class VSChartRecommendation extends VSAbstractObjectRecommendation {
@@ -39,6 +45,36 @@ public class VSChartRecommendation extends VSAbstractObjectRecommendation {
     */
    public List<ChartInfo> getChartInfos() {
       return this.chartInfos;
+   }
+
+   @Override
+   public void writeContents(PrintWriter writer) {
+      super.writeContents(writer);
+
+      if(chartInfos == null || chartInfos.isEmpty()) {
+         return;
+      }
+
+      for(int i = 0; i < chartInfos.size(); i++) {
+         ChartInfo info = chartInfos.get(i);
+         info.writeXML(writer);
+      }
+   }
+
+   @Override
+   protected void parseContents(Element elem) throws Exception {
+      super.parseContents(elem);
+
+      NodeList list = Tool.getChildNodesByTagName(elem, "VSChartInfo");
+      List<ChartInfo> chartInfos = new ArrayList<>();
+
+      for(int i = 0; i < list.getLength(); i++) {
+         Element item = (Element) list.item(i);
+
+         if(item != null) {
+            chartInfos.add(VSChartInfo.createVSChartInfo(item));
+         }
+      }
    }
 
    @JsonIgnore

@@ -115,12 +115,15 @@ public class RuntimeWorksheet extends RuntimeSheet
          vars = loadJson(VariableTable.class, state.getVars(), mapper);
       }
 
-      box = new AssetQuerySandbox(ws, (XPrincipal) getUser(), vars);
-      box.setWSName(entry.getSheetName());
-      box.setWSEntry(entry);
-      box.setBaseUser(user);
-      box.setActive(true);
-      box.setQueryManager(new QueryManager());
+      if(entry != null) {
+         box = new AssetQuerySandbox(ws, (XPrincipal) getUser(), vars);
+         box.setWSName(entry.getSheetName());
+         box.setWSEntry(entry);
+         box.setBaseUser(user);
+         box.setActive(true);
+         box.setQueryManager(new QueryManager());
+      }
+
       preview = state.isPreview();
       gettingStarted = state.isGettingStarted();
       pid = state.getPid();
