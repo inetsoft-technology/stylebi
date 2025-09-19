@@ -86,14 +86,6 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       return impl.getSelectedTheme(user);
    }
 
-   public void save() {
-      impl.save();
-   }
-
-   public void loadThemes() {
-      impl.loadThemes();
-   }
-
    public void reloadThemes(String path) {
       if(getCustomThemes() == null || getCustomThemes().isEmpty()) {
          return;
@@ -117,12 +109,15 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       });
 
       setCustomThemes(newThemes);
-      save();
    }
 
    @Override
    public void close() throws Exception {
       impl.close();
+   }
+
+   public void loadThemes() {
+      impl.loadThemes();
    }
 
    @Override

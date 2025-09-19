@@ -75,7 +75,12 @@ public class CustomThemesImpl implements XMLSerializable, AutoCloseable {
       return "default";
    }
 
-   public void save() {
+   @Override
+   public void writeXML(PrintWriter writer) {
+   }
+
+   @Override
+   public void parseXML(Element tag) throws Exception {
    }
 
    public void loadThemes() {
@@ -83,13 +88,5 @@ public class CustomThemesImpl implements XMLSerializable, AutoCloseable {
 
    @Override
    public void close() throws Exception {
-   }
-
-   @Override
-   public void writeXML(PrintWriter writer) {
-   }
-
-   @Override
-   public void parseXML(Element tag) throws Exception {
    }
 }
