@@ -164,8 +164,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
       mode = state.getMode();
       rep = (AssetRepository) AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
 
-      //need to resetRuntime to repopulate ws before repopulating box
-      resetRuntime();
+      //need to recover worksheet before setting box
+      vs.repopulateWorksheet(rep, user);
+
       box = new ViewsheetSandbox(vs, mode, getUser(), entry);
       box.setOriginalID(state.getOriginalId());
       execSessionID = state.getExecSessionId();
