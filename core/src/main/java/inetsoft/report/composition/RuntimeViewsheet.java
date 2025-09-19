@@ -163,6 +163,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       needRefresh = state.isNeedsRefresh();
       mode = state.getMode();
       box = new ViewsheetSandbox(vs, mode, getUser(), entry);
+      box.setOriginalID(state.getOriginalId());
       rep = (AssetRepository) AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
       execSessionID = state.getExecSessionId();
       touchts = state.getTouchts();
@@ -2571,6 +2572,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       state.setTouchts(touchts);
       state.setTipviews(tipviews);
       state.setPopcomponents(popcomponents);
+      state.setOriginalId(getOriginalID());
 
       if(bookmarksMap == null) {
          state.setBookmarksMap(null);

@@ -743,10 +743,10 @@ public class QueryManagerService {
       query = runtimeQuery.getQuery();
       runtimeQuery.initQueryAliasMapping();
       initQuerySelectedTables(runtimeQuery);
-      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCUtil.fixTableLocation(sql);
       fixUniformSQLInfo(sql, (JDBCDataSource) query.getDataSource(), principal);
+      runtimeQueryService.saveRuntimeQuery(runtimeQuery);
 
       model.setRuntimeId(runtimeQuery.getId());
       model.setDataSource(query.getDataSource() == null ? null :

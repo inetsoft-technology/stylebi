@@ -203,6 +203,13 @@ class RuntimeViewsheetState extends RuntimeSheetState {
 
    public void setTemporaryInfo(String temporaryInfo) {
       this.temporaryInfo = temporaryInfo;
+
+   public String getOriginalId() {
+      return originalId;
+   }
+
+   public void setOriginalId(String originalId) {
+      this.originalId = originalId;
    }
 
    @Override
@@ -232,7 +239,8 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          Objects.equals(rvsLayout, that.rvsLayout) &&
          Objects.equals(layoutPoints, that.layoutPoints) &&
          Objects.equals(embedAssemblyInfo, that.embedAssemblyInfo) &&
-         Objects.equals(temporaryInfo, that.temporaryInfo);
+         Objects.equals(temporaryInfo, that.temporaryInfo) &&
+         Objects.equals(originalId, that.originalId);
    }
 
    @Override
@@ -241,7 +249,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          super.hashCode(), bindingId, vs, originalVs, vars, viewer, preview, needsRefresh, mode,
          execSessionId, touchts, tipviews, popcomponents, bookmarksMap, ibookmark, openedBookmark,
          lastReset, dateCreated, rvsLayout, layoutPoints, layoutPoint,  wizardViewsheet,
-         embedAssemblyInfo, temporaryInfo);
+         embedAssemblyInfo, temporaryInfo, originalId);
    }
 
    @Override
@@ -268,12 +276,14 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          ", layoutPoints='" + layoutPoints + '\'' +
          ", layoutPoint=" + layoutPoint +
          ", wizardViewsheet=" + wizardViewsheet +
+         ", originalId=" + originalId +
          ", embedAssemblyInfo='" + embedAssemblyInfo + '\'' +
          ", temporaryInfo='" + temporaryInfo + '\'' +
          '}';
    }
 
    private String bindingId;
+   private String originalId;
    private String vs;
    private String originalVs;
    private String vars;

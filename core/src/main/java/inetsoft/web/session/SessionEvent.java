@@ -19,26 +19,22 @@
 package inetsoft.web.session;
 
 import inetsoft.sree.RepletRepository;
+import inetsoft.web.security.AbstractLogoutFilter;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.session.Session;
 
 import java.security.Principal;
 
-public class SessionExpiringSoonEvent extends ApplicationEvent {
-   private final String sessionId;
-   private final long remainingTime;
-   private final boolean expiringSoon;
-   private final boolean nodeProtection;
-   private final Principal principalCookie;
-
-   public SessionExpiringSoonEvent(Object source, Session session, long remainingTime,
-                                   boolean expiringSoon, boolean nodeProtection)
-   {
+public class SessionEvent extends ApplicationEvent {
+   public SessionEvent(Object source, Session session) {
       super(source);
+
+      if(session == null) {
+         throw new IllegalArgumentException("Session cannot be null");
+      }
+
       this.sessionId = session.getId();
-      this.remainingTime = remainingTime;
-      this.expiringSoon = expiringSoon;
-      this.nodeProtection = nodeProtection;
+      this.loggedOutAttribute = session.getAttribute(AbstractLogoutFilter.LOGGED_OUT);
       this.principalCookie = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
    }
 
@@ -50,15 +46,21 @@ public class SessionExpiringSoonEvent extends ApplicationEvent {
       return principalCookie;
    }
 
-   public long getRemainingTime() {
-      return remainingTime;
+   public Object getLoggedOutAttribute() {
+      return loggedOutAttribute;
    }
 
-   public boolean isExpiringSoon() {
-      return expiringSoon;
+   @Override
+   public String toString() {
+      return this.getClass().getName() + "{" +
+         "sessionId='" + sessionId + '\'' +
+         ", loggedOutAttribute=" + loggedOutAttribute +
+         ", principalCookie=" + principalCookie +
+         ", source=" + getSource() +
+         '}';
    }
 
-   public boolean isNodeProtection() {
-      return nodeProtection;
-   }
+   private final String sessionId;
+   private final Object loggedOutAttribute;
+   private final Principal principalCookie;
 }
