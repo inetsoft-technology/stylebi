@@ -648,6 +648,29 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       return true;
    }
 
+   public void repopulateWorksheet(AssetRepository rep, Principal user) {
+      Worksheet ws = null;
+
+      try {
+         if(wentry != null && wentry.isWorksheet()) {
+            ws = wentry == null ? null :
+               (Worksheet) rep.getSheet(wentry, null, false, AssetContent.ALL);
+
+            if(ws != null) {
+               ws.getWorksheetInfo().setDesignMaxRows(vinfo.getDesignMaxRows());
+            }
+         }
+         else if(isDirectSource()) {
+            ws = getWorksheet(rep, wentry, user);
+         }
+
+         setBaseWorksheet(ws);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to update viewsheet baseWorksheet", ex);
+      }
+   }
+
    private void updateVSAssembly(VSAssembly vsAssembly, VSAssembly newAssembly) {
       for(int i = 0; i < assemblies.size(); i++) {
          if(assemblies.get(i).equals(vsAssembly)) {

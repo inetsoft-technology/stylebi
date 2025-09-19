@@ -142,6 +142,14 @@ class RuntimeSheetState {
       isLockProcessed = lockProcessed;
    }
 
+   public boolean isUpdate() {
+      return isUpdate;
+   }
+
+   public void setUpdate(boolean update) {
+      isUpdate = update;
+   }
+
    public boolean isDisposed() {
       return disposed;
    }
@@ -246,4 +254,5 @@ class RuntimeSheetState {
    private long heartbeat;
    private String prop;
    private String previousURL;
+   private boolean isUpdate = false;
 }
