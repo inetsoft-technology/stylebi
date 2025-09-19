@@ -394,13 +394,13 @@ public class IgniteSessionRepository
             if(sessionRemainingTime <= SESSION_EXPIRATION_WARNING_TIME) {
                session.setAttribute(EXPIRING_SOON_ATTR, true);
                sendApplicationEvent(new SessionExpiringSoonEvent(
-                  this.getClass().getName(), new IgniteSession(session, false), protectionRemainingTime, true,
+                  this.getClass().getName(), new IgniteSession(session, false), sessionRemainingTime, true,
                   false));
             }
             else if(Boolean.TRUE.equals(session.getAttribute(EXPIRING_SOON_ATTR))) {
                session.removeAttribute(EXPIRING_SOON_ATTR);
                sendApplicationEvent(new SessionExpiringSoonEvent(
-                  this.getClass().getName(), new IgniteSession(session, false), protectionRemainingTime, false,
+                  this.getClass().getName(), new IgniteSession(session, false), sessionRemainingTime, false,
                   false));
             }
          }
