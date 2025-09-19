@@ -3088,7 +3088,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    refreshContextType(): void {
-      this.aiAssistantService.contextType =
-         this.focusedSheet ? this.focusedSheet.type : ContextType.VIEWSHEET;
+      this.aiAssistantService.setContextTypeFiledValue(
+         this.focusedSheet ? this.focusedSheet.type : ContextType.VIEWSHEET);
    }
 }

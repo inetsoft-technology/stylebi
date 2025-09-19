@@ -62,7 +62,7 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
                private assetLoadingService: AssetLoadingService,
                private aiAssistantService: AiAssistantService)
    {
-      this.aiAssistantService.contextType = "Dashboard Portal";
+      this.aiAssistantService.setContextTypeFiledValue("Dashboard Portal");
 
       this.subscriptions.add(dashboardService.newDashboard.subscribe(
          () => this.newDashboard()

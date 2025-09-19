@@ -25,6 +25,6 @@ import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assist
 })
 export class ScheduleTabComponent {
    constructor(private aiAssistantService: AiAssistantService) {
-      this.aiAssistantService.contextType = "schedule task";
+      this.aiAssistantService.setContextTypeFiledValue("schedule task");
    }
 }
