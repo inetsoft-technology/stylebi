@@ -74,6 +74,7 @@ public class RuntimeSheetCache
                      switch(eventType) {
                      case CREATED:
                      case UPDATED:
+                        value.setUpdate(true);
                         local.put(key, toSheet(value));
                         break;
                      case REMOVED:
