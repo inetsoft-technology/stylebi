@@ -203,7 +203,8 @@ class RuntimeViewsheetState extends RuntimeSheetState {
 
    public void setTemporaryInfo(String temporaryInfo) {
       this.temporaryInfo = temporaryInfo;
-
+   }
+   
    public String getOriginalId() {
       return originalId;
    }
