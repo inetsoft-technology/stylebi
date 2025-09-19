@@ -366,7 +366,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   principal.setProperty("__internal__", "true");
                   users.remove(user);
                   principal.setProperty("login.user", "true");
-                  users.put(user, principal);
+                  users.put(user.getCacheKey(), principal);
                   ConnectionProcessor.getInstance().setAdditionalDatasource(principal);
                }
             }
@@ -410,7 +410,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
                users.remove(user);
                principal.setProperty("login.user", "true");
-               users.put(user, principal);
+               users.put(user.getCacheKey(), principal);
             }
          }
       }
@@ -1379,6 +1379,11 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          }
 
          SRPrincipal srPrincipal2 = users.get(srPrincipal.getUser());
+
+         ClientInfo k1 = srPrincipal.getUser();
+         for(ClientInfo k2 : users.keySet()) {
+            System.out.println("equals? " + k1.equals(k2) + ", hash1=" + k1.hashCode() + ", hash2=" + k2.hashCode());
+         }
 
          if(srPrincipal2 == null) {
             // anonymous users are not added to the users map. allow anonymous users if they exist
