@@ -77,6 +77,10 @@ public class ClientInfo implements Cloneable, Serializable, XMLSerializable {
       this.locale = locale;
    }
 
+   public ClientInfo getCacheKey() {
+      return new ClientInfo(userID, addr, session, locale);
+   }
+
    /**
     * Returns the user name.
     *
