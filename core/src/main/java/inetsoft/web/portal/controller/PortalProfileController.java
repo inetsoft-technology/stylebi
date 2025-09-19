@@ -39,6 +39,7 @@ import inetsoft.util.graphics.SVGSupport;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.profile.Profile;
 import inetsoft.util.profile.ProfileInfo;
+import inetsoft.web.composer.vs.dialog.PropertyDialogServiceProxy;
 import inetsoft.web.reportviewer.HandleExceptions;
 import inetsoft.web.reportviewer.model.ProfileTableDataEvent;
 import inetsoft.web.viewsheet.model.PreviewTableCellModel;
@@ -64,9 +65,12 @@ import java.util.zip.GZIPOutputStream;
 
 @RestController
 public class PortalProfileController {
+   private final PropertyDialogServiceProxy propertyDialogServiceProxy;
+
    @Autowired
-   public PortalProfileController(PortalProfileServiceProxy portalProfileServiceProxy) {
+   public PortalProfileController(PortalProfileServiceProxy portalProfileServiceProxy, PropertyDialogServiceProxy propertyDialogServiceProxy) {
       this.portalProfileServiceProxy = portalProfileServiceProxy;
+      this.propertyDialogServiceProxy = propertyDialogServiceProxy;
    }
 
    @GetMapping("/api/portal/profile/group-by")
@@ -75,22 +79,24 @@ public class PortalProfileController {
                                             @RequestParam("isViewsheet") boolean isViewsheet,
                                             Principal principal) throws Exception
    {
-      String recordsKey = portalProfileServiceProxy.getRecordsKey(name, isViewsheet, principal);
       Catalog catalog = Catalog.getCatalog(principal);
-      ProfileInfo pinfo = Profile.getInstance().getProfileInfo();
+      PortalProfileService.ProfileResult profileResult = portalProfileServiceProxy.getProfileInfo(name, isViewsheet, principal);
+      ProfileInfo pinfo = profileResult.info;
 
       GroupByFieldList list = new GroupByFieldList();
       list.getFields().add(new GroupByField(catalog.getString("Cycle Name"), "cycle"));
 
-      List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(recordsKey);
+      if(pinfo != null) {
+         List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(profileResult.recordsKey);
 
-      if(records != null) {
-         list.getFields().addAll(records.stream()
-            .flatMap(r -> r.getContexts().stream())
-            .distinct()
-            .sorted()
-            .map(c -> new GroupByField(getContextLabel(c, catalog), c.name()))
-            .collect(Collectors.toList()));
+         if(records != null) {
+            list.getFields().addAll(records.stream()
+                                       .flatMap(r -> r.getContexts().stream())
+                                       .distinct()
+                                       .sorted()
+                                       .map(c -> new GroupByField(getContextLabel(c, catalog), c.name()))
+                                       .collect(Collectors.toList()));
+         }
       }
 
       return list;
@@ -107,7 +113,7 @@ public class PortalProfileController {
       throws Exception
    {
       Object[][] data =
-         prepareChartData(portalProfileServiceProxy.getRecordsKey(name, isViewsheet, principal), groupBy, principal);
+         prepareChartData(portalProfileServiceProxy.getProfileInfo(name, isViewsheet, principal), groupBy, principal);
       Catalog catalog = Catalog.getCatalog(principal);
       String xTitle = "cycle".equals(groupBy) ? catalog.getString(CHART_X_TITLE) :
          getContextLabel(LogContext.valueOf(groupBy), catalog);
@@ -151,7 +157,7 @@ public class PortalProfileController {
       Principal principal) throws Exception
    {
       Object[][] data = getTableData(showSummarize,
-          portalProfileServiceProxy.getRecordsKey(event.getObjectName(), isViewsheet, principal), timeZone, principal);
+          portalProfileServiceProxy.getProfileInfo(event.getObjectName(), isViewsheet, principal), timeZone, principal);
 
       if(data == null) {
          return null;
@@ -186,7 +192,7 @@ public class PortalProfileController {
                              HttpServletResponse response, Principal principal) throws Exception
    {
       Object[][] data =
-         getTableData(false, portalProfileServiceProxy.getRecordsKey(name, isViewsheet, principal), timeZone, principal);
+         getTableData(false, portalProfileServiceProxy.getProfileInfo(name, isViewsheet, principal), timeZone, principal);
 
       if(data == null) {
          data = new Object[][] {
@@ -210,11 +216,17 @@ public class PortalProfileController {
       }
    }
 
-   private Object[][] getTableData(boolean showSummarize, String name, String timeZone,
+   private Object[][] getTableData(boolean showSummarize, PortalProfileService.ProfileResult profileResult, String timeZone,
                                    Principal principal)
    {
       Catalog catalog = Catalog.getCatalog(principal);
-      ProfileInfo pinfo = Profile.getInstance().getProfileInfo();
+      ProfileInfo pinfo = profileResult.info;
+      String name = profileResult.recordsKey;
+
+      if(pinfo == null) {
+         return null;
+      }
+
       List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(name);
 
       if(records == null) {
@@ -332,9 +344,10 @@ public class PortalProfileController {
       return end - start;
    }
 
-   private Object[][] prepareChartData(String name, String groupBy, Principal principal) {
+   private Object[][] prepareChartData(PortalProfileService.ProfileResult profileResult, String groupBy, Principal principal) {
       Catalog catalog = Catalog.getCatalog(principal);
-      ProfileInfo pinfo = Profile.getInstance().getProfileInfo();
+      ProfileInfo pinfo = profileResult.info;
+      String name = profileResult.recordsKey;
       Object[] header;
       Stream<Object[]> values;
 
