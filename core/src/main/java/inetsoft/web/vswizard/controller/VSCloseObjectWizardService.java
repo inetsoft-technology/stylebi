@@ -86,9 +86,6 @@ public class VSCloseObjectWizardService {
          return null;
       }
 
-      System.err.println("\n----0---closeobject wizard---" + vsId +"----"
-                            + rvs.getViewsheet().getAssemblies().length  + "---" + rvs.hashCode() + "---" + Tool.getIP());
-
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
       // shouldn't hold up save/close a vs by a long running query/filter since the
       // saved info doesn't need the runtime data.
@@ -132,10 +129,6 @@ public class VSCloseObjectWizardService {
             if(save) {
                updateAllCalcField(vs, orvs.getViewsheet());
             }
-
-            System.err.println("\n----1---closeobject wizard---" + vsId +"----"
-                                  + rvs.getViewsheet().getAssemblies().length  + "---" + rvs.hashCode() + "---" + Tool.getIP());
-
 
             viewsheetService.flushRuntimeSheet(vsId);
             return null;
