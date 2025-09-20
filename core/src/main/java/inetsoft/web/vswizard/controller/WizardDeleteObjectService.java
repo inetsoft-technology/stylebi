@@ -62,6 +62,7 @@ public class WizardDeleteObjectService {
       }
       finally {
          box.unlockWrite();
+         engine.flushRuntimeSheet(vsId);
       }
 
       return null;

@@ -103,6 +103,7 @@ public class VSWizardFormatService {
       }
       finally {
          box.unlockRead();
+         viewsheetService.flushRuntimeSheet(id);
       }
 
       return null;

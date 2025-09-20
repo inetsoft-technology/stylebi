@@ -85,6 +85,8 @@ public class VSWizardObjectToolbarService {
          {
             assembly.setPixelSize(originalAssembly.getPixelSize());
          }
+
+         viewsheetService.flushRuntimeSheet(id);
       }
 
       return null;

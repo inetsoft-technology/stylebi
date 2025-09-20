@@ -119,6 +119,7 @@ public class VSWizardVisualizationService {
       }
       finally {
          box.unlockWrite();
+         viewsheetService.flushRuntimeSheet(id);
       }
 
       return null;

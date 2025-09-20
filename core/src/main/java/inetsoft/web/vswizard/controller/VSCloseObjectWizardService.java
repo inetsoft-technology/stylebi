@@ -26,6 +26,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
@@ -129,6 +130,7 @@ public class VSCloseObjectWizardService {
                updateAllCalcField(vs, orvs.getViewsheet());
             }
 
+            viewsheetService.flushRuntimeSheet(vsId);
             return null;
          }
 
@@ -198,6 +200,9 @@ public class VSCloseObjectWizardService {
 
          model = objectModelService.createModel(tempAssembly, orvs);
          orvs.addCheckpoint(orvs.getViewsheet().prepareCheckpoint());
+         String orid = rvs.getOriginalID();
+         orid = orid == null ? vsId : orid;
+         viewsheetService.flushRuntimeSheet(vsId);
 
          UpdateUndoStateCommand command = new UpdateUndoStateCommand();
          command.setPoints(orvs.size());

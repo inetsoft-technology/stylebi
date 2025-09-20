@@ -59,6 +59,7 @@ public class WizardObjectResizeService {
       }
       finally {
          box.unlockRead();
+         engine.flushRuntimeSheet(vID);
       }
 
       return null;

@@ -169,6 +169,7 @@ public class VSWizardBindingService {
          }
          else {
             refreshBindingRefs(id, event, dispatcher, principal, linkUri);
+            viewsheetService.flushRuntimeSheet(id);
          }
       }
       finally {
@@ -264,6 +265,7 @@ public class VSWizardBindingService {
       }
       finally {
          box.unlockWrite();
+         viewsheetService.flushRuntimeSheet(id);
       }
 
       return null;
@@ -307,6 +309,7 @@ public class VSWizardBindingService {
       }
       finally {
          box.unlockWrite();
+         viewsheetService.flushRuntimeSheet(id);
       }
 
       return null;

@@ -214,6 +214,7 @@ public class VSWizardObjectService {
          }
 
          box.unlockWrite();
+         viewsheetService.flushRuntimeSheet(vsId);
       }
 
       return null;
@@ -390,6 +391,7 @@ public class VSWizardObjectService {
       }
       finally {
          box.unlockRead();
+         viewsheetService.flushRuntimeSheet(id);
       }
 
       return null;
@@ -472,6 +474,7 @@ public class VSWizardObjectService {
       }
       finally {
          box.unlockWrite();
+         viewsheetService.flushRuntimeSheet(rid);
       }
 
       return null;
@@ -510,6 +513,7 @@ public class VSWizardObjectService {
       }
       finally {
          box.unlockRead();
+         viewsheetService.flushRuntimeSheet(id);
       }
 
       return null;
