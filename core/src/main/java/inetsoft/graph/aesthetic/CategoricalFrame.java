@@ -41,4 +41,9 @@ public interface CategoricalFrame {
     * Clear static color assignment set by setColor().
     */
    public void clearStatic();
+
+   /**
+    * Check if the value is assigned by scripts.
+    */
+   public boolean isScripted(Object val);
 }

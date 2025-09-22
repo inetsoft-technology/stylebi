@@ -23,10 +23,12 @@ import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.util.CoreTool;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.*;
+
+import inetsoft.util.script.JavaScriptEngine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class defines a texture frame for categorical values.
@@ -165,9 +167,14 @@ public class CategoricalTextureFrame extends TextureFrame implements Categorical
    public void setTexture(Object val, GTexture texture) {
       if(texture != null) {
          cmap.put(GTool.toString(val), texture);
+
+         if(JavaScriptEngine.isScriptThread()) {
+            scripted.add(GTool.toString(val));
+         }
       }
       else {
          cmap.remove(GTool.toString(val));
+         scripted.remove(GTool.toString(val));
       }
    }
 
@@ -182,6 +189,12 @@ public class CategoricalTextureFrame extends TextureFrame implements Categorical
 
    @Override
    @TernMethod
+   public boolean isScripted(Object val) {
+      return scripted.contains(GTool.toString(val));
+   }
+
+   @Override
+   @TernMethod
    public Set<Object> getStaticValues() {
       return cmap.keySet();
    }
@@ -190,6 +203,7 @@ public class CategoricalTextureFrame extends TextureFrame implements Categorical
    @TernMethod
    public void clearStatic() {
       cmap.clear();
+      scripted.clear();
    }
 
    /**
@@ -221,7 +235,7 @@ public class CategoricalTextureFrame extends TextureFrame implements Categorical
    @Override
    @TernMethod
    public String getUniqueId() {
-      return super.getUniqueId() + new TreeMap(cmap);
+      return super.getUniqueId() + new TreeMap(cmap) + new TreeSet<>(scripted);
    }
 
    /**
@@ -245,7 +259,8 @@ public class CategoricalTextureFrame extends TextureFrame implements Categorical
          }
       }
 
-      return cmap.equals(((CategoricalTextureFrame) obj).cmap);
+      return cmap.equals(((CategoricalTextureFrame) obj).cmap) &&
+         scripted.equals(((CategoricalTextureFrame) obj).scripted);
    }
 
    /**
@@ -258,6 +273,7 @@ public class CategoricalTextureFrame extends TextureFrame implements Categorical
             (CategoricalTextureFrame) super.clone();
          frame.txtrs = txtrs.clone();
          frame.cmap = new HashMap<>(cmap);
+         frame.scripted = new HashSet<>(scripted);
 
          return frame;
       }
@@ -269,6 +285,7 @@ public class CategoricalTextureFrame extends TextureFrame implements Categorical
 
    private GTexture[] txtrs;
    private Map<Object, GTexture> cmap = new HashMap<>();
+   private Set<Object> scripted = new HashSet<>(1);
    private GTexture defaultTexture = null;
 
    private static final long serialVersionUID = 1L;
