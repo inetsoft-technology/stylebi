@@ -65,6 +65,7 @@ public class VSWizardPreviewService {
       vsTemporaryInfo.setDescription(event.getText());
       VSAssembly latestAssembly = WizardRecommenderUtil.getTempAssembly(rvs.getViewsheet());
       bindingHandler.updateTitle(rvs, latestAssembly);
+      viewsheetService.flushRuntimeSheet(id);
 
       return null;
    }
@@ -89,6 +90,8 @@ public class VSWizardPreviewService {
          bindingHandler.fixTempAssemblySize(latestAssembly.getVSAssemblyInfo(), rvs);
          coreLifecycleService.refreshVSAssembly(rvs, latestAssembly, dispatcher);
       }
+
+      viewsheetService.flushRuntimeSheet(id);
 
       return null;
    }

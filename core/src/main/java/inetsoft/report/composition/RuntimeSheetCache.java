@@ -74,7 +74,7 @@ public class RuntimeSheetCache
                      switch(eventType) {
                      case CREATED:
                      case UPDATED:
-                        local.put(key, toSheet(value));
+                        updateLocal(key, toSheet(value));
                         break;
                      case REMOVED:
                      case EXPIRED:
@@ -156,26 +156,33 @@ public class RuntimeSheetCache
 
    @Override
    public RuntimeSheet get(Object key) {
-      if(!(key instanceof String id)) {
-         return null;
+      lock.readLock().lock();
+
+      try {
+         if(!(key instanceof String id)) {
+            return null;
+         }
+
+         RuntimeSheet sheet = local.get(id);
+
+         if(sheet != null) {
+            return sheet;
+         }
+
+         RuntimeSheetState state = cache.get(id);
+
+         if(state == null) {
+            return null;
+         }
+
+         RuntimeSheet loaded = toSheet(state);
+         RuntimeSheet prev = local.putIfAbsent(id, loaded);
+
+         return prev == null ? loaded : prev;
       }
-
-      RuntimeSheet sheet = local.get(id);
-
-      if(sheet != null) {
-         return sheet;
+      finally {
+         lock.readLock().unlock();
       }
-
-      RuntimeSheetState state = cache.get(id);
-
-      if(state == null) {
-         return null;
-      }
-
-      RuntimeSheet loaded = toSheet(state);
-      RuntimeSheet prev = local.putIfAbsent(id, loaded);
-
-      return prev == null ? loaded : prev;
    }
 
    @Override
@@ -205,6 +212,27 @@ public class RuntimeSheetCache
       }
    }
 
+   private void updateLocal(String key, RuntimeSheet sheet) {
+      lock.writeLock().lock();
+
+      try {
+         RuntimeSheet osheet = local.get(key);
+
+         // 1. don't overwrite the latest changes with outdated versions.
+         // 2. don't overwrite local map value with same version value(event caused by operation of same node),
+         //    avoid losing runtime changes during flush.
+         if(sheet != null && osheet != null && sheet.getModified() <= osheet.getModified()) {
+            return;
+         }
+
+         local.put(key, sheet);
+         putToLocal(key, sheet);
+      }
+      finally {
+         lock.writeLock().unlock();
+      }
+   }
+
    private RuntimeSheet putToLocal(String key, RuntimeSheet value) {
       if(applyMaxCount && local.size() >= maxSheetCount && !local.containsKey(key)) {
          for(Iterator<String> i = local.keySet().iterator(); i.hasNext();) {
@@ -218,6 +246,7 @@ public class RuntimeSheetCache
          }
       }
 
+      value.setModified(System.currentTimeMillis());
       return local.put(key, value);
    }
 
@@ -351,10 +380,10 @@ public class RuntimeSheetCache
          RuntimeSheet sheet = local.get(key);
 
          if(sheet == null) {
-            cache.removeAsync(key);
+            cache.remove(key);
          }
          else {
-            cache.putAsync(key, sheet.saveState(mapper));
+            cache.put(key, sheet.saveState(mapper));
          }
       }
       finally {
