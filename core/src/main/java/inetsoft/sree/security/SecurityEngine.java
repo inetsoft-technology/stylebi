@@ -351,7 +351,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       }
       else if(ClientInfo.ANONYMOUS.equals(user.getLoginUserID().name)) {
          if(containsAnonymous(user.getUserIdentity().getOrgID())) {
-            principal = users.get(user);
+            principal = users.get(user.getCacheKey());
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L) {
@@ -387,7 +387,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                user.setUserName(realUser.getIdentityID());
             }
 
-            principal = users.get(user);
+            principal = users.get(user.getCacheKey());
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L)
@@ -405,7 +405,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   principal.setProperty("__internal__", "true");
                }
                else {
-                  principal.setUser(user);
+                  principal.setUser(user.getCacheKey());
                }
 
                users.remove(user);
@@ -1378,7 +1378,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
             return true;
          }
 
-         SRPrincipal srPrincipal2 = users.get(srPrincipal.getUser());
+         SRPrincipal srPrincipal2 = users.get(srPrincipal.getUser().getCacheKey());
 
          if(srPrincipal2 == null) {
             // anonymous users are not added to the users map. allow anonymous users if they exist
@@ -1421,7 +1421,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     */
    public boolean isActiveUser(Principal principal) {
       return (principal instanceof SRPrincipal) &&
-         principal.equals(users.get(((SRPrincipal) principal).getUser()));
+         principal.equals(users.get(((SRPrincipal) principal).getUser().getCacheKey()));
    }
 
    /**
@@ -1436,7 +1436,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          SRPrincipal sr = (SRPrincipal) principal;
 
          return !"true".equals(sr.getProperty("login.user")) ||
-            principal.equals(users.get(sr.getUser()));
+            principal.equals(users.get(sr.getUser().getCacheKey()));
       }
 
       return false;
