@@ -47,15 +47,38 @@ export enum ContextType {
    CROSSTAB_SCRIPT = "crosstabScript",
 }
 
+const chartFieldMappings: Record<string, string> = {
+   xfields: "X fields",
+   yfields: "Y fields",
+   groupFields: "Group fields",
+   geoFields: "Geo fields",
+
+   colorField: "Color field",
+   shapeField: "Shape field",
+   sizeField: "Size field",
+   textField: "Text field",
+
+   openField: "Open field",
+   closeField: "Close field",
+   highField: "High field",
+   lowField: "Low field",
+   pathField: "Path field",
+   sourceField: "Source field",
+   targetField: "Target field",
+   startField: "Start field",
+   endField: "End field",
+   milestoneField: "Milestone field",
+
+   nodeColorField: "Node color field",
+   nodeSizeField: "Node size field"
+};
+
 @Injectable({
    providedIn: "root"
 })
 export class AiAssistantService {
    userId: string = "";
-   contextType: string = "";
-   bindingContext: string = "";
-   dataContext: string = "";
-   scriptContext: string = "";
+   private contextMap: Record<string, string> = {};
 
    constructor(private http: HttpClient,
                private modalService: NgbModal)
@@ -83,22 +106,29 @@ export class AiAssistantService {
       });
    }
 
+   setContextField(key: string, value: string) {
+      this.contextMap[key] = value;
+   }
+
+   getContextField(key: string): string {
+      return this.contextMap[key] || "";
+   }
+
    getFullContext(): string {
-      return JSON.stringify({
-         contextType: this.contextType,
-         bindingContext: this.bindingContext,
-         dataContext: this.dataContext,
-         scriptContext: this.scriptContext
-      });
+      return JSON.stringify(this.contextMap);
    }
 
    setContextType(objectType: string): void {
       if(objectType === "VSChart") {
-         this.contextType = ContextType.CHART;
+         this.setContextTypeFiledValue(ContextType.CHART);
       }
       else if(objectType === "VSCrosstab") {
-         this.contextType = ContextType.CROSSTAB;
+         this.setContextTypeFiledValue(ContextType.CROSSTAB);
       }
+   }
+
+   setContextTypeFiledValue(contextType: string): void {
+      this.setContextField("contextType", contextType)
    }
 
    setBindingContext(objectModel: BindingModel): void {
@@ -106,97 +136,65 @@ export class AiAssistantService {
          return;
       }
 
-      let bindingContext: string = "";
+      // Add a comment line at the top to indicate format for model
+      let bindingContext = "# Format: DataSource/TableName : FieldName (Type)\n";
 
       if(objectModel.type === "chart") {
          const model: ChartBindingModel = objectModel as ChartBindingModel;
 
-         if(model.xfields && model.xfields.length > 0) {
-            bindingContext += "X fields: " + this.getFieldsString(model, "xfields") + "\n";
-         }
+         for(const [fieldKey, label] of Object.entries(chartFieldMappings)) {
+            const fields = this.getFields(model, fieldKey);
 
-         if(model.yfields && model.yfields.length > 0) {
-            bindingContext += "Y fields: " + this.getFieldsString(model, "yfields") + "\n";
-         }
-
-         if(model.groupFields && model.groupFields.length > 0) {
-            bindingContext += "Group fields: " + this.getFieldsString(model, "groupFields") + "\n";
-         }
-
-         if(model.geoFields && model.geoFields.length > 0) {
-            bindingContext += "Geo fields: " + this.getFieldsString(model, "geoFields") + "\n";
-         }
-
-         if(model.colorField) {
-            bindingContext += "Color field: " + this.getFieldsString(model, "colorField") + "\n";
-         }
-
-         if(model.shapeField) {
-            bindingContext += "Shape field: " + this.getFieldsString(model, "shapeField") + "\n";
-         }
-
-         if(model.sizeField) {
-            bindingContext += "Size field: " + this.getFieldsString(model, "sizeField") + "\n";
-         }
-
-         if(model.textField) {
-            bindingContext += "Text field: " + this.getFieldsString(model, "textField") + "\n";
+            if(fields.length > 0) {
+               bindingContext +=
+                  `${label}: ${fields.map(f => f.fullName + "(" + f.dataType + ")").join(",")}\n`;
+            }
          }
       }
 
-      this.bindingContext = bindingContext;
+      this.setContextField("bindingContext", bindingContext);
    }
 
-   getFieldsString(objectModel: ChartBindingModel, fieldType: string): string {
-      return this.getFields(objectModel, fieldType)
-         .map(field => field.fullName + "(" + field.dataType + ")").join(",");
-   }
+   getFields(objectModel: ChartBindingModel, fieldKey: string): ChartRef[] {
+      const value: any = (objectModel as any)[fieldKey];
 
-   getFields(objectModel: ChartBindingModel, fieldType: string): ChartRef[] {
-      switch(fieldType) {
-         case "xfields":
-            return objectModel.xfields ? objectModel.xfields : [];
-         case "yfields":
-            return objectModel.yfields ? objectModel.yfields : [];
-         case "groupFields":
-            return objectModel.groupFields ? objectModel.groupFields : [];
-         case "geoFields":
-            return objectModel.geoFields ? objectModel.geoFields : [];
-         case "colorField":
-            return objectModel.colorField ? [objectModel.colorField.dataInfo] : [];
-         case "shapeField":
-            return objectModel.shapeField ? [objectModel.shapeField.dataInfo] : [];
-         case "sizeField":
-            return objectModel.sizeField ? [objectModel.sizeField.dataInfo] : [];
-         case "textField":
-            return objectModel.textField ? [objectModel.textField.dataInfo] : [];
-         default:
-            return [];
+      if(!value) {
+         return [];
       }
+
+      if(Array.isArray(value)) {
+         return value;
+      }
+
+      if("dataInfo" in value) {
+         return value.dataInfo ? [value.dataInfo] : [];
+      }
+
+      return [value];
    }
 
    setDataContext(bindingModel: BindingModel): void {
-      if(!bindingModel) {
+      if(!bindingModel?.availableFields) {
          return;
       }
 
-      let dataContext: string = "";
+      let dataContext = "# Format: DataSource/TableName : FieldName (expression if any): FieldType\n";
 
-      if(bindingModel.availableFields) {
-         bindingModel.availableFields.forEach(field => {
-            if(field.classType === "CalculateRef" && field.expression &&
-               (<any> field).dataRefModel?.exp)
-            {
-               dataContext +=
-                  field.name + "(" + (<any> field).dataRefModel.exp + "): " + field.dataType + "\n";
-            }
-            else {
-               dataContext += field.name + ": " + field.dataType + "\n";
-            }
-         });
+      bindingModel.availableFields.forEach(field => {
+         if(field.classType === "CalculateRef" && field.expression &&
+            (<any> field).dataRefModel?.exp)
+         {
+            dataContext +=
+               field.name + "(" + (<any> field).dataRefModel.exp + "): " + field.dataType + "\n";
+         }
+         else {
+            dataContext += field.name + ": " + field.dataType + "\n";
+         }
+      });
+
+      if(dataContext) {
+         this.setContextField("dataContext", dataContext);
       }
-
-      this.dataContext = dataContext;
    }
 
    setDateComparisonToBindingContext(objectModel: VSObjectModel): void {
@@ -207,41 +205,43 @@ export class AiAssistantService {
       if(objectModel.objectType === "VSChart") {
          const model: VSChartModel = objectModel as VSChartModel;
 
-         if(model.dateComparisonEnabled && model.dateComparisonDescription) {
-            const dcDesc: string =
-               "Date comparison: \n" + model.dateComparisonDescription.replace(/<\/?b>/g, '');
+         if(!model.dateComparisonEnabled || !model.dateComparisonDescription) {
+            return;
+         }
 
-            if(!this.bindingContext.includes("Date comparison")) {
-               this.bindingContext += `\n${dcDesc}`;
-            }
-            else {
-               this.bindingContext =
-                  this.bindingContext.substring(0, this.bindingContext.indexOf("Date comparison")) + dcDesc;
-            }
+         const dcDesc: string =
+            "Date comparison: \n" + model.dateComparisonDescription.replace(/<\/?b>/g, '');
+         const prevBinding = this.getContextField("bindingContext");
+
+         if(!prevBinding.includes("Date comparison")) {
+            this.setContextField("bindingContext", prevBinding + `\n${dcDesc}`);
+         }
+         else {
+            const updated = prevBinding.substring(0, prevBinding.indexOf("Date comparison")) + dcDesc;
+            this.setContextField("bindingContext", updated);
          }
       }
    }
 
    setScriptContext(objectModel: VSObjectModel) {
-      if(!objectModel) {
+      if(!objectModel || !objectModel.scriptEnabled || !objectModel.script) {
          return;
       }
 
-      if(objectModel.objectType === "VSChart") {
-         const model: VSChartModel = objectModel as VSChartModel;
+      let contextType = "";
 
-         if(model.scriptEnabled && model.script) {
-            this.contextType = ContextType.CHART_SCRIPT;
-            this.scriptContext = model.script;
-         }
+      switch(objectModel.objectType) {
+         case "VSChart":
+            contextType = ContextType.CHART_SCRIPT;
+            break;
+         case "VSCrosstab":
+            contextType = ContextType.CROSSTAB_SCRIPT;
+            break;
+         default:
+            contextType = ContextType.VIEWSHEET_SCRIPT;
       }
-      else if(objectModel.objectType === "VSCrosstab") {
-         const model: VSCrosstabModel = objectModel as VSCrosstabModel;
 
-         if(model.scriptEnabled && model.script) {
-            this.contextType = ContextType.CROSSTAB_SCRIPT;
-            this.scriptContext = model.script;
-         }
-      }
+      this.setContextField("contextType", contextType);
+      this.setContextField("scriptContext", objectModel.script);
    }
 }

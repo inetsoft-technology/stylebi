@@ -43,7 +43,7 @@ export class DataTabComponent implements OnDestroy {
    constructor(private readonly physicalModelService: DataPhysicalModelService,
                private aiAssistantSerivice: AiAssistantService)
    {
-      this.aiAssistantSerivice.contextType = ContextType.PORTAL_DATA;
+      this.aiAssistantSerivice.setContextTypeFiledValue(ContextType.PORTAL_DATA);
       this.subscription = this.physicalModelService.onFullScreen.subscribe((fullScreen: boolean) => {
          this.hiddenCollapsed = fullScreen;
          this.treePaneCollapsed = fullScreen;
