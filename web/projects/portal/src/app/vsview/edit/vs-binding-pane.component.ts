@@ -432,7 +432,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
       this.treeService.changeLoadingState(true);
       this.aiAssistantService.setBindingContext(this.bindingModel);
       this.aiAssistantService.setDataContext(this.bindingModel);
-      this.aiAssistantService.setDateComparisonToBindingContext(this.objectModel);
+      this.aiAssistantService.setDateComparisonContext(this.objectModel);
 
       this.clientService.sendEvent("/events/vs/bindingtree/gettreemodel",
                                       new RefreshBindingTreeEvent(this.assemblyName));
@@ -541,7 +541,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
       this.objectModel = model;
       this.blocking = false;
       this.aiAssistantService.setContextType(model.objectType);
-      this.aiAssistantService.setDateComparisonToBindingContext(model);
+      this.aiAssistantService.setDateComparisonContext(model);
       this.aiAssistantService.setScriptContext(model);
    }
 
