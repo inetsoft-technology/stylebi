@@ -67,7 +67,6 @@ public class IdentityThemeService {
       }
 
       themeManager.setCustomThemes(themes);
-      themeManager.save();
    }
 
    public void updateTheme(String oldId, String id, Function<CustomTheme, List<String>> fn) {
@@ -91,7 +90,6 @@ public class IdentityThemeService {
       .collect(Collectors.toList());
 
       themeManager.setCustomThemes(themes);
-      themeManager.save();
    }
 
    public void updateUserTheme(String oldId, String id, String ntheme) {
@@ -113,6 +111,5 @@ public class IdentityThemeService {
       .collect(Collectors.toList());
 
       themeManager.setCustomThemes(themes);
-      themeManager.save();
    }
 }
