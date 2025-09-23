@@ -164,10 +164,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
       mode = state.getMode();
 
       if(state.getBoxRid() != null) {
-         box = new ViewsheetSandbox(vs, mode, getUser(), entry, state.getBoxRid());
+         box = new ViewsheetSandbox(vs, mode, getUser(), false, entry, state.getBoxRid());
       }
       else {
-         box = new ViewsheetSandbox(vs, mode, getUser(), entry);
+         box = new ViewsheetSandbox(vs, mode, getUser(), false, entry);
       }
 
       box.setOriginalID(state.getOriginalId());

@@ -92,6 +92,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this(null, vs, vmode, user, true, entry, null, boxRid);
    }
 
+   public ViewsheetSandbox(Viewsheet vs, int vmode, Principal user, boolean reset, AssetEntry entry,
+                           String boxRid)
+   {
+      this(null, vs, vmode, user, reset, entry, null, boxRid);
+   }
+
    /**
     * Constructor.
     * @param vs the specified viewsheet.
