@@ -161,8 +161,9 @@ public class TablePaintable extends BasePaintable {
       }
 
       boolean hasDrill = lens.containsDrill();
+      boolean hasLink = telem.containsLink();
 
-      if(hasDrill) {
+      if(hasDrill || hasLink) {
          VariableTable vars = getReportParameters();
 
          // find all cell specific hyperlinks
@@ -174,6 +175,18 @@ public class TablePaintable extends BasePaintable {
             for(int c = 0; c < reg.x + reg.width; c++) {
                if(c >= headerC && c < reg.x) {
                   continue;
+               }
+
+               if(hasLink) {
+                  int c2 = c;
+                  int r2 = getBaseRow(r);
+                  Hyperlink.Ref link = telem.getHyperlink(r2, c2);
+
+                  if(link != null) {
+                     Util.mergeParameters(link, vars);
+                     Util.updateLink(link);
+                     setHyperlink(r, c, link);
+                  }
                }
 
                // @by davyc, r2 and c2 is lens's base table's row and column value,

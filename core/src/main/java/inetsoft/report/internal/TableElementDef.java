@@ -23,6 +23,7 @@ import inetsoft.report.filter.*;
 import inetsoft.report.internal.binding.*;
 import inetsoft.report.internal.info.*;
 import inetsoft.report.internal.table.*;
+import inetsoft.report.io.viewsheet.ExportUtil;
 import inetsoft.report.lens.*;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.report.painter.PresenterPainter;
@@ -85,6 +86,22 @@ public class TableElementDef extends BaseElement
 
       // default to grow
       setProperty(GROW, "true");
+   }
+
+   public boolean containsLink() {
+      if(getVSTableLens() != null) {
+         return getVSTableLens().isHyperlinkEnabled();
+      }
+
+      return false;
+   }
+
+   public Hyperlink.Ref getHyperlink(int row, int col) {
+      if(getVSTableLens() != null) {
+         return ExportUtil.getTableCellHyperLink(getVSTableLens(), row, col, null);
+      }
+
+      return null;
    }
 
    /**
