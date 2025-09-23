@@ -4000,7 +4000,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          writer.println("<assemblies>");
 
          for(Assembly assembly : assemblies) {
-            writer.println("<oneAssembly>");
+            writer.println("<oneAssembly isLatestTemp=\"" + (latestTemp == assembly)+ "\">");
             assembly.writeXML(writer);
             writer.println("</oneAssembly>");
          }
@@ -4166,6 +4166,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
          if(assembly == null) {
             continue;
+         }
+
+         if("true".equalsIgnoreCase(Tool.getAttribute(onenode, "isLatestTemp"))) {
+            latestTemp = assembly;
          }
 
          // parse state content may have been added the assembly

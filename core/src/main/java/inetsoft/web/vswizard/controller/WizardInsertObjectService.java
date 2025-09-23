@@ -58,6 +58,7 @@ public class WizardInsertObjectService {
       }
       finally {
          box.unlockWrite();
+         engine.flushRuntimeSheet(vId);
       }
 
       return null;

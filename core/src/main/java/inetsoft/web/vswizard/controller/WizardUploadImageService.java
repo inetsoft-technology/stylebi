@@ -80,6 +80,9 @@ public class WizardUploadImageService {
       catch(Exception ex) {
          LoggerFactory.getLogger(ImagePreviewPaneController.class).debug("Failed to get uploaded file data", ex);
       }
+      finally {
+         viewsheetService.flushRuntimeSheet(runtimeId);
+      }
 
       return objectModelService.createModel(assembly, rvs);
    }

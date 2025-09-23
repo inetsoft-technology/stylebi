@@ -259,10 +259,25 @@ public class SchedulerMonitoringService
          return 0;
       }
 
-      Vector<ScheduleTask> allTasks = scheduleManager.getScheduleTasks();
       int count = 0;
+      Vector<ScheduleTask> allTasks = scheduleManager.getScheduleTasks();
+      String orgID = null;
 
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID(getSystemPrincipal());
+      try {
+         orgID = OrganizationManager.getInstance().getCurrentOrgID(getSystemPrincipal());
+      }
+      catch(Exception ex) {
+         SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+         Organization organization =
+            provider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID());
+
+         // org has already be removed.
+         if(organization == null) {
+            return count;
+         }
+
+         throw ex;
+      }
 
       for(String taskName : activities.keySet()) {
          if(allTasks.contains(scheduleManager.getScheduleTask(taskName, orgID))) {
