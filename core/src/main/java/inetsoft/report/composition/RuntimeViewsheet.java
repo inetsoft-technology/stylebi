@@ -167,7 +167,13 @@ public class RuntimeViewsheet extends RuntimeSheet {
       //need to recover worksheet before setting box
       vs.repopulateWorksheet(rep, user);
 
-      box = new ViewsheetSandbox(vs, mode, getUser(), entry);
+      if(state.getBoxRid() != null) {
+         box = new ViewsheetSandbox(vs, mode, getUser(), false, entry, state.getBoxRid());
+      }
+      else {
+         box = new ViewsheetSandbox(vs, mode, getUser(), false, entry);
+      }
+
       box.setOriginalID(state.getOriginalId());
       execSessionID = state.getExecSessionId();
       touchts = state.getTouchts();
@@ -2579,6 +2585,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       RuntimeViewsheetState state = new RuntimeViewsheetState();
       super.saveState(state, mapper);
       state.setBindingId(bindingID);
+      state.setBoxRid(this.box == null ? null : this.box.getID());
       state.setVs(saveXml(vs));
       state.setOriginalVs(saveXml(originalVs));
       state.setVars(saveJson(vars, mapper));

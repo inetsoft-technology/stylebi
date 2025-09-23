@@ -308,7 +308,6 @@ public abstract class AbstractEditableAuthenticationProvider
          });
 
       manager.setCustomThemes(themes);
-      manager.save();
    }
 
    protected void clearScopedProperties(String oldOrgId) {

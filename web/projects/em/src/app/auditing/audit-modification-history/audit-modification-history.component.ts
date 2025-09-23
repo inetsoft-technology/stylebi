@@ -56,7 +56,7 @@ import { Tool } from "../../../../../shared/util/tool";
 })
 export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
    users: string[] = [];
-   objectTypes: ResourceType[] = [];
+   objectTypes: string[] = [];
    hosts: string[] = [];
    organizationNames: string[] = [];
    modifyStatuses: string[] = [];
@@ -165,7 +165,30 @@ export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
    };
 
    getAssetTypeLabel(value: string): string {
-      return Tool.startCase(value);
+      if(value === "dashboard") {
+         return "_#(js:Dashboard)";
+      }
+      else if(value === "identity") {
+         return "_#(js:Identity)";
+      }
+      else if(value === "permission") {
+         return "_#(js:Permission)";
+      }
+      else if(value === "properties") {
+         return "_#(js:Properties)";
+      }
+      else if(value === "folder") {
+         return "_#(js:Folder)";
+      }
+      else if(value === "task") {
+         return "_#(js:Task)";
+      }
+      else if(value === "cycle") {
+         return "_#(js:Cycle)";
+      }
+      else {
+         return value;
+      }
    }
 
    getModifyStatusLabel(value: string): string {
