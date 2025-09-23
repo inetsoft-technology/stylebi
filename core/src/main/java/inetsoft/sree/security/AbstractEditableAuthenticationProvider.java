@@ -305,7 +305,8 @@ public abstract class AbstractEditableAuthenticationProvider
                newOrgs.add(toOrgId);
                theme.setOrganizations(newOrgs);
             }
-         } catch (Exception ex) {
+         }
+         catch (Exception ex) {
             LOG.error("Failed to clone custom theme", ex);
          }
       }
