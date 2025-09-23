@@ -189,7 +189,7 @@ export class PresentationThemesViewComponent implements OnInit {
                      const newThemes = this.themes.slice();
                      newThemes.push(model);
                      this.setThemes(newThemes);
-                     this.onThemeSelected(model.id);
+                     this.setSelection(model)
                   });
                }
             });
