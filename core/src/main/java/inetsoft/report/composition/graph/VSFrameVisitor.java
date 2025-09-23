@@ -642,6 +642,12 @@ public class VSFrameVisitor {
 
          Color color = frame.getColor(val);
 
+         // if color set by script, don't force it to be null. (72594)
+         if(frame.isScripted(val)) {
+            staticColors.add(color);
+            continue;
+         }
+
          // color collision, clear the duplicate color assignment. (61424)
          if(staticColors.contains(color) && (dimColors == null || dimColors.get(Tool.getDataString(val)) == null)) {
             frame.setColor(val, null);

@@ -31,6 +31,11 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import inetsoft.util.DefaultComparator;
+import inetsoft.util.script.JavaScriptEngine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * This class defines a shape frame for categorical values.
  *
@@ -165,9 +170,14 @@ public class CategoricalShapeFrame extends ShapeFrame implements CategoricalFram
    public void setShape(Object val, GShape shape) {
       if(shape != null) {
          cmap.put(GTool.toString(val), shape);
+
+         if(JavaScriptEngine.isScriptThread()) {
+            scripted.add(GTool.toString(val));
+         }
       }
       else {
          cmap.remove(GTool.toString(val));
+         scripted.remove(GTool.toString(val));
       }
    }
 
@@ -182,6 +192,12 @@ public class CategoricalShapeFrame extends ShapeFrame implements CategoricalFram
 
    @Override
    @TernMethod
+   public boolean isScripted(Object val) {
+      return scripted.contains(GTool.toString(val));
+   }
+
+   @Override
+   @TernMethod
    public Set<Object> getStaticValues() {
       return cmap.keySet();
    }
@@ -190,6 +206,7 @@ public class CategoricalShapeFrame extends ShapeFrame implements CategoricalFram
    @TernMethod
    public void clearStatic() {
       cmap.clear();
+      scripted.clear();
    }
 
    /**
@@ -230,7 +247,8 @@ public class CategoricalShapeFrame extends ShapeFrame implements CategoricalFram
    public String getUniqueId() {
       List<Object> keys = new ArrayList<>(cmap.keySet());
       keys.sort(new DefaultComparator());
-      String fixedShapes = keys.stream().map(k -> k + ":" + cmap.get(k).getLegendId())
+      String fixedShapes = keys.stream()
+         .map(k -> k + ":" + cmap.get(k).getLegendId() + (scripted.contains(k) ? "@s" : ""))
          .collect(Collectors.joining());
       return super.getUniqueId() + fixedShapes;
    }
@@ -256,7 +274,8 @@ public class CategoricalShapeFrame extends ShapeFrame implements CategoricalFram
          }
       }
 
-      return cmap.equals(((CategoricalShapeFrame) obj).cmap);
+      return cmap.equals(((CategoricalShapeFrame) obj).cmap) &&
+         scripted.equals(((CategoricalShapeFrame) obj).scripted);
    }
 
    /**
@@ -269,6 +288,7 @@ public class CategoricalShapeFrame extends ShapeFrame implements CategoricalFram
          // shapes are mutable so should be deep cloned.
          frame.shps = (GShape[]) CoreTool.clone(shps);
          frame.cmap = new HashMap<>(cmap);
+         frame.scripted = new HashSet<>(scripted);
 
          return frame;
       }
@@ -280,6 +300,7 @@ public class CategoricalShapeFrame extends ShapeFrame implements CategoricalFram
 
    private GShape[] shps;
    private Map<Object, GShape> cmap = new HashMap<>();
+   private Set<Object> scripted = new HashSet<>(1);
    private GShape defaultShape = null;
 
    private static final long serialVersionUID = 1L;
