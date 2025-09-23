@@ -251,6 +251,10 @@ public class DataCycleManager
                continue;
             }
 
+            if(asset == null) {
+               continue;
+            }
+
             DataCycleId cycle = new DataCycleId(asset.getName(), asset.getOrgId());
             IdentityID identityID = new IdentityID(XPrincipal.SYSTEM, orgId);
             ScheduleTask task = new ScheduleTask(
