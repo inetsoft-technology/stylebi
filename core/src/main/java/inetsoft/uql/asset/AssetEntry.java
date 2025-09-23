@@ -1280,6 +1280,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
 
    public void setPath(String path) {
       this.path = path;
+      this.ppath = null;
    }
 
    /**
