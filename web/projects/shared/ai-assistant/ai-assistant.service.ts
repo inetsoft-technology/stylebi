@@ -197,30 +197,21 @@ export class AiAssistantService {
       }
    }
 
-   setDateComparisonToBindingContext(objectModel: VSObjectModel): void {
-      if(!objectModel) {
+   setDateComparisonContext(objectModel: VSObjectModel): void {
+      if(!objectModel ||
+         !(objectModel.objectType === "VSChart" || objectModel.objectType === "VSCrosstab"))
+      {
          return;
       }
 
-      if(objectModel.objectType === "VSChart") {
-         const model: VSChartModel = objectModel as VSChartModel;
+      const model = objectModel as any;
 
-         if(!model.dateComparisonEnabled || !model.dateComparisonDescription) {
-            return;
-         }
-
-         const dcDesc: string =
-            "Date comparison: \n" + model.dateComparisonDescription.replace(/<\/?b>/g, '');
-         const prevBinding = this.getContextField("bindingContext");
-
-         if(!prevBinding.includes("Date comparison")) {
-            this.setContextField("bindingContext", prevBinding + `\n${dcDesc}`);
-         }
-         else {
-            const updated = prevBinding.substring(0, prevBinding.indexOf("Date comparison")) + dcDesc;
-            this.setContextField("bindingContext", updated);
-         }
+      if(!model.dateComparisonEnabled || !model.dateComparisonDescription) {
+         return;
       }
+
+      const dcDesc: string = model.dateComparisonDescription.replace(/<\/?b>/g, '');
+      this.setContextField("dateComparisonContext", dcDesc);
    }
 
    setScriptContext(objectModel: VSObjectModel) {

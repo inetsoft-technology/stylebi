@@ -317,7 +317,7 @@ export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDest
          this._bindingModel = command.bindingModel;
          this.aiAssistantService.setBindingContext(this.chartBindingModel);
          this.aiAssistantService.setDataContext(this.chartBindingModel);
-         this.aiAssistantService.setDateComparisonToBindingContext(this.vsObject);
+         this.aiAssistantService.setDateComparisonContext(this.vsObject);
       }
 
       // update the tempBinding in treeInfo
@@ -388,7 +388,7 @@ export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDest
       }
 
       this.aiAssistantService.setContextType(this.vsObject.objectType);
-      this.aiAssistantService.setDateComparisonToBindingContext(this.vsObject);
+      this.aiAssistantService.setDateComparisonContext(this.vsObject);
       this.aiAssistantService.setScriptContext(this.vsObject);
    }
 
