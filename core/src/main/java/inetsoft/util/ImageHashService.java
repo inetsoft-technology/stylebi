@@ -509,7 +509,7 @@ public class ImageHashService implements XMLSerializable {
       }
    }
 
-   public ConcurrentHashMap<ImageInfo, String> infoToHash = new ConcurrentHashMap<>();
+   private ConcurrentHashMap<ImageInfo, String> infoToHash = new ConcurrentHashMap<>();
    private ConcurrentHashMap<String, ImageInfo> hashToInfo = new ConcurrentHashMap<>();
    private final VSPortalHelper vsPortalHelper = new VSPortalHelper();
 }
