@@ -125,7 +125,7 @@ public class AuthenticationService {
                }
 
                ClientInfo clientInfo = new ClientInfo(userName, remoteAddr, sessionId, clientLocale);
-               clientInfo.setLoginUserName(userId);
+               clientInfo.setLoginUserName(loginAsUser);
                DefaultTicket ticket = new DefaultTicket(userId, password);
                principal = authenticate(clientInfo, ticket);
 
