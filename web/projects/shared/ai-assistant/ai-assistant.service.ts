@@ -21,14 +21,13 @@ import { Injectable, Injector } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
-import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart-binding-model";
+import { CellBindingInfo } from "../../portal/src/app/binding/data/table/cell-binding-info";
 import { ChartRef } from "../../portal/src/app/common/data/chart-ref";
+import { CalcTableLayout } from "../../portal/src/app/common/data/tablelayout/calc-table-layout";
 import { ComponentTool } from "../../portal/src/app/common/util/component-tool";
 import { CurrentUser } from "../../portal/src/app/portal/current-user";
-import { VSChartModel } from "../../portal/src/app/vsobjects/model/vs-chart-model";
 import { VSObjectModel } from "../../portal/src/app/vsobjects/model/vs-object-model";
 import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
-import { VSCrosstabModel } from "../../portal/src/app/vsobjects/model/vs-crosstab-model";
 
 const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
 const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
@@ -72,6 +71,23 @@ const chartFieldMappings: Record<string, string> = {
    nodeColorField: "Node color field",
    nodeSizeField: "Node size field"
 };
+
+const crosstabFieldMappings: Record<string, string> = {
+   rows: "Row fields",
+   cols: "Column fields",
+   aggregates: "Aggregate fields"
+}
+
+const enum CalcTableBindingType {
+   GROUP = 1,
+   DETAIL = 2,
+   SUMMARY = 3
+}
+
+const enum CalcTableSymbols {
+   GROUP_SYMBOL = "\u039E",
+   SUMMARY_SYMBOL = "\u2211"
+}
 
 @Injectable({
    providedIn: "root"
@@ -131,31 +147,97 @@ export class AiAssistantService {
       this.setContextField("contextType", contextType)
    }
 
+   setCalcTableBindingContext(layout: CalcTableLayout,
+                              cellBindings: { [key: string]: CellBindingInfo }): void
+   {
+      if(!layout?.tableRows?.length || !cellBindings) {
+         return;
+      }
+
+      const bindingContext = layout.tableRows
+         .flatMap(row => row?.tableCells ?? [])
+         .filter(cell => cell?.text)
+         .map(cell => {
+            const cellPath = cell.cellPath.path[0];
+            const cellBinding = cellBindings[cellPath];
+            const rowColGroupDesc = this.getRowColGroupDesc(cellBinding);
+
+            let text = cell.text;
+            let result = "";
+
+            if(cell.bindingType === CalcTableBindingType.GROUP) {
+               text = text.substring(text.indexOf(CalcTableSymbols.GROUP_SYMBOL) + 1, text.length - 1);
+               result = `${cellPath}: group(${text})`;
+            }
+            else if(cell.bindingType === CalcTableBindingType.SUMMARY) {
+               const formula = cellBinding?.formula || "";
+               text = text.substring(text.indexOf(CalcTableSymbols.SUMMARY_SYMBOL) + 1, text.length - 1);
+               result = `${cellPath}: ${formula}(${text})`;
+            }
+            else {
+               result = `${cellPath}: ${text}`;
+            }
+
+            return result + " " + rowColGroupDesc;
+         })
+         .join("\n");
+
+      this.setContextField("contextType", ContextType.FREEHAND);
+      this.setContextField("bindingContext", bindingContext);
+   }
+
+   getRowColGroupDesc(cellInfo: CellBindingInfo): string {
+      if(!cellInfo) {
+         return "";
+      }
+
+      let rowColGroupDesc = "";
+
+      if(cellInfo.rowGroup) {
+         const rowGroup = cellInfo.rowGroup === "(default)" ? "default" : cellInfo.rowGroup;
+         rowColGroupDesc += `${rowGroup}(row group) `;
+      }
+
+      if(cellInfo.colGroup) {
+         const colGroup = cellInfo.colGroup === "(default)" ? "default" : cellInfo.colGroup;
+         rowColGroupDesc += `${colGroup}(column group)`;
+      }
+
+      return rowColGroupDesc;
+   }
+
    setBindingContext(objectModel: BindingModel): void {
       if(!objectModel) {
          return;
       }
 
-      // Add a comment line at the top to indicate format for model
-      let bindingContext = "# Format: DataSource/TableName : FieldName (Type)\n";
+      let fieldMappings: Record<string, string> = null;
 
       if(objectModel.type === "chart") {
-         const model: ChartBindingModel = objectModel as ChartBindingModel;
+         fieldMappings = chartFieldMappings;
+      }
+      else if(objectModel.type === "crosstab") {
+         fieldMappings = crosstabFieldMappings;
+      }
 
-         for(const [fieldKey, label] of Object.entries(chartFieldMappings)) {
-            const fields = this.getFields(model, fieldKey);
+      if(fieldMappings) {
+         // Add a comment line at the top to indicate format for model
+         let bindingContext = "# Format: DataSource/TableName : FieldName (Type)\n";
+
+         for(const [fieldKey, label] of Object.entries(fieldMappings)) {
+            const fields = this.getFields(objectModel, fieldKey);
 
             if(fields.length > 0) {
                bindingContext +=
                   `${label}: ${fields.map(f => f.fullName + "(" + f.dataType + ")").join(",")}\n`;
             }
          }
-      }
 
-      this.setContextField("bindingContext", bindingContext);
+         this.setContextField("bindingContext", bindingContext);
+      }
    }
 
-   getFields(objectModel: ChartBindingModel, fieldKey: string): ChartRef[] {
+   getFields(objectModel: BindingModel, fieldKey: string): ChartRef[] {
       const value: any = (objectModel as any)[fieldKey];
 
       if(!value) {
@@ -227,6 +309,9 @@ export class AiAssistantService {
             break;
          case "VSCrosstab":
             contextType = ContextType.CROSSTAB_SCRIPT;
+            break;
+         case "VSCalcTable":
+            contextType = ContextType.FREEHAND;
             break;
          default:
             contextType = ContextType.VIEWSHEET_SCRIPT;

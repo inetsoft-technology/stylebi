@@ -31,6 +31,7 @@ import {
    Output
 } from "@angular/core";
 import { DOCUMENT } from "@angular/common";
+import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { GetCellBindingCommand } from "../../binding/command/get-cell-binding-command";
 import { GetCellScriptCommand } from "../../binding/command/get-cell-script-command";
 import { GetPredefinedNamedGroupCommand } from "../../binding/command/get-predefined-named-group-command";
@@ -84,7 +85,8 @@ export class CalcTableLayoutPane extends CommandProcessor implements AfterViewCh
    isFirefox = GuiTool.isFF();
    isEdge = GuiTool.isEdge();
 
-   constructor(private editorService: VSCalcTableEditorService,
+   constructor(private aiAssistantService: AiAssistantService,
+               private editorService: VSCalcTableEditorService,
                private clientService: ViewsheetClientService,
                private changeRef: ChangeDetectorRef,
                private renderer: Renderer2,
@@ -237,6 +239,7 @@ export class CalcTableLayoutPane extends CommandProcessor implements AfterViewCh
       this.tableModel = this.replaceObject(newCalc, oldCalc);
       this.editorService.setTableLayout(this.tableModel);
       this.calcTableLayout.emit(this.tableModel);
+      this.aiAssistantService.setCalcTableBindingContext(this.tableModel, command.cellBindings);
       this.createSpanMap();
    }
 
