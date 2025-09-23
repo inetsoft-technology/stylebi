@@ -19,10 +19,11 @@ package inetsoft.util.profile;
 
 import inetsoft.util.audit.ExecutionBreakDownRecord;
 
+import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class ProfileInfo {
+public class ProfileInfo implements Serializable {
    /**
     * Object type report.
     */
@@ -55,15 +56,17 @@ public class ProfileInfo {
    public void addRecord(ExecutionBreakDownRecord record) {
       String name = record.getObjectName();
 
-      if(profilingData.get(name) == null) {
-         ProfileData pData = new ProfileData();
+      ProfileData pData = profilingData.get(name);
+
+      if(pData == null) {
+         pData = new ProfileData();
          pData.addRecord(record);
          profilingData.put(name, pData);
          //recordSize++;
       }
       else {
-         profilingData.get(name).addRecord(record);
-         //recordSize++;
+         pData.addRecord(record);
+         profilingData.put(name, pData);
       }
    }
 
@@ -129,7 +132,7 @@ public class ProfileInfo {
 
    private final Map<String, ProfileData> profilingData = new HashMap<>();
 
-   static final class ProfileData {
+   static final class ProfileData implements Serializable {
       public ProfileData() {
       }
 

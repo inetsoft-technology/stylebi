@@ -24,6 +24,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.service.WizardViewsheetService;
 import org.springframework.stereotype.Service;
@@ -64,6 +65,7 @@ public class WizardPaneService {
       }
       finally {
          box.unlockRead();
+         viewsheetService.flushRuntimeSheet(vsId);
       }
 
       return null;

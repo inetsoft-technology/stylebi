@@ -88,6 +88,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this(null, vs, vmode, user, true, entry, null);
    }
 
+   public ViewsheetSandbox(Viewsheet vs, int vmode, Principal user, AssetEntry entry, String boxRid) {
+      this(null, vs, vmode, user, true, entry, null, boxRid);
+   }
+
+   public ViewsheetSandbox(Viewsheet vs, int vmode, Principal user, boolean reset, AssetEntry entry,
+                           String boxRid)
+   {
+      this(null, vs, vmode, user, reset, entry, null, boxRid);
+   }
+
    /**
     * Constructor.
     * @param vs the specified viewsheet.
@@ -112,6 +122,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                            Principal user, boolean reset, AssetEntry entry,
                            List<String> parentVsIds)
    {
+      this(root, vs, vmode, user, reset, entry, parentVsIds, null);
+   }
+
+   public ViewsheetSandbox(ViewsheetSandbox root, Viewsheet vs, int vmode,
+                           Principal user, boolean reset, AssetEntry entry,
+                           List<String> parentVsIds, String boxRid)
+   {
       super();
 
       this.root = root == null ? this : root;
@@ -131,7 +148,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       this.pairs = new SoftHashMap<>(0);
       this.metarep = new TableMetaDataRepository();
       this.user = user;
-      this.rid = XSessionService.createSessionID(XSessionService.VIEWSHEET, null);
+      this.rid = boxRid != null ? boxRid : XSessionService.createSessionID(XSessionService.VIEWSHEET, null);
       this.parentVsIds = parentVsIds;
       setViewsheet(vs, true);
 

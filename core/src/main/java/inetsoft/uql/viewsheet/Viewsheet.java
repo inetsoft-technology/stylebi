@@ -648,6 +648,29 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       return true;
    }
 
+   public void repopulateWorksheet(AssetRepository rep, Principal user) {
+      Worksheet ws = null;
+
+      try {
+         if(wentry != null && wentry.isWorksheet()) {
+            ws = wentry == null ? null :
+               (Worksheet) rep.getSheet(wentry, null, false, AssetContent.ALL);
+
+            if(ws != null) {
+               ws.getWorksheetInfo().setDesignMaxRows(vinfo.getDesignMaxRows());
+            }
+         }
+         else if(isDirectSource()) {
+            ws = getWorksheet(rep, wentry, user);
+         }
+
+         setBaseWorksheet(ws);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to update viewsheet baseWorksheet", ex);
+      }
+   }
+
    private void updateVSAssembly(VSAssembly vsAssembly, VSAssembly newAssembly) {
       for(int i = 0; i < assemblies.size(); i++) {
          if(assemblies.get(i).equals(vsAssembly)) {
@@ -4000,7 +4023,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          writer.println("<assemblies>");
 
          for(Assembly assembly : assemblies) {
-            writer.println("<oneAssembly>");
+            writer.println("<oneAssembly isLatestTemp=\"" + (latestTemp == assembly)+ "\">");
             assembly.writeXML(writer);
             writer.println("</oneAssembly>");
          }
@@ -4166,6 +4189,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
          if(assembly == null) {
             continue;
+         }
+
+         if("true".equalsIgnoreCase(Tool.getAttribute(onenode, "isLatestTemp"))) {
+            latestTemp = assembly;
          }
 
          // parse state content may have been added the assembly

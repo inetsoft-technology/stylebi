@@ -62,6 +62,7 @@ public class WizardObjectMoveService {
       }
       finally {
          box.unlockWrite();
+         engine.flushRuntimeSheet(vId);
       }
 
       return null;
@@ -86,6 +87,7 @@ public class WizardObjectMoveService {
       }
       finally {
          box.unlockWrite();
+         engine.flushRuntimeSheet(vId);
       }
 
       return null;
