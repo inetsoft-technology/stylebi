@@ -20,6 +20,8 @@ package inetsoft.web.admin.content.repository;
 import inetsoft.report.LibManager;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.asset.*;
@@ -45,11 +47,14 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import org.springframework.context.annotation.Lazy;
 
+@Lazy(false)
 @Controller
 public class RepositoryChangeController {
    @Autowired
@@ -60,6 +65,7 @@ public class RepositoryChangeController {
       this.assetRepository = assetRepository;
       this.messagingTemplate = messagingTemplate;
       this.debouncer = new DefaultDebouncer<>();
+      this.cluster = Cluster.getInstance();
    }
 
    @PostConstruct
@@ -70,6 +76,7 @@ public class RepositoryChangeController {
       LibManager.getManager().addActionListener(this.libraryListener);
       DashboardManager.getManager().addDashboardChangeListener(this.dashboardListener);
       DataSourceRegistry.getRegistry().addRefreshedListener(dataSourceListener);
+      cluster.addMessageListener(this.clusterMessageListener);
    }
 
    @PreDestroy
@@ -81,6 +88,7 @@ public class RepositoryChangeController {
       LibManager.getManager().removeActionListener(this.libraryListener);
       DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
       DataSourceRegistry.getRegistry().removeRefreshedListener(dataSourceListener);
+      cluster.removeMessageListener(this.clusterMessageListener);
 
       for(PropertyChangeListener listener : adminReportListeners.values()) {
          RepletRegistry.removeGlobalPropertyChangeListener(listener);
@@ -225,6 +233,19 @@ public class RepositoryChangeController {
    }
 
    private void scheduleChangeMessage(Principal principal, String orgId) {
+      scheduleChangeMessage(principal, orgId, true);
+   }
+
+   private void scheduleChangeMessage(Principal principal, String orgId, boolean toCluster) {
+      if(toCluster) {
+         try {
+            cluster.sendMessage(new RepositoryChangeMessage(principal, orgId));
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to send cluster message", e);
+         }
+      }
+
       if(principal != null) {
          debouncer.debounce(
             principal.getName(), 1L, TimeUnit.SECONDS, () -> sendChangeMessage(principal));
@@ -257,6 +278,13 @@ public class RepositoryChangeController {
       }
    }
 
+   private final MessageListener clusterMessageListener = (event) -> {
+      if(event.getMessage() instanceof RepositoryChangeMessage) {
+         RepositoryChangeMessage change = (RepositoryChangeMessage) event.getMessage();
+         scheduleChangeMessage(null, change.getOrgId(), false);
+      }
+   };
+
    private volatile boolean closed = false;
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
@@ -271,6 +299,7 @@ public class RepositoryChangeController {
    private final DashboardChangeListener dashboardListener = this::dashboardChanged;
    private final PropertyChangeListener dataSourceListener = this::dataSourceChanged;
    private final AssetChangeListener autoSaveListener = this::autoSaveChanged;
+   private final Cluster cluster;
 
    private static final String CHANGE_TOPIC = "/em-content-changed";
    private static final Logger LOG = LoggerFactory.getLogger(RepositoryChangeController.class);
@@ -290,5 +319,23 @@ public class RepositoryChangeController {
       }
 
       private final Principal principal;
+   }
+
+   public static final class RepositoryChangeMessage implements Serializable {
+      private final String principalName;
+      private final String orgId;
+
+      public RepositoryChangeMessage(Principal principal, String orgId) {
+         this.principalName = (principal != null) ? principal.getName() : null;
+         this.orgId = orgId;
+      }
+
+      public String getPrincipalName() {
+         return principalName;
+      }
+
+      public String getOrgId() {
+         return orgId;
+      }
    }
 }
