@@ -107,7 +107,7 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
       VSCompositeFormat fmt = info.getFormat();
       Vector dispList = new Vector();
       CompositeSelectionValue csv = info.getCompositeSelectionValue();
-      boolean expanded = getExporter() == null || getExporter().isExpandSelections();
+      boolean expanded = getExporter() == null || info.isExpandAll();
 
       info.visitCompositeChild(csv, dispList, true, expanded, expandedPaths);  // populate dispList
       slist.append("<div style='overflow:auto;width:100%;height:" + dataH + "'>");

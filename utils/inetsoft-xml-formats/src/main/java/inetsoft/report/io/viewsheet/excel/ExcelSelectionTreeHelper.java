@@ -19,8 +19,7 @@ package inetsoft.report.io.viewsheet.excel;
 
 import inetsoft.report.TableDataPath;
 import inetsoft.report.internal.Common;
-import inetsoft.report.io.viewsheet.VSSelectionListHelper;
-import inetsoft.report.io.viewsheet.VSSelectionTreeHelper;
+import inetsoft.report.io.viewsheet.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.SelectionTreeVSAssemblyInfo;
@@ -64,8 +63,9 @@ public class ExcelSelectionTreeHelper extends VSSelectionTreeHelper {
 
       StringBuilder sTitle = new StringBuilder();
       List<SelectionValue> dispList = new ArrayList<>();
-
-      boolean expandAll = getExporter() == null || getExporter().isExpandSelections();
+      VSExporter exporter = getExporter();
+      boolean expandAll = exporter == null
+         || (exporter.isMatchLayout() ? info.isExpandAll() : exporter.isExpandSelections());
       String[] expandedPaths = assembly.getExpandedValues();
       prepareDisplayList(info, dispList, sTitle, true, expandAll, expandedPaths);
       writeTree(assembly, sheet, dispList);
