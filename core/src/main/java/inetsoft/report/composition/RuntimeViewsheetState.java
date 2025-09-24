@@ -85,6 +85,14 @@ class RuntimeViewsheetState extends RuntimeSheetState {
       this.needsRefresh = needsRefresh;
    }
 
+   public boolean isMaxMode() {
+      return maxMode;
+   }
+
+   public void setMaxMode(boolean maxMode) {
+      this.maxMode = maxMode;
+   }
+
    public int getMode() {
       return mode;
    }
@@ -233,8 +241,8 @@ class RuntimeViewsheetState extends RuntimeSheetState {
 
       RuntimeViewsheetState that = (RuntimeViewsheetState) o;
       return viewer == that.viewer && preview == that.preview &&
-         needsRefresh == that.needsRefresh && mode == that.mode && touchts == that.touchts &&
-         lastReset == that.lastReset && dateCreated == that.dateCreated &&
+         needsRefresh == that.needsRefresh && maxMode == that.maxMode && mode == that.mode &&
+         touchts == that.touchts && lastReset == that.lastReset && dateCreated == that.dateCreated &&
          layoutPoint == that.layoutPoint && wizardViewsheet == that.wizardViewsheet &&
          layoutPoint == that.layoutPoint && wizardViewsheet == that.wizardViewsheet &&
          Objects.equals(bindingId, that.bindingId) && Objects.equals(vs, that.vs) &&
@@ -255,10 +263,10 @@ class RuntimeViewsheetState extends RuntimeSheetState {
    @Override
    public int hashCode() {
       return Objects.hash(
-         super.hashCode(), bindingId, vs, originalVs, vars, viewer, preview, needsRefresh, mode,
-         execSessionId, touchts, tipviews, popcomponents, bookmarksMap, ibookmark, openedBookmark,
-         lastReset, dateCreated, rvsLayout, layoutPoints, layoutPoint,  wizardViewsheet,
-         embedAssemblyInfo, temporaryInfo, originalId);
+         super.hashCode(), bindingId, vs, originalVs, vars, viewer, preview, needsRefresh, maxMode,
+         mode, execSessionId, touchts, tipviews, popcomponents, bookmarksMap, ibookmark, 
+         openedBookmark, lastReset, dateCreated, rvsLayout, layoutPoints, layoutPoint, 
+         wizardViewsheet, embedAssemblyInfo, temporaryInfo, originalId);
    }
 
    @Override
@@ -271,6 +279,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
          ", viewer=" + viewer +
          ", preview=" + preview +
          ", needsRefresh=" + needsRefresh +
+         ", maxMode=" + maxMode +
          ", mode=" + mode +
          ", execSessionId='" + execSessionId + '\'' +
          ", touchts=" + touchts +
@@ -300,6 +309,7 @@ class RuntimeViewsheetState extends RuntimeSheetState {
    private boolean viewer;
    private boolean preview;
    private boolean needsRefresh;
+   private boolean maxMode;
    private int mode;
    private String execSessionId;
    private long touchts;
