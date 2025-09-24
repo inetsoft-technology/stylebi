@@ -75,7 +75,7 @@ public class ImportXLSController {
       FileSystemService fileSystemService = FileSystemService.getInstance();
 
       String key = "/" + ImportXLSControllerService.class.getName() + "_" + runtimeId + "_" + type;
-      Path path = CacheFS.getPath("tempStorage", key);
+      Path path = CacheFS.getPath("tempStorage", Tool.encodeURL(key));
       fileSystemService.remove(path, 120000);
 
       try(OutputStream output = Files.newOutputStream(path)) {

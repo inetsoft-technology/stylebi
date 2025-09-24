@@ -54,7 +54,7 @@ public class ImportXLSControllerService {
 
       vsId = vsId.replace('/', '_');
       String key = "/" + ImportXLSControllerService.class.getName() + "_" + vsId + "_" + type;
-      Path excelPath = CacheFS.getPath("tempStorage", key);
+      Path excelPath = CacheFS.getPath("tempStorage", Tool.encodeURL(key));
 
       if(!Files.exists(excelPath)) {
          String msg = catalog.getString("Upload Timeout");
