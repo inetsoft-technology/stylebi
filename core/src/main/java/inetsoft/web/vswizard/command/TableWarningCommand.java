@@ -17,6 +17,11 @@
  */
 package inetsoft.web.vswizard.command;
 
+import inetsoft.util.Tool;
+import org.w3c.dom.Element;
+
+import java.io.PrintWriter;
+
 public class TableWarningCommand implements TimeSensitiveCommand {
    public String getMessage() {
       return message;
@@ -24,6 +29,16 @@ public class TableWarningCommand implements TimeSensitiveCommand {
 
    public void setMessage(String message) {
       this.message = message;
+   }
+
+   @Override
+   public void writeAttributes(PrintWriter writer) {
+      writer.print(" message=\"" + message + "\"");
+   }
+
+   @Override
+   public void parseAttributes(Element tag) throws Exception {
+      message = Tool.getAttribute(tag, "message");
    }
 
    String message;
