@@ -62,7 +62,7 @@ public interface WorksheetService {
     */
    void setAssetRepository(AssetRepository engine);
 
-   void putRuntimeVS(String id, RuntimeViewsheet rs);
+   void putRuntimeSheet(String id, RuntimeSheet rs);
 
    /**
     * Dispose the worksheet service.
