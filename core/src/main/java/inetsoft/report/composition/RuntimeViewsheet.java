@@ -148,6 +148,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       if(state.getVs() != null) {
          vs = loadXml(new Viewsheet(), state.getVs());
+         vs.setMaxMode(state.isMaxMode());
       }
 
       if(state.getOriginalVs() != null) {
@@ -166,6 +167,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
       preview = state.isPreview();
       needRefresh = state.isNeedsRefresh();
       mode = state.getMode();
+      rep = (AssetRepository) AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
+
+      //need to recover worksheet before setting box
+      vs.repopulateWorksheet(rep, user);
 
       if(state.getBoxRid() != null) {
          box = new ViewsheetSandbox(vs, mode, getUser(), false, entry, state.getBoxRid());
@@ -175,7 +180,6 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       box.setOriginalID(state.getOriginalId());
-      rep = (AssetRepository) AnalyticAssistant.getAnalyticAssistant().getAnalyticRepository();
       execSessionID = state.getExecSessionId();
       touchts = state.getTouchts();
       tipviews = state.getTipviews();
@@ -224,6 +228,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
          embedAssemblyInfo = loadJson(EmbedAssemblyInfo.class, state.getEmbedAssemblyInfo(), mapper);
       }
 
+      boolean isUpdate = state.isUpdate();
+
+      setEntry(entry, isUpdate);
+
       if(state.getTemporaryInfo() != null) {
          temporaryInfo = loadXml(new VSTemporaryInfo(), state.getTemporaryInfo());
 
@@ -231,8 +239,6 @@ public class RuntimeViewsheet extends RuntimeSheet {
             temporaryInfo.getTempChart().setViewsheet(vs);
          }
       }
-     
-      setEntry(entry);
 
       // load base worksheet and create asset query sandbox
       resetRuntime();
@@ -338,11 +344,15 @@ public class RuntimeViewsheet extends RuntimeSheet {
     */
    @Override
    public void setEntry(AssetEntry entry) {
+      setEntry(entry, false);
+   }
+
+   public void setEntry(AssetEntry entry, boolean isUpdate) {
       super.setEntry(entry);
       updateVSBookmark(isRuntime());
 
       // go to the default bookmark state for runtime only
-      if(isRuntime() && !isAnonymous() && vs != null && user != null) {
+      if(!isUpdate && isRuntime() && !isAnonymous() && vs != null && user != null) {
          Viewsheet ovs = vs;
          vs = gotoDefaultBookmark(vs);
          resetViewsheet(vs, ovs);
@@ -495,6 +505,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
                   LOG.warn("Failed to go to bookmark after reset", e);
                }
             }
+            else if(openedBookmark != null && VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName())) {
+               gotoDefaultBookmark(vs);
+            }
 
             initViewsheet(vs, true);
             lastReset = System.currentTimeMillis();
@@ -588,6 +601,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
       Viewsheet ovs = this.vs;
       this.vs = vs;
       resetViewsheet(this.vs, ovs);
+
+      //if worksheet entry exists but worksheet is unpopulated, reset runtime to repopulate
+      if(vs.getBaseEntry() != null && vs.getBaseWorksheet() == null) {
+         resetRuntime();
+      }
 
       box.setViewsheet(this.vs, true);
       // vs changed, ignore the previous failed mv attempts and try again
@@ -2581,6 +2599,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
       state.setViewer(viewer);
       state.setPreview(preview);
       state.setNeedsRefresh(needRefresh);
+
+      if(vs != null) {
+         state.setMaxMode(vs.isMaxMode());
+      }
+
       state.setMode(mode);
       state.setExecSessionId(execSessionID);
       state.setTouchts(touchts);

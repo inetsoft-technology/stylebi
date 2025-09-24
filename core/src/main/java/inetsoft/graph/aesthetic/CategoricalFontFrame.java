@@ -18,6 +18,7 @@
 package inetsoft.graph.aesthetic;
 
 import inetsoft.graph.internal.GTool;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,9 +65,14 @@ public class CategoricalFontFrame extends FontFrame implements CategoricalFrame 
    public void setFont(Object val, Font font) {
       if(font != null) {
          cmap.put(GTool.toString(val), font);
+
+         if(JavaScriptEngine.isScriptThread()) {
+            scripted.add(GTool.toString(val));
+         }
       }
       else {
          cmap.remove(GTool.toString(val));
+         scripted.remove(GTool.toString(val));
       }
    }
 
@@ -79,6 +85,11 @@ public class CategoricalFontFrame extends FontFrame implements CategoricalFrame 
    }
 
    @Override
+   public boolean isScripted(Object val) {
+      return scripted.contains(GTool.toString(val));
+   }
+
+   @Override
    public Set<Object> getStaticValues() {
       return cmap.keySet();
    }
@@ -86,6 +97,7 @@ public class CategoricalFontFrame extends FontFrame implements CategoricalFrame 
    @Override
    public void clearStatic() {
       cmap.clear();
+      scripted.clear();
    }
 
    /**
@@ -97,7 +109,7 @@ public class CategoricalFontFrame extends FontFrame implements CategoricalFrame 
       }
 
       CategoricalFontFrame frame2 = (CategoricalFontFrame) obj;
-      return cmap.equals(frame2.cmap);
+      return cmap.equals(frame2.cmap) && scripted.equals(frame2.scripted);
    }
 
    /**
@@ -108,6 +120,7 @@ public class CategoricalFontFrame extends FontFrame implements CategoricalFrame 
       try {
          CategoricalFontFrame frame = (CategoricalFontFrame) super.clone();
          frame.cmap = new LinkedHashMap<>(cmap);
+         frame.scripted = new HashSet<>(scripted);
          return frame;
       }
       catch(Exception ex) {
@@ -117,6 +130,7 @@ public class CategoricalFontFrame extends FontFrame implements CategoricalFrame 
    }
 
    private Map<Object, Font> cmap = new LinkedHashMap<>();
+   private Set<Object> scripted = new HashSet<>(1);
 
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(CategoricalFontFrame.class);

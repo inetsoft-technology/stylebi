@@ -114,6 +114,11 @@ public class ColorValueColorFrame extends ColorFrame implements CategoricalFrame
    }
 
    @Override
+   public boolean isScripted(Object val) {
+      return false;
+   }
+
+   @Override
    public Set<Object> getStaticValues() {
       return new HashSet<>();
    }

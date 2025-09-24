@@ -25,6 +25,7 @@ import inetsoft.graph.scale.Scale;
 import inetsoft.util.CoreTool;
 import inetsoft.util.DefaultComparator;
 import inetsoft.util.css.*;
+import inetsoft.util.script.JavaScriptEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -251,6 +252,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    public void clearStatic() {
       cmap.clear();
       clearUsedColors();
+      scripted.clear();
    }
 
    /**
@@ -260,9 +262,14 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    public void setColor(Object val, Color color) {
       if(color != null) {
          cmap.put(GTool.toString(val), color);
+
+         if(JavaScriptEngine.isScriptThread()) {
+            scripted.add(GTool.toString(val));
+         }
       }
       else {
          cmap.remove(GTool.toString(val));
+         scripted.remove(GTool.toString(val));
       }
 
       clearUsedColors();
@@ -272,6 +279,12 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    @TernMethod
    public boolean isStatic(Object val) {
       return cmap.get(GTool.toString(val)) != null || cmap.get(formatValue(val)) != null;
+   }
+
+   @Override
+   @TernMethod
+   public boolean isScripted(Object val) {
+      return scripted.contains(GTool.toString(val));
    }
 
    /**
@@ -550,6 +563,10 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
          return false;
       }
 
+      if(!scripted.equals(frame2.scripted)) {
+         return false;
+      }
+
       return cmap.equals(((CategoricalColorFrame) obj).cmap);
    }
 
@@ -564,6 +581,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
          frame.cssColors = new HashMap<>(cssColors);
          frame.userColors = new HashMap<>(userColors);
          frame.cmap = new LinkedHashMap<>(cmap);
+         frame.scripted = new HashSet<>(scripted);
          frame.useGlobal = useGlobal;
          frame.shareColors = shareColors;
          return frame;
@@ -617,7 +635,8 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
          // only include colors in the current legend (and ignore color assignments that
          // are not used in the legend. (57016)
          id += "c:" + Arrays.stream(vals)
-            .map(v -> v + ":" + cmap.get(v)).collect(Collectors.toList());
+            .map(v -> v + ":" + cmap.get(v) + (scripted.contains(v) ? "@s" : ""))
+            .collect(Collectors.toList());
       }
 
       return id;
@@ -627,6 +646,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
    private Map<Integer, Color> cssColors = new HashMap<>();
    private Map<Integer, Color> userColors = new HashMap<>();
    private Map<Object, Color> cmap = new LinkedHashMap<>();
+   private Set<Object> scripted = new HashSet<>(1);
    private Color defaultColor = null;
    private ArrayList<Color> negcolors = new ArrayList<>();
    private boolean useGlobal = true;

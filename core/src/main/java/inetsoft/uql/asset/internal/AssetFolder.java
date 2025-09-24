@@ -136,6 +136,14 @@ public class AssetFolder implements AssetObject, Binarylizable {
       this.owner = owner;
    }
 
+   public String getEntryPrefix() {
+      return entryPrefix;
+   }
+
+   public void setEntryPrefix(String entryPrefix) {
+      this.entryPrefix = entryPrefix;
+   }
+
    /**
     * Get the string representation.
     * @return the string representation.
@@ -231,6 +239,7 @@ public class AssetFolder implements AssetObject, Binarylizable {
 
    private HashSet<AssetEntry> entries;
    private IdentityID owner; // for task folder.
+   private transient String entryPrefix; // If an entry prefix is present, truncate the paths from the child entries
    private transient HashMap<AssetEntry, AssetEntry> entryMap;
 
    @Override

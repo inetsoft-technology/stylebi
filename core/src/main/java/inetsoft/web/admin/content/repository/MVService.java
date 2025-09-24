@@ -225,8 +225,8 @@ public class MVService {
          if(def.getUsers() != null) {
             for(Identity identity : def.getUsers()) {
                buffer.append(catalog.getString(
-                  identity.getType() == Identity.GROUP ? "Group" :
-                     identity.getType() == Identity.ROLE ? "Role" : "User"))
+                     identity.getType() == Identity.GROUP ? "Group" :
+                        identity.getType() == Identity.ROLE ? "Role" : "User"))
                   .append(":").append(identity.getName()).append(" ");
             }
          }

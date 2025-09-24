@@ -20,6 +20,7 @@ package inetsoft.graph.aesthetic;
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.internal.GTool;
 import inetsoft.util.Tool;
+import inetsoft.util.script.JavaScriptEngine;
 
 import java.util.*;
 
@@ -91,10 +92,15 @@ public class DefaultTextFrame extends TextFrame implements CategoricalFrame, Clo
       if(text != null) {
          textmap.put(val, text);
          textmap.put(GTool.toString(val), text);
+
+         if(JavaScriptEngine.isScriptThread()) {
+            scripted.add(GTool.toString(val));
+         }
       }
       else {
          textmap.remove(val);
          textmap.remove(GTool.toString(val));
+         scripted.remove(GTool.toString(val));
       }
    }
 
@@ -127,6 +133,12 @@ public class DefaultTextFrame extends TextFrame implements CategoricalFrame, Clo
 
    @Override
    @TernMethod
+   public boolean isScripted(Object val) {
+      return scripted.contains(GTool.toString(val));
+   }
+
+   @Override
+   @TernMethod
    public Set<Object> getStaticValues() {
       return textmap.keySet();
    }
@@ -135,15 +147,18 @@ public class DefaultTextFrame extends TextFrame implements CategoricalFrame, Clo
    @TernMethod
    public void clearStatic() {
       textmap.clear();
+      scripted.clear();
    }
 
    @Override
    public Object clone() {
       DefaultTextFrame frame = (DefaultTextFrame) super.clone();
       frame.textmap = Tool.deepCloneMap(textmap);
+      frame.scripted = new HashSet<>(scripted);
       return frame;
    }
 
    private Map textmap = new HashMap();
+   private Set scripted = new HashSet(1);
    private static final long serialVersionUID = 1L;
 }

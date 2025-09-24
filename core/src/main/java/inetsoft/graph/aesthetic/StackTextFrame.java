@@ -333,6 +333,13 @@ public class StackTextFrame extends TextFrame implements CategoricalFrame {
 
    @Override
    @TernMethod
+   public boolean isScripted(Object val) {
+      return false;
+
+   }
+
+   @Override
+   @TernMethod
    public Set<Object> getStaticValues() {
       return new HashSet<>();
    }

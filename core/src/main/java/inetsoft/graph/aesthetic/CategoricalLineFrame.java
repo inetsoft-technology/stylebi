@@ -23,10 +23,12 @@ import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.CategoricalScale;
 import inetsoft.graph.scale.Scale;
 import inetsoft.util.CoreTool;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.*;
+
+import inetsoft.util.script.JavaScriptEngine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class defines a line frame for categorical values. Different values
@@ -161,9 +163,14 @@ public class CategoricalLineFrame extends LineFrame implements CategoricalFrame 
    public void setLine(Object val, GLine line) {
       if(line != null) {
          cmap.put(GTool.toString(val), line);
+
+         if(JavaScriptEngine.isScriptThread()) {
+            scripted.add(GTool.toString(val));
+         }
       }
       else {
          cmap.remove(GTool.toString(val));
+         scripted.remove(GTool.toString(val));
       }
    }
 
@@ -178,6 +185,12 @@ public class CategoricalLineFrame extends LineFrame implements CategoricalFrame 
 
    @Override
    @TernMethod
+   public boolean isScripted(Object val) {
+      return scripted.contains(GTool.toString(val));
+   }
+
+   @Override
+   @TernMethod
    public Set<Object> getStaticValues() {
       return cmap.keySet();
    }
@@ -186,6 +199,7 @@ public class CategoricalLineFrame extends LineFrame implements CategoricalFrame 
    @TernMethod
    public void clearStatic() {
       cmap.clear();
+      scripted.clear();
    }
 
    /**
@@ -217,7 +231,7 @@ public class CategoricalLineFrame extends LineFrame implements CategoricalFrame 
    @Override
    @TernMethod
    public String getUniqueId() {
-      return super.getUniqueId() + new TreeMap(cmap);
+      return super.getUniqueId() + new TreeMap(cmap) + new TreeSet(scripted);
    }
 
    /**
@@ -253,6 +267,7 @@ public class CategoricalLineFrame extends LineFrame implements CategoricalFrame 
          CategoricalLineFrame frame = (CategoricalLineFrame) super.clone();
          frame.lines = lines.clone();
          frame.cmap = new HashMap<>(cmap);
+         frame.scripted = new HashSet<>(scripted);
          return frame;
       }
       catch(Exception ex) {
@@ -263,6 +278,7 @@ public class CategoricalLineFrame extends LineFrame implements CategoricalFrame 
 
    private GLine[] lines;
    private Map<Object, GLine> cmap = new HashMap<>();
+   private Set<Object> scripted = new HashSet<>(1);
    private GLine defaultLine = null;
 
    private static final long serialVersionUID = 1L;

@@ -20,12 +20,13 @@ package inetsoft.graph.aesthetic;
 import com.inetsoft.build.tern.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.internal.GTool;
-import inetsoft.graph.scale.CategoricalScale;
-import inetsoft.graph.scale.Scale;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import inetsoft.graph.scale.*;
 
 import java.util.*;
+
+import inetsoft.util.script.JavaScriptEngine;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class defines a size frame for categorical values.
@@ -107,9 +108,14 @@ public class CategoricalSizeFrame extends SizeFrame implements CategoricalFrame 
    public void setSize(Object val, double size) {
       if(!Double.isNaN(size)) {
          cmap.put(GTool.toString(val), size);
+
+         if(JavaScriptEngine.isScriptThread()) {
+            scripted.add(GTool.toString(val));
+         }
       }
       else {
          cmap.remove(GTool.toString(val));
+         scripted.remove(GTool.toString(val));
       }
    }
 
@@ -124,6 +130,12 @@ public class CategoricalSizeFrame extends SizeFrame implements CategoricalFrame 
 
    @Override
    @TernMethod
+   public boolean isScripted(Object val) {
+      return scripted.contains(GTool.toString(val));
+   }
+
+   @Override
+   @TernMethod
    public Set<Object> getStaticValues() {
       return cmap.keySet();
    }
@@ -132,6 +144,7 @@ public class CategoricalSizeFrame extends SizeFrame implements CategoricalFrame 
    @TernMethod
    public void clearStatic() {
       cmap.clear();
+      scripted.clear();
    }
 
    /**
@@ -176,7 +189,7 @@ public class CategoricalSizeFrame extends SizeFrame implements CategoricalFrame 
    @Override
    @TernMethod
    public String getUniqueId() {
-      return super.getUniqueId() + new TreeMap(cmap);
+      return super.getUniqueId() + new TreeMap(cmap) + new TreeSet<>(scripted);
    }
 
    /**
@@ -187,6 +200,7 @@ public class CategoricalSizeFrame extends SizeFrame implements CategoricalFrame 
       try {
          CategoricalSizeFrame frame = (CategoricalSizeFrame) super.clone();
          frame.cmap = new HashMap<>(cmap);
+         frame.scripted = new HashSet<>(scripted);
          return frame;
       }
       catch(Exception ex) {
@@ -203,10 +217,12 @@ public class CategoricalSizeFrame extends SizeFrame implements CategoricalFrame 
          return false;
       }
 
-      return cmap.equals(((CategoricalSizeFrame) obj).cmap);
+      return cmap.equals(((CategoricalSizeFrame) obj).cmap) &&
+         scripted.equals(((CategoricalSizeFrame) obj).scripted);
    }
 
    private Map<Object, Double> cmap = new HashMap<>();
+   private Set<Object> scripted = new HashSet<>(1);
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(CategoricalSizeFrame.class);
 }
