@@ -96,7 +96,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       this.engine = engine;
    }
 
-   public void putRuntimeVS(String id, RuntimeViewsheet rs) {
+   public void putRuntimeSheet(String id, RuntimeSheet rs) {
       amap.putRuntimeSheet(id, rs);
    }
 
