@@ -542,7 +542,7 @@ public class UserEnv {
                IdentityID user = getName(key);
                int index = e.getFile().indexOf(".xml");
 
-               if(index >= 0 && e.getFile().substring(0, index).equals(user.name)) {
+               if(index >= 0 && e.getFile().substring(0, index).equals(user.name + "_" + user.orgID)) {
                   propmap.remove(key);
                   return;
                }
