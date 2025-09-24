@@ -51,14 +51,15 @@ public abstract class AbstractLogoutFilter extends AbstractSecurityFilter {
    protected String getLogoutRedirectUri(HttpServletRequest request)
       throws UnsupportedEncodingException
    {
-      String redirectUri = SreeEnv.getProperty(
-         "portal.logout.url", LinkUriArgumentResolver.getLinkUri(request) + REDIRECT_URI);
+      String defRedirectUri = LinkUriArgumentResolver.getLinkUri(request) + REDIRECT_URI;
+      String redirectUri = SreeEnv.getProperty("portal.logout.url", defRedirectUri);
       Map<String, String[]> queryParameters = getQueryParameters(request);
       boolean fromEm = isFromEm(queryParameters);
       boolean showLogin = isShowLogin(queryParameters);
       boolean guestLogin = isGuestLogin(request, showLogin);
 
-      if(fromEm) {
+      // for SSO only redirect to EM when portal.logout.url is not set
+      if(fromEm && (!isSSO() || redirectUri.equals(defRedirectUri))) {
          if("GET".equals(request.getMethod()) && request.getParameter("redirectUri") != null) {
             redirectUri = request.getParameter("redirectUri");
          }

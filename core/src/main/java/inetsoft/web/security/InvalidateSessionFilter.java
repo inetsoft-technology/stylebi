@@ -44,7 +44,7 @@ public class InvalidateSessionFilter extends AbstractSecurityFilter {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
       HttpSession session = httpRequest.getSession(false);
 
-      if(session != null && !isSSO() && !isPublicResource(httpRequest) &&
+      if(session != null && !isPublicResource(httpRequest) &&
          !isPublicApi(httpRequest))
       {
          SRPrincipal principal = (SRPrincipal) SUtil.getPrincipal(httpRequest);

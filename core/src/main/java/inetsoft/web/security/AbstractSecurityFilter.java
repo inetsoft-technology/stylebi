@@ -165,7 +165,7 @@ public abstract class AbstractSecurityFilter
    /**
     * Create a session and add an audit login record when logging in with SSO
     */
-   protected void createSSOSession(HttpServletRequest request,
+   protected SRPrincipal createSSOSession(HttpServletRequest request,
                                    SRPrincipal principal) throws AuthenticationFailureException
    {
       final IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
@@ -178,10 +178,12 @@ public abstract class AbstractSecurityFilter
       final IdentityID[] newRoles =
          Stream.concat(Arrays.stream(defRoles), Arrays.stream(currentRoles)).toArray(IdentityID[]::new);
       principal.setRoles(newRoles);
-      createSession(request, principal);
       final ClientInfo info = createClientInfo(principal.getIdentityID(), request);
+      principal = new SRPrincipal(principal, info);
+      createSession(request, principal);
       AuthenticationService.getInstance().authenticate(info, principal);
       SUtil.loginRecord(request, pId, true, null);
+      return principal;
    }
 
    /**
