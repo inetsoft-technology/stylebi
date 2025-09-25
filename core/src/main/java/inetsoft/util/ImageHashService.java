@@ -378,18 +378,34 @@ public class ImageHashService implements XMLSerializable {
 
       public void writeXML(PrintWriter writer) {
          writer.print(" <imageInfo ");
-         writer.print(" path=\"" + path + "\"");
+
+         if(path != null) {
+            writer.print(" path=\"" + path + "\"");
+         }
+
          writer.print(" width=\"" + width + "\"");
          writer.print(" height=\"" + height + "\"");
          writer.print(" rawBytes=\"" + rawBytes + "\"");
-         writer.print(" assemblyName=\"" + assemblyName + "\"");
+
+         if(assemblyName != null) {
+            writer.print(" assemblyName=\"" + assemblyName + "\"");
+         }
+
          writer.print(" shadow=\"" + shadow + "\"");
          writer.print(" highlight=\"" + highlight + "\"");
-         writer.print(" scale9=\"" + scale9 + "\"");
+
+         if(scale9 != null) {
+            writer.print(" scale9=\"" + scale9 + "\"");
+         }
+
          writer.print(" scaled=\"" + scaled + "\"");
          writer.print(" bgColorValue=\"" + bgColorValue + "\"");
          writer.print(" align=\"" + align + "\"");
-         writer.print(" embeddedViewsheetName=\"" + embeddedViewsheetName + "\"");
+
+         if(embeddedViewsheetName != null) {
+            writer.print(" embeddedViewsheetName=\"" + embeddedViewsheetName + "\"");
+         }
+
          writer.print(" ></imageInfo>");
       }
 
