@@ -127,7 +127,7 @@ public class CompletionCondition implements ScheduleCondition,
 
    public boolean equals(Object val) {
       return (val instanceof CompletionCondition) &&
-         ((CompletionCondition) val).getTaskName().equals(taskname);
+         Tool.equals(((CompletionCondition) val).getTaskName(), taskname);
    }
 
    /**
