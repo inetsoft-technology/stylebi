@@ -65,7 +65,7 @@ export class RepositoryClientService {
     */
    private subscribe(): void {
       this.connection.subscribe("/user/repository-changed", (message) => {
-         const event: any = JSON.parse(message.frame.body);
+         const event: any = !!message.frame.body ? JSON.parse(message.frame.body) : null;
          this.zone.run(() => this.repositoryChanged$.next(event));
       });
       this.connection.subscribe("/user/data-changed", (message) => {
