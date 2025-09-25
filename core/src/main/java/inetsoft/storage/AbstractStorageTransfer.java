@@ -199,8 +199,8 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
                      Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
                   }
 
-               blob = updateRegistryBlob(blob, id, key, temp);
-               digest = blob.getDigest();
+                  blob = updateRegistryBlob(blob, id, key, temp);
+                  digest = blob.getDigest();
 
                   saveBlob(id, digest, temp);
                   Files.delete(temp);
