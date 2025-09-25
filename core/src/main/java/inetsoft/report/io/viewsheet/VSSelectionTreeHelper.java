@@ -51,7 +51,9 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
       writeObjectBackground(info);
       StringBuilder sTitle = new StringBuilder();
       List<SelectionValue> dispList = new ArrayList<>();
-      boolean expandAll = getExporter() == null || getExporter().isExpandSelections();
+      VSExporter exporter = getExporter();
+      boolean expandAll = exporter == null
+         || (exporter.isMatchLayout() ? info.isExpandAll() : exporter.isExpandSelections());
       String[] expandedPaths = assembly.getExpandedValues();
       prepareDisplayList(info, dispList, sTitle, false, expandAll, expandedPaths);
 
