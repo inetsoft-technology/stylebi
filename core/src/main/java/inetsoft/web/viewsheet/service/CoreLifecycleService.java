@@ -2890,7 +2890,7 @@ public class CoreLifecycleService {
 
          if(box != null) {
             // replace all drilldown variables so they don't accumulate
-            box.getVariableTable().clear();
+            variables.remove("drillfrom");
          }
       }
 
