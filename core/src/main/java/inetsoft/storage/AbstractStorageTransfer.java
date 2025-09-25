@@ -191,17 +191,20 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
 
             if(digest != null) {
                entry = zip.getEntry("blobs/" + digest.substring(0, 2) + "/" + digest.substring(2));
-               Path temp = Files.createTempFile("import-storage", ".dat");
 
-               try(InputStream input = zip.getInputStream(entry)) {
-                  Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
-               }
+               if(entry != null) {
+                  Path temp = Files.createTempFile("import-storage", ".dat");
+
+                  try(InputStream input = zip.getInputStream(entry)) {
+                     Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
+                  }
 
                blob = updateRegistryBlob(blob, id, key, temp);
                digest = blob.getDigest();
 
-               saveBlob(id, digest, temp);
-               Files.delete(temp);
+                  saveBlob(id, digest, temp);
+                  Files.delete(temp);
+               }
             }
 
             putKeyValue(id, key, blob);
