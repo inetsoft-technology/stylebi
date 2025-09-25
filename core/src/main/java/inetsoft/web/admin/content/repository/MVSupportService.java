@@ -420,11 +420,11 @@ public class MVSupportService {
     * @param statuses  the pending materialized view definitions.
     * @param dataCycle the name of the data cycle.
     */
-   public void setDataCycle(List<String> mvs, List<MVStatus> statuses, String dataCycle) {
+   public void setDataCycle(List<String> mvs, AnalysisResult result, String dataCycle) {
       MVManager manager = MVManager.getManager();
 
       for(String name : mvs) {
-         for(MVStatus status : statuses) {
+         for(MVStatus status : result.getStatus()) {
             if(status.getDefinition().getName().equals(name)) {
                status.getDefinition().setCycle(getCycle(dataCycle));
                status.getDefinition().setChanged(true);
@@ -443,6 +443,12 @@ public class MVSupportService {
          }
       }
 
+      // update the analysis status in the distributed map after setting the data cycle
+      AnalysisStatus status = new AnalysisStatus(result.getCandidates(), result.getExceptions(),
+                                                 result.getPlans(), result.getStatus(),
+                                                 result.getError());
+      Map<String, AnalysisStatus> map = Cluster.getInstance().getMap(ANALYSIS_STATUS_MAP);
+      map.put(result.getId(), status);
       manager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
    }
 
@@ -928,6 +934,17 @@ public class MVSupportService {
       public Map<MVCandidate, StringBuffer> getPlans() {
          return getAnalysisStatus().map(AnalysisStatus::getPlans).orElseThrow(
             () -> new IllegalStateException("The analysis job is not valid"));
+      }
+
+      /**
+       * Gets the error
+       *
+       * @return the error.
+       */
+      public Exception getError() {
+         AnalysisStatus status = getAnalysisStatus()
+            .orElseThrow(() -> new IllegalStateException("The analysis job is not valid"));
+         return status.getError();
       }
 
       /**
