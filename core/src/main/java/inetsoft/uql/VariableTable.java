@@ -927,7 +927,7 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
                generator.writeString(value);
             }
 
-            generator.writeEndObject(); // asIs
+            generator.writeEndArray(); // asIs
          }
 
          generator.writeObjectField("basetable", table.basetable);
@@ -981,6 +981,9 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
          array = (ArrayNode) node.get("asIs");
 
          if(array != null) {
+            if(table.asIs == null) {
+               table.asIs = new HashSet<>();
+            }
             for(JsonNode child : array) {
                table.asIs.add(child.asText());
             }
