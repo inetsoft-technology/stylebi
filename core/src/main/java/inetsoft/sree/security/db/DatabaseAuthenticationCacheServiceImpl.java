@@ -214,6 +214,17 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
             return;
          }
 
+         QueryResult<Map<IdentityID, IdentityArray>> newUserRoles = dao.getUserRoles();
+
+         if(cancelled.get()) {
+            return;
+         }
+
+         if(newUserRoles.failed()) {
+            handleError();
+            return;
+         }
+
          Map<String, String> newOrgNames = new HashMap<>();
          Map<String, String[]> newOrgMembers = new HashMap<>();
          Map<String, String[]> newOrgRoles = new HashMap<>();
@@ -270,6 +281,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
 
             groupUsers.removeAll();
             userRoles.removeAll();
+            userRoles.putAll(newUserRoles.result());
             userEmails.removeAll();
 
             tx.commit();

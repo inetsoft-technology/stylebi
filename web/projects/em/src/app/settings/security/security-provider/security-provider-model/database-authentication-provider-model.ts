@@ -34,6 +34,7 @@ export interface DatabaseAuthenticationProviderModel {
    organizationMembersQuery: string,
    organizationRolesQuery: string,
    userRolesQuery: string;
+   userRoleListQuery: string;
    appendSalt: boolean;
    userEmailsQuery: string;
    sysAdminRoles: string;

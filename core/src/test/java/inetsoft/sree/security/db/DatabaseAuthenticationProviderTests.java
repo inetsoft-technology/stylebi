@@ -25,6 +25,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.util.db.DBConnectionPool;
 import org.apache.commons.io.IOUtils;
 import org.awaitility.Awaitility;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -42,6 +43,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SreeHome
@@ -314,6 +316,38 @@ class DatabaseAuthenticationProviderTests {
       return args.stream();
    }
 
+   @Test
+   void getAllUserRolesShouldReturnCorrectValues() {
+      waitForCache();
+      Map<IdentityID, IdentityID[]> actual = provider.getAllUserRoles();
+      assertNotNull(actual);
+
+      Set<IdentityID> found = new HashSet<>();
+
+      for(TestOrganization org : expectedData) {
+         for(Map.Entry<String, List<String>> entry :  org.userRoles().entrySet()) {
+            IdentityID user = new IdentityID(entry.getKey(), org.id());
+            IdentityID[] roles = entry.getValue().stream()
+               .map(role -> new IdentityID(role, ADMIN_ROLES.contains(role) ? null : org.id()))
+               .toArray(IdentityID[]::new);
+            Arrays.sort(roles);
+
+            assertThat(actual, Matchers.hasKey(user));
+            found.add(user);
+            IdentityID[] actualRoles = actual.get(user);
+            assertNotNull(actualRoles);
+            assertArrayEquals(roles, actualRoles);
+         }
+      }
+
+      IdentityID[] expectedUsers = actual.keySet().toArray(new IdentityID[0]);
+      Arrays.sort(expectedUsers);
+      IdentityID[] actualUsers = found.toArray(new IdentityID[0]);
+      Arrays.sort(actualUsers);
+
+      assertArrayEquals(expectedUsers, actualUsers);
+   }
+
    @SuppressWarnings("deprecation")
    @ParameterizedTest
    @MethodSource("provideUsersForGetEmails")
@@ -502,6 +536,7 @@ class DatabaseAuthenticationProviderTests {
       provider.setGroupUsersQuery("SELECT USER_NAME FROM INETSOFT_GROUP_USER WHERE ORG_ID=? AND GROUP_NAME=?");
       provider.setRoleListQuery("SELECT ROLE_NAME, ORG_ID FROM INETSOFT_ROLE");
       provider.setUserRolesQuery("SELECT ROLE_NAME FROM INETSOFT_USER_ROLE WHERE ORG_ID=? AND USER_NAME=?");
+      provider.setUserRoleListQuery("SELECT USER_NAME, ROLE_NAME, ORG_ID FROM INETSOFT_USER_ROLE ORDER BY ORG_ID ASC, USER_NAME ASC, ROLE_NAME ASC");
       provider.setGroupListQuery("SELECT GROUP_NAME, ORG_ID FROM INETSOFT_GROUP");
       provider.setUserEmailsQuery("SELECT EMAIL FROM INETSOFT_USER WHERE ORG_ID=? AND USER_NAME=?");
       provider.setSystemAdministratorRoles(new String[] { "Site Admin" });
