@@ -17,9 +17,14 @@
  */
 package inetsoft.web.vswizard.command;
 
+import inetsoft.util.XMLSerializable;
 import inetsoft.web.viewsheet.command.ViewsheetCommand;
+import org.w3c.dom.Element;
 
-public interface TimeSensitiveCommand extends ViewsheetCommand {
+import java.io.PrintWriter;
+import java.io.Serializable;
+
+public interface TimeSensitiveCommand extends ViewsheetCommand, Serializable, XMLSerializable {
    default long getTimestamp() {
       return System.currentTimeMillis();
    }
@@ -29,5 +34,36 @@ public interface TimeSensitiveCommand extends ViewsheetCommand {
 
    default boolean isWizard() {
       return true;
+   }
+
+   @Override
+   default void writeXML(PrintWriter writer) {
+      writer.print("<timeSensitiveCommand class=\"" + getClass().getName() + "\"");
+      writeAttributes(writer);
+      writer.println(">");
+      writeContents(writer);
+      writer.print("</vsObjectRecommendation>");
+   }
+
+   default void writeAttributes(PrintWriter writer) {
+      // do nothing
+   }
+
+   default void writeContents(PrintWriter writer) {
+      // do nothing
+   }
+
+   @Override
+   default void parseXML(Element elem) throws Exception {
+      parseAttributes(elem);
+      parseContents(elem);
+   }
+
+   default void parseContents(Element elem) throws Exception {
+      // do nothing
+   }
+
+   default void parseAttributes(Element elem) throws Exception {
+      // do nothing
    }
 }
