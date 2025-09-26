@@ -42,6 +42,8 @@ public interface ServerModel {
 
    String externalStoragePath();
 
+   boolean isCloud();
+
    static ServerModel.Builder builder() {
       return new ServerModel.Builder();
    }
