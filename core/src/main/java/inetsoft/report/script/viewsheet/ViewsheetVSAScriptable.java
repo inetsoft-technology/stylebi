@@ -25,7 +25,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.script.VariableScriptable;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.InputVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
@@ -77,11 +77,12 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
          addProperty("thisParameter", new VariableScriptable(myBox.getVariableTable()));
       }
 
-      if(getInfo().isEmbedded()) {
+      if(getInfo() != null && getInfo().isEmbedded()) {
          addProperty("visible", "isVisible", "setVisible", String.class, getClass(), this);
       }
 
       addFunctionProperty(getClass(), "refresh");
+      addFunctionProperty(getClass(), "setInputSelectedObject", String.class, Object.class);
    }
 
    /**
@@ -225,6 +226,24 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
          : box.getAssetEntry();
    }
 
+   public void setInputSelectedObject(String assemblyName, Object value) {
+      Viewsheet vs = box.getViewsheet();
+      VSAssembly vsAssembly = assembly == null ? null : vs.getAssembly(assembly);
+      VSAssembly assembly;
+
+      if(vsAssembly instanceof Viewsheet) {
+         assembly = ((Viewsheet) vsAssembly).getAssembly(assemblyName);
+      }
+      else {
+         assembly = vs.getAssembly(assemblyName);
+      }
+
+      if(assembly instanceof InputVSAssembly) {
+         InputVSAssemblyInfo info = (InputVSAssemblyInfo) assembly.getVSAssemblyInfo();
+         info.setSelectedObject(Tool.getData(info.getDataType(), value));
+      }
+   }
+
    /**
     * Refresh this viewsheet and all the viewsheets under this one.
     * For example, if A, B, and C are all viewsheets, where A embeds B, B embeds C,
@@ -284,11 +303,10 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
 
    private static void collectNestedViewsheets(Viewsheet vs, List<Viewsheet> result) {
       for(Assembly assembly : vs.getAssemblies()) {
-         if(!(assembly instanceof Viewsheet)) {
+         if(!(assembly instanceof Viewsheet nestedVS)) {
             continue;
          }
 
-         Viewsheet nestedVS = (Viewsheet) assembly;
          result.add(nestedVS);
          collectNestedViewsheets(nestedVS, result);
       }
