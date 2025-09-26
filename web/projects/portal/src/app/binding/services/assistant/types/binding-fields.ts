@@ -16,32 +16,32 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-interface BaseField {
+export interface BaseField {
    field_name: string;
    data_type: string;
 }
 
-interface BindingField extends BaseField {
+export interface BindingField extends BaseField {
    base_fields: BaseField[];
 }
 
-interface DimensionField extends BindingField {
+export interface DimensionField extends BindingField {
    group?: string;
    sort?: SortInfo;
    topn?: TopNInfo;
 }
 
-interface AggregateField extends BindingField {
+export interface AggregateField extends BindingField {
    aggregation?: string;
    aggregate_chart_type?: string;
 }
 
-interface SortInfo {
+export interface SortInfo {
    direction: string;
    by_measure?: string;
 }
 
-interface TopNInfo {
+export interface TopNInfo {
    enabled: boolean;
    n: string;
    by_measure: string;

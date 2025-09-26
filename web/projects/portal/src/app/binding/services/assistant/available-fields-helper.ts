@@ -17,6 +17,7 @@
  */
 
 import { DataRef } from "../../../common/data/data-ref";
+import { Field } from "./types/field";
 
 export function getAvailableFields(availableFields: DataRef[]): string {
    if(!availableFields) {
@@ -38,7 +39,8 @@ export function getAvailableFields(availableFields: DataRef[]): string {
          field_name: fld.name,
          data_type: fld.dataType,
          description: fld.description,
-         is_calcfield: is_calc
+         is_calcfield: is_calc,
+         calc_expression: expression
       });
    });
 

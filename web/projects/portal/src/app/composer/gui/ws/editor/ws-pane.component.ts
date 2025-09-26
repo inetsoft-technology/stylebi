@@ -35,6 +35,7 @@ import {
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { fromEvent, merge, Subscription } from "rxjs";
 import { filter, map } from "rxjs/operators";
+import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
 import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
@@ -162,8 +163,18 @@ const TABLE_DATA_COUNT_MILLISECOND_DELAY = 500;
    ]
 })
 export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnInit, OnChanges {
+   _worksheet: Worksheet;
    /** The worksheet currently in view */
-   @Input() worksheet: Worksheet;
+   @Input() set worksheet(worksheet: Worksheet) {
+      this._worksheet = worksheet;
+      console.log("worksheet: ", worksheet);
+      this.aiAssistantService.setWorksheetContext(worksheet);
+   }
+
+   get worksheet(): Worksheet {
+      return this._worksheet;
+   }
+
    @Input() pasteEnabled: boolean;
    @Input() set active(active: boolean) {
       if(active) {
@@ -240,7 +251,8 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.gettingStartedService.showGettingStartedMessage = show;
    }
 
-   constructor(private resizeHandlerService: ResizeHandlerService,
+   constructor(private aiAssistantService: AiAssistantService,
+               private resizeHandlerService: ResizeHandlerService,
                private changeDetector: ChangeDetectorRef,
                private worksheetClient: ViewsheetClientService,
                private modalService: NgbModal,
