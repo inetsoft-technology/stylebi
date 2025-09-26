@@ -61,9 +61,11 @@ import java.util.zip.GZIPOutputStream;
 public class GetImageController {
    @Autowired
    public GetImageController(BinaryTransferService binaryTransferService,
+                             AssemblyImageService imageService,
                              AssemblyImageServiceProxy imageServiceProxy,
                              GetImageServiceProxy serviceProxy)
    {
+      this.imageService = imageService;
       this.binaryTransferService = binaryTransferService;
       this.imageServiceProxy = imageServiceProxy;
       this.serviceProxy = serviceProxy;
@@ -101,7 +103,7 @@ public class GetImageController {
                                                                                               aid, width, height, width,
                                                                                               height, svg, principal);
 
-      processImageRenderResult(result, request, response);
+      imageService.processImageRenderResult(result, request, response);
    }
 
    /**
@@ -130,7 +132,7 @@ public class GetImageController {
       vid = Tool.byteDecode(vid);
       AssemblyImageService.ImageRenderResult result = imageServiceProxy.processGetAssemblyImage(
          vid, aid, width, height, 0, 0, null, 0, 0, 0, principal, true, false);
-      processImageRenderResult(result, request, response);
+      imageService.processImageRenderResult(result, request, response);
    }
 
    /**
@@ -151,7 +153,7 @@ public class GetImageController {
    {
       AssemblyImageService.ImageRenderResult result =
          imageServiceProxy.processImageFromHash(Tool.byteDecode(vid), hash, principal);
-      processImageRenderResult(result, request, response);
+      imageService.processImageRenderResult(result, request, response);
    }
 
    /**
@@ -191,7 +193,7 @@ public class GetImageController {
                                                                  height, maxWidth, maxHeight, aname,
                                                                  index, row, col, principal, svg,
                                                                  false);
-         processImageRenderResult(result, request, response);
+         imageService.processImageRenderResult(result, request, response);
    }
 
    /**
@@ -293,44 +295,9 @@ public class GetImageController {
       }
    }
 
-   public static void processImageRenderResult(AssemblyImageService.ImageRenderResult result,
-                                               HttpServletRequest request, HttpServletResponse response) throws Exception
-   {
-      if(result != null) {
-         boolean isPNG = result.isPng();
-         byte[] buf = result.getImageData().getData();
-
-         if(buf != null && response != null) {
-            final String encodingTypes = request.getHeader("Accept-Encoding");
-            final ServletOutputStream outputStream = response.getOutputStream();
-
-            try {
-               if(isPNG) {
-                  response.setContentType("image/png");
-               }
-               else {
-                  response.setContentType("image/svg+xml");
-               }
-
-               if(encodingTypes != null && encodingTypes.contains("gzip")) {
-                  try(final GZIPOutputStream out = new GZIPOutputStream(outputStream)) {
-                     response.addHeader("Content-Encoding", "gzip");
-                     out.write(buf);
-                  }
-               }
-               else {
-                  outputStream.write(buf);
-               }
-            }
-            catch(IOException e) {
-               LOG.debug("Broken connection while writing image", e);
-            }
-         }
-      }
-   }
-
    private final BinaryTransferService binaryTransferService;
    private final AssemblyImageServiceProxy imageServiceProxy;
+   private final AssemblyImageService imageService;
    private final GetImageServiceProxy serviceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(GetImageController.class);
 }

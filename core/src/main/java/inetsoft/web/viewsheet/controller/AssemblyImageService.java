@@ -60,8 +60,11 @@ import inetsoft.util.profile.ProfileUtils;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.VSExportService;
+import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -77,6 +80,7 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
+import java.util.zip.GZIPOutputStream;
 
 @Service
 @ClusterProxy
@@ -1185,9 +1189,47 @@ public class AssemblyImageService {
       }
    }
 
+   public void processImageRenderResult(AssemblyImageService.ImageRenderResult result,
+                                        HttpServletRequest request, HttpServletResponse response) throws Exception
+   {
+      if(result != null) {
+         boolean isPNG = result.isPng();
+         BinaryTransfer imageData = result.getImageData();
+
+         if(imageData != null && response != null) {
+            final String encodingTypes = request.getHeader("Accept-Encoding");
+            final ServletOutputStream outputStream = response.getOutputStream();
+
+            try {
+               if(isPNG) {
+                  response.setContentType("image/png");
+               }
+               else {
+                  response.setContentType("image/svg+xml");
+               }
+
+               if(encodingTypes != null && encodingTypes.contains("gzip")) {
+                  try(final GZIPOutputStream out = new GZIPOutputStream(outputStream)) {
+                     response.addHeader("Content-Encoding", "gzip");
+                     this.binaryTransferService.writeData(result.getImageData(), out);
+
+                  }
+               }
+               else {
+                  this.binaryTransferService.writeData(result.getImageData(), outputStream);
+               }
+            }
+            catch(IOException e) {
+               LOG.debug("Broken connection while writing image", e);
+            }
+         }
+      }
+   }
+
    private final String EMPTY_IMAGE = "/inetsoft/report/images/emptyimage.gif";
    private final ViewsheetService viewsheetService;
    private final BinaryTransferService binaryTransferService;
+   private static final Logger LOG = LoggerFactory.getLogger(AssemblyImageService.class);
 
    public static final class ImageRenderResult implements Serializable {
       @Serial

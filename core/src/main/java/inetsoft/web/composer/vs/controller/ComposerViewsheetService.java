@@ -218,11 +218,12 @@ public class ComposerViewsheetService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public Void previewViewsheet(@ClusterProxyKey String runtimeId, OpenPreviewViewsheetEvent event,
+   public String previewViewsheet(@ClusterProxyKey String runtimeId, OpenPreviewViewsheetEvent event,
                                 Principal principal,
                                 CommandDispatcher dispatcher,
                                 String linkUri) throws Exception
    {
+      String previewRuntimeID;
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId,
                                                            principal);
       Viewsheet viewsheet = rvs.getViewsheet();
@@ -268,13 +269,13 @@ public class ComposerViewsheetService {
          try {
             VSUtil.OPEN_VIEWSHEET.set(true);
             final String designId = event.getRuntimeViewsheetId();
-            String id = viewsheetService.openPreviewViewsheet(designId, principal, vsLayout);
-            RuntimeViewsheet rvs2 = viewsheetService.getViewsheet(id, principal);
+            previewRuntimeID = viewsheetService.openPreviewViewsheet(designId, principal, vsLayout);
+            RuntimeViewsheet rvs2 = viewsheetService.getViewsheet(previewRuntimeID, principal);
             rvs2.setSocketSessionId(dispatcher.getSessionId());
             rvs2.setSocketUserName(dispatcher.getUserName());
-            runtimeViewsheetManager.sheetOpened(principal, id);
+            runtimeViewsheetManager.sheetOpened(principal, previewRuntimeID);
             SetRuntimeIdCommand command = new SetRuntimeIdCommand();
-            command.setRuntimeId(id);
+            command.setRuntimeId(previewRuntimeID);
             dispatcher.sendCommand(command);
 
             ChangedAssemblyList clist = coreLifecycleService.createList(
@@ -328,7 +329,7 @@ public class ComposerViewsheetService {
          OrganizationContextHolder.clear();
       }
 
-      return null;
+      return previewRuntimeID;
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -336,7 +337,7 @@ public class ComposerViewsheetService {
                                        OpenPreviewViewsheetEvent event,
                                        Principal principal,
                                        CommandDispatcher commandDispatcher,
-                                       String linkUri)
+                                       String linkUri, boolean isAfterOpenRefresh)
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
@@ -351,7 +352,29 @@ public class ComposerViewsheetService {
          .findFirst()
          .orElse(null);
 
-      if(viewsheetService.refreshPreviewViewsheet(runtimeId, principal, vsLayout)) {
+      if(!isAfterOpenRefresh && viewsheetService.refreshPreviewViewsheet(runtimeId, principal, vsLayout)) {
+         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         rvs.setSocketSessionId(commandDispatcher.getSessionId());
+         rvs.setSocketUserName(commandDispatcher.getUserName());
+
+         final Viewsheet newPreviewVS = rvs.getViewsheet();
+
+         if(newPreviewVS != null) {
+            // remove old annotations
+            AnnotationVSUtil.removeUselessAssemblies(viewsheet.getAssemblies(),
+                                                     newPreviewVS.getAssemblies(),
+                                                     commandDispatcher);
+            ChangedAssemblyList clist = coreLifecycleService.createList(
+               true, event, commandDispatcher, rvs, linkUri);
+            coreLifecycleService.refreshViewsheet(rvs, runtimeId, linkUri, event.getWidth(),
+                                                  event.getHeight(), event.isMobile(),
+                                                  event.getUserAgent(), commandDispatcher, false,
+                                                  false, true, clist);
+         }
+
+         return true;
+      }
+      else if(isAfterOpenRefresh) {
          rvs = viewsheetService.getViewsheet(runtimeId, principal);
          rvs.setSocketSessionId(commandDispatcher.getSessionId());
          rvs.setSocketUserName(commandDispatcher.getUserName());
