@@ -290,6 +290,14 @@ public class AuthenticationProviderController {
       return authenticationProviderService.getUserRoles(model, userID);
    }
 
+   @PostMapping("/api/em/security/get-user-roles")
+   @DeniedMultiTenancyOrgUser
+   public UserRoleListModel getAllUserRoles(@RequestBody AuthenticationProviderModel model)
+      throws Exception
+   {
+      return authenticationProviderService.getAllUserRoles(model);
+   }
+
    @GetMapping("/api/em/security/get-default-organization")
    public String getDefaultOrganization() {
       return Organization.getDefaultOrganizationID();
