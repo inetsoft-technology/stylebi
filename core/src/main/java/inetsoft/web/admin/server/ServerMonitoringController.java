@@ -139,6 +139,7 @@ public class ServerMonitoringController {
             .schedulerUpTimeMap(schedulerUpTimeMap)
             .timestamp(timestamp)
             .externalStoragePath(externalStorageService.getStorageLocation())
+            .isCloud(ScheduleClient.getScheduleClient().isCloud())
             .build();
       });
    }
