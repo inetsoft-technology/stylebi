@@ -284,14 +284,13 @@ public abstract class AbstractEditableAuthenticationProvider
       manager.loadThemes();
       Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
 
-      manager.getCustomThemes().stream()
-         .filter(t -> Tool.equals(t.getOrgID(), fromOrgId))
-         .forEach(t -> {
-            try {
-               CustomTheme clone = (CustomTheme) t.clone();
+      for(CustomTheme theme : manager.getCustomThemes()) {
+         try {
+            if(Tool.equals(theme.getOrgID(), fromOrgId)) {
+               CustomTheme clone = (CustomTheme) theme.clone();
                clone.setOrgID(toOrgId);
 
-               if(t.getOrganizations().contains(fromOrgId)) {
+               if(theme.getOrganizations().contains(fromOrgId)) {
                   List<String> newOrgs = clone.getOrganizations();
                   newOrgs.remove(fromOrgId);
                   newOrgs.add(toOrgId);
@@ -299,13 +298,18 @@ public abstract class AbstractEditableAuthenticationProvider
                }
 
                clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
-
                themes.add(clone);
             }
-            catch(Exception ex) {
-               LOG.error("Failed to clone custom theme", ex);
+            else if(theme.getOrgID() == null) {
+               List<String> newOrgs = theme.getOrganizations();
+               newOrgs.add(toOrgId);
+               theme.setOrganizations(newOrgs);
             }
-         });
+         }
+         catch(Exception ex) {
+            LOG.error("Failed to clone custom theme", ex);
+         }
+      }
 
       manager.setCustomThemes(themes);
    }
