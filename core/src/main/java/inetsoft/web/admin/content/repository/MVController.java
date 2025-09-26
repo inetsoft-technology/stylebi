@@ -113,8 +113,7 @@ public class MVController {
    public void setCycle(@PathVariable("analysisId") String analysisId,
                         @RequestBody CreateUpdateMVRequest createUpdateMVRequest)
    {
-      List<MVSupportService.MVStatus> mvstatus = support.getMVStatusList(analysisId);
-      support.setDataCycle(createUpdateMVRequest.mvNames(), mvstatus,
+      support.setDataCycle(createUpdateMVRequest.mvNames(), support.getAnalysisResult(analysisId),
                            createUpdateMVRequest.cycle());
    }
 
