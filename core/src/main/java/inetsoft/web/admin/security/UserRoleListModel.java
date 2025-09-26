@@ -16,24 +16,24 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.sree.security.db;
+package inetsoft.web.admin.security;
 
-import inetsoft.sree.security.IdentityID;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.value.Value;
 
 import java.util.List;
 
-class IdentityArray {
-   public IdentityArray(IdentityID[] value) {
-      this.value = value;
+@Value.Immutable
+@JsonSerialize(as = ImmutableUserRoleListModel.class)
+@JsonDeserialize(as = ImmutableUserRoleListModel.class)
+public interface UserRoleListModel {
+   List<UserRolesModel> list();
+
+   static Builder builder() {
+      return new Builder();
    }
 
-   public IdentityArray(List<IdentityID> value) {
-      this(value.toArray(new IdentityID[0]));
+   final class Builder extends ImmutableUserRoleListModel.Builder {
    }
-
-   public IdentityID[] getValue() {
-      return value;
-   }
-
-   private final IdentityID[] value;
 }

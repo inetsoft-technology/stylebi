@@ -618,6 +618,31 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
          .build();
    }
 
+   public UserRoleListModel getAllUserRoles(AuthenticationProviderModel model)
+      throws Exception
+   {
+      UserRoleListModel.Builder builder = UserRoleListModel.builder();
+
+      if(model.providerType() == SecurityProviderType.DATABASE) {
+         AuthenticationProvider provider = getProviderFromModel(model).orElse(null);
+         if(provider instanceof DatabaseAuthenticationProvider) {
+            setIgnoreCache(provider, true);
+            Map<IdentityID, IdentityID[]> userRoles =
+               ((DatabaseAuthenticationProvider) provider).getAllUserRoles();
+            setIgnoreCache(provider, false);
+
+            for(Map.Entry<IdentityID, IdentityID[]> e : userRoles.entrySet()) {
+               builder.addList(UserRolesModel.builder()
+                                  .user(e.getKey())
+                                  .addRoles(e.getValue())
+                                  .build());
+            }
+         }
+      }
+
+      return builder.build();
+   }
+
    public List<IdentityID> getFilteredRoles(String providerName, Principal principal) {
       AuthenticationProvider provider = getProviderByName(providerName);
 

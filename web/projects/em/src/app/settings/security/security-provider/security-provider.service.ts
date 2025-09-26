@@ -35,6 +35,7 @@ import { DatabaseAuthenticationProviderModel } from "./security-provider-model/d
 import { IdentityListModel } from "./security-provider-model/identity-list-model";
 import { LdapAuthenticationProviderModel } from "./security-provider-model/ldap-authentication-provider-model";
 import { SecurityProviderType } from "./security-provider-model/security-provider-type.enum";
+import { UserRoleListModel } from "./security-provider-model/user-role-list-model";
 import { SystemAdminRolesDialogComponent } from "./system-admin-roles-dialog/system-admin-roles-dialog.component";
 
 const ADD_AUTHORIZATION_PROVIDER_URL = "../api/em/security/add-authorization-provider";
@@ -230,6 +231,12 @@ export class SecurityProviderService {
          "../api/em/security/get-roles/" + encodeURIComponent(convertToKey(userName)), model);
    }
 
+   getAllUserRoles(authenticationForm: UntypedFormGroup): Observable<UserRoleListModel> {
+      const model = this.getAuthenticationModel(authenticationForm);
+      return this.http.post<UserRoleListModel>(
+         "../api/em/security/get-user-roles", model);
+   }
+
    getGroupUsers(authenticationForm: UntypedFormGroup, group: IdentityId): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<IdentityListModel>(
@@ -386,6 +393,15 @@ export class SecurityProviderService {
 
          });
       }
+   }
+
+   triggerUserRoleListQuery(form: UntypedFormGroup): void {
+      this.getAllUserRoles(form).subscribe(model => {
+         const userRoles = model.list.map(item => {
+            return item.user.name + ": " + item.roles.map(id => id.name).join(",");
+         });
+         this.openQueryResults(userRoles);
+      });
    }
 
    private doUserRolesQuery(form: UntypedFormGroup, userName: IdentityId): void {

@@ -16,24 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package inetsoft.sree.security.db;
+import { IdentityId } from "../../users/identity-id";
 
-import inetsoft.sree.security.IdentityID;
+export interface UserRolesModel {
+   user: IdentityId;
+   roles: IdentityId[];
+}
 
-import java.util.List;
-
-class IdentityArray {
-   public IdentityArray(IdentityID[] value) {
-      this.value = value;
-   }
-
-   public IdentityArray(List<IdentityID> value) {
-      this(value.toArray(new IdentityID[0]));
-   }
-
-   public IdentityID[] getValue() {
-      return value;
-   }
-
-   private final IdentityID[] value;
+export interface UserRoleListModel {
+   list: UserRolesModel[];
 }

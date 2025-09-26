@@ -335,6 +335,21 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       return new Role(roleIdentity, "");
    }
 
+   public Map<IdentityID, IdentityID[]> getAllUserRoles() {
+      if(cacheEnabled && !isIgnoreCache()) {
+         return getCache().getAllUserRoles();
+      }
+
+      Map<IdentityID, IdentityArray> roles = dao.getUserRoles().result();
+      Map<IdentityID, IdentityID[]> result = new HashMap<>();
+
+      for(Map.Entry<IdentityID, IdentityArray> entry : roles.entrySet()) {
+         result.put(entry.getKey(), entry.getValue().getValue());
+      }
+
+      return result;
+   }
+
    @Override
    public IdentityID[] getGroups() {
       if(cacheEnabled && !isIgnoreCache()) {
@@ -514,6 +529,15 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       clearCache();
    }
 
+   public String getUserRoleListQuery() {
+      return userRoleListQuery;
+   }
+
+   public void setUserRoleListQuery(String userRoleListQuery) {
+      this.userRoleListQuery = userRoleListQuery;
+      clearCache();
+   }
+
    public String getUserEmailsQuery() {
       return userEmailsQuery;
    }
@@ -628,6 +652,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       groupUsersQuery = config.get("groupUsersQuery").asText("");
       roleListQuery = config.get("roleListQuery").asText("");
       userRolesQuery = config.get("userRolesQuery").asText("");
+      userRoleListQuery = config.get("userRoleListQuery").asText("");
       userEmailsQuery = config.get("userEmailsQuery").asText("");
       organizationNameQuery = config.get("organizationNameQuery").asText("");
       organizationMembersQuery = config.get("organizationMembersQuery").asText("");
@@ -689,6 +714,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       config.put("organizationListQuery", organizationListQuery);
       config.put("roleListQuery", roleListQuery);
       config.put("userRolesQuery", userRolesQuery);
+      config.put("userRoleListQuery", userRoleListQuery);
       config.put("userEmailsQuery", userEmailsQuery);
       config.put("organizationNameQuery", organizationNameQuery);
       config.put("organizationMembersQuery", organizationMembersQuery);
@@ -883,6 +909,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    private String userQuery;
    private String userListQuery;
    private String userRolesQuery;
+   private String userRoleListQuery;
    private String userEmailsQuery;
 
    private String roleListQuery;
