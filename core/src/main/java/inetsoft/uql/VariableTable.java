@@ -984,6 +984,7 @@ public class VariableTable implements ContentObject, Serializable, Cloneable {
             if(table.asIs == null) {
                table.asIs = new HashSet<>();
             }
+
             for(JsonNode child : array) {
                table.asIs.add(child.asText());
             }
