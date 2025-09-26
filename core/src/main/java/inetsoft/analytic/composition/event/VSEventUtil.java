@@ -1514,11 +1514,11 @@ public final class VSEventUtil {
 //         return;
 //      }
 
-      VariableTable vart = box.getVariableTable();
-
       if(reset) {
          box.resetVariableTable();
       }
+
+      VariableTable vart = box.getVariableTable();
 
       UserVariable[] vars = AssetEventUtil.executeVariables(
          engine, box, vart, null, vsName, null, initvars, varNameOnly);
