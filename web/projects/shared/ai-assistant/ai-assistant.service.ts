@@ -22,13 +22,19 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { convertToKey } from "../../em/src/app/settings/security/users/identity-id";
 import { BindingModel } from "../../portal/src/app/binding/data/binding-model";
 import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart-binding-model";
-import { ChartRef } from "../../portal/src/app/common/data/chart-ref";
+import { CellBindingInfo } from "../../portal/src/app/binding/data/table/cell-binding-info";
+import { CrosstabBindingModel } from "../../portal/src/app/binding/data/table/crosstab-binding-model";
+import { getAvailableFields } from "../../portal/src/app/binding/services/assistant/available-fields-helper";
+import { getChartBindingContext } from "../../portal/src/app/binding/services/assistant/chart-context-helper";
+import { getCrosstabBindingContext } from "../../portal/src/app/binding/services/assistant/crosstab-context-helper";
+import { CalcTableLayout } from "../../portal/src/app/common/data/tablelayout/calc-table-layout";
 import { ComponentTool } from "../../portal/src/app/common/util/component-tool";
+import { Viewsheet } from "../../portal/src/app/composer/data/vs/viewsheet";
+import { Worksheet } from "../../portal/src/app/composer/data/ws/worksheet";
 import { CurrentUser } from "../../portal/src/app/portal/current-user";
-import { VSChartModel } from "../../portal/src/app/vsobjects/model/vs-chart-model";
 import { VSObjectModel } from "../../portal/src/app/vsobjects/model/vs-object-model";
+import { TreeNodeModel } from "../../portal/src/app/widget/tree/tree-node-model";
 import { AiAssistantDialogComponent } from "./ai-assistant-dialog.component";
-import { VSCrosstabModel } from "../../portal/src/app/vsobjects/model/vs-crosstab-model";
 
 const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
 const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
@@ -39,6 +45,7 @@ export enum ContextType {
    FREEHAND = "freehand",
    CHART = "chart",
    CROSSTAB = "crosstab",
+   TABLE = "table",
    PORTAL_DATA = "portal",
    EM = "em",
    VIEWSHEET_SCRIPT = "viewsheetScript",
@@ -47,31 +54,16 @@ export enum ContextType {
    CROSSTAB_SCRIPT = "crosstabScript",
 }
 
-const chartFieldMappings: Record<string, string> = {
-   xfields: "X fields",
-   yfields: "Y fields",
-   groupFields: "Group fields",
-   geoFields: "Geo fields",
+const enum CalcTableBindingType {
+   GROUP = 1,
+   DETAIL = 2,
+   SUMMARY = 3
+}
 
-   colorField: "Color field",
-   shapeField: "Shape field",
-   sizeField: "Size field",
-   textField: "Text field",
-
-   openField: "Open field",
-   closeField: "Close field",
-   highField: "High field",
-   lowField: "Low field",
-   pathField: "Path field",
-   sourceField: "Source field",
-   targetField: "Target field",
-   startField: "Start field",
-   endField: "End field",
-   milestoneField: "Milestone field",
-
-   nodeColorField: "Node color field",
-   nodeSizeField: "Node size field"
-};
+const enum CalcTableSymbols {
+   GROUP_SYMBOL = "\u039E",
+   SUMMARY_SYMBOL = "\u2211"
+}
 
 @Injectable({
    providedIn: "root"
@@ -83,6 +75,10 @@ export class AiAssistantService {
    constructor(private http: HttpClient,
                private modalService: NgbModal)
    {
+   }
+
+   resetContextMap(): void {
+      this.contextMap = {};
    }
 
    loadCurrentUser(em: boolean = false): void {
@@ -114,6 +110,10 @@ export class AiAssistantService {
       return this.contextMap[key] || "";
    }
 
+   removeContextField(key: string) {
+      delete this.contextMap[key];
+   }
+
    getFullContext(): string {
       return JSON.stringify(this.contextMap);
    }
@@ -125,10 +125,75 @@ export class AiAssistantService {
       else if(objectType === "VSCrosstab") {
          this.setContextTypeFiledValue(ContextType.CROSSTAB);
       }
+      else if(objectType === "VSCalcTable") {
+         this.setContextTypeFiledValue(ContextType.FREEHAND);
+      }
+      else if(objectType === "VSTable") {
+         this.setContextTypeFiledValue(ContextType.TABLE);
+      }
    }
 
    setContextTypeFiledValue(contextType: string): void {
       this.setContextField("contextType", contextType)
+   }
+
+   setCalcTableBindingContext(layout: CalcTableLayout,
+                              cellBindings: { [key: string]: CellBindingInfo }): void
+   {
+      if(!layout?.tableRows?.length || !cellBindings) {
+         return;
+      }
+
+      const bindingContext = layout.tableRows
+         .flatMap(row => row?.tableCells ?? [])
+         .filter(cell => cell?.text)
+         .map(cell => {
+            const cellPath = cell.cellPath.path[0];
+            const cellBinding = cellBindings[cellPath];
+            const rowColGroupDesc = this.getRowColGroupDesc(cellBinding);
+
+            let text = cell.text;
+            let result = "";
+
+            if(cell.bindingType === CalcTableBindingType.GROUP) {
+               text = text.substring(text.indexOf(CalcTableSymbols.GROUP_SYMBOL) + 1, text.length - 1);
+               result = `${cellPath}: group(${text})`;
+            }
+            else if(cell.bindingType === CalcTableBindingType.SUMMARY) {
+               const formula = cellBinding?.formula || "";
+               text = text.substring(text.indexOf(CalcTableSymbols.SUMMARY_SYMBOL) + 1, text.length - 1);
+               result = `${cellPath}: ${formula}(${text})`;
+            }
+            else {
+               result = `${cellPath}: ${text}`;
+            }
+
+            return result + " " + rowColGroupDesc;
+         })
+         .join("\n");
+
+      this.setContextTypeFiledValue(ContextType.FREEHAND);
+      this.setContextField("bindingContext", bindingContext);
+   }
+
+   getRowColGroupDesc(cellInfo: CellBindingInfo): string {
+      if(!cellInfo) {
+         return "";
+      }
+
+      let rowColGroupDesc = "";
+
+      if(cellInfo.rowGroup) {
+         const rowGroup = cellInfo.rowGroup === "(default)" ? "default" : cellInfo.rowGroup;
+         rowColGroupDesc += `${rowGroup}(row group) `;
+      }
+
+      if(cellInfo.colGroup) {
+         const colGroup = cellInfo.colGroup === "(default)" ? "default" : cellInfo.colGroup;
+         rowColGroupDesc += `${colGroup}(column group)`;
+      }
+
+      return rowColGroupDesc;
    }
 
    setBindingContext(objectModel: BindingModel): void {
@@ -136,41 +201,18 @@ export class AiAssistantService {
          return;
       }
 
-      // Add a comment line at the top to indicate format for model
-      let bindingContext = "# Format: DataSource/TableName : FieldName (Type)\n";
+      let bindingContext = "";
 
       if(objectModel.type === "chart") {
-         const model: ChartBindingModel = objectModel as ChartBindingModel;
-
-         for(const [fieldKey, label] of Object.entries(chartFieldMappings)) {
-            const fields = this.getFields(model, fieldKey);
-
-            if(fields.length > 0) {
-               bindingContext +=
-                  `${label}: ${fields.map(f => f.fullName + "(" + f.dataType + ")").join(",")}\n`;
-            }
-         }
+         bindingContext = getChartBindingContext(objectModel as ChartBindingModel);
+      }
+      else if(objectModel.type === "crosstab") {
+         bindingContext = getCrosstabBindingContext(objectModel as CrosstabBindingModel);
       }
 
-      this.setContextField("bindingContext", bindingContext);
-   }
-
-   getFields(objectModel: ChartBindingModel, fieldKey: string): ChartRef[] {
-      const value: any = (objectModel as any)[fieldKey];
-
-      if(!value) {
-         return [];
+      if(bindingContext) {
+         this.setContextField("bindingContext", bindingContext);
       }
-
-      if(Array.isArray(value)) {
-         return value;
-      }
-
-      if("dataInfo" in value) {
-         return value.dataInfo ? [value.dataInfo] : [];
-      }
-
-      return [value];
    }
 
    setDataContext(bindingModel: BindingModel): void {
@@ -178,19 +220,7 @@ export class AiAssistantService {
          return;
       }
 
-      let dataContext = "# Format: DataSource/TableName : FieldName (expression if any): FieldType\n";
-
-      bindingModel.availableFields.forEach(field => {
-         if(field.classType === "CalculateRef" && field.expression &&
-            (<any> field).dataRefModel?.exp)
-         {
-            dataContext +=
-               field.name + "(" + (<any> field).dataRefModel.exp + "): " + field.dataType + "\n";
-         }
-         else {
-            dataContext += field.name + ": " + field.dataType + "\n";
-         }
-      });
+      let dataContext = getAvailableFields(bindingModel.availableFields);
 
       if(dataContext) {
          this.setContextField("dataContext", dataContext);
@@ -228,11 +258,82 @@ export class AiAssistantService {
          case "VSCrosstab":
             contextType = ContextType.CROSSTAB_SCRIPT;
             break;
+         case "VSCalcTable":
+            contextType = ContextType.FREEHAND;
+            break;
+         case "VSTable":
+            contextType = ContextType.TABLE;
+            break;
          default:
             contextType = ContextType.VIEWSHEET_SCRIPT;
       }
 
-      this.setContextField("contextType", contextType);
+      this.setContextTypeFiledValue(contextType);
       this.setContextField("scriptContext", objectModel.script);
+   }
+
+   setWorksheetContext(ws: Worksheet): void {
+      if(!ws || !ws.tables || ws.tables.length === 0) {
+         return;
+      }
+
+      this.resetContextMap();
+      this.setContextTypeFiledValue(ContextType.WORKSHEET);
+      let context = "";
+
+      ws.tables.forEach(table => {
+         if((<any> table).subtables) {
+            context += `${table.name}: join of ${(<any> table).subtables.join(",")}\n`;
+         }
+         else {
+            context += `${table.name}:\n`;
+
+            table.colInfos.forEach(colInfo => {
+               context += `  ${colInfo.name}: ${colInfo.ref.dataType}\n`;
+            });
+         }
+      });
+
+      this.setContextField("tableSchemas", context);
+      this.setContextField("dataContext", context);
+   }
+
+   setWorksheetScriptContext(fields: TreeNodeModel[]): void {
+      if(!fields || fields.length === 0) {
+         this.setContextTypeFiledValue(ContextType.WORKSHEET);
+         this.removeContextField("scriptContext");
+         return;
+      }
+
+      let scriptContext = fields.map(field => `field['${field.data}']`).join("\n");
+      this.setContextTypeFiledValue(ContextType.WORKSHEET_SCRIPT);
+      this.setContextField("scriptContext", scriptContext);
+   }
+
+   setViewsheetScriptContext(vs: Viewsheet): void {
+      if(!vs || !vs.vsObjects || vs.vsObjects.length === 0) {
+         return;
+      }
+
+      this.resetContextMap();
+      this.setContextTypeFiledValue(ContextType.VIEWSHEET);
+      const contextMap = new Map<string, string>();
+
+      vs.vsObjects.forEach(vsObject => {
+         let objectType = vsObject.objectType.substring(2);
+         objectType = objectType === "CalcTable" ? "Freehand table" : objectType;
+
+         if(contextMap.has(objectType)) {
+            contextMap.set(objectType, contextMap.get(objectType) + ", " + vsObject.absoluteName);
+         }
+         else {
+            contextMap.set(objectType, vsObject.absoluteName);
+         }
+      });
+
+      const context = Array.from(contextMap.entries())
+         .map(entry => `${entry[0]}: ${entry[1]}`)
+         .join("\n");
+      this.setContextField("scriptContext", context);
    }
 }

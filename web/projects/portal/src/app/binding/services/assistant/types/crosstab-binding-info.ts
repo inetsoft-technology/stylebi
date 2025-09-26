@@ -16,10 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-export interface Field {
-   field_name: string;
-   data_type: string;
-   is_calcfield: boolean;
-   calc_expression?: string;
-   description: string;
+import { BindingField } from "./binding-fields";
+
+export interface CrosstabBindingFields {
+   row_fields?: BindingField[];
+   column_fields?: BindingField[];
+   aggregate_fields?: BindingField[];
 }

@@ -497,7 +497,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.updateFocusedTab(sheet);
       }
 
-      this.refreshContextType();
+      this.refreshAiAssistantContext();
    }
 
    fixAutoSaveFiles(autoSaveFiles: string[]) {
@@ -3087,8 +3087,16 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       }
    }
 
-   refreshContextType(): void {
-      this.aiAssistantService.setContextTypeFiledValue(
-         this.focusedSheet ? this.focusedSheet.type : ContextType.VIEWSHEET);
+   refreshAiAssistantContext(): void {
+      this.aiAssistantService.resetContextMap();
+      const contextType = this.focusedSheet ? this.focusedSheet.type : "";
+      this.aiAssistantService.setContextTypeFiledValue(contextType || ContextType.VIEWSHEET);
+
+      if(contextType === "worksheet") {
+         this.aiAssistantService.setWorksheetContext(this.focusedSheet as Worksheet);
+      }
+      else if(contextType === "viewsheet") {
+         this.aiAssistantService.setViewsheetScriptContext(this.focusedSheet as Viewsheet);
+      }
    }
 }
