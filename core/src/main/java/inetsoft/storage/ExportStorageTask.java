@@ -113,6 +113,13 @@ public class ExportStorageTask implements SingletonCallableTask<String> {
             String digest = blob.getDigest();
 
             if(digest != null) {
+               // skip missing files to avoid parsing errors during restore
+               if(!BlobEngine.getInstance().exists(id, digest)) {
+                  throw new FileNotFoundException(
+                     String.format("Missing file for key '%s': expected file '%s' does not exist",
+                                   pair.getKey(), digest.substring(0, 2) + "/" + digest.substring(2)));
+               }
+
                String dir = "blobs/" + digest.substring(0, 2) + "/";
 
                if(!created.contains(dir)) {

@@ -23,8 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.stream.Stream;
 
 /**
@@ -43,7 +42,7 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
 
       try {
          // wait for the initial load to avoid race conditions
-         cluster.submit(id, load).get();
+         cluster.submit(id, load).get(3L, TimeUnit.MINUTES);
       }
       catch(Exception e) {
          LoggerFactory.getLogger(getClass()).warn("Failed to load key-value storage {}", id, e);

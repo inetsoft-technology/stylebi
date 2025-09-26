@@ -38,7 +38,7 @@
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Modify Status)</mat-label>
       <mat-select formControlName="selectedStatuses" multiple>
-        <mat-option *ngFor="let modifyStatus of modifyStatuses" [value]="modifyStatus">{{modifyStatus}}</mat-option>
+        <mat-option *ngFor="let modifyStatus of modifyStatuses" [value]="modifyStatus">{{getModifyStatusLabel(modifyStatus)}}</mat-option>
       </mat-select>
     </mat-form-field>
     <mat-form-field appearance="outline" color="accent" class="flex margin-left">

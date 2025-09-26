@@ -351,7 +351,7 @@
         </dependencies>
         <configuration>
           <from>
-            <image>ghcr.io/inetsoft-technology/java:21.0.7_6</image>
+            <image>ghcr.io/inetsoft-technology/java:21.0.8_9</image>
           </from>
           <to>
             <image>${inetsoft.docker.repository}/stylebi-community</image>

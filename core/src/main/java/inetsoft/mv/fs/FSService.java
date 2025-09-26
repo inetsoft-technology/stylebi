@@ -147,7 +147,7 @@ public final class FSService {
 
       if(wait) {
          try {
-            future.get();
+            future.get(3L, TimeUnit.MINUTES);
          }
          catch(Exception ex) {
             LOG.warn("Failed to refresh cluster", ex);

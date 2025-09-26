@@ -104,14 +104,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       try {
          String oldOrgName = getOrganization(oid) != null ? getOrganization(oid).getName() : null;
-         organizationStorage.remove(oid).get();
+         organizationStorage.remove(oid).get(10L, TimeUnit.SECONDS);
 
          if(!oid.equals(org.getId()) || !org.getName().equals(oldOrgName)) {
             processAuthenticationChange(new IdentityID(oldOrgName, oid), org.getIdentityID(),
                                         oid, org.getId(), Identity.ORGANIZATION, false);
          }
 
-         organizationStorage.put(org.getId(), (FSOrganization) org).get();
+         organizationStorage.put(org.getId(), (FSOrganization) org).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to update organization {}", oid, e);
@@ -428,7 +428,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       SUtil.setPassword(fsUser, password);
 
       try {
-         userStorage.put(userIdentity.convertToKey(), fsUser).get();
+         userStorage.put(userIdentity.convertToKey(), fsUser).get(10L, TimeUnit.SECONDS);
          userGroupCache.invalidate(userIdentity);
          userRoleCache.invalidateAll();
       }
@@ -449,7 +449,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       init();
 
       try {
-         organizationStorage.put(organization.getId(), (FSOrganization) organization).get();
+         organizationStorage.put(organization.getId(), (FSOrganization) organization)
+            .get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to add organization {}", organization.getName(), e);
@@ -477,7 +478,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       try {
          IdentityID userIdentity = user.getIdentityID();
-         userStorage.put(userIdentity.convertToKey(), fsUser).get();
+         userStorage.put(userIdentity.convertToKey(), fsUser).get(10L, TimeUnit.SECONDS);
          userGroupCache.invalidate(userIdentity);
          userRoleCache.invalidateAll();
       }
@@ -495,7 +496,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         userStorage.remove(oldIdentity.convertToKey()).get();
+         userStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
          userRoleCache.invalidateAll();
 
          IdentityID newUserIdentity = user.getIdentityID();
@@ -506,7 +507,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
          IdentityID userIdentity = user.getIdentityID();
 
-         userStorage.put(userIdentity.convertToKey(), (FSUser) user).get();
+         userStorage.put(userIdentity.convertToKey(), (FSUser) user).get(10L, TimeUnit.SECONDS);
          userGroupCache.invalidate(newUserIdentity);
          userRoleCache.invalidateAll();
       }
@@ -527,7 +528,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         userStorage.remove(userIdentity.convertToKey()).get();
+         userStorage.remove(userIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
          processAuthenticationChange(userIdentity, null, null, null, Identity.USER, true);
       }
       catch(Exception e) {
@@ -548,7 +549,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       try {
          IdentityID groupIdentity = group.getIdentityID();
 
-         groupStorage.put(groupIdentity.convertToKey(), (FSGroup) group).get();
+         groupStorage.put(groupIdentity.convertToKey(), (FSGroup) group).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to add group {}", group.getName());
@@ -564,7 +565,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         groupStorage.remove(oldIdentity.convertToKey()).get();
+         groupStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
          userGroupCache.invalidateAll();
          userRoleCache.invalidateAll();
          IdentityID newIdentity = group.getIdentityID();
@@ -573,7 +574,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.GROUP, false);
          }
 
-         groupStorage.put(newIdentity.convertToKey(), (FSGroup) group).get();
+         groupStorage.put(newIdentity.convertToKey(), (FSGroup) group).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to update group {}", group.getName(), e);
@@ -597,7 +598,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         groupStorage.remove(groupIdentity.convertToKey()).get();
+         groupStorage.remove(groupIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
          userGroupCache.invalidateAll();
          processAuthenticationChange(groupIdentity, null, null, null, Identity.GROUP, removed);
       }
@@ -619,7 +620,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       try {
          IdentityID roleIdentity = role.getIdentityID();
 
-         roleStorage.put(roleIdentity.convertToKey(), (FSRole) role).get();
+         roleStorage.put(roleIdentity.convertToKey(), (FSRole) role).get(10L, TimeUnit.SECONDS);
          userRoleCache.invalidateAll();
       }
       catch(Exception e) {
@@ -636,7 +637,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         roleStorage.remove(oldIdentity.convertToKey()).get();
+         roleStorage.remove(oldIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
          userRoleCache.invalidateAll();
          IdentityID newIdentity = role.getIdentityID();
 
@@ -644,7 +645,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.ROLE, false);
          }
 
-         roleStorage.put(newIdentity.convertToKey(), (FSRole) role).get();
+         roleStorage.put(newIdentity.convertToKey(), (FSRole) role).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to update role {}", oldIdentity, e);
@@ -663,7 +664,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         roleStorage.remove(roleIdentity.convertToKey()).get();
+         roleStorage.remove(roleIdentity.convertToKey()).get(10L, TimeUnit.SECONDS);
          userRoleCache.invalidateAll();
          processAuthenticationChange(roleIdentity, null, null, null, Identity.ROLE, true);
       }
@@ -682,7 +683,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       try {
          String oldOrgID = getOrganization(id) != null ? id : null;
          processAuthenticationChange(new IdentityID(getOrganization(id).getName(), oldOrgID), null, oldOrgID, null, Identity.ORGANIZATION, true);
-         organizationStorage.remove(id).get();
+         organizationStorage.remove(id).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
          LOG.error("Failed to remove Organization {}", id, e);
@@ -724,7 +725,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
                if(removed || (newID != null && Arrays.asList(groups).contains(newID.name))) {
                   user.setGroups(Tool.remove(groups, oldID.name));
-                  userStorage.put(user.getIdentityID().convertToKey(), user).get();
+                  userStorage.put(user.getIdentityID().convertToKey(), user)
+                     .get(10L, TimeUnit.SECONDS);
                   userGroupCache.invalidate(user.getIdentityID());
                   userRoleCache.invalidateAll();
                }
@@ -733,7 +735,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
                   if(index >= 0) {
                      groups[index] = newID.name;
-                     userStorage.put(user.getIdentityID().convertToKey(), user).get();
+                     userStorage.put(user.getIdentityID().convertToKey(), user)
+                        .get(10L, TimeUnit.SECONDS);
                      userGroupCache.invalidate(user.getIdentityID());
                      userRoleCache.invalidateAll();
                   }
@@ -751,14 +754,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
                if(newID != null && Arrays.asList(groups).contains(newID.name) || removed) {
                   group.setGroups(Tool.remove(groups, oldID.name));
-                  groupStorage.put(groupIdentity.convertToKey(), group).get();
+                  groupStorage.put(groupIdentity.convertToKey(), group).get(10L, TimeUnit.SECONDS);
                }
                else {
                   int index = Arrays.asList(groups).indexOf(oldID.name);
 
                   if(index >= 0 && newID != null) {
                      groups[index] = newID.name;
-                     groupStorage.put(groupIdentity.convertToKey(), group).get();
+                     groupStorage.put(groupIdentity.convertToKey(), group).get(10L, TimeUnit.SECONDS);
                   }
                }
             }
@@ -780,7 +783,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
                if(Arrays.asList(roles).contains(newID) || removed) {
                   role.setRoles(Tool.remove(roles, oldID));
-                  roleStorage.put(roleIdentity.convertToKey(), role).get();
+                  roleStorage.put(roleIdentity.convertToKey(), role).get(10L, TimeUnit.SECONDS);
                   userRoleCache.invalidateAll();
                }
                else {
@@ -788,7 +791,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
                   if(index >= 0) {
                      roles[index] = newID;
-                     roleStorage.put(roleIdentity.convertToKey(), role).get();
+                     roleStorage.put(roleIdentity.convertToKey(), role).get(10L, TimeUnit.SECONDS);
                      userRoleCache.invalidateAll();
                   }
                }
@@ -805,14 +808,15 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
                if(Arrays.asList(roles).contains(newID) || removed) {
                   group.setRoles(Tool.remove(roles, oldID));
-                  groupStorage.put(groupIdentity.convertToKey(), group).get();
+                  groupStorage.put(groupIdentity.convertToKey(), group).get(10L, TimeUnit.SECONDS);
                }
                else {
                   int index = Arrays.asList(roles).indexOf(oldID);
 
                   if(index >= 0) {
                      roles[index] = newID;
-                     groupStorage.put(groupIdentity.convertToKey(), group).get();
+                     groupStorage.put(groupIdentity.convertToKey(), group)
+                        .get(10L, TimeUnit.SECONDS);
                   }
                }
             }
@@ -830,7 +834,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                if(Arrays.asList(roles).contains(newID) || removed) {
                   user.setRoles(Tool.remove(roles, oldID));
                   user.setGroups(Tool.remove(groups, oldID.name));
-                  userStorage.put(userIdentity.convertToKey(), user).get();
+                  userStorage.put(userIdentity.convertToKey(), user).get(10L, TimeUnit.SECONDS);
                   userGroupCache.invalidate(userIdentity);
                   userRoleCache.invalidateAll();
 
@@ -843,7 +847,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
                   if(index >= 0) {
                      roles[index] = newID;
-                     userStorage.put(user.getIdentityID().convertToKey(), user).get();
+                     userStorage.put(user.getIdentityID().convertToKey(), user)
+                        .get(10L, TimeUnit.SECONDS);
                      userGroupCache.invalidate(user.getIdentityID());
                      userRoleCache.invalidateAll();
                   }
@@ -855,7 +860,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                .toList();
 
             for(FSOrganization organization : orgList) {
-               organizationStorage.put(organization.getId(), organization).get();
+               organizationStorage.put(organization.getId(), organization)
+                  .get(10L, TimeUnit.SECONDS);
             }
          }
          else if(type == Identity.ORGANIZATION) {

@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
 /**
@@ -147,6 +148,7 @@ public class StorageInitializer implements Callable<Integer> {
 
             service.put("schedule.auto.start", "false");
             service.put("schedule.auto.stop", "false");
+            service.put("font.truetype.path", "/usr/share/fonts/truetype/;$(sree.home)/fonts");
          }
       }
 
@@ -178,7 +180,8 @@ public class StorageInitializer implements Callable<Integer> {
 
          // send a message to reload the plugins from the kv store
          Cluster.getInstance().submit("plugins",
-                                      new LoadKeyValueTask<>("plugins", true)).get();
+                                      new LoadKeyValueTask<>("plugins", true))
+            .get(5L, TimeUnit.MINUTES);
       }
    }
 

@@ -85,7 +85,7 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
       slist.append(info.getZIndex());
       slist.append("'>");
       vHelper.appendContainerTitle(slist, info, titleH, titleRatio, null);
-      appendSelections(slist, info, (int) bounds.getHeight() - titleH);
+      appendSelections(slist, info, (int) bounds.getHeight() - titleH, assembly.getExpandedValues());
       slist.append("</div>");
 
       try {
@@ -97,7 +97,9 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
    }
 
    // Add two tables in table view. Onew show header will not scroll, data table can scroll.
-   private void appendSelections(StringBuffer slist, SelectionTreeVSAssemblyInfo info, int dataH) {
+   private void appendSelections(StringBuffer slist, SelectionTreeVSAssemblyInfo info, int dataH,
+                                 String[] expandedPaths)
+   {
       if(info.getShowTypeValue() == SelectionTreeVSAssemblyInfo.DROPDOWN_SHOW_TYPE) {
          return;
       }
@@ -105,8 +107,9 @@ public class HTMLSelectionTreeHelper extends VSSelectionTreeHelper{
       VSCompositeFormat fmt = info.getFormat();
       Vector dispList = new Vector();
       CompositeSelectionValue csv = info.getCompositeSelectionValue();
-      boolean rootOnly = getExporter() != null && !getExporter().isExpandSelections();
-      info.visitCompositeChild(csv, dispList, true, rootOnly);  // populate dispList
+      boolean expanded = getExporter() == null || info.isExpandAll();
+
+      info.visitCompositeChild(csv, dispList, true, expanded, expandedPaths);  // populate dispList
       slist.append("<div style='overflow:auto;width:100%;height:" + dataH + "'>");
 
       for(int i = 1; i < dispList.size(); i++) {

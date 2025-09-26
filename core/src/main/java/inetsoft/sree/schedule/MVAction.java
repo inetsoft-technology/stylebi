@@ -257,7 +257,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable, Cance
             try {
                MVCallable creator = new MVCallable(mv, principal);
                mvFuture = Cluster.getInstance().submit(creator, true);
-               String message = mvFuture.get();
+               String message = mvFuture.get(10L, TimeUnit.MINUTES);
 
                if(message != null) {
                   throw new RuntimeException(message);

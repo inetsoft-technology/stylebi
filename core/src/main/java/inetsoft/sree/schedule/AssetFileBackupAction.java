@@ -23,6 +23,7 @@ import inetsoft.web.admin.general.DataSpaceSettingsService;
 import java.io.Serializable;
 import java.security.Principal;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A schedule action that saves the storage contents to a backup file.
@@ -41,7 +42,8 @@ public class AssetFileBackupAction implements ScheduleAction {
     */
    @Override
    public void run(Principal principal) throws Throwable {
-      Cluster.getInstance().submit(new AssetFileBackupActionCallable(principal), false).get();
+      Cluster.getInstance().submit(new AssetFileBackupActionCallable(principal), false)
+         .get(10L, TimeUnit.MINUTES);
    }
 
    private static class AssetFileBackupActionCallable implements Callable<String>, Serializable {

@@ -51,8 +51,11 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
       writeObjectBackground(info);
       StringBuilder sTitle = new StringBuilder();
       List<SelectionValue> dispList = new ArrayList<>();
-      boolean rootOnly = getExporter() != null && !getExporter().isExpandSelections();
-      prepareDisplayList(info, dispList, sTitle, false, rootOnly);
+      VSExporter exporter = getExporter();
+      boolean expandAll = exporter == null
+         || (exporter.isMatchLayout() ? info.isExpandAll() : exporter.isExpandSelections());
+      String[] expandedPaths = assembly.getExpandedValues();
+      prepareDisplayList(info, dispList, sTitle, false, expandAll, expandedPaths);
 
       // should be writeTitle after writeTree to control ShowType()
       if(dispList.size() > 0) {
@@ -72,7 +75,7 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
     */
    protected void prepareDisplayList(SelectionTreeVSAssemblyInfo info,
                                      List<SelectionValue> dispList, StringBuilder sTitle,
-                                     boolean displayAll, boolean rootOnly)
+                                     boolean displayAll, boolean expandAll, String[] expandedPaths)
    {
       STR_MORE = catalog.getString("More") + "...";
       MORE_VALUE = new SelectionValue(STR_MORE, STR_MORE);
@@ -80,7 +83,7 @@ public class VSSelectionTreeHelper extends VSSelectionListHelper {
       MORE_VALUE.setLevel(0);
 
       CompositeSelectionValue csv = info.getCompositeSelectionValue();
-      info.visitCompositeChild(csv, dispList, true, rootOnly);  // populate dispList
+      info.visitCompositeChild(csv, dispList, true, expandAll, expandedPaths);  // populate dispList
 
       for(SelectionValue sv : dispList) {
          if(info.isValueVisible(sv)) {

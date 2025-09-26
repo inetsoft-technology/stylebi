@@ -159,6 +159,26 @@ export class AuditBookmarkHistoryComponent implements OnInit, OnDestroy {
          }))));
    };
 
+   getActionsTypeLabel(value: string): string {
+      if(value === "modify") {
+         return "_#(js:Modify)";
+      }
+      else if(value === "access") {
+         return "_#(js:Access)";
+      }
+      else if(value === "delete") {
+         return "_#(js:Delete)";
+      }
+      else if(value === "rename") {
+         return "_#(js:Rename)";
+      }
+      else if(value === "create") {
+         return "_#(js:Create)";
+      }
+      else {
+         return value;
+      }
+   }
    ngOnDestroy(): void {
       this.subscriptions.unsubscribe();
    }

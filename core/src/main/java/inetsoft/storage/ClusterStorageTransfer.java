@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -43,7 +44,8 @@ public class ClusterStorageTransfer extends AbstractStorageTransfer {
                               Path blobDir)
    {
       try {
-         String link = Cluster.getInstance().submit(id, new ExportStorageTask(id)).get();
+         String link = Cluster.getInstance().submit(id, new ExportStorageTask(id))
+            .get(10L, TimeUnit.MINUTES);
          File zipFile = Cluster.getInstance().getTransferFile(link);
          List<KeyValuePair<?>> pairs = new ArrayList<>();
          boolean isBlob = false;
@@ -96,7 +98,13 @@ public class ClusterStorageTransfer extends AbstractStorageTransfer {
 
    @Override
    protected void putKeyValue(String id, String key, Object value) {
-      Cluster.getInstance().submit(id, new PutKeyValueTask<>(id, key, (Serializable) value));
+      try {
+         Cluster.getInstance().submit(id, new PutKeyValueTask<>(id, key, (Serializable) value))
+            .get(10L, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException | TimeoutException | ExecutionException e) {
+         throw new RuntimeException(e);
+      }
    }
 
    @Override
