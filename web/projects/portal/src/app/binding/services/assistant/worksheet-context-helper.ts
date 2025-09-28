@@ -16,30 +16,77 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { AbstractTableAssembly } from "../../../composer/data/ws/abstract-table-assembly";
+import { ColumnInfo } from "../../../composer/data/ws/column-info";
+import { CompositeTableAssembly } from "../../../composer/data/ws/composite-table-assembly";
 import { Worksheet } from "../../../composer/data/ws/worksheet";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
+import { removeNullProps } from "./binding-tool";
+import { WSInfo, WSTableInfo, WSColumnInfo } from "./types/ws-info";
 
 export function getWorksheetContext(ws: Worksheet): string {
    if(!ws || !ws.tables || ws.tables.length === 0) {
       return "";
    }
 
-   let context = "";
+   let wsInfo: WSInfo = {};
+   let tableInfos: WSTableInfo[] = [];
 
    ws.tables.forEach(table => {
-      if((<any> table).subtables) {
-         context += `${table.name}: join of ${(<any> table).subtables.join(",")}\n`;
-      }
-      else {
-         context += `${table.name}:\n`;
-
-         table.colInfos.forEach(colInfo => {
-            context += `  ${colInfo.name}: ${colInfo.ref.dataType}\n`;
-         });
-      }
+      tableInfos.push(getWSTableInfo(table));
    });
 
-   return context;
+   wsInfo.tables = tableInfos;
+   return JSON.stringify(removeNullProps(wsInfo));
+}
+
+export function getWSTableInfo(table: AbstractTableAssembly): WSTableInfo {
+   let wsTableInfo: WSTableInfo = { crosstab: table.crosstab };
+   wsTableInfo.columns = convertTableColumns(table.colInfos);
+
+   if(table instanceof CompositeTableAssembly) {
+      wsTableInfo.subtables = (table as CompositeTableAssembly).subtables;
+   }
+
+   return wsTableInfo;
+}
+
+export function convertTableColumns(cols: ColumnInfo[]): WSColumnInfo[] {
+   if(!cols || cols.length == 0) {
+      return null;
+   }
+
+   let columnInfos: WSColumnInfo[] = [];
+
+   for(let i = 0; i < cols.length; i++) {
+      let columnInfo = convertColumnInfo(cols[i]);
+
+      if(columnInfo) {
+         columnInfos.push(columnInfo);
+      }
+   }
+
+   if(columnInfos.length == 0) {
+      return null;
+   }
+
+   return columnInfos;
+}
+
+export function convertColumnInfo(col: ColumnInfo): WSColumnInfo {
+   if(!col) {
+      return null;
+   }
+
+   let colInfo: WSColumnInfo = {
+      column_name: col.name,
+      column_type: col.ref == null ? "" : col.ref.dataType,
+      group: col.group,
+      aggregate: col.aggregate,
+      sortType: col.sortType
+   };
+
+   return colInfo;
 }
 
 export function getWorksheetScriptContext(fields: TreeNodeModel[]): string {
