@@ -17,12 +17,12 @@
  */
 
 export interface BaseField {
-   field_name: string;
-   data_type: string;
+   field_name?: string;
+   data_type?: string;
 }
 
 export interface BindingField extends BaseField {
-   base_fields: BaseField[];
+   base_fields?: BaseField[];
 }
 
 export interface DimensionField extends BindingField {
@@ -46,4 +46,31 @@ export interface TopNInfo {
    n: string;
    by_measure: string;
    reverse: boolean;
+}
+
+export enum BindingType {
+   NORMAL_TEXT = "normal_text",
+   EXPRESSION = "expression",
+   GROUP = "group",
+   AGGREGATE = "aggregate"
+}
+
+export enum ExpansionType {
+   HORIZONTAL = "horizontal",
+   VERTICAL = "vertical"
+}
+
+export interface CalcTableBindingField extends BindingField {
+   cell_name: string;
+   cell_path: string;
+   binding_type: BindingType;
+   expansion?: ExpansionType;
+   row_group?: string;
+   column_group?: string;
+   sort?: SortInfo; // group
+   topn?: TopNInfo; // group
+   group?: string; // group
+   cell_value?: string; // normal_text
+   expression?: string; // expression
+   aggregation?: string; // aggregate
 }

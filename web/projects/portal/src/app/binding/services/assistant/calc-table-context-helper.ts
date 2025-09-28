@@ -17,71 +17,100 @@
  */
 
 import { CalcTableLayout } from "../../../common/data/tablelayout/calc-table-layout";
+import { StyleConstants } from "../../../common/util/style-constants";
+import { XConstants } from "../../../common/util/xconstants";
 import { CellBindingInfo } from "../../data/table/cell-binding-info";
-
-const enum CalcTableBindingType {
-   GROUP = 1,
-   DETAIL = 2,
-   SUMMARY = 3
-}
-
-const enum CalcTableSymbols {
-   GROUP_SYMBOL = "\u039E",
-   SUMMARY_SYMBOL = "\u2211"
-}
+import { getGroupOptionLabel, getOrderDirection, removeNullProps } from "./binding-tool";
+import { BindingType, CalcTableBindingField, ExpansionType } from "./types/binding-fields";
 
 export function getCalcTableBindingContext(layout: CalcTableLayout,
-                                    cellBindings: { [key: string]: CellBindingInfo }): string
+                                           cellBindings: { [key: string]: CellBindingInfo },
+                                           aggregates: string[]): string
 {
    if(!layout?.tableRows?.length || !cellBindings) {
       return "";
    }
 
-   return layout.tableRows
+   const cells = layout.tableRows
       .flatMap(row => row?.tableCells ?? [])
       .filter(cell => cell?.text)
       .map(cell => {
          const cellPath = cell.cellPath.path[0];
          const cellBinding = cellBindings[cellPath];
-         const rowColGroupDesc = this.getRowColGroupDesc(cellBinding);
+         const rowGroup = cellBinding?.rowGroup || "";
+         const colGroup = cellBinding?.colGroup || "";
+         const bindingType = getCellBindingType(cellBinding);
 
-         let text = cell.text;
-         let result = "";
+         const cellField: CalcTableBindingField = {
+            cell_name: cellBinding.runtimeName,
+            cell_path: cellPath,
+            binding_type: bindingType,
+            row_group: rowGroup,
+            column_group: colGroup,
+         } as CalcTableBindingField;
 
-         if(cell.bindingType === CalcTableBindingType.GROUP) {
-            text = text.substring(text.indexOf(CalcTableSymbols.GROUP_SYMBOL) + 1, text.length - 1);
-            result = `${cellPath}: group(${text})`;
+         if(cellBinding?.expansion !== CellBindingInfo.EXPAND_NONE) {
+            cellField.expansion = cellBinding.expansion === CellBindingInfo.EXPAND_H ?
+               ExpansionType.HORIZONTAL : ExpansionType.VERTICAL;
          }
-         else if(cell.bindingType === CalcTableBindingType.SUMMARY) {
-            const formula = cellBinding?.formula || "";
-            text = text.substring(text.indexOf(CalcTableSymbols.SUMMARY_SYMBOL) + 1, text.length - 1);
-            result = `${cellPath}: ${formula}(${text})`;
+
+         if(bindingType === BindingType.GROUP) {
+            cellField.field_name = cellBinding.value;
+
+            if(cellBinding.order?.option !== XConstants.NONE_DATE_GROUP) {
+               cellField.group = getGroupOptionLabel(cellBinding.order.option);
+            }
+
+            if(cellBinding.order?.type !== XConstants.SORT_NONE) {
+               cellField.sort = {
+                  direction: getOrderDirection(cellBinding.order.type),
+                  by_measure: cellBinding.order.sortCol !== -1 ?
+                     aggregates[cellBinding.order.sortCol] : null,
+               }
+            }
+
+            if(cellBinding.topn?.type !== StyleConstants.NONE) {
+               cellField.topn = {
+                  enabled: true,
+                  n: String(cellBinding.topn.topn),
+                  by_measure: aggregates[cellBinding.topn.sumCol],
+                  reverse: cellBinding.topn.type === StyleConstants.BOTTOM_N,
+               };
+            }
+         }
+         else if(bindingType === BindingType.AGGREGATE) {
+            cellField.field_name = cellBinding.value;
+            cellField.aggregation = cellBinding.formula;
+         }
+         else if(bindingType === BindingType.EXPRESSION) {
+            cellField.expression = cellBinding.value;
          }
          else {
-            result = `${cellPath}: ${text}`;
+            cellField.cell_value = cellBinding.value;
          }
 
-         return result + " " + rowColGroupDesc;
-      })
-      .join("\n");
+         return cellField;
+      });
+
+   return JSON.stringify(removeNullProps(cells));
 }
 
-function getRowColGroupDesc(cellInfo: CellBindingInfo): string {
-   if(!cellInfo) {
-      return "";
+function getCellBindingType(cellBinding: CellBindingInfo): string {
+   const type = cellBinding?.type;
+   const btype = cellBinding?.btype;
+
+   if(type === CellBindingInfo.BIND_TEXT) {
+      return BindingType.NORMAL_TEXT;
+   }
+   else if(type === CellBindingInfo.BIND_FORMULA) {
+      return BindingType.EXPRESSION;
+   }
+   else if(btype === CellBindingInfo.GROUP) {
+      return BindingType.GROUP;
+   }
+   else if(btype === CellBindingInfo.SUMMARY) {
+      return BindingType.AGGREGATE;
    }
 
-   let rowColGroupDesc = "";
-
-   if(cellInfo.rowGroup) {
-      const rowGroup = cellInfo.rowGroup === "(default)" ? "default" : cellInfo.rowGroup;
-      rowColGroupDesc += `${rowGroup}(row group) `;
-   }
-
-   if(cellInfo.colGroup) {
-      const colGroup = cellInfo.colGroup === "(default)" ? "default" : cellInfo.colGroup;
-      rowColGroupDesc += `${colGroup}(column group)`;
-   }
-
-   return rowColGroupDesc;
+   return "";
 }

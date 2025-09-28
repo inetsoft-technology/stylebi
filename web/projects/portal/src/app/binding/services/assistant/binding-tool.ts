@@ -117,13 +117,8 @@ const CHART_TYPE_MAP: Map<any, string> = new Map([
    [GraphTypes.CHART_MAP_CONTOUR, "Contour Map"]
 ]);
 
-export function getGroupOptionLabel(option: string): string | undefined {
-   if(!option) {
-      return "";
-   }
-
-   let level = parseInt(option);
-   return ALL_DATE_LEVEL_MAP.get(level);
+export function getGroupOptionLabel(option: number): string | undefined {
+   return ALL_DATE_LEVEL_MAP.get(option);
 }
 
 export function getChartLabel(chartType: any): string | undefined {
@@ -243,7 +238,7 @@ export function convertDataRef(ref: any, multiStyle: boolean = false, xy: boolea
       }
 
       if(dim.dateLevel != XConstants.NONE_DATE_GROUP + "") {
-         dimInfo.group = getGroupOptionLabel(dim.dateLevel)
+         dimInfo.group = getGroupOptionLabel(parseInt(dim.dateLevel));
       }
 
       return dimInfo;

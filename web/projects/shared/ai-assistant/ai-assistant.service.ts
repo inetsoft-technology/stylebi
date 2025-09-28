@@ -65,6 +65,7 @@ export enum ContextType {
 })
 export class AiAssistantService {
    userId: string = "";
+   calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
 
    constructor(private http: HttpClient,
@@ -140,7 +141,8 @@ export class AiAssistantService {
       }
 
       this.setContextTypeFiledValue(ContextType.FREEHAND);
-      this.setContextField("bindingContext", getCalcTableBindingContext(layout, cellBindings));
+      this.setContextField("bindingContext",
+         getCalcTableBindingContext(layout, cellBindings, this.calcTableAggregates));
    }
 
    setBindingContext(objectModel: BindingModel): void {

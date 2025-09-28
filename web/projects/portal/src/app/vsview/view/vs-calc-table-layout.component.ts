@@ -261,6 +261,7 @@ export class CalcTableLayoutPane extends CommandProcessor implements AfterViewCh
 
    protected processGetCellBindingCommand(command: GetCellBindingCommand): void {
       this.editorService.resetCellBinding(command);
+      this.aiAssistantService.calcTableAggregates = command.aggregates?.map(a => a.view);
    }
 
    protected processGetCellScriptCommand(command: GetCellScriptCommand): void {
