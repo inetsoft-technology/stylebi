@@ -22,7 +22,7 @@ import { CompositeTableAssembly } from "../../../composer/data/ws/composite-tabl
 import { Worksheet } from "../../../composer/data/ws/worksheet";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { removeNullProps } from "./binding-tool";
-import { WSInfo, WSTableInfo, WSColumnInfo } from "./types/ws-info";
+import { WSInfo, WSTableInfo, WSColumnInfo, WSScriptField } from "./types/ws-info";
 
 export function getWorksheetContext(ws: Worksheet): string {
    if(!ws || !ws.tables || ws.tables.length === 0) {
@@ -94,5 +94,12 @@ export function getWorksheetScriptContext(fields: TreeNodeModel[]): string {
       return "";
    }
 
-   return fields.map(field => `field['${field.data}']`).join("\n")
+   let fieldsInfo: WSScriptField[] = [];
+
+   fields.forEach(field => {
+      let fieldInfo: WSScriptField = { field_name: `field['${field.data}']`}
+      fieldsInfo.push(fieldInfo);
+   });
+
+   return JSON.stringify(removeNullProps(fieldsInfo));
 }

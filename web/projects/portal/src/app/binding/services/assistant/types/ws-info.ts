@@ -33,3 +33,7 @@ export interface WSColumnInfo {
    aggregate: boolean;
    sortType: number;
 }
+
+export interface WSScriptField {
+   field_name: string;
+}
