@@ -167,7 +167,6 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
    /** The worksheet currently in view */
    @Input() set worksheet(worksheet: Worksheet) {
       this._worksheet = worksheet;
-      console.log("worksheet: ", worksheet);
       this.aiAssistantService.setWorksheetContext(worksheet);
    }
 

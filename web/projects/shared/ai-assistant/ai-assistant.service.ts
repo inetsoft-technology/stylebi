@@ -25,8 +25,14 @@ import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart
 import { CellBindingInfo } from "../../portal/src/app/binding/data/table/cell-binding-info";
 import { CrosstabBindingModel } from "../../portal/src/app/binding/data/table/crosstab-binding-model";
 import { getAvailableFields } from "../../portal/src/app/binding/services/assistant/available-fields-helper";
+import { getCalcTableBindingContext } from "../../portal/src/app/binding/services/assistant/calc-table-context-helper";
 import { getChartBindingContext } from "../../portal/src/app/binding/services/assistant/chart-context-helper";
 import { getCrosstabBindingContext } from "../../portal/src/app/binding/services/assistant/crosstab-context-helper";
+import { getViewsheetScriptContext } from "../../portal/src/app/binding/services/assistant/viewsheet-context-helper";
+import {
+   getWorksheetContext,
+   getWorksheetScriptContext
+} from "../../portal/src/app/binding/services/assistant/worksheet-context-helper";
 import { CalcTableLayout } from "../../portal/src/app/common/data/tablelayout/calc-table-layout";
 import { ComponentTool } from "../../portal/src/app/common/util/component-tool";
 import { Viewsheet } from "../../portal/src/app/composer/data/vs/viewsheet";
@@ -52,17 +58,6 @@ export enum ContextType {
    WORKSHEET_SCRIPT = "worksheetScript",
    CHART_SCRIPT = "chartScript",
    CROSSTAB_SCRIPT = "crosstabScript",
-}
-
-const enum CalcTableBindingType {
-   GROUP = 1,
-   DETAIL = 2,
-   SUMMARY = 3
-}
-
-const enum CalcTableSymbols {
-   GROUP_SYMBOL = "\u039E",
-   SUMMARY_SYMBOL = "\u2211"
 }
 
 @Injectable({
@@ -144,56 +139,8 @@ export class AiAssistantService {
          return;
       }
 
-      const bindingContext = layout.tableRows
-         .flatMap(row => row?.tableCells ?? [])
-         .filter(cell => cell?.text)
-         .map(cell => {
-            const cellPath = cell.cellPath.path[0];
-            const cellBinding = cellBindings[cellPath];
-            const rowColGroupDesc = this.getRowColGroupDesc(cellBinding);
-
-            let text = cell.text;
-            let result = "";
-
-            if(cell.bindingType === CalcTableBindingType.GROUP) {
-               text = text.substring(text.indexOf(CalcTableSymbols.GROUP_SYMBOL) + 1, text.length - 1);
-               result = `${cellPath}: group(${text})`;
-            }
-            else if(cell.bindingType === CalcTableBindingType.SUMMARY) {
-               const formula = cellBinding?.formula || "";
-               text = text.substring(text.indexOf(CalcTableSymbols.SUMMARY_SYMBOL) + 1, text.length - 1);
-               result = `${cellPath}: ${formula}(${text})`;
-            }
-            else {
-               result = `${cellPath}: ${text}`;
-            }
-
-            return result + " " + rowColGroupDesc;
-         })
-         .join("\n");
-
       this.setContextTypeFiledValue(ContextType.FREEHAND);
-      this.setContextField("bindingContext", bindingContext);
-   }
-
-   getRowColGroupDesc(cellInfo: CellBindingInfo): string {
-      if(!cellInfo) {
-         return "";
-      }
-
-      let rowColGroupDesc = "";
-
-      if(cellInfo.rowGroup) {
-         const rowGroup = cellInfo.rowGroup === "(default)" ? "default" : cellInfo.rowGroup;
-         rowColGroupDesc += `${rowGroup}(row group) `;
-      }
-
-      if(cellInfo.colGroup) {
-         const colGroup = cellInfo.colGroup === "(default)" ? "default" : cellInfo.colGroup;
-         rowColGroupDesc += `${colGroup}(column group)`;
-      }
-
-      return rowColGroupDesc;
+      this.setContextField("bindingContext", getCalcTableBindingContext(layout, cellBindings));
    }
 
    setBindingContext(objectModel: BindingModel): void {
@@ -273,27 +220,9 @@ export class AiAssistantService {
    }
 
    setWorksheetContext(ws: Worksheet): void {
-      if(!ws || !ws.tables || ws.tables.length === 0) {
-         return;
-      }
-
       this.resetContextMap();
       this.setContextTypeFiledValue(ContextType.WORKSHEET);
-      let context = "";
-
-      ws.tables.forEach(table => {
-         if((<any> table).subtables) {
-            context += `${table.name}: join of ${(<any> table).subtables.join(",")}\n`;
-         }
-         else {
-            context += `${table.name}:\n`;
-
-            table.colInfos.forEach(colInfo => {
-               context += `  ${colInfo.name}: ${colInfo.ref.dataType}\n`;
-            });
-         }
-      });
-
+      let context = getWorksheetContext(ws);
       this.setContextField("tableSchemas", context);
       this.setContextField("dataContext", context);
    }
@@ -305,9 +234,8 @@ export class AiAssistantService {
          return;
       }
 
-      let scriptContext = fields.map(field => `field['${field.data}']`).join("\n");
       this.setContextTypeFiledValue(ContextType.WORKSHEET_SCRIPT);
-      this.setContextField("scriptContext", scriptContext);
+      this.setContextField("scriptContext", getWorksheetScriptContext(fields));
    }
 
    setViewsheetScriptContext(vs: Viewsheet): void {
@@ -317,23 +245,6 @@ export class AiAssistantService {
 
       this.resetContextMap();
       this.setContextTypeFiledValue(ContextType.VIEWSHEET);
-      const contextMap = new Map<string, string>();
-
-      vs.vsObjects.forEach(vsObject => {
-         let objectType = vsObject.objectType.substring(2);
-         objectType = objectType === "CalcTable" ? "Freehand table" : objectType;
-
-         if(contextMap.has(objectType)) {
-            contextMap.set(objectType, contextMap.get(objectType) + ", " + vsObject.absoluteName);
-         }
-         else {
-            contextMap.set(objectType, vsObject.absoluteName);
-         }
-      });
-
-      const context = Array.from(contextMap.entries())
-         .map(entry => `${entry[0]}: ${entry[1]}`)
-         .join("\n");
-      this.setContextField("scriptContext", context);
+      this.setContextField("scriptContext", getViewsheetScriptContext(vs));
    }
 }
