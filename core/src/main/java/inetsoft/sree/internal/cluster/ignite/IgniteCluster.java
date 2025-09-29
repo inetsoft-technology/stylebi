@@ -17,12 +17,12 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
+import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
-import inetsoft.web.admin.content.repository.ImportAssetService;
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.affinity.Affinity;
@@ -994,6 +994,14 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
       catch(RuntimeException ex) {
          throw ex;
+      }
+      catch(ExecutionException ex) {
+         if(ex.getCause() instanceof ExpiredSheetException) {
+            throw (ExpiredSheetException) ex.getCause();
+         }
+         else {
+            throw new RuntimeException(ex);
+         }
       }
       catch(Exception e) {
          throw new RuntimeException(e);
