@@ -21,8 +21,16 @@ import { ColumnInfo } from "../../../composer/data/ws/column-info";
 import { CompositeTableAssembly } from "../../../composer/data/ws/composite-table-assembly";
 import { Worksheet } from "../../../composer/data/ws/worksheet";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
-import { removeNullProps } from "./binding-tool";
-import { WSInfo, WSTableInfo, WSColumnInfo, WSScriptField } from "./types/ws-info";
+import { AggregateInfo } from "../../data/aggregate-info";
+import { getGroupOptionLabel, getOrderDirection, removeNullProps } from "./binding-tool";
+import {
+   WSInfo,
+   WSTableInfo,
+   WSColumnInfo,
+   WSScriptField,
+   WSGroupRef,
+   WSAggregateRef
+} from "./types/ws-info";
 
 export function getWorksheetContext(ws: Worksheet): string {
    if(!ws || !ws.tables || ws.tables.length === 0) {
@@ -43,6 +51,7 @@ export function getWorksheetContext(ws: Worksheet): string {
 export function getWSTableInfo(table: AbstractTableAssembly): WSTableInfo {
    let wsTableInfo: WSTableInfo = { crosstab: table.crosstab };
    wsTableInfo.columns = convertTableColumns(table.colInfos);
+   fixAggregateInfo(wsTableInfo, table.aggregateInfo);
 
    if(table instanceof CompositeTableAssembly) {
       wsTableInfo.subtables = (table as CompositeTableAssembly).subtables;
@@ -73,6 +82,42 @@ export function convertTableColumns(cols: ColumnInfo[]): WSColumnInfo[] {
    return columnInfos;
 }
 
+export function fixAggregateInfo(tableInfo: WSTableInfo, aggregateInfo: AggregateInfo):void {
+   if(!aggregateInfo) {
+      return;
+   }
+
+   if(aggregateInfo.groups != null) {
+      let groups: WSGroupRef[] = [];
+
+      for(let group of aggregateInfo.groups) {
+         let groupRef: WSGroupRef = {
+            column_name: group.name,
+            column_type: group.dataType,
+            base_column: group.ref.name,
+            group_level: getGroupOptionLabel(group.dgroup)
+         }
+
+         groups.push(groupRef);
+      }
+   }
+
+   if(aggregateInfo.aggregates != null) {
+      let aggregateRefs: WSAggregateRef[] = [];
+
+      for(let agg of aggregateInfo.aggregates) {
+         let aggRef: WSAggregateRef = {
+            column_name: agg.name,
+            column_type: agg.dataType,
+            base_column: agg.ref.name,
+            formula: agg.formulaName
+         }
+
+         aggregateRefs.push(aggRef);
+      }
+   }
+}
+
 export function convertColumnInfo(col: ColumnInfo): WSColumnInfo {
    if(!col) {
       return null;
@@ -83,7 +128,9 @@ export function convertColumnInfo(col: ColumnInfo): WSColumnInfo {
       column_type: col.ref == null ? "" : col.ref.dataType,
       group: col.group,
       aggregate: col.aggregate,
-      sortType: col.sortType
+      sortType: getOrderDirection(col.sortType),
+      source: null,
+      description: col.ref == null ? "" : col.ref.description
    };
 
    return colInfo;

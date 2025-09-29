@@ -23,6 +23,8 @@ export interface WSTableInfo {
    table_name?: string;
    columns?: WSColumnInfo[];
    subtables?: string[];
+   groups?: WSGroupRef[];
+   aggregates?: WSAggregateRef[];
    crosstab: boolean;
 }
 
@@ -31,7 +33,23 @@ export interface WSColumnInfo {
    column_type: string;
    group: boolean;
    aggregate: boolean;
-   sortType: number;
+   sortType: string;
+   description: string;
+   source: string;
+}
+
+export interface WSGroupRef {
+   column_name: string;
+   column_type: string;
+   base_column: string;
+   group_level: string;
+}
+
+export interface WSAggregateRef {
+   column_name: string;
+   column_type: string;
+   base_column: string;
+   formula: string;
 }
 
 export interface WSScriptField {
