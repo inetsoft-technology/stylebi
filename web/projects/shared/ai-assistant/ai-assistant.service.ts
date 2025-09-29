@@ -25,7 +25,10 @@ import { ChartBindingModel } from "../../portal/src/app/binding/data/chart/chart
 import { CellBindingInfo } from "../../portal/src/app/binding/data/table/cell-binding-info";
 import { CrosstabBindingModel } from "../../portal/src/app/binding/data/table/crosstab-binding-model";
 import { getAvailableFields } from "../../portal/src/app/binding/services/assistant/available-fields-helper";
-import { getCalcTableBindingContext } from "../../portal/src/app/binding/services/assistant/calc-table-context-helper";
+import {
+   getCalcTableBindings,
+   getCalcTableRetrievalScriptContext, getCalcTableScriptContext
+} from "../../portal/src/app/binding/services/assistant/calc-table-context-helper";
 import { getChartBindingContext } from "../../portal/src/app/binding/services/assistant/chart-context-helper";
 import { getCrosstabBindingContext } from "../../portal/src/app/binding/services/assistant/crosstab-context-helper";
 import { getViewsheetScriptContext } from "../../portal/src/app/binding/services/assistant/viewsheet-context-helper";
@@ -65,6 +68,7 @@ export enum ContextType {
 })
 export class AiAssistantService {
    userId: string = "";
+   calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
 
@@ -133,16 +137,55 @@ export class AiAssistantService {
       this.setContextField("contextType", contextType)
    }
 
-   setCalcTableBindingContext(layout: CalcTableLayout,
-                              cellBindings: { [key: string]: CellBindingInfo }): void
-   {
-      if(!layout?.tableRows?.length || !cellBindings) {
+   setCalcTableBindingContext(layout: CalcTableLayout): void {
+      if(!layout?.tableRows?.length || !this.calcTableCellBindings) {
          return;
       }
 
+      const bindingFields =
+         getCalcTableBindings(layout, this.calcTableCellBindings, this.calcTableAggregates);
       this.setContextTypeFiledValue(ContextType.FREEHAND);
-      this.setContextField("bindingContext",
-         getCalcTableBindingContext(layout, cellBindings, this.calcTableAggregates));
+      this.setContextField("bindingContext", JSON.stringify(bindingFields));
+   }
+
+   setCalcTableRetrievalScriptContext(layout: CalcTableLayout,
+                                      cellRowCol: { rowNumber: number, colNumber: number}): void
+   {
+      if(!layout?.tableRows?.length || !this.calcTableCellBindings) {
+         this.removeContextField("groupCells");
+         this.removeContextField("aggregateCells");
+         return;
+      }
+
+      const retrievalScriptContext =
+         getCalcTableRetrievalScriptContext(layout, this.calcTableCellBindings, cellRowCol);
+
+      if(retrievalScriptContext) {
+         this.setContextField("groupCells", retrievalScriptContext.groupCells);
+         this.setContextField("aggregateCells", retrievalScriptContext.aggregateCells);
+      }
+      else {
+         this.removeContextField("groupCells");
+         this.removeContextField("aggregateCells");
+      }
+   }
+
+   setCalcTableScriptContext(layout: CalcTableLayout,
+                             cellRowCol: { rowNumber: number, colNumber: number}): void
+   {
+      if(!layout?.tableRows?.length) {
+         return;
+      }
+
+      const scriptContext = getCalcTableScriptContext(
+         layout, this.calcTableCellBindings, this.calcTableAggregates, cellRowCol);
+
+      if(scriptContext) {
+         this.setContextField("scriptContext", scriptContext);
+      }
+      else {
+         this.removeContextField("scriptContext");
+      }
    }
 
    setBindingContext(objectModel: BindingModel): void {
