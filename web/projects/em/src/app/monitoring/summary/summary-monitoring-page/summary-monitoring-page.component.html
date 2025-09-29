@@ -27,7 +27,7 @@
             <table>
               <tr>
                 <th>_#(Server Uptime):</th><td>{{serverUpTime}}</td>
-                <th>_#(Scheduler Uptime):</th><td>{{schedulerUpTime}}</td>
+                <th *ngIf="!serverModel.isCloud">_#(Scheduler Uptime):</th><td *ngIf="!serverModel.isCloud">{{schedulerUpTime}}</td>
               </tr>
               <tr>
                 <th>_#(Version Number):</th><td>{{versionNumber}}</td>
