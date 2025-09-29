@@ -1139,7 +1139,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       Set<AssemblyRef> set = new HashSet<>();
 
       for(Assembly assemblyItem : getAssemblies()) {
-         if(!(assemblyItem instanceof AbstractContainerVSAssembly)) {
+         if(!(assemblyItem instanceof AbstractVSAssembly)) {
             continue;
          }
 
