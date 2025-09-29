@@ -66,5 +66,19 @@ public interface CustomThemeModel {
 
          return this;
       }
+
+      public Builder from(CustomTheme theme, ThemeCssModel portalCss, ThemeCssModel emCss) {
+         id(theme.getId());
+         name(theme.getName());
+         global(theme.getOrgID() == null);
+         portalCss(portalCss);
+         emCss(emCss);
+
+         String selected = CustomThemesManager.getManager().getSelectedTheme();
+         defaultThemeGlobal(Objects.equals(selected, theme.getId()));
+         defaultThemeOrg(theme.getOrganizations().contains(OrganizationManager.getInstance().getCurrentOrgID()));
+
+         return this;
+      }
    }
 }
