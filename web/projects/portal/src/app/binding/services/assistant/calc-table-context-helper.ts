@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { CalcTableCell } from "../../../common/data/tablelayout/calc-table-cell";
 import { CalcTableLayout } from "../../../common/data/tablelayout/calc-table-layout";
 import { StyleConstants } from "../../../common/util/style-constants";
 import { XConstants } from "../../../common/util/xconstants";
@@ -23,12 +24,12 @@ import { CellBindingInfo } from "../../data/table/cell-binding-info";
 import { getGroupOptionLabel, getOrderDirection, removeNullProps } from "./binding-tool";
 import { BindingType, CalcTableBindingField, ExpansionType } from "./types/binding-fields";
 
-export function getCalcTableBindingContext(layout: CalcTableLayout,
-                                           cellBindings: { [key: string]: CellBindingInfo },
-                                           aggregates: string[]): string
+export function getCalcTableBindings(layout: CalcTableLayout,
+                                     cellBindings: { [key: string]: CellBindingInfo },
+                                     aggregates: string[]): CalcTableBindingField[]
 {
    if(!layout?.tableRows?.length || !cellBindings) {
-      return "";
+      return null;
    }
 
    const cells = layout.tableRows
@@ -92,7 +93,142 @@ export function getCalcTableBindingContext(layout: CalcTableLayout,
          return cellField;
       });
 
-   return JSON.stringify(removeNullProps(cells));
+   return removeNullProps(cells);
+}
+
+export function getCalcTableRetrievalScriptContext(layout: CalcTableLayout,
+                                                   cellBindings: { [p: string]: CellBindingInfo },
+                                                   cellRowCol: { rowNumber: number, colNumber: number })
+   : Record<string, string>
+{
+   if(!layout?.tableRows?.length || !cellBindings || !cellRowCol) {
+      return null;
+   }
+
+   const { rowNumber, colNumber } = cellRowCol;
+   const groupCellsSet = new Set<string>();
+   const aggregateCellsSet = new Set<string>();
+   const groupPositions: { row: number; col: number }[] = [];
+
+   // Step 1: collect all cells into a flat array
+   const allCells: {
+      cell: any;
+      binding: CellBindingInfo;
+      bindingType: string;
+   }[] = [];
+
+   for(let i = 0; i <= rowNumber; i++) {
+      const row = layout.tableRows[i];
+
+      for(let j = 0; j <= colNumber; j++) {
+         const cell = row.tableCells[j];
+         const cellPath = cell.cellPath.path[0];
+         const cellBinding = cellBindings[cellPath];
+         const bindingType = getCellBindingType(cellBinding);
+
+         allCells.push({ cell, binding: cellBinding, bindingType });
+
+         if(cell.row === rowNumber && cell.col === colNumber) {
+            break;
+         }
+      }
+   }
+
+   // Traverse all cells to collect group cells and record positions
+   for(const { cell, binding, bindingType } of allCells) {
+      if(cell.row === rowNumber && cell.col === colNumber) {
+         continue;
+      }
+
+      if((cell.row === rowNumber || cell.col === colNumber) &&
+         (bindingType === BindingType.GROUP ||
+            (bindingType === BindingType.EXPRESSION && cell.bindingType === CellBindingInfo.GROUP)))
+      {
+         groupCellsSet.add(`$${binding.runtimeName}`);
+         groupPositions.push({ row: cell.row, col: cell.col });
+      }
+   }
+
+   // Traverse all cells to collect aggregate cells
+   for(const { cell, binding, bindingType } of allCells) {
+      if(cell.row === rowNumber && cell.col === colNumber) {
+         continue;
+      }
+
+      if((bindingType === BindingType.AGGREGATE ||
+            (bindingType === BindingType.EXPRESSION && cell.bindingType === CellBindingInfo.SUMMARY)) &&
+         groupPositions.some(pos => cell.row === pos.row || cell.col === pos.col))
+      {
+         aggregateCellsSet.add(`$${binding.runtimeName}`);
+      }
+   }
+
+   return {
+      groupCells: Array.from(groupCellsSet).join(", "),
+      aggregateCells: Array.from(aggregateCellsSet).join(", "),
+   };
+}
+
+export function getCalcTableScriptContext(layout: CalcTableLayout,
+                                          cellBindings: { [key: string]: CellBindingInfo },
+                                          aggregates: string[],
+                                          cellRowCol: { rowNumber: number, colNumber: number}): string
+{
+   if(!layout?.tableRows?.length || !cellBindings || !cellRowCol) {
+      return null;
+   }
+
+   const { rowNumber, colNumber } = cellRowCol;
+   const bindings = getCalcTableBindings(layout, cellBindings, aggregates);
+   const filterdBindings = bindings
+      .filter(field => {
+         const cellPath = field.cell_path
+            .slice(field.cell_path.indexOf("[") + 1, field.cell_path.indexOf("]"))
+            .split(",");
+         const row = parseInt(cellPath[0], 10);
+         const col = parseInt(cellPath[1], 10);
+
+         return field.binding_type !== BindingType.NORMAL_TEXT &&
+            row <= rowNumber && col <= colNumber &&
+            field.cell_path !== `Cell [${rowNumber},${colNumber}]`;
+      })
+      .map(field => {
+         field.cell_name = "$" + field.cell_name;
+         return field;
+      });
+
+   return JSON.stringify(filterdBindings);
+}
+
+export function getLastFormulaCellRowCol(cellBindings: { [p: string]: CellBindingInfo },
+                                         selectedCells: CalcTableCell[])
+{
+   if(!selectedCells || selectedCells.length === 0) {
+      return null;
+   }
+
+   let lastFormulaCell: CalcTableCell;
+
+   for(let i = selectedCells.length - 1; i >= 0; i--) {
+      const cell = selectedCells[i];
+      const cellPath = cell.cellPath.path[0];
+      const cellBinding = cellBindings[cellPath];
+      const bindingType = getCellBindingType(cellBinding);
+
+      if(bindingType === BindingType.EXPRESSION) {
+         lastFormulaCell = cell;
+         break;
+      }
+   }
+
+   if(!lastFormulaCell) {
+      return null;
+   }
+
+   return {
+      rowNumber: lastFormulaCell.row,
+      colNumber: lastFormulaCell.col
+   };
 }
 
 function getCellBindingType(cellBinding: CellBindingInfo): string {
