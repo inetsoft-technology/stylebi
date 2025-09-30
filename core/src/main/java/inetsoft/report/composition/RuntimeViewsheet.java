@@ -428,8 +428,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
             if(hInfo == null) {
                //The owner of (Home) bookmark is admin
                bookmark = getUserBookmark(new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()));
-               vs = bookmark.getHomeBookmark(vs);
-               hInfo = bookmark.getBookmarkInfo(VSBookmark.HOME_BOOKMARK);
+
+               if(bookmark != null) {
+                  vs = bookmark.getHomeBookmark(vs);
+                  hInfo = bookmark.getBookmarkInfo(VSBookmark.HOME_BOOKMARK);
+               }
             }
 
             setOpenedBookmark(hInfo);
