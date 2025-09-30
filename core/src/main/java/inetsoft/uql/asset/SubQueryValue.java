@@ -93,11 +93,11 @@ public class SubQueryValue implements AssetObject {
       }
 
       if(scolumns != null) {
-         if(!scolumns.containsAttribute(ref)) {
+         if(!containsSubQueryAttribute(scolumns, ref)) {
             return false;
          }
 
-         if(sref != null && !scolumns.containsAttribute(sref)) {
+         if(sref != null && !containsSubQueryAttribute(scolumns, sref)) {
             return false;
          }
       }
@@ -539,6 +539,14 @@ public class SubQueryValue implements AssetObject {
 
       writer.print("]");
       return true;
+   }
+
+   private boolean containsSubQueryAttribute(ColumnSelection columns, DataRef ref) {
+      if(columns.containsAttribute(ref)) {
+         return true;
+      }
+
+      return ref.isEntityBlank() && columns.getAttribute(ref.getName(), query) != null;
    }
 
    private DataRef ref = null;
