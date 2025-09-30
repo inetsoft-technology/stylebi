@@ -197,6 +197,11 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
                                            Principal user)
    {
       String id = getNextID(entry, user);
+      setTemporarySheetId(id, sheet);
+      return id;
+   }
+
+   protected void setTemporarySheetId(String id, RuntimeSheet sheet) {
       sheet.setID(id);
 
       try {
@@ -205,8 +210,6 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       catch(Exception e) {
          LOG.error("Failed to create the temporary sheet:{}", id);
       }
-
-      return id;
    }
 
    protected String initializeTemporarySheetId(AssetEntry entry, RuntimeSheet sheet,

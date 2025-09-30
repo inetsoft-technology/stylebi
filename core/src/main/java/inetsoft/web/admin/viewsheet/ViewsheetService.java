@@ -26,6 +26,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.monitoring.*;
+import inetsoft.web.admin.schedule.ScheduleMetrics;
 import inetsoft.web.admin.schedule.ScheduleViewsheetsStatus;
 import inetsoft.web.admin.user.UserResourceCalculator;
 import inetsoft.web.cluster.ServerClusterClient;
@@ -38,12 +39,12 @@ import java.util.stream.Collectors;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.ObjectUtils;
-import org.springframework.util.StringUtils;
 
 @Service
 public class ViewsheetService
@@ -239,7 +240,7 @@ public class ViewsheetService
          throw new IllegalArgumentException("One or more viewsheet IDs is required");
       }
 
-      if(StringUtils.isEmpty(address)) {
+      if(StringUtils.isBlank(address)) {
          for(String id : ids) {
             destroy(id);
          }
@@ -346,7 +347,7 @@ public class ViewsheetService
          }
 
          // Filter viewsheets
-         String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID();
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
          viewsheets = viewsheets.stream()
             .filter(vs -> vs.monitorUser() != null &&
                Tool.equals(vs.monitorUser().getOrgID(), orgID))
@@ -377,7 +378,7 @@ public class ViewsheetService
       }
 
       // Filter viewsheets
-      String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID();
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
       viewsheets = viewsheets.stream()
          .filter(vs -> vs.monitorUser() != null &&
             Tool.equals(vs.monitorUser().getOrgID(), orgID))
@@ -391,7 +392,7 @@ public class ViewsheetService
    {
       List<ViewsheetMonitoringTableModel> tableModels = new ArrayList<>();
       List<IdentityID> users = getOrgUsers(principal);
-      String currentOrgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal);
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(ViewsheetModel info : getViewsheets(ViewsheetModel.State.EXECUTING, server)) {
          if(info.user() == null || !Tool.equals(info.user().orgID, currentOrgID)) {
@@ -413,7 +414,7 @@ public class ViewsheetService
    }
 
    List<ViewsheetMonitoringTableModel> getOpenViewsheets(String server, Principal principal) {
-      String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID();
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       return getViewsheets(ViewsheetModel.State.OPEN, server).stream()
          .filter(vs -> vs.user() != null && Tool.equals(vs.user().getOrgID(), orgID))
@@ -475,7 +476,7 @@ public class ViewsheetService
                throw new RuntimeException(e);
             }
          },
-         metrics -> metrics.getViewsheets());
+         ScheduleMetrics::getViewsheets);
    }
 
    private final inetsoft.analytic.composition.ViewsheetService engine;

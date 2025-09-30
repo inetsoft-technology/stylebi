@@ -193,13 +193,20 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    public String openTemporaryViewsheet(AssetEntry wentry, Principal user,
                                         String rid)
    {
-      Viewsheet vs = new Viewsheet(wentry);
+      String id;
       AssetEntry entry = getTemporaryAssetEntry(user, AssetEntry.Type.VIEWSHEET);
-      vs.update(engine, entry, user);
-      RuntimeViewsheet rvs = new RuntimeViewsheet(entry, vs, user, engine, this,
-                                                  null, false);
-      rvs.setEditable(false);
-      return createTemporarySheetId(entry, rvs, user);
+      OpenTemporaryViewsheetTask task =
+         new OpenTemporaryViewsheetTask(wentry, entry, user, getNextID(entry, user));
+      Cluster cluster = Cluster.getInstance();
+
+      if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, task.id)) {
+         id = task.callInternal(this);
+      }
+      else {
+         id = Cluster.getInstance().affinityCall(CACHE_NAME, task.id, task);
+      }
+
+      return id;
    }
 
    /**
@@ -929,6 +936,36 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          return rid;
       }
 
+      private final AssetEntry entry;
+      private final Principal user;
+      private final String id;
+   }
+
+   private static final class OpenTemporaryViewsheetTask implements AffinityCallable<String> {
+      public OpenTemporaryViewsheetTask(AssetEntry wentry, AssetEntry entry, Principal user, String id) {
+         this.wentry = wentry;
+         this.entry = entry;
+         this.user = user;
+         this.id = id;
+      }
+
+      @Override
+      public String call() throws Exception {
+         ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
+         return callInternal(engine);
+      }
+
+      private String callInternal(ViewsheetEngine engine) {
+         Viewsheet vs = new Viewsheet(wentry);
+         vs.update(engine.engine, entry, user);
+         RuntimeViewsheet rvs = new RuntimeViewsheet(entry, vs, user, engine.engine, engine,
+                                                     null, false);
+         rvs.setEditable(false);
+         engine.setTemporarySheetId(id, rvs);
+         return id;
+      }
+
+      private final AssetEntry wentry;
       private final AssetEntry entry;
       private final Principal user;
       private final String id;

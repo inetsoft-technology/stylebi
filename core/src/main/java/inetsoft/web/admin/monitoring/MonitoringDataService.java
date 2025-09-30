@@ -26,7 +26,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.concurrent.ConcurrentMapCache;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
-import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.handler.DestinationPatternsMessageCondition;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
@@ -38,11 +37,8 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.security.Principal;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -93,6 +89,7 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
     * @return the most recent value posted to this topic if not-null, otherwise the result
     * of executing the supplier function.
     */
+   @SuppressWarnings("unchecked")
    public <T> T addSubscriber(StompHeaderAccessor headerAccessor, Supplier<T> supplier) {
       final String sessionId = headerAccessor.getSessionId();
       final MessageHeaders messageHeaders = headerAccessor.getMessageHeaders();
@@ -115,7 +112,7 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
       final Object monitoringData = dataCache.get(subscriber, monitoringSubscriber::get);
 
       if(monitoringData == null) {
-         LOG.warn("Monitoring data is missing: " + monitoringSubscriber.supplier);
+         LOG.warn("Monitoring data is missing: {}", monitoringSubscriber.supplier);
          return null;
       }
 
@@ -251,15 +248,13 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
       public Object get() {
          ThreadContext.setContextPrincipal(getUser());
 
-         if(Thread.currentThread() instanceof GroupedThread) {
-            GroupedThread groupedThread = (GroupedThread) Thread.currentThread();
+         if(Thread.currentThread() instanceof GroupedThread groupedThread) {
             groupedThread.setPrincipal(getUser());
          }
 
          Object result = supplier.get();
 
-         if(Thread.currentThread() instanceof GroupedThread) {
-            GroupedThread groupedThread = (GroupedThread) Thread.currentThread();
+         if(Thread.currentThread() instanceof GroupedThread groupedThread) {
             groupedThread.setPrincipal(null);
             groupedThread.removeRecords();
          }
@@ -279,6 +274,7 @@ public class MonitoringDataService extends BaseSubscribeChangHandler {
          if(this == o) {
             return true;
          }
+
          if(o == null || getClass() != o.getClass()) {
             return false;
          }

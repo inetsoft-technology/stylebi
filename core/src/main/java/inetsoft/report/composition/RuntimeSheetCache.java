@@ -124,34 +124,41 @@ public class RuntimeSheetCache
    @Override
    public RuntimeSheet get(Object key) {
       if(key instanceof String id) {
-         AtomicBoolean loadFromCache = new AtomicBoolean(false);
-         AtomicReference<RuntimeSheet> sheetRef = readLock(id, () -> {
+         boolean loadFromCache = false;
+         lock.readLock().lock();
+
+         try {
             if(local.containsKey(id)) {
-               return new AtomicReference<>(local.get(id));
+               return local.get(id);
             }
 
-            loadFromCache.set(cache.containsKey(id));
-            return null;
-         });
-
-         if(sheetRef != null) {
-            return sheetRef.get();
+            loadFromCache = cache.containsKey(id);;
+         }
+         finally {
+            lock.readLock().unlock();
          }
 
-         if(loadFromCache.get()) {
-            return writeLock(id, () -> {
-               if(!local.containsKey(id) && cache.containsKey(id)) {
-                  RuntimeSheet sheet = toSheet(cache.get(id));
+         if(loadFromCache) {
+            lock.writeLock().lock();
 
-                  if(sheet != null) {
-                     putLocal(id, sheet);
+            try {
+               RuntimeSheet sheet = toSheet(cache.get(id));
+
+               if(sheet != null) {
+                  if(!cluster.isLocalCacheKey(cache.getName(), id)) {
+                     LOG.error(
+                        "Loading remote runtime sheet that does not belong to this instance: {}",
+                        id, new Exception("Stack trace"));
                   }
 
-                  return sheet;
+                  putLocal(id, sheet);
                }
 
-               return null;
-            });
+               return sheet;
+            }
+            finally {
+               lock.writeLock().unlock();
+            }
          }
       }
 
@@ -160,22 +167,28 @@ public class RuntimeSheetCache
 
    @Override
    public RuntimeSheet put(String key, RuntimeSheet value) {
-      return writeLock(key, () -> doPut(key, value));
-   }
+      lock.writeLock().lock();
 
-   private RuntimeSheet doPut(String key, RuntimeSheet value) {
-      RuntimeSheet sheet = putLocal(key, value);
-      putCache(key, value);
-      return sheet;
+      try {
+         RuntimeSheet sheet = putLocal(key, value);
+         putCache(key, value);
+         return sheet;
+      }
+      finally {
+         lock.writeLock().unlock();
+      }
    }
 
    public Future<RuntimeSheet> putSheet(String key, RuntimeSheet value) {
-      return writeLock(key, () -> doPutSheet(key, value));
-   }
+      lock.writeLock().lock();
 
-   private Future<RuntimeSheet> doPutSheet(String key, RuntimeSheet value) {
-      putLocal(key, value);
-      return putCache(key, value);
+      try {
+         putLocal(key, value);
+         return putCache(key, value);
+      }
+      finally {
+         lock.writeLock().unlock();
+      }
    }
 
    private RuntimeSheet putLocal(String key, RuntimeSheet value) {
@@ -223,26 +236,25 @@ public class RuntimeSheetCache
 
    @Override
    public RuntimeSheet remove(Object key) {
-      if(key instanceof String id) {
-         return writeLock(id, () -> doRemove(id));
-      }
+      lock.writeLock().lock();
 
-      return null;
-   }
+      try {
+         RuntimeSheet sheet = local.remove(key);
 
-   private RuntimeSheet doRemove(String key) {
-      RuntimeSheet sheet = local.remove(key);
-
-      if(key instanceof String id) {
-         if(sheet == null) {
-            sheet = toSheet(cache.getAndRemove(id));
+         if(key instanceof String id) {
+            if(sheet == null) {
+               sheet = toSheet(cache.getAndRemove(id));
+            }
+            else {
+               cache.removeAsync(id);
+            }
          }
-         else {
-            cache.removeAsync(id);
-         }
-      }
 
-      return sheet;
+         return sheet;
+      }
+      finally {
+         lock.writeLock().unlock();
+      }
    }
 
    @Override
@@ -253,20 +265,20 @@ public class RuntimeSheetCache
          states.put(e.getKey(), e.getValue().saveState(mapper));
       }
 
-      globalLock.writeLock().lock();
+      lock.writeLock().lock();
 
       try {
          local.putAll(m);
          cache.putAllAsync(states);
       }
       finally {
-         globalLock.writeLock().unlock();
+         lock.writeLock().unlock();
       }
    }
 
    @Override
    public void clear() {
-      globalLock.writeLock().lock();
+      lock.writeLock().lock();
 
       try {
          Set<String> ids = getLocalKeys();
@@ -274,7 +286,7 @@ public class RuntimeSheetCache
          cache.removeAllAsync(ids);
       }
       finally {
-         globalLock.writeLock().unlock();
+         lock.writeLock().unlock();
       }
    }
 
@@ -318,23 +330,25 @@ public class RuntimeSheetCache
    }
 
    public void flush(String key) {
-      writeLock(key, () -> doFlush(key));
-   }
+      lock.writeLock().lock();
 
-   private void doFlush(String key) {
-      RuntimeSheet sheet = local.get(key);
+      try {
+         RuntimeSheet sheet = local.get(key);
 
-      if(sheet == null) {
-         cache.removeAsync(key);
+         if(sheet == null) {
+            cache.removeAsync(key);
+         }
+         else {
+            cache.putAsync(key, sheet.saveState(mapper));
+         }
       }
-      else {
-         cache.putAsync(key, sheet.saveState(mapper));
+      finally {
+         lock.writeLock().unlock();
       }
    }
 
    private void flushAll() {
-      // need to use the write lock to prevent modifications at the key-level locks
-      globalLock.writeLock().lock();
+      lock.writeLock().lock();
 
       try {
          Map<String, RuntimeSheetState> changeset = new HashMap<>();
@@ -350,7 +364,7 @@ public class RuntimeSheetCache
          cache.putAllAsync(changeset);
       }
       finally {
-         globalLock.writeLock().unlock();
+         lock.writeLock().unlock();
       }
    }
 
@@ -370,9 +384,7 @@ public class RuntimeSheetCache
    public List<String> getAllIds(Principal user) {
       Set<String> ids = new HashSet<>();
 
-      for(Iterator<Cache.Entry<String, RuntimeSheetState>> i = cache.iterator(); i.hasNext(); ) {
-         Cache.Entry<String, RuntimeSheetState> e = i.next();
-
+      for(Cache.Entry<String, RuntimeSheetState> e : cache) {
          if(user == null) {
             ids.add(e.getKey());
          }
@@ -395,85 +407,11 @@ public class RuntimeSheetCache
       return List.copyOf(ids);
    }
 
-   private <T> T writeLock(String key, Supplier<T> fn) {
-      // obtain global read lock to prevent map-wide modifications (i.e. global write lock)
-      globalLock.readLock().lock();
-
-      try {
-         // obtain the key-specific lock
-         ReadWriteLock lock = stripedLock.get(key);
-         return withLock(lock.writeLock(), fn);
-      }
-      finally {
-         globalLock.readLock().unlock();
-      }
-   }
-
-   private void writeLock(String key, Runnable fn) {
-      globalLock.readLock().lock();
-
-      try {
-         ReadWriteLock lock = stripedLock.get(key);
-         withLock(lock.writeLock(), fn);
-      }
-      finally {
-         globalLock.readLock().unlock();
-      }
-   }
-
-   private <T> T readLock(String key, Supplier<T> fn) {
-      globalLock.readLock().lock();
-
-      try {
-         ReadWriteLock lock = stripedLock.get(key);
-         return withLock(lock.readLock(), fn);
-      }
-      finally {
-         globalLock.readLock().unlock();
-      }
-   }
-
-   @SuppressWarnings("unused")
-   private void readLock(String key, Runnable fn) {
-      globalLock.readLock().lock();
-
-      try {
-         ReadWriteLock lock = stripedLock.get(key);
-         withLock(lock.readLock(), fn);
-      }
-      finally {
-         globalLock.readLock().unlock();
-      }
-   }
-
-   private <T> T withLock(Lock lock, Supplier<T> fn) {
-      lock.lock();
-
-      try {
-         return fn.get();
-      }
-      finally {
-         lock.unlock();
-      }
-   }
-
-   private void withLock(Lock lock, Runnable fn) {
-      lock.lock();
-
-      try {
-         fn.run();
-      }
-      finally {
-         lock.unlock();
-      }
-   }
-
    private final Cluster cluster;
    private final Map<String, RuntimeSheet> local;
    private final IgniteCache<String, RuntimeSheetState> cache;
    private final int maxSheetCount;
-   private final ReadWriteLock globalLock = new ReentrantReadWriteLock();
-   private final Striped<ReadWriteLock> stripedLock = Striped.lazyWeakReadWriteLock(256);
+   private final ReadWriteLock lock = new ReentrantReadWriteLock();
    private final ScheduledExecutorService executor;
    private final ObjectMapper mapper;
    private boolean applyMaxCount;
@@ -484,14 +422,13 @@ public class RuntimeSheetCache
       protected abstract T map(Map.Entry<String, RuntimeSheet> entry);
 
       public CacheIterator() {
-         // need to use the write lock to prevent modifications at the key-level locks
-         globalLock.writeLock().lock();
+         lock.readLock().lock();
 
          try {
             iterator = new ArrayList<>(local.entrySet()).iterator();
          }
          finally {
-            globalLock.writeLock().unlock();
+            lock.readLock().unlock();
          }
       }
 
