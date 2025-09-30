@@ -2345,18 +2345,6 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
                   continue;
                }
 
-               while(subTable instanceof MirrorTableAssembly) {
-                  Assembly baseAssembly =
-                     ((MirrorTableAssemblyInfo) subTable.getInfo()).getImpl().getAssembly();
-
-                  if(baseAssembly instanceof TableAssembly) {
-                     subTable = (TableAssembly) baseAssembly;
-                  }
-                  else {
-                     break;
-                  }
-               }
-
                ColumnSelection scolumns = subTable.getColumnSelection(true);
 
                try {
