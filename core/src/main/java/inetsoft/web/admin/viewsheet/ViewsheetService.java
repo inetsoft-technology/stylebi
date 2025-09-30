@@ -332,7 +332,11 @@ public class ViewsheetService
     */
    public List<ViewsheetModel> getViewsheets(ViewsheetModel.State state, String node) {
       List<ViewsheetModel> viewsheets = new ArrayList<>();
-      ScheduleViewsheetsStatus scheduleViewsheets = getScheduleViewsheets(node);
+      ScheduleViewsheetsStatus scheduleViewsheets = null;
+
+      if(!ScheduleClient.getScheduleClient().isCloud()) {
+         scheduleViewsheets = getScheduleViewsheets(node);
+      }
 
       if(node == null) {
          viewsheets.addAll(getViewsheets(state));
@@ -382,6 +386,7 @@ public class ViewsheetService
       viewsheets = viewsheets.stream()
          .filter(vs -> vs.monitorUser() != null &&
             Tool.equals(vs.monitorUser().getOrgID(), orgID))
+         .distinct()
          .collect(Collectors.toList());
 
       return viewsheets;
