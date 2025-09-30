@@ -16,67 +16,97 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { ChartRef } from "../../../common/data/chart-ref";
-import { StyleConstants } from "../../../common/util/style-constants";
-import { XConstants } from "../../../common/util/xconstants";
-import { ChartAggregateRef } from "../../data/chart/chart-aggregate-ref";
 import { ChartBindingModel } from "../../data/chart/chart-binding-model";
-import { ChartDimensionRef } from "../../data/chart/chart-dimension-ref";
-import { getChartLabel, getGroupOptionLabel, getOrderDirection } from "./binding-tool";
+import {
+   convertDataRef,
+   convertDataRefs,
+   getChartLabel,
+   removeNullProps
+} from "./binding-tool";
+import { ChartBindingFields, ChartBindingInfo } from "./types/chart-binding-info";
 
-export function getBindingContext(bindingModel: ChartBindingModel): string {
+export function getChartBindingContext(bindingModel: ChartBindingModel): string {
    let bindingFields: ChartBindingFields = {};
+   const multiStyle = bindingModel.multiStyles;
 
    if(bindingModel.xfields && bindingModel.xfields.length != 0) {
-      bindingFields.x_axis_fields = convertChartRefs(bindingModel.xfields);
+      bindingFields.x_axis_fields = convertDataRefs(bindingModel.xfields, multiStyle, true);
    }
 
    if(bindingModel.yfields && bindingModel.yfields.length != 0) {
-      bindingFields.y_axis_fields = convertChartRefs(bindingModel.yfields);
+      bindingFields.y_axis_fields = convertDataRefs(bindingModel.yfields, multiStyle, true);
    }
 
    if(bindingModel.geoFields && bindingModel.geoFields.length != 0) {
-      bindingFields.geo_fields = convertChartRefs(bindingModel.geoFields);
+      bindingFields.geo_fields = convertDataRefs(bindingModel.geoFields);
    }
 
    if(bindingModel.groupFields && bindingModel.groupFields.length != 0) {
-      bindingFields.group_fields = convertChartRefs(bindingModel.groupFields);
+      bindingFields.group_fields = convertDataRefs(bindingModel.groupFields);
    }
 
    if(bindingModel.colorField?.dataInfo) {
-      bindingFields.color = convertChartRef(bindingModel.colorField?.dataInfo);
+      bindingFields.color = convertDataRef(bindingModel.colorField?.dataInfo);
    }
 
    if(bindingModel.shapeField?.dataInfo) {
-      bindingFields.shape = convertChartRef(bindingModel.shapeField?.dataInfo);
+      bindingFields.shape = convertDataRef(bindingModel.shapeField?.dataInfo);
    }
 
    if(bindingModel.sizeField?.dataInfo) {
-      bindingFields.size = convertChartRef(bindingModel.sizeField?.dataInfo);
+      bindingFields.size = convertDataRef(bindingModel.sizeField?.dataInfo);
    }
 
    if(bindingModel.textField?.dataInfo) {
-      bindingFields.text = convertChartRef(bindingModel.textField?.dataInfo);
+      bindingFields.text = convertDataRef(bindingModel.textField?.dataInfo);
    }
 
    if(bindingModel.openField) {
-      bindingFields.open = convertChartRef(bindingModel.openField);
+      bindingFields.open = convertDataRef(bindingModel.openField);
    }
 
    if(bindingModel.closeField) {
-      bindingFields.close = convertChartRef(bindingModel.closeField);
+      bindingFields.close = convertDataRef(bindingModel.closeField);
    }
 
    if(bindingModel.highField) {
-      bindingFields.high = convertChartRef(bindingModel.highField);
+      bindingFields.high = convertDataRef(bindingModel.highField);
    }
 
    if(bindingModel.lowField) {
-      bindingFields.low = convertChartRef(bindingModel.lowField);
+      bindingFields.low = convertDataRef(bindingModel.lowField);
    }
 
    if(bindingModel.pathField) {
-      bindingFields.path = convertChartRef(bindingModel.pathField);
+      bindingFields.path = convertDataRef(bindingModel.pathField);
+   }
+
+   if(bindingModel.sourceField) {
+      bindingFields.source = convertDataRef(bindingModel.sourceField);
+   }
+
+   if(bindingModel.targetField) {
+      bindingFields.target = convertDataRef(bindingModel.targetField);
+   }
+
+   if(bindingModel.startField) {
+      bindingFields.start = convertDataRef(bindingModel.startField);
+   }
+
+   if(bindingModel.endField) {
+      bindingFields.end = convertDataRef(bindingModel.endField);
+   }
+
+   if(bindingModel.milestoneField) {
+      bindingFields.milestone = convertDataRef(bindingModel.milestoneField);
+   }
+
+   if(bindingModel.nodeColorField) {
+      bindingFields.node_color = convertDataRef(bindingModel.nodeColorField?.dataInfo);
+   }
+
+   if(bindingModel.nodeSizeField) {
+      bindingFields.node_size = convertDataRef(bindingModel.nodeSizeField?.dataInfo);
    }
 
    let chartInfo: ChartBindingInfo = {
@@ -84,104 +114,5 @@ export function getBindingContext(bindingModel: ChartBindingModel): string {
       bindingFields: bindingFields
    }
 
-   return JSON.stringify(chartInfo);
+   return JSON.stringify(removeNullProps(chartInfo));
 }
-
-function convertChartRefs(refs: ChartRef[], multiStyle: boolean = false, xy: boolean = false): BindingField[] {
-   if(!refs || refs.length == 0) {
-      return null;
-   }
-
-   let fields: BindingField[] = [];
-
-   for(let i = 0; i < refs.length; i++) {
-      let field = convertChartRef(refs[i], multiStyle, xy);
-      if(field) {
-         fields.push(field);
-      }
-   }
-
-   if(fields.length == 0) {
-      return null;
-   }
-
-   return fields;
-}
-
-function convertChartRef(ref: ChartRef, multiStyle: boolean = false, xy: boolean = false): DimensionField | AggregateField {
-   if(!ref) {
-      return null;
-   }
-
-   let field_name: string = ref.fullName ?? ref.name;
-   let data_type: string = ref.dataType;
-   let base_fields: BaseField[] = [];
-
-   if(ref.dataRefModel) {
-      base_fields.push({
-         field_name: ref.dataRefModel.name,
-         data_type: ref.dataRefModel.dataType
-      });
-   }
-
-   if(ref.classType == "BAggregateRefModel") {
-      let aggr = ref as ChartAggregateRef;
-
-      if(aggr.secondaryColumn) {
-         base_fields.push({
-            field_name: aggr.secondaryColumn?.name,
-            data_type: aggr.secondaryColumn?.dataType
-         });
-      }
-
-      let formula = aggr.formula;
-
-      let aggrInfo: AggregateField = {
-         field_name: field_name,
-         data_type: data_type,
-         base_fields: base_fields,
-         aggregation: formula,
-      };
-
-      if(multiStyle && xy) {
-         aggrInfo.aggregate_chart_type = getChartLabel(aggr.chartType);
-      }
-
-      return aggrInfo;
-   }
-
-   if(ref.classType == "BDimensionRef") {
-      let dim = ref as ChartDimensionRef;
-
-      let dimInfo: DimensionField = {
-         field_name: field_name,
-         data_type: data_type,
-         base_fields: base_fields
-      };
-
-      if(dim.order != XConstants.SORT_NONE) {
-         dimInfo.sort = {
-            direction: getOrderDirection(dim.order),
-            by_measure: dim.sortByCol
-         };
-      }
-
-      if(dim.rankingOption == StyleConstants.TOP_N + "" || dim.rankingOption == StyleConstants.BOTTOM_N + "") {
-         dimInfo.topn = {
-            enabled: true,
-            n: dim.rankingN,
-            by_measure: dim.rankingCol,
-            reverse: dim.rankingOption == StyleConstants.BOTTOM_N + ""
-         };
-      }
-
-      if(dim.dateLevel != XConstants.NONE_DATE_GROUP + "") {
-         dimInfo.group = getGroupOptionLabel(dim.dateLevel)
-      }
-
-      return dimInfo;
-   }
-
-   return null;
-}
-

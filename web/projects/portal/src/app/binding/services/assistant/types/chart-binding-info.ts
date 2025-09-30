@@ -16,7 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-interface ChartBindingFields {
+import { BindingField } from "./binding-fields";
+
+export interface ChartBindingFields {
    x_axis_fields?: BindingField[];
    y_axis_fields?: BindingField[];
    geo_fields?: BindingField[];
@@ -30,11 +32,16 @@ interface ChartBindingFields {
    high?: BindingField;
    low?: BindingField;
    path?: BindingField;
+   source?: BindingField;
+   target?: BindingField;
+   start?: BindingField;
+   end?: BindingField;
+   milestone?: BindingField;
    node_color?: BindingField;
    node_size?: BindingField;
 }
 
-interface ChartBindingInfo {
+export interface ChartBindingInfo {
    chartType: string;
    bindingFields: ChartBindingFields;
 }

@@ -16,33 +16,28 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { DataRef } from "../../../common/data/data-ref";
-import { Field } from "./types/field";
+import { Viewsheet } from "../../../composer/data/vs/viewsheet";
 
-export function getAvailableFields(availableFields: DataRef[]): string {
-   if(!availableFields) {
+export function getViewsheetScriptContext(vs: Viewsheet): string {
+   if(!vs || !vs.vsObjects || vs.vsObjects.length === 0) {
       return "";
    }
 
-   let fields: Field[] = [];
+   const contextMap = new Map<string, string>();
 
-   availableFields.forEach(fld => {
-      let is_calc = false;
-      let expression = "";
+   vs.vsObjects.forEach(vsObject => {
+      let objectType = vsObject.objectType.substring(2);
+      objectType = objectType === "CalcTable" ? "Freehand table" : objectType;
 
-      if(fld.classType === "CalculateRef" && fld.expression && (<any> fld).dataRefModel?.exp) {
-         is_calc = true;
-         expression = (<any> fld).dataRefModel.exp;
+      if(contextMap.has(objectType)) {
+         contextMap.set(objectType, contextMap.get(objectType) + ", " + vsObject.absoluteName);
       }
-
-      fields.push({
-         field_name: fld.name,
-         data_type: fld.dataType,
-         description: fld.description,
-         is_calcfield: is_calc,
-         calc_expression: expression
-      });
+      else {
+         contextMap.set(objectType, vsObject.absoluteName);
+      }
    });
 
-   return JSON.stringify(fields);
+   return Array.from(contextMap.entries())
+      .map(entry => `${entry[0]}: ${entry[1]}`)
+      .join("\n");
 }
