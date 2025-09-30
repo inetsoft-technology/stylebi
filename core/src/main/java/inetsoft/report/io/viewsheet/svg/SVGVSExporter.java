@@ -279,7 +279,7 @@ public class SVGVSExporter extends AbstractVSExporter {
    @Override
    protected void writeTextInput(TextInputVSAssembly assembly) {
       Object value = assembly.getSelectedObject() != null ?
-         assembly.getSelectedObject() : null;
+         ((TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo()).getText() : null;
       writeText(assembly, value == null ? "" : Tool.getDataString(value, assembly.getDataType()));
    }
 

@@ -511,7 +511,7 @@ public class PDFVSExporter extends AbstractVSExporter {
     */
    @Override
    protected void writeTextInput(TextInputVSAssembly assembly) {
-      Object value = assembly.getSelectedObject();
+      Object value = ((TextInputVSAssemblyInfo) assembly.getVSAssemblyInfo()).getText();
       writeText(assembly, value == null ? "" : Tool.getDataString(value, assembly.getDataType()));
    }
 
