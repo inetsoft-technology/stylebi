@@ -55,6 +55,8 @@ public class OpenScriptController {
 
       try {
          LibManager lib = LibManager.getManager();
+         lib.loadLibrary();
+
          String function = lib.getScript(name);
          String comment = scriptModel.getComment();
          boolean change = false;
@@ -122,6 +124,8 @@ public class OpenScriptController {
 
       try {
          LibManager lib = LibManager.getManager();
+         lib.loadLibrary();
+
          String scriptText = scriptModel.getText();
          scriptText = scriptText == null ? "" : scriptText;
          lib.setScript(saveModel.getName(), scriptText);

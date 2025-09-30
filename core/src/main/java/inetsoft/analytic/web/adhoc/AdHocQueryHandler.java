@@ -202,6 +202,8 @@ public class AdHocQueryHandler {
    public static List<String> getUserDefinedScriptFunctions() {
       List<String> list = new ArrayList<>();
       LibManager mgr = LibManager.getManager();
+      mgr.loadLibrary();
+
       Enumeration<?> names = mgr.getScripts();
 
       while(names.hasMoreElements()) {

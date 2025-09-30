@@ -79,6 +79,8 @@ public class LibScriptable extends ScriptableObject {
     */
    private void loadScripts() {
       LibManager mgr = LibManager.getManager();
+      mgr.loadLibrary();
+
       Enumeration names = mgr.getScripts();
 
       while(names.hasMoreElements()) {

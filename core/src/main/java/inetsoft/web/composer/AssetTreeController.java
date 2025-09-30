@@ -567,6 +567,7 @@ public class AssetTreeController {
             try {
                if(!assetRepository.containsEntry(asset)) {
                   LibManager manager = LibManager.getManager();
+                  manager.loadLibrary();
 
                   if(asset.isTableStyle()) {
                      XTableStyle style = manager.getTableStyleByName(asset.getProperty("styleName"));

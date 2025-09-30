@@ -71,6 +71,7 @@ public class ScriptAsset extends AbstractXAsset {
    public XAssetDependency[] getDependencies(List<XAssetDependency> list) {
       List<XAssetDependency> deps = new ArrayList<>();
       final LibManager manager = LibManager.getManager();
+      manager.loadLibrary();
 
       if(manager.findScriptName(script) != null) {
          String check = manager.getScript(script);
@@ -301,6 +302,7 @@ public class ScriptAsset extends AbstractXAsset {
    @Override
    public synchronized boolean writeContent(OutputStream output) throws Exception {
       LibManager manager = LibManager.getManager();
+      manager.loadLibrary();
       String body = manager.getScript(script);
 
       if(body == null) {

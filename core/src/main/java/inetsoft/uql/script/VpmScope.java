@@ -140,6 +140,7 @@ public class VpmScope extends ScriptableObject {
       Scriptable root = (Scriptable) cx.initStandardObjects(new RootScope());
 
       LibManager mgr = LibManager.getManager();
+      mgr.loadLibrary();
       Enumeration names = mgr.getScripts();
 
       while(names.hasMoreElements()) {

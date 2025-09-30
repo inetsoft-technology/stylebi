@@ -56,6 +56,7 @@ public class ScriptController {
       AssetEntry entry = AssetEntry.createAssetEntry(id);
       String name = entry.getName();
       LibManager lib = LibManager.getManager();
+      lib.loadLibrary();
       String function = lib.getScript(name);
       ScriptModel script = new ScriptModel();
       script.setLabel(name);

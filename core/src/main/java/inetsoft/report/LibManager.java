@@ -624,6 +624,18 @@ public class LibManager implements AutoCloseable {
       }
    }
 
+   public synchronized void loadLibrary() {
+      String storeID = getStorageId(OrganizationManager.getInstance().getCurrentOrgID());
+      BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
+
+      try {
+         loadLibrary(storage);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load library file", e);
+      }
+   }
+
    /**
     * Saves this library.
     *

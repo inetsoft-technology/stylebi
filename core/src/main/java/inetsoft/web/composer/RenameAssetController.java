@@ -114,6 +114,7 @@ public class RenameAssetController {
       nentry.copyMetaData(entry);
       nentry.addFavoritesUser(entry.getFavoritesUser());
       LibManager manager = LibManager.getManager();
+      manager.loadLibrary();
 
       if(!reAlias && !nentry.equals(entry) &&
         (viewsheetService.isDuplicatedEntry(assetRepository, nentry) ||
