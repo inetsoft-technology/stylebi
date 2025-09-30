@@ -159,6 +159,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
          vars = loadJson(VariableTable.class, state.getVars(), mapper);
       }
 
+      if(state.getHashImage() != null) {
+         imageHashService = loadXml(new ImageHashService(), state.getHashImage());
+      }
+
       viewer = state.isViewer();
       preview = state.isPreview();
       needRefresh = state.isNeedsRefresh();
@@ -2586,7 +2590,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
       RuntimeViewsheetState state = new RuntimeViewsheetState();
       super.saveState(state, mapper);
       state.setBindingId(bindingID);
+      state.setHashImage(saveXml(imageHashService));
       state.setBoxRid(this.box == null ? null : this.box.getID());
+
       state.setVs(saveXml(vs));
       state.setOriginalVs(saveXml(originalVs));
       state.setVars(saveJson(vars, mapper));
@@ -2695,7 +2701,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
    private VSTemporaryInfo temporaryInfo;
    private boolean wizardViewsheet = false;
    private EmbedAssemblyInfo embedAssemblyInfo;
-   private final ImageHashService imageHashService = new ImageHashService();
+   private ImageHashService imageHashService = new ImageHashService();
 
    private static final Logger LOG =
       LoggerFactory.getLogger(RuntimeViewsheet.class);

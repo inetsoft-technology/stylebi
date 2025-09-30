@@ -24,18 +24,21 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.viewsheet.controller.AssemblyImageService;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.PrintWriter;
 import java.security.MessageDigest;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Creates a hash for an image and stores the image information so that the image can
  * be later retrieved given the hash
  */
-public class ImageHashService {
+public class ImageHashService implements XMLSerializable {
    public String getImageHash(VSAssembly assembly) {
       VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
       Viewsheet vs = assembly.getViewsheet();
@@ -324,7 +327,10 @@ public class ImageHashService {
    /**
     * Image info that can be used to get the actual image
     */
-   private static class ImageInfo {
+   private static class ImageInfo implements XMLSerializable {
+      public ImageInfo() {
+
+      }
       public ImageInfo(String path, int width, int height, boolean rawBytes, String assemblyName,
                        boolean shadow, boolean highlight, String scale9,
                        boolean scaled, int bgColorValue, int align, String embeddedViewsheetName)
@@ -370,21 +376,156 @@ public class ImageHashService {
                              scaled, bgColorValue, align, embeddedViewsheetName);
       }
 
-      private final String path;
-      private final int width;
-      private final int height;
-      private final boolean rawBytes;
-      private final String assemblyName;
-      private final boolean shadow;
-      private final boolean highlight;
-      private final String scale9;
-      private final boolean scaled;
-      private final int bgColorValue;
-      private final int align;
-      private final String embeddedViewsheetName;
+      public void writeXML(PrintWriter writer) {
+         writer.print(" <imageInfo ");
+
+         if(path != null) {
+            writer.print(" path=\"" + path + "\"");
+         }
+
+         writer.print(" width=\"" + width + "\"");
+         writer.print(" height=\"" + height + "\"");
+         writer.print(" rawBytes=\"" + rawBytes + "\"");
+
+         if(assemblyName != null) {
+            writer.print(" assemblyName=\"" + assemblyName + "\"");
+         }
+
+         writer.print(" shadow=\"" + shadow + "\"");
+         writer.print(" highlight=\"" + highlight + "\"");
+
+         if(scale9 != null) {
+            writer.print(" scale9=\"" + scale9 + "\"");
+         }
+
+         writer.print(" scaled=\"" + scaled + "\"");
+         writer.print(" bgColorValue=\"" + bgColorValue + "\"");
+         writer.print(" align=\"" + align + "\"");
+
+         if(embeddedViewsheetName != null) {
+            writer.print(" embeddedViewsheetName=\"" + embeddedViewsheetName + "\"");
+         }
+
+         writer.print(" ></imageInfo>");
+      }
+
+      public void parseXML(Element tag) throws Exception {
+         path = Tool.getAttribute(tag, "path");
+         width = Integer.parseInt(Tool.getAttribute(tag, "width"));
+         height = Integer.parseInt(Tool.getAttribute(tag, "height"));
+         rawBytes = "true".equals(Tool.getAttribute(tag, "rawBytes"));
+         assemblyName = Tool.getAttribute(tag, "assemblyName");
+         shadow = "true".equals(Tool.getAttribute(tag, "shadow"));
+         highlight = "true".equals(Tool.getAttribute(tag, "highlight"));
+         scale9 = Tool.getAttribute(tag, "scale9");
+         scaled = "true".equals(Tool.getAttribute(tag, "scaled"));
+         bgColorValue = Integer.parseInt(Tool.getAttribute(tag, "bgColorValue"));
+         align = Integer.parseInt(Tool.getAttribute(tag, "align"));
+         embeddedViewsheetName = Tool.getAttribute(tag, "embeddedViewsheetName");
+      }
+
+      private String path;
+      private int width;
+      private int height;
+      private boolean rawBytes;
+      private String assemblyName;
+      private boolean shadow;
+      private boolean highlight;
+      private String scale9;
+      private boolean scaled;
+      private int bgColorValue;
+      private int align;
+      private String embeddedViewsheetName;
    }
 
-   private final ConcurrentHashMap<ImageInfo, String> infoToHash = new ConcurrentHashMap<>();
-   private final ConcurrentHashMap<String, ImageInfo> hashToInfo = new ConcurrentHashMap<>();
+   public void writeXML(PrintWriter writer) {
+      writer.println("<imageHashService>");
+      writer.println("<infoToHash>");
+
+      for(ImageInfo key : infoToHash.keySet()) {
+         writer.println("<entry>");
+
+         writer.print("<key>");
+         key.writeXML(writer);
+         writer.print("</key>");
+
+         String value = infoToHash.get(key);
+         writer.print("<value>");
+         writer.print("<![CDATA[" + value + "]]>");
+         writer.print("</value>");
+
+         writer.println("</entry>");
+      }
+
+      writer.println("</infoToHash>");
+      writer.println("<hashToInfo>");
+
+      for(String key : hashToInfo.keySet()) {
+         writer.println("<entry>");
+
+         writer.print("<key>");
+         writer.print("<![CDATA[" + key + "]]>");
+         writer.print("</key>");
+
+         ImageInfo imageInfo = hashToInfo.get(key);
+         writer.print("<value>");
+         imageInfo.writeXML(writer);
+         writer.print("</value>");
+
+         writer.println("</entry>");
+      }
+
+      writer.println("</hashToInfo>");
+      writer.println("</imageHashService>");
+   }
+
+   public void parseXML(Element tag) throws Exception {
+      Element toHash = Tool.getChildNodeByTagName(tag, "infoToHash");
+
+      if(toHash != null) {
+         Map<ImageInfo, String> map = new ConcurrentHashMap<>();
+         NodeList list = toHash.getChildNodes();
+
+         for(int i = 0; i < list.getLength(); i++) {
+            if(!(list.item(i) instanceof Element)) {
+               continue;
+            }
+
+            Element propNode = (Element) list.item(i);
+            Element keyNode = Tool.getChildNodeByTagName(propNode, "key");
+            Element imageNode = Tool.getChildNodeByTagName(keyNode, "imageInfo");
+            ImageInfo image = new ImageInfo();
+            image.parseXML(imageNode);
+            Element valueNode = Tool.getChildNodeByTagName(propNode, "value");
+            String value = Tool.getValue(valueNode);
+            map.put(image, value);
+         }
+      }
+
+      Element toInfo = Tool.getChildNodeByTagName(tag, "hashToInfo");
+
+      if(toInfo != null) {
+         Map<String, ImageInfo> map = new ConcurrentHashMap<>();
+         NodeList list = toInfo.getChildNodes();
+
+         for(int i = 0; i < list.getLength(); i++) {
+            if(!(list.item(i) instanceof Element)) {
+               continue;
+            }
+
+            Element propNode = (Element) list.item(i);
+            Element keyNode = Tool.getChildNodeByTagName(propNode, "key");
+            String key = Tool.getValue(keyNode);
+            Element valueNode = Tool.getChildNodeByTagName(propNode, "value");
+            Element imageNode = Tool.getChildNodeByTagName(valueNode, "imageInfo");
+            ImageInfo image = new ImageInfo();
+            image.parseXML(imageNode);
+            map.put(key, image);
+         }
+      }
+   }
+
+   private ConcurrentHashMap<ImageInfo, String> infoToHash = new ConcurrentHashMap<>();
+   private ConcurrentHashMap<String, ImageInfo> hashToInfo = new ConcurrentHashMap<>();
    private final VSPortalHelper vsPortalHelper = new VSPortalHelper();
 }
