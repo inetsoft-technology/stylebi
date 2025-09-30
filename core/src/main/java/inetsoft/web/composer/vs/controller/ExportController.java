@@ -47,14 +47,13 @@ import java.io.OutputStream;
 import java.security.Principal;
 import java.util.*;
 
-import static inetsoft.web.viewsheet.controller.GetImageController.processImageRenderResult;
-
 @Controller
 public class ExportController {
    @Autowired
    public ExportController(VSLifecycleService lifecycleService,
                            BinaryTransferService binaryTransferService,
                            AssemblyImageServiceProxy assemblyImageServiceProxy,
+                           AssemblyImageService imageService,
                            VSExportService exportService,
                            ExportControllerServiceProxy exportControllerServiceProxy)
    {
@@ -63,6 +62,7 @@ public class ExportController {
       this.serviceProxy = assemblyImageServiceProxy;
       this.exportService = exportService;
       this.exportControllerServiceProxy = exportControllerServiceProxy;
+      this.imageService = imageService;
    }
 
    @GetMapping("/export/check/**")
@@ -285,7 +285,7 @@ public class ExportController {
                                                                                          chartSize.getHeight(), chartSize.getWidth(),
                                                                                          chartSize.getHeight(), svg, principal);
 
-      processImageRenderResult(result, request, response);
+      imageService.processImageRenderResult(result, request, response);
    }
 
    @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
@@ -341,6 +341,7 @@ public class ExportController {
    private final AssemblyImageServiceProxy serviceProxy;
    private final VSExportService exportService;
    private final ExportControllerServiceProxy exportControllerServiceProxy;
+   private final AssemblyImageService imageService;
 
    private static final Logger LOG = LoggerFactory.getLogger(ExportController.class);
 }

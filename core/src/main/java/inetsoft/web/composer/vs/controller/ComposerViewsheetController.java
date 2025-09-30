@@ -144,8 +144,11 @@ public class ComposerViewsheetController {
                                 @LinkUri String linkUri) throws Exception
    {
       runtimeViewsheetRef.setRuntimeId(event.getRuntimeViewsheetId());
-      composerViewsheetService.previewViewsheet(runtimeViewsheetRef.getRuntimeId(),
+      String previewRuntimeID = composerViewsheetService.previewViewsheet(runtimeViewsheetRef.getRuntimeId(),
                                                 event, principal, dispatcher, linkUri);
+
+      composerViewsheetService.refreshPreviewViewsheet(previewRuntimeID, event,
+                                                       principal, dispatcher, linkUri, true);
    }
 
    /**
@@ -168,7 +171,7 @@ public class ComposerViewsheetController {
       String id = runtimeViewsheetRef.getRuntimeId();
 
       if(composerViewsheetService.refreshPreviewViewsheet(id, event,
-                                                          principal, commandDispatcher, linkUri))
+                                                          principal, commandDispatcher, linkUri, false))
       {
          runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
       }
