@@ -330,7 +330,7 @@ public class RuntimeSheetCache
    }
 
    public void flush(String key) {
-      lock.readLock().lock();
+      lock.writeLock().lock();
 
       try {
          RuntimeSheet sheet = local.get(key);
@@ -343,7 +343,7 @@ public class RuntimeSheetCache
          }
       }
       finally {
-         lock.readLock().unlock();
+         lock.writeLock().unlock();
       }
    }
 
