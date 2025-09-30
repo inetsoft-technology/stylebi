@@ -24,7 +24,6 @@ import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.google.common.util.concurrent.Striped;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SRPrincipal;
@@ -41,10 +40,8 @@ import java.io.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.*;
-import java.util.function.Supplier;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class RuntimeSheetCache
    implements Map<String, RuntimeSheet>, Closeable
@@ -124,7 +121,7 @@ public class RuntimeSheetCache
    @Override
    public RuntimeSheet get(Object key) {
       if(key instanceof String id) {
-         boolean loadFromCache = false;
+         boolean loadFromCache;
          lock.readLock().lock();
 
          try {
@@ -132,7 +129,7 @@ public class RuntimeSheetCache
                return local.get(id);
             }
 
-            loadFromCache = cache.containsKey(id);;
+            loadFromCache = cache.containsKey(id);
          }
          finally {
             lock.readLock().unlock();
@@ -145,7 +142,7 @@ public class RuntimeSheetCache
                RuntimeSheet sheet = toSheet(cache.get(id));
 
                if(sheet != null) {
-                  if(!cluster.isLocalCacheKey(cache.getName(), id)) {
+                  if(!cluster.isLocalCall() && !cluster.isLocalCacheKey(cache.getName(), id)) {
                      LOG.error(
                         "Loading remote runtime sheet that does not belong to this instance: {}",
                         id, new Exception("Stack trace"));
@@ -202,6 +199,12 @@ public class RuntimeSheetCache
                break;
             }
          }
+      }
+
+      if(!cluster.isLocalCall() && !cluster.isLocalCacheKey(cache.getName(), key)) {
+         LOG.error(
+            "Added remote runtime sheet that does not belong to this instance: {}",
+            key, new Exception("Stack trace"));
       }
 
       return local.put(key, value);
