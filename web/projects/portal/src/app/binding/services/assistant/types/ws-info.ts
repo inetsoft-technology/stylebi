@@ -35,7 +35,6 @@ export interface WSColumnInfo {
    aggregate: boolean;
    sortType: string;
    description: string;
-   source: string;
 }
 
 export interface WSGroupRef {

@@ -129,7 +129,6 @@ export function convertColumnInfo(col: ColumnInfo): WSColumnInfo {
       group: col.group,
       aggregate: col.aggregate,
       sortType: getOrderDirection(col.sortType),
-      source: null,
       description: col.ref == null ? "" : col.ref.description
    };
 
