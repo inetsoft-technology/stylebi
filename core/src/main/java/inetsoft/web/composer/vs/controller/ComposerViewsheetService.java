@@ -307,7 +307,7 @@ public class ComposerViewsheetService {
             execTimestamp = new java.sql.Date(System.currentTimeMillis());
             executionRecord.setExecTimestamp(execTimestamp);
             executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_SUCCESS);
-            viewsheetService.putRuntimeSheet(id, rvs2);
+            viewsheetService.putRuntimeSheet(previewRuntimeID, rvs2);
          }
          catch(Exception e) {
             execTimestamp = new java.sql.Date(System.currentTimeMillis());
