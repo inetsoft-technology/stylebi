@@ -18,7 +18,6 @@
 package inetsoft.web.composer.ws;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -28,10 +27,7 @@ import inetsoft.uql.asset.internal.MirrorTableAssemblyInfo;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.web.AutoSaveUtils;
-import inetsoft.web.composer.model.ws.WorksheetModel;
 import inetsoft.web.composer.ws.assembly.WorksheetEventService;
-import inetsoft.web.composer.ws.command.OpenWorksheetCommand;
-import inetsoft.web.composer.ws.command.WSInitCommand;
 import inetsoft.web.composer.ws.event.OpenSheetEventValidator;
 import inetsoft.web.composer.ws.event.OpenWorksheetEvent;
 import inetsoft.web.viewsheet.LoadingMask;
@@ -53,11 +49,13 @@ public class OpenWorksheetController extends WorksheetController {
    @Autowired
    public OpenWorksheetController(RuntimeViewsheetManager runtimeViewsheetManager,
                                   AssetRepository assetRepository,
-                                  WorksheetEventService eventService)
+                                  WorksheetEventService eventService,
+                                  OpenWorksheetControllerServiceProxy openService)
    {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
       this.assetRepository = assetRepository;
       this.eventService = eventService;
+      this.openService = openService;
    }
 
    @PostMapping("api/ws/open")
@@ -106,9 +104,8 @@ public class OpenWorksheetController extends WorksheetController {
          entryPath = entry.getPath();
       }
 
-      GroupedThread.withGroupedThread(groupedThread -> {
-         groupedThread.addRecord(LogContext.WORKSHEET, entryPath);
-      });
+      GroupedThread.withGroupedThread(
+         groupedThread -> groupedThread.addRecord(LogContext.WORKSHEET, entryPath));
 
       if(!event.openAutoSavedFile()) {
          assetRepository.clearCache(entry);
@@ -127,9 +124,8 @@ public class OpenWorksheetController extends WorksheetController {
          VSEventUtil.deleteAutoSavedFile(entry, principal);
       }
 
-      GroupedThread.withGroupedThread(groupedThread -> {
-         groupedThread.removeRecord(LogContext.WORKSHEET.getRecord(entry.getPath()));
-      });
+      GroupedThread.withGroupedThread(
+         groupedThread -> groupedThread.removeRecord(LogContext.WORKSHEET.getRecord(entry.getPath())));
    }
 
    /**
@@ -140,27 +136,9 @@ public class OpenWorksheetController extends WorksheetController {
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
       WorksheetService engine = getWorksheetEngine();
-
       String runtimeId = engine.openTemporaryWorksheet(principal, null);
-      RuntimeWorksheet rws = engine.getWorksheet(runtimeId, principal);
-      AssetEntry entry = rws.getEntry();
-
-      WorksheetModel worksheet = new WorksheetModel();
-      worksheet.setId(entry.toIdentifier());
-      worksheet.setRuntimeId(runtimeId);
-      worksheet.setLabel(rws.getEntry().getName());
-      worksheet.setType("worksheet");
-      worksheet.setNewSheet(true);
-      worksheet.setInit(true);
-      worksheet.setCurrent(rws.getCurrent());
-      worksheet.setSavePoint(rws.getSavePoint());
-
-      OpenWorksheetCommand command = new OpenWorksheetCommand();
-      command.setWorksheet(worksheet);
       getRuntimeViewsheetRef().setRuntimeId(runtimeId);
-      runtimeViewsheetManager.sheetOpened(principal, runtimeId);
-      commandDispatcher.sendCommand(command);
-      commandDispatcher.sendCommand(new WSInitCommand(principal));
+      openService.processNewWorksheet(runtimeId, principal, commandDispatcher);
    }
 
    private String getForbiddenSourcesMessage(AssetEntry entry, Principal user,
@@ -179,7 +157,7 @@ public class OpenWorksheetController extends WorksheetController {
             assetRepository.getSheet(entry, user, false, AssetContent.NO_DATA);
 
          if(sheet == null) {
-            LOG.error("Trying to open non-existent worksheet: " + entry);
+            LOG.error("Trying to open non-existent worksheet: {}", entry);
             return forbiddenMsg;
          }
 
@@ -267,5 +245,6 @@ public class OpenWorksheetController extends WorksheetController {
    private final RuntimeViewsheetManager runtimeViewsheetManager;
    private final AssetRepository assetRepository;
    private final WorksheetEventService eventService;
+   private final OpenWorksheetControllerServiceProxy openService;
    private static final Logger LOG = LoggerFactory.getLogger(OpenWorksheetController.class);
 }

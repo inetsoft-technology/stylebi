@@ -40,7 +40,8 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The default worksheet service implementation, implements all the methods
@@ -179,29 +180,20 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     */
    @Override
    public String openTemporaryWorksheet(Principal user, AssetEntry aentry) {
+      String id;
       AssetEntry entry = aentry != null ? aentry :
          getTemporaryAssetEntry(user, AssetEntry.Type.WORKSHEET);
-      Worksheet ws = new Worksheet();
+      OpenTemporaryWorksheetTask task =
+         new OpenTemporaryWorksheetTask(entry, user, getNextID(entry, user));
+      Cluster cluster = Cluster.getInstance();
 
-      RuntimeWorksheet rws = new RuntimeWorksheet(entry, ws, user, true);
-      rws.setEditable(false);
-      return createTemporarySheetId(entry, rws, user);
-   }
+      if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, task.id)) {
+         id = task.callInternal(this);
+      }
+      else {
+         id = cluster.affinityCall(CACHE_NAME, task.id, task);
+      }
 
-   /**
-    * Creates and sets the identifier of a temporary sheet.
-    *
-    * @param entry the asset entry for the sheet.
-    * @param sheet the sheet.
-    * @param user  the user creating the sheet.
-    *
-    * @return the sheet identifier.
-    */
-   protected String createTemporarySheetId(AssetEntry entry, RuntimeSheet sheet,
-                                           Principal user)
-   {
-      String id = getNextID(entry, user);
-      setTemporarySheetId(id, sheet);
       return id;
    }
 
@@ -351,9 +343,18 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    public String openWorksheet(AssetEntry entry, Principal user)
       throws Exception
    {
-      String id = getNextID(entry, user);
-      OpenWorksheetTask task = new OpenWorksheetTask(entry, user, id);
-      return Cluster.getInstance().affinityCall(CACHE_NAME, id, task);
+      String id = null;
+      OpenWorksheetTask task = new OpenWorksheetTask(entry, user, getNextID(entry, user));
+      Cluster cluster = Cluster.getInstance();
+
+      if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, task.id)) {
+         id = task.callInternal(this);
+      }
+      else {
+         id = Cluster.getInstance().affinityCall(CACHE_NAME, id, task);
+      }
+
+      return id;
    }
 
    /**
@@ -1012,7 +1013,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
                newName = newName.substring(newName.indexOf(".") + 1);
             }
 
-            if(!StringUtils.equals(col.getOldName(), oldName)) {
+            if(!Objects.equals(col.getOldName(), oldName)) {
                continue;
             }
 
@@ -1258,7 +1259,37 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       @Override
       public String call() throws Exception {
          WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
+         return callInternal(engine);
+      }
+
+      private String callInternal(WorksheetEngine engine) throws Exception {
          return engine.openSheet(entry, user, id);
+      }
+
+      private final AssetEntry entry;
+      private final Principal user;
+      private final String id;
+   }
+
+   private static final class OpenTemporaryWorksheetTask implements AffinityCallable<String> {
+      public OpenTemporaryWorksheetTask(AssetEntry entry, Principal user, String id) {
+         this.entry = entry;
+         this.user = user;
+         this.id = id;
+      }
+
+      @Override
+      public String call() {
+         WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
+         return callInternal(engine);
+      }
+
+      private String callInternal(WorksheetEngine engine) {
+         Worksheet ws = new Worksheet();
+         RuntimeWorksheet rws = new RuntimeWorksheet(entry, ws, user, true);
+         rws.setEditable(false);
+         engine.setTemporarySheetId(id, rws);
+         return id;
       }
 
       private final AssetEntry entry;
