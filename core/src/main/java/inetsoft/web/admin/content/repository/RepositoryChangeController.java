@@ -189,7 +189,10 @@ public class RepositoryChangeController {
          return;
       }
 
-      if(Tool.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal).toLowerCase())) {
+      String principalOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal) == null ?
+         null : OrganizationManager.getInstance().getCurrentOrgID(principal).toLowerCase();
+
+      if(Tool.equals(orgId, principalOrgID)) {
          messagingTemplate
             .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
       }
