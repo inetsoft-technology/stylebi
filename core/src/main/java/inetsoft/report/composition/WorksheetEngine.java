@@ -345,7 +345,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
 
       if(sheet == null) {
          throw new ViewsheetException(Catalog.getCatalog().getString(
-            "common.sheetCannotFount", entry.toString()));
+            "common.sheetNotFound", entry.toString()));
       }
 
       // @by larryl, runtime should not be persistent, it's set at runtime.

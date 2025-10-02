@@ -52,7 +52,7 @@ public class DataAutoDrillController {
 
       if(sheet == null) {
          throw new RuntimeException(Catalog.getCatalog().getString(
-            "common.sheetCannotFount", entry.toString()));
+            "common.sheetNotFound", entry.toString()));
       }
 
       Worksheet ws = (Worksheet) sheet;
@@ -80,7 +80,7 @@ public class DataAutoDrillController {
 
       if(sheet == null) {
          throw new RuntimeException(Catalog.getCatalog().getString(
-            "common.sheetCannotFount", entry.toString()));
+            "common.sheetNotFound", entry.toString()));
       }
 
       Worksheet ws = (Worksheet) sheet;
