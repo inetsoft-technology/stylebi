@@ -257,18 +257,18 @@ public class IgniteSessionRepository
    }
 
    @Override
-   public void entryEvicted(EntryEvent<String, MapSession> event) {
-      entryExpired(event);
-   }
-
-   @Override
    public void entryRemoved(EntryEvent<String, MapSession> event) {
       MapSession session = event.getValue();
 
       if(session != null) {
-         LOG.debug("Session deleted with ID: {}", session.getId());
-         sendApplicationEvent(new SessionDeletedEvent(this.getClass().getName(), session));
-         logout(session, "");
+         if(session.isExpired()) {
+            entryExpired(event);
+         }
+         else {
+            LOG.debug("Session deleted with ID: {}", session.getId());
+            sendApplicationEvent(new SessionDeletedEvent(this.getClass().getName(), session));
+            logout(session, "");
+         }
       }
    }
 

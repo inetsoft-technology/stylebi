@@ -50,12 +50,10 @@ public class SessionConnectionService {
    @Autowired
    public SessionConnectionService(IgniteSessionRepository sessionRepository,
                                    AuthenticationService authenticationService,
-                                   NodeProtectionService nodeProtectionService,
                                    ApplicationEventPublisher eventPublisher)
    {
       this.sessionRepository = sessionRepository;
       this.authenticationService = authenticationService;
-      this.nodeProtectionService = nodeProtectionService;
       this.eventPublisher = eventPublisher;
    }
 
@@ -73,7 +71,6 @@ public class SessionConnectionService {
 
    public void webSocketConnected(WebSocketSession session) {
       cleanReferences();
-      nodeProtectionService.updateNodeProtection(true);
 
       String wsSessionId = session.getId();
       eventPublisher.publishEvent(new WebsocketConnectionEvent(this, wsSessionId, true));
@@ -104,10 +101,6 @@ public class SessionConnectionService {
             }
 
             webSocketSessions.remove(wsSessionId);
-
-            if(webSocketSessions.isEmpty()) {
-               nodeProtectionService.updateNodeProtection(false);
-            }
          }
       }
    }
@@ -169,10 +162,6 @@ public class SessionConnectionService {
                      }
                   }
                }
-            }
-
-            if(webSocketSessions.isEmpty()) {
-               nodeProtectionService.updateNodeProtection(false);
             }
          }
       }
@@ -275,7 +264,6 @@ public class SessionConnectionService {
    private Cluster cluster;
    private final MessageListener listener = this::messageReceived;
    private final AuthenticationService authenticationService;
-   private final NodeProtectionService nodeProtectionService;
    private final IgniteSessionRepository sessionRepository;
    private final ApplicationEventPublisher eventPublisher;
    private final Map<String, WebSocketSessionRef> webSocketSessions = new HashMap<>();
