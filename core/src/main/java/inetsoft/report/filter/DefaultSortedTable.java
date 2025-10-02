@@ -549,7 +549,7 @@ public class DefaultSortedTable extends AbstractTableLens
       return type != null ? type : table == null ? null : table.getReportType();
    }
 
-   private TableDataDescriptor descriptor;
+   private transient TableDataDescriptor descriptor;
    private TableLens table;
    private int[] cols;
 }

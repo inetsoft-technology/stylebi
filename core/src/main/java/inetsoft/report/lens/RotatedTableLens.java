@@ -518,7 +518,7 @@ public class RotatedTableLens extends AbstractTableLens implements TableFilter {
       return type != null ? type : table == null ? null : table.getReportType();
    }
 
-   private TableDataDescriptor descriptor;
+   private transient TableDataDescriptor descriptor;
    private int hrows = -1;
    private int ncols = 0;
    private int maxcols = 0;

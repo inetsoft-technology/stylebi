@@ -1532,7 +1532,7 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
       return buf.toString();
    }
 
-   private TableDataDescriptor cdescriptor;
+   private transient TableDataDescriptor cdescriptor;
    private CalcTableLens calc;
    private IndexMap rowmap;
    private IndexMap colmap;

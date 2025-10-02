@@ -750,9 +750,12 @@ public class TableHighlightAttr extends TableAttr {
        * Check if inited.
        */
       private synchronized void checkInit() {
+         if(descriptor == null) {
+            descriptor = getDescriptor();
+         }
+
          if(!inited) {
             inited = true;
-            descriptor = getDescriptor();
             rowcache = new FixedSizeSparseMatrix();
             cellcache = new FixedSizeSparseMatrix();
 
@@ -1067,7 +1070,7 @@ public class TableHighlightAttr extends TableAttr {
       private TableDataPath[][] paths; // cell data path
       private TableDataPath[] rpath;  // row data path
       private TableDataPath allpath;
-      private TableDataDescriptor descriptor;
+      private transient TableDataDescriptor descriptor;
       private Object querySandbox;
       private boolean inited = false;
       private TableLens ctable;

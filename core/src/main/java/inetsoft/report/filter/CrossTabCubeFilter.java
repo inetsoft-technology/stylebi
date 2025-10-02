@@ -191,5 +191,4 @@ public class CrossTabCubeFilter extends CrossTabFilter implements DataTableLens
    }
 
    private ColumnSelection columns;
-   private TableDataDescriptor desc;
 }

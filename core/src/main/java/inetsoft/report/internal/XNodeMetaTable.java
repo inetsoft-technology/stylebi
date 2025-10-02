@@ -388,6 +388,6 @@ public class XNodeMetaTable extends AbstractTableLens {
    private Map types = new HashMap();
    private Map mmap = null;
    private Object[] examplers;
-   private TableDataDescriptor descriptor;
+   private transient TableDataDescriptor descriptor;
    private boolean failedQueryDefault;
 }

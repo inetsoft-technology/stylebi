@@ -850,7 +850,7 @@ public class RealtimeTableMetaData extends TableMetaData {
 
       private List<Object> values;
       private String name;
-      private TableDataDescriptor descriptor;
+      private transient TableDataDescriptor descriptor;
       private Comparator comp;
    }
 
@@ -970,7 +970,7 @@ public class RealtimeTableMetaData extends TableMetaData {
       private int[] idxmap;
       private int[] lastRow;
       private int lastR = -1;
-      private TableDataDescriptor descriptor;
+      private transient TableDataDescriptor descriptor;
    }
 
    /**

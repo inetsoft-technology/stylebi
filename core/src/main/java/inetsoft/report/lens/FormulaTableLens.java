@@ -1442,7 +1442,7 @@ public class FormulaTableLens extends AbstractTableLens
    private transient Object scope;
    private XSwappableTable rows;
    private int hrows, ncols;
-   private TableDataDescriptor descriptor;
+   private transient TableDataDescriptor descriptor;
    private Point currExec;
    private List<FormulaHeaderInfo> hinfos;
    private boolean completed;       // completed flag

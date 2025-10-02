@@ -308,6 +308,6 @@ public class AssetTableLens extends AttributeTableLens
       return null;
    }
 
-   private TableDataDescriptor desc;
+   private transient TableDataDescriptor desc;
    private boolean hmodified = false;
 }

@@ -1258,7 +1258,7 @@ public abstract class SetTableLens
       NUMERIC_MAP.put(Double.class, Integer.valueOf(6));
    }
 
-   private TableDataDescriptor descriptor;
+   private transient TableDataDescriptor descriptor;
    private Map<TableDataPath, Object> mmap = new HashMap<>();
 
    private XIdentifierContainer identifiers = null;

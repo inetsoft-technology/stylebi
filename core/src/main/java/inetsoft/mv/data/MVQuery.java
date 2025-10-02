@@ -947,7 +947,7 @@ public final class MVQuery {
          private int cdrill = 0;
       }
 
-      private TableDataDescriptor descriptor;
+      private transient TableDataDescriptor descriptor;
       private String[] headers;
       private String[] mdates;
       private boolean[] tscols;

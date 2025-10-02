@@ -3368,7 +3368,7 @@ public class CalcTableLens extends DefaultTableLens {
 
    private List<CalcAttr> attrs = new ArrayList<>();
    private int editMode = DEFAULT_MODE; // DEFAULT_MODE, NAME_MODE,FORMULA_MODE
-   private TableDataDescriptor cdescriptor;
+   private transient TableDataDescriptor cdescriptor;
    private final byte[] descLock = new byte[0];
    protected FormulaTable elem; //containing element
    private ReportSheet report;

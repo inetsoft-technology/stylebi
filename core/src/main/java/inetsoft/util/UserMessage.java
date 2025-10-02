@@ -20,6 +20,8 @@ package inetsoft.util;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.log.LogLevel;
 
+import java.io.Serializable;
+
 /**
  * UserMessage contains a message and a level that is one of:
  * {@link ConfirmException#OK}
@@ -32,7 +34,7 @@ import inetsoft.util.log.LogLevel;
  * {@link ConfirmException#PROGRESS}
  * {@link ConfirmException#OVERRIDE}
  */
-public class UserMessage {
+public class UserMessage implements Serializable {
    public UserMessage(String message, int level) {
       this.message = message;
       this.level = level;

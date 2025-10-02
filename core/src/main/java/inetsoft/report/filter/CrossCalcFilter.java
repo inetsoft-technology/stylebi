@@ -1476,7 +1476,7 @@ public class CrossCalcFilter extends AbstractTableLens
    private boolean validCalc = false;
    private boolean hasPercentCalc = false;
    private boolean isReport;
-   private TableDataDescriptor descriptor;
+   private transient TableDataDescriptor descriptor;
    private final HashMap<String, String> dataHeaderMap = new HashMap<>();
    private final Map<TableDataPath, XMetaInfo> mmap = new HashMap<>();
    private Object[][] data;
