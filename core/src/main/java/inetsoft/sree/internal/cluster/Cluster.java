@@ -71,7 +71,7 @@ public interface Cluster extends AutoCloseable {
     * @return the cluster nodes.
     */
    default Set<String> getClusterNodes() {
-      return getClusterNodes(true);
+      return getClusterNodes(false);
    }
 
    /**
@@ -326,7 +326,7 @@ public interface Cluster extends AutoCloseable {
 
    void destroyMap(String name);
 
-   void addMapListener(String name, MapChangeListener<?, ?> l);
+   <K, V> void addMapListener(String name, MapChangeListener<K, V> l);
 
    void removeMapListener(String name, MapChangeListener<?, ?> l);
 

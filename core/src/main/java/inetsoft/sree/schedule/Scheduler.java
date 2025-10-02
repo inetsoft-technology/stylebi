@@ -631,7 +631,7 @@ public class Scheduler {
       }
 
       Cluster cluster = Cluster.getInstance();
-      Set<String> clusterNodes = cluster.getClusterNodes();
+      Set<String> clusterNodes = cluster.getClusterNodes(true);
 
       if(clusterNodes == null) {
          return false;
