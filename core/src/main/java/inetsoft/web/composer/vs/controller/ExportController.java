@@ -297,7 +297,6 @@ public class ExportController {
                                HttpServletResponse response, Principal principal)
       throws Exception
    {
-      path = Tool.byteDecode(path);
       int index = path.lastIndexOf('/');
       String runtimeId = path.substring(0, index);
       String tableAssemblyName = path.substring(index + 1);
