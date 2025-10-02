@@ -1368,7 +1368,7 @@ public class FormTableLens implements TableLens, TableFilter {
    private int[] rowMap; // index->new row index   value->base row index
    private int order;    // sort order
    private int col;      // sort column
-   private TableDataDescriptor descriptor;
+   private transient TableDataDescriptor descriptor;
    private ColumnSelection columns;
    private Properties prop = new Properties(); // properties
 }

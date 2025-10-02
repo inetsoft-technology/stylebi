@@ -7170,7 +7170,7 @@ public class CrossTabFilter extends AbstractTableLens
    private Map<Pair, Object> valueMap = new Object2ObjectOpenHashMap<>();
    private boolean forCalc = false;
 
-   private TableDataDescriptor cdescriptor = null;
+   private transient TableDataDescriptor cdescriptor = null;
    private Comparer[] rowComparer = {defComparer}; // row header comparer
    private Comparer[] colComparer = {defComparer}; // column header comparer
 

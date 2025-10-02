@@ -915,7 +915,7 @@ public class TableVSAQuery extends DataVSAQuery {
          return 0;
       }
 
-      private TableDataDescriptor desc;
+      private transient TableDataDescriptor desc;
    }
 
    private static class DefaultTableDataDescriptor2 extends

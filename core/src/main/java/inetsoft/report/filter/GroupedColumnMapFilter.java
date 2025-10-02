@@ -937,5 +937,5 @@ public class GroupedColumnMapFilter extends AbstractGroupedTable
 
    private GroupedTable table;
    private int[] map; // column mapping
-   private TableDataDescriptor gdescriptor;
+   private transient TableDataDescriptor gdescriptor;
 }

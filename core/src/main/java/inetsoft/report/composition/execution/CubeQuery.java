@@ -1542,7 +1542,7 @@ public class CubeQuery extends AssetQuery {
       private DataRef[] columns;
       private XTable table;
       private XSelection selection;
-      private TableDataDescriptor desc;
+      private transient TableDataDescriptor desc;
       private SimpleDateFormat[] fmts;
       private SparseMatrix matrix;
       private boolean shouldRename = false;
