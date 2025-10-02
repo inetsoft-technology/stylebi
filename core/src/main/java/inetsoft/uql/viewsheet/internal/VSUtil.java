@@ -6011,13 +6011,18 @@ public final class VSUtil {
 
          String gfld = arr[arr.length - 1];
          int idx = findField(odims, gfld);
+         TableDataPath ntp;
 
          if(idx < 0) {
-            continue;
+            // Might be a newly inserted field
+            ntp = rowGHeaders.get(gfld);
+            ntp = ntp == null ? colGHeaders.get(gfld) : ntp;
          }
-
-         String nname = dimName.get(gfld);
-         TableDataPath ntp = idx < orows ? rowGHeaders.get(nname) : colGHeaders.get(nname);
+         else {
+            // Existing field
+            String nname = dimName.get(gfld);
+            ntp = idx < orows ? rowGHeaders.get(nname) : colGHeaders.get(nname);
+         }
 
          if(ntp != null) {
             remove.add(tp);
