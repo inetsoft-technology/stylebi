@@ -104,6 +104,22 @@ public class DistributedTableCacheStore {
       });
    }
 
+   void remove(DataKey dataKey) {
+      if(dataKey.isLocalCacheOnly()) {
+         return;
+      }
+
+      String key = getKey(dataKey);
+      BlobStorage<Metadata> storage = getStorage();
+
+      try {
+         storage.delete(key);
+      }
+      catch(IOException e) {
+         LOG.warn("Failed to remove data from cache: {}", key, e);
+      }
+   }
+
    private void cleanUpCache() {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
       String[] orgIds = provider.getOrganizationIDs();

@@ -245,6 +245,12 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    }
 
    private static Object removeCache(AssetDataCache cache, DataKey key) {
+      DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
+
+      if(store.exists(key)) {
+         store.remove(key);
+      }
+
       cache.dependenceMap.remove(key);
       return cache.remove(key);
    }
