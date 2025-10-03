@@ -157,7 +157,7 @@ public class VSDialogService {
       Viewsheet viewsheet = rvs.getViewsheet();
       Catalog catalog = Catalog.getCatalog();
       SecurityEngine securityEngine = SecurityEngine.getSecurity();
-      LibManager mgr = LibManager.getManager();
+      LibManager mgr = LibManager.getManager(principal);
 
       if(viewsheet == null) {
          return TreeNodeModel.builder().build();
@@ -178,7 +178,7 @@ public class VSDialogService {
    public TreeNodeModel getStyleTree(Principal principal) throws Exception {
       Catalog catalog = Catalog.getCatalog();
       SecurityEngine securityEngine = SecurityEngine.getSecurity();
-      LibManager mgr = LibManager.getManager();
+      LibManager mgr = LibManager.getManager(principal);
 
       TreeNodeModel root = TreeNodeModel.builder()
          .label(catalog.getString("Styles"))

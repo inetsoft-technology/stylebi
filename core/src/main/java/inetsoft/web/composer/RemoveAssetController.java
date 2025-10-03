@@ -86,7 +86,7 @@ public class RemoveAssetController {
          }
 
          if(entry.isScript()) {
-            LibManager manager = LibManager.getManager();
+            LibManager manager = LibManager.getManager(principal);
 
             checkScriptRemoveable(event, entry, principal);
 
@@ -98,7 +98,7 @@ public class RemoveAssetController {
             DependencyHandler.getInstance().deleteDependenciesKey(scriptEntry);
          }
          else if(entry.isTableStyle()) {
-            LibManager manager = LibManager.getManager();
+            LibManager manager = LibManager.getManager(principal);
             String styleID = entry.getProperty("styleID");
             manager.removeTableStyle(styleID);
             manager.save();
@@ -109,7 +109,7 @@ public class RemoveAssetController {
             DependencyHandler.getInstance().deleteDependenciesKey(style);
          }
          else if(entry.isTableStyleFolder()) {
-            LibManager manager = LibManager.getManager();
+            LibManager manager = LibManager.getManager(principal);
             AssetEventUtil.removeStyleFolder(entry.getProperty("folder"), manager);
             manager.save();
             securityProvider.removePermission(ResourceType.TABLE_STYLE, entry.getProperty("folder"));

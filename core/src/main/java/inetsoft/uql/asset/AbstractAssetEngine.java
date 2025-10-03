@@ -1137,7 +1137,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    }
    private AssetEntry[] getTableStyleEntries(AssetEntry entry, ResourceAction permission, Principal user) {
       AssetEntry[] entries;
-      LibManager libManager = LibManager.getManager();
+      LibManager libManager = LibManager.getManager(user);
       List<AssetEntry> list = new ArrayList<>();
       String folder = entry.getProperty("folder");
       folder = Tool.isEmptyString(folder) ? null : folder;
@@ -1205,7 +1205,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
    private AssetEntry[] getScriptEntries(AssetEntry entry, ResourceAction action, Principal user) {
       AssetEntry[] entries;
-      LibManager libManager = LibManager.getManager();
+      LibManager libManager = LibManager.getManager(user);
       Enumeration<String> e = libManager.getScripts();
       List<String> list = new ArrayList<>();
 

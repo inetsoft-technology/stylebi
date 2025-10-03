@@ -94,7 +94,7 @@ public class AddFolderController {
       try{
          // could throw MessageException(Write access denied)
          assetRepository.checkAssetPermission(principal, parent, ResourceAction.WRITE);
-         LibManager manager = LibManager.getManager();
+         LibManager manager = LibManager.getManager(principal);
          boolean isStyleDuplicate = false;
          String pname = parent.getProperty("folder");
 

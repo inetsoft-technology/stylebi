@@ -803,7 +803,7 @@ public class DeployManagerService {
          finally {
             // @by stephenwebster, Save the manager once to prevent unnecessary save and reloads
             // which can feel slow on the GUI.
-            LibManager manager = LibManager.getManager();
+            LibManager manager = LibManager.getManager(principal);
 
             if(manager.isDirty()) {
                manager.save();

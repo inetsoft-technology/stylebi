@@ -49,7 +49,7 @@ public class RepositoryScriptController {
       ResourcePermissionModel permissionModel = this.resourcePermissionService.getTableModel(
          resource.getPath(), resource.getType(),
          ResourcePermissionService.ADMIN_ACTIONS, principal);
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManager.getManager(principal);
 
       return ScriptSettingsModel.builder()
          .name(path)
@@ -74,7 +74,7 @@ public class RepositoryScriptController {
                                                    actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE,
                                                    null);
 
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManager.getManager(principal);
       boolean change = false;
       String npath = "";
 

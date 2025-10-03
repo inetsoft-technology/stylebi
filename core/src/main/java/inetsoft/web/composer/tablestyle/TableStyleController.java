@@ -114,7 +114,7 @@ public class TableStyleController {
          return;
       }
 
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManager.getManager(principal);
       TableStyleFormatModel styleFormat = tableStyleModel.getStyleFormat();
 
       if(tableStyleModel.getStyleId() == null) {
@@ -205,7 +205,7 @@ public class TableStyleController {
       XTableStyle style = null;
 
       try {
-         LibManager manager = LibManager.getManager();
+         LibManager manager = LibManager.getManager(principal);
          style = manager.getTableStyle(styleName);
          String styleId = style == null ? manager.getNextStyleID(name) : style.getID();
          style = new XTableStyle(tableStyleService.getTableModel());
