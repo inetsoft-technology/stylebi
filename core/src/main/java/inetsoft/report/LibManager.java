@@ -23,17 +23,22 @@ import inetsoft.report.lib.logical.*;
 import inetsoft.report.lib.physical.*;
 import inetsoft.report.PropertyChangeEvent;
 import inetsoft.report.style.XTableStyle;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.util.*;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeListener;
 import java.io.*;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -52,6 +57,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author InetSoft Technology Corp
  */
 @SuppressWarnings("WeakerAccess")
+@Service
 @SingletonManager.Singleton(LibManager.Reference.class)
 public class LibManager implements AutoCloseable {
    /**
@@ -100,6 +106,7 @@ public class LibManager implements AutoCloseable {
     * Constructor.
     */
    protected LibManager(LibrarySecurity librarySecurity) {
+      this.cluster = Cluster.getInstance();
       final LogicalLibraryFactory factory = new LogicalLibraryFactory(librarySecurity);
       scripts = factory.createScriptLogicalLibrary();
       styles = factory.createTableStyleLogicalLibrary();
@@ -107,6 +114,11 @@ public class LibManager implements AutoCloseable {
       this.storages = new ConcurrentHashMap<>();
       this.debouncer = new DefaultDebouncer<>();
       getStorage();
+   }
+
+   @PostConstruct
+   public void addListeners() throws Exception {
+      cluster.addMessageListener(this.clusterMessageListener);
    }
 
    private BlobStorage<Metadata> getStorage() {
@@ -140,8 +152,16 @@ public class LibManager implements AutoCloseable {
     *
     * @return the library manager.
     */
+   public static LibManager getManager(Principal principal) {
+      return getManager(OrganizationManager.getInstance().getCurrentOrgID(principal));
+   }
+
    public static LibManager getManager() {
-      return SingletonManager.getInstance(LibManager.class);
+      return getManager(OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   public static LibManager getManager(String orgID) {
+      return SingletonManager.getInstance(LibManager.class, orgID);
    }
 
    /**
@@ -149,7 +169,9 @@ public class LibManager implements AutoCloseable {
     */
    public static void restart() {
       clear();
-      getManager();
+      for(String orgID : SecurityEngine.getSecurity().getOrganizations()) {
+         getManager(orgID);
+      }
    }
 
    /**
@@ -175,6 +197,12 @@ public class LibManager implements AutoCloseable {
             BlobStorage<Metadata> orgStorage = storages.get(storageId);
 
             if(orgStorage != null) {
+               loadLibrary(storages.get(storageId));
+            }
+            else {
+               BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storageId, false);
+               storages.put(storageId, storage);
+
                loadLibrary(storages.get(storageId));
             }
 
@@ -376,6 +404,8 @@ public class LibManager implements AutoCloseable {
    public void setScript(String name, ScriptEntry script) {
       final int id = scripts.put(name, script);
       fireActionEvent(name, id);
+      fireEvent(System.currentTimeMillis());
+      sendClusterMessage(name);
    }
 
    /**
@@ -390,6 +420,8 @@ public class LibManager implements AutoCloseable {
          RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
          fireActionEvent(newName, SCRIPT_MODIFIED);
          fireActionEvent(oldName, SCRIPT_REMOVED);
+         fireEvent(System.currentTimeMillis());
+         sendClusterMessage(newName);
       }
    }
 
@@ -400,6 +432,8 @@ public class LibManager implements AutoCloseable {
    public void removeScript(String name) {
       scripts.remove(name);
       fireActionEvent(name, SCRIPT_REMOVED);
+      fireEvent(System.currentTimeMillis());
+      sendClusterMessage(name);
    }
 
    /**
@@ -853,15 +887,52 @@ public class LibManager implements AutoCloseable {
       return Arrays.asList(scripts, styles, styleFolders);
    }
 
+   private void reloadLibrary() {
+      String storeID = getStorageId(OrganizationManager.getInstance().getCurrentOrgID());
+      BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
+
+      try {
+         loadLibrary(storage);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load library file", e);
+      }
+   }
+
+   private void sendClusterMessage(String id) {
+      try {
+         cluster.sendMessage(new PropertyChangeEvent(
+            LibManager.this, "LibManager", null, id));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to send LibManager cluster message", e);
+      }
+   }
+
+   private final MessageListener clusterMessageListener = (event) -> {
+      if(event.getMessage() instanceof PropertyChangeEvent) {
+         PropertyChangeEvent change = (PropertyChangeEvent) event.getMessage();
+
+         if(change.getPropertyName().equals("LibManager")) {
+            fireEvent(System.currentTimeMillis());
+            fireActionEvent((String)change.getNewValue(), SCRIPT_MODIFIED);
+            reloadLibrary();
+         }
+
+      }
+   };
+
    public static final class Reference extends SingletonManager.Reference<LibManager> {
       @Override
       public LibManager get(Object ... parameters) {
          lock.lock();
+         String orgID = (String) parameters[0];
 
+         LibManager manager = orgManagers.get(orgID);
          try {
             if(manager == null) {
                manager = new LibManager(new NoopLibrarySecurity());
-               manager.init(null);
+               manager.init(orgID);
             }
             else {
                // Init storage for org if it isn't initialized yet
@@ -880,9 +951,10 @@ public class LibManager implements AutoCloseable {
          lock.lock();
 
          try {
-            if(manager != null) {
-               manager.tearDown();
-               manager = null;
+            if(!orgManagers.isEmpty()) {
+               for(LibManager manager : orgManagers.values()) {
+                  manager.tearDown();
+               }
             }
          }
          finally {
@@ -891,13 +963,13 @@ public class LibManager implements AutoCloseable {
       }
 
       private final Lock lock = new ReentrantLock();
-      private LibManager manager;
+      private Map<String, LibManager> orgManagers = new HashMap<>();
    }
 
    // current library version
    private static final String CURR_VERSION = "version11.3";
 
-   protected volatile long ts; // last modified timestamp
+   protected volatile long ts = 1; // last modified timestamp
 
    private boolean initializing = false;
 
@@ -908,6 +980,7 @@ public class LibManager implements AutoCloseable {
    private final List<ActionListener> listeners = Collections.synchronizedList(new ArrayList<>());
    private final List<PropertyChangeListener> refreshedListeners = new ArrayList<>();
    private volatile boolean closed = false;
+   private final Cluster cluster;
 
    private final ConcurrentHashMap<String, BlobStorage<Metadata>> storages;
    private final Debouncer<String> debouncer;

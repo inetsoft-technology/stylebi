@@ -367,8 +367,8 @@ public class RepositoryObjectService {
                removeQueryFolder(node.label(), node.path());
                break;
             case RepositoryEntry.SCRIPT:
-               LibManager.getManager().removeScript(node.label());
-               LibManager.getManager().save();
+               LibManager.getManager(principal).removeScript(node.label());
+               LibManager.getManager(principal).save();
                securityProvider.removePermission(ResourceType.SCRIPT, node.label());
                break;
             case RepositoryEntry.TABLE_STYLE:
