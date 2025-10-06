@@ -3361,7 +3361,7 @@ public class SummaryFilter extends AbstractGroupedTable
    private int topNAggregateCol = -1;
    private int topNAggregateN = 0;
 
-   private TableDataDescriptor sdescriptor = null;
+   private transient TableDataDescriptor sdescriptor = null;
    private Hashtable<TableDataPath, Object> mmap = new Hashtable<>(); // xmeta info
    // percent by group level, default value 0 means the inner most group
    private int pglvl = 0;

@@ -1196,7 +1196,7 @@ public class XSwappableTable implements XTable, Externalizable {
    private int lastRow = -1;
    private boolean exceedLimit = false;
    private boolean textExceedLimit = false;
-   private TableDataDescriptor descriptor; // table data descriptor
+   private transient TableDataDescriptor descriptor; // table data descriptor
    private final Properties prop = new Properties(); // properties
    private transient XTableFragment table; // current table fragment
    private final transient XSwappableMonitor monitor;

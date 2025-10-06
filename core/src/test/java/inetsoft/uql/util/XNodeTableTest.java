@@ -18,8 +18,11 @@
 
 package inetsoft.uql.util;
 
+import inetsoft.report.internal.table.XTableLens;
+import inetsoft.report.lens.FormulaTableLens;
 import inetsoft.test.*;
 import inetsoft.uql.XTable;
+import inetsoft.util.script.JavaScriptEnv;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -47,5 +50,18 @@ public class XNodeTableTest {
       XNodeTable originalTable = new XNodeTable(XTableUtil.getDefaultXTableNode());
       XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
       Assertions.assertEquals(XNodeTable.class, deserializedTable.getClass());
+   }
+
+   @Test
+   public void testSerializeXSwappableTable2() throws Exception {
+      XNodeTable xNodeTable = new XNodeTable(XTableUtil.getDefaultXTableNode());
+      Assertions.assertEquals(XNodeTable.XSwappableTable2.class, xNodeTable.getTable().getClass());
+
+      // any table that creates a descriptor with a table reference would do
+      FormulaTableLens originalTable = new FormulaTableLens(new XTableLens(xNodeTable),
+                                                            new String[0], new String[0],
+                                                            new JavaScriptEnv(), null);
+      XTable deserializedTable = TestSerializeUtils.serializeAndDeserialize(originalTable);
+      Assertions.assertEquals(FormulaTableLens.class, deserializedTable.getClass());
    }
 }

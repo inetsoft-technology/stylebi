@@ -630,7 +630,7 @@ public class TableHyperlinkAttr extends TableAttr {
       private FixedSizeSparseMatrix colcache;
       private TableDataPath[][] paths; // cell data path
       private TableDataPath[] cpath; // col data path
-      private TableDataDescriptor descriptor;
+      private transient TableDataDescriptor descriptor;
       private boolean inited = false;
       private Map<Object, Integer> gcmap = null;
    }
