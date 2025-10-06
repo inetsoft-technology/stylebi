@@ -28,6 +28,7 @@ import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.geometry.Geometry;
 import inetsoft.graph.geometry.ParaboxPointGeometry;
+import inetsoft.graph.internal.Donut;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.visual.*;
 import inetsoft.report.composition.graph.GraphTypeUtil;
@@ -865,6 +866,11 @@ public class GraphBuilder {
          else {
             // LegendTitleArea selectable region is itself
             childAreas = new DefaultArea[] {area};
+         }
+
+         // Bug #72766, handle special donut chart with a middle label
+         if(area instanceof PlotArea && GraphTypes.isDonut(cinfo)) {
+            convertPieSlicesToDonutSlices(childAreas);
          }
 
          if(childAreas != null) {
@@ -1813,6 +1819,47 @@ public class GraphBuilder {
       }
 
       return legendOption;
+   }
+
+   /**
+    * Convert pie sliced regions to donut sliced regions
+    */
+   private void convertPieSlicesToDonutSlices(DefaultArea[] childAreas) {
+      Shape innerShape = null;
+      String innerMeasure = null;
+
+      for(DefaultArea childArea : childAreas) {
+         if(childArea instanceof VisualObjectArea &&
+            childArea.getVisualizable() instanceof BarVO)
+         {
+            BarVO barVO = (BarVO) childArea.getVisualizable();
+
+            // inner pie comes first
+            if(innerShape == null && barVO.getShape() != null) {
+               innerShape = barVO.getShape();
+               innerMeasure = barVO.getMeasureName();
+            }
+            // once inner pie is known, then convert each outer pie slice to a donut slice
+            else if(innerShape != null && innerMeasure != null &&
+               !innerMeasure.equals(barVO.getMeasureName()))
+            {
+               Shape pieSlice = barVO.getShape();
+               Arc2D arc2D = BarVO.getOuterArc(pieSlice);
+
+               if(arc2D != null) {
+                  Rectangle bounds = pieSlice.getBounds();
+                  Rectangle innerBounds = innerShape.getBounds();
+                  Donut donutSlice = new Donut(bounds.getX(), bounds.getY(), bounds.getWidth(),
+                                               bounds.getHeight(), innerBounds.getWidth(),
+                                               innerBounds.getHeight(), arc2D.getAngleStart(),
+                                               arc2D.getAngleExtent());
+                  barVO = barVO.clone();
+                  barVO.setShape(donutSlice);
+                  childArea.setVisualizable(barVO);
+               }
+            }
+         }
+      }
    }
 
    private ChartInfo cinfo;
