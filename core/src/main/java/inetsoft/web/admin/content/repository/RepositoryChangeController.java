@@ -26,8 +26,7 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.util.Debouncer;
-import inetsoft.util.DefaultDebouncer;
+import inetsoft.util.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -271,7 +270,10 @@ public class RepositoryChangeController {
 
    private void sendChangeMessage(String orgId) {
       for(Principal principal : subscriptions.values()) {
-         if(Objects.equals(orgId, OrganizationManager.getInstance().getCurrentOrgID(principal))) {
+         String principalOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal) == null ?
+            null : OrganizationManager.getInstance().getCurrentOrgID(principal).toLowerCase();
+
+         if(Tool.equals(orgId, principalOrgID)) {
             messagingTemplate
                .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
          }

@@ -2478,8 +2478,9 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return getStorage(entry);
       }
       catch(Exception ex) {
+         LOG.debug("Sheet not found: " + entry.getName(), ex);
          throw new MessageException(catalog.getString(
-                                       "common.sheetCannotFount", entry));
+                                       "common.sheetNotFound", entry));
       }
    }
 
