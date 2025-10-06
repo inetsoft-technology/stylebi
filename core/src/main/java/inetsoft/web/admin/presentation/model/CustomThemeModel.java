@@ -60,9 +60,10 @@ public interface CustomThemeModel {
 //         groups(theme.getGroups());
 //         roles(theme.getRoles());
 
-         String selected = CustomThemesManager.getManager().getSelectedTheme();
-         defaultThemeGlobal(Objects.equals(selected, theme.getId()));
-         defaultThemeOrg(theme.getOrganizations().contains(OrganizationManager.getInstance().getCurrentOrgID()));
+         String orgSelected = CustomThemesManager.getManager().getOrgSelectedTheme();
+         String globalSelected = CustomThemesManager.getManager().getGlobalSelectedTheme();
+         defaultThemeGlobal(Objects.equals(globalSelected, theme.getId()));
+         defaultThemeOrg(theme.getOrganizations().contains(OrganizationManager.getInstance().getCurrentOrgID()) || theme.getId().equals(orgSelected));
 
          return this;
       }

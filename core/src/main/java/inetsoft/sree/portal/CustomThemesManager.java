@@ -66,8 +66,24 @@ public class CustomThemesManager implements XMLSerializable, AutoCloseable {
       return impl.getSelectedTheme();
    }
 
-   public void setSelectedTheme(String selectedTheme) {
-      impl.setSelectedTheme(selectedTheme);
+   public String getGlobalSelectedTheme() {
+      return impl.getGlobalSelectedTheme();
+   }
+
+   public String getOrgSelectedTheme() {
+      return impl.getOrgSelectedTheme();
+   }
+
+   public void setGlobalSelectedTheme(String selectedTheme) {
+      impl.setGlobalSelectedTheme(selectedTheme);
+   }
+
+   public void setOrgSelectedTheme(String selectedTheme) {
+      impl.setOrgSelectedTheme(selectedTheme);
+   }
+
+   public void removeSelectedTheme(String selectedTheme) {
+      impl.removeSelectedTheme(selectedTheme);
    }
 
    public boolean isCustomThemeApplied() {
