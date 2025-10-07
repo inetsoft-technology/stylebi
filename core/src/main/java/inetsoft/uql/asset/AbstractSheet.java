@@ -18,7 +18,6 @@
 package inetsoft.uql.asset;
 
 import inetsoft.report.composition.WorksheetEngine;
-import inetsoft.uql.XQueryRepository;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.FileVersions;
 import org.slf4j.Logger;
@@ -30,6 +29,7 @@ import java.awt.event.ActionListener;
 import java.lang.ref.WeakReference;
 import java.security.Principal;
 import java.util.*;
+import java.util.List;
 import java.util.jar.JarOutputStream;
 
 /**
@@ -475,7 +475,7 @@ public abstract class AbstractSheet implements AssetObject {
     * @return the names of the assemblies relocated.
     */
    public Assembly[] layout(boolean vonly) {
-      Set changed = new HashSet();
+      Set<Assembly> changed = new HashSet<>();
 
       // layout y direction first which seems more natural
       layout(false, vonly, changed);
@@ -485,9 +485,7 @@ public abstract class AbstractSheet implements AssetObject {
          layout(true, vonly, changed);
       }
 
-      Assembly[] arr = new Assembly[changed.size()];
-      changed.toArray(arr);
-      return arr;
+      return changed.toArray(new Assembly[0]);
    }
 
    /**
@@ -764,6 +762,8 @@ public abstract class AbstractSheet implements AssetObject {
     * Add an action listener observes asset changes.
     */
    public void addActionListener(ActionListener listener) {
+      List<WeakReference<ActionListener>> listeners = getListeners();
+
       synchronized(listeners) {
          for(WeakReference<ActionListener> ref : listeners) {
             ActionListener l = ref.get();
@@ -782,6 +782,8 @@ public abstract class AbstractSheet implements AssetObject {
     * Remove an action listener registered.
     */
    public void removeActionListener(ActionListener listener) {
+      List<WeakReference<ActionListener>> listeners = getListeners();
+
       synchronized(listeners) {
          for(int i = 0; i < listeners.size(); i++) {
             WeakReference<ActionListener> ref = listeners.get(i);
@@ -799,6 +801,8 @@ public abstract class AbstractSheet implements AssetObject {
     * Remove all the action listeners.
     */
    public void removeActionListeners() {
+      List<WeakReference<ActionListener>> listeners = getListeners();
+
       synchronized(listeners) {
          listeners.clear();
       }
@@ -830,19 +834,20 @@ public abstract class AbstractSheet implements AssetObject {
          return;
       }
 
-      ArrayList<WeakReference<ActionListener>> listeners;
+      List<WeakReference<ActionListener>> thisListeners = getListeners();
+      List<WeakReference<ActionListener>> listeners;
 
-      synchronized(this.listeners) {
+      synchronized(thisListeners) {
          // clean up listeners
-         for(int i = this.listeners.size() - 1; i>= 0; i--) {
-            WeakReference<ActionListener> ref = this.listeners.get(i);
+         for(int i = thisListeners.size() - 1; i>= 0; i--) {
+            WeakReference<ActionListener> ref = thisListeners.get(i);
 
             if(ref.get() == null) {
-               this.listeners.remove(i);
+               thisListeners.remove(i);
             }
          }
 
-         listeners = new ArrayList<>(this.listeners);
+         listeners = new ArrayList<>(thisListeners);
       }
 
       ActionEvent event = new ActionEvent(this, type, cmd);
@@ -861,7 +866,7 @@ public abstract class AbstractSheet implements AssetObject {
                WorksheetEngine.ASSET_EXCEPTIONS.get().add(ex);
             }
             catch(Exception ex) {
-               LOG.error("Failed to handle action event: " + this, ex);
+               LOG.error("Failed to handle action event: {}", this, ex);
             }
          }
       }
@@ -958,6 +963,14 @@ public abstract class AbstractSheet implements AssetObject {
       return System.identityHashCode(this);
    }
 
+   private synchronized List<WeakReference<ActionListener>> getListeners() {
+      if(listeners == null) {
+         listeners = new ArrayList<>();
+      }
+
+      return listeners;
+   }
+
    protected static final Dimension MIN_SIZE = new Dimension(50 * AssetUtil.defw, 300 * AssetUtil.defh);
    protected static final int NO_MOVEMENT = 0;
    protected static final int X_MOVEMENT = 1;
@@ -970,8 +983,7 @@ public abstract class AbstractSheet implements AssetObject {
    private String modifiedBy;
    private transient boolean event;
    private transient Dimension lsize;
-   private transient ArrayList<WeakReference<ActionListener>> listeners;
-   private transient WeakReference<XQueryRepository> rep;
+   private transient List<WeakReference<ActionListener>> listeners;
    protected String version = FileVersions.ASSET; // sheet designed version.
 
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSheet.class);

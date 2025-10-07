@@ -2745,13 +2745,13 @@ public class CoreLifecycleService {
    {
       Cluster cluster = Cluster.getInstance();
 
-      if(cluster.isLocalCall() || cluster.isLocalCacheKey(WorksheetEngine.CACHE_NAME, id)) {
+      if(viewsheetService.isLocal(id)) {
          return doHandleOpenedSheet(
             id, eid, execSessionId, vsID, bookmarkIndex, drillFrom, entry, viewer, uri, variables,
             event, dispatcher, user);
       }
       else {
-         return cluster.affinityCall(WorksheetEngine.CACHE_NAME, id, new HandleOpenSheetTask(
+         return viewsheetService.affinityCall(id, new HandleOpenSheetTask(
             id, eid, execSessionId, vsID, bookmarkIndex, drillFrom, entry, viewer, uri, variables,
             event, user));
       }
@@ -3166,11 +3166,9 @@ public class CoreLifecycleService {
       Arrays.sort(assemblies, new Comparator<>() {
          @Override
          public int compare(Assembly obj1, Assembly obj2) {
-            if(!(obj1 instanceof VSAssembly ass1) || !(obj2 instanceof VSAssembly)) {
+            if(!(obj1 instanceof VSAssembly ass1) || !(obj2 instanceof VSAssembly ass2)) {
                return 0;
             }
-
-            VSAssembly ass2 = (VSAssembly) obj2;
 
             if(isParent(ass1, ass2)) {
                return 1;
@@ -3508,8 +3506,8 @@ public class CoreLifecycleService {
       private boolean inited;
       private String id;
       private final String uri;
-      private int width;
-      private int height;
+      private final int width;
+      private final int height;
    }
 
    public static final class ProcessSheetResult implements Serializable {

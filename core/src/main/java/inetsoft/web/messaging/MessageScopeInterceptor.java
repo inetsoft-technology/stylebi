@@ -21,7 +21,6 @@ import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.sree.internal.cluster.AffinityCallable;
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.asset.AssetEntry;
@@ -98,8 +97,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
 
             if(runtimeId != null) {
                GetViewsheetEntryTask task = new GetViewsheetEntryTask(runtimeId, principal);
-               AssetEntry entry = Cluster.getInstance().affinityCall(
-                  WorksheetEngine.CACHE_NAME, runtimeId, task);
+               AssetEntry entry = ViewsheetEngine.getViewsheetEngine().affinityCall(runtimeId, task);
                thread.addRecord(LogContext.DASHBOARD, entry.getPath());
             }
          }
@@ -125,8 +123,8 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       String runtimeId = headerAccessor.getFirstNativeHeader("sheetRuntimeId");
 
       if(runtimeId != null) {
-         boolean shouldSwitch = Cluster.getInstance().affinityCall(
-            WorksheetEngine.CACHE_NAME, runtimeId, new SwitchToHostOrgTask(runtimeId, principal));
+         boolean shouldSwitch = WorksheetEngine.getWorksheetService().affinityCall(
+            runtimeId, new SwitchToHostOrgTask(runtimeId, principal));
 
          if(shouldSwitch) {
             OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());

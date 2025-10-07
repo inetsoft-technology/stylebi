@@ -25,7 +25,6 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.AffinityCallable;
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -35,7 +34,6 @@ import inetsoft.util.GroupedThread;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.util.log.*;
-import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRefServiceProxy;
@@ -56,18 +54,12 @@ public class VSLifecycleService {
    @Autowired
    public VSLifecycleService(ViewsheetService viewsheetService, AssetRepository assetRepository,
                              CoreLifecycleService coreLifecycleService,
-                             VSBookmarkService vsBookmarkService,
-                             DataRefModelFactoryService dataRefModelFactoryService,
-                             VSCompositionService vsCompositionService,
                              ParameterService parameterService,
                              VSLifecycleControllerServiceProxy serviceProxy)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
       this.coreLifecycleService = coreLifecycleService;
-      this.vsBookmarkService = vsBookmarkService;
-      this.dataRefModelFactoryService = dataRefModelFactoryService;
-      this.vsCompositionService = vsCompositionService;
       this.parameterService = parameterService;
       this.serviceProxy = serviceProxy;
    }
@@ -328,22 +320,32 @@ public class VSLifecycleService {
          OpenViewsheet sheet = iterator.next();
          iterator.remove();
 
-         LOG.debug(
-            "Closing viewsheet " + sheet.getId() + " due to quota for " + user);
+         LOG.debug("Closing viewsheet {} due to quota for {}", sheet.getId(), user);
 
          final String rid = sheet.getId();
-         Cluster.getInstance().affinityCall(ViewsheetEngine.CACHE_NAME, rid, new AffinityCallable<Void>() {
-            @Override
-            public Void call() throws Exception {
-               ViewsheetEngine.getViewsheetEngine().closeViewsheet(rid, user);
-               return null;
-            }
-         });
+         CloseViewsheetTask task = new CloseViewsheetTask(rid, user);
+         viewsheetService.affinityCall(rid, task);
 
          if(runtimeViewsheetManager != null) {
             runtimeViewsheetManager.sheetClosed(user, sheet.getId());
          }
       }
+   }
+
+   private static final class CloseViewsheetTask implements AffinityCallable<Void> {
+      public CloseViewsheetTask(String rid, Principal user) {
+         this.rid = rid;
+         this.user = user;
+      }
+
+      @Override
+      public Void call() throws Exception {
+         ViewsheetEngine.getViewsheetEngine().closeViewsheet(rid, user);
+         return null;
+      }
+
+      private final String rid;
+      private final Principal user;
    }
 
    private static final class OpenViewsheet implements Serializable, Comparable<OpenViewsheet> {
@@ -393,9 +395,6 @@ public class VSLifecycleService {
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
    private final CoreLifecycleService coreLifecycleService;
-   private final VSBookmarkService vsBookmarkService;
-   private final DataRefModelFactoryService dataRefModelFactoryService;
-   private final VSCompositionService vsCompositionService;
    private final ParameterService parameterService;
    private final VSLifecycleControllerServiceProxy serviceProxy;
    private static final Logger LOG = LoggerFactory.getLogger(VSLifecycleService.class);

@@ -287,7 +287,7 @@ public interface Cluster extends AutoCloseable {
     *
     * @param <T> the return type of the job.
     */
-   <T> T affinityCall(String cache, String key, AffinityCallable<T> job);
+   <T> T affinityCall(String cache, Object key, AffinityCallable<T> job);
 
    /**
     * Executes the given job on all nodes that host a primary partition of a cache.

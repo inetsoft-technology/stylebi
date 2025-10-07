@@ -113,11 +113,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       for(Assembly wsAssembly : ws.getAssemblies()) {
-         if(!(wsAssembly instanceof VariableAssembly)) {
+         if(!(wsAssembly instanceof VariableAssembly assembly)) {
             continue;
          }
 
-         VariableAssembly assembly = (VariableAssembly) wsAssembly;
          AssetVariable var = assembly.getVariable();
 
          if(!var.isPromptWithDValue()) {
@@ -339,7 +338,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          entries = lentries.toArray(new AssetEntry[] {});
       }
       else {
-         throw new RuntimeException(entry.toString() + " is not supported");
+         throw new RuntimeException(entry + " is not supported");
       }
 
       ColumnSelection columns = new ColumnSelection();
@@ -422,8 +421,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * Set the bypassVPM flag in the asset.
     */
    private Principal checkVPM(Principal user) {
-      if(vinfo.isBypassVPM() && user instanceof XPrincipal) {
-         XPrincipal xuser = (XPrincipal) user;
+      if(vinfo.isBypassVPM() && user instanceof XPrincipal xuser) {
          xuser = (XPrincipal) xuser.clone();
          xuser.setProperty("bypassVPM", "true");
          return xuser;
@@ -445,11 +443,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       // if any table name changed, we should keep the viewsheet table
       // in sync, fix bug1328194963858
       for(Assembly assembly : ws.getAssemblies()) {
-         if(!(assembly instanceof TableAssembly)) {
+         if(!(assembly instanceof TableAssembly table)) {
             continue;
          }
 
-         TableAssembly table = (TableAssembly) assembly;
          ColumnSelection cols = table.getColumnSelection();
 
          if(cols == null || cols.isEmpty()) {
@@ -501,7 +498,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                ((ComposedTableAssembly) wsAssembly).getAllVariables(false) :
                ((TableAssembly) wsAssembly).getAllVariables();
 
-            if(vars != null && vars.length > 0) {
+            if(vars != null) {
                for(UserVariable var : vars) {
                   String vname = var.getName();
                   Set<Assembly> vset = varmap.computeIfAbsent(vname, k -> new HashSet<>());
@@ -521,7 +518,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    private void addCalcRefs(TableAssembly table, String name) {
       final List<CalculateRef> calculateRefs = calcmap.get(name);
 
-      if(calculateRefs != null && calculateRefs.size() > 0) {
+      if(calculateRefs != null && !calculateRefs.isEmpty()) {
          final ColumnSelection columnSelection = table.getColumnSelection(false);
 
          synchronized(calculateRefs) {
@@ -589,6 +586,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             ws = getWorksheet(rep, wentry, user);
          }
 
+         Lock amapLock = getAmapLock();
          amapLock.lock();
 
          try {
@@ -788,11 +786,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       for(Assembly assembly : getAssemblies()) {
-         if(!(assembly instanceof Viewsheet)) {
+         if(!(assembly instanceof Viewsheet vassembly)) {
             continue;
          }
 
-         Viewsheet vassembly = (Viewsheet) assembly;
          AssetEntry entry = vassembly.getEntry();
 
          if(entry != null) {
@@ -817,11 +814,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       for(Assembly assembly : getAssemblies()) {
-         if(!(assembly instanceof Viewsheet)) {
+         if(!(assembly instanceof Viewsheet vassembly)) {
             continue;
          }
 
-         Viewsheet vassembly = (Viewsheet) assembly;
          AssetEntry entry = vassembly.getEntry();
 
          if(Tool.equals(entry, oentry)) {
@@ -1128,9 +1124,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       Assembly assembly = getAssembly(entry);
 
-      if(assembly instanceof VSAssembly) {
-         VSAssembly vassembly = (VSAssembly) assembly;
-
+      if(assembly instanceof VSAssembly vassembly) {
          for(AssemblyRef ref : vassembly.getDependingWSAssemblies()) {
             set.add(new AssemblyRef(AssemblyRef.INPUT_DATA, ref.getEntry()));
          }
@@ -1162,11 +1156,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       Set<AssemblyRef> set = new HashSet<>();
 
       for(Assembly assemblyItem : getAssemblies()) {
-         if(!(assemblyItem instanceof AbstractVSAssembly)) {
+         if(!(assemblyItem instanceof AbstractVSAssembly assembly)) {
             continue;
          }
 
-         AbstractVSAssembly assembly = (AbstractVSAssembly) assemblyItem;
          set.clear();
          assembly.getScriptReferencedAssets(set);
 
@@ -1463,8 +1456,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          vs.vinfo = (ViewsheetInfo) vinfo.clone();
          vs.layoutInfo = (LayoutInfo) layoutInfo.clone();
 
+         Lock amapLock = getAmapLock();
+         amapLock.lock();
+
          try {
-            amapLock.lock();
             cloneAssemblyList(vs, assemblies);
          }
          finally {
@@ -1874,9 +1869,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    public void getViewDependeds(Set<AssemblyRef> set, boolean self) {
       List<DynamicValue> list = getViewDynamicValues(true);
 
-      for(Object item : list) {
-         DynamicValue val = (DynamicValue) item;
-         VSUtil.getDynamicValueDependeds(val, set, getViewsheet(), null);
+      for(DynamicValue item : list) {
+         VSUtil.getDynamicValueDependeds(item, set, getViewsheet(), null);
       }
 
       // self view dependes on self data
@@ -2081,9 +2075,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       if(table != null || ws != null) {
          Object obj = ws.getAssembly(table);
 
-         if(obj instanceof TableAssembly) {
-            TableAssembly tass = (TableAssembly) obj;
-
+         if(obj instanceof TableAssembly tass) {
             if(tass.isPlain()) {
                tass.setPreRuntimeConditionList(new ConditionList());
             }
@@ -2124,9 +2116,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       for(Assembly assemblyItem : getAssemblies()) {
          VSAssemblyInfo vinfo = (VSAssemblyInfo) assemblyItem.getInfo();
 
-         if(vinfo instanceof AnnotationVSAssemblyInfo) {
-            AnnotationVSAssemblyInfo ainfo = (AnnotationVSAssemblyInfo) vinfo;
-
+         if(vinfo instanceof AnnotationVSAssemblyInfo ainfo) {
             if(ainfo.getType() == AnnotationVSAssemblyInfo.VIEWSHEET) {
                String rect = ainfo.getRectangle();
 
@@ -2137,13 +2127,11 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                removeAssembly(ainfo.getAbsoluteName());
             }
          }
-         else if(vinfo instanceof BaseAnnotationVSAssemblyInfo) {
+         else if(vinfo instanceof BaseAnnotationVSAssemblyInfo binfo) {
             boolean noAnno = getRuntimeEntry() != null &&
                "true".equals(getRuntimeEntry().getProperty("noAnnotation"));
 
             if(!noAnno) {
-               BaseAnnotationVSAssemblyInfo binfo =
-                  (BaseAnnotationVSAssemblyInfo) vinfo;
                List<String> list = binfo.getAnnotations();
 
                for(String annotation : list) {
@@ -2218,9 +2206,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          String name = keys.next();
          Assembly ass = getAssembly(name);
 
-         if(ass instanceof CurrentSelectionVSAssembly) {
+         if(ass instanceof CurrentSelectionVSAssembly cass) {
             // only remove all children in current selection
-            CurrentSelectionVSAssembly cass = (CurrentSelectionVSAssembly) ass;
             String[] children = cass.getAssemblies();
 
             for(String child : children) {
@@ -2343,11 +2330,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     */
    @Override
    public boolean equals(Object obj) {
-      if(!(obj instanceof Viewsheet)) {
+      if(!(obj instanceof Viewsheet assembly)) {
          return false;
       }
 
-      Viewsheet assembly = (Viewsheet) obj;
       return getAbsoluteName().equals(assembly.getAbsoluteName());
    }
 
@@ -2432,8 +2418,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
          Assembly[] arr;
 
-         if(assembly instanceof Viewsheet) {
-            Viewsheet tvs = (Viewsheet) assembly;
+         if(assembly instanceof Viewsheet tvs) {
             arr = tvs.layout();
          }
          else {
@@ -2463,8 +2448,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          list.add(assembly);
 
          // move contained assemblies
-         if(assembly instanceof ContainerVSAssembly) {
-            ContainerVSAssembly container = (ContainerVSAssembly) assembly;
+         if(assembly instanceof ContainerVSAssembly container) {
             addChildren(container, list);
          }
          // move auto-moved viewsheet contained assemblies
@@ -2483,8 +2467,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          }
 
          // move contained assemblies
-         if(assembly instanceof ContainerVSAssembly) {
-            ContainerVSAssembly container = (ContainerVSAssembly) assembly;
+         if(assembly instanceof ContainerVSAssembly container) {
             addChildren(container, list);
          }
          else if(assembly.getAssemblyType() == VIEWSHEET_ASSET) {
@@ -2711,15 +2694,14 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       List<String> allFlyoverViews = new ArrayList<>();
 
       for(Assembly assembly : getAssemblies()) {
-         if(!(assembly.getInfo() instanceof TipVSAssemblyInfo)) {
+         if(!(assembly.getInfo() instanceof TipVSAssemblyInfo tinfo)) {
             continue;
          }
 
-         TipVSAssemblyInfo info = (TipVSAssemblyInfo) assembly.getInfo();
-         String[] flyoverViews = info.getFlyoverViews();
+         String[] flyoverViews = tinfo.getFlyoverViews();
 
          if(flyoverViews != null && flyoverViews.length > 0) {
-            Arrays.stream(flyoverViews).forEach((flyoverView) -> allFlyoverViews.add(flyoverView));
+            allFlyoverViews.addAll(Arrays.asList(flyoverViews));
          }
       }
 
@@ -2756,8 +2738,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    protected Rectangle getActualBounds(Assembly assembly) {
       Rectangle rect = getLayoutBounds(assembly);
 
-      if(assembly instanceof Viewsheet) {
-         Viewsheet avs = (Viewsheet) assembly;
+      if(assembly instanceof Viewsheet avs) {
          return avs.getChildrenBounds(rect.x, rect.y) == null ?
             rect : avs.getChildrenBounds(rect.x, rect.y);
       }
@@ -2875,14 +2856,13 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       ContainerVSAssembly tassembly =
          (ContainerVSAssembly) vassembly.getContainer();
 
-      if(tassembly instanceof TabVSAssembly &&
+      if(tassembly instanceof TabVSAssembly tab &&
          (mode == SHEET_RUNTIME_MODE || tassembly.isEmbedded()))
       {
          if(!isVisible(tassembly,mode)) {
             return false;
          }
 
-         TabVSAssembly tab = (TabVSAssembly) tassembly;
          TabVSAssemblyInfo tinfo = (TabVSAssemblyInfo) tab.getInfo().clone();
 
          VSUtil.fixSelected(tinfo, this);
@@ -2996,7 +2976,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       int index = name.lastIndexOf('.');
 
       if(index >= 0) {
-         Viewsheet vs = null;
+         Viewsheet vs;
          boolean currentVs;
          String vsName = name.substring(0, index);
          String childName = name.substring(index + 1);
@@ -3050,6 +3030,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       if(amap == null) {
          synchronized(this) {
+            Lock amapLock = getAmapLock();
             amapLock.lock();
 
             try {
@@ -3084,6 +3065,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       // ScriptIterator may trigger this on every token so miss hit is expected
       if(vsobj == null && !ScriptIterator.isProcessing()) {
          List<VSAssembly> assemblies;
+         Lock amapLock = getAmapLock();
          amapLock.lock();
 
          // make a copy since assemblies modifications are protected in amapLock. this
@@ -3168,11 +3150,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
    /**
     *
-    * @param recursive
-    * @param sort
     * @param includeWizardTemp if to include temp assemblies which temporarily created in wizard.
     * @param includeWizardExpiredTemp if to include the expired recommended assemblies in wizard.
-    * @return
     */
    public Assembly[] getAssemblies(boolean recursive, boolean sort,
                                    boolean includeWizardTemp,
@@ -3183,12 +3162,9 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
    /**
     *
-    * @param recursive
-    * @param sort
     * @param includeWizardTemp if to include temp assemblies which temporarily created in wizard.
     * @param includeWizardExpiredTemp if to include the expired recommended assemblies in wizard.
     * @param includeWarningText if to include the warning text.
-    * @return
     */
    public Assembly[] getAssemblies(boolean recursive, boolean sort,
                                    boolean includeWizardTemp,
@@ -3314,6 +3290,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             latestTemp = assembly;
          }
 
+         Lock amapLock = getAmapLock();
          amapLock.lock();
 
          try {
@@ -3423,6 +3400,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                   latestTemp = null;
                }
 
+               Lock amapLock = getAmapLock();
                amapLock.lock();
 
                try {
@@ -3467,9 +3445,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                                      .collect(Collectors.toList()));
       }
 
-      if(layout instanceof PrintLayout) {
-         PrintLayout printLayout = (PrintLayout) layout;
-
+      if(layout instanceof PrintLayout printLayout) {
          if(printLayout.getHeaderLayouts() != null) {
             printLayout.setHeaderLayouts(printLayout.getHeaderLayouts().stream()
                                             .filter(v -> !name.equals(v.getName()) ||
@@ -3509,6 +3485,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       synchronized(this) {
          VSAssembly oassembly = getAssembly(oname);
 
+         Lock amapLock = getAmapLock();
          amapLock.lock();
 
          try {
@@ -3527,14 +3504,12 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
          renameDepended(oname, nname);
 
-         for(Assembly assemblyItem : assemblies) {
-            VSAssembly assembly = (VSAssembly) assemblyItem;
-
-            if(assembly.isEmbedded()) {
+         for(VSAssembly assemblyItem : assemblies) {
+            if(assemblyItem.isEmbedded()) {
                continue;
             }
 
-            assembly.renameDepended(oname, nname);
+            assemblyItem.renameDepended(oname, nname);
          }
 
          renameLayout(layoutInfo.getPrintLayout(), oname, nname);
@@ -3873,7 +3848,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             result = calcs.remove(target);
          }
 
-         if(calcs.size() == 0) {
+         if(calcs.isEmpty()) {
             calcmap.remove(table);
          }
       }
@@ -3942,7 +3917,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
             }
          }
 
-         if(aggrs.size() == 0) {
+         if(aggrs.isEmpty()) {
             aggregatemap.remove(table);
          }
       }
@@ -4369,8 +4344,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
    private synchronized void fixZIndex() {
       for(Assembly assembly : assemblies) {
-         if(assembly instanceof GroupContainerVSAssembly) {
-            GroupContainerVSAssembly group = (GroupContainerVSAssembly) assembly;
+         if(assembly instanceof GroupContainerVSAssembly group) {
             GroupContainerVSAssemblyInfo groupInfo =
                (GroupContainerVSAssemblyInfo) assembly.getInfo();
             String[] names = group.getAssemblies();
@@ -4529,10 +4503,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       if(assembly == null) {
-         bmap.remove(table);
+         getBrushMap().remove(table);
       }
       else {
-         bmap.put(table, assembly);
+         getBrushMap().put(table, assembly);
       }
 
       if(assembly == null) {
@@ -4541,10 +4515,9 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       // clear the other brush selection if any
       for(Assembly assembly2 : getAssemblies()) {
-         if(assembly2 instanceof ChartVSAssembly &&
+         if(assembly2 instanceof ChartVSAssembly chart &&
             !WizardRecommenderUtil.isTempDataAssembly(assembly2.getName()))
          {
-            ChartVSAssembly chart = (ChartVSAssembly) assembly2;
             String table2 = chart.getTableName();
 
             if(Tool.equals(table, table2) && !Tool.equals(chart, assembly)) {
@@ -4558,7 +4531,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * Get the brush source.
     */
    public VSAssembly getBrush(String table) {
-      return bmap.get(table);
+      return getBrushMap().get(table);
    }
 
    @Override
@@ -4868,10 +4841,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     */
    public boolean hasAdhocFilters() {
       for(Assembly assemblyItem : getAssemblies()) {
-         if(assemblyItem instanceof AbstractSelectionVSAssembly) {
-            AbstractSelectionVSAssembly assembly =
-               (AbstractSelectionVSAssembly) assemblyItem;
-
+         if(assemblyItem instanceof AbstractSelectionVSAssembly assembly) {
             VSAssemblyInfo info = assembly.getVSAssemblyInfo();
 
             if(info instanceof SelectionVSAssemblyInfo &&
@@ -4909,8 +4879,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          format.setRScaleFont(1);
       }
 
-      for(Object assembly : assemblies) {
-         VSAssembly vsAssembly = (VSAssembly) assembly;
+      for(VSAssembly assembly : assemblies) {
+         VSAssembly vsAssembly = assembly;
          vsAssembly.clearLayoutState();
       }
    }
@@ -4973,8 +4943,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       final Set<String> used = new HashSet<>();
 
       for(Assembly assembly : getAssemblies()) {
-         if(assembly instanceof SelectionVSAssembly) {
-            final SelectionVSAssembly sassembly = (SelectionVSAssembly) assembly;
+         if(assembly instanceof SelectionVSAssembly sassembly) {
             DataRef[] dataRefs = sassembly.getDataRefs();
 
             if(sassembly.isSelectionUnion()) {
@@ -5087,7 +5056,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     */
    private List<ColumnRef> findMutualColumnRefs(List<TableAssembly> subtables) {
       final List<ColumnRef> refs = new ArrayList<>();
-      final TableAssembly firstTable = subtables.get(0);
+      final TableAssembly firstTable = subtables.getFirst();
       final List<TableAssembly> subsequentTables = subtables.subList(1, subtables.size());
       final ColumnSelection firstColumnSelection = firstTable.getColumnSelection(true);
 
@@ -5154,8 +5123,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                selectionTable = (TableAssembly) boundTable.copyAssembly(selectionTableName);
 
                // do not change selection for consistency
-               if(selectionTable instanceof EmbeddedTableAssembly) {
-                  EmbeddedTableAssembly eassembly = (EmbeddedTableAssembly) selectionTable;
+               if(selectionTable instanceof EmbeddedTableAssembly eassembly) {
                   eassembly.setEmbeddedData(eassembly.getOriginalEmbeddedData());
                }
 
@@ -5203,11 +5171,9 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       for(Assembly assemblyItem : getAssemblies()) {
          VSAssembly assembly = (VSAssembly) assemblyItem;
 
-         if(assembly instanceof SelectionVSAssembly &&
-            ((SelectionVSAssembly) assembly).isSelectionUnion())
+         if(assembly instanceof SelectionVSAssembly sassembly &&
+            sassembly.isSelectionUnion())
          {
-            SelectionVSAssembly sassembly = (SelectionVSAssembly) assembly;
-
             for(String tname : sassembly.getTableNames()) {
                resetVS = createMirrorTable(tname) || resetVS;
             }
@@ -5233,11 +5199,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       Assembly wsobj = ws.getAssembly(tname);
 
-      if(!(wsobj instanceof TableAssembly)) {
+      if(!(wsobj instanceof TableAssembly table)) {
          return false;
       }
 
-      TableAssembly table = (TableAssembly) wsobj;
       String nname = tname + OUTER_TABLE_SUFFIX;
 
       // do not create mirror for embedded table, for viewsheet might
@@ -5376,8 +5341,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       // update the sheet format in the children
       for(Assembly assembly : assemblies) {
-         if(assembly instanceof VSAssembly) {
-            VSAssembly vsAssembly = (VSAssembly) assembly;
+         if(assembly instanceof VSAssembly vsAssembly) {
             fixSheetCssFormat(vsAssembly, vsCompositeFormat);
             String name = vsAssembly.getAbsoluteName();
             int index = name.lastIndexOf('.');
@@ -5474,8 +5438,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     * Get all disabled variable names.
     */
    public Set<String> getDisabledVariables() {
-      Set<String> list = new LinkedHashSet<>();
-      list.addAll(Arrays.asList(vinfo.getDisabledVariables()));
+      Set<String> list = new LinkedHashSet<>(Arrays.asList(vinfo.getDisabledVariables()));
 
       for(Assembly assembly : getAssemblies()) {
          if(assembly instanceof Viewsheet) {
@@ -5484,6 +5447,22 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       return list;
+   }
+
+   private synchronized Lock getAmapLock() {
+      if(amapLock == null) {
+         amapLock = new ReentrantLock();
+      }
+
+      return amapLock;
+   }
+
+   private synchronized Map<String, VSAssembly> getBrushMap() {
+      if(bmap == null) {
+         bmap = new HashMap<>();
+      }
+
+      return bmap;
    }
 
    private ActionListener listener = new VSChangeListener(this);
@@ -5503,12 +5482,12 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    // user create aggregate field map
    private Map<String, List<AggregateRef>> aggregatemap;
    // runtime
-   private final transient Map<String, VSAssembly> bmap; // brush map: tablename->brush source
+   private transient Map<String, VSAssembly> bmap; // brush map: tablename->brush source
    private transient Worksheet ws; // base worksheet
    private transient Worksheet originalWs; // original base ws without added table assemblies for vs
    private transient volatile Map<String, VSAssembly> amap; // assembly name -> assembly cache
    private VSAssembly latestTemp;
-   private final transient Lock amapLock = new ReentrantLock();
+   private transient Lock amapLock;
    // user create aggregate aoa's aggregate
    private transient List<AggregateRef> aggrs;
    private transient Map<String, Set<Assembly>> varmap;
@@ -5523,7 +5502,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    private float rscaleFont = 1;
    private boolean annotationsVisible = true;
    private boolean maxMode = false;
-   private Map<String, LogbackTraceAppender.StackRecord> rmStacks = new ConcurrentHashMap<>();
+   private final Map<String, LogbackTraceAppender.StackRecord> rmStacks = new ConcurrentHashMap<>();
 
    private static final String COLUMN_DELIMITER = "^^";
    private static final String VS_WARNING_TEXT = "VS^WARNING^TEXT";

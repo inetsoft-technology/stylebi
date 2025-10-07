@@ -24,12 +24,14 @@ import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.Tool;
 import inetsoft.web.json.ThirdPartySupportModule;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.cache.affinity.AffinityKey;
 import org.apache.ignite.lang.IgniteFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +44,8 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class RuntimeSheetCache
    implements Map<String, RuntimeSheet>, Closeable
@@ -75,7 +79,7 @@ public class RuntimeSheetCache
    }
 
    @SuppressWarnings("unchecked")
-   private static IgniteCache<String, RuntimeSheetState> getCache(Cluster cluster, String name) {
+   private static IgniteCache<AffinityKey<String>, RuntimeSheetState> getCache(Cluster cluster, String name) {
       Cache<String, RuntimeSheetState> cache = cluster.getCache(name);
       return cache.unwrap(IgniteCache.class);
    }
@@ -111,7 +115,8 @@ public class RuntimeSheetCache
 
    @Override
    public boolean containsKey(Object key) {
-      return local.containsKey(key) || key instanceof String id && cache.containsKey(id);
+      return local.containsKey(key) ||
+         key instanceof String id && cache.containsKey(getAffinityKey(id));
    }
 
    @Override
@@ -122,6 +127,7 @@ public class RuntimeSheetCache
    @Override
    public RuntimeSheet get(Object key) {
       if(key instanceof String id) {
+         AffinityKey<String> affinityKey = getAffinityKey(id);
          boolean loadFromCache;
          lock.readLock().lock();
 
@@ -130,7 +136,7 @@ public class RuntimeSheetCache
                return local.get(id);
             }
 
-            loadFromCache = cache.containsKey(id);
+            loadFromCache = cache.containsKey(affinityKey);
          }
          finally {
             lock.readLock().unlock();
@@ -140,16 +146,16 @@ public class RuntimeSheetCache
             lock.writeLock().lock();
 
             try {
-               RuntimeSheet sheet = toSheet(cache.get(id));
+               RuntimeSheet sheet = toSheet(cache.get(affinityKey));
 
                if(sheet != null) {
-                  if(!cluster.isLocalCall() && !cluster.isLocalCacheKey(cache.getName(), id)) {
+                  if(!isLocal(affinityKey)) {
                      LOG.error(
                         "Loading remote runtime sheet that does not belong to this instance: {}",
                         id, new Exception("Stack trace"));
                   }
 
-                  putLocal(id, sheet);
+                  putLocal(affinityKey, sheet);
                }
 
                return sheet;
@@ -168,8 +174,9 @@ public class RuntimeSheetCache
       lock.writeLock().lock();
 
       try {
-         RuntimeSheet sheet = putLocal(key, value);
-         putCache(key, value);
+         AffinityKey<String> affinityKey = getAffinityKey(key);
+         RuntimeSheet sheet = putLocal(affinityKey, value);
+         putCache(affinityKey, value);
          return sheet;
       }
       finally {
@@ -181,39 +188,40 @@ public class RuntimeSheetCache
       lock.writeLock().lock();
 
       try {
-         putLocal(key, value);
-         return putCache(key, value);
+         AffinityKey<String> affinityKey = getAffinityKey(key);
+         putLocal(affinityKey, value);
+         return putCache(affinityKey, value);
       }
       finally {
          lock.writeLock().unlock();
       }
    }
 
-   private RuntimeSheet putLocal(String key, RuntimeSheet value) {
-      if(applyMaxCount && local.size() >= maxSheetCount && !local.containsKey(key)) {
+   private RuntimeSheet putLocal(AffinityKey<String> key, RuntimeSheet value) {
+      if(applyMaxCount && local.size() >= maxSheetCount && !local.containsKey(key.key())) {
          for(Iterator<String> i = local.keySet().iterator(); i.hasNext();) {
             String id = i.next();
 
             if(id.startsWith(WorksheetService.PREVIEW_PREFIX)) {
                i.remove();
-               cache.removeAsync(id);
+               cache.removeAsync(getAffinityKey(id));
                break;
             }
          }
       }
 
-      if(!cluster.isLocalCall() && !cluster.isLocalCacheKey(cache.getName(), key)) {
+      if(!isLocal(key)) {
          LOG.error(
             "Added remote runtime sheet that does not belong to this instance: {}",
             key, new Exception("Stack trace"));
       }
 
-      RuntimeSheet result = local.put(key, value);
+      RuntimeSheet result = local.put(key.key(), value);
       updateLocalSheetCount();
       return result;
    }
 
-   private Future<RuntimeSheet> putCache(String key, RuntimeSheet value) {
+   private Future<RuntimeSheet> putCache(AffinityKey<String> key, RuntimeSheet value) {
       try {
          IgniteFuture<Void> igniteFuture = cache.putAsync(key, value.saveState(mapper));
          CompletableFuture<RuntimeSheet> future = new CompletableFuture<>();
@@ -249,11 +257,13 @@ public class RuntimeSheetCache
          updateLocalSheetCount();
 
          if(key instanceof String id) {
+            AffinityKey<String> affinityKey = getAffinityKey(id);
+
             if(sheet == null) {
-               sheet = toSheet(cache.getAndRemove(id));
+               sheet = toSheet(cache.getAndRemove(affinityKey));
             }
             else {
-               cache.removeAsync(id);
+               cache.removeAsync(affinityKey);
             }
          }
 
@@ -266,10 +276,10 @@ public class RuntimeSheetCache
 
    @Override
    public void putAll(Map<? extends String, ? extends RuntimeSheet> m) {
-      Map<String, RuntimeSheetState> states = new HashMap<>();
+      Map<AffinityKey<String>, RuntimeSheetState> states = new HashMap<>();
 
       for(Map.Entry<? extends String, ? extends RuntimeSheet> e : m.entrySet()) {
-         states.put(e.getKey(), e.getValue().saveState(mapper));
+         states.put(getAffinityKey(e.getKey()), e.getValue().saveState(mapper));
       }
 
       lock.writeLock().lock();
@@ -289,7 +299,7 @@ public class RuntimeSheetCache
       lock.writeLock().lock();
 
       try {
-         Set<String> ids = getLocalKeys();
+         Set<AffinityKey<String>> ids = getLocalKeys();
          local.clear();
          updateLocalSheetCount();
          cache.removeAllAsync(ids);
@@ -329,10 +339,14 @@ public class RuntimeSheetCache
    }
 
    // this should be called in a locked code section
-   private Set<String> getLocalKeys() {
-      Set<String> allIds = new HashSet<>(local.keySet());
+   private Set<AffinityKey<String>> getLocalKeys() {
+      Set<AffinityKey<String>> allIds = new HashSet<>();
 
-      for(Cache.Entry<String, RuntimeSheetState> e : cache) {
+      local.keySet().stream()
+         .map(this::getAffinityKey)
+         .forEach(allIds::add);
+
+      for(Cache.Entry<AffinityKey<String>, RuntimeSheetState> e : cache) {
          allIds.add(e.getKey());
       }
 
@@ -344,12 +358,13 @@ public class RuntimeSheetCache
 
       try {
          RuntimeSheet sheet = local.get(key);
+         AffinityKey<String> affinityKey = getAffinityKey(key);
 
          if(sheet == null) {
-            cache.removeAsync(key);
+            cache.removeAsync(affinityKey);
          }
          else {
-            cache.putAsync(key, sheet.saveState(mapper));
+            cache.putAsync(affinityKey, sheet.saveState(mapper));
          }
       }
       finally {
@@ -361,13 +376,13 @@ public class RuntimeSheetCache
       lock.writeLock().lock();
 
       try {
-         Map<String, RuntimeSheetState> changeset = new HashMap<>();
+         Map<AffinityKey<String>, RuntimeSheetState> changeset = new HashMap<>();
 
-         for(String id : getLocalKeys()) {
-            RuntimeSheet sheet = local.get(id);
+         for(AffinityKey<String> key : getLocalKeys()) {
+            RuntimeSheet sheet = local.get(key.key());
 
             if(sheet != null) {
-               changeset.put(id, sheet.saveState(mapper));
+               changeset.put(key, sheet.saveState(mapper));
             }
          }
 
@@ -394,9 +409,9 @@ public class RuntimeSheetCache
    public List<String> getAllIds(Principal user) {
       Set<String> ids = new HashSet<>();
 
-      for(Cache.Entry<String, RuntimeSheetState> e : cache) {
+      for(Cache.Entry<AffinityKey<String>, RuntimeSheetState> e : cache) {
          if(user == null) {
-            ids.add(e.getKey());
+            ids.add(e.getKey().key());
          }
          else if(e.getValue().getUser() != null) {
             try {
@@ -405,7 +420,7 @@ public class RuntimeSheetCache
                principal.parseXML(document.getDocumentElement());
 
                if(Objects.equals(principal, user)) {
-                  ids.add(e.getKey());
+                  ids.add(e.getKey().key());
                }
             }
             catch(Exception ex) {
@@ -417,18 +432,49 @@ public class RuntimeSheetCache
       return List.copyOf(ids);
    }
 
+   public boolean isLocal(String id) {
+      if(cluster.isLocalCall()) {
+         return true;
+      }
+
+      AffinityKey<String> key = getAffinityKey(id);
+      return cluster.isLocalCacheKey(cache.getName(), key);
+   }
+
+   public boolean isLocal(AffinityKey<String> key) {
+      if(cluster.isLocalCall()) {
+         return true;
+      }
+
+      return cluster.isLocalCacheKey(cache.getName(), key);
+   }
+
+   AffinityKey<String> getAffinityKey(String id) {
+      Matcher matcher = tempIdPattern.matcher(id);
+
+      if(matcher.matches()) {
+         String originalId = matcher.group(2);
+         return new AffinityKey<>(id, originalId);
+      }
+
+      return new AffinityKey<>(id, id);
+   }
+
    private void updateLocalSheetCount() {
       sheetCountMap.put(cluster.getLocalMember(), local.size());
    }
 
    private final Cluster cluster;
    private final Map<String, RuntimeSheet> local;
-   private final IgniteCache<String, RuntimeSheetState> cache;
+   private final IgniteCache<AffinityKey<String>, RuntimeSheetState> cache;
    private final int maxSheetCount;
    private final ReadWriteLock lock = new ReentrantReadWriteLock();
    private final ScheduledExecutorService executor;
    private final ObjectMapper mapper;
    private boolean applyMaxCount;
+   private static final Pattern tempIdPattern = Pattern.compile(
+      "^(" + WorksheetEngine.PREVIEW_WORKSHEET + "|" + ViewsheetEngine.PREVIEW_VIEWSHEET +
+      ")?(.+)-temp-\\d+$");
    private final Map<String, Integer> sheetCountMap;
 
    public static final String LOCAL_SHEET_COUNT = RuntimeSheet.class.getName() + ".localSheetCount";

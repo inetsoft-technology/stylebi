@@ -142,7 +142,7 @@ public class EventAspect {
       ServiceProxyContext.eventUndoableThreadLocal.set(undoable);
 
       // ServiceProxyContext preprocessing does not occur if it is a local cache key, so handle it here
-      if(cluster.isLocalCacheKey(WorksheetEngine.CACHE_NAME, id)) {
+      if(viewsheetService.isLocal(id)) {
          RuntimeWorksheet rws = viewsheetService.getWorksheet(id, principal);
          MVSession session = rws.getAssetQuerySandbox().getMVSession();
          WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());

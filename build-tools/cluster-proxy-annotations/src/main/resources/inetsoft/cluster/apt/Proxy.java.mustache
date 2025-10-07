@@ -31,20 +31,32 @@ public class {{proxySimpleName}} {
    }
 
    public {{{returnType}}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
-      inetsoft.sree.internal.cluster.Cluster cluster = inetsoft.sree.internal.cluster.Cluster.getInstance();
+      inetsoft.sree.internal.cluster.Cluster _cluster = inetsoft.sree.internal.cluster.Cluster.getInstance();
+      {{#worksheetCache}}
+      inetsoft.report.composition.WorksheetService _wsService = inetsoft.report.composition.WorksheetEngine.getWorksheetService();
+      boolean _local = _wsService.isLocal({{keyParam}});
+      {{/worksheetCache}}
+      {{^worksheetCache}}
+      boolean _local = _cluster.isLocalCacheKey("{{cacheName}}", {{keyParam}}) || _cluster.isLocalCall();
+      {{/worksheetCache}}
 
-      if(cluster.isLocalCacheKey("{{cacheName}}", {{keyParam}}) || cluster.isLocalCall()) {
-         {{targetClass}} service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
-         return service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+      if(_local) {
+         {{targetClass}} _service = inetsoft.util.ConfigurationContext.getContext().getSpringBean({{targetClass}}.class);
+         return _service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
       }
 
-      {{callableClassName}} serviceProxyCallable = new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+      {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
 
       try {
-         return cluster.affinityCall("{{cacheName}}", {{keyParam}}, serviceProxyCallable);
+         {{#worksheetCache}}
+         return _wsService.affinityCall({{keyParam}}, _serviceProxyCallable);
+         {{/worksheetCache}}
+         {{^worksheetCache}}
+         return _cluster.affinityCall("{{cacheName}}", {{keyParam}}, _serviceProxyCallable);
+         {{/worksheetCache}}
       }
       finally {
-         serviceProxyCallable.serviceProxyContext.apply();
+         _serviceProxyCallable.serviceProxyContext.apply();
       }
    }
 {{/methods}}

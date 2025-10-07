@@ -550,7 +550,7 @@ public class TestCluster implements Cluster {
    }
 
    @Override
-   public <T> T affinityCall(String cache, String key, AffinityCallable<T> job) {
+   public <T> T affinityCall(String cache, Object key, AffinityCallable<T> job) {
       try {
          return job.call();
       }
@@ -1543,12 +1543,16 @@ public class TestCluster implements Cluster {
          return null;
       }
 
+      @SuppressWarnings("deprecation")
       @Override
+      @Deprecated
       public boolean isAsync() {
          return false;
       }
 
+      @SuppressWarnings("deprecation")
       @Override
+      @Deprecated
       public <R> IgniteFuture<R> future() {
          return null;
       }

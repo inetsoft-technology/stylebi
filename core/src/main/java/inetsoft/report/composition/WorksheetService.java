@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition;
 
+import inetsoft.sree.internal.cluster.AffinityCallable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.util.SingletonManager;
@@ -226,6 +227,27 @@ public interface WorksheetService {
     * @param rid runtime id.
     */
    void flushRuntimeSheet(String rid);
+
+   /**
+    * Determines if the runtime sheet with the given identifier is local to this instance.
+    *
+    * @param rid the runtime sheet identifier.
+    *
+    * @return {@code true} if local or {@code false} otherwise.
+    */
+   boolean isLocal(String rid);
+
+   /**
+    * Executes a job on the instance that owns the specified runtime sheet.
+    *
+    * @param rid the identifier of the runtime sheet.
+    * @param job the job to execute.
+    *
+    * @return the result of the job.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> T affinityCall(String rid, AffinityCallable<T> job);
 
    final class Reference extends SingletonManager.Reference<WorksheetService> {
       @SuppressWarnings("unchecked")

@@ -179,63 +179,22 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
       ws.addAssembly(data);
 
-      return openPreviewWorksheet(ws, entry, name, user);
+      return openPreviewWorksheet(id, ws, entry, name, user);
    }
 
    /**
     * Open a temporary viewsheet.
+    *
     * @param wentry the specified base worksheet entry.
-    * @param user the specified user.
-    * @param rid the specified report id.
+    * @param user   the specified user.
+    *
     * @return the viewsheet id.
     */
    @Override
-   public String openTemporaryViewsheet(AssetEntry wentry, Principal user,
-                                        String rid)
-   {
-      String id;
+   public String openTemporaryViewsheet(String originalId, AssetEntry wentry, Principal user) {
       AssetEntry entry = getTemporaryAssetEntry(user, AssetEntry.Type.VIEWSHEET);
-      OpenTemporaryViewsheetTask task =
-         new OpenTemporaryViewsheetTask(wentry, entry, user, getNextID(entry, user));
-      Cluster cluster = Cluster.getInstance();
-
-      if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, task.id)) {
-         id = task.callInternal(this);
-      }
-      else {
-         id = Cluster.getInstance().affinityCall(CACHE_NAME, task.id, task);
-      }
-
-      return id;
-   }
-
-   /**
-    * Begin creating a temporary viewsheet.
-    * It is not submitted to the runtime sheet cache until finalize is called.
-    * @param wentry the specified base viewsheet entry.
-    * @param user the specified user.
-    * @param rid the specified report id.
-    * @return the new temporary runtime viewsheet.
-    */
-   @Override
-   public RuntimeViewsheet initializeTemporaryViewsheet(AssetEntry wentry, Principal user, String rid) {
-      Viewsheet vs = new Viewsheet(wentry);
-      AssetEntry entry = getTemporaryAssetEntry(user, AssetEntry.Type.VIEWSHEET);
-      vs.update(engine, entry, user);
-      RuntimeViewsheet rvs = new RuntimeViewsheet(entry, vs, user, engine, this, null, false);
-      initializeTemporarySheetId(wentry, rvs, user);
-      return rvs;
-   }
-
-   /**
-    * Finish creating a temporary viewsheet.
-    * @param rvs the temporary runtime viewsheet to submit.
-    * @return the viewsheet id.
-    */
-   @Override
-   public String finalizeTemporaryViewsheet(RuntimeViewsheet rvs) {
-      rvs.setEditable(false);
-      return finalizeTemporarySheetId(rvs);
+      String nextId = originalId == null ? getNextID(entry, user) : getNextTemporaryID(originalId);
+      return OpenTemporaryViewsheetTask.openTemporaryViewsheet(this, wentry, entry, user, nextId);
    }
 
    /**
@@ -296,7 +255,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       boolean closeFirst = false;
 
       if(previewId == null) {
-         newRvsId = getNextID(PREVIEW_VIEWSHEET);
+         newRvsId = getNextPreviewID(id, PREVIEW_VIEWSHEET);
       }
       else {
          newRvsId = previewId;
@@ -345,31 +304,17 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       return true;
    }
 
-   /**
-    * Open an existing viewsheet.
-    * @param entry the specified asset entry.
-    * @param user the specified user.
-    * @param viewer <tt>true</tt> if is viewer, <tt>false</tt> otherwise.
-    * @return the viewsheet id.
-    */
    @Override
-   public String openViewsheet(AssetEntry entry, Principal user, boolean viewer)
+   public String openViewsheet(String originalId, AssetEntry entry, Principal user, boolean viewer)
       throws Exception
    {
       String id = null;
+      String nextId = originalId == null ? getNextID(entry, user) : getNextTemporaryID(originalId);
 
       try {
          // @by yuz, fix bug1246261678219, should use viewer any time
          entry.setProperty("viewer", "" + viewer);
-         OpenViewsheetTask task = new OpenViewsheetTask(entry, user, getNextID(entry, user));
-         Cluster cluster = Cluster.getInstance();
-
-         if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, task.id)) {
-            id = task.callInternal(this);
-         }
-         else {
-            id = Cluster.getInstance().affinityCall(CACHE_NAME, task.id, task);
-         }
+         id = OpenViewsheetTask.openViewsheet(this, entry, user, nextId);
       }
       finally {
          entry.setProperty("viewer",  null);
@@ -867,16 +812,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          return false;
       }
 
-      SwitchToHostOrgForGlobalShareAssetTask task =
-         new SwitchToHostOrgForGlobalShareAssetTask(principal, sheetRuntimeId);
-      Cluster cluster = Cluster.getInstance();
-
-      if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, sheetRuntimeId)) {
-         return task.callInternal(this);
-      }
-      else {
-         return cluster.affinityCall(CACHE_NAME, sheetRuntimeId, task);
-      }
+      return SwitchToHostOrgForGlobalShareAssetTask.switchTOHostOrg(this, principal, sheetRuntimeId);
    }
 
    private RuntimeViewsheet[] getRuntimeViewsheets(AssetEntry entry) {
@@ -917,10 +853,22 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       @Override
       public String call() throws Exception {
          ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
-         return callInternal(engine);
+         return doOpenViewsheet(engine, entry, user, id);
       }
 
-      private String callInternal(ViewsheetEngine engine) throws Exception {
+      public static String openViewsheet(ViewsheetEngine engine, AssetEntry entry, Principal user,
+                                         String id) throws Exception
+      {
+         if(engine.amap.isLocal(id)) {
+            return doOpenViewsheet(engine, entry, user, id);
+         }
+         else {
+            OpenViewsheetTask task = new OpenViewsheetTask(entry, user, id);
+            return engine.affinityCall(id, task);
+         }
+      }
+
+      private static String doOpenViewsheet(ViewsheetEngine engine, AssetEntry entry, Principal user, String id) throws Exception {
          String rid = engine.openSheet(entry, user, id);
 
          if(user != null) {
@@ -950,12 +898,26 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       @Override
-      public String call() throws Exception {
+      public String call() {
          ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
-         return callInternal(engine);
+         return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
       }
 
-      private String callInternal(ViewsheetEngine engine) {
+      public static String openTemporaryViewsheet(ViewsheetEngine engine, AssetEntry wentry,
+                                                  AssetEntry entry, Principal user, String id)
+      {
+         if(engine.amap.isLocal(id)) {
+            return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
+         }
+         else {
+            OpenTemporaryViewsheetTask task = new OpenTemporaryViewsheetTask(wentry, entry, user, id);
+            return engine.affinityCall(id, task);
+         }
+      }
+
+      private static String doOpenTemporaryViewsheet(ViewsheetEngine engine, AssetEntry wentry,
+                                                     AssetEntry entry, Principal user, String id)
+      {
          Viewsheet vs = new Viewsheet(wentry);
          vs.update(engine.engine, entry, user);
          RuntimeViewsheet rvs = new RuntimeViewsheet(entry, vs, user, engine.engine, engine,
@@ -980,10 +942,25 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       @Override
       public Boolean call() {
          ViewsheetEngine service = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
-         return callInternal(service);
+         return doSwitchToHostOrg(service, principal, runtimeId);
       }
 
-      private boolean callInternal(ViewsheetEngine service) {
+      public static boolean switchTOHostOrg(ViewsheetEngine service, Principal principal,
+                                            String runtimeId)
+      {
+         if(service.isLocal(runtimeId)) {
+            return doSwitchToHostOrg(service, principal, runtimeId);
+         }
+         else {
+            SwitchToHostOrgForGlobalShareAssetTask task =
+               new SwitchToHostOrgForGlobalShareAssetTask(principal, runtimeId);
+            return service.affinityCall(runtimeId, task);
+         }
+      }
+
+      private static boolean doSwitchToHostOrg(ViewsheetEngine service, Principal principal,
+                                               String runtimeId)
+      {
          try {
             RuntimeSheet runtimeSheet = service.getSheet(runtimeId, principal);
 
