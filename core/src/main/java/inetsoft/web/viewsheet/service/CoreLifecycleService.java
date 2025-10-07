@@ -2795,19 +2795,23 @@ public class CoreLifecycleService {
 
       ChangedAssemblyList clist = createList(true, event, dispatcher, null, uri);
 
-      rvs.getEntry().setProperty("bookmarkIndex", bookmarkIndex);
-      // optimization, this shouldn't be needed for new vs since the
-      // RuntimeViewsheet cstr calls updateVSBookmark through setEntry
-      rvs.updateVSBookmark();
-      // @by davyc, if full screen viewsheet, keep its variables
-      // fix bug1366833082660
-      VariableTable temp = rvs.getViewsheetSandbox().getVariableTable();
+      String fullScreenId = event.getFullScreenId();
 
-      if(temp != null) {
-         temp.addAll(variables);
+      if(fullScreenId != null && fullScreenId.length() > 0) {
+         rvs.getEntry().setProperty("bookmarkIndex", bookmarkIndex);
+         // optimization, this shouldn't be needed for new vs since the
+         // RuntimeViewsheet cstr calls updateVSBookmark through setEntry
+         rvs.updateVSBookmark();
+         // @by davyc, if full screen viewsheet, keep its variables
+         // fix bug1366833082660
+         VariableTable temp = rvs.getViewsheetSandbox().getVariableTable();
+
+         if(temp != null) {
+            temp.addAll(variables);
+         }
+
+         variables = temp;
       }
-
-      variables = temp;
 
       VSEventUtil.syncEmbeddedTableVSAssembly(rvs.getViewsheet());
       rvs.setEmbeddedID(eid);

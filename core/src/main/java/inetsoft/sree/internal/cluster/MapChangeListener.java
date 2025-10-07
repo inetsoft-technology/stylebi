@@ -30,8 +30,4 @@ public interface MapChangeListener<K, V>  {
    default void entryExpired(EntryEvent<K, V> event) {
       // no-op
    }
-
-   default void entryEvicted(EntryEvent<K, V> event) {
-      // no-op
-   }
 }

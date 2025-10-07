@@ -26,12 +26,12 @@ import inetsoft.util.config.*;
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.affinity.Affinity;
-import org.apache.ignite.cache.query.FieldsQueryCursor;
-import org.apache.ignite.cache.query.SqlFieldsQuery;
+import org.apache.ignite.cache.query.*;
 import org.apache.ignite.cluster.ClusterGroup;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.*;
 import org.apache.ignite.events.*;
+import org.apache.ignite.events.EventType;
 import org.apache.ignite.failure.StopNodeFailureHandler;
 import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.lang.*;
@@ -49,6 +49,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.cache.Cache;
+import javax.cache.configuration.Factory;
+import javax.cache.event.*;
 import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
 import java.net.UnknownHostException;
@@ -824,7 +826,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          getCacheConfiguration(name)));
    }
 
-
    public <K, V> IgniteMultiMap<K, V> getMultiMap(String name) {
       CacheConfiguration<K, Collection<V>> cacheConfiguration = getCacheConfiguration(name);
       return new IgniteMultiMap<>(ignite.getOrCreateCache(cacheConfiguration));
@@ -836,38 +837,37 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
-   public void addMapListener(String name, MapChangeListener<?, ?> l) {
-      UUID id = ignite.events()
-         .remoteListen(new MapListenerAdapter<>(l), new MapEventFilter(name),
-                       EventType.EVT_CACHE_OBJECT_PUT, EventType.EVT_CACHE_OBJECT_REMOVED);
-      mapListeners.put(l, id);
+   public <K, V> void addMapListener(String name, MapChangeListener<K, V> l) {
+      IgniteCache<K,V> cache = ignite.cache(name);
+
+      if(cache == null) {
+         getMap(name);
+         cache = ignite.cache(name);
+      }
+
+      addContinuousQuery(cache, l);
    }
 
    @Override
    public void removeMapListener(String name, MapChangeListener<?, ?> l) {
-      UUID id = mapListeners.remove(l);
-
-      if(id != null) {
-         ignite.events(ignite.cluster().forRemotes()).stopRemoteListen(id);
-      }
+      removeContinuousQuery(l);
    }
 
    @Override
    public <K, V> void addMultiMapListener(String name, MapChangeListener<K, Collection<V>> l) {
-      UUID id = ignite.events().remoteListen(new MapListenerAdapter<>(l),
-                                             new MapEventFilter(name),
-                                             EventType.EVT_CACHE_OBJECT_PUT,
-                                             EventType.EVT_CACHE_OBJECT_REMOVED);
-      multiMapListeners.put(l, id);
+      IgniteCache<K, Collection<V>> cache = ignite.cache(name);
+
+      if(cache == null) {
+         getMultiMap(name);
+         cache = ignite.cache(name);
+      }
+
+      addContinuousQuery(cache, l);
    }
 
    @Override
    public void removeMultiMapListener(String name, MapChangeListener<?, ?> l) {
-      UUID id = multiMapListeners.get(l);
-
-      if(id != null) {
-         ignite.events().stopRemoteListen(id);
-      }
+      removeContinuousQuery(l);
    }
 
    @Override
@@ -884,33 +884,19 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <K, V> void addReplicatedMapListener(String name, MapChangeListener<K, V> l) {
-      UUID id = ignite.events().remoteListen(new MapListenerAdapter<>(l),
-                                             new MapEventFilter(name),
-                                             EventType.EVT_CACHE_OBJECT_PUT,
-                                             EventType.EVT_CACHE_OBJECT_REMOVED);
-      replicatedMapListeners.put(l, id);
+      IgniteCache<K,V> cache = ignite.cache(name);
+
+      if(cache == null) {
+         getReplicatedMap(name);
+         cache = ignite.cache(name);
+      }
+
+      addContinuousQuery(cache, l);
    }
 
    @Override
    public void removeReplicatedMapListener(String name, MapChangeListener<?, ?> l) {
-      try {
-         UUID id = replicatedMapListeners.get(l);
-
-         if(id != null) {
-            ignite.events().stopRemoteListen(id);
-         }
-      }
-      catch(IgniteIllegalStateException ignore) {
-         // already shutting down cluster, can't remove listener
-      }
-      catch(IgniteException ex) {
-         if(isNodeStoppingException(ex)) {
-            // node already stoped, cannot remove listener.
-            return;
-         }
-
-         throw ex;
-      }
+      removeContinuousQuery(l);
    }
 
    @Override
@@ -1577,12 +1563,28 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
    }
 
+   private <K,V> void addContinuousQuery(IgniteCache<K,V> cache, MapChangeListener<K, V> l) {
+      if(cache != null) {
+         ContinuousQuery<K, V> qry = new ContinuousQuery<>();
+         qry.setLocalListener(new MapListenerAdapter<>(l));
+         qry.setRemoteFilterFactory(new MapEventFilterFactory<>());
+         QueryCursor<?> cursor = cache.query(qry);
+         mapListeners.put(l, cursor);
+      }
+   }
+
+   private <K,V> void removeContinuousQuery(MapChangeListener<K, V> l) {
+      QueryCursor<?> cursor = mapListeners.get(l);
+
+      if(cursor != null) {
+         cursor.close();
+      }
+   }
+
    private final Ignite ignite;
    private final Set<inetsoft.sree.internal.cluster.MessageListener> messageListeners = new CopyOnWriteArraySet<>();
    private final Set<inetsoft.sree.internal.cluster.MembershipListener> membershipListeners = new CopyOnWriteArraySet<>();
-   private final Map<MapChangeListener<?, ?>, UUID> mapListeners = new ConcurrentHashMap<>();
-   private final Map<MapChangeListener<?, ?>, UUID> multiMapListeners = new ConcurrentHashMap<>();
-   private final Map<MapChangeListener<?, ?>, UUID> replicatedMapListeners = new ConcurrentHashMap<>();
+   private final Map<MapChangeListener<?, ?>, QueryCursor<?>> mapListeners = new ConcurrentHashMap<>();
    private final Map<CacheRebalanceListener, UUID> rebalanceListeners = new ConcurrentHashMap<>();
    private final Set<ClusterLifecycleListener> lifecycleListeners =
       new CopyOnWriteArraySet<>();
@@ -1875,52 +1877,53 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
    }
 
-   private static final class MapListenerAdapter<K, V> implements IgniteBiPredicate<UUID, CacheEvent> {
+   private static final class MapListenerAdapter<K, V> implements CacheEntryUpdatedListener<K, V> {
       MapListenerAdapter(MapChangeListener<K, V> listener) {
          this.listener = listener;
       }
 
       @SuppressWarnings({ "rawtypes", "unchecked" })
       @Override
-      public boolean apply(UUID nodeId, CacheEvent event) {
-         EntryEvent entryEvent = new EntryEvent<>(event.cacheName(), event.key(), event.oldValue(),
-                                                  event.newValue());
+      public void onUpdated(Iterable<CacheEntryEvent<? extends K, ? extends V>> events)
+         throws CacheEntryListenerException
+      {
+         for(CacheEntryEvent<? extends K, ? extends V> event : events) {
+            EntryEvent entryEvent = new EntryEvent<>(event.getSource().getName(),
+                                                     event.getKey(), event.getOldValue(),
+                                                     event.getValue());
 
-         if(event.type() == EventType.EVT_CACHE_OBJECT_PUT) {
-            if(event.oldValue() == null) {
+            if(event.getEventType() == javax.cache.event.EventType.CREATED) {
                listener.entryAdded(entryEvent);
             }
-            else {
+            else if(event.getEventType() == javax.cache.event.EventType.UPDATED) {
                listener.entryUpdated(entryEvent);
             }
+            else if(event.getEventType() == javax.cache.event.EventType.REMOVED) {
+               listener.entryRemoved(entryEvent);
+            }
+            else if(event.getEventType() == javax.cache.event.EventType.EXPIRED) {
+               listener.entryExpired(entryEvent);
+            }
          }
-         else if(event.type() == EventType.EVT_CACHE_OBJECT_REMOVED) {
-            listener.entryRemoved(entryEvent);
-         }
-         else if(event.type() == EventType.EVT_CACHE_OBJECT_EXPIRED) {
-            listener.entryExpired(entryEvent);
-         }
-         else if(event.type() == EventType.EVT_CACHE_ENTRY_EVICTED) {
-            listener.entryEvicted(entryEvent);
-         }
-
-         return true;
       }
 
       private final MapChangeListener<K, V> listener;
    }
 
-   private static class MapEventFilter implements IgnitePredicate<CacheEvent> {
-      public MapEventFilter(String cacheName) {
-         this.cacheName = cacheName;
-      }
-
+   private static class MapEventFilterFactory<K, V> implements Factory<CacheEntryEventFilter<K, V>> {
       @Override
-      public boolean apply(CacheEvent event) {
-         return Objects.equals(event.cacheName(), cacheName);
+      public CacheEntryEventFilter<K, V> create() {
+         return new MapEventFilter<>();
       }
+   }
 
-      private final String cacheName;
+   private static class MapEventFilter<K, V> implements CacheEntryEventFilter<K, V> {
+      @Override
+      public boolean evaluate(CacheEntryEvent<? extends K, ? extends V> event)
+         throws CacheEntryListenerException
+      {
+         return true;
+      }
    }
 
    private static final class RebalanceListenerAdapter

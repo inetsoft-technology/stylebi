@@ -57,6 +57,7 @@ public class RuntimeSheetCache
       this.maxSheetCount = getMaxSheetCount();
       this.executor = Executors.newSingleThreadScheduledExecutor();
       this.mapper = createObjectMapper();
+      this.sheetCountMap = cluster.getReplicatedMap(LOCAL_SHEET_COUNT);
 
       this.executor.schedule(this::flushAll, 30L, TimeUnit.SECONDS);
    }
@@ -215,7 +216,9 @@ public class RuntimeSheetCache
             key, new Exception("Stack trace"));
       }
 
-      return local.put(key.key(), value);
+      RuntimeSheet result = local.put(key.key(), value);
+      updateLocalSheetCount();
+      return result;
    }
 
    private Future<RuntimeSheet> putCache(AffinityKey<String> key, RuntimeSheet value) {
@@ -251,6 +254,7 @@ public class RuntimeSheetCache
 
       try {
          RuntimeSheet sheet = local.remove(key);
+         updateLocalSheetCount();
 
          if(key instanceof String id) {
             AffinityKey<String> affinityKey = getAffinityKey(id);
@@ -282,6 +286,7 @@ public class RuntimeSheetCache
 
       try {
          local.putAll(m);
+         updateLocalSheetCount();
          cache.putAllAsync(states);
       }
       finally {
@@ -296,6 +301,7 @@ public class RuntimeSheetCache
       try {
          Set<AffinityKey<String>> ids = getLocalKeys();
          local.clear();
+         updateLocalSheetCount();
          cache.removeAllAsync(ids);
       }
       finally {
@@ -321,6 +327,7 @@ public class RuntimeSheetCache
    @Override
    public void close() throws IOException {
       executor.close();
+      sheetCountMap.remove(cluster.getLocalMember());
    }
 
    public boolean isApplyMaxCount() {
@@ -453,6 +460,10 @@ public class RuntimeSheetCache
       return new AffinityKey<>(id, id);
    }
 
+   private void updateLocalSheetCount() {
+      sheetCountMap.put(cluster.getLocalMember(), local.size());
+   }
+
    private final Cluster cluster;
    private final Map<String, RuntimeSheet> local;
    private final IgniteCache<AffinityKey<String>, RuntimeSheetState> cache;
@@ -463,8 +474,10 @@ public class RuntimeSheetCache
    private boolean applyMaxCount;
    private static final Pattern tempIdPattern = Pattern.compile(
       "^(" + WorksheetEngine.PREVIEW_WORKSHEET + "|" + ViewsheetEngine.PREVIEW_VIEWSHEET +
-         ")?(.+)-temp-\\d+$");
+      ")?(.+)-temp-\\d+$");
+   private final Map<String, Integer> sheetCountMap;
 
+   public static final String LOCAL_SHEET_COUNT = RuntimeSheet.class.getName() + ".localSheetCount";
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeSheetCache.class);
 
    private abstract class CacheIterator<T> implements Iterator<T> {

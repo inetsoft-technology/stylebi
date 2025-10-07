@@ -247,7 +247,7 @@ public class TestCluster implements Cluster {
    }
 
    @Override
-   public void addMapListener(String name, MapChangeListener<?, ?> l) {
+   public <K, V> void addMapListener(String name, MapChangeListener<K, V> l) {
       mapListeners.computeIfAbsent(name, k -> new ArrayList<>()).add(l);
    }
 
