@@ -25,8 +25,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.DependencyTransformer;
@@ -266,7 +265,7 @@ public class ChangeAssetController {
    }
 
    private void changeTableStyle(AssetEntry parent, AssetEntry entry, Principal principal) throws Exception {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManager.getManager(principal);
       XTableStyle tableStyle = manager.getTableStyle(entry.getName());
       String folder = parent.getProperty("folder");
 
@@ -304,7 +303,7 @@ public class ChangeAssetController {
    }
 
    private void changeTableStyleFolder(AssetEntry parent, AssetEntry entry, Principal principal) {
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManager.getManager(principal);
       String pfolder = parent.getProperty("folder");
       String folder = entry.getProperty("folder");
 

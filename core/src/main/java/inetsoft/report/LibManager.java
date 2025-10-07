@@ -17,12 +17,12 @@
  */
 package inetsoft.report;
 
-import inetsoft.report.ActionEvent;
 import inetsoft.report.lib.ScriptEntry;
 import inetsoft.report.lib.logical.*;
 import inetsoft.report.lib.physical.*;
-import inetsoft.report.PropertyChangeEvent;
 import inetsoft.report.style.XTableStyle;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
 import inetsoft.uql.asset.sync.RenameInfo;
@@ -34,8 +34,8 @@ import org.slf4j.LoggerFactory;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeListener;
 import java.io.*;
+import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -97,27 +97,24 @@ public class LibManager implements AutoCloseable {
    public static final String COMMENT_SUFFIX = ".comment";
 
    /**
-    * Constructor.
-    */
-   protected LibManager(LibrarySecurity librarySecurity) {
+ * Constructor.
+ */
+   protected LibManager(LibrarySecurity librarySecurity, String orgID) {
+      this.cluster = Cluster.getInstance();
+      cluster.addMessageListener(this.clusterMessageListener);
       final LogicalLibraryFactory factory = new LogicalLibraryFactory(librarySecurity);
       scripts = factory.createScriptLogicalLibrary();
       styles = factory.createTableStyleLogicalLibrary();
       styleFolders = factory.createTableStyleFolderLogicalLibrary();
-      this.storages = new ConcurrentHashMap<>();
       this.debouncer = new DefaultDebouncer<>();
+      this.orgID = orgID;
       getStorage();
+      init();
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = getStorageId(OrganizationManager.getInstance().getCurrentOrgID());
-
-      if(storages.containsKey(storeID) && !storages.get(storeID).isClosed()) {
-         return storages.get(storeID);
-      }
-      else {
-         BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
-         storages.put(storeID, storage);
+      if(storage == null || storage.isClosed()) {
+         storage = SingletonManager.getInstance(BlobStorage.class, orgID, false);
 
          try {
             storage.addListener(changeListener);
@@ -126,9 +123,9 @@ public class LibManager implements AutoCloseable {
          catch(Exception e) {
             LOG.error("Failed to initialize library", e);
          }
-
-         return storage;
       }
+
+      return storage;
    }
 
    private String getStorageId(String orgId) {
@@ -140,8 +137,16 @@ public class LibManager implements AutoCloseable {
     *
     * @return the library manager.
     */
+   public static LibManager getManager(Principal principal) {
+      return getManager(OrganizationManager.getInstance().getCurrentOrgID(principal));
+   }
+
    public static LibManager getManager() {
-      return SingletonManager.getInstance(LibManager.class);
+      return getManager(OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   public static LibManager getManager(String orgID) {
+      return SingletonManager.getInstance(LibManager.class, orgID);
    }
 
    /**
@@ -149,7 +154,9 @@ public class LibManager implements AutoCloseable {
     */
    public static void restart() {
       clear();
-      getManager();
+      for(String orgID : SecurityEngine.getSecurity().getOrganizations()) {
+         getManager(orgID);
+      }
    }
 
    /**
@@ -162,20 +169,17 @@ public class LibManager implements AutoCloseable {
    /**
     * Initialize this library manager.
     *
-    * @param orgID reload lib org id.
     */
-   protected synchronized void init(String orgID) {
+   protected synchronized void init() {
       try {
-         if(orgID == null) {
-            orgID = OrganizationManager.getInstance().getCurrentOrgID();
-         }
-
          final String storageId = getStorageId(orgID);
          OrganizationManager.runInOrgScope(orgID, () -> {
-            BlobStorage<Metadata> orgStorage = storages.get(storageId);
-
-            if(orgStorage != null) {
-               loadLibrary(storages.get(storageId));
+            if(storage != null) {
+               loadLibrary(storage);
+            }
+            else {
+               storage = SingletonManager.getInstance(BlobStorage.class, storageId, false);
+               loadLibrary(storage);
             }
 
             return null;
@@ -221,9 +225,7 @@ public class LibManager implements AutoCloseable {
     */
    protected synchronized void tearDown() {
       try {
-         for(BlobStorage<Metadata> storage : storages.values()) {
-            storage.close();
-         }
+         storage.close();
       }
       catch(Exception e) {
          LOG.warn("Failed to close blob storage", e);
@@ -376,6 +378,8 @@ public class LibManager implements AutoCloseable {
    public void setScript(String name, ScriptEntry script) {
       final int id = scripts.put(name, script);
       fireActionEvent(name, id);
+      fireEvent(System.currentTimeMillis());
+      sendClusterMessage(name);
    }
 
    /**
@@ -390,6 +394,8 @@ public class LibManager implements AutoCloseable {
          RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
          fireActionEvent(newName, SCRIPT_MODIFIED);
          fireActionEvent(oldName, SCRIPT_REMOVED);
+         fireEvent(System.currentTimeMillis());
+         sendClusterMessage(newName);
       }
    }
 
@@ -400,6 +406,8 @@ public class LibManager implements AutoCloseable {
    public void removeScript(String name) {
       scripts.remove(name);
       fireActionEvent(name, SCRIPT_REMOVED);
+      fireEvent(System.currentTimeMillis());
+      sendClusterMessage(name);
    }
 
    /**
@@ -604,7 +612,6 @@ public class LibManager implements AutoCloseable {
       scripts.clear(orgId);
       styleFolders.clear(orgId);
       styles.clear(orgId);
-      storages.remove(getStorageId(orgId));
    }
 
    /**
@@ -732,7 +739,7 @@ public class LibManager implements AutoCloseable {
       if(ots != 0 && ts != 0 && ots != ts) {
          for(PropertyChangeListener listener : refreshedListeners) {
             listener.propertyChange(new PropertyChangeEvent(
-               LibManager.this, "LibManager", null, null));
+               LibManager.this, "LibManager", null, null, orgID));
          }
       }
    }
@@ -761,7 +768,7 @@ public class LibManager implements AutoCloseable {
                   String orgID = storageName.substring(0, storageName.length() - "__library".length());
 
                   if(!Tool.isEmptyString(orgID)) {
-                     init(orgID);
+                     init();
                      fireActionEvent("", SCRIPT_RELOADED);
                      LibManager.this.fireEvent(timestamp);
                   }
@@ -846,22 +853,65 @@ public class LibManager implements AutoCloseable {
    }
 
    public void changeOrgID(String oldId, String newId) {
-      storages.remove(getStorageId(oldId));
+      clear(oldId);
    }
 
    private List<LogicalLibrary<?>> getLogicalLibraries() {
       return Arrays.asList(scripts, styles, styleFolders);
    }
 
+   private void reloadLibrary() {
+      String storeID = getStorageId(orgID);
+      BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
+
+      try {
+         loadLibrary(storage);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to load library file", e);
+      }
+   }
+
+   private void sendClusterMessage(String id) {
+      try {
+         cluster.sendMessage(new PropertyChangeEvent(
+            LibManager.this, "LibManager", null, id, orgID));
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to send LibManager cluster message", e);
+      }
+   }
+
+   private final MessageListener clusterMessageListener = (event) -> {
+      if(event.getMessage() instanceof PropertyChangeEvent) {
+         PropertyChangeEvent change = (PropertyChangeEvent) event.getMessage();
+         String orgID = change.getOrgID();
+
+         if(change.getPropertyName().equals("LibManager") && Tool.equals(orgID, this.orgID)) {
+            fireEvent(System.currentTimeMillis());
+            fireActionEvent((String)change.getNewValue(), SCRIPT_MODIFIED);
+            reloadLibrary();
+         }
+
+      }
+   };
+
    public static final class Reference extends SingletonManager.Reference<LibManager> {
       @Override
       public LibManager get(Object ... parameters) {
          lock.lock();
 
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(parameters != null && parameters.length > 0) {
+            orgID = (String) parameters[0];
+         }
+
+         LibManager manager = orgManagers.get(orgID);
          try {
             if(manager == null) {
-               manager = new LibManager(new NoopLibrarySecurity());
-               manager.init(null);
+               manager = new LibManager(new NoopLibrarySecurity(), orgID);
+               orgManagers.put(orgID, manager);
             }
             else {
                // Init storage for org if it isn't initialized yet
@@ -880,9 +930,10 @@ public class LibManager implements AutoCloseable {
          lock.lock();
 
          try {
-            if(manager != null) {
-               manager.tearDown();
-               manager = null;
+            if(!orgManagers.isEmpty()) {
+               for(LibManager manager : orgManagers.values()) {
+                  manager.tearDown();
+               }
             }
          }
          finally {
@@ -891,16 +942,17 @@ public class LibManager implements AutoCloseable {
       }
 
       private final Lock lock = new ReentrantLock();
-      private LibManager manager;
+      private Map<String, LibManager> orgManagers = new HashMap<>();
    }
 
    // current library version
    private static final String CURR_VERSION = "version11.3";
 
-   protected volatile long ts; // last modified timestamp
+   protected volatile long ts = 1; // last modified timestamp
 
    private boolean initializing = false;
 
+   private String orgID;
    private final ScriptLogicalLibrary scripts;
    private final TableStyleLogicalLibrary styles;
    private final TableStyleFolderLogicalLibrary styleFolders;
@@ -908,8 +960,9 @@ public class LibManager implements AutoCloseable {
    private final List<ActionListener> listeners = Collections.synchronizedList(new ArrayList<>());
    private final List<PropertyChangeListener> refreshedListeners = new ArrayList<>();
    private volatile boolean closed = false;
+   private final Cluster cluster;
 
-   private final ConcurrentHashMap<String, BlobStorage<Metadata>> storages;
+   private BlobStorage<Metadata> storage = null;
    private final Debouncer<String> debouncer;
 
    private static final Logger LOG = LoggerFactory.getLogger(LibManager.class);
