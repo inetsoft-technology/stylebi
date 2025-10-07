@@ -860,7 +860,7 @@ public class LibManager implements AutoCloseable {
       return Arrays.asList(scripts, styles, styleFolders);
    }
 
-   private void reloadLibrary(String orgID) {
+   private void reloadLibrary() {
       String storeID = getStorageId(orgID);
       BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
 
@@ -887,13 +887,10 @@ public class LibManager implements AutoCloseable {
          PropertyChangeEvent change = (PropertyChangeEvent) event.getMessage();
          String orgID = change.getOrgID();
 
-         if(change.getPropertyName().equals("LibManager")) {
+         if(change.getPropertyName().equals("LibManager") && Tool.equals(orgID, this.orgID)) {
             fireEvent(System.currentTimeMillis());
             fireActionEvent((String)change.getNewValue(), SCRIPT_MODIFIED);
-
-            if(orgID != null) {
-               reloadLibrary(orgID);
-            }
+            reloadLibrary();
          }
 
       }
@@ -955,7 +952,7 @@ public class LibManager implements AutoCloseable {
 
    private boolean initializing = false;
 
-   private final String orgID;
+   private String orgID;
    private final ScriptLogicalLibrary scripts;
    private final TableStyleLogicalLibrary styles;
    private final TableStyleFolderLogicalLibrary styleFolders;
