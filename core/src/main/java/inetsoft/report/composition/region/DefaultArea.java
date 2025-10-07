@@ -177,6 +177,10 @@ public class DefaultArea extends AbstractArea {
       return vtext;
    }
 
+   public void setVisualizable(Visualizable vobj) {
+      this.vobj = vobj;
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(DefaultArea.class);
 
    protected IndexedSet<String> palette;
