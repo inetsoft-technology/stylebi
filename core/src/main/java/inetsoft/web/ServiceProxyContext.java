@@ -20,6 +20,7 @@ package inetsoft.web;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.mv.MVSession;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.util.*;
@@ -32,6 +33,9 @@ import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRefServiceProxy;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
+import inetsoft.web.vswizard.RecommendSequentialContext;
+import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
+import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.LoggerFactory;
@@ -59,6 +63,10 @@ public class ServiceProxyContext {
    public static ThreadLocal<Boolean> eventUndoableThreadLocal = new ThreadLocal<>();
    private final String eventVsId;
    private final Boolean eventUndoable;
+   private String recommendedId;
+   private Date recommendedStartTime;
+   public static ThreadLocal<String> recommendedIdThreadLocal = new ThreadLocal<>();
+   public static ThreadLocal<Date> recommendedStartTimeThreadLocal = new ThreadLocal<>();
 
    public ServiceProxyContext() {
       this.contextPrincipal = ThreadContext.getPrincipal();
@@ -66,6 +74,8 @@ public class ServiceProxyContext {
       this.threadContextRecords = new HashSet<>();
       this.eventVsId = eventVsIdThreadLocal.get();
       this.eventUndoable = eventUndoableThreadLocal.get();
+      this.recommendedId = recommendedIdThreadLocal.get();
+      this.recommendedStartTime = recommendedStartTimeThreadLocal.get();
 
       if(Thread.currentThread() instanceof GroupedThread gt) {
          for(Object record : gt.getRecords()) {
@@ -209,6 +219,40 @@ public class ServiceProxyContext {
          }
          catch(Exception e) {
             throw new RuntimeException("Failed to set current worksheet", e);
+         }
+      }
+
+      if(recommendedId != null && recommendedStartTime != null) {
+         try {
+            ViewsheetService viewsheetService = ConfigurationContext.getContext()
+               .getSpringBean(ViewsheetService.class);
+            RuntimeViewsheet rvs = viewsheetService.getViewsheet(recommendedId, contextPrincipal);
+
+            if(rvs != null) {
+               VSWizardTemporaryInfoService temporaryInfoService =
+                  ConfigurationContext.getContext().getSpringBean(VSWizardTemporaryInfoService.class);
+               VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
+
+               if(temporaryInfo != null) {
+                  Date oldTime = temporaryInfo.getRecommendLatestTime();
+
+                  if(oldTime != null) {
+                     temporaryInfo.setRecommendLatestTime(recommendedStartTime.after(oldTime) ?
+                                                          recommendedStartTime : oldTime);
+                  }
+                  else {
+                     temporaryInfo.setRecommendLatestTime(recommendedStartTime);
+                  }
+               }
+
+               RecommendSequentialContext.setStartTime(recommendedStartTime);
+            }
+         }
+         catch(RuntimeException e) {
+            throw e;
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to set recommender context", e);
          }
       }
    }

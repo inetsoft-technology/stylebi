@@ -29,7 +29,6 @@ import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
-import java.util.concurrent.Callable;
 
 /**
  * Viewsheet service, includes a viewsheet repository to be the server
@@ -48,31 +47,26 @@ public interface ViewsheetService extends WorksheetService {
 
    /**
     * Open a temporary viewsheet.
+    *
     * @param entry the specified base viewsheet entry.
-    * @param user the specified user.
-    * @param rid the specified report id.
+    * @param user  the specified user.
+    *
     * @return the viewsheet id.
     */
-   String openTemporaryViewsheet(AssetEntry entry, Principal user, String rid)
-      throws Exception;
+   default String openTemporaryViewsheet(AssetEntry entry, Principal user) throws Exception {
+      return openTemporaryViewsheet(null, entry, user);
+   }
 
    /**
-    * Begin creating a temporary viewsheet.
-    * It is not submitted to the runtime sheet cache until finalize is called.
+    * Open a temporary viewsheet.
+    *
+    * @param originalId the ID of the original runtime sheet.
     * @param entry the specified base viewsheet entry.
-    * @param user the specified user.
-    * @param rid the specified report id.
-    * @return the new temporary runtime viewsheet.
-    */
-   RuntimeViewsheet initializeTemporaryViewsheet(AssetEntry entry, Principal user, String rid)
-      throws Exception;
-
-   /**
-    * Finish creating a temporary viewsheet.
-    * @param rvs the temporary runtime viewsheet to submit.
+    * @param user  the specified user.
+    *
     * @return the viewsheet id.
     */
-   String finalizeTemporaryViewsheet(RuntimeViewsheet rvs) throws Exception;
+   String openTemporaryViewsheet(String originalId, AssetEntry entry, Principal user) throws Exception;
 
    /**
     * Open a preview viewsheet.
@@ -111,7 +105,19 @@ public interface ViewsheetService extends WorksheetService {
     * @param viewer <tt>true</tt> if is viewer, <tt>false</tt> otherwise.
     * @return the viewsheet id.
     */
-   String openViewsheet(AssetEntry entry, Principal user, boolean viewer)
+   default String openViewsheet(AssetEntry entry, Principal user, boolean viewer) throws Exception {
+      return openViewsheet(null, entry, user, viewer);
+   }
+
+   /**
+    * Open an existing viewsheet.
+    * @param originalId the runtime ID of the original runtime sheet.
+    * @param entry the specified asset entry.
+    * @param user the specified user.
+    * @param viewer <tt>true</tt> if is viewer, <tt>false</tt> otherwise.
+    * @return the viewsheet id.
+    */
+   String openViewsheet(String originalId, AssetEntry entry, Principal user, boolean viewer)
       throws Exception;
 
    /**

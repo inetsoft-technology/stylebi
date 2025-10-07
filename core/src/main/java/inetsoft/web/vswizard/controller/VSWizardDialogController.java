@@ -50,7 +50,7 @@ public class VSWizardDialogController {
                                   Principal principal)
       throws Exception
    {
-      String runtimeId = viewsheetService.openTemporaryViewsheet(event.getEntry(), principal, null);
+      String runtimeId = viewsheetService.openTemporaryViewsheet(event.getEntry(), principal);
       vsWizardDialogServiceProxy.createRuntimeSheet(runtimeId, linkUri, dispatcher, principal);
 
       if(runtimeViewsheetManager != null) {

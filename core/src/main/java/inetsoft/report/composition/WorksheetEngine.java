@@ -32,6 +32,7 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.ignite.cache.affinity.AffinityKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -180,21 +181,10 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     */
    @Override
    public String openTemporaryWorksheet(Principal user, AssetEntry aentry) {
-      String id;
       AssetEntry entry = aentry != null ? aentry :
          getTemporaryAssetEntry(user, AssetEntry.Type.WORKSHEET);
-      OpenTemporaryWorksheetTask task =
-         new OpenTemporaryWorksheetTask(entry, user, getNextID(entry, user));
-      Cluster cluster = Cluster.getInstance();
-
-      if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, task.id)) {
-         id = task.callInternal(this);
-      }
-      else {
-         id = cluster.affinityCall(CACHE_NAME, task.id, task);
-      }
-
-      return id;
+      return OpenTemporaryWorksheetTask.openTemporaryWorksheet(
+         this, entry, user, getNextID(entry, user));
    }
 
    protected void setTemporarySheetId(String id, RuntimeSheet sheet) {
@@ -206,22 +196,6 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       catch(Exception e) {
          LOG.error("Failed to create the temporary sheet:{}", id);
       }
-   }
-
-   protected String initializeTemporarySheetId(AssetEntry entry, RuntimeSheet sheet,
-                                           Principal user)
-   {
-      String id = getNextID(entry, user);
-      sheet.setID(id);
-      amap.put(id, sheet);
-      return id;
-   }
-
-   protected String finalizeTemporarySheetId(RuntimeSheet sheet)
-   {
-      String id = sheet.getID();
-      amap.put(sheet.getID(), sheet);
-      return id;
    }
 
    /**
@@ -243,7 +217,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       AssetEntry entry = orws.getEntry();
       Worksheet ws = orws.getWorksheet();
 
-      String previewID = openPreviewWorksheet(ws, entry, name, user);
+      String previewID = openPreviewWorksheet(id, ws, entry, name, user);
 
       if(singlePreviewEnabled) {
          RuntimeWorksheet previewWS = getWorksheet(previewID, user);
@@ -261,7 +235,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    /**
     * Create a preview worksheet.
     */
-   protected String openPreviewWorksheet(Worksheet ws, AssetEntry oentry,
+   protected String openPreviewWorksheet(String originalId, Worksheet ws, AssetEntry oentry,
                                          String name, Principal user) {
       ws = (Worksheet) ws.clone();
       Assembly[] assemblies = ws.getAssemblies();
@@ -309,7 +283,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       RuntimeWorksheet rws = new RuntimeWorksheet(entry, ws, user, true);
       rws.setEditable(false);
 
-      String id = getNextID(PREVIEW_WORKSHEET);
+      String id = getNextPreviewID(originalId, PREVIEW_WORKSHEET);
       rws.setID(id);
       amap.put(id, rws);
       return id;
@@ -343,18 +317,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    public String openWorksheet(AssetEntry entry, Principal user)
       throws Exception
    {
-      String id = null;
-      OpenWorksheetTask task = new OpenWorksheetTask(entry, user, getNextID(entry, user));
-      Cluster cluster = Cluster.getInstance();
-
-      if(cluster.isLocalCall() || cluster.isLocalCacheKey(CACHE_NAME, task.id)) {
-         id = task.callInternal(this);
-      }
-      else {
-         id = Cluster.getInstance().affinityCall(CACHE_NAME, id, task);
-      }
-
-      return id;
+      return OpenWorksheetTask.openWorksheet(this, entry, user, getNextID(entry, user));
    }
 
    /**
@@ -548,6 +511,10 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * @return the runtime sheet if any.
     */
    public final RuntimeSheet getSheet(String id, Principal user, boolean touch) {
+      if(!isLocal(id)) {
+         LOG.error("Getting sheet from non-owner: {}", id, new Exception("Stack trace"));
+      }
+
       RuntimeSheet rs = amap.get(id);
       Catalog catalog = Catalog.getCatalog();
 
@@ -791,6 +758,16 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    protected String getNextID(String path) {
       nextId.compareAndSet(Long.MAX_VALUE, 0L);
       return path + "-" + nextId.getAndIncrement();
+   }
+
+   protected String getNextTemporaryID(String originalID) {
+      nextId.compareAndSet(Long.MAX_VALUE, 0L);
+      return originalID + "-temp-"  + nextId.getAndIncrement();
+   }
+
+   protected String getNextPreviewID(String originalID, String prefix) {
+      nextId.compareAndSet(Long.MAX_VALUE, 0L);
+      return prefix + originalID + "-temp-" +  nextId.getAndIncrement();
    }
 
    /**
@@ -1195,6 +1172,31 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       return false;
    }
 
+   @Override
+   public boolean isLocal(String id) {
+      return amap.isLocal(id);
+   }
+
+   @Override
+   public <T> T affinityCall(String rid, AffinityCallable<T> job) {
+      AffinityKey<String> key = amap.getAffinityKey(rid);
+
+      if(amap.isLocal(key)) {
+         try {
+            return job.call();
+         }
+         catch(RuntimeException re) {
+            throw re;
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
+      }
+      else {
+         return Cluster.getInstance().affinityCall(CACHE_NAME, key, job);
+      }
+   }
+
    /**
     * Exception key.
     */
@@ -1259,11 +1261,19 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       @Override
       public String call() throws Exception {
          WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
-         return callInternal(engine);
+         return engine.openSheet(entry, user, id);
       }
 
-      private String callInternal(WorksheetEngine engine) throws Exception {
-         return engine.openSheet(entry, user, id);
+      public static String openWorksheet(WorksheetEngine engine, AssetEntry entry, Principal user,
+                                         String id) throws Exception
+      {
+         if(engine.isLocal(id)) {
+            return engine.openSheet(entry, user, id);
+         }
+         else {
+            OpenWorksheetTask task = new OpenWorksheetTask(entry, user, id);
+            return engine.affinityCall(id, task);
+         }
       }
 
       private final AssetEntry entry;
@@ -1281,10 +1291,24 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       @Override
       public String call() {
          WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
-         return callInternal(engine);
+         return doOpenTemporaryWorksheet(engine, entry, user, id);
       }
 
-      private String callInternal(WorksheetEngine engine) {
+      public static String openTemporaryWorksheet(WorksheetEngine engine, AssetEntry entry,
+                                                  Principal user, String id)
+      {
+         if(engine.isLocal(id)) {
+            return doOpenTemporaryWorksheet(engine, entry, user, id);
+         }
+         else {
+            OpenTemporaryWorksheetTask task = new OpenTemporaryWorksheetTask(entry, user, id);
+            return engine.affinityCall(id, task);
+         }
+      }
+
+      private static String doOpenTemporaryWorksheet(WorksheetEngine engine, AssetEntry entry,
+                                                     Principal user, String id)
+      {
          Worksheet ws = new Worksheet();
          RuntimeWorksheet rws = new RuntimeWorksheet(entry, ws, user, true);
          rws.setEditable(false);

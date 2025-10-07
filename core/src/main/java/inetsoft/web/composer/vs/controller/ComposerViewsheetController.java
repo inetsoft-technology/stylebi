@@ -69,7 +69,7 @@ public class ComposerViewsheetController {
                             CommandDispatcher commandDispatcher, @LinkUri String linkUri)
       throws Exception
    {
-      String runtimeId = viewsheetService.openTemporaryViewsheet(event.getDataSource(), principal, null);
+      String runtimeId = viewsheetService.openTemporaryViewsheet(event.getDataSource(), principal);
       runtimeViewsheetRef.setRuntimeId(runtimeId);
 
       composerViewsheetService.newViewsheet(runtimeId, event, principal, commandDispatcher, linkUri);

@@ -1727,10 +1727,10 @@ public class VSBindingService {
 
          if(id == null) {
             if(!temporarySheet) {
-               id = engine.openViewsheet(entry, principal, viewer);
+               id = engine.openViewsheet(vsId, entry, principal, viewer);
             }
             else {
-               id = engine.openTemporaryViewsheet(entry, principal, null);
+               id = engine.openTemporaryViewsheet(vsId, entry, principal);
             }
          }
 

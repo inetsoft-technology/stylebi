@@ -20,7 +20,6 @@ package inetsoft.cluster.apt;
 
 import com.github.mustachejava.util.DecoratedCollection;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,6 +31,7 @@ public final class ProxyMethod {
       this.callableClassName = callableClassName;
       this.returnType = returnType;
       this.cacheName = cacheName;
+      this.worksheetCache = "inetsoft.report.composition.WorksheetEngine.cache".equals(cacheName);
       this.keyParam = keyParam;
       this.parameters = new DecoratedCollection<>(parameters);
       this.exceptions = new DecoratedCollection<>(exceptions);
@@ -51,6 +51,10 @@ public final class ProxyMethod {
 
    public String getCacheName() {
       return cacheName;
+   }
+
+   public boolean isWorksheetCache() {
+      return worksheetCache;
    }
 
    public String getKeyParam() {
@@ -101,6 +105,7 @@ public final class ProxyMethod {
    private final String callableClassName;
    private final String returnType;
    private final String cacheName;
+   private final boolean worksheetCache;
    private final String keyParam;
    private final DecoratedCollection<ProxyParameter> parameters;
    private final DecoratedCollection<String> exceptions;
