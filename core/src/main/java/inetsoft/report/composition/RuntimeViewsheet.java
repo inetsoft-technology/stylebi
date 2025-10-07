@@ -190,8 +190,11 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
          for(Map.Entry<String, String> e : state.getBookmarksMap().entrySet()) {
             VSBookmark bk = loadXml(new VSBookmark(), e.getValue());
-            bk.setUser(IdentityID.getIdentityIDFromKey(e.getKey()));
-            bookmarksMap.put(e.getKey(), bk);
+
+            if(bk != null) {
+               bk.setUser(IdentityID.getIdentityIDFromKey(e.getKey()));
+               bookmarksMap.put(e.getKey(), bk);
+            }
          }
       }
 
