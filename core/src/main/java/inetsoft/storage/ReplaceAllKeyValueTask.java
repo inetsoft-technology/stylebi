@@ -46,18 +46,32 @@ public class ReplaceAllKeyValueTask<T extends Serializable>
    @Override
    public void run() {
       try {
-         Set<String> keys = getEngine().stream(getId())
+         // first deserialize before removing anything
+         Map<String, T> values = deserializeValue(data);
+
+         // get keys that aren't present in the new set of keys
+         Set<String> keysToRemove = getEngine().stream(getId())
             .map(KeyValuePair::getKey)
+            .filter(key -> !values.containsKey(key))
             .collect(Collectors.toSet());
 
-         getEngine().removeAll(getId(), keys);
-
-         SortedMap<String, T> values = deserializeValue(data);
-
+         // insert new keys
          getEngine().putAll(getId(), values);
 
+         // remove old keys not present in new keys
+         getEngine().removeAll(getId(), keysToRemove);
+
          Map<String, T> map = getMap();
-         map.clear();
+
+         if(!keysToRemove.isEmpty()) {
+            if(keysToRemove.size() == 1) {
+               map.remove(keysToRemove.iterator().next());
+            }
+            else {
+               map.clear();
+            }
+         }
+
          map.putAll(values);
       }
       catch(Exception e) {
