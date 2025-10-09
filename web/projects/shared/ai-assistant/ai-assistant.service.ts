@@ -148,9 +148,7 @@ export class AiAssistantService {
       this.setContextField("bindingContext", JSON.stringify(bindingFields));
    }
 
-   setCalcTableRetrievalScriptContext(layout: CalcTableLayout,
-                                      cellRowCol: { rowNumber: number, colNumber: number}): void
-   {
+   setCalcTableRetrievalScriptContext(layout: CalcTableLayout): void {
       if(!layout?.tableRows?.length || !this.calcTableCellBindings) {
          this.removeContextField("groupCells");
          this.removeContextField("aggregateCells");
@@ -158,7 +156,7 @@ export class AiAssistantService {
       }
 
       const retrievalScriptContext =
-         getCalcTableRetrievalScriptContext(layout, this.calcTableCellBindings, cellRowCol);
+         getCalcTableRetrievalScriptContext(layout, this.calcTableCellBindings);
 
       if(retrievalScriptContext) {
          this.setContextField("groupCells", retrievalScriptContext.groupCells);
@@ -170,15 +168,13 @@ export class AiAssistantService {
       }
    }
 
-   setCalcTableScriptContext(layout: CalcTableLayout,
-                             cellRowCol: { rowNumber: number, colNumber: number}): void
-   {
+   setCalcTableScriptContext(layout: CalcTableLayout): void {
       if(!layout?.tableRows?.length) {
          return;
       }
 
       const scriptContext = getCalcTableScriptContext(
-         layout, this.calcTableCellBindings, this.calcTableAggregates, cellRowCol);
+         layout, this.calcTableCellBindings, this.calcTableAggregates);
 
       if(scriptContext) {
          this.setContextField("scriptContext", scriptContext);

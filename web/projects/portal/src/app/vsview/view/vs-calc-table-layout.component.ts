@@ -37,7 +37,6 @@ import { GetCellScriptCommand } from "../../binding/command/get-cell-script-comm
 import { GetPredefinedNamedGroupCommand } from "../../binding/command/get-predefined-named-group-command";
 import { GetTableLayoutCommand } from "../../binding/command/get-table-layout-command";
 import { CellBindingInfo } from "../../binding/data/table/cell-binding-info";
-import { getLastFormulaCellRowCol } from "../../binding/services/assistant/calc-table-context-helper";
 import { VSCalcTableEditorService } from "../../binding/services/table/vs-calc-table-editor.service";
 import { Rectangle } from "../../common/data/rectangle";
 import { TableDataPath } from "../../common/data/table-data-path";
@@ -186,10 +185,8 @@ export class CalcTableLayoutPane extends CommandProcessor implements AfterViewCh
 
          this.selectCell(this.selectedCells);
 
-         const cellRowCol =
-            getLastFormulaCellRowCol(this.aiAssistantService.calcTableCellBindings, this.selectedCells);
-         this.aiAssistantService.setCalcTableScriptContext(this.tableModel, cellRowCol);
-         this.aiAssistantService.setCalcTableRetrievalScriptContext(this.tableModel, cellRowCol);
+         this.aiAssistantService.setCalcTableScriptContext(this.tableModel);
+         this.aiAssistantService.setCalcTableRetrievalScriptContext(this.tableModel);
       }, time);
    }
 
