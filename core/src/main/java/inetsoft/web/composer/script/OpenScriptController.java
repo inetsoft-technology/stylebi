@@ -54,7 +54,7 @@ public class OpenScriptController {
 
       try {
          LibManager lib = LibManager.getManager(principal);
-         String function = lib.getScript(name);
+         String function = lib.getScript(name) == null ? "" : lib.getScript(name);
          String comment = scriptModel.getComment();
          boolean change = false;
          Catalog catalog = Catalog.getCatalog();
