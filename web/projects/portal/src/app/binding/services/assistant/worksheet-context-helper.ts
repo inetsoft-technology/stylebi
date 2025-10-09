@@ -93,7 +93,7 @@ export function fixAggregateInfo(tableInfo: WSTableInfo, aggregateInfo: Aggregat
       for(let group of aggregateInfo.groups) {
          let groupRef: WSGroupRef = {
             column_name: group.name,
-            column_type: group.dataType,
+            data_type: group.dataType,
             base_column: group.ref.name,
             group_level: getGroupOptionLabel(group.dgroup)
          }
@@ -108,8 +108,8 @@ export function fixAggregateInfo(tableInfo: WSTableInfo, aggregateInfo: Aggregat
       for(let agg of aggregateInfo.aggregates) {
          let aggRef: WSAggregateRef = {
             column_name: agg.name,
-            column_type: agg.dataType,
-            base_column: agg.ref.name,
+            data_type: agg.dataType,
+            base_columns: agg.ref2 == null ? [agg.ref.name] : [agg.ref.name, agg.ref2.name],
             formula: agg.formulaName
          }
 
@@ -125,7 +125,7 @@ export function convertColumnInfo(col: ColumnInfo): WSColumnInfo {
 
    let colInfo: WSColumnInfo = {
       column_name: col.name,
-      column_type: col.ref == null ? "" : col.ref.dataType,
+      data_type: col.ref == null ? "" : col.ref.dataType,
       group: col.group,
       aggregate: col.aggregate,
       sortType: getOrderDirection(col.sortType),

@@ -154,7 +154,7 @@ export class ReportTabComponent extends CommandProcessor implements OnInit, OnDe
 
       this.currentRouteService = currentRouteService;
       this.viewsheetClient.connect();
-      this.aiAssistantService.setContextTypeFiledValue(ContextType.VIEWSHEET);
+      this.aiAssistantService.setContextTypeFieldValue(ContextType.VIEWSHEET);
    }
 
    ngOnInit() {

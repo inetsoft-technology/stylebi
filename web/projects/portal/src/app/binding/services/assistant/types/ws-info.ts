@@ -30,7 +30,7 @@ export interface WSTableInfo {
 
 export interface WSColumnInfo {
    column_name: string;
-   column_type: string;
+   data_type: string;
    group: boolean;
    aggregate: boolean;
    sortType: string;
@@ -39,15 +39,15 @@ export interface WSColumnInfo {
 
 export interface WSGroupRef {
    column_name: string;
-   column_type: string;
+   data_type: string;
    base_column: string;
    group_level: string;
 }
 
 export interface WSAggregateRef {
    column_name: string;
-   column_type: string;
-   base_column: string;
+   data_type: string;
+   base_columns: string[];
    formula: string;
 }
 

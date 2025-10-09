@@ -120,20 +120,20 @@ export class AiAssistantService {
 
    setContextType(objectType: string): void {
       if(objectType === "VSChart") {
-         this.setContextTypeFiledValue(ContextType.CHART);
+         this.setContextTypeFieldValue(ContextType.CHART);
       }
       else if(objectType === "VSCrosstab") {
-         this.setContextTypeFiledValue(ContextType.CROSSTAB);
+         this.setContextTypeFieldValue(ContextType.CROSSTAB);
       }
       else if(objectType === "VSCalcTable") {
-         this.setContextTypeFiledValue(ContextType.FREEHAND);
+         this.setContextTypeFieldValue(ContextType.FREEHAND);
       }
       else if(objectType === "VSTable") {
-         this.setContextTypeFiledValue(ContextType.TABLE);
+         this.setContextTypeFieldValue(ContextType.TABLE);
       }
    }
 
-   setContextTypeFiledValue(contextType: string): void {
+   setContextTypeFieldValue(contextType: string): void {
       this.setContextField("contextType", contextType)
    }
 
@@ -144,7 +144,7 @@ export class AiAssistantService {
 
       const bindingFields =
          getCalcTableBindings(layout, this.calcTableCellBindings, this.calcTableAggregates);
-      this.setContextTypeFiledValue(ContextType.FREEHAND);
+      this.setContextTypeFieldValue(ContextType.FREEHAND);
       this.setContextField("bindingContext", JSON.stringify(bindingFields));
    }
 
@@ -260,13 +260,13 @@ export class AiAssistantService {
             contextType = ContextType.VIEWSHEET_SCRIPT;
       }
 
-      this.setContextTypeFiledValue(contextType);
+      this.setContextTypeFieldValue(contextType);
       this.setContextField("scriptContext", objectModel.script);
    }
 
    setWorksheetContext(ws: Worksheet): void {
       this.resetContextMap();
-      this.setContextTypeFiledValue(ContextType.WORKSHEET);
+      this.setContextTypeFieldValue(ContextType.WORKSHEET);
       let context = getWorksheetContext(ws);
       this.setContextField("tableSchemas", context);
       this.setContextField("dataContext", context);
@@ -274,12 +274,12 @@ export class AiAssistantService {
 
    setWorksheetScriptContext(fields: TreeNodeModel[]): void {
       if(!fields || fields.length === 0) {
-         this.setContextTypeFiledValue(ContextType.WORKSHEET);
+         this.setContextTypeFieldValue(ContextType.WORKSHEET);
          this.removeContextField("scriptContext");
          return;
       }
 
-      this.setContextTypeFiledValue(ContextType.WORKSHEET_SCRIPT);
+      this.setContextTypeFieldValue(ContextType.WORKSHEET_SCRIPT);
       this.setContextField("scriptContext", getWorksheetScriptContext(fields));
    }
 
@@ -289,7 +289,7 @@ export class AiAssistantService {
       }
 
       this.resetContextMap();
-      this.setContextTypeFiledValue(ContextType.VIEWSHEET);
+      this.setContextTypeFieldValue(ContextType.VIEWSHEET);
       this.setContextField("scriptContext", getViewsheetScriptContext(vs));
    }
 }
