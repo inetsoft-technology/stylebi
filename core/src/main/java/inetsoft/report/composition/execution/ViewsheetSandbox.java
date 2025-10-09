@@ -6385,7 +6385,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   }
                }
             }
-            else {
+            else if(init) {
                // wait for pair to finish initialization, otherwise it may not be usable
                // after returned.
                // unlock all locks to prevent deadlock since initGraph() will call getData()
