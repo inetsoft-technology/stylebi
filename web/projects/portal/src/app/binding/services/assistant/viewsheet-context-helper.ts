@@ -18,6 +18,12 @@
 
 import { Viewsheet } from "../../../composer/data/vs/viewsheet";
 
+/**
+ *  Get the names of all assemblies in the viewsheet that can be manipulated via script. Such as:
+ *     Text: Text1, Text2, Title, Description
+ *     Chart: Chart1, Chart2
+ *     Crosstab: YearlySales
+ */
 export function getViewsheetScriptContext(vs: Viewsheet): string {
    if(!vs || !vs.vsObjects || vs.vsObjects.length === 0) {
       return "";
