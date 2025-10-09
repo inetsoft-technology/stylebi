@@ -56,7 +56,21 @@ public class CustomThemesImpl implements XMLSerializable, AutoCloseable {
       return "default";
    }
 
-   public void setSelectedTheme(String selectedTheme) {
+   public String getOrgSelectedTheme() {
+      return "default";
+   }
+
+   public String getGlobalSelectedTheme() {
+      return "default";
+   }
+
+   public void setGlobalSelectedTheme(String selectedTheme) {
+   }
+
+   public void setOrgSelectedTheme(String selectedTheme) {
+   }
+
+   public void removeSelectedTheme(String selectedTheme) {
    }
 
    public boolean isCustomThemeApplied() {
