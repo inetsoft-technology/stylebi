@@ -147,6 +147,7 @@ public class LogMonitoringService implements MessageListener {
       return new ArrayList<>(logManager.getLogFiles().stream()
                                 .map(File::getName)
                                 .map(f -> new LogFileModel(getClusterNode(f), f, logManager.isRotateSupported(f)))
+                                .distinct()
                                 .toList());
    }
 
