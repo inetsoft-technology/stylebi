@@ -487,6 +487,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * states can be reinitialized to be in sync.
     */
    public void resetRuntime() {
+      resetRuntime(true);
+   }
+
+   public void resetRuntime(boolean applyBookmark) {
       final ViewsheetSandbox box = this.box;
       final Viewsheet vs = this.vs;
 
@@ -497,22 +501,24 @@ public class RuntimeViewsheet extends RuntimeSheet {
             vs.update(getAssetRepository(), null, getUser());
             box.resetRuntime();
 
-            VSBookmarkInfo openedBookmark = getOpenedBookmark();
+            if(applyBookmark) {
+               VSBookmarkInfo openedBookmark = getOpenedBookmark();
 
-            if(openedBookmark != null &&
-               !VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName()) &&
-               !VSBookmark.INITIAL_STATE.equals(openedBookmark.getName()) &&
-               containsEmbeddedVs(vs))
-            {
-               try {
-                  gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner(), null);
+               if(openedBookmark != null &&
+                  !VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName()) &&
+                  !VSBookmark.INITIAL_STATE.equals(openedBookmark.getName()) &&
+                  containsEmbeddedVs(vs))
+               {
+                  try {
+                     gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner(), null);
+                  }
+                  catch(Exception e) {
+                     LOG.warn("Failed to go to bookmark after reset", e);
+                  }
                }
-               catch(Exception e) {
-                  LOG.warn("Failed to go to bookmark after reset", e);
+               else if(openedBookmark != null && VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName())) {
+                  gotoDefaultBookmark(vs);
                }
-            }
-            else if(openedBookmark != null && VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName())) {
-               gotoDefaultBookmark(vs);
             }
 
             initViewsheet(vs, true);

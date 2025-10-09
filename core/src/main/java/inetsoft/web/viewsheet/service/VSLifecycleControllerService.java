@@ -125,7 +125,7 @@ public class VSLifecycleControllerService {
       // optimization, call resetRuntime() explicitly instead of passing true to
       // refreshViewsheet's resetRuntime (last parameter). otherwise the touch timestamp
       // would be updated causing cached tablelens to be invalidated after binding change
-      rvs.resetRuntime();
+      rvs.resetRuntime(false);
 
       coreLifecycleService.refreshViewsheet(
          rvs, rid, linkUri, event.getWidth(), event.getHeight(), event.isMobile(),
