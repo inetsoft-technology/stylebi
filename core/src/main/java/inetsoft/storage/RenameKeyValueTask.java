@@ -50,14 +50,14 @@ public class RenameKeyValueTask<T extends Serializable>
 
    @Override
    public T call() throws Exception {
+      // first deserialize before removing anything
+      T newValue = deserializeValue(data);
       T value = getEngine().remove(getId(), oldKey);
 
       if(value == null) {
          throw new Exception
             (oldKey + " does not exist in " + getId() + ", cannot rename to " + newKey);
       }
-
-      T newValue = deserializeValue(data);
 
       if(newValue != null) {
          value = newValue;
