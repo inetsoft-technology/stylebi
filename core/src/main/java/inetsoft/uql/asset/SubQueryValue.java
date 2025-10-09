@@ -542,11 +542,7 @@ public class SubQueryValue implements AssetObject {
    }
 
    private boolean containsSubQueryAttribute(ColumnSelection columns, DataRef ref) {
-      if(columns.containsAttribute(ref)) {
-         return true;
-      }
-
-      return ref.isEntityBlank() && columns.getAttribute(ref.getName(), query) != null;
+      return columns.containsAttribute(ref) || columns.getAttribute(ref.getName()) != null;
    }
 
    private DataRef ref = null;
