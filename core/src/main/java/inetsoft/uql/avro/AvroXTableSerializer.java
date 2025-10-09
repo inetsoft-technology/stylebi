@@ -188,6 +188,8 @@ public class AvroXTableSerializer {
          table.addRow(values);
       }
 
+      table.complete();
+
       try {
          for(int i = 0; i < table.getColCount(); i++) {
             Object header = table.getObject(0, i);
@@ -202,7 +204,6 @@ public class AvroXTableSerializer {
       catch(Exception ignore) {
       }
 
-      table.complete();
       return table;
    }
 
