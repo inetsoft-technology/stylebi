@@ -112,7 +112,7 @@ public class LibManager implements AutoCloseable {
       init();
    }
 
-   private BlobStorage<Metadata> getStorage() {
+   private synchronized BlobStorage<Metadata> getStorage() {
       if(storage == null || storage.isClosed()) {
          storage = SingletonManager.getInstance(BlobStorage.class, getStorageId(orgID), false);
 
@@ -861,7 +861,7 @@ public class LibManager implements AutoCloseable {
       return Arrays.asList(scripts, styles, styleFolders);
    }
 
-   private void reloadLibrary() {
+   private synchronized void reloadLibrary() {
       String storeID = getStorageId(orgID);
       BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
 
