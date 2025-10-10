@@ -31,6 +31,8 @@ public interface PresentationDashboardSettingsModel {
 
    boolean tabsTop();
 
+   boolean drillTabsTop();
+
    static Builder builder() {
       return new Builder();
    }

@@ -36,6 +36,14 @@ public class DashboardTabModel {
       this.dashboardTabsTop = dashboardTabsTop;
    }
 
+   public void setDrillTabsTop(boolean drillTabsTop) {
+      this.drillTabsTop = drillTabsTop;
+   }
+
+   public boolean isDrillTabsTop(){
+      return drillTabsTop;
+   }
+
    public boolean isEditable() {
       return editable;
    }
@@ -54,6 +62,7 @@ public class DashboardTabModel {
 
    private List<DashboardModel> dashboards;
    private boolean dashboardTabsTop;
+   private boolean drillTabsTop;
    private boolean composerEnabled;
    private boolean editable;
 }
