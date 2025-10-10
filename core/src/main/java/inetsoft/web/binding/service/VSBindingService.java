@@ -774,6 +774,10 @@ public class VSBindingService {
       ViewsheetSandbox nbox = nrvs.getViewsheetSandbox();
 
       if(nbox != null) {
+         if(viewer) {
+            nbox.updateLastOnInit();
+         }
+
          nbox.processOnInit();
          nbox.reset(null, vs.getAssemblies(), new ChangedAssemblyList(),
             true, true, null);

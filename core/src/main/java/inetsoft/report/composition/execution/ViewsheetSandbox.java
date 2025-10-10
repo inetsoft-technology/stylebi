@@ -2164,6 +2164,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Update onInit script without executing the script
+    */
+   public void updateLastOnInit() {
+      String onInit = vs.getViewsheetInfo().getOnInit();
+      lastOnInit = onInit;
+   }
+
+   /**
     * After changing for Bug #45263, each thread can only used the variable execute result of itself, so need
     * process onload script for export thread.
     */
