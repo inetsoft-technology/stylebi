@@ -25,6 +25,7 @@ import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.*;
+import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.util.Identity;
@@ -246,6 +247,7 @@ public abstract class AbstractEditableAuthenticationProvider
 
       try {
          DataCycleManager.getDataCycleManager().migrateDataCycles(fromOrganization, newOrg, replace);
+         ScheduleManager.getScheduleManager().reloadExtensions(newOrgID);
       }
       catch(Exception e) {
          LOG.warn("Unable to migrate Data Cycles: "+ e);
