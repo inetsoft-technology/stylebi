@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,16 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component } from "@angular/core";
-import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 
-@Component({
-   selector: "p-schedule-tab",
-   templateUrl: "./schedule-tab.component.html",
-   styleUrls: ["./schedule-tab.component.scss"]
-})
-export class ScheduleTabComponent {
-   constructor(private aiAssistantService: AiAssistantService) {
-      this.aiAssistantService.setContextTypeFieldValue("schedule task");
-   }
+import { BindingField } from "./binding-fields";
+
+export interface CrosstabBindingFields {
+   row_fields?: BindingField[];
+   column_fields?: BindingField[];
+   aggregate_fields?: BindingField[];
 }

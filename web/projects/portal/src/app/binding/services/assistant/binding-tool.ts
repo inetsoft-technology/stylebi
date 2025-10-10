@@ -16,8 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { DataRef } from "../../../common/data/data-ref";
 import { GraphTypes } from "../../../common/graph-types";
+import { StyleConstants } from "../../../common/util/style-constants";
 import { XConstants } from "../../../common/util/xconstants";
+import { BAggregateRef } from "../../data/b-aggregate-ref";
+import { BDimensionRef } from "../../data/b-dimension-ref";
+import { AggregateField, BaseField, BindingField, DimensionField } from "./types/binding-fields";
 
 const DATE_LEVEL_MAP: Map<number, string> = new Map<number, string>([
    [XConstants.YEAR_DATE_GROUP, "Year"],
@@ -112,13 +117,8 @@ const CHART_TYPE_MAP: Map<any, string> = new Map([
    [GraphTypes.CHART_MAP_CONTOUR, "Contour Map"]
 ]);
 
-export function getGroupOptionLabel(option: string): string | undefined {
-   if(!option) {
-      return "";
-   }
-
-   let level = parseInt(option);
-   return ALL_DATE_LEVEL_MAP.get(level);
+export function getGroupOptionLabel(option: number): string | undefined {
+   return ALL_DATE_LEVEL_MAP.get(option);
 }
 
 export function getChartLabel(chartType: any): string | undefined {
@@ -146,4 +146,128 @@ export function getOrderDirection(order: number): string {
    }
 
    return "";
+}
+
+export function convertDataRefs(refs: DataRef[], multiStyle: boolean = false, xy: boolean = false): BindingField[] {
+   if(!refs || refs.length == 0) {
+      return null;
+   }
+
+   let fields: BindingField[] = [];
+
+   for(let i = 0; i < refs.length; i++) {
+      let field = convertDataRef(refs[i], multiStyle, xy);
+
+      if(field) {
+         fields.push(field);
+      }
+   }
+
+   if(fields.length == 0) {
+      return null;
+   }
+
+   return fields;
+}
+
+export function convertDataRef(ref: any, multiStyle: boolean = false, xy: boolean = false): DimensionField | AggregateField {
+   if(!ref) {
+      return null;
+   }
+
+   let field_name: string = ref.fullName ?? ref.name;
+   let data_type: string = ref.dataType;
+   let base_fields: BaseField[] = [];
+
+   if(ref.dataRefModel) {
+      base_fields.push({
+         field_name: ref.dataRefModel.name,
+         data_type: ref.dataRefModel.dataType
+      });
+   }
+
+   if(ref.classType == "BAggregateRefModel" || ref.classType == "aggregate") {
+      let aggr = ref as BAggregateRef;
+
+      if(aggr.secondaryColumn) {
+         base_fields.push({
+            field_name: aggr.secondaryColumn?.name,
+            data_type: aggr.secondaryColumn?.dataType
+         });
+      }
+
+      let formula = aggr.formula;
+
+      let aggrInfo: AggregateField = {
+         field_name: field_name,
+         data_type: data_type,
+         base_fields: base_fields,
+         aggregation: formula,
+      };
+
+      if(multiStyle && xy) {
+         aggrInfo.aggregate_chart_type = getChartLabel((<any> aggr).chartType);
+      }
+
+      return aggrInfo;
+   }
+
+   if(ref.classType == "BDimensionRef" || ref.classType == "dimension") {
+      let dim = ref as BDimensionRef;
+
+      let dimInfo: DimensionField = {
+         field_name: field_name,
+         data_type: data_type,
+         base_fields: base_fields
+      };
+
+      if(dim.order != XConstants.SORT_NONE) {
+         dimInfo.sort = {
+            direction: getOrderDirection(dim.order),
+            by_measure: dim.sortByCol
+         };
+      }
+
+      if(dim.rankingOption == StyleConstants.TOP_N + "" || dim.rankingOption == StyleConstants.BOTTOM_N + "") {
+         dimInfo.topn = {
+            enabled: true,
+            n: dim.rankingN,
+            by_measure: dim.rankingCol,
+            reverse: dim.rankingOption == StyleConstants.BOTTOM_N + ""
+         };
+      }
+
+      if(dim.dateLevel != XConstants.NONE_DATE_GROUP + "") {
+         dimInfo.group = getGroupOptionLabel(parseInt(dim.dateLevel));
+      }
+
+      return dimInfo;
+   }
+
+   return null;
+}
+
+/**
+ * Remove null properties from an object.
+*/
+export function removeNullProps<T>(obj: T): T {
+   if(obj === null || obj === undefined) {
+      return obj;
+   }
+
+   if(Array.isArray(obj)) {
+      return obj
+         .map(item => removeNullProps(item))
+         .filter(item => item !== null && item !== undefined && item !== "") as unknown as T;
+   }
+
+   if(typeof obj === "object") {
+      return Object.fromEntries(
+         Object.entries(obj as Record<string, unknown>)
+            .filter(([_, v]) => v !== null && v !== undefined && v !== "")
+            .map(([k, v]) => [k, removeNullProps(v)])
+      ) as T;
+   }
+
+   return obj;
 }

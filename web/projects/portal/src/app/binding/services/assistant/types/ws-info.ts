@@ -15,11 +15,42 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+export interface WSInfo {
+   tables?: WSTableInfo[];
+}
 
-export interface Field {
-   field_name: string;
+export interface WSTableInfo {
+   table_name?: string;
+   columns?: WSColumnInfo[];
+   subtables?: string[];
+   groups?: WSGroupRef[];
+   aggregates?: WSAggregateRef[];
+   crosstab: boolean;
+}
+
+export interface WSColumnInfo {
+   column_name: string;
    data_type: string;
-   is_calcfield: boolean;
-   calc_expression?: string;
+   group: boolean;
+   aggregate: boolean;
+   sortType: string;
    description: string;
+}
+
+export interface WSGroupRef {
+   column_name: string;
+   data_type: string;
+   base_column: string;
+   group_level: string;
+}
+
+export interface WSAggregateRef {
+   column_name: string;
+   data_type: string;
+   base_columns: string[];
+   formula: string;
+}
+
+export interface WSScriptField {
+   field_name: string;
 }

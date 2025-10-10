@@ -56,7 +56,7 @@ export class AuthorizationGuard implements CanActivate {
             }
 
             this.aiAssistantService.loadCurrentUser(true);
-            this.aiAssistantService.setContextTypeFiledValue("em");
+            this.aiAssistantService.setContextTypeFieldValue("em");
 
             return allowed;
          })
