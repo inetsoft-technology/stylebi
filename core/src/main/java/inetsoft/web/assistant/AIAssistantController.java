@@ -16,22 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component } from "@angular/core";
-import { AiAssistantService } from "./ai-assistant.service";
+package inetsoft.web.assistant;
 
-@Component({
-  selector: "ai-assistant-dialog",
-  templateUrl: "./ai-assistant-dialog.component.html",
-  styleUrls: ["./ai-assistant-dialog.component.scss"]
-})
-export class AiAssistantDialogComponent {
-   userId: string = "";
-   context: string = "";
-   assistantBaseUrl: string = "";
+import inetsoft.sree.SreeEnv;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-   constructor(private aiAssistantService: AiAssistantService) {
-      this.userId = this.aiAssistantService.userId;
-      this.context = this.aiAssistantService.getFullContext();
-      this.assistantBaseUrl = this.aiAssistantService.assistantBaseUrl;
+@RestController
+public class AIAssistantController {
+
+   @GetMapping("/api/assistant/get-assistant-base-url")
+   public String getAssistantBaseUrl() {
+      return SreeEnv.getProperty(ASSISTANT_BASE_URL_PROP_KEY);
    }
+
+   public static final String ASSISTANT_BASE_URL_PROP_KEY = "assistant.base.url";
 }

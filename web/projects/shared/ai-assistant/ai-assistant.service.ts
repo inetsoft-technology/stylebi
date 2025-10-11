@@ -67,6 +67,7 @@ export enum ContextType {
    providedIn: "root"
 })
 export class AiAssistantService {
+   assistantBaseUrl: string = "";
    userId: string = "";
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
@@ -75,6 +76,9 @@ export class AiAssistantService {
    constructor(private http: HttpClient,
                private modalService: NgbModal)
    {
+      this.http.get("../api/assistant/get-assistant-base-url").subscribe((url: string) => {
+         this.assistantBaseUrl = url || "";
+      });
    }
 
    resetContextMap(): void {
