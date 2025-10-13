@@ -332,6 +332,7 @@ public class AssemblyImageService {
                   if(pair == null || !pair.isCompleted() || pair.isCancelled() ||
                      !pair.isPlotted())
                   {
+                     response.setIntHeader("Retry-After", 1);
                      return;
                   }
 
