@@ -65,31 +65,49 @@ export class GooglePickerService {
 
       const subject = new Subject<GoogleFile>();
 
-      const picker = new google.picker.PickerBuilder()
+      let picker: any;
+      let closed = false;
+
+      const close = () => { if (!closed) { closed = true; try { picker.setVisible(false); } catch {} } };
+
+      const errorTimeout = setTimeout(() => {
+         // Handles 403 inside iframe with no callback
+         close();
+         subject.error(new Error("Authorization failed."));
+      }, 5000);
+
+      picker = new google.picker.PickerBuilder()
          .setOAuthToken(oauthToken)
          .addView(view)
-         .setCallback((data) => {
-            if(!!data) {
-               switch(data.action) {
-                  case google.picker.Action.CANCEL:
-                     subject.complete();
-                     break;
-                  case google.picker.Action.PICKED:
-                     subject.next({
-                        name: data?.docs[0]?.name,
-                        id: data?.docs[0]?.id
-                     } as GoogleFile);
-                     subject.complete();
-                     break;
-                  case google.picker.Action.ERROR:
-                     subject.error(data.error);
-                     break;
-               }
+         .setCallback((data: any) => {
+            if(!data) {
+               return;
+            }
+
+            clearTimeout(errorTimeout);
+
+            switch(data.action) {
+               case google.picker.Action.CANCEL:
+                  close();
+                  subject.complete();
+                  break;
+               case google.picker.Action.PICKED:
+                  close();
+                  subject.next({
+                     name: data?.docs[0]?.name,
+                     id: data?.docs[0]?.id
+                  } as GoogleFile);
+                  subject.complete();
+                  break;
+               case google.picker.Action.ERROR:
+                  close();
+                  subject.error(data.error);
+                  break;
             }
          })
          .build();
 
       picker.setVisible(true);
-      return subject;
+      return subject.asObservable();
    }
 }
