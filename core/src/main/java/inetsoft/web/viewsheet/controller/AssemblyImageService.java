@@ -647,7 +647,7 @@ public class AssemblyImageService {
                   if(pair == null || !pair.isCompleted() || pair.isCancelled() ||
                      !pair.isPlotted())
                   {
-                     return null;
+                     return new ImageRenderResult(1);
                   }
 
                   if(svg) {
@@ -1193,6 +1193,11 @@ public class AssemblyImageService {
                                         HttpServletRequest request, HttpServletResponse response) throws Exception
    {
       if(result != null) {
+         if(result.getRetryAfter() > 0) {
+            response.setIntHeader("Retry-After", result.getRetryAfter());
+            return;
+         }
+
          boolean isPNG = result.isPng();
          BinaryTransfer imageData = result.getImageData();
 
@@ -1238,12 +1243,22 @@ public class AssemblyImageService {
       private final BinaryTransfer imageData;
       private final int width;
       private final int height;
+      private final int retryAfter;
 
       public ImageRenderResult(boolean isPng, BinaryTransfer imageData, int width, int height) {
          this.isPng = isPng;
          this.imageData = imageData;
          this.width = width;
          this.height = height;
+         this.retryAfter = 0;
+      }
+
+      public ImageRenderResult(int retryAfter) {
+         this.retryAfter = retryAfter;
+         this.isPng = false;
+         this.imageData = null;
+         this.width = 0;
+         this.height = 0;
       }
 
       public boolean isPng() {
@@ -1260,6 +1275,10 @@ public class AssemblyImageService {
 
       public int getHeight() {
          return height;
+      }
+
+      public int getRetryAfter() {
+         return retryAfter;
       }
    }
 

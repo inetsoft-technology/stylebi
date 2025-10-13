@@ -1445,7 +1445,7 @@ public class FormatPainterService {
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getInfo();
       Dimension maxSize = info.getMaxSize();
-      VGraphPair pair = box.getVGraphPair(name, false, maxSize);
+      VGraphPair pair = box.getVGraphPair(name, true, maxSize);
 
       XCube cube = chart.getXCube();
       boolean drill = !rvs.isTipView(name) &&

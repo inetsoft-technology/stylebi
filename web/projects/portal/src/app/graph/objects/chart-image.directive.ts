@@ -13,7 +13,7 @@
  */
 
 import { HttpClient } from "@angular/common/http";
-import { Directive, ElementRef, EventEmitter, Input, Output } from "@angular/core";
+import { Directive, ElementRef, EventEmitter, Input, Output, Renderer2 } from "@angular/core";
 import { SafeValue } from "@angular/platform-browser";
 
 @Directive({
@@ -37,16 +37,25 @@ export class ChartImageDirective {
    @Output() onError = new EventEmitter<void>();
    private _chartImage: string | SafeValue = null;
 
-   constructor(private element: ElementRef, private http: HttpClient) {
+   constructor(private element: ElementRef, private http: HttpClient, private renderer: Renderer2) {
    }
 
-   private loadImage(): void {
+   private loadImage(reloading = false): void {
       if(!!this.chartImage) {
-         this.onLoading.emit();
-         this.http.get(this.chartImage as string, { responseType: "blob" }).subscribe(
-            blob => {
-               this.element.nativeElement.src = URL.createObjectURL(blob);
-               this.onLoaded.emit();
+         if(!reloading) {
+            this.onLoading.emit();
+         }
+
+         this.http.get(this.chartImage as string, { observe: "response", responseType: "blob" }).subscribe(
+            response => {
+               if(response.headers?.has("Retry-After")) {
+                  const interval = parseInt(response.headers.get("Retry-After"), 10) * 1000;
+                  setTimeout(() => this.loadImage(true), interval);
+               }
+               else {
+                  this.renderer.setAttribute(this.element.nativeElement, "src", URL.createObjectURL(response.body));
+                  this.onLoaded.emit();
+               }
             },
             error => {
                console.warn("Failed to load image " + this.chartImage + "\n", error);
@@ -55,7 +64,7 @@ export class ChartImageDirective {
          );
       }
       else {
-         this.element.nativeElement.src = "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=";
+         this.renderer.removeAttribute(this.element.nativeElement, "src");
       }
    }
 }

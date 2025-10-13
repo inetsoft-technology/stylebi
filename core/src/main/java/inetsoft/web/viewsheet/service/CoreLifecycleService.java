@@ -279,6 +279,7 @@ public class CoreLifecycleService {
          infoMap.put("statusText", rvs.getEntry().getDescription() + " ");
          infoMap.put("lastModifiedTime", vs.getLastModified());
          infoMap.put("dateFormat", Tool.getDateFormatPattern());
+         infoMap.put("templateWidth", vsInfo.getTemplateWidth());
          infoMap.put("templateHeight", vsInfo.getTemplateHeight());
          infoMap.put("templateEnabled", vsInfo.isTemplateEnabled());
          infoMap.put("metadata", vsInfo.isMetadata());

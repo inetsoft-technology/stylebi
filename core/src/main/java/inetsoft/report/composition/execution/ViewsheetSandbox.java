@@ -2181,6 +2181,14 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
+    * Update onInit script without executing the script
+    */
+   public void updateLastOnInit() {
+      String onInit = vs.getViewsheetInfo().getOnInit();
+      lastOnInit = onInit;
+   }
+
+   /**
     * After changing for Bug #45263, each thread can only used the variable execute result of itself, so need
     * process onload script for export thread.
     */
@@ -6422,7 +6430,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                   }
                }
             }
-            else {
+            else if(init) {
                // wait for pair to finish initialization, otherwise it may not be usable
                // after returned.
                // unlock all locks to prevent deadlock since initGraph() will call getData()
