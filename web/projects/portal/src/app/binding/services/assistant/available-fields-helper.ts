@@ -17,11 +17,13 @@
  */
 
 import { DataRef } from "../../../common/data/data-ref";
+import { SourceTable, SourceTableColumn } from "../../data/binding-model";
 import { Field } from "./types/field";
+import { Table } from "./types/table";
 
-export function getAvailableFields(availableFields: DataRef[]): string {
-   if(!availableFields) {
-      return "";
+export function getAvailableFields(tables: SourceTable[], availableFields: DataRef[]): string {
+   if(!availableFields || availableFields.length == 0) {
+      return getTableFields(tables);
    }
 
    let fields: Field[] = [];
@@ -45,4 +47,40 @@ export function getAvailableFields(availableFields: DataRef[]): string {
    });
 
    return JSON.stringify(fields);
+}
+
+export function getTableFields(sourceTables: SourceTable[]): string {
+   if(!sourceTables || sourceTables.length == 0) {
+      return "";
+   }
+
+   let tables: Table[] = [];
+
+   sourceTables.forEach(table => {
+      tables.push({
+         table_name: table.name,
+         columns: getTableColumns(table.columns)
+      });
+   });
+
+   return JSON.stringify(tables);
+}
+
+export function getTableColumns(columns: SourceTableColumn[]): Field[] {
+   let fields: Field[] = [];
+
+   if(!columns || columns.length == 0) {
+      return fields;
+   }
+
+   columns.forEach(column => {
+      fields.push({
+         field_name: column.name,
+         data_type: column.dataType,
+         is_calcfield: false, // for source table column will not include calc columns
+         description: column.description
+      });
+   });
+
+   return fields;
 }

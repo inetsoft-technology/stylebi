@@ -212,7 +212,7 @@ export class AiAssistantService {
          return;
       }
 
-      let dataContext = getAvailableFields(bindingModel.availableFields);
+      let dataContext = getAvailableFields(bindingModel.tables, bindingModel.availableFields);
 
       if(dataContext) {
          this.setContextField("dataContext", dataContext);
