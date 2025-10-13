@@ -204,6 +204,9 @@ export class AiAssistantService {
 
       if(bindingContext) {
          this.setContextField("bindingContext", bindingContext);
+         let noBinding: boolean = objectModel.source == null || objectModel.source.source == null
+            || objectModel.source.source.length == 0;
+         this.setContextField("noBinding", noBinding ? "true": "false");
       }
    }
 
