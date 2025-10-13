@@ -342,6 +342,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() hideToolbar: boolean = false;
    @Input() hideMiniToolbar: boolean = false;
    @Input() globalLoadingIndicator: boolean = false;
+   @Input() embedViewer: boolean = false;
    @Input() viewerOffsetFunc: () => { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number };
    @Output() onAnnotationChanged = new EventEmitter<boolean>();
    @Output() runtimeIdChange = new EventEmitter<string>();
@@ -1984,7 +1985,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    private applyFullScreen(fullScreen: boolean): void {
       if(fullScreen) {
-         this.fullScreenService.enterFullScreenForElement(this.viewContainerRef.element.nativeElement);
+         if(this.embedViewer) {
+            this.fullScreenService.enterFullScreenForElement(this.viewContainerRef.element.nativeElement);
+         }
+         else {
+            this.fullScreenService.enterFullScreen();
+         }
       }
       else {
          this.fullScreenService.exitFullScreen();
