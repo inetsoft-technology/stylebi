@@ -1421,6 +1421,11 @@ public class FormatPainterService {
                                     !reset && userFormat.isAlignmentValueDefined());
          }
 
+         if(reset) {
+            textFormat.getFormat().setFormat(null);
+            textFormat.getFormat().setFormatSpec(null);
+          }
+
          tofmt.getCSSFormat().setParentCSSParams(parentParams);
       }
    }
