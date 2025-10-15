@@ -135,6 +135,7 @@ public abstract class AuthenticationProviderModel {
                .organizationRolesQuery(provider.getOrganizationRolesQuery())
                .groupUsersQuery(provider.getGroupUsersQuery())
                .userRolesQuery(provider.getUserRolesQuery())
+               .userRoleListQuery(provider.getUserRoleListQuery())
                .userEmailsQuery(provider.getUserEmailsQuery())
                .appendSalt(provider.isAppendSalt())
                .sysAdminRoles(String.join(", ", provider.getSystemAdministratorRoles()))

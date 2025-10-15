@@ -780,6 +780,7 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
       dbProvider.setOrganizationMembersQuery(model.organizationMembersQuery());
       dbProvider.setOrganizationRolesQuery(model.organizationRolesQuery());
       dbProvider.setUserRolesQuery(model.userRolesQuery());
+      dbProvider.setUserRoleListQuery(model.userRoleListQuery());
 
       if(model.useCredential()) {
          dbProvider.setSecretId(model.secretId());
