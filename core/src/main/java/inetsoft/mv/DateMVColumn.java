@@ -137,13 +137,6 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
    }
 
    /**
-    * Get the range date option.
-    */
-   public static final int getRangeDateOption() {
-      return RANGE_INTERVAL;
-   }
-
-   /**
     * Create one date mv column.
     */
    private static DateMVColumn create(MVColumn col, TableAssembly table, int dtype) {
@@ -225,12 +218,15 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
          return null;
       }
 
-      if(level == RANGE_INTERVAL) {
+      if(level == DateRangeRef.YEAR_INTERVAL || level == DateRangeRef.MONTH_INTERVAL ||
+         level == DateRangeRef.DAY_INTERVAL || level == DateRangeRef.HOUR_INTERVAL ||
+         level == DateRangeRef.MINUTE_INTERVAL)
+      {
          if(min0 == null) {
             min0 = (Date) obj;
             max0 = (Date) obj;
          }
-         else if(obj != null) {
+         else {
             Date dval = (Date) obj;
 
             if(min0.compareTo(dval) > 0) {
@@ -403,7 +399,6 @@ public final class DateMVColumn extends MVColumn implements XDynamicMVColumn {
       return this.real;
    }
 
-   private static final int RANGE_INTERVAL = DateRangeRef.YEAR_INTERVAL;
    private int level = 0;
    private MVColumn base = null;
    private Date max0 = null;

@@ -782,10 +782,8 @@ public class MVDispatcher {
             Date dmax = dcol.getMax();
             Date dmin = dcol.getMin();
             DateMVColumn dpcol = (DateMVColumn) pcol;
-            Date dpmax = dcol.getMax();
-            Date dpmin = dcol.getMin();
-            dpcol.convert(dpmin);
-            dpcol.convert(dpmax);
+            dpcol.convert(dmin);
+            dpcol.convert(dmax);
          }
       }
 

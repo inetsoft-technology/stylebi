@@ -303,9 +303,11 @@ public abstract class AbstractEditableAuthenticationProvider
                themes.add(clone);
             }
             else if(theme.getOrgID() == null) {
-               List<String> newOrgs = theme.getOrganizations();
-               newOrgs.add(toOrgId);
-               theme.setOrganizations(newOrgs);
+               if(theme.getOrganizations().contains(fromOrgId)) {
+                  List<String> newOrgs = theme.getOrganizations();
+                  newOrgs.add(toOrgId);
+                  theme.setOrganizations(newOrgs);
+               }
             }
          }
          catch(Exception ex) {
