@@ -86,7 +86,7 @@ public class TabularQueryDialogController extends WorksheetController {
             tabularView = layoutCreator.createLayout(query);
          }
 
-         List<String> records = dialogServiceProxy.getThreadRecords(runtimeId, tableName, principal);
+         List<String> records = getThreadRecords(runtimeId, tableName, principal);
          TabularUtil.refreshView(tabularView, query, records, principal);
       }
 
@@ -336,6 +336,27 @@ public class TabularQueryDialogController extends WorksheetController {
       }
 
       return null;
+   }
+
+   private List<String> getThreadRecords(String runtimeId, String tableName,
+                                              Principal principal) throws Exception
+   {
+      List<String> records = new ArrayList<>();
+
+      if(Thread.currentThread() instanceof GroupedThread) {
+         GroupedThread parentThread = (GroupedThread) Thread.currentThread();
+
+         for(Object record : parentThread.getRecords()) {
+            if(record instanceof String) {
+               records.add((String) record);
+            }
+         }
+      }
+      else if(runtimeId != null) {
+         records = dialogServiceProxy.getRuntimeSheetThreadRecords(runtimeId, tableName, principal);
+      }
+
+      return records;
    }
 
    private TabularQueryDialogServiceProxy dialogServiceProxy;

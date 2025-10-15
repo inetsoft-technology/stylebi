@@ -217,10 +217,26 @@ public class TabularQueryDialogService extends WorksheetControllerService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public List<String> getThreadRecords(@ClusterProxyKey String runtimeId, String tableName,
+   public List<String> getRuntimeSheetThreadRecords(@ClusterProxyKey String runtimeId, String tableName,
                                               Principal principal) throws Exception
    {
       ArrayList<String> records = new ArrayList<>();
+      RuntimeWorksheet rws = getWorksheetEngine().getWorksheet(runtimeId, principal);
+      records.add(LogContext.WORKSHEET.getRecord(rws.getEntry().getPath()));
+
+      if(tableName != null) {
+         records.add(LogContext.ASSEMBLY.getRecord(tableName));
+      }
+
+      records.add(LogContext.DASHBOARD.getRecord(rws.getEntry().getPath()));
+
+      return records;
+   }
+
+   private List<String> getThreadRecords(String runtimeId, String tableName,
+                                         Principal principal) throws Exception
+   {
+      List<String> records = new ArrayList<>();
 
       if(Thread.currentThread() instanceof GroupedThread) {
          GroupedThread parentThread = (GroupedThread) Thread.currentThread();
@@ -231,16 +247,8 @@ public class TabularQueryDialogService extends WorksheetControllerService {
             }
          }
       }
-      else if(runtimeId != null){
-         RuntimeWorksheet rws = getWorksheetEngine().getWorksheet(runtimeId, principal);
-
-         records.add(LogContext.WORKSHEET.getRecord(rws.getEntry().getPath()));
-
-         if(tableName != null) {
-            records.add(LogContext.ASSEMBLY.getRecord(tableName));
-         }
-
-         records.add(LogContext.DASHBOARD.getRecord(rws.getEntry().getPath()));
+      else if(runtimeId != null) {
+         records = getRuntimeSheetThreadRecords(runtimeId, tableName, principal);
       }
 
       return records;
