@@ -112,9 +112,9 @@ public class LibManager implements AutoCloseable {
       init();
    }
 
-   private BlobStorage<Metadata> getStorage() {
+   private synchronized BlobStorage<Metadata> getStorage() {
       if(storage == null || storage.isClosed()) {
-         storage = SingletonManager.getInstance(BlobStorage.class, orgID, false);
+         storage = SingletonManager.getInstance(BlobStorage.class, getStorageId(orgID), false);
 
          try {
             storage.addListener(changeListener);
@@ -378,8 +378,6 @@ public class LibManager implements AutoCloseable {
    public void setScript(String name, ScriptEntry script) {
       final int id = scripts.put(name, script);
       fireActionEvent(name, id);
-      fireEvent(System.currentTimeMillis());
-      sendClusterMessage(name);
    }
 
    /**
@@ -629,6 +627,9 @@ public class LibManager implements AutoCloseable {
          ts = storage.getLastModified().toEpochMilli();
          storage.addListener(changeListener);
       }
+
+      fireEvent(System.currentTimeMillis());
+      sendClusterMessage(null);
    }
 
    /**
@@ -860,11 +861,12 @@ public class LibManager implements AutoCloseable {
       return Arrays.asList(scripts, styles, styleFolders);
    }
 
-   private void reloadLibrary() {
+   private synchronized void reloadLibrary() {
       String storeID = getStorageId(orgID);
       BlobStorage<Metadata> storage = SingletonManager.getInstance(BlobStorage.class, storeID, false);
 
       try {
+         storage.addListener(changeListener);
          loadLibrary(storage);
       }
       catch(Exception e) {

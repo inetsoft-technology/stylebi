@@ -54,7 +54,7 @@ public class OpenScriptController {
 
       try {
          LibManager lib = LibManager.getManager(principal);
-         String function = lib.getScript(name);
+         String function = lib.getScript(name) == null ? "" : lib.getScript(name);
          String comment = scriptModel.getComment();
          boolean change = false;
          Catalog catalog = Catalog.getCatalog();
@@ -62,7 +62,7 @@ public class OpenScriptController {
          AssetEntry entry = AssetEntry.createAssetEntry(scriptModel.getId());
          this.scriptService.updateScriptDependencies(scriptModel.getText(), function, entry);
 
-         if(!function.equals(scriptModel.getText())) {
+         if(Tool.equals(function, scriptModel.getText())) {
             change = true;
          }
 
