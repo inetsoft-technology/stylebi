@@ -762,12 +762,12 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
 
    protected String getNextTemporaryID(String originalID) {
       nextId.compareAndSet(Long.MAX_VALUE, 0L);
-      return originalID + "-temp-"  + nextId.getAndIncrement();
+      return RuntimeSheetCache.getOriginalId(originalID) + "-temp-"  + nextId.getAndIncrement();
    }
 
    protected String getNextPreviewID(String originalID, String prefix) {
       nextId.compareAndSet(Long.MAX_VALUE, 0L);
-      return prefix + originalID + "-temp-" +  nextId.getAndIncrement();
+      return prefix + RuntimeSheetCache.getOriginalId(originalID) + "-temp-" + nextId.getAndIncrement();
    }
 
    /**

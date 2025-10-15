@@ -450,18 +450,21 @@ public class RuntimeSheetCache
    }
 
    AffinityKey<String> getAffinityKey(String id) {
-      Matcher matcher = tempIdPattern.matcher(id);
-
-      if(matcher.matches()) {
-         String originalId = matcher.group(2);
-         return new AffinityKey<>(id, originalId);
-      }
-
-      return new AffinityKey<>(id, id);
+      return new AffinityKey<>(id, getOriginalId(id));
    }
 
    private void updateLocalSheetCount() {
       sheetCountMap.put(cluster.getLocalMember(), local.size());
+   }
+
+   static String getOriginalId(String id) {
+      Matcher matcher = tempIdPattern.matcher(id);
+
+      if(matcher.matches()) {
+         return matcher.group(2);
+      }
+
+      return id;
    }
 
    private final Cluster cluster;
