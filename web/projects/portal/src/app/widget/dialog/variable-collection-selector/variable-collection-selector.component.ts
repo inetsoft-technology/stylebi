@@ -67,6 +67,22 @@ export class VariableCollectionSelector implements OnInit {
          this.value.splice(0);
          this.value.push(...temp);
       }
+      else if(this.style === StyleType.LIST &&
+         this.value.length == 1 && this.values.indexOf(this.value[0]) === -1)
+      {
+         // Look for selection options in the combined string
+         let valueString = this.value[0];
+         let temp: any[] = [];
+
+         for(let i = 0; i < this.values.length; i++) {
+            if(valueString.indexOf(this.values[i]) >= 0) {
+               temp[i] = this.values[i];
+            }
+         }
+
+         this.value.splice(0);
+         this.value.push(...temp);
+      }
    }
 
    change(value: any) {
