@@ -3159,6 +3159,12 @@ public class JDBCHandler extends XHandler {
                   node.setAttribute("ForeignKey", foreignKeys);
                }
 
+               String comment = result.getString(12);
+
+               if(comment != null) {
+                  node.setAttribute("comment", comment);
+               }
+
                if(resultParam.getChildIndex(node) < 0 &&
                   (!clickhouse || resultParam.getChild(col) == null))
                {
