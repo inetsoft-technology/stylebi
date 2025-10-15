@@ -652,7 +652,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       groupUsersQuery = config.get("groupUsersQuery").asText("");
       roleListQuery = config.get("roleListQuery").asText("");
       userRolesQuery = config.get("userRolesQuery").asText("");
-      userRoleListQuery = config.get("userRoleListQuery").asText("");
+      userRoleListQuery = config.has("userRoleListQuery") ? config.get("userRoleListQuery").asText("") : "";
       userEmailsQuery = config.get("userEmailsQuery").asText("");
       organizationNameQuery = config.get("organizationNameQuery").asText("");
       organizationMembersQuery = config.get("organizationMembersQuery").asText("");
