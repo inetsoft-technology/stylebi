@@ -86,11 +86,11 @@ public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<Strin
 
    public List<String> getTableStyleFolders(String folder, boolean filterAudit) {
       final boolean root = folder == null;
-      ReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
-         return getNameToEntryMap(null).values().stream()
+         return getNameToEntryMap().values().stream()
             .filter(e -> !filterAudit || !e.audit())
             .map(LogicalLibraryEntry::asset)
             .filter(name -> {
@@ -172,7 +172,7 @@ public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<Strin
                .build());
       }
 
-      ReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
@@ -180,7 +180,7 @@ public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<Strin
             clear();
          }
 
-         getNameToEntryMap(null).putAll(loadingMap);
+         getNameToEntryMap().putAll(loadingMap);
       }
       finally {
          lock.writeLock().unlock();
@@ -192,11 +192,11 @@ public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<Strin
     * name-value mapping is not necessary.
     */
    public void add(String folderName) {
-      ReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
-         final LogicalLibraryEntry<String> oldEntry = getNameToEntryMap(null).get(folderName);
+         final LogicalLibraryEntry<String> oldEntry = getNameToEntryMap().get(folderName);
 
          if(oldEntry != null && !oldEntry.audit()) {
             return;
@@ -222,7 +222,7 @@ public class TableStyleFolderLogicalLibrary extends AbstractLogicalLibrary<Strin
             .asset(folderName)
             .build();
 
-         getNameToEntryMap(null).put(folderName, newEntry);
+         getNameToEntryMap().put(folderName, newEntry);
          recordTransaction(TransactionType.CREATE, folderName, newEntry);
       }
       finally {
