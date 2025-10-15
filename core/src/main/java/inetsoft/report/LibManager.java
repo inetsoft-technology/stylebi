@@ -564,12 +564,6 @@ public class LibManager implements AutoCloseable {
       return style == null ? styles.getByName(name) : style;
    }
 
-   public XTableStyle getTableStyle(String name, String orgID) {
-      XTableStyle style = styles.get(name, orgID);
-
-      return style == null ? styles.getByName(name) : style;
-   }
-
    public XTableStyle getTableStyleByName(String name) {
       return styles.getByName(name, false);
    }
@@ -606,10 +600,10 @@ public class LibManager implements AutoCloseable {
    /**
     * Remove table style, table style folder and script from the library.
     */
-   public void clear(String orgId) {
-      scripts.clear(orgId);
-      styleFolders.clear(orgId);
-      styles.clear(orgId);
+   public void clearAssets() {
+      scripts.clear();
+      styleFolders.clear();
+      styles.clear();
    }
 
    /**
@@ -851,10 +845,6 @@ public class LibManager implements AutoCloseable {
     */
    public boolean isDirty() {
       return getLogicalLibraries().stream().anyMatch(LogicalLibrary::hasTransactions);
-   }
-
-   public void changeOrgID(String oldId, String newId) {
-      clear(oldId);
    }
 
    private List<LogicalLibrary<?>> getLogicalLibraries() {

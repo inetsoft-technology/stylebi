@@ -103,11 +103,11 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
 
    public List<XTableStyle> getTableStyles(String folder, boolean filterAudit) {
       final boolean root = folder == null;
-      ReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
-         return getNameToEntryMap(null).values().stream()
+         return getNameToEntryMap().values().stream()
             .filter(e -> !filterAudit || !e.audit())
             .map(LogicalLibraryEntry::asset)
             .filter(style -> {
@@ -138,11 +138,11 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
       final int id;
       final TransactionType transactionType;
       final String styleName = style.getName();
-      ReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
-         final LogicalLibraryEntry<XTableStyle> oldEntry = getNameToEntryMap(null).get(name);
+         final LogicalLibraryEntry<XTableStyle> oldEntry = getNameToEntryMap().get(name);
 
          if(oldEntry != null) {
             if(!checkStylePermission(oldEntry.asset(), ResourceAction.WRITE)) {
@@ -189,7 +189,7 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
             .asset(style)
             .build();
 
-         getNameToEntryMap(null).put(name, newEntry);
+         getNameToEntryMap().put(name, newEntry);
          recordTransaction(transactionType, name, newEntry);
 
          return id;
@@ -205,11 +205,11 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
    }
 
    public String rename(String oldName, String newName, String oid) {
-      ReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getLock();
       lock.writeLock().lock();
 
       try {
-         if(!getNameToEntryMap(null).containsKey(oid)) {
+         if(!getNameToEntryMap().containsKey(oid)) {
             return null;
          }
 
@@ -223,13 +223,13 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
                "Permission denied to write " + getEntryName()));
          }
 
-         final LogicalLibraryEntry<XTableStyle> entry = getNameToEntryMap(null).remove(oid);
+         final LogicalLibraryEntry<XTableStyle> entry = getNameToEntryMap().remove(oid);
          final XTableStyle style = entry.asset();
          style.setName(newName);
          style.setLastModified(System.currentTimeMillis());
          style.setID(oid);
 
-         getNameToEntryMap(null).put(oid, entry);
+         getNameToEntryMap().put(oid, entry);
 
          recordTransaction(TransactionType.DELETE, oid);
          recordTransaction(TransactionType.CREATE, oid, entry);
@@ -257,11 +257,11 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
    @Override
    protected boolean checkPermission(ResourceType type, String name, ResourceAction action) {
       if(type == ResourceType.TABLE_STYLE) {
-         ReadWriteLock lock = getOrgLock(null);
+         ReadWriteLock lock = getLock();
          lock.readLock().lock();
 
          try {
-            final LogicalLibraryEntry<XTableStyle> entry = getNameToEntryMap(null).get(name);
+            final LogicalLibraryEntry<XTableStyle> entry = getNameToEntryMap().get(name);
 
             if(entry != null) {
                return checkStylePermission(entry.asset(), action);
@@ -297,18 +297,18 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
 
       int idx = name.lastIndexOf(LibManager.SEPARATOR);
       name = idx >= 0 ? name.substring(idx + 1) : name;
-      ReadWriteLock lock = getOrgLock(null);
+      ReadWriteLock lock = getLock();
       lock.readLock().lock();
 
       try {
-         if(!getNameToEntryMap(null).containsKey(name)) {
+         if(!getNameToEntryMap().containsKey(name)) {
             return name;
          }
 
          for(int i = 1; i < Integer.MAX_VALUE; i++) {
             String name0 = name + "-" + i;
 
-            if(!getNameToEntryMap(null).containsKey(name0)) {
+            if(!getNameToEntryMap().containsKey(name0)) {
                return name0;
             }
          }
@@ -328,7 +328,7 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
     * Find table style by name instead of id.
     */
    public XTableStyle getByName(String name, boolean fuzzy) {
-      return getNameToEntryMap(null).values().stream()
+      return getNameToEntryMap().values().stream()
          .filter(entry -> Objects.equals(name, entry.asset().getName()) ||
             // name could be folder~name
             fuzzy && entry.asset().getName().endsWith("~" + name))

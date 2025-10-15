@@ -381,14 +381,14 @@ public class IdentityService {
       int type = identity.getType();
       DashboardManager dmanager = DashboardManager.getManager();
       ScheduleManager smanager = ScheduleManager.getScheduleManager();
-      LibManager manager = LibManager.getManager();
+      LibManager manager = LibManager.getManager(identityId.orgID);
       Identity nid = new DefaultIdentity(identityId, type);
       Identity oid = oID == null ? null : new DefaultIdentity(oID, type);
 
       if(oID == null) {
          dmanager.setDashboards(nid, null);
          smanager.identityRemoved(identity, eprovider);
-         manager.clear(identityId.orgID);
+         manager.clearAssets();
       }
       else {
          if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {

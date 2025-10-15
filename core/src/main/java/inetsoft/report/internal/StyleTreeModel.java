@@ -108,7 +108,7 @@ public class StyleTreeModel implements XMLSerializable {
    }
 
    public static TableStyle get(String name, String orgID) {
-      return LibManager.getManager().getTableStyle(name, orgID);
+      return LibManager.getManager(orgID).getTableStyle(name);
    }
 
    /**
