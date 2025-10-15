@@ -2099,7 +2099,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          ConditionListWrapper wrapper = getPostConditionList();
          ConditionList conds = wrapper.getConditionList();
          ConditionGroup cgroup = (mexecuted || conds.getSize() == 0) ? null :
-            new AssetConditionGroup2(base, conds, mode, box, glist, slist);
+            new AssetConditionGroup2(base, conds, mode, box, glist, slist, touchtime, mexecuted);
          conds.removeAllItems();
 
          List<String> mheaders = getAggCalcHeader(farr, aggregates);
@@ -3900,7 +3900,7 @@ public abstract class AssetQuery extends PreAssetQuery {
    /**
     * Another asset condition group.
     */
-   private class AssetConditionGroup2 extends AssetConditionGroup {
+   private static class AssetConditionGroup2 extends AssetConditionGroup {
       /**
        * Construct a new instance of Condition Group.
        * @param table the specified table lens.
@@ -3911,7 +3911,7 @@ public abstract class AssetQuery extends PreAssetQuery {
        * @param slist the specified summary list.
        */
       AssetConditionGroup2(TableLens table, ConditionList list, int mode, AssetQuerySandbox box,
-                           List glist, List slist)
+                           List glist, List slist, long touchtime, boolean mexecuted)
       {
          this.glist = glist;
          this.slist = slist;
