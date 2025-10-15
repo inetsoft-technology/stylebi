@@ -636,8 +636,8 @@ public class MVCreatorUtil {
          cinfo.setMax(max);
 
          if(min instanceof Date && max instanceof Date) {
-            mvcol.setMin((Date) min);
-            mvcol.setMax((Date) max);
+            mvcol.convert(min);
+            mvcol.convert(max);
          }
       }
    }
