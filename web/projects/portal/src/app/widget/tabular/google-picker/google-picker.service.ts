@@ -68,7 +68,17 @@ export class GooglePickerService {
       let picker: any;
       let closed = false;
 
-      const close = () => { if (!closed) { closed = true; try { picker.setVisible(false); } catch {} } };
+      const close = () => {
+         if(!closed) {
+            closed = true;
+
+            try {
+               picker.setVisible(false);
+            }
+            catch {
+               //ignore
+            }
+         }};
 
       const errorTimeout = setTimeout(() => {
          // Handles 403 inside iframe with no callback
