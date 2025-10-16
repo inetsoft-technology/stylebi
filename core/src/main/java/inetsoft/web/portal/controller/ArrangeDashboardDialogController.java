@@ -91,6 +91,11 @@ public class ArrangeDashboardDialogController {
       Catalog catalog2 = Catalog.getCatalog(principal, Catalog.REPORT);
 
       Identity identity = getIdentity((XPrincipal) principal);
+
+      if(!SecurityEngine.getSecurity().isSecurityEnabled()) {
+         identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
+      }
+
       DashboardManager manager = DashboardManager.getManager();
       DashboardRegistry uregistry = DashboardRegistry.getRegistry(identity.getIdentityID());
 
@@ -158,8 +163,7 @@ public class ArrangeDashboardDialogController {
                              principal.getRoles(), null, null);
       }
       else {
-         identity = user != null ? new DefaultIdentity(user, Identity.USER) :
-            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
+         identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
 
       return identity;
