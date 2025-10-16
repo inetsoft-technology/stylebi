@@ -42,7 +42,7 @@
      (click)="click($event)"
      (contextmenu)="onContextMenu($event)">
      <!-- add 1 to match size in VGraphPair.getSubGraphic -->
-  <img [src]="panBackground" class="chart-background"
+  <img [chartImage]="panBackground" class="chart-background"
        [style.top.px]="panY - chartObject.layoutBounds.height * chartObject.geoPadding"
        [style.left.px]="panX - chartObject.layoutBounds.width * chartObject.geoPadding">
   <div class="chart-plot-area-scroll-container"
@@ -73,8 +73,8 @@
            [style.left.px]="tile.bounds.x + panX"
            [style.width.px]="tile.bounds.width"
            [style.height.px]="tile.bounds.height">
-        <img (load)="panImgLoaded()"
-             [src]="panSnapshot">
+        <img (onLoaded)="panImgLoaded()"
+             [chartImage]="panSnapshot">
 <!-- use nature size to avoid scaling image
              [style.width.px]="tile.bounds.width"
              [style.height.px]="tile.bounds.height"
