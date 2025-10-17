@@ -272,7 +272,6 @@ export class AiAssistantService {
       this.setContextTypeFieldValue(ContextType.WORKSHEET);
       let context = getWorksheetContext(ws);
       this.setContextField("tableSchemas", context);
-      this.setContextField("dataContext", context);
    }
 
    setWorksheetScriptContext(fields: TreeNodeModel[]): void {
