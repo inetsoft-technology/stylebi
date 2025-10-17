@@ -141,6 +141,8 @@ public class ColumnMapFilter extends AbstractTableLens
       // optimization
       headerRows = (short) table.getHeaderRowCount();
       headers = null;
+      stringHeaders = null;
+
       resetIdentifiers();
    }
 
@@ -625,6 +627,15 @@ public class ColumnMapFilter extends AbstractTableLens
          }
 
          headers[c] = v;
+
+         if(v instanceof String) {
+            if(stringHeaders == null) {
+               stringHeaders = new String[map.length];
+            }
+
+            stringHeaders[c] = (String) v;
+         }
+
          return;
       }
 
@@ -739,7 +750,15 @@ public class ColumnMapFilter extends AbstractTableLens
    @Serial
    private void readObject(ObjectInputStream in) throws ClassNotFoundException, IOException {
       in.defaultReadObject();
+      String[] oldStringHeaders = stringHeaders;
+
       setTable(table);
+
+      if(oldStringHeaders != null) {
+         stringHeaders = oldStringHeaders;
+         headers = new Object[map.length];
+         System.arraycopy(stringHeaders, 0, headers, 0, map.length);
+      }
    }
 
    /**
@@ -968,6 +987,7 @@ public class ColumnMapFilter extends AbstractTableLens
 
    private TableLens table;
    private int[] map; // column mapping
+   private String[] stringHeaders;  // serializable string headers
    private transient Object[] headers; // column header
    private transient String[] identifiers;
    private transient int[] duptimes; // header's duplicated times
