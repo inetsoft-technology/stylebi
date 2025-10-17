@@ -50,6 +50,7 @@ export function getWorksheetContext(ws: Worksheet): string {
 
 export function getWSTableInfo(table: AbstractTableAssembly): WSTableInfo {
    let wsTableInfo: WSTableInfo = { crosstab: table.crosstab };
+   wsTableInfo.table_name = table.name;
    wsTableInfo.columns = convertTableColumns(table.colInfos);
    fixAggregateInfo(wsTableInfo, table.aggregateInfo);
 
