@@ -316,21 +316,19 @@ export class SecurityProviderService {
             });
          });
       }
+      else if(isMulti) {
+         this.showInputQueryParmasDialog("_#(js:Organization)", (orgID: string) => {
+            this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
+               this.doUsersQuery(form, {name: userName, orgID: orgID});
+            });
+         });
+      }
       else {
-         if(isMulti) {
-            this.showInputQueryParmasDialog("_#(js:Organization)", (orgID: string) => {
-               this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
-                  this.doUsersQuery(form, {name: userName, orgID: orgID});
-               });
+         this.getDefaultOrganization().subscribe(orgID => {
+            this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
+               this.doUsersQuery(form, {name: userName, orgID: orgID});
             });
-         }
-         else {
-            this.getDefaultOrganization().subscribe(orgID => {
-               this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
-                  this.doUsersQuery(form, {name: userName, orgID: orgID});
-               });
-            });
-         }
+         });
       }
    }
 
@@ -394,21 +392,19 @@ export class SecurityProviderService {
             });
          });
       }
+      else if(isMulti) {
+         this.showInputQueryParmasDialog("_#(js:Organization)", (orgValue: string) => {
+            this.showInputQueryParmasDialog("_#(js:Username)", (paramValue: string) => {
+               this.doUserRolesQuery(form, {name: paramValue, orgID: orgValue});
+            });
+         });
+      }
       else {
-         if(isMulti) {
-            this.showInputQueryParmasDialog("_#(js:Organization)", (orgValue: string) => {
-               this.showInputQueryParmasDialog("_#(js:Username)", (paramValue: string) => {
-                  this.doUserRolesQuery(form, {name: paramValue, orgID: orgValue});
-               });
+         this.getDefaultOrganization().subscribe(orgID => {
+            this.showInputQueryParmasDialog("_#(js:Username)", (paramValue: string) => {
+               this.doUserRolesQuery(form, {name: paramValue, orgID: orgID});
             });
-         }
-         else {
-            this.getDefaultOrganization().subscribe(orgID => {
-               this.showInputQueryParmasDialog("_#(js:Username)", (paramValue: string) => {
-                  this.doUserRolesQuery(form, {name: paramValue, orgID: orgID});
-               });
-            });
-         }
+         });
       }
    }
 
@@ -466,21 +462,19 @@ export class SecurityProviderService {
             });
          });
       }
+      else if(isMulti) {
+         this.showInputQueryParmasDialog("_#(js:Organization)", (orgID: string) => {
+            this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
+               this.doUserEmailsQuery(form, {name: userName, orgID: orgID});
+            });
+         });
+      }
       else {
-         if(isMulti) {
-            this.showInputQueryParmasDialog("_#(js:Organization)", (orgID: string) => {
-               this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
-                  this.doUserEmailsQuery(form, {name: userName, orgID: orgID});
-               });
+         this.getDefaultOrganization().subscribe(orgID => {
+            this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
+               this.doUserEmailsQuery(form, {name: userName, orgID: orgID});
             });
-         }
-         else {
-            this.getDefaultOrganization().subscribe(orgID => {
-               this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
-                  this.doUserEmailsQuery(form, {name: userName, orgID: orgID});
-               });
-            });
-         }
+         });
       }
    }
 
@@ -556,21 +550,19 @@ export class SecurityProviderService {
             });
          });
       }
+      else if(isMulti) {
+         this.showInputQueryParmasDialog("_#(js:Organization)", (orgID: string) => {
+            this.showInputQueryParmasDialog("_#(js:Group Name)", (groupName: string) => {
+               this.doGroupUsersQuery(form, {name: groupName, orgID: orgID});
+            });
+         });
+      }
       else {
-         if(isMulti) {
-            this.showInputQueryParmasDialog("_#(js:Organization)", (orgID: string) => {
-               this.showInputQueryParmasDialog("_#(js:Group Name)", (groupName: string) => {
-                  this.doGroupUsersQuery(form, {name: groupName, orgID: orgID});
-               });
+         this.getDefaultOrganization().subscribe(orgID => {
+            this.showInputQueryParmasDialog("_#(js:Group Name)", (groupName: string) => {
+               this.doGroupUsersQuery(form, {name: groupName, orgID: orgID});
             });
-         }
-         else {
-            this.getDefaultOrganization().subscribe(orgID => {
-               this.showInputQueryParmasDialog("_#(js:Group Name)", (groupName: string) => {
-                  this.doGroupUsersQuery(form, {name: groupName, orgID: orgID});
-               });
-            });
-         }
+         });
       }
    }
 
