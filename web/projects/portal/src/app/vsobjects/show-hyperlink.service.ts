@@ -114,8 +114,10 @@ export class ShowHyperlinkService extends HyperlinkService implements OnDestroy 
                params.set(model.name, [model.value]);
             }
 
-            extras.queryParams[model.name + ".__type__"] = model.type;
-            params.set(model.name + ".__type__", [model.type]);
+            if(extras.queryParams[model.name] == null || extras.queryParams[model.name] == "null") {
+               extras.queryParams[model.name + ".__type__"] = model.type;
+               params.set(model.name + ".__type__", [model.type]);
+            }
          });
       }
 
