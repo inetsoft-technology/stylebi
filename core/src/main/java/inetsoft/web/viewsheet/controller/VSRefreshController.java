@@ -55,8 +55,8 @@ public class VSRefreshController {
                                 CommandDispatcher commandDispatcher,
                                 @LinkUri String linkUri) throws Exception
    {
-      vsRefreshServiceProxy.refreshViewsheet(this.runtimeViewsheetRef.getRuntimeId(),
-                                             event, principal, commandDispatcher, linkUri);
+      vsRefreshServiceProxy.refreshViewsheetAsync(this.runtimeViewsheetRef.getRuntimeId(),
+                                                  event, principal, commandDispatcher, linkUri);
 
    }
 

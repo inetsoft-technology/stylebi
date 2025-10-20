@@ -25,8 +25,7 @@ import java.util.Objects;
 
 public final class ProxyMethod {
    public ProxyMethod(String name, String callableClassName, String returnType, String cacheName,
-                      String keyParam, List<ProxyParameter> parameters, List<String> exceptions,
-                      boolean async)
+                      String keyParam, List<ProxyParameter> parameters, List<String> exceptions)
    {
       this.name = name;
       this.callableClassName = callableClassName;
@@ -36,7 +35,6 @@ public final class ProxyMethod {
       this.keyParam = keyParam;
       this.parameters = new DecoratedCollection<>(parameters);
       this.exceptions = new DecoratedCollection<>(exceptions);
-      this.async = async;
    }
 
    public String getName() {
@@ -71,10 +69,6 @@ public final class ProxyMethod {
       return exceptions;
    }
 
-   public boolean isAsync() {
-      return async;
-   }
-
    @Override
    public boolean equals(Object o) {
       if(o == null || getClass() != o.getClass()) {
@@ -87,14 +81,12 @@ public final class ProxyMethod {
          Objects.equals(returnType, that.returnType) &&
          Objects.equals(cacheName, that.cacheName) &&
          Objects.equals(keyParam, that.keyParam) &&
-         Objects.equals(parameters, that.parameters) &&
-         async == that.async;
+         Objects.equals(parameters, that.parameters);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(name, callableClassName, returnType, cacheName, keyParam, parameters,
-                          async);
+      return Objects.hash(name, callableClassName, returnType, cacheName, keyParam, parameters);
    }
 
    @Override
@@ -106,7 +98,6 @@ public final class ProxyMethod {
          ", cacheName='" + cacheName + '\'' +
          ", keyParam='" + keyParam + '\'' +
          ", parameters=" + parameters +
-         ", async=" + async +
          '}';
    }
 
@@ -118,5 +109,4 @@ public final class ProxyMethod {
    private final String keyParam;
    private final DecoratedCollection<ProxyParameter> parameters;
    private final DecoratedCollection<String> exceptions;
-   private final boolean async;
 }

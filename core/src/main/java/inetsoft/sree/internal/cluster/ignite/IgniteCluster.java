@@ -976,7 +976,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       try {
-         return future.get(60L, TimeUnit.SECONDS);
+         return future.get(5L, TimeUnit.MINUTES);
       }
       catch(RuntimeException ex) {
          throw ex;

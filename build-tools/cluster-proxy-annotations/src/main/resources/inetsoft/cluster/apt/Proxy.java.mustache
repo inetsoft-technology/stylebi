@@ -30,7 +30,6 @@ public class {{proxySimpleName}} {
       }
    }
 
-   {{^async}}
    public {{{returnType}}} {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
       inetsoft.sree.internal.cluster.Cluster _cluster = inetsoft.sree.internal.cluster.Cluster.getInstance();
       {{#worksheetCache}}
@@ -60,9 +59,8 @@ public class {{proxySimpleName}} {
          _serviceProxyCallable.serviceProxyContext.apply();
       }
    }
-   {{/async}}
-   {{#async}}
-   public java.util.concurrent.Future<{{{returnType}}}> {{name}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
+
+   public java.util.concurrent.Future<{{{returnType}}}> {{name}}Async({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
       inetsoft.sree.internal.cluster.Cluster _cluster = inetsoft.sree.internal.cluster.Cluster.getInstance();
       {{#worksheetCache}}
       inetsoft.report.composition.WorksheetService _wsService = inetsoft.report.composition.WorksheetEngine.getWorksheetService();
@@ -82,6 +80,5 @@ public class {{proxySimpleName}} {
          _serviceProxyCallable.serviceProxyContext.apply();
       }
    }
-   {{/async}}
 {{/methods}}
 }
