@@ -23,8 +23,7 @@ import inetsoft.sree.internal.cluster.DistributedLong;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
-import inetsoft.util.BlobIndexedStorage;
-import inetsoft.util.SingletonManager;
+import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +36,6 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -516,6 +514,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
 
    @Override
    public void close() throws Exception {
+      eventExecutor.shutdown();
       storage.removeListener(listener);
       storage.close();
       isClosed = true;
@@ -562,13 +561,18 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       new ConcurrentSkipListSet<>(Comparator.comparing(Listener::hashCode));
    private final String lockHost;
    private boolean isClosed = false;
+   private final ExecutorService eventExecutor =
+      Executors.newSingleThreadExecutor(r -> new GroupedThread(r, "BlobStorageEvent"));
 
-   private final KeyValueStorage.Listener<Blob<T>> listener = new KeyValueStorage.Listener<Blob<T>>() {
+   private final KeyValueStorage.Listener<Blob<T>> listener = new KeyValueStorage.Listener<>() {
       @Override
       public void entryAdded(KeyValueStorage.Event<Blob<T>> kvEvent) {
          Event<T> event = new Event<>(this, kvEvent.getOldValue()
             , kvEvent.getNewValue(), kvEvent.getMapName());
+         eventExecutor.submit(() -> fireBlobAdded(event));
+      }
 
+      private void fireBlobAdded(Event<T> event) {
          for(Listener<T> listener : listeners) {
             listener.blobAdded(event);
          }
@@ -578,7 +582,10 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       public void entryUpdated(KeyValueStorage.Event<Blob<T>> kvEvent) {
          Event<T> event = new Event<>(this, kvEvent.getOldValue()
             , kvEvent.getNewValue(), kvEvent.getMapName());
+         eventExecutor.submit(() -> fireBlobUpdated(event));
+      }
 
+      private void fireBlobUpdated(Event<T> event) {
          for(Listener<T> listener : listeners) {
             listener.blobUpdated(event);
          }
@@ -588,7 +595,10 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       public void entryRemoved(KeyValueStorage.Event<Blob<T>> kvEvent) {
          Event<T> event = new Event<>(this, kvEvent.getOldValue()
             , kvEvent.getNewValue(), kvEvent.getMapName());
+         eventExecutor.submit(() -> fireBlobRemoved(event));
+      }
 
+      private void fireBlobRemoved(Event<T> event) {
          for(Listener<T> listener : listeners) {
             listener.blobRemoved(event);
          }
