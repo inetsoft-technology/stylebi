@@ -78,5 +78,5 @@ public class VSChartRecommendation extends VSAbstractObjectRecommendation {
    }
 
    @JsonIgnore
-   private List<ChartInfo> chartInfos;
+   private transient List<ChartInfo> chartInfos;
 }
