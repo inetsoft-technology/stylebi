@@ -42,7 +42,7 @@ public class EventAspectService {
       this.coreLifecycleService = coreLifecycleService;
    }
 
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterProxyMethod(value = WorksheetEngine.CACHE_NAME, async = true)
    public Void updateViewsheet(@ClusterProxyKey String runtimeId, CommandDispatcher commandDispatcher, Principal principal) throws Exception{
       RuntimeSheet rts = viewsheetService.getSheet(runtimeId, principal);
 

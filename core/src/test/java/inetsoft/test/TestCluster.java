@@ -560,6 +560,21 @@ public class TestCluster implements Cluster {
    }
 
    @Override
+   public <T> Future<T> affinityCallAsync(String cache, Object key, AffinityCallable<T> job) {
+      return CompletableFuture.supplyAsync(() -> {
+         try {
+            return job.call();
+         }
+         catch(RuntimeException ex) {
+            throw ex;
+         }
+         catch(Exception ex) {
+            throw new RuntimeException(ex);
+         }
+      });
+   }
+
+   @Override
    public <T> List<T> affinityCallAll(String cache, AffinityCallable<T> job) {
       try {
          return List.of(job.call());

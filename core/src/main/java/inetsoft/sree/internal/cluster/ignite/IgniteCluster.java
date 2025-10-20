@@ -998,6 +998,43 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public <T> Future<T> affinityCallAsync(String cache, Object key, AffinityCallable<T> job) {
+      String id = UUID.randomUUID().toString();
+      ClusterNode node = ignite.affinity(cache).mapKeyToNode(key);
+      LOG.debug("AFFINITY CALL ASYNC START: cache={}, key={}, node={}, id={}", cache, key, node, id);
+
+      if(Objects.equals(node, ignite.cluster().localNode())) {
+         LOG.debug("AFFINITY CALL ASYNC DIRECT: cache={}, key={}, node={}, id={}", cache, key, node, id);
+
+         return CompletableFuture.supplyAsync(() -> {
+            try {
+               return job.call();
+            } catch (RuntimeException ex) {
+               throw ex;
+            } catch (Exception ex) {
+               throw new RuntimeException(ex);
+            }
+         }, affinityExecutor);
+      }
+
+      AffinityCallRequest<T> request = new AffinityCallRequest<>(
+         id, getNodeName(ignite.cluster().localNode()), getNodeName(node), job);
+      CompletableFuture<T> future = new CompletableFuture<>();
+      affinityFutures.put(id, future);
+
+      try {
+         LOG.debug("AFFINITY CALL ASYNC SENDING: cache={}, key={}, node={}, id={}, request={}", cache, key, node, id, request);
+         ignite.message().sendOrdered(AFFINITY_TOPIC, request, 0);
+      }
+      catch(Exception e) {
+         LOG.error("Failed to send affinity call async request: cache={}, key={}, node={}, id={}, exception={}", cache, key, node, id, e);
+      }
+
+      LOG.debug("AFFINITY CALL ASYNC COMPLETED: cache={}, key={}, node={}, id={}", cache, key, node, id);
+      return future;
+   }
+
+   @Override
    public <T> List<T> affinityCallAll(String cache, AffinityCallable<T> job) {
       Set<ClusterNode> nodes = new HashSet<>();
       Affinity<?> affinity = ignite.affinity(cache);

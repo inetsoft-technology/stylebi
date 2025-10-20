@@ -82,6 +82,7 @@ public class ClusterAnnotationProcessor extends AbstractProcessor {
       String callableClassName = getCallableClassName(methodName, callableClasses);
       String returnType = methodElement.getReturnType().toString();
       String cacheName = methodElement.getAnnotation(ClusterProxyMethod.class).value();
+      boolean async = methodElement.getAnnotation(ClusterProxyMethod.class).async();
       List<String> exceptions = MoreElements.asExecutable(methodElement).getThrownTypes().stream()
          .map(TypeMirror::toString)
          .toList();
@@ -115,7 +116,8 @@ public class ClusterAnnotationProcessor extends AbstractProcessor {
       }
 
       ProxyMethod proxyMethod = new ProxyMethod(
-         methodName, callableClassName, returnType, cacheName, keyParam, params, exceptions);
+         methodName, callableClassName, returnType, cacheName, keyParam, params, exceptions,
+         async);
       proxyClass.getMethods().add(proxyMethod);
    }
 

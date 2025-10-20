@@ -290,6 +290,19 @@ public interface Cluster extends AutoCloseable {
    <T> T affinityCall(String cache, Object key, AffinityCallable<T> job);
 
    /**
+    * Asynchronously executes given job on the node where data for provided affinity key is located.
+    *
+    * @param cache the name of the cache.
+    * @param key   the affinity key value.
+    * @param job   the job to execute.
+    *
+    * @return the future.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> Future<T> affinityCallAsync(String cache, Object key, AffinityCallable<T> job);
+
+   /**
     * Executes the given job on all nodes that host a primary partition of a cache.
     *
     * @param cache the name of the cache.

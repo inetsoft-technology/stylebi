@@ -101,7 +101,7 @@ public class VSRefreshService {
       return null;
    }
 
-   @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
+   @ClusterProxyMethod(value = WorksheetEngine.CACHE_NAME, async = true)
    public Void refreshViewsheet(@ClusterProxyKey String id, VSRefreshEvent event, Principal principal,
                                 CommandDispatcher commandDispatcher, String linkUri) throws Exception
    {

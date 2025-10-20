@@ -26,6 +26,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.List;
 import java.util.Vector;
+import java.util.concurrent.Future;
 
 /**
  * Worksheet service, includes an asset repository to be the server of
@@ -248,6 +249,18 @@ public interface WorksheetService {
     * @param <T> the return type of the job.
     */
    <T> T affinityCall(String rid, AffinityCallable<T> job);
+
+   /**
+    * Asynchronously executes a job on the instance that owns the specified runtime sheet.
+    *
+    * @param rid the identifier of the runtime sheet.
+    * @param job the job to execute.
+    *
+    * @return the future.
+    *
+    * @param <T> the return type of the job.
+    */
+   <T> Future<T> affinityCallAsync(String rid, AffinityCallable<T> job);
 
    final class Reference extends SingletonManager.Reference<WorksheetService> {
       @SuppressWarnings("unchecked")

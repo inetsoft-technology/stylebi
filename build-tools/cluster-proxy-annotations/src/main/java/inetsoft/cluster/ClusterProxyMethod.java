@@ -30,4 +30,6 @@ public @interface ClusterProxyMethod {
     * The name of the cache that is used for the colocation of the method invocation.
     */
    String value();
+
+   boolean async() default false;
 }
