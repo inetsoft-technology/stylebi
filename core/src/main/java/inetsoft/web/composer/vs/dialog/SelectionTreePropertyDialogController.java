@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSModelTrapContext;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -223,6 +224,7 @@ public class SelectionTreePropertyDialogController {
       vsAssemblyScriptPaneModel.scriptEnabled(selectionTreeAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(selectionTreeAssemblyInfo.getScript() == null ?
                                               "" : selectionTreeAssemblyInfo.getScript());
+      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;

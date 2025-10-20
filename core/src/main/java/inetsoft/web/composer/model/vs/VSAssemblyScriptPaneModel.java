@@ -37,6 +37,8 @@ public abstract class VSAssemblyScriptPaneModel {
     */
    public abstract boolean scriptEnabled();
 
+   public abstract boolean cursorTop();
+
    public static Builder builder() {
       return new Builder();
    }

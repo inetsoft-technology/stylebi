@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.AggregateFormula;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.schema.XSchema;
@@ -230,6 +231,7 @@ public class GaugePropertyDialogController {
       vsAssemblyScriptPaneModel.scriptEnabled(gaugeAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(gaugeAssemblyInfo.getScript() == null ?
                                               "" : gaugeAssemblyInfo.getScript());
+      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;
