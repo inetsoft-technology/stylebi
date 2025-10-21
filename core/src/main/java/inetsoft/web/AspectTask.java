@@ -18,6 +18,8 @@
 
 package inetsoft.web;
 
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+
 import java.io.Serializable;
 import java.security.Principal;
 
@@ -29,16 +31,20 @@ public interface AspectTask extends Serializable {
     * Performs actions that should happen before the called method. When the method is proxied, this
     * is always called on the instance on which the proxied method is invoked.
     *
+    * @param dispatcher       the command dispatcher for the client websocket connection.
     * @param contextPrincipal a principal that identifies the current user for the context.
     */
-   default void preprocess(Principal contextPrincipal) {
+   default void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
    }
 
    /**
     * Performs actions that should happen after the called method. When the method is proxied, this
     * is always called on the instance on which the proxied method is invoked.
+    *
+    * @param dispatcher       the command dispatcher for the client websocket connection.
+    * @param contextPrincipal a principal that identifies the current user for the context.
     */
-   default void postprocess() {
+   default void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
    }
 
    /**

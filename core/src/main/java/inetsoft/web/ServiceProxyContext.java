@@ -49,6 +49,7 @@ public class ServiceProxyContext {
    private final List<UserMessage> userMessages;
    private final List<AspectTask> tasks;
    private final boolean async;
+   private CommandDispatcher dispatcher;
    public static final ThreadLocal<List<AspectTask>> aspectTasks =
       ThreadLocal.withInitial(ArrayList::new);
 
@@ -192,11 +193,15 @@ public class ServiceProxyContext {
       }
 
       for(AspectTask task : tasks) {
-         task.preprocess(contextPrincipal);
+         task.preprocess(createCommandDispatcher(), contextPrincipal);
       }
    }
 
    public void postprocess() {
+      for(AspectTask task : tasks) {
+         task.postprocess(createCommandDispatcher(), contextPrincipal);
+      }
+
       for(MessageCommand.Type type : MessageCommand.Type.values()) {
          userMessages.addAll(Tool.getUserMessages(type));
       }
@@ -225,10 +230,6 @@ public class ServiceProxyContext {
          }
       }
 
-      for(AspectTask task : tasks) {
-         task.postprocess();
-      }
-
       Tool.clearUserMessage();
       ThreadContext.setContextPrincipal(null);
       MessageContextHolder.setMessageAttributes(null);
@@ -240,14 +241,18 @@ public class ServiceProxyContext {
    }
 
    @SuppressWarnings("unchecked")
-   public CommandDispatcher createCommandDispatcher() {
-      ConfigurationContext config = ConfigurationContext.getContext();
-      StompHeaderAccessor headerAccessor =
-         MessageContextHolder.getMessageAttributes().getHeaderAccessor();
-      CommandDispatcherService dispatcherService =
-         config.getSpringBean(CommandDispatcherService.class);
-      FindByIndexNameSessionRepository<? extends Session> sessionRepository =
-         config.getSpringBean(FindByIndexNameSessionRepository.class);
-      return new CommandDispatcher(headerAccessor, dispatcherService, sessionRepository);
+   public synchronized CommandDispatcher createCommandDispatcher() {
+      if(dispatcher == null) {
+         ConfigurationContext config = ConfigurationContext.getContext();
+         StompHeaderAccessor headerAccessor =
+            MessageContextHolder.getMessageAttributes().getHeaderAccessor();
+         CommandDispatcherService dispatcherService =
+            config.getSpringBean(CommandDispatcherService.class);
+         FindByIndexNameSessionRepository<? extends Session> sessionRepository =
+            config.getSpringBean(FindByIndexNameSessionRepository.class);
+         dispatcher = new CommandDispatcher(headerAccessor, dispatcherService, sessionRepository);
+      }
+
+      return dispatcher;
    }
 }

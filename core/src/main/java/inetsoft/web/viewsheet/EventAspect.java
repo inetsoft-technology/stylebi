@@ -482,83 +482,29 @@ public class EventAspect {
             .filter(CommandDispatcher.class::isInstance)
             .map(CommandDispatcher.class::cast)
             .findFirst();
+      LoadingMaskAspectTask task = new LoadingMaskAspectTask(force);
 
-      Lock lock = new ReentrantLock();
-      AtomicBoolean complete = new AtomicBoolean(false);
-      AtomicBoolean loading = new AtomicBoolean(false);
-      final Thread pthread = Thread.currentThread();
-
-      commandDispatcher.ifPresent(dispatcher -> {
-         boolean preparing = "true".equals(ThreadContext.getSessionInfo("preparing.data", pthread));
-
-         if(force) {
-            dispatcher.sendCommand(new ShowLoadingMaskCommand());
-            loading.set(true);
-         }
-         else {
-            CommandDispatcher detached = dispatcher.detach();
-            timer.schedule(new TimerTask() {
-               @Override
-               public void run() {
-                  lock.lock();
-
-                  try {
-                     if(!complete.get()) {
-                        detached.sendCommand(new ShowLoadingMaskCommand());
-                        loading.set(true);
-                     }
-                  }
-                  finally {
-                     lock.unlock();
-                  }
-               }
-            }, 1000L);
-         }
-
-         if(!preparing) {
-            // check if building cache, and prompt user
-            CommandDispatcher detached = dispatcher.detach();
-            timer.schedule(new TimerTask() {
-               @Override
-               public void run() {
-                  lock.lock();
-
-                  if(complete.get()) {
-                     cancel();
-                  }
-
-                  try {
-                     if("true".equals(ThreadContext.getSessionInfo("preparing.data", pthread))) {
-                        detached.sendCommand(new ShowLoadingMaskCommand(true));
-                        cancel();
-                     }
-                  }
-                  finally {
-                     lock.unlock();
-                  }
-               }
-            }, 1000, 1000);
-         }
-      });
+      if(mask != null && mask.asyncProxy()) {
+         ServiceProxyContext.aspectTasks.get().add(task);
+      }
+      else {
+         commandDispatcher.ifPresent(dispatcher -> {
+            task.preprocess(dispatcher, null); // principal not used
+         });
+      }
 
       try {
          return pjp.proceed();
       }
       finally {
-         commandDispatcher.ifPresent(dispatcher -> {
-            lock.lock();
-
-            try {
-               if(loading.get()) {
-                  dispatcher.sendCommand(new ClearLoadingCommand());
-               }
-
-               complete.set(true);
-            }
-            finally {
-               lock.unlock();
-            }
-         });
+         if(mask != null && mask.asyncProxy()) {
+            ServiceProxyContext.aspectTasks.get().remove(task);
+         }
+         else {
+            commandDispatcher.ifPresent(dispatcher -> {
+               task.postprocess(dispatcher, null); // principal not used
+            });
+         }
       }
    }
 
@@ -654,7 +600,7 @@ public class EventAspect {
    private final ViewsheetService viewsheetService;
    private final VSLayoutServiceProxy vsLayoutService;
    private final EventAspectServiceProxy eventAspectServiceProxy;
-   private final Timer timer = new Timer();
+   private static final Timer timer = new Timer();
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
 
    public static final class WSExecutionAspectTask implements AspectTask {
@@ -664,7 +610,7 @@ public class EventAspect {
       }
 
       @Override
-      public void preprocess(Principal contextPrincipal) {
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
          if(id != null) {
             try {
                ViewsheetService viewsheetService = ConfigurationContext.getContext()
@@ -688,7 +634,7 @@ public class EventAspect {
       }
 
       @Override
-      public void postprocess() {
+      public void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
          if(id != null) {
             WSExecution.setAssetQuerySandbox(null);
          }
@@ -696,5 +642,87 @@ public class EventAspect {
 
       private final String id;
       private final boolean undoable;
+   }
+
+   private final class LoadingMaskAspectTask implements AspectTask {
+      public LoadingMaskAspectTask(boolean force) {
+         this.force = force;
+      }
+
+      @Override
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         final Thread pthread = Thread.currentThread();
+         boolean preparing = "true".equals(ThreadContext.getSessionInfo("preparing.data", pthread));
+
+         if(force) {
+            dispatcher.sendCommand(new ShowLoadingMaskCommand());
+            loading.set(true);
+         }
+         else {
+            CommandDispatcher detached = dispatcher.detach();
+            timer.schedule(new TimerTask() {
+               @Override
+               public void run() {
+                  lock.lock();
+
+                  try {
+                     if(!complete.get()) {
+                        detached.sendCommand(new ShowLoadingMaskCommand());
+                        loading.set(true);
+                     }
+                  }
+                  finally {
+                     lock.unlock();
+                  }
+               }
+            }, 1000L);
+         }
+
+         if(!preparing) {
+            // check if building cache, and prompt user
+            CommandDispatcher detached = dispatcher.detach();
+            timer.schedule(new TimerTask() {
+               @Override
+               public void run() {
+                  lock.lock();
+
+                  if(complete.get()) {
+                     cancel();
+                  }
+
+                  try {
+                     if("true".equals(ThreadContext.getSessionInfo("preparing.data", pthread))) {
+                        detached.sendCommand(new ShowLoadingMaskCommand(true));
+                        cancel();
+                     }
+                  }
+                  finally {
+                     lock.unlock();
+                  }
+               }
+            }, 1000, 1000);
+         }
+      }
+
+      @Override
+      public void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         lock.lock();
+
+         try {
+            if(loading.get()) {
+               dispatcher.sendCommand(new ClearLoadingCommand());
+            }
+
+            complete.set(true);
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+
+      private final boolean force;
+      private final Lock lock = new ReentrantLock();
+      private final AtomicBoolean complete = new AtomicBoolean(false);
+      private final AtomicBoolean loading = new AtomicBoolean(false);
    }
 }

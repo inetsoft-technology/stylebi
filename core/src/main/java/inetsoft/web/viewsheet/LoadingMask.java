@@ -32,4 +32,9 @@ public @interface LoadingMask {
     * of the execution time.
     */
    boolean value() default false;
+
+   /**
+    * Flag that indicates if the annotated method calls an asynchronous proxy method.
+    */
+   boolean asyncProxy() default false;
 }

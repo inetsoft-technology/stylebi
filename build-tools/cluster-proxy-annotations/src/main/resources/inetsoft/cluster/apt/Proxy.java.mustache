@@ -6,12 +6,15 @@ public class {{proxySimpleName}} {
 {{#methods}}
 
    public static final class {{callableClassName}} implements inetsoft.sree.internal.cluster.AffinityCallable<{{{returnType}}}> {
+      private final boolean async;
    {{#parameters}}
       {{#value.transferred}}private final {{{value.type}}} {{value.name}};{{/value.transferred}}
    {{/parameters}}
-      private final inetsoft.web.ServiceProxyContext serviceProxyContext = new inetsoft.web.ServiceProxyContext();
+      private final inetsoft.web.ServiceProxyContext serviceProxyContext;
 
-      public {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}) {
+      public {{callableClassName}}(boolean async{{#parameters}}, {{{value.type}}} {{value.name}}{{/parameters}}) {
+         this.async = async;
+         this.serviceProxyContext = new inetsoft.web.ServiceProxyContext(async);
       {{#parameters}}
          {{#value.transferred}}this.{{value.name}} = {{value.name}};{{/value.transferred}}
       {{/parameters}}
@@ -26,6 +29,10 @@ public class {{proxySimpleName}} {
          }
          finally {
             serviceProxyContext.postprocess();
+
+            if(async) {
+               serviceProxyContext.apply();
+            }
          }
       }
    }
@@ -45,7 +52,7 @@ public class {{proxySimpleName}} {
          return _service.{{name}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
       }
 
-      {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+      {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}(false{{#parameters}}, {{value.name}}{{/parameters}});
 
       try {
          {{#worksheetCache}}
@@ -66,19 +73,14 @@ public class {{proxySimpleName}} {
       inetsoft.report.composition.WorksheetService _wsService = inetsoft.report.composition.WorksheetEngine.getWorksheetService();
       {{/worksheetCache}}
 
-      {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+      {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}(true{{#parameters}}, {{value.name}}{{/parameters}});
 
-      try {
-         {{#worksheetCache}}
-         return _wsService.affinityCallAsync({{keyParam}}, _serviceProxyCallable);
-         {{/worksheetCache}}
-         {{^worksheetCache}}
-         return _cluster.affinityCallAsync("{{cacheName}}", {{keyParam}}, _serviceProxyCallable);
-         {{/worksheetCache}}
-      }
-      finally {
-         _serviceProxyCallable.serviceProxyContext.apply();
-      }
+      {{#worksheetCache}}
+      return _wsService.affinityCallAsync({{keyParam}}, _serviceProxyCallable);
+      {{/worksheetCache}}
+      {{^worksheetCache}}
+      return _cluster.affinityCallAsync("{{cacheName}}", {{keyParam}}, _serviceProxyCallable);
+      {{/worksheetCache}}
    }
 {{/methods}}
 }

@@ -24,6 +24,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.AspectTask;
 import inetsoft.web.ServiceProxyContext;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.aspectj.lang.JoinPoint;
@@ -88,7 +89,7 @@ public class RecommendedAspect {
       }
 
       @Override
-      public void preprocess(Principal contextPrincipal) {
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
          try {
             ViewsheetService viewsheetService = ConfigurationContext.getContext()
                .getSpringBean(ViewsheetService.class);
