@@ -22,7 +22,6 @@ import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.mv.MVSession;
 import inetsoft.report.composition.*;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.ConfirmException;
@@ -32,6 +31,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.script.ScriptException;
+import inetsoft.web.AspectTask;
 import inetsoft.web.ServiceProxyContext;
 import inetsoft.web.composer.vs.controller.VSLayoutServiceProxy;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
@@ -45,8 +45,6 @@ import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.*;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.Expression;
@@ -126,8 +124,6 @@ public class EventAspect {
    @Before("@annotation(InitWSExecution) && within(inetsoft.web..*)")
    public void setWSExecution(JoinPoint joinPoint) throws Throwable {
       String id = runtimeViewsheetRef.getRuntimeId();
-      ServiceProxyContext.eventVsIdThreadLocal.set(id);
-      Cluster cluster = Cluster.getInstance();
       Object[] args = joinPoint.getArgs();
       Principal principal = null;
 
@@ -139,7 +135,7 @@ public class EventAspect {
 
       MethodSignature signature = (MethodSignature) joinPoint.getSignature();
       boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
-      ServiceProxyContext.eventUndoableThreadLocal.set(undoable);
+      ServiceProxyContext.aspectTasks.get().add(new WSExecutionAspectTask(id, undoable));
 
       // ServiceProxyContext preprocessing does not occur if it is a local cache key, so handle it here
       if(viewsheetService.isLocal(id)) {
@@ -159,8 +155,14 @@ public class EventAspect {
 
    @AfterReturning("@annotation(InitWSExecution) && within(inetsoft.web..*)")
    public void clearWSExecution(JoinPoint joinPoint) {
-      ServiceProxyContext.eventVsIdThreadLocal.remove();
-      ServiceProxyContext.eventUndoableThreadLocal.remove();
+      for(Iterator<AspectTask> it = ServiceProxyContext.aspectTasks.get().iterator(); it.hasNext(); ) {
+         AspectTask task = it.next();
+
+         if(task instanceof WSExecutionAspectTask) {
+            it.remove();
+         }
+      }
+
       WSExecution.setAssetQuerySandbox(null);
    }
 
@@ -654,5 +656,45 @@ public class EventAspect {
    private final EventAspectServiceProxy eventAspectServiceProxy;
    private final Timer timer = new Timer();
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
-   private static final Logger LOG = LoggerFactory.getLogger(EventAspect.class);
+
+   public static final class WSExecutionAspectTask implements AspectTask {
+      public WSExecutionAspectTask(String id, boolean undoable) {
+         this.id = id;
+         this.undoable = undoable;
+      }
+
+      @Override
+      public void preprocess(Principal contextPrincipal) {
+         if(id != null) {
+            try {
+               ViewsheetService viewsheetService = ConfigurationContext.getContext()
+                  .getSpringBean(ViewsheetService.class);
+               RuntimeWorksheet rws = viewsheetService.getWorksheet(id, contextPrincipal);
+               MVSession session = rws.getAssetQuerySandbox().getMVSession();
+               WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+
+               // if worksheet changed, re-init sql context so change in table
+               // is reflected in spark sql
+               if(undoable && session != null) {
+                  session.clearInitialized();
+               }
+
+               WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+            }
+            catch(Exception e) {
+               throw new RuntimeException("Failed to set current worksheet", e);
+            }
+         }
+      }
+
+      @Override
+      public void postprocess() {
+         if(id != null) {
+            WSExecution.setAssetQuerySandbox(null);
+         }
+      }
+
+      private final String id;
+      private final boolean undoable;
+   }
 }
