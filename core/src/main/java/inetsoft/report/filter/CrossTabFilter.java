@@ -6844,6 +6844,15 @@ public class CrossTabFilter extends AbstractTableLens
                      break;
                   }
                }
+
+               for(int j : colh) {
+                  if(col == j) {
+                     // do not apply auto drill on group or grand total labels
+                     minfo = minfo.clone();
+                     minfo.setXDrillInfo(null);
+                     break;
+                  }
+               }
             }
          }
 
