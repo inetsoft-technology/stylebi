@@ -193,7 +193,8 @@ public class EventAspect {
          if(commandDispatcher.isPresent() && principal.isPresent() &&
             runtimeViewsheetRef.getRuntimeId() != null)
          {
-            eventAspectServiceProxy.updateViewsheet(runtimeViewsheetRef.getRuntimeId(), commandDispatcher.get(), principal.get());
+            eventAspectServiceProxy.updateViewsheetAsync(runtimeViewsheetRef.getRuntimeId(),
+                                                         commandDispatcher.get(), principal.get());
          }
       }
    }

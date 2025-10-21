@@ -59,5 +59,26 @@ public class {{proxySimpleName}} {
          _serviceProxyCallable.serviceProxyContext.apply();
       }
    }
+
+   public java.util.concurrent.Future<{{{returnType}}}> {{name}}Async({{#parameters}}{{^first}}, {{/first}}{{{value.type}}} {{value.name}}{{/parameters}}){{#exceptions}}{{#first}} throws {{/first}}{{^first}}, {{/first}}{{value}}{{/exceptions}} {
+      inetsoft.sree.internal.cluster.Cluster _cluster = inetsoft.sree.internal.cluster.Cluster.getInstance();
+      {{#worksheetCache}}
+      inetsoft.report.composition.WorksheetService _wsService = inetsoft.report.composition.WorksheetEngine.getWorksheetService();
+      {{/worksheetCache}}
+
+      {{callableClassName}} _serviceProxyCallable = new {{callableClassName}}({{#parameters}}{{^first}}, {{/first}}{{value.name}}{{/parameters}});
+
+      try {
+         {{#worksheetCache}}
+         return _wsService.affinityCallAsync({{keyParam}}, _serviceProxyCallable);
+         {{/worksheetCache}}
+         {{^worksheetCache}}
+         return _cluster.affinityCallAsync("{{cacheName}}", {{keyParam}}, _serviceProxyCallable);
+         {{/worksheetCache}}
+      }
+      finally {
+         _serviceProxyCallable.serviceProxyContext.apply();
+      }
+   }
 {{/methods}}
 }

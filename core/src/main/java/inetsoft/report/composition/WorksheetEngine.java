@@ -41,8 +41,7 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * The default worksheet service implementation, implements all the methods
@@ -78,6 +77,9 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
 
       singlePreviewEnabled = "true".equals(SreeEnv.getProperty("single.preview.enabled"));
       setAssetRepository(engine);
+      affinityExecutor = Executors.newFixedThreadPool(
+         Runtime.getRuntime().availableProcessors(),
+         r -> new GroupedThread(r, "WorksheetEngine"));
    }
 
    /**
@@ -1197,6 +1199,26 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       }
    }
 
+   @Override
+   public <T> Future<T> affinityCallAsync(String rid, AffinityCallable<T> job) {
+      AffinityKey<String> key = amap.getAffinityKey(rid);
+
+      if(amap.isLocal(key)) {
+         return CompletableFuture.supplyAsync(() -> {
+            try {
+               return job.call();
+            } catch (RuntimeException ex) {
+               throw ex;
+            } catch (Exception ex) {
+               throw new RuntimeException(ex);
+            }
+         }, affinityExecutor);
+      }
+      else {
+         return Cluster.getInstance().affinityCallAsync(CACHE_NAME, key, job);
+      }
+   }
+
    /**
     * Exception key.
     */
@@ -1336,6 +1358,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    protected int counter; // counter
    private final DistributedLong nextId;
    private final Debouncer<String> debouncer;
+   private final ExecutorService affinityExecutor;
 
    private final boolean singlePreviewEnabled;
    private boolean server = false; // server flag
