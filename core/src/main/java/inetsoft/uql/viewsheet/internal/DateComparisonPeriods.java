@@ -22,6 +22,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
 import org.w3c.dom.Element;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -30,7 +31,7 @@ import java.util.List;
  * @version 13.5
  * @author InetSoft Technology Corp
  */
-public interface DateComparisonPeriods extends Cloneable, XMLSerializable {
+public interface DateComparisonPeriods extends Cloneable, XMLSerializable, Serializable {
    static DateComparisonPeriods createDateComparisonPeriods(Element element)
       throws Exception
    {

@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
+import java.io.Serializable;
 import java.util.*;
 
 /**
@@ -34,7 +35,7 @@ import java.util.*;
  * @version 13.5
  * @author InetSoft Technology Corp
  */
-public class DateComparisonInterval implements Cloneable, XMLSerializable {
+public class DateComparisonInterval implements Cloneable, XMLSerializable, Serializable {
    public DateComparisonInterval() {
       level = new DynamicValue(
          null, XSchema.INTEGER,
