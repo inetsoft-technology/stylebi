@@ -302,6 +302,7 @@ public class RepositoryChangeController {
    private void addLibManagerListener(String orgId) {
       if(!libManagerListenerOrgs.contains(orgId)) {
          LibManager.getManager(orgId).addActionListener(libraryListener);
+         libManagerListenerOrgs.add(orgId);
       }
    }
 
