@@ -850,9 +850,7 @@ public class DatabaseDatasourcesService {
 
    public boolean isUploadEnabled(Principal principal) {
       try {
-         boolean cluster = "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
-            ScheduleClient.getScheduleClient().isCluster();
-         return !cluster && securityEngine.checkPermission(
+         return securityEngine.checkPermission(
             principal, ResourceType.UPLOAD_DRIVERS, "*", ResourceAction.ACCESS);
       }
       catch(SecurityException e) {
