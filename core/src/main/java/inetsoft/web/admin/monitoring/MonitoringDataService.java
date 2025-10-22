@@ -18,7 +18,7 @@
 package inetsoft.web.admin.monitoring;
 
 import inetsoft.util.*;
-import inetsoft.web.service.BaseSubscribeChangHandler;
+import inetsoft.web.service.BaseSubscribeChangeHandler;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +48,7 @@ import java.util.stream.Stream;
  */
 @Service
 @Lazy(false)
-public class MonitoringDataService extends BaseSubscribeChangHandler {
+public class MonitoringDataService extends BaseSubscribeChangeHandler {
    @Autowired
    public MonitoringDataService(SimpUserRegistry userRegistry,
                                 SimpMessagingTemplate messageTemplate)

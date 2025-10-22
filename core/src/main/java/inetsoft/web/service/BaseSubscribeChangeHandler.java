@@ -34,8 +34,8 @@ import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-public abstract class BaseSubscribeChangHandler {
-   public BaseSubscribeChangHandler(SimpMessagingTemplate messageTemplate) {
+public abstract class BaseSubscribeChangeHandler {
+   public BaseSubscribeChangeHandler(SimpMessagingTemplate messageTemplate) {
       this.messageTemplate = messageTemplate;
    }
 
@@ -45,19 +45,9 @@ public abstract class BaseSubscribeChangHandler {
    public void handleUnsubscribe(SessionUnsubscribeEvent event) {
       final Message<byte[]> message = event.getMessage();
       final MessageHeaders headers = message.getHeaders();
-      final String subscriptionId =
-         (String) headers.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-
-      if(subscriptionId != null) {
-         lock.lock();
-
-         try {
-            subscribers.removeIf(sub -> subscriptionId.equals(sub.getSubscriptionId()));
-         }
-         finally {
-            lock.unlock();
-         }
-      }
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      removeSubscription(sessionId);
    }
 
    /**
@@ -65,7 +55,10 @@ public abstract class BaseSubscribeChangHandler {
     */
    public void handleDisconnect(SessionDisconnectEvent event) {
       final String sessionId = event.getSessionId();
+      removeSubscription(sessionId);
+   }
 
+   private void removeSubscription(String sessionId) {
       if(sessionId != null) {
          lock.lock();
 
@@ -224,5 +217,5 @@ public abstract class BaseSubscribeChangHandler {
    private final SimpMessagingTemplate messageTemplate;
    private final Set<BaseSubscriber> subscribers = new HashSet<>();
    private final Lock lock = new ReentrantLock();
-   private static final Logger LOG = LoggerFactory.getLogger(BaseSubscribeChangHandler.class);
+   private static final Logger LOG = LoggerFactory.getLogger(BaseSubscribeChangeHandler.class);
 }

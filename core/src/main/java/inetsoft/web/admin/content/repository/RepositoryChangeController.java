@@ -111,9 +111,9 @@ public class RepositoryChangeController {
    @SubscribeMapping(CHANGE_TOPIC)
    public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws Exception {
       final MessageHeaders messageHeaders = header.getMessageHeaders();
-      final String subscriptionId =
-         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      subscriptions.put(subscriptionId, principal);
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      subscriptions.put(sessionId, principal);
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
       if(principal != null) {
@@ -150,11 +150,11 @@ public class RepositoryChangeController {
    private void removeSubscription(AbstractSubProtocolEvent event) {
       final Message<byte[]> message = event.getMessage();
       final MessageHeaders headers = message.getHeaders();
-      final String subscriptionId =
-         (String) headers.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
 
-      if(subscriptionId != null) {
-         Principal principal = subscriptions.remove(subscriptionId);
+      if(sessionId != null) {
+         Principal principal = subscriptions.remove(sessionId);
 
          if(principal != null) {
             PropertyChangeListener listener = adminReportListeners.remove(principal);

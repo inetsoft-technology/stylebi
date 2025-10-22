@@ -86,9 +86,9 @@ public class RepositoryTreeChangeController {
    @SubscribeMapping(COMMANDS_TOPIC)
    public void subscribeToTopic(StompHeaderAccessor header, Principal principal) throws Exception {
       final MessageHeaders messageHeaders = header.getMessageHeaders();
-      final String subscriptionId =
-         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      subscriptions.put(subscriptionId, principal);
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      subscriptions.put(sessionId, principal);
 
       if(principal != null) {
          IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -111,11 +111,11 @@ public class RepositoryTreeChangeController {
    private void removeSubscription(AbstractSubProtocolEvent event) {
       final Message<byte[]> message = event.getMessage();
       final MessageHeaders headers = message.getHeaders();
-      final String subscriptionId =
-         (String) headers.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
 
-      if(subscriptionId != null) {
-         Principal principal = subscriptions.remove(subscriptionId);
+      if(sessionId != null) {
+         Principal principal = subscriptions.remove(sessionId);
 
          if(principal != null) {
             PropertyChangeListener listener = reportListeners.remove(principal);
