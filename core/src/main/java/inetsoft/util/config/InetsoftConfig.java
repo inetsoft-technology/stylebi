@@ -121,6 +121,17 @@ public class InetsoftConfig implements Serializable {
    }
 
    /**
+    * The Wiz storage configuration.
+    */
+   public WizConfig getWiz() {
+      return wiz;
+   }
+
+   public void setWiz(WizConfig wiz) {
+      this.wiz = wiz;
+   }
+
+   /**
     * The cloud runner configuration.
     */
    public CloudRunnerConfig getCloudRunner() {
@@ -372,6 +383,7 @@ public class InetsoftConfig implements Serializable {
    private KeyValueConfig keyValue;
    private BlobConfig blob;
    private ExternalStorageConfig externalStorage;
+   private WizConfig wiz;
    private CloudRunnerConfig cloudRunner;
    private SecretsConfig secrets;
    private AuditConfig audit;
