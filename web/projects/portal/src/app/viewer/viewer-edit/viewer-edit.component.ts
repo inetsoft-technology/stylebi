@@ -230,10 +230,12 @@ export class ViewerEditComponent implements OnInit, OnDestroy {
 
       if(this.viewData.portal) {
          const tab: string = this.viewData.dashboard ? "dashboard" : "report";
-         commands = [`/portal/tab/${tab}/vs/view/${this.viewData.assetId}`];
+         commands = [`/portal/tab/${tab}/vs/view/${this.viewData.assetId}`,
+            {hasBaseEntry: this.viewData.hasBaseEntry}];
       }
       else {
-         commands = ["/viewer/view/", {assetId: this.viewData.assetId}];
+         commands = ["/viewer/view/",
+            {assetId: this.viewData.assetId, hasBaseEntry: this.viewData.hasBaseEntry}];
       }
 
       this.router.navigate(commands, extras)
