@@ -22,7 +22,6 @@ import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.mv.MVSession;
 import inetsoft.report.composition.*;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.ConfirmException;
@@ -32,6 +31,7 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.script.ScriptException;
+import inetsoft.web.AspectTask;
 import inetsoft.web.ServiceProxyContext;
 import inetsoft.web.composer.vs.controller.VSLayoutServiceProxy;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
@@ -45,8 +45,6 @@ import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.*;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.Expression;
@@ -126,8 +124,6 @@ public class EventAspect {
    @Before("@annotation(InitWSExecution) && within(inetsoft.web..*)")
    public void setWSExecution(JoinPoint joinPoint) throws Throwable {
       String id = runtimeViewsheetRef.getRuntimeId();
-      ServiceProxyContext.eventVsIdThreadLocal.set(id);
-      Cluster cluster = Cluster.getInstance();
       Object[] args = joinPoint.getArgs();
       Principal principal = null;
 
@@ -139,7 +135,7 @@ public class EventAspect {
 
       MethodSignature signature = (MethodSignature) joinPoint.getSignature();
       boolean undoable = signature.getMethod().isAnnotationPresent(Undoable.class);
-      ServiceProxyContext.eventUndoableThreadLocal.set(undoable);
+      ServiceProxyContext.aspectTasks.get().add(new WSExecutionAspectTask(id, undoable));
 
       // ServiceProxyContext preprocessing does not occur if it is a local cache key, so handle it here
       if(viewsheetService.isLocal(id)) {
@@ -159,8 +155,14 @@ public class EventAspect {
 
    @AfterReturning("@annotation(InitWSExecution) && within(inetsoft.web..*)")
    public void clearWSExecution(JoinPoint joinPoint) {
-      ServiceProxyContext.eventVsIdThreadLocal.remove();
-      ServiceProxyContext.eventUndoableThreadLocal.remove();
+      for(Iterator<AspectTask> it = ServiceProxyContext.aspectTasks.get().iterator(); it.hasNext(); ) {
+         AspectTask task = it.next();
+
+         if(task instanceof WSExecutionAspectTask) {
+            it.remove();
+         }
+      }
+
       WSExecution.setAssetQuerySandbox(null);
    }
 
@@ -480,83 +482,29 @@ public class EventAspect {
             .filter(CommandDispatcher.class::isInstance)
             .map(CommandDispatcher.class::cast)
             .findFirst();
+      LoadingMaskAspectTask task = new LoadingMaskAspectTask(force);
 
-      Lock lock = new ReentrantLock();
-      AtomicBoolean complete = new AtomicBoolean(false);
-      AtomicBoolean loading = new AtomicBoolean(false);
-      final Thread pthread = Thread.currentThread();
-
-      commandDispatcher.ifPresent(dispatcher -> {
-         boolean preparing = "true".equals(ThreadContext.getSessionInfo("preparing.data", pthread));
-
-         if(force) {
-            dispatcher.sendCommand(new ShowLoadingMaskCommand());
-            loading.set(true);
-         }
-         else {
-            CommandDispatcher detached = dispatcher.detach();
-            timer.schedule(new TimerTask() {
-               @Override
-               public void run() {
-                  lock.lock();
-
-                  try {
-                     if(!complete.get()) {
-                        detached.sendCommand(new ShowLoadingMaskCommand());
-                        loading.set(true);
-                     }
-                  }
-                  finally {
-                     lock.unlock();
-                  }
-               }
-            }, 1000L);
-         }
-
-         if(!preparing) {
-            // check if building cache, and prompt user
-            CommandDispatcher detached = dispatcher.detach();
-            timer.schedule(new TimerTask() {
-               @Override
-               public void run() {
-                  lock.lock();
-
-                  if(complete.get()) {
-                     cancel();
-                  }
-
-                  try {
-                     if("true".equals(ThreadContext.getSessionInfo("preparing.data", pthread))) {
-                        detached.sendCommand(new ShowLoadingMaskCommand(true));
-                        cancel();
-                     }
-                  }
-                  finally {
-                     lock.unlock();
-                  }
-               }
-            }, 1000, 1000);
-         }
-      });
+      if(mask != null && mask.asyncProxy()) {
+         ServiceProxyContext.aspectTasks.get().add(task);
+      }
+      else {
+         commandDispatcher.ifPresent(dispatcher -> {
+            task.preprocess(dispatcher, null); // principal not used
+         });
+      }
 
       try {
          return pjp.proceed();
       }
       finally {
-         commandDispatcher.ifPresent(dispatcher -> {
-            lock.lock();
-
-            try {
-               if(loading.get()) {
-                  dispatcher.sendCommand(new ClearLoadingCommand());
-               }
-
-               complete.set(true);
-            }
-            finally {
-               lock.unlock();
-            }
-         });
+         if(mask != null && mask.asyncProxy()) {
+            ServiceProxyContext.aspectTasks.get().remove(task);
+         }
+         else {
+            commandDispatcher.ifPresent(dispatcher -> {
+               task.postprocess(dispatcher, null); // principal not used
+            });
+         }
       }
    }
 
@@ -652,7 +600,129 @@ public class EventAspect {
    private final ViewsheetService viewsheetService;
    private final VSLayoutServiceProxy vsLayoutService;
    private final EventAspectServiceProxy eventAspectServiceProxy;
-   private final Timer timer = new Timer();
+   private static final Timer timer = new Timer();
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
-   private static final Logger LOG = LoggerFactory.getLogger(EventAspect.class);
+
+   public static final class WSExecutionAspectTask implements AspectTask {
+      public WSExecutionAspectTask(String id, boolean undoable) {
+         this.id = id;
+         this.undoable = undoable;
+      }
+
+      @Override
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         if(id != null) {
+            try {
+               ViewsheetService viewsheetService = ConfigurationContext.getContext()
+                  .getSpringBean(ViewsheetService.class);
+               RuntimeWorksheet rws = viewsheetService.getWorksheet(id, contextPrincipal);
+               MVSession session = rws.getAssetQuerySandbox().getMVSession();
+               WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+
+               // if worksheet changed, re-init sql context so change in table
+               // is reflected in spark sql
+               if(undoable && session != null) {
+                  session.clearInitialized();
+               }
+
+               WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
+            }
+            catch(Exception e) {
+               throw new RuntimeException("Failed to set current worksheet", e);
+            }
+         }
+      }
+
+      @Override
+      public void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         if(id != null) {
+            WSExecution.setAssetQuerySandbox(null);
+         }
+      }
+
+      private final String id;
+      private final boolean undoable;
+   }
+
+   private final class LoadingMaskAspectTask implements AspectTask {
+      public LoadingMaskAspectTask(boolean force) {
+         this.force = force;
+      }
+
+      @Override
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         final Thread pthread = Thread.currentThread();
+         boolean preparing = "true".equals(ThreadContext.getSessionInfo("preparing.data", pthread));
+
+         if(force) {
+            dispatcher.sendCommand(new ShowLoadingMaskCommand());
+            loading.set(true);
+         }
+         else {
+            CommandDispatcher detached = dispatcher.detach();
+            timer.schedule(new TimerTask() {
+               @Override
+               public void run() {
+                  lock.lock();
+
+                  try {
+                     if(!complete.get()) {
+                        detached.sendCommand(new ShowLoadingMaskCommand());
+                        loading.set(true);
+                     }
+                  }
+                  finally {
+                     lock.unlock();
+                  }
+               }
+            }, 1000L);
+         }
+
+         if(!preparing) {
+            // check if building cache, and prompt user
+            CommandDispatcher detached = dispatcher.detach();
+            timer.schedule(new TimerTask() {
+               @Override
+               public void run() {
+                  lock.lock();
+
+                  if(complete.get()) {
+                     cancel();
+                  }
+
+                  try {
+                     if("true".equals(ThreadContext.getSessionInfo("preparing.data", pthread))) {
+                        detached.sendCommand(new ShowLoadingMaskCommand(true));
+                        cancel();
+                     }
+                  }
+                  finally {
+                     lock.unlock();
+                  }
+               }
+            }, 1000, 1000);
+         }
+      }
+
+      @Override
+      public void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         lock.lock();
+
+         try {
+            if(loading.get()) {
+               dispatcher.sendCommand(new ClearLoadingCommand());
+            }
+
+            complete.set(true);
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+
+      private final boolean force;
+      private final Lock lock = new ReentrantLock();
+      private final AtomicBoolean complete = new AtomicBoolean(false);
+      private final AtomicBoolean loading = new AtomicBoolean(false);
+   }
 }

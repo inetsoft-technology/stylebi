@@ -49,7 +49,7 @@ public class VSRefreshController {
    /**
     * Refresh a viewsheet
     */
-   @LoadingMask
+   @LoadingMask(true)
    @MessageMapping("/vs/refresh")
    public void refreshViewsheet(@Payload VSRefreshEvent event, Principal principal,
                                 CommandDispatcher commandDispatcher,

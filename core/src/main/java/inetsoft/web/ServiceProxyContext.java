@@ -18,26 +18,14 @@
 
 package inetsoft.web;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.mv.MVSession;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.uql.asset.internal.WSExecution;
 import inetsoft.util.*;
-import inetsoft.web.composer.ClipboardService;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
-import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRefServiceProxy;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CommandDispatcherService;
-import inetsoft.web.vswizard.RecommendSequentialContext;
-import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
-import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
-import org.aspectj.lang.JoinPoint;
-import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
@@ -59,23 +47,18 @@ public class ServiceProxyContext {
    private final Map<String, Object> messageHeaders;
    private final Map<String, Object> messageAttributes;
    private final List<UserMessage> userMessages;
-   public static ThreadLocal<String> eventVsIdThreadLocal = new ThreadLocal<>();
-   public static ThreadLocal<Boolean> eventUndoableThreadLocal = new ThreadLocal<>();
-   private final String eventVsId;
-   private final Boolean eventUndoable;
-   private String recommendedId;
-   private Date recommendedStartTime;
-   public static ThreadLocal<String> recommendedIdThreadLocal = new ThreadLocal<>();
-   public static ThreadLocal<Date> recommendedStartTimeThreadLocal = new ThreadLocal<>();
+   private final List<AspectTask> tasks;
+   private final boolean async;
+   private CommandDispatcher dispatcher;
+   public static final ThreadLocal<List<AspectTask>> aspectTasks =
+      ThreadLocal.withInitial(ArrayList::new);
 
-   public ServiceProxyContext() {
+   public ServiceProxyContext(boolean async) {
       this.contextPrincipal = ThreadContext.getPrincipal();
       this.userMessages = new ArrayList<>();
       this.threadContextRecords = new HashSet<>();
-      this.eventVsId = eventVsIdThreadLocal.get();
-      this.eventUndoable = eventUndoableThreadLocal.get();
-      this.recommendedId = recommendedIdThreadLocal.get();
-      this.recommendedStartTime = recommendedStartTimeThreadLocal.get();
+      this.tasks = new ArrayList<>(aspectTasks.get());
+      this.async = async;
 
       if(Thread.currentThread() instanceof GroupedThread gt) {
          for(Object record : gt.getRecords()) {
@@ -116,6 +99,10 @@ public class ServiceProxyContext {
          this.messageTimestamp = null;
          this.messageHeaders = null;
       }
+   }
+
+   public boolean isAsync() {
+      return async;
    }
 
    @SuppressWarnings("unchecked")
@@ -163,6 +150,10 @@ public class ServiceProxyContext {
       for(UserMessage message : userMessages) {
          Tool.addUserMessage(message);
       }
+
+      for(AspectTask task : tasks) {
+         task.apply();
+      }
    }
 
    public void preprocess() {
@@ -201,63 +192,16 @@ public class ServiceProxyContext {
          MessageContextHolder.setMessageAttributes(messageAttrs);
       }
 
-      if(eventVsId != null) {
-         try {
-            ViewsheetService viewsheetService = ConfigurationContext.getContext()
-               .getSpringBean(ViewsheetService.class);
-            RuntimeWorksheet rws = viewsheetService.getWorksheet(eventVsId, contextPrincipal);
-            MVSession session = rws.getAssetQuerySandbox().getMVSession();
-            WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
-
-            // if worksheet changed, re-init sql context so change in table
-            // is reflected in spark sql
-            if(eventUndoable && session != null) {
-               session.clearInitialized();
-            }
-
-            WSExecution.setAssetQuerySandbox(rws.getAssetQuerySandbox());
-         }
-         catch(Exception e) {
-            throw new RuntimeException("Failed to set current worksheet", e);
-         }
-      }
-
-      if(recommendedId != null && recommendedStartTime != null) {
-         try {
-            ViewsheetService viewsheetService = ConfigurationContext.getContext()
-               .getSpringBean(ViewsheetService.class);
-            RuntimeViewsheet rvs = viewsheetService.getViewsheet(recommendedId, contextPrincipal);
-
-            if(rvs != null) {
-               VSWizardTemporaryInfoService temporaryInfoService =
-                  ConfigurationContext.getContext().getSpringBean(VSWizardTemporaryInfoService.class);
-               VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
-
-               if(temporaryInfo != null) {
-                  Date oldTime = temporaryInfo.getRecommendLatestTime();
-
-                  if(oldTime != null) {
-                     temporaryInfo.setRecommendLatestTime(recommendedStartTime.after(oldTime) ?
-                                                          recommendedStartTime : oldTime);
-                  }
-                  else {
-                     temporaryInfo.setRecommendLatestTime(recommendedStartTime);
-                  }
-               }
-
-               RecommendSequentialContext.setStartTime(recommendedStartTime);
-            }
-         }
-         catch(RuntimeException e) {
-            throw e;
-         }
-         catch(Exception e) {
-            throw new RuntimeException("Failed to set recommender context", e);
-         }
+      for(AspectTask task : tasks) {
+         task.preprocess(createCommandDispatcher(), contextPrincipal);
       }
    }
 
    public void postprocess() {
+      for(AspectTask task : tasks) {
+         task.postprocess(createCommandDispatcher(), contextPrincipal);
+      }
+
       for(MessageCommand.Type type : MessageCommand.Type.values()) {
          userMessages.addAll(Tool.getUserMessages(type));
       }
@@ -286,10 +230,6 @@ public class ServiceProxyContext {
          }
       }
 
-      if(eventVsId != null) {
-         WSExecution.setAssetQuerySandbox(null);
-      }
-
       Tool.clearUserMessage();
       ThreadContext.setContextPrincipal(null);
       MessageContextHolder.setMessageAttributes(null);
@@ -301,14 +241,18 @@ public class ServiceProxyContext {
    }
 
    @SuppressWarnings("unchecked")
-   public CommandDispatcher createCommandDispatcher() {
-      ConfigurationContext config = ConfigurationContext.getContext();
-      StompHeaderAccessor headerAccessor =
-         MessageContextHolder.getMessageAttributes().getHeaderAccessor();
-      CommandDispatcherService dispatcherService =
-         config.getSpringBean(CommandDispatcherService.class);
-      FindByIndexNameSessionRepository<? extends Session> sessionRepository =
-         config.getSpringBean(FindByIndexNameSessionRepository.class);
-      return new CommandDispatcher(headerAccessor, dispatcherService, sessionRepository);
+   public synchronized CommandDispatcher createCommandDispatcher() {
+      if(dispatcher == null) {
+         ConfigurationContext config = ConfigurationContext.getContext();
+         StompHeaderAccessor headerAccessor =
+            MessageContextHolder.getMessageAttributes().getHeaderAccessor();
+         CommandDispatcherService dispatcherService =
+            config.getSpringBean(CommandDispatcherService.class);
+         FindByIndexNameSessionRepository<? extends Session> sessionRepository =
+            config.getSpringBean(FindByIndexNameSessionRepository.class);
+         dispatcher = new CommandDispatcher(headerAccessor, dispatcherService, sessionRepository);
+      }
+
+      return dispatcher;
    }
 }

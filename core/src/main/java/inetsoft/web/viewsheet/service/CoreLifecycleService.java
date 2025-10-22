@@ -3584,6 +3584,6 @@ public class CoreLifecycleService {
       private final VariableTable variables;
       private final OpenViewsheetEvent event;
       private final Principal user;
-      private final ServiceProxyContext proxyContext = new ServiceProxyContext();
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 }
