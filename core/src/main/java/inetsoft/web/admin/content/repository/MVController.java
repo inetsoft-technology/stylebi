@@ -26,7 +26,8 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -39,6 +40,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -343,6 +345,23 @@ public class MVController {
          principal, ResourceType.MATERIALIZATION, "*", ResourceAction.ACCESS);
 
       return MVHasPermissionModel.builder().allow(canMaterialize).build();
+   }
+
+   @GetMapping("/api/em/content/repository/asset-exists")
+   public boolean mvAssetExists(@RequestParam("path") String path, Principal principal) {
+      try {
+         AssetEntry entry = AssetEntry.createAssetEntry(path);
+         AssetRepository repository = AssetUtil.getAssetRepository(false);
+
+         if(entry == null) {
+            return false;
+         }
+
+         return Objects.nonNull(repository.getSheet(entry, principal, false, AssetContent.ALL));
+      }
+      catch(Exception e) {
+         return false;
+      }
    }
 
    private final MVService mvService;
