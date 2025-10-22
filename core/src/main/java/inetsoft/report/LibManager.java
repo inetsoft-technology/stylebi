@@ -32,7 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.event.ActionListener;
-import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.security.Principal;
 import java.util.*;
@@ -212,15 +211,6 @@ public class LibManager implements AutoCloseable {
    }
 
    /**
-    * Refresh lib manager.
-    *
-    * @param event true if should fire event when resource changes.
-    */
-   public void refresh(boolean event) {
-      // do-nothing
-   }
-
-   /**
     * Tear down lib manager.
     */
    protected synchronized void tearDown() {
@@ -237,13 +227,6 @@ public class LibManager implements AutoCloseable {
    @Override
    public void close() throws Exception {
       tearDown();
-   }
-
-   /**
-    * Do a heartbeat to synchronize data.
-    */
-   protected void heartbeat() {
-      // do nothing
    }
 
    /**
@@ -392,7 +375,6 @@ public class LibManager implements AutoCloseable {
          RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
          fireActionEvent(newName, SCRIPT_MODIFIED);
          fireActionEvent(oldName, SCRIPT_REMOVED);
-         fireEvent(System.currentTimeMillis());
          sendClusterMessage(newName);
       }
    }
@@ -404,7 +386,6 @@ public class LibManager implements AutoCloseable {
    public void removeScript(String name) {
       scripts.remove(name);
       fireActionEvent(name, SCRIPT_REMOVED);
-      fireEvent(System.currentTimeMillis());
       sendClusterMessage(name);
    }
 
@@ -622,7 +603,6 @@ public class LibManager implements AutoCloseable {
          storage.addListener(changeListener);
       }
 
-      fireEvent(System.currentTimeMillis());
       sendClusterMessage(null);
    }
 
@@ -685,29 +665,12 @@ public class LibManager implements AutoCloseable {
    }
 
    /**
-    * Add a refresh listener that will be notified if the datasource registry
-    * has changed.
-    * @param listener the specified refresh listener.
-    */
-   public void addRefreshedListener(PropertyChangeListener listener) {
-      refreshedListeners.add(listener);
-   }
-
-   /**
-    * Remove a refresh listener.
-    * @param listener the specified refresh listener.
-    */
-   public void removeRefreshedListener(PropertyChangeListener listener) {
-      refreshedListeners.remove(listener);
-   }
-
-   /**
     * Fire an action event.
     * @param name the changed object name.
     * @param actionID the event actionID defined in this class.
     */
    protected void fireActionEvent(String name, int actionID) {
-      ActionEvent evt = new ActionEvent(this, actionID, name);
+      ActionEvent evt = new ActionEvent(this, actionID, name, orgID);
       List<ActionListener> currentListeners;
 
       synchronized(this) {
@@ -722,19 +685,6 @@ public class LibManager implements AutoCloseable {
          }
          catch(Exception ex) {
             LOG.warn("Failed to process action event", ex);
-         }
-      }
-   }
-
-   /**
-    * Fire event.
-    * @param ots the specified last modified timestamp.
-    */
-   protected void fireEvent(long ots) {
-      if(ots != 0 && ts != 0 && ots != ts) {
-         for(PropertyChangeListener listener : refreshedListeners) {
-            listener.propertyChange(new PropertyChangeEvent(
-               LibManager.this, "LibManager", null, null, orgID));
          }
       }
    }
@@ -765,7 +715,6 @@ public class LibManager implements AutoCloseable {
                   if(!Tool.isEmptyString(orgID)) {
                      init();
                      fireActionEvent("", SCRIPT_RELOADED);
-                     LibManager.this.fireEvent(timestamp);
                   }
                }
 
@@ -797,30 +746,6 @@ public class LibManager implements AutoCloseable {
       }
 
       return null;
-   }
-
-   /**
-    * Check if is older version compare to current version.
-    */
-   @SuppressWarnings("unused")
-   private static boolean isOlderVersion(String version) {
-      // @temp jasons, keeping this method until we've tested that there are no
-      //       issues caused by the change.
-      if(version == null || version.equals("")) {
-         return true;
-      }
-
-      try {
-         float f1 = Float.parseFloat(version.substring(7));
-         float f2 = Float.parseFloat(CURR_VERSION.substring(7));
-
-         return f1 < f2;
-      }
-      catch(Exception e) {
-         LOG.warn("Invalid library version: " + version, e);
-      }
-
-      return false;
    }
 
    /**
@@ -880,11 +805,9 @@ public class LibManager implements AutoCloseable {
          String orgID = change.getOrgID();
 
          if(change.getPropertyName().equals("LibManager") && Tool.equals(orgID, this.orgID)) {
-            fireEvent(System.currentTimeMillis());
             fireActionEvent((String)change.getNewValue(), SCRIPT_MODIFIED);
             reloadLibrary();
          }
-
       }
    };
 
@@ -934,7 +857,7 @@ public class LibManager implements AutoCloseable {
       }
 
       private final Lock lock = new ReentrantLock();
-      private Map<String, LibManager> orgManagers = new HashMap<>();
+      private final Map<String, LibManager> orgManagers = new HashMap<>();
    }
 
    // current library version
@@ -950,7 +873,6 @@ public class LibManager implements AutoCloseable {
    private final TableStyleFolderLogicalLibrary styleFolders;
 
    private final List<ActionListener> listeners = Collections.synchronizedList(new ArrayList<>());
-   private final List<PropertyChangeListener> refreshedListeners = new ArrayList<>();
    private volatile boolean closed = false;
    private final Cluster cluster;
 

@@ -66,7 +66,6 @@ public class StyleTreeModel implements XMLSerializable {
    public static void addFolder(String folder) {
       try {
          LibManager mgr = LibManager.getManager();
-         mgr.refresh(false);
          mgr.addTableStyleFolder(folder);
          mgr.save();
       }

@@ -24,6 +24,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.MessageListener;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
@@ -72,10 +73,13 @@ public class RepositoryChangeController {
       RepletRegistry.getRegistry().addPropertyChangeListener(this.reportListener);
       assetRepository.addAssetChangeListener(this.assetListener);
       assetRepository.addAssetChangeListener(this.autoSaveListener);
-      LibManager.getManager().addActionListener(this.libraryListener);
       DashboardManager.getManager().addDashboardChangeListener(this.dashboardListener);
       DataSourceRegistry.getRegistry().addRefreshedListener(dataSourceListener);
       cluster.addMessageListener(this.clusterMessageListener);
+
+      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+         addLibManagerListener(orgId);
+      }
    }
 
    @PreDestroy
@@ -84,7 +88,6 @@ public class RepositoryChangeController {
       RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
       assetRepository.removeAssetChangeListener(this.assetListener);
       assetRepository.removeAssetChangeListener(this.autoSaveListener);
-      LibManager.getManager().removeActionListener(this.libraryListener);
       DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
       DataSourceRegistry.getRegistry().removeRefreshedListener(dataSourceListener);
       cluster.removeMessageListener(this.clusterMessageListener);
@@ -96,6 +99,10 @@ public class RepositoryChangeController {
       for(Map.Entry<Principal, PropertyChangeListener> entry : userReportListeners.entrySet()) {
          IdentityID pId = IdentityID.getIdentityIDFromKey(entry.getKey().getName());
          RepletRegistry.getRegistry(pId).removePropertyChangeListener(entry.getValue());
+      }
+
+      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+         removeLibManagerListener(orgId);
       }
 
       debouncer.close();
@@ -122,6 +129,11 @@ public class RepositoryChangeController {
             userReportListeners.put(principal, listener);
             RepletRegistry.getRegistry(pId).addPropertyChangeListener(listener);
          }
+      }
+
+      if(principal instanceof XPrincipal) {
+         String orgId = ((XPrincipal) principal).getCurrentOrgId();
+         addLibManagerListener(orgId);
       }
    }
 
@@ -287,6 +299,18 @@ public class RepositoryChangeController {
       }
    };
 
+   private void addLibManagerListener(String orgId) {
+      if(!libManagerListenerOrgs.contains(orgId)) {
+         LibManager.getManager(orgId).addActionListener(libraryListener);
+         libManagerListenerOrgs.add(orgId);
+      }
+   }
+
+   private void removeLibManagerListener(String orgId) {
+      LibManager.getManager(orgId).removeActionListener(libraryListener);
+      libManagerListenerOrgs.remove(orgId);
+   }
+
    private volatile boolean closed = false;
    private final AssetRepository assetRepository;
    private final SimpMessagingTemplate messagingTemplate;
@@ -294,6 +318,7 @@ public class RepositoryChangeController {
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
    private final Map<Principal, PropertyChangeListener> adminReportListeners = new ConcurrentHashMap<>();
    private final Map<Principal, PropertyChangeListener> userReportListeners = new ConcurrentHashMap<>();
+   private final Set<String> libManagerListenerOrgs = new HashSet<>();
 
    private final ReportChangeListener reportListener = new ReportChangeListener(null);
    private final AssetChangeListener assetListener = this::assetChanged;

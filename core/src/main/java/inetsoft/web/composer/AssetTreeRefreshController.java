@@ -20,6 +20,7 @@ package inetsoft.web.composer;
 import inetsoft.report.LibManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -43,8 +44,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.security.Principal;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -64,24 +64,30 @@ public class AssetTreeRefreshController {
    @PostConstruct
    public void addListeners() {
       assetRepository.addAssetChangeListener(listener);
-      LibManager.getManager().addActionListener(libraryListener);
       DataSourceRegistry.getRegistry().addRefreshedListener(this::dataSourceRefreshed);
       AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
       if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
          runtimeAssetRepository.addAssetChangeListener(listener);
       }
+
+      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+         addLibManagerListener(orgId);
+      }
    }
 
    @PreDestroy
    public void preDestroy() throws Exception {
       assetRepository.removeAssetChangeListener(listener);
-      LibManager.getManager().removeActionListener(libraryListener);
       DataSourceRegistry.getRegistry().removeRefreshedListener(this::dataSourceRefreshed);
       AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
       if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
          runtimeAssetRepository.removeAssetChangeListener(listener);
+      }
+
+      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+         removeLibManagerListener(orgId);
       }
 
       this.debouncer.close();
@@ -93,6 +99,11 @@ public class AssetTreeRefreshController {
       final String subscriptionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
       subscriptions.put(subscriptionId, principal);
+
+      if(principal instanceof XPrincipal) {
+         String orgId = ((XPrincipal) principal).getCurrentOrgId();
+         addLibManagerListener(orgId);
+      }
    }
 
    @EventListener
@@ -165,13 +176,24 @@ public class AssetTreeRefreshController {
       }
    }
 
+   private void addLibManagerListener(String orgId) {
+      if(!libManagerListenerOrgs.contains(orgId)) {
+         LibManager.getManager(orgId).addActionListener(libraryListener);
+         libManagerListenerOrgs.add(orgId);
+      }
+   }
+
+   private void removeLibManagerListener(String orgId) {
+      LibManager.getManager(orgId).removeActionListener(libraryListener);
+      libManagerListenerOrgs.remove(orgId);
+   }
+
    private AssetRepository assetRepository;
    private SimpMessagingTemplate messagingTemplate;
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
 
-   final private Debouncer<String> debouncer = new DefaultDebouncer<>(false);
-   private static final String TABLE_STYLE = "Table Style";
-   private static final String SCRIPT = "Script Function";
+   private final Debouncer<String> debouncer = new DefaultDebouncer<>(false);
+   private final Set<String> libManagerListenerOrgs = new HashSet<>();
 
    private final AssetChangeListener listener = new AssetChangeListener() {
       @Override
@@ -213,7 +235,8 @@ public class AssetTreeRefreshController {
       public void actionPerformed(ActionEvent event) {
          debouncer.debounce("lib_changed" + getOrgId(event), 2, TimeUnit.SECONDS, () -> {
             AssetEntry root = new AssetEntry(
-               AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.LIBRARY_FOLDER, "/", null);
+               AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.LIBRARY_FOLDER, "/", null,
+               getOrgId(event));
 
             AssetChangeEventModel eventModel = AssetChangeEventModel.builder()
                .parentEntry(root)
