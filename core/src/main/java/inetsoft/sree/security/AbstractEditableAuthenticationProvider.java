@@ -304,9 +304,7 @@ public abstract class AbstractEditableAuthenticationProvider
             }
             else if(theme.getOrgID() == null) {
                if(theme.getOrganizations().contains(fromOrgId)) {
-                  List<String> newOrgs = theme.getOrganizations();
-                  newOrgs.add(toOrgId);
-                  theme.setOrganizations(newOrgs);
+                  manager.setOrgSelectedTheme(theme.getId(), toOrgId);
                }
             }
          }
