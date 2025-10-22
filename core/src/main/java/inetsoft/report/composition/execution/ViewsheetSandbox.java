@@ -660,7 +660,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       for(String name : list) {
          ViewsheetSandbox box = bmap.remove(name);
-         box.dispose();
+
+         if(box != null) {
+            box.dispose();
+         }
       }
 
       bmap.clear();
