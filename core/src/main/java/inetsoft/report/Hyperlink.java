@@ -854,12 +854,18 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
       String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       int orgIdx = link.lastIndexOf("^");
 
-      if(orgIdx > 0) {
+      //handle import assets from older version without org identifier
+      boolean hasOrgDelim = link.chars().filter(ch -> ch == '^').count() > 3;
+
+      if(orgIdx > 0 && hasOrgDelim) {
          String linkOrg = link.substring(orgIdx + 1);
 
          if(!Tool.equals(linkOrg, curOrgId)) {
             return link.substring(0, orgIdx + 1) + curOrgId;
          }
+      }
+      else if(!hasOrgDelim) {
+         link = link + "^" + curOrgId;
       }
 
       return link;
