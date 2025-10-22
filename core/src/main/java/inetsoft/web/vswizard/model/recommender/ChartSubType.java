@@ -256,5 +256,7 @@ public class ChartSubType extends VSSubType {
    private boolean rotated;
    private boolean histogram;
    private boolean dotplot;
-   private ChartInfo chartInfo;
+
+   @JsonIgnore
+   private transient ChartInfo chartInfo;
 }
