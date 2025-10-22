@@ -62,7 +62,7 @@ public class OpenScriptController {
          AssetEntry entry = AssetEntry.createAssetEntry(scriptModel.getId());
          this.scriptService.updateScriptDependencies(scriptModel.getText(), function, entry);
 
-         if(Tool.equals(function, scriptModel.getText())) {
+         if(!Tool.equals(function, scriptModel.getText())) {
             change = true;
          }
 
