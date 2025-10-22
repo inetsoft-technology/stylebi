@@ -230,7 +230,7 @@ public class XPartitionAsset extends AbstractXAsset implements FolderChangeableA
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       Element elem = Tool.parseXML(input).getDocumentElement();

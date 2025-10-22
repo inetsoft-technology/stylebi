@@ -156,7 +156,7 @@ public class TableStyleAsset extends AbstractXAsset {
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       parseAsset(input, (comment, in) -> parseContent(in, config, comment));
