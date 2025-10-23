@@ -30,46 +30,48 @@
      [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
      [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
      [style.width.px]="model.objectFormat.width"
-     [style.height.px]="model.objectFormat.height"
-     [style.background-color]="model.objectFormat.background"
-     [style.border-bottom]="model.objectFormat.border.bottom"
-     [style.border-top]="model.objectFormat.border.top"
-     [style.border-left]="model.objectFormat.border.left"
-     [style.border-right]="model.objectFormat.border.right"
-     [style.border-radius.px]="model.objectFormat.roundCorner">
-  <div class="image-container"
-       [style.align-items]="model.objectFormat.alignItems"
-       [style.justify-content]="model.objectFormat.justifyContent"
+     [style.height.px]="model.objectFormat.height">
+  <div class="border-div"
        [style.z-index]="viewer ? model.objectFormat.zIndex : null"
-       [class.cursor-pointer]="viewer && (model.hyperlinks && model.hyperlinks.length || model.hasOnClick || model.popComponent)">
-    <ng-container *ngIf="!model.noImageFlag && vsInfo?.linkUri">
-      <img #imageElement *ngIf="!model.scaleInfo.tiled" class="image-content"
+       [style.background-color]="model.objectFormat.background"
+       [style.border-bottom]="model.objectFormat.border.bottom"
+       [style.border-top]="model.objectFormat.border.top"
+       [style.border-left]="model.objectFormat.border.left"
+       [style.border-right]="model.objectFormat.border.right"
+       [style.border-radius.px]="model.objectFormat.roundCorner">
+    <div class="image-container"
+         [style.align-items]="model.objectFormat.alignItems"
+         [style.justify-content]="model.objectFormat.justifyContent"
+         [class.cursor-pointer]="viewer && (model.hyperlinks && model.hyperlinks.length || model.hasOnClick || model.popComponent)">
+      <ng-container *ngIf="!model.noImageFlag && vsInfo?.linkUri">
+        <img #imageElement *ngIf="!model.scaleInfo.tiled" class="image-content"
+             (click)="clicked($event)"
+             (load)="onImageLoad()" (error)="finishLoad()"
+             [class.image-content-shadow]="model.shadow && model.animateGif"
+             [style.width.px]="imageSize.width"
+             [style.height.px]="imageSize.height"
+             [style.opacity]="opacity"
+             [attr.src]="src">
+        <div *ngIf="model.scaleInfo.tiled"
+             [ngStyle]="{'background': 'url(' + src + ') repeat'}"
+             (click)="clicked($event)"
+             class="image-content-tiled"
+             [style.opacity]="opacity">
+        </div>
+      </ng-container>
+      <div *ngIf="model.noImageFlag"
+           [innerText]="'_#(Image)'"
            (click)="clicked($event)"
-           (load)="onImageLoad()" (error)="finishLoad()"
-           [class.image-content-shadow]="model.shadow && model.animateGif"
+           class="image-no-content"
            [style.width.px]="imageSize.width"
            [style.height.px]="imageSize.height"
-           [style.opacity]="opacity"
-           [attr.src]="src">
-      <div *ngIf="model.scaleInfo.tiled"
-           [ngStyle]="{'background': 'url(' + src + ') repeat'}"
-           (click)="clicked($event)"
-           class="image-content-tiled"
-           [style.opacity]="opacity">
+           [style.background]="model.objectFormat.background"
+           [style.border-radius.px]="model.objectFormat.roundCorner"
+           [style.line-height]="model.objectFormat.height +'px'">
       </div>
-    </ng-container>
-    <div *ngIf="model.noImageFlag"
-         [innerText]="'_#(Image)'"
-         (click)="clicked($event)"
-         class="image-no-content"
-         [style.width.px]="imageSize.width"
-         [style.height.px]="imageSize.height"
-         [style.background]="model.objectFormat.background"
-         [style.border-radius.px]="model.objectFormat.roundCorner"
-         [style.line-height]="model.objectFormat.height +'px'">
-    </div>
-    <div class="annotation-hidden-container" *ngIf="viewer">
-      <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
+      <div class="annotation-hidden-container" *ngIf="viewer">
+        <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
+      </div>
     </div>
   </div>
   <ng-container *ngIf="viewer">
