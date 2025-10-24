@@ -640,7 +640,7 @@ public class VSCalendar extends VSFloatable {
       int tx = x;
 
       if(center) {
-         tx = x + Math.round((w - fm.stringWidth(txt)) / 2.0f);
+         tx = x + (w - fm.stringWidth(txt)) / 2;
       }
       // default right align
       else {
