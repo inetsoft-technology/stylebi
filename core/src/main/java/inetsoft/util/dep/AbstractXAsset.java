@@ -53,7 +53,7 @@ public abstract class AbstractXAsset implements XAsset {
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       throw new RuntimeException("Unsupported method is called!");

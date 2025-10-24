@@ -25,8 +25,7 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.DeployManagerService;
 import inetsoft.sree.internal.DeploymentInfo;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.*;
@@ -76,7 +75,8 @@ public class ImportAssetService {
       ImportAssetContext context = new ImportAssetContext(importId);
       context.setProperties(properties);
       contexts.put(importId, context);
-      return getJarFileInfo(importId, principal);
+      boolean isImportAsSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+      return getJarInfo(importId, null, principal, isImportAsSiteAdmin);
    }
 
    @ClusterProxyMethod(CACHE_NAME)
@@ -230,9 +230,17 @@ public class ImportAssetService {
                                           Principal principal)
       throws Exception
    {
+      return getJarInfo(importId, targetFolderInfo, principal, false);
+   }
+
+   private ExportedAssetsModel getJarInfo(String importId, ImportTargetFolderInfo targetFolderInfo,
+                                          Principal principal, boolean isImportAsSiteAdmin)
+      throws Exception
+   {
       ImportAssetContext context = contexts.get(importId);
       ImportJarProperties properties = context.getProperties();
-      PartialDeploymentJarInfo info = DeployManagerService.getInfo(properties.unzipFolderPath());
+      PartialDeploymentJarInfo info =
+         DeployManagerService.getInfo(properties.unzipFolderPath(), isImportAsSiteAdmin);
       context.setInfo(info);
       contexts.put(importId, context);
       DeploymentInfo deploymentInfo = new DeploymentInfo(info, properties);
