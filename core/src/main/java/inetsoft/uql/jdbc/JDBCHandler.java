@@ -1761,6 +1761,7 @@ public class JDBCHandler extends XHandler {
 
       boolean mysql5 = isMySQL5(meta);
       boolean clickHouse = xds.getDatabaseType() == JDBCDataSource.JDBC_CLICKHOUSE;
+      boolean databricks = xds.getURL().startsWith("jdbc:databricks:");
       boolean sqlServer = xds.getDatabaseType() == JDBCDataSource.JDBC_SQLSERVER;
 
       // if user is not supported, don't qualify the name with database
@@ -1822,7 +1823,7 @@ public class JDBCHandler extends XHandler {
             }
          }
 
-         if((mysql5 || sqlServer || clickHouse) && cnt > 1) {
+         if((mysql5 || sqlServer || clickHouse || databricks) && cnt > 1) {
             if(db == null) {
                defaultCatalog = meta.getConnection().getCatalog();
             }
