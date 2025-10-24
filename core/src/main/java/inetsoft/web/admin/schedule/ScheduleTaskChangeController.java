@@ -78,17 +78,17 @@ public class ScheduleTaskChangeController {
    @SubscribeMapping(PORTAL_TOPIC)
    public synchronized void subscribePortal(StompHeaderAccessor header, Principal principal) {
       final MessageHeaders messageHeaders = header.getMessageHeaders();
-      final String subscriptionId =
-         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      portalSubscribers.put(subscriptionId, principal);
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      portalSubscribers.put(sessionId, principal);
    }
 
    @SubscribeMapping(ADMIN_TOPIC)
    public synchronized void subscribeAdmin(StompHeaderAccessor header, Principal principal) {
       final MessageHeaders messageHeaders = header.getMessageHeaders();
-      final String subscriptionId =
-         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      adminSubscribers.put(subscriptionId, principal);
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      adminSubscribers.put(sessionId, principal);
    }
 
    @EventListener
@@ -104,12 +104,12 @@ public class ScheduleTaskChangeController {
    private void removeSubscription(AbstractSubProtocolEvent event) {
       final Message<byte[]> message = event.getMessage();
       final MessageHeaders headers = message.getHeaders();
-      final String subscriptionId =
-         (String) headers.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
 
-      if(subscriptionId != null) {
-         adminSubscribers.remove(subscriptionId);
-         portalSubscribers.remove(subscriptionId);
+      if(sessionId != null) {
+         adminSubscribers.remove(sessionId);
+         portalSubscribers.remove(sessionId);
       }
    }
 

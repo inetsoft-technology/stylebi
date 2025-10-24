@@ -61,17 +61,17 @@ public class ScheduleTaskFolderChangeController {
    @SubscribeMapping(FOLDER_TOPIC)
    public synchronized void subscribeFolderChange(StompHeaderAccessor header, Principal principal) {
       final MessageHeaders messageHeaders = header.getMessageHeaders();
-      final String subscriptionId =
-         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      folderSubscriptions.put(subscriptionId, principal);
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      folderSubscriptions.put(sessionId, principal);
    }
 
    @SubscribeMapping(EM_FOLDER_TOPIC)
    public synchronized void subscribeEmFolderChange(StompHeaderAccessor header, Principal principal) {
       final MessageHeaders messageHeaders = header.getMessageHeaders();
-      final String subscriptionId =
-         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      emFolderSubscriptions.put(subscriptionId, principal);
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      emFolderSubscriptions.put(sessionId, principal);
    }
 
    private void folderChanged(AssetChangeEvent event) {

@@ -24,7 +24,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.DefaultDebouncer;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.security.*;
-import inetsoft.web.service.BaseSubscribeChangHandler;
+import inetsoft.web.service.BaseSubscribeChangeHandler;
 import jakarta.annotation.PreDestroy;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.event.EventListener;
@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @Lazy(false)
-public class ScheduleUsersChangeService extends BaseSubscribeChangHandler implements MessageListener {
+public class ScheduleUsersChangeService extends BaseSubscribeChangeHandler implements MessageListener {
    public ScheduleUsersChangeService(SimpMessagingTemplate messageTemplate) {
       super(messageTemplate);
       Cluster.getInstance().addMessageListener(this);
@@ -77,9 +77,9 @@ public class ScheduleUsersChangeService extends BaseSubscribeChangHandler implem
          .get(DestinationPatternsMessageCondition.LOOKUP_DESTINATION_HEADER);
       final String subscriptionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      final BaseSubscribeChangHandler.BaseSubscriber subscriber =
-         new BaseSubscribeChangHandler.BaseSubscriber(sessionId, subscriptionId,
-            lookupDestination, destination, headerAccessor.getUser());
+      final BaseSubscribeChangeHandler.BaseSubscriber subscriber =
+         new BaseSubscribeChangeHandler.BaseSubscriber(sessionId, subscriptionId,
+                                                       lookupDestination, destination, headerAccessor.getUser());
 
       return addSubscriber(subscriber);
    }

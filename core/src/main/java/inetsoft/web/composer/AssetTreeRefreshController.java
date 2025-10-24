@@ -96,9 +96,9 @@ public class AssetTreeRefreshController {
    @SubscribeMapping("/asset-changed")
    public void subscribeToTopic(StompHeaderAccessor header, Principal principal) {
       final MessageHeaders messageHeaders = header.getMessageHeaders();
-      final String subscriptionId =
-         (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      subscriptions.put(subscriptionId, principal);
+      final String sessionId =
+         (String) messageHeaders.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
+      subscriptions.put(sessionId, principal);
 
       if(principal instanceof XPrincipal) {
          String orgId = ((XPrincipal) principal).getCurrentOrgId();
@@ -119,11 +119,11 @@ public class AssetTreeRefreshController {
    private void removeSubscription(AbstractSubProtocolEvent event) {
       final Message<byte[]> message = event.getMessage();
       final MessageHeaders headers = message.getHeaders();
-      final String subscriptionId =
-         (String) headers.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
+      final String sessionId =
+         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
 
-      if(subscriptionId != null) {
-         subscriptions.remove(subscriptionId);
+      if(sessionId != null) {
+         subscriptions.remove(sessionId);
       }
    }
 

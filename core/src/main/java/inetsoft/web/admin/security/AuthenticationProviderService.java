@@ -31,7 +31,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.data.MapModel;
-import inetsoft.web.service.BaseSubscribeChangHandler;
+import inetsoft.web.service.BaseSubscribeChangeHandler;
 import inetsoft.web.viewsheet.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
 
 @Service
 @EnableAspectJAutoProxy(proxyTargetClass = true)
-public class AuthenticationProviderService extends BaseSubscribeChangHandler implements MessageListener {
+public class AuthenticationProviderService extends BaseSubscribeChangeHandler implements MessageListener {
    @Autowired
    public AuthenticationProviderService(SecurityEngine securityEngine, ObjectMapper objectMapper,
                                         SimpMessagingTemplate messageTemplate)
@@ -90,9 +90,9 @@ public class AuthenticationProviderService extends BaseSubscribeChangHandler imp
          .get(DestinationPatternsMessageCondition.LOOKUP_DESTINATION_HEADER);
       final String subscriptionId =
          (String) messageHeaders.get(SimpMessageHeaderAccessor.SUBSCRIPTION_ID_HEADER);
-      final BaseSubscribeChangHandler.BaseSubscriber subscriber =
-         new BaseSubscribeChangHandler.BaseSubscriber(sessionId, subscriptionId,
-                                                      lookupDestination, destination, headerAccessor.getUser());
+      final BaseSubscribeChangeHandler.BaseSubscriber subscriber =
+         new BaseSubscribeChangeHandler.BaseSubscriber(sessionId, subscriptionId,
+                                                       lookupDestination, destination, headerAccessor.getUser());
 
       return addSubscriber(subscriber);
    }
