@@ -90,7 +90,7 @@ public class ControllersExtension extends MockMessageExtension {
          }
       };
 
-      runtimeViewsheetManager = new RuntimeViewsheetManager(viewsheetService, worksheetService);
+      runtimeViewsheetManager = new RuntimeViewsheetManager(viewsheetService);
       List<VSObjectModelFactory<?, ?>> modelFactories = Arrays.asList(
          new VSCalcTableModel.VSCalcTableModelFactory(),
          new VSCheckBoxModel.VSCheckBoxModelFactory(),

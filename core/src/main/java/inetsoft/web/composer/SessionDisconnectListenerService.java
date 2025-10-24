@@ -17,34 +17,30 @@
  */
 package inetsoft.web.composer;
 
+import inetsoft.sree.internal.cluster.*;
+import inetsoft.web.session.*;
 import inetsoft.web.viewsheet.service.RuntimeViewsheetManager;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Component;
-import org.springframework.web.socket.messaging.*;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
 
-import java.security.Principal;
-
-@Component
-public class ComposerDisconnectListener {
+@Service
+@Lazy(false)
+public class SessionDisconnectListenerService implements MessageListener {
    @Autowired
-   public ComposerDisconnectListener(RuntimeViewsheetManager runtimeViewsheetManager) {
+   public SessionDisconnectListenerService(RuntimeViewsheetManager runtimeViewsheetManager) {
       this.runtimeViewsheetManager = runtimeViewsheetManager;
+      Cluster cluster = Cluster.getInstance();
+      cluster.addMessageListener(this);
    }
 
-   /**
-    * On websocket disconnect, attempts to clean up the socket's runtime sheet if it has
-    * not been closed already.
-    */
-   @EventListener
-   public void sessionDisconnected(SessionDisconnectEvent sessionDisconnectEvent) {
-      Principal principal = sessionDisconnectEvent.getUser();
-      runtimeViewsheetManager.sessionEnded(principal);
-   }
+   @Override
+   public void messageReceived(MessageEvent event) {
+      Object message = event.getMessage();
 
-   @EventListener
-   public void sessionConnected(SessionConnectEvent event) {
-      runtimeViewsheetManager.sessionConnected(event.getUser());
+      if(message instanceof SessionDeletedEvent || message instanceof SessionExpiredEvent) {
+         runtimeViewsheetManager.sessionEnded(((SessionEvent) message).getPrincipalCookie());
+      }
    }
 
    private final RuntimeViewsheetManager runtimeViewsheetManager;
