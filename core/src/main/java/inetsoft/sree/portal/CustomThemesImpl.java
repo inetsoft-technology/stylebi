@@ -70,6 +70,9 @@ public class CustomThemesImpl implements XMLSerializable, AutoCloseable {
    public void setOrgSelectedTheme(String selectedTheme) {
    }
 
+   public void setOrgSelectedTheme(String selectedTheme, String orgID) {
+   }
+
    public void removeSelectedTheme(String selectedTheme) {
    }
 
