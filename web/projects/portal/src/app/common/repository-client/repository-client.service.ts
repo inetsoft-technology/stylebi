@@ -24,7 +24,9 @@ import {
    DebounceService
 } from "../../widget/services/debounce.service";
 
-@Injectable()
+@Injectable({
+   providedIn: "root"
+})
 export class RepositoryClientService {
    private connection: StompClientConnection;
    private connecting = false;
