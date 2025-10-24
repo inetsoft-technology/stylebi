@@ -140,7 +140,7 @@ public class DataCycleAsset extends AbstractXAsset {
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       if(cycle == null) {

@@ -90,7 +90,7 @@ public class WSAutoSaveAsset extends WorksheetAsset {
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport) throws Exception {
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin) throws Exception {
       boolean overwriting = config != null && config.isOverwriting();
       String file = AutoSaveUtils.RECYCLE_PREFIX + SUtil.addAutoSaveOrganization(autoFile);
       Principal principal = ThreadContext.getContextPrincipal();

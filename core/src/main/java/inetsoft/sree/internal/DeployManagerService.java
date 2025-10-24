@@ -320,7 +320,7 @@ public class DeployManagerService {
                   setFolderProperty(folder, info);
                }
 
-               asset.parseContent(in, config, true);
+               asset.parseContent(in, config, true, false);
             }
          }
 
@@ -414,7 +414,7 @@ public class DeployManagerService {
    /**
     * Get jar info.
     */
-   public static PartialDeploymentJarInfo getInfo(String filePath)
+   public static PartialDeploymentJarInfo getInfo(String filePath, boolean isImportAsSiteAdmin)
       throws Exception
    {
       File file = FileSystemService.getInstance().getFile(filePath, "JarFileInfo.xml");
@@ -433,6 +433,17 @@ public class DeployManagerService {
          Element root = infoDom.getDocumentElement();
          final PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
          info.parseXML(root);
+         String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+         //if importing as site admin, should import all assets to current organization
+         if(isImportAsSiteAdmin) {
+            for(PartialDeploymentJarInfo.SelectedAsset asset : info.getSelectedEntries()) {
+               if(asset.getUser() != null && asset.getUser().orgID != null) {
+                  asset.getUser().orgID = currOrgID;
+               }
+            }
+         }
+
          return info;
       }
    }
@@ -750,6 +761,15 @@ public class DeployManagerService {
                }
 
                XAsset asset = DeployHelper.getAsset(file, names);
+
+               //if importing as site admin, should import all assets to current organization
+               if(OrganizationManager.getInstance().isSiteAdmin(principal) && asset != null && asset.getUser() != null) {
+                  asset.getUser().setOrgID(OrganizationManager.getInstance().getCurrentOrgID(principal));
+
+                  if(asset instanceof AbstractSheetAsset) {
+                     ((AbstractSheetAsset) asset).getAssetEntry().toIdentifier(false);
+                  }
+               }
 
                if(asset == null) {
                   importAsset(file, null, ignoreSub, failedList, embeddedTables, ignoreAssets,
@@ -1477,7 +1497,7 @@ public class DeployManagerService {
 
             if(asset instanceof VSAutoSaveAsset || asset instanceof WSAutoSaveAsset) {
                if(input.available() > 0) {
-                  asset.parseContent(input, config, true);
+                  asset.parseContent(input, config, true, false);
                }
 
                return false;
@@ -1562,7 +1582,7 @@ public class DeployManagerService {
 
             if(input.available() > 0) {
                // there import file.
-               asset.parseContent(input, config, true);
+               asset.parseContent(input, config, true, OrganizationManager.getInstance().isSiteAdmin(principal));
 
                if(asset instanceof ScheduleTaskAsset) {
                   DependencyHandler.getInstance().updateTaskDependencies((ScheduleTaskAsset) asset);

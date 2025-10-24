@@ -202,7 +202,7 @@ public class VirtualPrivateModelAsset extends AbstractXAsset implements FolderCh
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       Element elem = Tool.parseXML(input).getDocumentElement();

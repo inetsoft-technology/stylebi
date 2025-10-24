@@ -106,8 +106,8 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
       else {
          XPrincipal principal = (XPrincipal) ThreadContext.getPrincipal();
          principal = principal == null ? (XPrincipal) ThreadContext.getContextPrincipal() : principal;
-         String pOrgID = principal == null ? Organization.getDefaultOrganizationID() :
-                        IdentityID.getIdentityIDFromKey(principal.getName()).orgID;
+         String pOrgID = principal == null ? OrganizationManager.getInstance().getCurrentOrgID() :
+                                             OrganizationManager.getInstance().getCurrentOrgID(principal);
          return new IdentityID(key, pOrgID);
       }
    }

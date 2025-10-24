@@ -92,7 +92,7 @@ public class DeviceAsset extends AbstractXAsset {
    }
 
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       if(id != null) {

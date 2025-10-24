@@ -22,8 +22,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.DeployManagerService;
 import inetsoft.sree.internal.DeploymentInfo;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.*;
@@ -71,7 +70,10 @@ public class ImportAssetController {
 
       ImportJarProperties properties = deployService.setJarFile(temp.getAbsolutePath(), false);
       request.getSession(true).setAttribute(PROPS_ATTR, properties);
-      return getJarFileInfo(request, principal);
+
+      boolean isImportAsSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+
+      return getJarInfo(null, request, principal, isImportAsSiteAdmin);
    }
 
    @GetMapping("/api/em/content/repository/update-import-info")
@@ -237,9 +239,16 @@ public class ImportAssetController {
                                           HttpServletRequest request, Principal principal)
       throws Exception
    {
+      return getJarInfo(targetFolderInfo, request, principal, false);
+   }
+
+   private ExportedAssetsModel getJarInfo(ImportTargetFolderInfo targetFolderInfo,
+                                          HttpServletRequest request, Principal principal, boolean isImportAsSiteAdmin)
+      throws Exception
+   {
       HttpSession session = request.getSession(true);
       ImportJarProperties properties = (ImportJarProperties) session.getAttribute(PROPS_ATTR);
-      PartialDeploymentJarInfo info = DeployManagerService.getInfo(properties.unzipFolderPath());
+      PartialDeploymentJarInfo info = DeployManagerService.getInfo(properties.unzipFolderPath(), isImportAsSiteAdmin);
 
       if(info == null) {
          throw new RuntimeException("Failed to get Jar info from " + properties.unzipFolderPath());

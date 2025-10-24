@@ -307,7 +307,7 @@ public class XLogicalModelAsset extends AbstractXAsset implements
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       if(getModel() == null) {

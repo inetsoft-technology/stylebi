@@ -341,10 +341,11 @@ public class DeployService {
       boolean onlyScheduleTaskUsers = true;
       OrganizationManager manager = OrganizationManager.getInstance();
       boolean siteAdmin = manager.isSiteAdmin(principal);
+      String currOrg = manager.getCurrentOrgID(principal);
 
       for(PartialDeploymentJarInfo.SelectedAsset entry : info.getSelectedEntries()) {
          boolean accessViolation = SUtil.isMultiTenant() ? entry.getUser() != null &&
-            !Tool.equals(entry.getUser().orgID, manager.getCurrentOrgID()) :
+            !Tool.equals(entry.getUser().orgID, currOrg) :
             !securityEngine.checkPermission(principal, ResourceType.EM, "*", ResourceAction.ACCESS);
 
          if(!siteAdmin && accessViolation)
@@ -354,6 +355,10 @@ public class DeployService {
             return ImportAssetResponse.builder()
                .failedAssets(errors)
                .failed(true).build();
+         }
+
+         if(siteAdmin && entry.getUser() != null && !Tool.equals(entry.getUser().orgID, currOrg)) {
+            entry.getUser().orgID = currOrg;
          }
 
          if(VSAutoSaveAsset.AUTOSAVEVS.equals(entry.getType()) ||
@@ -368,13 +373,17 @@ public class DeployService {
 
             users.add(entry.getUser());
 
-            if(!Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), entry.getUser().orgID)) {
+            if(!Tool.equals(currOrg, entry.getUser().orgID)) {
                ignoreUserAssets.add(entry.getPath());
             }
          }
       }
 
       for(PartialDeploymentJarInfo.RequiredAsset asset : info.getDependentAssets()) {
+         if(siteAdmin && asset.getUser() != null && !Tool.equals(asset.getUser().orgID, currOrg)) {
+            asset.getUser().orgID = currOrg;
+         }
+
          if(isUser(asset.getUser())) {
             if(!ScheduleTaskAsset.SCHEDULETASK.equals(asset.getType())) {
                onlyScheduleTaskUsers = false;
@@ -382,7 +391,7 @@ public class DeployService {
 
             users.add(asset.getUser());
 
-            if(!Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), asset.getUser().orgID)) {
+            if(!Tool.equals(currOrg, asset.getUser().orgID)) {
                ignoreUserAssets.add(asset.getPath());
             }
          }
@@ -466,8 +475,10 @@ public class DeployService {
                             Principal principal)
       throws Exception
    {
+      boolean isImportAsSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+
       ImportJarProperties properties = setJarFile(zipFile.getAbsolutePath(), false);
-      PartialDeploymentJarInfo info = DeployManagerService.getInfo(properties.unzipFolderPath());
+      PartialDeploymentJarInfo info = DeployManagerService.getInfo(properties.unzipFolderPath(), isImportAsSiteAdmin);
 
       if(info == null) {
          throw new Exception("Failed to get Jar info from " + properties.unzipFolderPath());

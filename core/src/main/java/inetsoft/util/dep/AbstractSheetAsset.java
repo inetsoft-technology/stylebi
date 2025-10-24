@@ -21,9 +21,7 @@ import inetsoft.report.LibManager;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.Resource;
-import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.FunctionIterator;
@@ -53,7 +51,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       Document doc = Tool.parseXML(input);
@@ -75,6 +73,25 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
       AbstractSheet sheet0 = getSheet();
       AssetEntry entry = getAssetEntry();
       parseSheet(sheet0, root, config, entry.getOrgID());
+
+      if(isImport && sheet0 != null && isSiteAdmin) {
+         for(AssetEntry dep : sheet0.getOuterDependencies()) {
+            dep.setOrgID(entry.getOrgID());
+
+            if(dep.getUser() != null) {
+               dep.getUser().setOrgID(entry.getOrgID());
+            }
+         }
+
+         for(AssetEntry dep : sheet0.getOuterDependents()) {
+            dep.setOrgID(entry.getOrgID());
+
+            if(dep.getUser() != null) {
+               dep.getUser().setOrgID(entry.getOrgID());
+            }
+         }
+      }
+
       AssetRepository engine = AssetUtil.getAssetRepository(false);
       AssetEntry pentry = entry.getParent();
 
