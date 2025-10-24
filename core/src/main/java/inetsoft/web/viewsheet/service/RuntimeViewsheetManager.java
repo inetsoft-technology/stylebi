@@ -19,21 +19,17 @@ package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ExpiredSheetException;
-import inetsoft.report.composition.WorksheetService;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
-import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.TimeUnit;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Component that ensures that open viewsheets are closed when the client that opened them
@@ -42,30 +38,31 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class RuntimeViewsheetManager {
    @Autowired
-   public RuntimeViewsheetManager(ViewsheetService viewsheetService,
-                                  @Qualifier("worksheetService") WorksheetService worksheetService)
-   {
+   public RuntimeViewsheetManager(ViewsheetService viewsheetService) {
       this.viewsheetService = viewsheetService;
-      this.worksheetService = worksheetService;
+      Cluster cluster = Cluster.getInstance();
+      openSheets = cluster.getReplicatedMap(OPEN_SHEETS_MAP);
    }
 
    public void sheetOpened(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      lock.lock();
+      openSheets.lock(sessionId);
 
       try {
-         openSheets.computeIfAbsent(sessionId, k -> new HashSet<>()).add(runtimeId);
+         Set<String> sheets = openSheets.computeIfAbsent(sessionId, k -> new HashSet<>());
+         sheets.add(runtimeId);
+         openSheets.put(sessionId, sheets);
       }
       finally {
-         lock.unlock();
+         openSheets.unlock(sessionId);
       }
    }
 
    public void sheetClosed(Principal user, String runtimeId) {
       String sessionId = getSessionId(user);
 
-      lock.lock();
+      openSheets.lock(sessionId);
 
       try {
          Set<String> sheets = openSheets.get(sessionId);
@@ -76,69 +73,78 @@ public class RuntimeViewsheetManager {
             if(sheets.isEmpty()) {
                openSheets.remove(sessionId);
             }
+            else {
+               openSheets.put(sessionId, sheets);
+            }
          }
       }
       finally {
-         lock.unlock();
+         openSheets.unlock(sessionId);
       }
    }
 
    public void sessionEnded(Principal user) {
-      // websocket might reconnect right away, wait a little before closing the viewsheets
-      VSUtil.getDebouncer().debounce(getDebounceKey(user), 1L, TimeUnit.MINUTES, () -> {
-         closeViewsheets(user);
-      });
-   }
-
-   public void sessionConnected(Principal user) {
-      VSUtil.getDebouncer().cancel(getDebounceKey(user));
+      closeViewsheets(user);
    }
 
    private void closeViewsheets(Principal user) {
       String sessionId = getSessionId(user);
       Set<String> sheetsToClose;
 
-      lock.lock();
+      openSheets.lock(sessionId);
 
       try {
          sheetsToClose = openSheets.remove(sessionId);
       }
       finally {
-         lock.unlock();
+         openSheets.unlock(sessionId);
       }
 
       if(sheetsToClose != null) {
          for(String runtimeId : sheetsToClose) {
-            try {
-               viewsheetService.closeViewsheet(runtimeId, user);
-            }
-            catch(ExpiredSheetException expiredException) {
-               LOG.debug("Failed to close viewsheet, it is expired: {}", runtimeId);
-            }
-            catch(Exception e) {
-               if(LOG.isDebugEnabled()) {
-                  LOG.debug("Failed to close viewsheet: {}", runtimeId, e);
-               }
-               else {
-                  LOG.warn("Failed to close viewsheet: {}, {}", runtimeId, e.getMessage());
-               }
-            }
+            viewsheetService.affinityCallAsync(runtimeId, new CloseViewsheetTask(runtimeId, user));
          }
       }
    }
 
    private String getSessionId(Principal user) {
-      return user != null && user instanceof XPrincipal ? ((XPrincipal) user).getSessionID() : "unknown-session";
+      return user instanceof XPrincipal ? ((XPrincipal) user).getSessionID() : "unknown-session";
    }
 
-   private String getDebounceKey(Principal user) {
-      return "RuntimeViewsheetManager." + getSessionId(user);
-   }
-
-   private final Map<String, Set<String>> openSheets = new HashMap<>();
-         private final Map<String, AssetEntry> openWorksheets = new HashMap<>();
+   private final DistributedMap<String, Set<String>> openSheets;
    private final ViewsheetService viewsheetService;
-   private final WorksheetService worksheetService;
+   private static final String OPEN_SHEETS_MAP = RuntimeViewsheetManager.class.getName() + ".openSheetsMap";
    private static final Logger LOG = LoggerFactory.getLogger(RuntimeViewsheetManager.class);
-   private final Lock lock = new ReentrantLock();
+
+   public static final class CloseViewsheetTask implements AffinityCallable<Void> {
+      public CloseViewsheetTask(String runtimeId, Principal user) {
+         this.runtimeId = runtimeId;
+         this.user = user;
+      }
+
+      @Override
+      public Void call() throws Exception {
+         ConfigurationContext configContext = ConfigurationContext.getContext();
+
+         try {
+            configContext.getSpringBean(ViewsheetService.class).closeViewsheet(runtimeId, user);
+         }
+         catch(ExpiredSheetException expiredException) {
+            LOG.debug("Failed to close viewsheet, it is expired: {}", runtimeId);
+         }
+         catch(Exception e) {
+            if(LOG.isDebugEnabled()) {
+               LOG.debug("Failed to close viewsheet: {}", runtimeId, e);
+            }
+            else {
+               LOG.warn("Failed to close viewsheet: {}, {}", runtimeId, e.getMessage());
+            }
+         }
+
+         return null;
+      }
+
+      private final String runtimeId;
+      private final Principal user;
+   }
 }
