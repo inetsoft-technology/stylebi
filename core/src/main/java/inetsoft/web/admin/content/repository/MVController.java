@@ -357,7 +357,7 @@ public class MVController {
             return false;
          }
 
-         return Objects.nonNull(repository.getSheet(entry, principal, false, AssetContent.ALL));
+         return repository.getSheet(entry, principal, false, AssetContent.ALL) != null;
       }
       catch(Exception e) {
          return false;
