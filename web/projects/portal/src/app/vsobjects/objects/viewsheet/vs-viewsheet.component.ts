@@ -39,6 +39,7 @@ import { DropdownOptions } from "../../../widget/fixed-dropdown/dropdown-options
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { AbstractVSActions } from "../../action/abstract-vs-actions";
 import { AssemblyActionFactory } from "../../action/assembly-action-factory.service";
+import { ChartActions } from "../../action/chart-actions";
 import { AddVSObjectCommand } from "../../command/add-vs-object-command";
 import { RefreshEmbeddedVSCommand } from "../../command/refresh-embeddedvs-command";
 import { RefreshVSObjectCommand } from "../../command/refresh-vs-object-command";
@@ -153,6 +154,7 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
    }
 
    public processAddVSObjectCommand(command: AddVSObjectCommand): void {
+      const oldActions = this.vsObjectActions ?? [];
       let updated = this.applyRefreshObject(command.model, command.name);
 
       if(!updated) {
@@ -167,7 +169,16 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       // see viewer-app
       this.vsObjects.forEach(obj => obj.sheetMaxMode = command.model.sheetMaxMode);
       this.vsObjects.sort((a, b) => a.objectFormat.zIndex - b.objectFormat.zIndex);
-      this.vsObjectActions = this.vsObjects.map(model => this.actionFactory.createActions(model));
+      this.vsObjectActions = this.vsObjects.map(model => {
+
+         //Attempt to preserve existing chartActions when processing, otherwise causes stale listeners for embedded viewsheet assemblies
+         if(model instanceof ChartActions) {
+            return oldActions.find(a => a.getModel()?.absoluteName === model?.absoluteName)
+                   ?? this.actionFactory.createActions(model);
+         }
+
+         return this.actionFactory.createActions(model);
+      });
 
       this.dataTipService.registerDataTip(command.model.dataTip, command.name);
       this.dataTipService.registerDataTipVisible(command.model.dataTip, true);
