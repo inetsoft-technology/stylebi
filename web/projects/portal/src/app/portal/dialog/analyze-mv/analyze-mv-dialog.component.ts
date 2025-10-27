@@ -335,7 +335,9 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
    private onRepositoryChanged() {
       for(let model of this.selectedNodes) {
          if(model.path) {
-            this.http.get<boolean>("../api/em/content/repository/asset-exists?path="+encodeURIComponent(model.path))
+            let params = new HttpParams().set("path", model.path);
+
+            this.http.get<boolean>("../api/em/content/repository/asset-exists", {params})
                .subscribe((exists) => {
                if(!exists) {
                   this.informChangedAndClose();
