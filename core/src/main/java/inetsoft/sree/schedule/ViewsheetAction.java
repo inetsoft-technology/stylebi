@@ -191,7 +191,17 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
     */
    @Override
    public void parseXML(Element action) throws Exception {
+      parseXML(action, false);
+   }
+
+   public void parseXML(Element action, boolean isImportSiteAdmin) throws Exception {
       viewsheet = byteDecode(action.getAttribute("viewsheet"));
+
+      if(isImportSiteAdmin) {
+         viewsheet = viewsheet.substring(0,viewsheet.lastIndexOf("^")+1) +
+                     OrganizationManager.getInstance().getCurrentOrgID();
+      }
+
       bookmarkReadOnly = "true".equals(action.getAttribute("bookmarkReadOnly"));
       String type = action.getAttribute("bookmarkType");
 
@@ -208,6 +218,11 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             bookmarkNames[i] = bookmark.getAttribute("name");
             bookmarkUsers[i] = IdentityID.getIdentityIDFromKey(bookmark.getAttribute("user"));
 
+            if(isImportSiteAdmin) {
+               bookmarkUsers[i] = bookmarkUsers[i] == null || bookmarkUsers[i].getOrgID() == null ? bookmarkUsers[i] :
+                                  new IdentityID(bookmarkUsers[i].getName(), OrganizationManager.getInstance().getCurrentOrgID());
+            }
+
             if(!org.apache.commons.lang3.StringUtils.isEmpty(bType)) {
                bookmarkTypes[i] = Integer.parseInt(bType);
             }
@@ -216,6 +231,12 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       else {
          String bookmarkName = action.getAttribute("bookmarkName");
          IdentityID bookmarkUser = IdentityID.getIdentityIDFromKey(action.getAttribute("bookmarkUser"));
+
+         if(isImportSiteAdmin) {
+            bookmarkUser = bookmarkUser == null || bookmarkUser.getOrgID() == null ? bookmarkUser :
+                           new IdentityID(bookmarkUser.getName(), OrganizationManager.getInstance().getCurrentOrgID());
+         }
+
          String bType = action.getAttribute("bookmarkType");
          bookmarkNames = new String[]{bookmarkName};
          bookmarkUsers = new IdentityID[]{bookmarkUser};
