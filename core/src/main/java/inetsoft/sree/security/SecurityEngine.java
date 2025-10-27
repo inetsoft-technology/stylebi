@@ -760,7 +760,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       if(type != ResourceType.MY_DASHBOARDS && type != ResourceType.VIEWSHEET_ACTION &&
          !isLogin(principal))
       {
-         throw new SecurityException(principal.getName() + " did not login.");
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         throw new SecurityException(Catalog.getCatalog().getString("security.login.error",
+                                                                    identityID.getLabel()));
       }
 
       boolean datasource = "true".equals(securityDatasourceEveryone.get());
@@ -929,7 +931,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       // resource properly. The principal is not authenticated. To support
       // this usage, here we ignore the authentication check
       if(type != ResourceType.MY_DASHBOARDS && !isLogin(principal)) {
-         throw new SecurityException(principal.getName() + " did not login.");
+         IdentityID principalIdentityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         throw new SecurityException(Catalog.getCatalog().getString("security.login.error",
+                                                                    principalIdentityID.getLabel()));
       }
 
       boolean datasource = "true".equals(securityDatasourceEveryone.get());
@@ -1070,9 +1074,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          if(!isLogin(principal)) {
             String user = (principal == null) ?
                "This user" :
-               principal.getName();
-
-            throw new SRSecurityException(user + " did not login.");
+               IdentityID.getIdentityIDFromKey(principal.getName()).getLabel();
+            throw new SRSecurityException(Catalog.getCatalog().getString("security.login.error",
+                                                                         user));
          }
 
          EditableAuthenticationProvider auth =
