@@ -61,7 +61,8 @@ JAVA_OPTS="$JAVA_OPTS \
 --add-opens=java.base/java.text=ALL-UNNAMED \
 --add-opens=java.management/sun.management=ALL-UNNAMED \
 --add-opens=java.desktop/java.awt=ALL-UNNAMED \
---add-opens=java.desktop/java.awt.geom=ALL-UNNAMED
+--add-opens=java.desktop/java.awt.geom=ALL-UNNAMED \
+--add-opens=java.desktop/java.awt.font=ALL-UNNAMED \
 --add-opens java.base/java.time.chrono=ALL-UNNAMED"
 
 if [[ "$JAVA_CLASSPATH" != "" ]]
