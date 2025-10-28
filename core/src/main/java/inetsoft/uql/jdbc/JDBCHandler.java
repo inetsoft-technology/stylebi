@@ -2194,7 +2194,13 @@ public class JDBCHandler extends XHandler {
                            results.getMetaData().getColumnCount() < 2 ?
                               null : results.getString(2);
 
-                        if(!"workspace".equals(catalogName)) {
+                        String connCatalog = Arrays.stream(xds.getURL().split(";"))
+                           .filter(s -> s.startsWith("ConnCatalog="))
+                           .map(s -> s.substring("ConnCatalog=".length()))
+                           .findFirst()
+                           .orElse("workspace");
+
+                        if(!connCatalog.equals(catalogName)) {
                            continue;
                         }
                      }
