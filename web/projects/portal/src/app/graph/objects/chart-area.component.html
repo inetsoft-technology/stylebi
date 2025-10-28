@@ -212,7 +212,7 @@
            [style.height.px]="model.legendsBounds.height"
            (click)="selectLegendBackground($event)">
         </div>
-        <chart-legend-container *ngFor="let legend of model.legends; trackBy: trackByFn"
+        <chart-legend-container *ngFor="let legend of model.legends; trackBy: legendTrackByFn"
                               class="chart-legend-container"
                               [chartContainer]="chartContainer"
                               [plotRegion]="plotRegion"
