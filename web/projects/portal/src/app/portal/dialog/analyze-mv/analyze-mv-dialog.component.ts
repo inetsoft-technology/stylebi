@@ -27,7 +27,14 @@ import {
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription, timer } from "rxjs";
-import { filter, switchMap, take, takeUntil, timeout } from "rxjs/operators";
+import {
+   debounceTime,
+   filter,
+   switchMap,
+   take,
+   takeUntil,
+   timeout
+} from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../shared/data/repository-entry-type.enum";
 import { MVManagementModel } from "../../../../../../em/src/app/settings/content/materialized-views/mv-management-view/mv-management-model";
 import { SecurityEnabledEvent } from "../../../../../../em/src/app/settings/security/security-settings-page/security-enabled-event";
@@ -39,6 +46,7 @@ import { MaterializedModel } from "../../../../../../shared/util/model/mv/materi
 import { MVExceptionResponse } from "../../../../../../shared/util/model/mv/mv-exception-response";
 import { NameLabelTuple } from "../../../../../../shared/util/name-label-tuple";
 import { Tool } from "../../../../../../shared/util/tool";
+import { RepositoryClientService } from "../../../common/repository-client/repository-client.service";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { AnalyzeMVPortalRequest } from "../../../vsobjects/model/analyze-mv-portal-request";
 import { RepositoryTreeService } from "../../../widget/repository-tree/repository-tree.service";
@@ -76,11 +84,19 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
    private destroy$ = new Subject<void>();
 
    constructor(private repositoryTreeService: RepositoryTreeService,
-               private http: HttpClient,
+               private http: HttpClient, private repositoryClient: RepositoryClientService,
                private modalService: NgbModal)
    {
       this.subscription.add(this.http.get("../api/em/security/get-enable-security")
          .subscribe((event: SecurityEnabledEvent) => this.securityEnabled = event.enable));
+
+      this.repositoryClient.connect();
+      this.repositoryClient.repositoryChanged
+         .pipe(debounceTime(200), takeUntil(this.destroy$))
+         .subscribe(() => {
+            this.onRepositoryChanged()
+         });
+
       this.analyzeMVModel = <AnalyzeMVModel> {
          fullData: true,
          bypass: false,
@@ -313,5 +329,29 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
 
    closeDialog(): void {
       this.onCancel.emit("cancel");
+   }
+
+   private informChangedAndClose() {
+      ComponentTool.showMessageDialog(
+         this.modalService,
+         "_#(js:Repository Changed)",
+         "_#(js:em.repository.viewsheet.expiredMVDialog)");
+      this.onCancel.emit("cancel");
+   }
+
+   private onRepositoryChanged() {
+      for(let model of this.selectedNodes) {
+         if(model.path) {
+            let params = new HttpParams().set("path", model.path);
+
+            this.http.get<boolean>("../api/em/content/repository/asset-exists", {params})
+               .subscribe((exists) => {
+               if(!exists) {
+                  this.informChangedAndClose();
+                  return;
+               }
+            });
+         }
+      }
    }
 }

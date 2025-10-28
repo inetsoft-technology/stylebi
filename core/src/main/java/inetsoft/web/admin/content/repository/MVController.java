@@ -20,7 +20,8 @@ package inetsoft.web.admin.content.repository;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
 import inetsoft.web.admin.content.repository.model.*;
 import inetsoft.web.admin.security.ConnectionStatus;
@@ -216,6 +217,23 @@ public class MVController {
          principal, ResourceType.MATERIALIZATION, "*", ResourceAction.ACCESS);
 
       return MVHasPermissionModel.builder().allow(canMaterialize).build();
+   }
+
+   @GetMapping("/api/em/content/repository/asset-exists")
+   public boolean mvAssetExists(@RequestParam("path") String path, Principal principal) {
+      try {
+         AssetEntry entry = AssetEntry.createAssetEntry(path);
+         AssetRepository repository = AssetUtil.getAssetRepository(false);
+
+         if(entry == null) {
+            return false;
+         }
+
+         return repository.getSheet(entry, principal, false, AssetContent.ALL) != null;
+      }
+      catch(Exception e) {
+         return false;
+      }
    }
 
    private final MVService mvService;
