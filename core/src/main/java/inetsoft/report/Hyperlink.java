@@ -774,9 +774,12 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
    public void parseXML(Element tag) throws Exception {
       String attr;
 
-      if((attr = Tool.getAttribute(tag, "Link")) != null) {
-         setLink(handleAssetLinkOrgMismatch(attr));
+      if((attr = Tool.getAttribute(tag, "LinkType")) != null) {
+         setLinkType(Integer.parseInt(attr));
       }
+
+      if((attr = Tool.getAttribute(tag, "Link")) != null) {
+         setLink(handleAssetLinkOrgMismatch(attr, getLinkType()));      }
 
       if((attr = Tool.getAttribute(tag, "TargetFrame")) != null) {
          setTargetFrame(attr);
@@ -796,10 +799,6 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
 
       if((attr = Tool.getAttribute(tag, "IsSnapshot")) != null) {
          setIsSnapshot(attr.equals("true"));
-      }
-
-      if((attr = Tool.getAttribute(tag, "LinkType")) != null) {
-         setLinkType(Integer.parseInt(attr));
       }
 
       if((attr = Tool.getAttribute(tag, "SendReportParameters")) != null) {
@@ -850,22 +849,24 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
    /**
     * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
     */
-   public static String handleAssetLinkOrgMismatch(String link) {
-      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
-      int orgIdx = link.lastIndexOf("^");
+   public static String handleAssetLinkOrgMismatch(String link, int isAssetLink) {
+      if(isAssetLink == VIEWSHEET_LINK) {
+         String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+         int orgIdx = link.lastIndexOf("^");
 
-      //handle import assets from older version without org identifier
-      boolean hasOrgDelim = link.chars().filter(ch -> ch == '^').count() > 3;
+         //handle import assets from older version without org identifier
+         boolean hasOrgDelim = link.chars().filter(ch -> ch == '^').count() > 3;
 
-      if(orgIdx > 0 && hasOrgDelim) {
-         String linkOrg = link.substring(orgIdx + 1);
+         if(orgIdx > 0 && hasOrgDelim) {
+            String linkOrg = link.substring(orgIdx + 1);
 
-         if(!Tool.equals(linkOrg, curOrgId)) {
-            return link.substring(0, orgIdx + 1) + curOrgId;
+            if(!Tool.equals(linkOrg, curOrgId)) {
+               return link.substring(0, orgIdx + 1) + curOrgId;
+            }
          }
-      }
-      else if(!hasOrgDelim) {
-         link = link + "^" + curOrgId;
+         else if(!hasOrgDelim) {
+            link = link + "^" + curOrgId;
+         }
       }
 
       return link;
