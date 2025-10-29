@@ -1435,6 +1435,14 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       return index;
    }
 
+   legendTrackByFn(index: number, item: any): string {
+      if (!!item?.field) {
+         return item.field;
+      }
+
+      return item.legendIndex;
+   }
+
    get chartContainerVisible(): boolean {
       return !!this.model && (this.noData || this.model.invalid || this.emptyChart ||
          this.paintNoDataChart() || this.vsChartModel.empty) || !(this.model && this.model.invalid) && this.imageError;
