@@ -305,7 +305,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       }
 
       ScheduleTask newTask = new ScheduleTask();
-      newTask.parseXML(Tool.getChildNodeByTagName(elem, "Task"));
+      newTask.parseXML(Tool.getChildNodeByTagName(elem, "Task"), isSiteAdmin);
       String parentPath = newTask.getPath();
 
       SRPrincipal principal = new SRPrincipal(newTask.getOwner());

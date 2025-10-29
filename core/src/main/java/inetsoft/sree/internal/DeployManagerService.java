@@ -435,6 +435,17 @@ public class DeployManagerService {
             for(PartialDeploymentJarInfo.SelectedAsset asset : info.getSelectedEntries()) {
                if(asset.getUser() != null && asset.getUser().orgID != null) {
                   asset.getUser().orgID = currOrgID;
+
+                  if(asset.getPath() != null && asset.getPath().indexOf(":") > 1) {
+                     String pathUserID = asset.getPath().substring(0, asset.getPath().indexOf(":"));
+                     String remaining = asset.getPath().substring(asset.getPath().indexOf(":"));
+                     IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);
+
+                     if(!Tool.equals(userID.orgID, currOrgID)) {
+                        userID.setOrgID(currOrgID);
+                        asset.setPath(userID.convertToKey() + remaining);
+                     }
+                  }
                }
             }
          }

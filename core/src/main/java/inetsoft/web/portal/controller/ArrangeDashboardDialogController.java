@@ -162,6 +162,9 @@ public class ArrangeDashboardDialogController {
          identity = new User(user, new String[0], principal.getGroups(),
                              principal.getRoles(), null, null);
       }
+      else if(securityEnabled && user != null) {
+         identity = new DefaultIdentity(user, Identity.USER);
+      }
       else {
          identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
       }
