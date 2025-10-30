@@ -1927,6 +1927,9 @@ public class JDBCHandler extends XHandler {
                else if(xds.getDatabaseType() == JDBCDataSource.JDBC_POSTGRESQL) {
                   defaultSchema = "public";
                }
+               else if(databricks) {
+                  defaultSchema = "default";
+               }
             }
             catch(SQLException exc) {
                LOG.warn("Failed to get default schema name", exc);
