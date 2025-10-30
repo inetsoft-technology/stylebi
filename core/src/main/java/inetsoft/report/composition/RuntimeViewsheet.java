@@ -244,7 +244,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       // load base worksheet and create asset query sandbox
-      resetRuntime();
+      resetRuntime(true);
    }
 
    /**
@@ -487,10 +487,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * states can be reinitialized to be in sync.
     */
    public void resetRuntime() {
-      resetRuntime(true);
+      resetRuntime(false);
    }
 
-   public void resetRuntime(boolean applyBookmark) {
+   public void resetRuntime(boolean applyHomeBookmark) {
       final ViewsheetSandbox box = this.box;
       final Viewsheet vs = this.vs;
 
@@ -501,24 +501,24 @@ public class RuntimeViewsheet extends RuntimeSheet {
             vs.update(getAssetRepository(), null, getUser());
             box.resetRuntime();
 
-            if(applyBookmark) {
-               VSBookmarkInfo openedBookmark = getOpenedBookmark();
+            VSBookmarkInfo openedBookmark = getOpenedBookmark();
 
-               if(openedBookmark != null &&
-                  !VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName()) &&
-                  !VSBookmark.INITIAL_STATE.equals(openedBookmark.getName()) &&
-                  containsEmbeddedVs(vs))
-               {
-                  try {
-                     gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner(), null);
-                  }
-                  catch(Exception e) {
-                     LOG.warn("Failed to go to bookmark after reset", e);
-                  }
+            if(openedBookmark != null &&
+               !VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName()) &&
+               !VSBookmark.INITIAL_STATE.equals(openedBookmark.getName()) &&
+               containsEmbeddedVs(vs))
+            {
+               try {
+                  gotoBookmark(openedBookmark.getName(), openedBookmark.getOwner(), null);
                }
-               else if(openedBookmark != null && VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName())) {
-                  gotoDefaultBookmark(vs);
+               catch(Exception e) {
+                  LOG.warn("Failed to go to bookmark after reset", e);
                }
+            }
+            else if(applyHomeBookmark && openedBookmark != null &&
+               VSBookmark.HOME_BOOKMARK.equals(openedBookmark.getName()))
+            {
+               gotoDefaultBookmark(vs);
             }
 
             initViewsheet(vs, true);
