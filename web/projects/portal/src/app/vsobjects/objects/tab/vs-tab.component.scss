@@ -53,6 +53,11 @@
       border-bottom-right-radius: 0 !important;
     }
 
+    &.round-bottom-corners-only {
+      border-top-left-radius: 0 !important;
+      border-top-right-radius: 0 !important;
+    }
+
     .tab-item-bottom-border {
       position: absolute;
       border-bottom: inherit;

@@ -62,17 +62,27 @@ public class TabGeneralPaneModel {
       this.sizePositionPaneModel = sizePositionPaneModel;
    }
 
+   public boolean getBottomTabs() {
+      return this.bottomTabs;
+   }
+
+   public void setBottomTabs(boolean bottomTabs) {
+      this.bottomTabs = bottomTabs;
+   }
+
    @Override
    public String toString() {
       return "TabGeneralPaneModel{" +
          "generalPropPaneModel=" + generalPropPaneModel +
          ", tabListPaneModel=" + tabListPaneModel +
          ", sizePositionPaneModel=" + sizePositionPaneModel +
+         ", bottomTabs=" + bottomTabs +
          '}';
    }
 
    private GeneralPropPaneModel generalPropPaneModel;
    private TabListPaneModel tabListPaneModel;
    private SizePositionPaneModel sizePositionPaneModel;
+   private boolean bottomTabs;
 }
 
