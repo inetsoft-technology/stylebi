@@ -3994,7 +3994,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       writer.println("<Version>" + getVersion() + "</Version>");
 
 
-      if(!isEmbedded()) {
+      if(!isEmbedded() || snapshotExport) {
          writer.println("<assemblies>");
 
          for(Assembly assembly : assemblies) {
@@ -5465,6 +5465,10 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       return bmap;
    }
 
+   public void setSnapshotExport(boolean snapshotExport) {
+      this.snapshotExport = snapshotExport;
+   }
+
    private ActionListener listener = new VSChangeListener(this);
    private ViewsheetVSAssemblyInfo info; // assembly info
    private ViewsheetInfo vinfo; // viewsheet info
@@ -5503,6 +5507,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    private boolean annotationsVisible = true;
    private boolean maxMode = false;
    private final Map<String, LogbackTraceAppender.StackRecord> rmStacks = new ConcurrentHashMap<>();
+   private transient boolean snapshotExport = false;
 
    private static final String COLUMN_DELIMITER = "^^";
    private static final String VS_WARNING_TEXT = "VS^WARNING^TEXT";

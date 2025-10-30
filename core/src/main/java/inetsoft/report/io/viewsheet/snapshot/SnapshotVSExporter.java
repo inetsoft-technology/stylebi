@@ -124,8 +124,8 @@ public class SnapshotVSExporter {
       PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
 
       for(XAsset asset0 : assets) {
-         if(asset0 instanceof WorksheetAsset) {
-            ((WorksheetAsset) asset0).setSnapshot(true);
+         if(asset0 instanceof AbstractSheetAsset sheetAsset) {
+            sheetAsset.setSnapshot(true);
          }
 
          asset0.writeContent(jar);

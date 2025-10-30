@@ -47,6 +47,8 @@ import java.util.zip.ZipEntry;
  * @author InetSoft Technology Corp
  */
 public abstract class AbstractSheetAsset extends AbstractXAsset {
+   private boolean snapshot = false;
+
    /**
     * Parse content of the specified asset from input stream.
     */
@@ -392,6 +394,20 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
     */
    protected int getScriptDependencyType() {
       return -1;
+   }
+
+   public boolean isSnapshot() {
+      return snapshot;
+   }
+
+   /**
+    * Sets a flag indicating if this worksheet is being used in a snapshot
+    * export.
+    *
+    * @param snapshot <tt>true</tt> if a snapshot; <tt>false</tt> otherwise.
+    */
+   public void setSnapshot(boolean snapshot) {
+      this.snapshot = snapshot;
    }
 
    /**
