@@ -96,8 +96,8 @@ public class LibManager implements AutoCloseable {
    public static final String COMMENT_SUFFIX = ".comment";
 
    /**
- * Constructor.
- */
+    * Constructor.
+    */
    protected LibManager(LibrarySecurity librarySecurity, String orgID) {
       this.cluster = Cluster.getInstance();
       cluster.addMessageListener(this.clusterMessageListener);
