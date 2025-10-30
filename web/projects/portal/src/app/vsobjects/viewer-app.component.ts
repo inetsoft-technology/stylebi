@@ -426,6 +426,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    showScroll: boolean = false;
    // store the size the viewsheet is opened/refreshed with
    appSize: Dimension = new Dimension(0, 0);
+   contextMenu: ActionsContextmenuComponent;
    private initing: boolean = true;
    private serverUpdateIntervalId: any;
    private _active: boolean = true;
@@ -2208,7 +2209,16 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             updated = true;
             this.formDataService.replaceObject(Tool.clone(this.vsObjects[i]), command.model);
             this.vsObjects[i] = VSUtil.replaceObject(Tool.clone(this.vsObjects[i]), command.model);
-            this.vsObjectActions[i] = this.actionFactory.createActions(this.vsObjects[i]);
+            this.vsObjectActions = this.vsObjects.map(model => {
+               let actions = this.actionFactory.createActions(model);
+
+               //ensure contextMenu contains updated actions
+               if(this.contextMenu && this.contextMenu?.assemblyName === actions?.getModel()?.absoluteName) {
+                  this.contextMenu.actions = actions.menuActions;
+               }
+
+               return actions;
+            });
 
             if(this.selectedActions &&
                this.selectedActions.getModel().absoluteName == command.name)
@@ -2690,7 +2700,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             actions = payload.actions.menuActions;
          }
 
-         const dropdown: DropdownRef = this.showContextMenu(actions, event);
+         const dropdown: DropdownRef = this.showContextMenu(actions, event, payload.actions?.getModel()?.absoluteName);
          this.miniToolbarService.hiddenFreeze(payload.actions?.getModel()?.absoluteName);
 
          const sub2 = dropdown.closeEvent.subscribe(() => {
@@ -2741,7 +2751,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             }
          ]));
 
-         this.showContextMenu(actions, event);
+         this.showContextMenu(actions, event, null);
       }
    }
 
@@ -2862,16 +2872,17 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
     * @param {AssemblyActionGroup[]} actions
     * @param {MouseEvent} event
     */
-   private showContextMenu(actions: AssemblyActionGroup[], event: MouseEvent): DropdownRef {
+   private showContextMenu(actions: AssemblyActionGroup[], event: MouseEvent, assemblyName: string): DropdownRef {
       let options: DropdownOptions = {
          position: {x: event.clientX, y: event.clientY},
          contextmenu: true
       };
 
       let dropdownRef = this.dropdownService.open(ActionsContextmenuComponent, options);
-      let contextmenu: ActionsContextmenuComponent = dropdownRef.componentInstance;
-      contextmenu.sourceEvent = event;
-      contextmenu.actions = actions;
+      this.contextMenu = dropdownRef.componentInstance;
+      this.contextMenu.sourceEvent = event;
+      this.contextMenu.actions = actions;
+      this.contextMenu.assemblyName = assemblyName;
       event.preventDefault();
 
       this.zone.run(() => {

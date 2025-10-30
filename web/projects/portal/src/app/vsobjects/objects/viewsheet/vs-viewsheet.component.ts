@@ -87,6 +87,7 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
    @Output() onOpenHighlightDialog = new EventEmitter<BaseTableModel>();
    @Output() onOpenAnnotationDialog = new EventEmitter<MouseEvent>();
    public vsObjectActions: AbstractVSActions<any>[] = [];
+   contextMenu: ActionsContextmenuComponent;
    preview: boolean;
    composer: boolean;
    href: string;
@@ -154,7 +155,6 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
    }
 
    public processAddVSObjectCommand(command: AddVSObjectCommand): void {
-      const oldActions = this.vsObjectActions ?? [];
       let updated = this.applyRefreshObject(command.model, command.name);
 
       if(!updated) {
@@ -170,19 +170,14 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       this.vsObjects.forEach(obj => obj.sheetMaxMode = command.model.sheetMaxMode);
       this.vsObjects.sort((a, b) => a.objectFormat.zIndex - b.objectFormat.zIndex);
       this.vsObjectActions = this.vsObjects.map(model => {
-         //Attempt to preserve existing chartActions emitter when processing, otherwise causes stale listeners for embedded viewsheet assemblies
-         if(model?.objectType === "VSChart") {
-            let oldAction = oldActions.find(a => a.getModel()?.absoluteName === model?.absoluteName);
-            let newAction = this.actionFactory.createActions(model);
+         let actions = this.actionFactory.createActions(model);
 
-            if(oldAction) {
-               newAction.onAssemblyActionEvent = oldAction.onAssemblyActionEvent;
-            }
-
-            return newAction;
+         //ensure contextMenu contains updated actions
+         if(this.contextMenu && this.contextMenu?.assemblyName === actions?.getModel()?.absoluteName) {
+            this.contextMenu.actions = actions.menuActions;
          }
 
-         return this.actionFactory.createActions(model);
+         return actions;
       });
 
       this.dataTipService.registerDataTip(command.model.dataTip, command.name);
@@ -317,9 +312,10 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       };
 
       let dropdownRef = this.dropdownService.open(ActionsContextmenuComponent, options);
-      let contextmenu: ActionsContextmenuComponent = dropdownRef.componentInstance;
-      contextmenu.sourceEvent = event;
-      contextmenu.actions = payload.actions.menuActions;
+      this.contextMenu = dropdownRef.componentInstance;
+      this.contextMenu.sourceEvent = event;
+      this.contextMenu.actions = payload.actions.menuActions;
+      this.contextMenu.assemblyName = payload.actions.getModel().absoluteName;
       event.preventDefault();
    }
 
