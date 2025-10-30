@@ -170,11 +170,16 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       this.vsObjects.forEach(obj => obj.sheetMaxMode = command.model.sheetMaxMode);
       this.vsObjects.sort((a, b) => a.objectFormat.zIndex - b.objectFormat.zIndex);
       this.vsObjectActions = this.vsObjects.map(model => {
+         //Attempt to preserve existing chartActions emitter when processing, otherwise causes stale listeners for embedded viewsheet assemblies
+         if(model?.objectType === "VSChart") {
+            let oldAction = oldActions.find(a => a.getModel()?.absoluteName === model?.absoluteName);
+            let newAction = this.actionFactory.createActions(model);
 
-         //Attempt to preserve existing chartActions when processing, otherwise causes stale listeners for embedded viewsheet assemblies
-         if(model instanceof ChartActions) {
-            return oldActions.find(a => a.getModel()?.absoluteName === model?.absoluteName)
-                   ?? this.actionFactory.createActions(model);
+            if(oldAction) {
+               newAction.onAssemblyActionEvent = oldAction.onAssemblyActionEvent;
+            }
+
+            return newAction;
          }
 
          return this.actionFactory.createActions(model);
