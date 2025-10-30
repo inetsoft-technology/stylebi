@@ -24,15 +24,14 @@ import inetsoft.report.io.viewsheet.snapshot.WorksheetAsset2;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.dashboard.DashboardRegistry;
-import inetsoft.sree.web.dashboard.VSDashboard;
+import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
-import inetsoft.uql.util.XUtil;
+import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.xmla.XMLADataSource;
@@ -1641,6 +1640,13 @@ public class DeployManagerService {
                if(dashboard != null && dashboard.getViewsheet() != null) {
                   String id = dashboard.getViewsheet().getIdentifier();
                   UpdateDependencyHandler.addDashboardDepedency(id, entry);
+
+                  if(user != null) {
+                     Identity identity = new User(user, new String[0], new String[0],
+                                                  new IdentityID[0], null, null);
+                     DashboardManager manager = DashboardManager.getManager();
+                     manager.addDashboard(identity, name);
+                  }
                }
             }
 
