@@ -79,54 +79,54 @@ CREATE TABLE "CUSTOMERS"
   "STATE"        CHAR(2),
   "ZIP"          CHAR(5),
   "REGION_ID"    INTEGER            NOT NULL,
-  "RESELLER"     SMALLINT DEFAULT 0 NOT NULL,
+  "RESELLER"     BOOLEAN DEFAULT FALSE NOT NULL
   CONSTRAINT "PK_CUSTOMER_ID" PRIMARY KEY ("CUSTOMER_ID"),
   CONSTRAINT "FK_CUSTOMER_REGION" FOREIGN KEY ("REGION_ID") REFERENCES "REGIONS" ("REGION_ID")
 );
 
 insert into "CUSTOMERS" ("CUSTOMER_ID", "COMPANY_NAME", "ADDRESS", "CITY", "STATE", "ZIP",
                          "REGION_ID", "RESELLER")
-values (1, 'Interstate Shop', '384 Broad St.', 'Wayne', 'NJ', '18322', 1, 0),
-       (2, 'Daycare One', '123 Summer Rd.', 'Middletown', 'NJ', '09882', 1, 0),
-       (3, 'Eastern Data', '7262 18th St.', 'New York', 'NY', '03887', 1, 0),
-       (4, 'Ernst Handel', '88 Rio Grand Ave.', 'Boulder', 'CO', '38923', 2, 1),
-       (5, 'George Services', '389 Jardim Rd.', 'Baltimore', 'MD', '82938', 1, 0),
-       (6, 'Loctite Corp.', '5 Baker''s Lane', 'Hartford', 'CT', '39283', 1, 0),
-       (7, 'Old World Insurance', '1230 Hoes Lane', 'New York', 'NY', '08854', 1, 0),
-       (8, 'Quick Stop', '71 Mulberry St.', 'Denver', 'CO', '98839', 2, 0),
-       (9, 'Direct Sales', '4500 River Rd.', 'San Francisco', 'CA', '08854', 2, 1),
-       (10, 'Specialty Retail', '88 Specialty Dr.', 'Chicago', 'IL', '88938', 2, 1);
+values (1, 'Interstate Shop', '384 Broad St.', 'Wayne', 'NJ', '18322', 1, FALSE),
+       (2, 'Daycare One', '123 Summer Rd.', 'Middletown', 'NJ', '09882', 1, FALSE),
+       (3, 'Eastern Data', '7262 18th St.', 'New York', 'NY', '03887', 1, FALSE),
+       (4, 'Ernst Handel', '88 Rio Grand Ave.', 'Boulder', 'CO', '38923', 2, TRUE),
+       (5, 'George Services', '389 Jardim Rd.', 'Baltimore', 'MD', '82938', 1, FALSE),
+       (6, 'Loctite Corp.', '5 Baker''s Lane', 'Hartford', 'CT', '39283', 1, FALSE),
+       (7, 'Old World Insurance', '1230 Hoes Lane', 'New York', 'NY', '08854', 1, FALSE),
+       (8, 'Quick Stop', '71 Mulberry St.', 'Denver', 'CO', '98839', 2, FALSE),
+       (9, 'Direct Sales', '4500 River Rd.', 'San Francisco', 'CA', '08854', 2, TRUE),
+       (10, 'Specialty Retail', '88 Specialty Dr.', 'Chicago', 'IL', '88938', 2, TRUE);
 insert into "CUSTOMERS" ("CUSTOMER_ID", "COMPANY_NAME", "ADDRESS", "CITY", "STATE", "ZIP",
                          "REGION_ID", "RESELLER")
-values (11, 'The Big Cat', '12 Woodpark Ave.', 'Austin', 'TX', '32343', 2, 0),
-       (12, 'Fast Transportation', '77 Druguz Blvd.', 'Orlando', 'FL', '12343', 1, 0),
-       (13, 'Computer Tech', '90 First Ave.', 'Los Angeles', 'CA', '11223', 2, 1),
-       (14, 'InterLand Services', '822 Technology Dr.', 'Rockville', 'MD', '83923', 1, 0),
-       (15, 'Scheggie Services', '839 Via Gaty Dr.', 'Camden', 'NJ', '12334', 1, 0),
-       (16, 'Whittaker & Co, Inc', '44 Islander Lane', 'Albany', 'CA', '83923', 2, 0),
-       (17, 'FISGA Corp', '21 Doger Sound Blvd.', 'New York', 'NY', '28122', 1, 0),
-       (18, 'Ubermeyer', '8300 Cleveland St.', 'Boston', 'MA', '29183', 1, 0),
-       (19, 'Software Specialists', '300 Great Swamp Rd.', 'Newark', 'NJ', '23445', 1, 1),
-       (20, 'Folk Mining', '345 Sewgen Dr.', 'Tucson', 'AZ', '11234', 2, 0);
+values (11, 'The Big Cat', '12 Woodpark Ave.', 'Austin', 'TX', '32343', 2, FALSE),
+       (12, 'Fast Transportation', '77 Druguz Blvd.', 'Orlando', 'FL', '12343', 1, FALSE),
+       (13, 'Computer Tech', '90 First Ave.', 'Los Angeles', 'CA', '11223', 2, TRUE),
+       (14, 'InterLand Services', '822 Technology Dr.', 'Rockville', 'MD', '83923', 1, FALSE),
+       (15, 'Scheggie Services', '839 Via Gaty Dr.', 'Camden', 'NJ', '12334', 1, FALSE),
+       (16, 'Whittaker & Co, Inc', '44 Islander Lane', 'Albany', 'CA', '83923', 2, FALSE),
+       (17, 'FISGA Corp', '21 Doger Sound Blvd.', 'New York', 'NY', '28122', 1, FALSE),
+       (18, 'Ubermeyer', '8300 Cleveland St.', 'Boston', 'MA', '29183', 1, FALSE),
+       (19, 'Software Specialists', '300 Great Swamp Rd.', 'Newark', 'NJ', '23445', 1, TRUE),
+       (20, 'Folk Mining', '345 Sewgen Dr.', 'Tucson', 'AZ', '11234', 2, FALSE);
 insert into "CUSTOMERS" ("CUSTOMER_ID", "COMPANY_NAME", "ADDRESS", "CITY", "STATE", "ZIP",
                          "REGION_ID", "RESELLER")
-values (21, 'West Coast Customs', '460 Newcomb Dr.', 'Los Angeles', 'CA', '73646', 2, 0),
-       (22, 'Big Ed''s BBQ', '23 Tasaga Ave.', 'Houston', 'TX', '23421', 2, 0),
-       (23, 'World Software Resellers', '563 Uptown Dr.', 'Boston', 'MA', '28275', 1, 1),
-       (24, 'High Society Investments', '1248 Broadway', 'New York', 'NY', '27834', 1, 0),
-       (25, 'Rutgers Bank', '283 Davidson Dr.', 'New Brunswick', 'NJ', '08854', 1, 0),
-       (26, 'Nova Tera', '987 First Ave.', 'Dallas', 'TX', '23123', 2, 0),
-       (27, 'Infinity Software', '32 West Boyd Ave.', 'Seattle', 'WA', '93847', 2, 1),
-       (28, 'Tricounty Auto', '389 York St.', 'York', 'PA', '48873', 1, 0),
-       (29, 'Northwest Outfitters', '17 Main St.', 'Olympia', 'WA', '93717', 2, 0),
-       (30, 'AMG Logistics', '283 Handley Rd.', 'Springfield', 'MA', '01923', 1, 0);
+values (21, 'West Coast Customs', '460 Newcomb Dr.', 'Los Angeles', 'CA', '73646', 2, FALSE),
+       (22, 'Big Ed''s BBQ', '23 Tasaga Ave.', 'Houston', 'TX', '23421', 2, FALSE),
+       (23, 'World Software Resellers', '563 Uptown Dr.', 'Boston', 'MA', '28275', 1, TRUE),
+       (24, 'High Society Investments', '1248 Broadway', 'New York', 'NY', '27834', 1, FALSE),
+       (25, 'Rutgers Bank', '283 Davidson Dr.', 'New Brunswick', 'NJ', '08854', 1, FALSE),
+       (26, 'Nova Tera', '987 First Ave.', 'Dallas', 'TX', '23123', 2, FALSE),
+       (27, 'Infinity Software', '32 West Boyd Ave.', 'Seattle', 'WA', '93847', 2, TRUE),
+       (28, 'Tricounty Auto', '389 York St.', 'York', 'PA', '48873', 1, FALSE),
+       (29, 'Northwest Outfitters', '17 Main St.', 'Olympia', 'WA', '93717', 2, FALSE),
+       (30, 'AMG Logistics', '283 Handley Rd.', 'Springfield', 'MA', '01923', 1, FALSE);
 insert into "CUSTOMERS" ("CUSTOMER_ID", "COMPANY_NAME", "ADDRESS", "CITY", "STATE", "ZIP",
                          "REGION_ID", "RESELLER")
-values (31, 'BigMart Foodstores', '8874 Shiphouse Rd.', 'Dallas', 'TX', '48374', 2, 0),
-       (32, 'Tumbleweed Gaming', '487 City St.', 'Las Vegas', 'NV', '93847', 2, 0),
-       (33, 'FMG Consulting', '9381 Mayor Brown Hwy.', 'Baltimore', 'MD', '53747', 1, 0),
-       (34, 'XO Resellers', '77 Huntington Ave.', 'Cambridge', 'MA', '02938', 1, 1),
-       (35, 'Pharma Research', '38 Commercial Ave.', 'Plainfield', 'NJ', '08273', 1, 0);
+values (31, 'BigMart Foodstores', '8874 Shiphouse Rd.', 'Dallas', 'TX', '48374', 2, FALSE),
+       (32, 'Tumbleweed Gaming', '487 City St.', 'Las Vegas', 'NV', '93847', 2, FALSE),
+       (33, 'FMG Consulting', '9381 Mayor Brown Hwy.', 'Baltimore', 'MD', '53747', 1, FALSE),
+       (34, 'XO Resellers', '77 Huntington Ave.', 'Cambridge', 'MA', '02938', 1, TRUE),
+       (35, 'Pharma Research', '38 Commercial Ave.', 'Plainfield', 'NJ', '08273', 1, FALSE);
 
 CREATE TABLE "PRODUCTS"
 (
