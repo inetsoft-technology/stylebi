@@ -156,6 +156,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             }
          }
 
+         info.setBottomTabs(bottomTabs);
+
          return info;
       }
       catch(Exception ex) {
@@ -169,6 +171,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    protected void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
       writer.print(" roundTopCornersOnly=\"" + roundTopCornersOnly + "\"");
+      writer.print(" bottomTabs=\"" + bottomTabs + "\"");
    }
 
    @Override
@@ -179,6 +182,13 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       if(str != null) {
          roundTopCornersOnly = Boolean.parseBoolean(str);
       }
+
+      str = Tool.getAttribute(elem, "bottomTabs");
+
+      if(str != null) {
+         this.bottomTabs = Boolean.parseBoolean(str);
+      }
+
    }
 
    /**
@@ -294,6 +304,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             selectedValue = tinfo.selectedValue;
             result = true;
          }
+
+         if(bottomTabs != tinfo.bottomTabs) {
+            bottomTabs = tinfo.bottomTabs;
+            result = true;
+         }
       }
 
       return result;
@@ -343,9 +358,18 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       this.roundTopCornersOnly = roundTopCornersOnly;
    }
 
+   public boolean isBottomTabs() {
+      return this.bottomTabs;
+   }
+
+   public void setBottomTabs(boolean bottomTabs) {
+      this.bottomTabs = bottomTabs;
+   }
+
    private ClazzHolder<String[]> labelsValue = new ClazzHolder<>();
    private DynamicValue selectedValue = new DynamicValue();
    private boolean roundTopCornersOnly = true;
+   private boolean bottomTabs;
 
    public static final TableDataPath ACTIVE_TAB_PATH =
       new TableDataPath(-1, TableDataPath.DETAIL);

@@ -70,6 +70,7 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
       activeFormat = new VSFormatModel(compositeFormat, info);
 
       roundTopCornersOnly = info.isRoundTopCornersOnly();
+      bottomTabs = info.isBottomTabs();
    }
 
    public String[] getLabels() {
@@ -96,11 +97,23 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
       this.roundTopCornersOnly = roundTopCornersOnly;
    }
 
+   public boolean isBottomTabs() {
+      return this.bottomTabs;
+   }
+
+   @Override
+   public String toString() {
+      return "{" + super.toString() +
+         "bottomTabs=" + bottomTabs +
+         "} ";
+   }
+
    private String[] labels;
    private String[] childrenNames;
    private String selected;
    private VSFormatModel activeFormat;
    private boolean roundTopCornersOnly;
+   private boolean bottomTabs;
 
    @Component
    public static final class VSTabModelFactory
