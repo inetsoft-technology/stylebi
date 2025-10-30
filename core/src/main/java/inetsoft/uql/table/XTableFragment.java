@@ -17,14 +17,15 @@
  */
 package inetsoft.uql.table;
 
-import inetsoft.util.FileSystemService;
-import inetsoft.util.Tool;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.util.*;
 import inetsoft.util.swap.*;
 
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -153,6 +154,28 @@ public final class XTableFragment extends XSwappable {
 
       valid = false;
       swapColumns();
+
+      if(force) {
+         Cluster cluster = Cluster.getInstance();
+         // optimization, lock the map and bulk add files to cleaner instead
+         // of doing so individually.
+         Lock lock = cluster.getLock(XSwapper.SWAP_FILE_MAP_LOCK);
+         lock.lock();
+
+         try {
+            // if there are any swap files then add them to the cleaner so that
+            // the files can be removed once they are no longer referenced
+            File[] swapFiles = getSwapFiles();
+
+            if(swapFiles.length > 0) {
+               Cleaner.add(new XSwapper.XSwappableReference(this, swapFiles));
+            }
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+
       return true;
    }
 

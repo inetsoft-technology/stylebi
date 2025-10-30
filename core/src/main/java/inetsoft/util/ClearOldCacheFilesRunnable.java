@@ -18,6 +18,9 @@
 package inetsoft.util;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.uql.asset.SnapshotEmbeddedTableAssembly;
+import inetsoft.util.swap.XSwapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -205,9 +208,19 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
             }});
 
          long curr = System.currentTimeMillis();
+         Map<String, Integer> swapFileMap = Cluster.getInstance().getMap(XSwapper.SWAP_FILE_MAP);
+         Map<String, Integer> snapshotFileMap = Cluster.getInstance().getMap(
+            SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
 
          for(int i = 0; files != null && i < files.length; i++) {
-            if(files[i].isDirectory() || curr - files[i].lastModified() < DATA_TIMEOUT) {
+            if(files[i].isDirectory() || (curr - files[i].lastModified()) < DATA_TIMEOUT) {
+               continue;
+            }
+
+            String filePath = files[i].getAbsolutePath();
+
+            // file in use, skip
+            if(swapFileMap.containsKey(filePath) || snapshotFileMap.containsKey(filePath)) {
                continue;
             }
 
@@ -263,8 +276,8 @@ public class ClearOldCacheFilesRunnable extends TimedQueue.TimedRunnable {
    private HashMap<String, Long> dataCacheMap = new HashMap<>();
 
    //Time after which it is considered safe to delete these files
-   private static final long REPORT_TIMEOUT = 7200000L;
-   private static final long DATA_TIMEOUT = 7200000L;
+   private static final long REPORT_TIMEOUT = 7200000L; // 2hr
+   private static final long DATA_TIMEOUT = 18000000L; // 5hr
    private static final long LOW_DISK_SPACE = 5 * 1024L * 1024L * 1024L;//5GB
 
    private static final Logger LOG =
