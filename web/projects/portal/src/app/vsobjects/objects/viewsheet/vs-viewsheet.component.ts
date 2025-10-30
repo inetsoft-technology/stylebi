@@ -241,6 +241,11 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             this.vsObjects[i] = VSUtil.replaceObject(Tool.clone(this.vsObjects[i]), vsObject);
             this.vsObjectActions[i] = this.actionFactory.createActions(this.vsObjects[i]);
 
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[i]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[i].menuActions;
+            }
+
             if(!!this.mySelectedAssemblies && this.mySelectedAssemblies.indexOf(this.vsObjects[i].absoluteName) >= 0) {
                const myIndex = this.vsInfo.vsObjects.indexOf(this.model);
                this.onSelectedAssemblyChanged.emit([myIndex, this.vsObjectActions[i], null]);
@@ -277,6 +282,11 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
             object.objectFormat.zIndex = command.zIndexes[i];
             this.vsObjects[idx] = object;
             this.vsObjectActions[idx] = this.actionFactory.createActions(object);
+
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[idx]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[idx].menuActions;
+            }
          }
       }
 

@@ -2280,6 +2280,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             this.formDataService.replaceObject(Tool.clone(this.vsObjects[i]), command.info);
             this.vsObjects[i] = VSUtil.replaceObject(Tool.clone(this.vsObjects[i]), command.info);
             this.vsObjectActions[i] = this.actionFactory.createActions(this.vsObjects[i]);
+
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[i]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[i].menuActions;
+            }
+
             this.calculateAllAssemblyBounds();
 
             if(this.selectedActions &&
@@ -2658,6 +2664,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          if(idx >= 0) {
             this.vsObjects[idx].objectFormat.zIndex = command.zIndexes[i];
             this.vsObjectActions[idx] = this.actionFactory.createActions(this.vsObjects[idx]);
+
+            //ensure contextMenu contains updated actions
+            if(this.contextMenu && this.contextMenu?.assemblyName === this.vsObjectActions[idx]?.getModel()?.absoluteName) {
+               this.contextMenu.actions = this.vsObjectActions[idx].menuActions;
+            }
          }
       }
    }
