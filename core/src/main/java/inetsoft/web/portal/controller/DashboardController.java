@@ -182,6 +182,7 @@ public class DashboardController {
          boolean composedDashboard = false;
          boolean scaleToScreen = false;
          boolean fitToWidth = false;
+         boolean hasBaseEntry = false;
 
          if(identifier != null) {
             DashboardService.DashboardModelInfo modelInfo = serviceProxy.getDashboardModelInfo(identifier, principal);
@@ -190,6 +191,7 @@ public class DashboardController {
                composedDashboard = modelInfo.composedDashboard;
                scaleToScreen = modelInfo.scaleToScreen;
                fitToWidth = modelInfo.fitToWidth;
+               hasBaseEntry = modelInfo.hasBaseEntry;
             }
          }
 
@@ -204,6 +206,7 @@ public class DashboardController {
             .composedDashboard(composedDashboard)
             .scaleToScreen(scaleToScreen)
             .fitToWidth(fitToWidth)
+            .hasBaseEntry(hasBaseEntry)
             .build();
       }
       catch(FileNotFoundException ex) {

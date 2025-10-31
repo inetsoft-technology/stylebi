@@ -68,6 +68,11 @@ public abstract class DashboardModel {
       return false;
    }
 
+   @Value.Default
+   public boolean hasBaseEntry() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }

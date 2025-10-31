@@ -107,6 +107,7 @@ export class ViewDataResolver implements Resolve<ViewData> {
                data.assetId = model.identifier;
                data.scaleToScreen = model.scaleToScreen;
                data.fitToWidth = model.fitToWidth;
+               data.hasBaseEntry = model.hasBaseEntry;
                return data;
             })
          );
