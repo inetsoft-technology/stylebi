@@ -796,7 +796,14 @@ public class DeployService {
          index++;
       }
       else if("user".equals(scope)) {
-         user = new IdentityID(items[1], OrganizationManager.getInstance().getCurrentOrgID());
+
+         if(items[1].contains(IdentityID.KEY_DELIMITER)) {
+            user = IdentityID.getIdentityIDFromKey(items[1]);
+         }
+         else {
+            user = new IdentityID(items[1], OrganizationManager.getInstance().getCurrentOrgID());
+         }
+
          index += 2;
       }
 
@@ -1119,7 +1126,7 @@ public class DeployService {
          fullPath.append("/global");
       }
       else if(user != null) {
-         fullPath.append("/user/").append(user);
+         fullPath.append("/user/").append(user.convertToKey());
       }
 
       if("XQUERY".equals(type) || "XDATASOURCE".equals(type) ||
