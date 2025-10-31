@@ -21,6 +21,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.uql.DriverCache;
+import inetsoft.uql.asset.SnapshotEmbeddedTableAssembly;
 import inetsoft.util.swap.XSwapper;
 import inetsoft.web.service.LocalizationService;
 import org.slf4j.Logger;
@@ -586,12 +587,14 @@ public class FileSystemService {
 
                try {
                   Map<String, Integer> map = cluster.getMap(XSwapper.SWAP_FILE_MAP);
+                  Map<String, Integer> snapshotMap = cluster.getMap(SnapshotEmbeddedTableAssembly.FILE_REFERENCES_MAP);
 
                   for(int i = 0; files != null && i < files.length; i++) {
                      if(!files[i].isDirectory() &&
                         !files[i].getName().startsWith(Tool.PERSISTENT_PREFIX) &&
                         !files[i].getName().startsWith(DriverCache.DRIVER_CACHE_FILE_NAME) &&
-                        !map.containsKey(files[i].getAbsolutePath()))
+                        !map.containsKey(files[i].getAbsolutePath()) &&
+                        !snapshotMap.containsKey(files[i].getAbsolutePath()))
                      {
                         Path path = files[i].toPath();
 

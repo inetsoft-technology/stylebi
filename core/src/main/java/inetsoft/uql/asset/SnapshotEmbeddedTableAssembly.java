@@ -17,7 +17,7 @@
  */
 package inetsoft.uql.asset;
 
-import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -35,6 +35,7 @@ import java.lang.reflect.Method;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
@@ -850,9 +851,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
                XSwappableTable stable = new XSwappableTable();
 
                if(!tempFiles.isEmpty()) {
-                  synchronized(fileReferences) {
-                     Cleaner.add(new EmbeddedTableReference(stable, tempFiles.toArray(new File[0])));
-                  }
+                  Cleaner.add(new EmbeddedTableReference(stable, tempFiles.toArray(new File[0])));
                }
 
                XTableColumnCreator[] xcreators = new XTableColumnCreator[creators.length];
@@ -938,6 +937,11 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
       this.shouldDeleteOldFiles = shouldDeleteOldFiles;
    }
 
+   @Override
+   public int hashCode() {
+      return Objects.hash(getId(), super.hashCode());
+   }
+
    private static final AtomicInteger count = new AtomicInteger(0);
    private static final String PDATA = "pdata";
    private static final Logger LOG = LoggerFactory.getLogger(SnapshotEmbeddedTableAssembly.class);
@@ -964,34 +968,54 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
    private transient boolean shouldDeleteOldFiles = true;
    private transient boolean dataPathsUpdated;
 
-   private static final Map<String, Integer> fileReferences = new HashMap<>();
+   public static final String FILE_REFERENCES_MAP = "inetsoft.snapshot.file.map";
+   public static final String FILE_REFERENCES_MAP_LOCK = "inetsoft.snapshot.file.map.lock";
    private static final List<Reference<SnapshotEmbeddedTableAssembly>> snapshots = new ArrayList<>();
 
    private static final class EmbeddedTableReference extends Cleaner.Reference<XSwappableTable> {
       EmbeddedTableReference(XSwappableTable referent, File[] files) {
          super(referent);
          this.files = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
+         Cluster cluster = Cluster.getInstance();
+         Lock lock = cluster.getLock(FILE_REFERENCES_MAP_LOCK);
+         lock.lock();
 
-         for(String file : this.files) {
-            int count = fileReferences.getOrDefault(file, 0) + 1;
-            fileReferences.put(file, count);
+         try {
+            Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
+
+            for(String file : this.files) {
+               int count = map.getOrDefault(file, 0) + 1;
+               map.put(file, count);
+            }
+         }
+         finally {
+            lock.unlock();
          }
       }
 
       @Override
       public void close() throws Exception {
-         synchronized(fileReferences) {
+         Cluster cluster = Cluster.getInstance();
+         Lock lock = cluster.getLock(FILE_REFERENCES_MAP_LOCK);
+         lock.lock();
+
+         try {
+            Map<String, Integer> map = cluster.getMap(FILE_REFERENCES_MAP);
+
             for(String file : files) {
-               int count = fileReferences.getOrDefault(file, 1) - 1;
+               int count = map.getOrDefault(file, 1) - 1;
 
                if(count == 0) {
-                  fileReferences.remove(file);
+                  map.remove(file);
                   new File(file).delete();
                }
                else {
-                  fileReferences.put(file, count);
+                  map.put(file, count);
                }
             }
+         }
+         finally {
+            lock.unlock();
          }
       }
 

@@ -899,7 +899,7 @@ public final class XSwapper {
    public static final String SWAP_FILE_MAP_LOCK = "inetsoft.swap.file.map.lock";
 
    public static final class XSwappableReference extends Cleaner.Reference<XSwappable> {
-      XSwappableReference(XSwappable referent, File[] files) {
+      public XSwappableReference(XSwappable referent, File[] files) {
          super(referent);
          Cluster cluster = Cluster.getInstance();
          Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
