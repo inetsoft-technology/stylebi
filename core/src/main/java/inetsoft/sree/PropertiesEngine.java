@@ -30,6 +30,7 @@ import inetsoft.util.*;
 import inetsoft.util.log.*;
 import inetsoft.util.log.logback.LogbackUtil;
 import inetsoft.util.script.JavaScriptEngine;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -743,7 +744,7 @@ public class PropertiesEngine {
       String logFile;
       String prop;
 
-      if(isScheduler()) {
+      if(isScheduler() || !StringUtils.isBlank(System.getProperty("ScheduleTaskRunner"))) {
          prop = getPath("schedule.log.file", "schedule.log");
          logFile = SUtil.verifyLog(prop, "schedule.log");
       }
