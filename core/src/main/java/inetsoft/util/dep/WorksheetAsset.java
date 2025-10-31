@@ -480,16 +480,6 @@ public class WorksheetAsset extends AbstractSheetAsset implements
       return null;
    }
 
-   /**
-    * Sets a flag indicating if this worksheet is being used in a snapshot
-    * export.
-    *
-    * @param snapshot <tt>true</tt> if a snapshot; <tt>false</tt> otherwise.
-    */
-   public void setSnapshot(boolean snapshot) {
-      this.snapshot = snapshot;
-   }
-
    @Override
    protected void parseSheet(AbstractSheet sheet, Element elem, XAssetConfig config, String orgId)
       throws Exception
@@ -506,7 +496,6 @@ public class WorksheetAsset extends AbstractSheetAsset implements
       }
    }
 
-   private boolean snapshot = false;
    private AssetRepository engine;
    private static final Logger LOG =
       LoggerFactory.getLogger(WorksheetAsset.class);

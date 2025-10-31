@@ -500,6 +500,10 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
    protected synchronized void writeContent0(AbstractSheet sheet0, PrintWriter writer)
       throws Exception
    {
+      if(isSnapshot() && sheet0 instanceof Viewsheet vs) {
+         vs.setSnapshotExport(true);
+      }
+
       AssetRepository engine = AssetUtil.getAssetRepository(false);
       writer.println("<viewsheet>");
       sheet0.writeXML(writer);
