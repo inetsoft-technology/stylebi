@@ -100,6 +100,8 @@ public class DeployService {
       DeployHelper helper = new DeployHelper(info, targetFolderInfo);
       final Map<AssetObject, AssetObject> changedMap = new HashMap<>();
 
+      System.out.println("getJarFileInfo");
+
       List<SelectedAssetModel> selectedEntityModels = info.getSelectedEntries().stream()
          .map(entry -> {
             SelectedAssetModel.Builder builder = SelectedAssetModel.builder()
@@ -605,6 +607,18 @@ public class DeployService {
          .filter(a -> checkPermission(a, principal))
          .collect(Collectors.toList());
 
+      System.out.println("\n\ncreating export for paths:");
+
+      for(String path : paths) {
+         System.out.println("path: " + path);
+      }
+
+      System.out.println("createExport - assets");
+      for(XAsset asset : assets) {
+         System.out.println("asset: " + asset.getPath());
+         System.out.println("asset.user: " + asset.getUser());
+      }
+
       if(assets.isEmpty() && !paths.isEmpty()) {
          throw new Exception("No permission on any selected asset");
       }
@@ -670,6 +684,8 @@ public class DeployService {
     * @return all assets path that match the specified patterns
     */
    private List<String> findAssets(List<String> patterns) {
+      System.out.println("findAssets - patterns: " + patterns);
+
       List<String> results = new ArrayList<>();
       List<String> errPatterns = new ArrayList<>();
 
@@ -786,6 +802,7 @@ public class DeployService {
     * /user/username/worksheets/folder/subfolder/worksheet
     */
    private XAsset createXAsset(String path) {
+      System.out.println("creating xAsset for path " + path);
       path = path.substring(1); // remove the first "/"
       String[] items = path.split("/");
       String scope = items[0];
@@ -796,7 +813,13 @@ public class DeployService {
          index++;
       }
       else if("user".equals(scope)) {
-         user = new IdentityID(items[1], OrganizationManager.getInstance().getCurrentOrgID());
+         if(items[1].contains(IdentityID.KEY_DELIMITER)) {
+            user = IdentityID.getIdentityIDFromKey(items[1]);
+         }
+         else {
+            user = new IdentityID(items[1], OrganizationManager.getInstance().getCurrentOrgID());
+         }
+         System.out.println("items[1] is " + items[1]);
          index += 2;
       }
 
@@ -1119,7 +1142,7 @@ public class DeployService {
          fullPath.append("/global");
       }
       else if(user != null) {
-         fullPath.append("/user/").append(user);
+         fullPath.append("/user/").append(user.convertToKey());
       }
 
       if("XQUERY".equals(type) || "XDATASOURCE".equals(type) ||
