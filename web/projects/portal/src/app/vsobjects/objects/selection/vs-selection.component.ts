@@ -546,7 +546,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
                break;
             case "selection-list search":
             case "selection-tree search":
-               this.onSearch();
+               this.hideSearchDisplay();
                break;
             case "selection-list open-max-mode":
             case "selection-list close-max-mode":
@@ -621,6 +621,8 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
                   this.changeDetectorRef.detectChanges();
                }
             }));
+
+         this.model.searchDisplayed = true;
       }
    }
 
@@ -839,9 +841,13 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
    }
 
    hideSearchDisplay() {
-      if(this.lastCellSelectedIndex != FocusRegions.CLEAR_SEARCH) {
-         this.model.searchDisplayed = false;
+      this.model.searchDisplayed = this.model.searchDisplayed ? false : true;
+
+      if(this.model.searchDisplayed) {
+         this.onSearch();
       }
+
+      this.changeDetectorRef.detectChanges();
    }
 
    onSearchKeyUp() {
@@ -1585,9 +1591,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
             }
          }
          else if(key == NavigationKeys.DOWN) {
-            this.hideSearchDisplay();
             index = this.model.dropdown || this.inContainer ? FocusRegions.MENU : 0;
-            this.model.searchDisplayed = false;
          }
       }
       else if(this.lastCellSelectedIndex == FocusRegions.CLEAR_SEARCH) {
@@ -1603,9 +1607,7 @@ export class VSSelection extends NavigationComponent<VSSelectionBaseModel>
             index = FocusRegions.CLEAR_SEARCH;
          }
          else if(key == NavigationKeys.DOWN) {
-            this.hideSearchDisplay();
             index = this.model.dropdown || this.inContainer ? FocusRegions.MENU : 0;
-            this.model.searchDisplayed = false;
          }
       }
       else if(!list && (key == NavigationKeys.LEFT || key == NavigationKeys.RIGHT)) {
