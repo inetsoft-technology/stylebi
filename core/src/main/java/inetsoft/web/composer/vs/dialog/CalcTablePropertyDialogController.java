@@ -24,6 +24,7 @@ import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableTool;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -209,6 +210,7 @@ public class CalcTablePropertyDialogController {
       vsAssemblyScriptPaneModel.scriptEnabled(calcTableAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(calcTableAssemblyInfo.getScript() == null ?
                                               "" : calcTableAssemblyInfo.getScript());
+      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;

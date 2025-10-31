@@ -65,6 +65,7 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
    @Input() disabled: boolean = false;
    @Input() showOriginalName: boolean = false;
    @Input() propertyDefinitions: any;
+   @Input() cursorTop: boolean = false;
    @Output() expressionChange: EventEmitter<any> = new EventEmitter<any>();
    @Output() analysisResultsChange = new EventEmitter<AnalysisResult[]>();
    @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();
@@ -319,10 +320,19 @@ export class ScriptPane implements AfterViewInit, AfterViewChecked, OnInit, OnDe
          }
 
          this.codemirrorInstance.focus();
-         this.codemirrorInstance.setCursor({
-            line: this.codemirrorInstance.lineCount(),
-            ch: this.codemirrorInstance.lastLine().length
-         });
+
+         if (this.cursorTop) {
+            this.codemirrorInstance.setCursor({
+               line: 0,
+               ch: 0
+            });
+         } else {
+            this.codemirrorInstance.setCursor({
+               line: this.codemirrorInstance.lineCount(),
+               ch: this.codemirrorInstance.lastLine().length
+            });
+         }
+
 
          this.renderAnalysisResults();
 
