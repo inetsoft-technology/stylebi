@@ -381,6 +381,7 @@ public class ModifyCalculateFieldService {
          dispatcher.sendCommand(new MessageCommand());
       }
 
+      engine.flushRuntimeSheet(id);
       return null;
    }
 
