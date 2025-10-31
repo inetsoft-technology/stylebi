@@ -982,8 +982,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          throw ex;
       }
       catch(ExecutionException ex) {
-         if(ex.getCause() instanceof ExpiredSheetException) {
-            throw (ExpiredSheetException) ex.getCause();
+         if(ex.getCause() instanceof ExpiredSheetException ese) {
+            throw ese;
+         }
+         else if(ex.getCause() instanceof MessageException me) {
+            throw me;
          }
          else {
             throw new RuntimeException(ex);
