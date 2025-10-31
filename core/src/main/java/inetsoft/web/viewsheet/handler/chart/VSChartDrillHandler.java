@@ -575,10 +575,6 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
       if(nref != null) {
          nref = (VSDimensionRef) nref.clone();
 
-         if(!exist) {
-            nref.setTimeSeries(((VSDimensionRef) ref).isTimeSeries());
-         }
-
          info.decrementDrillLevel();
 
          // reset format if new ref, see bug1332539939927
