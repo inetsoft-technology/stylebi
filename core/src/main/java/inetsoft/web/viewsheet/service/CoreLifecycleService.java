@@ -143,6 +143,11 @@ public class CoreLifecycleService {
          result = handleOpenedSheet(
             id, eid, execSessionId, null, bookmarkIndex, drillFrom, entry, viewer, uri, variables,
             event, dispatcher, user);
+
+         if(result == null) {
+            return result;
+         }
+
          nid = result.getId();
       }
 
@@ -2776,6 +2781,11 @@ public class CoreLifecycleService {
          LoggerFactory.getLogger(getClass()).warn("Missing viewsheet {}", id, new Exception("Stack trace"));
          id = viewsheetService.openViewsheet(entry, user, viewer);
          rvs = viewsheetService.getViewsheet(id, user);
+      }
+
+      //runtime viewsheet has already been disposed
+      if(rvs.getViewsheet() == null) {
+         return null;
       }
 
       //manually add to header inside proxy
