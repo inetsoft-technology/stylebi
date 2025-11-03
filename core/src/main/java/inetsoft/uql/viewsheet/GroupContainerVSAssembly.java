@@ -125,6 +125,11 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
     */
    @Override
    public void calcChildZIndex() {
+      calcChildZIndex(info.getZIndex());
+   }
+
+   @Override
+   public void calcChildZIndex(int zIndex) {
       String[] arr = getAssemblies();
       Assembly[] assemblies = new Assembly[arr.length];
 
@@ -132,7 +137,7 @@ public class GroupContainerVSAssembly extends AbstractContainerVSAssembly {
          assemblies[i] = getViewsheet().getAssembly(arr[i]);
       }
 
-      VSUtil.calcChildZIndex(assemblies, info.getZIndex());
+      VSUtil.calcChildZIndex(assemblies, zIndex);
    }
 
    /**

@@ -3356,7 +3356,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
       for(Assembly assembly : assemblies) {
          if(assembly instanceof ContainerVSAssembly) {
-            ((ContainerVSAssembly) assembly).calcChildZIndex();
+            ((ContainerVSAssembly) assembly).calcChildZIndex(((ContainerVSAssembly) assembly).getZIndex());
          }
       }
    }
