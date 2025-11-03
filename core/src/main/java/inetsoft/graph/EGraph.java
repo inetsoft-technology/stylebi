@@ -367,10 +367,10 @@ public class EGraph implements Cloneable, Serializable {
       Map<Object, VisualFrame> vmap = new HashMap<>();
       Set<String> otherIds = new HashSet<>(); // non-color-frame
       List<VisualFrame> sharedColors = new ArrayList<>();
+      Set<VisualFrame> set = new HashSet<>();
       Map<Integer, Integer> frameElemIdx = new HashMap<>();
 
       for(int i = 0; i < getElementCount(); i++) {
-         Set<VisualFrame> set = new HashSet<>();
          GraphElement elem = getElement(i);
          VisualFrame[] frames = elem.getVisualFrames();
 
@@ -408,35 +408,35 @@ public class EGraph implements Cloneable, Serializable {
                set.remove(sharedColor);
             }
          }
+      }
 
-         for(VisualFrame frame : set) {
-            List<VisualFrame> key = new ArrayList<>();
-            key.add(frame);
-            VisualFrame sharedColor = null;
+      for(VisualFrame frame : set) {
+         List<VisualFrame> key = new ArrayList<>();
+         key.add(frame);
+         VisualFrame sharedColor = null;
 
-            for(VisualFrame shared : sharedColors) {
-               if(shared != null && frame instanceof CategoricalFrame &&
-                  CoreTool.equals(frame.getShareId(), shared.getShareId()))
-               {
-                  key.add(shared);
-                  sharedColor = shared;
-               }
+         for(VisualFrame shared : sharedColors) {
+            if(shared != null && frame instanceof CategoricalFrame &&
+               CoreTool.equals(frame.getShareId(), shared.getShareId()))
+            {
+               key.add(shared);
+               sharedColor = shared;
             }
+         }
 
-            VisualFrame legend = vmap.get(key);
+         VisualFrame legend = vmap.get(key);
 
-            if(legend == null) {
-               vmap.put(key, frame);
+         if(legend == null) {
+            vmap.put(key, frame);
 
-               // @by jerry, fixed bug1354875598523, can be shared only when
-               // the dataId equal
-               if(sharedColor != null && key.size() > 1) {
-                  sharedColor.setLegendFrame(frame);
-               }
+            // @by jerry, fixed bug1354875598523, can be shared only when
+            // the dataId equal
+            if(sharedColor != null && key.size() > 1) {
+               sharedColor.setLegendFrame(frame);
             }
-            else {
-               frame.setLegendFrame(legend);
-            }
+         }
+         else {
+            frame.setLegendFrame(legend);
          }
       }
 
