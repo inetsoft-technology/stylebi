@@ -58,7 +58,7 @@ public abstract class AbstractBinaryTableFilter implements BinaryTableFilter {
     */
    @Override
    public void addChangeListener(TableChangeListener listener) {
-      clisteners.add(listener);
+      getChangeListeners().add(listener);
    }
 
    /**
@@ -67,7 +67,7 @@ public abstract class AbstractBinaryTableFilter implements BinaryTableFilter {
     */
    @Override
    public void removeChangeListener(TableChangeListener listener) {
-      clisteners.remove(listener);
+      getChangeListeners().remove(listener);
    }
 
    /**
@@ -80,10 +80,9 @@ public abstract class AbstractBinaryTableFilter implements BinaryTableFilter {
       }
 
       try {
-         Vector vec = (Vector) clisteners.clone();
+         Vector<TableChangeListener> vec = new Vector<>(getChangeListeners());
 
-         for(int i = 0; i < vec.size(); i++) {
-            TableChangeListener listener = (TableChangeListener) vec.get(i);
+         for(TableChangeListener listener : vec) {
             listener.tableChanged(event);
          }
       }
@@ -140,7 +139,7 @@ public abstract class AbstractBinaryTableFilter implements BinaryTableFilter {
          AbstractBinaryTableFilter table =
             (AbstractBinaryTableFilter) super.clone();
          table.event = null;
-         table.clisteners = new Vector();
+         table.clisteners = new Vector<>();
          table.identifiers = (XIdentifierContainer) identifiers.clone();
          table.identifiers.setTable(table);
          return table;
@@ -192,7 +191,7 @@ public abstract class AbstractBinaryTableFilter implements BinaryTableFilter {
                int col = cidx >= 0 ?
                   cidx : Util.findColumn(columnIndexMap, path.getPath()[0], false);
                String header = path.getPath()[0];
-               TableLens table = null;
+               TableLens table;
                TableDataPath opath = new TableDataPath(path.getLevel(),
                   path.getType(), path.getDataType(), new String[] {header});
                table = col < getLeftTable().getColCount() &&
@@ -216,7 +215,7 @@ public abstract class AbstractBinaryTableFilter implements BinaryTableFilter {
 
                TableDataDescriptor descriptor = table.getDescriptor();
                XMetaInfo minfo = descriptor.getXMetaInfo(opath);
-               mmap.put(path, minfo == null ? Tool.NULL : (Object) minfo);
+               mmap.put(path, minfo == null ? Tool.NULL : minfo);
 
                return minfo;
             }
@@ -279,7 +278,7 @@ public abstract class AbstractBinaryTableFilter implements BinaryTableFilter {
       }
 
       TableDataPath path = descriptor.getCellDataPath(row, col);
-      XMetaInfo minfo = (XMetaInfo) descriptor.getXMetaInfo(path);
+      XMetaInfo minfo = descriptor.getXMetaInfo(path);
 
       return minfo == null ? null : minfo.getXDrillInfo();
    }
@@ -383,11 +382,19 @@ public abstract class AbstractBinaryTableFilter implements BinaryTableFilter {
       return leftTableColumnIndexMap;
    }
 
-   protected TableDataDescriptor descriptor;
-   protected Hashtable mmap = new Hashtable(); // meta info table
+   private synchronized Vector<TableChangeListener> getChangeListeners() {
+      if(clisteners == null) {
+         clisteners = new Vector<>();
+      }
 
-   private XIdentifierContainer identifiers = null;
-   private transient Vector clisteners = new Vector();
+      return clisteners;
+   }
+
+   protected TableDataDescriptor descriptor;
+   protected Hashtable<TableDataPath, Object> mmap = new Hashtable<>(); // meta info table
+
+   private XIdentifierContainer identifiers;
+   private transient Vector<TableChangeListener> clisteners = new Vector<>();
    private transient TableChangeEvent event;
    private transient ColumnIndexMap columnIndexMap = null;
    private transient ColumnIndexMap rightTableColumnIndexMap = null;
