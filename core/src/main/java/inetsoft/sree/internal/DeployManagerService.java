@@ -24,14 +24,14 @@ import inetsoft.report.io.viewsheet.snapshot.WorksheetAsset2;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.dashboard.DashboardRegistry;
-import inetsoft.sree.web.dashboard.VSDashboard;
+import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
+import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
@@ -430,27 +430,50 @@ public class DeployManagerService {
          info.parseXML(root);
          String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-         //if importing as site admin, should import all assets to current organization
          if(isImportAsSiteAdmin) {
-            for(PartialDeploymentJarInfo.SelectedAsset asset : info.getSelectedEntries()) {
-               if(asset.getUser() != null && asset.getUser().orgID != null) {
-                  asset.getUser().orgID = currOrgID;
-
-                  if(asset.getPath() != null && asset.getPath().indexOf(":") > 1) {
-                     String pathUserID = asset.getPath().substring(0, asset.getPath().indexOf(":"));
-                     String remaining = asset.getPath().substring(asset.getPath().indexOf(":"));
-                     IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);
-
-                     if(!Tool.equals(userID.orgID, currOrgID)) {
-                        userID.setOrgID(currOrgID);
-                        asset.setPath(userID.convertToKey() + remaining);
-                     }
-                  }
-               }
-            }
+            handleImportAsSiteAdmin(info, currOrgID);
          }
 
          return info;
+      }
+   }
+
+   //if importing as site admin, should import all assets and update pointers to current organization
+   public static void handleImportAsSiteAdmin(PartialDeploymentJarInfo info, String currOrgID) throws Exception {
+      for(PartialDeploymentJarInfo.SelectedAsset asset : info.getSelectedEntries()) {
+         if(asset.getUser() != null && asset.getUser().orgID != null) {
+            asset.getUser().orgID = currOrgID;
+
+            if(asset.getPath() != null && asset.getPath().indexOf(":") > 1) {
+               String pathUserID = asset.getPath().substring(0, asset.getPath().indexOf(":"));
+               String remaining = asset.getPath().substring(asset.getPath().indexOf(":"));
+               IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);
+
+               if(!Tool.equals(userID.orgID, currOrgID)) {
+                  userID.setOrgID(currOrgID);
+                  asset.setPath(userID.convertToKey() + remaining);
+               }
+            }
+         }
+      }
+
+      for(PartialDeploymentJarInfo.RequiredAsset asset : info.getDependentAssets()) {
+         if(asset.getUser() != null) {
+            asset.setUser(new IdentityID(asset.getUser().name, currOrgID));
+         }
+      }
+
+      for(String key : info.getFolderAlias().keySet()) {
+         String path = info.getFolderAlias().get(key);
+         info.getFolderAlias().remove(key);
+
+         key = key.substring(0, key.lastIndexOf("^") + 1) + currOrgID;
+
+         if(path != null) {
+            path = path.substring(0, path.lastIndexOf("^") + 1) + currOrgID;
+         }
+
+         info.getFolderAlias().put(key, path);
       }
    }
 
@@ -1617,6 +1640,13 @@ public class DeployManagerService {
                if(dashboard != null && dashboard.getViewsheet() != null) {
                   String id = dashboard.getViewsheet().getIdentifier();
                   UpdateDependencyHandler.addDashboardDepedency(id, entry);
+
+                  if(user != null) {
+                     Identity identity = new User(user, new String[0], new String[0],
+                                                  new IdentityID[0], null, null);
+                     DashboardManager manager = DashboardManager.getManager();
+                     manager.addDashboard(identity, name);
+                  }
                }
             }
 
