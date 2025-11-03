@@ -33,7 +33,7 @@ import java.security.Principal;
 public class VSChartMoveLegendController {
    @Autowired
    public VSChartMoveLegendController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                 VSChartMoveLegendService vsChartMoveLegendService)
+                                      VSChartMoveLegendServiceProxy vsChartMoveLegendService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.vsChartMoveLegendService = vsChartMoveLegendService;
@@ -57,9 +57,9 @@ public class VSChartMoveLegendController {
                             CommandDispatcher dispatcher) throws Exception
    {
       vsChartMoveLegendService.eventHandler(runtimeViewsheetRef.getRuntimeId(), event,
-                                       linkUri, principal, dispatcher);
+                                            linkUri, principal, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final VSChartMoveLegendService vsChartMoveLegendService;
+   private final VSChartMoveLegendServiceProxy vsChartMoveLegendService;
 }
