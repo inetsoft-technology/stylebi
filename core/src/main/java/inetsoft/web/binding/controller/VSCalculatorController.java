@@ -44,7 +44,7 @@ public class VSCalculatorController {
                                                @RequestParam("assemblyName") String assemblyName,
                                                Principal principal) throws Exception
    {
-      return vsCalculatorServiceProxy.getDimensionInfos(vsId, assemblyName, catalog, principal);
+      return vsCalculatorServiceProxy.getDimensionInfos(vsId, assemblyName, principal);
    }
 
 
@@ -73,5 +73,4 @@ public class VSCalculatorController {
    }
 
    private VSCalculatorServiceProxy vsCalculatorServiceProxy;
-   private Catalog catalog = Catalog.getCatalog();
 }
