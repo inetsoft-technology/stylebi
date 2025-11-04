@@ -367,7 +367,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    set runtimeId(value: string) {
       this._runtimeId = value;
-      this.dialogService.container = `.viewer-container[runtime-id="${value}"]`;
+
+      if(!this.embed) {
+         this.dialogService.container = `.viewer-container[runtime-id="${value}"]`;
+      }
    }
 
    name: string;
@@ -672,6 +675,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       if(this.embed) {
          this.handleDataTipPopComponentChanges();
+         const overlayContainer = document.getElementById("inetsoft-viewer-overlay");
+
+         if(overlayContainer) {
+            this.dialogService.container = overlayContainer;
+         }
       }
 
       // Feed to trigger scroll viewport sizing when the root is visible. For example, if the
