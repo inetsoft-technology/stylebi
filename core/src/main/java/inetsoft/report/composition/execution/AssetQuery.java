@@ -480,7 +480,16 @@ public abstract class AssetQuery extends PreAssetQuery {
          if(filter.getTable() instanceof TableFilter2 ||
             filter.getTable() instanceof AssetQuery.FormatTableLens)
          {
+            // Bug #73000, keep the headers (aliases)
+            Object[] headers = filter.getHeaders();
             filter.setTable(shuckOffFormat(filter.getTable()));
+
+            if(headers != null) {
+               for(int i = 0; i < headers.length; i++) {
+                  filter.setObject(0, i, headers[i]);
+               }
+            }
+
             return filter;
          }
       }
