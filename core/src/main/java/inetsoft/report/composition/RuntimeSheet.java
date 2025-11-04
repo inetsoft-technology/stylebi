@@ -853,6 +853,12 @@ public abstract class RuntimeSheet {
       }
 
       @Override
+      public File[] getSwapFiles() {
+         File file = getFile(prefix + ".tdat");
+         return new File[]{ file };
+      }
+
+      @Override
       public synchronized void dispose() {
          if(disposed) {
             return;
