@@ -1541,7 +1541,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
       else if(type.equals("Batch")) {
          BatchAction batchAction = new BatchAction();
-         batchAction.parseXML(action);
+         batchAction.parseXML(action, isSiteAdminImport);
          return batchAction;
       }
 

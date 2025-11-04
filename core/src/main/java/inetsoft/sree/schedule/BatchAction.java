@@ -24,6 +24,8 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.DynamicParameterValue;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -255,15 +257,28 @@ public class BatchAction extends AbstractAction {
    }
 
    @Override
-   public void parseXML(Element tag) throws Exception {
+   public void parseXML(Element tag) throws Exception{
+      parseXML(tag, false);
+   }
+
+   public void parseXML(Element tag, boolean isImportAsSiteAdmin) throws Exception {
       taskId = Tool.getAttribute(tag, "taskId");
       taskId = byteDecode(taskId);
+
+      if(isImportAsSiteAdmin) {
+         String taskUser = taskId.substring(0, taskId.indexOf(":"));
+         String taskName = taskId.substring(taskId.indexOf(":"));
+         IdentityID updatedUser = IdentityID.getIdentityIDFromKey(taskUser);
+         updatedUser.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
+
+         taskId = updatedUser.convertToKey() + taskName;
+      }
 
       Element queryEntryElem = Tool.getChildNodeByTagName(tag, "queryEntry");
 
       if(queryEntryElem != null) {
          queryEntry = new AssetEntry();
-         queryEntry.parseXML(Tool.getChildNodeByTagName(queryEntryElem, "assetEntry"));
+         queryEntry.parseXML(Tool.getChildNodeByTagName(queryEntryElem, "assetEntry"), isImportAsSiteAdmin);
       }
 
       Element queryParametersElem = Tool.getChildNodeByTagName(tag, "queryParameters");
