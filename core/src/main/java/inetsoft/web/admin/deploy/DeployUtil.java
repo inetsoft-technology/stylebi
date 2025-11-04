@@ -56,6 +56,17 @@ public class DeployUtil {
       return assetList;
    }
 
+   /**
+    * Gets the assets upon which the assets to be exported depend.
+    *
+    * @param depAssetsMap dependency assests map.
+    *
+    * @return the asset dependencies.
+    */
+   public static List<XAsset> getDependentAssetsList(Map<XAsset, DependencyInfo> depAssetsMap) {
+      return new ArrayList<>(depAssetsMap.keySet());
+   }
+
    public static File deploy(String name, boolean overwriting, List<XAsset> assets,
                              List<XAsset> assetData) throws Exception
    {
@@ -424,7 +435,7 @@ public class DeployUtil {
    public static List<PartialDeploymentJarInfo.RequiredAsset> getRequiredAssets(List<XAsset> assets) {
       final Map<XAsset, DependencyInfo> depAssetsMap = getDependentAssets(assets);
 
-      return getDependentAssetsList(assets).stream()
+      return getDependentAssetsList(depAssetsMap).stream()
          .map(asset -> new Tuple2<>(asset, depAssetsMap.get(asset)))
          .filter(pair -> pair.getSecond() != null)
          .map(pair -> createRequiredAsset(pair.getFirst(), pair.getSecond()))
