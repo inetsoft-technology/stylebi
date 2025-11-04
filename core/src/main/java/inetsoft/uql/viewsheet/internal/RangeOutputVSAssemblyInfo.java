@@ -772,7 +772,12 @@ public class RangeOutputVSAssemblyInfo extends OutputVSAssemblyInfo {
     */
    @Override
    protected void parseContents(Element elem) throws Exception {
-      super.parseContents(elem);
+      parseContents(elem, false);
+   }
+
+   @Override
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
+      super.parseContents(elem, isSiteAdminImport);
 
       double[] resetValues = getResetValues();
       boolean isReset = resetValues != null;
