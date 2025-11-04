@@ -1522,7 +1522,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
       else if(type.equals("Backup")) {
          IndividualAssetBackupAction backupAction = new IndividualAssetBackupAction();
-         backupAction.parseXML(action);
+         backupAction.parseXML(action, isSiteAdminImport);
          return backupAction;
       }
       else if(type.equals("MV")) {
