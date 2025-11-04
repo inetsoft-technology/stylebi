@@ -2327,6 +2327,11 @@ public abstract class AbstractTableAssembly extends AbstractWSAssembly implement
       }
    }
 
+   @Override
+   public void pasted() {
+      id = UUID.randomUUID().toString();
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(AbstractTableAssembly.class);
    private static final Set<String> IGNORED = new HashSet<>();
 

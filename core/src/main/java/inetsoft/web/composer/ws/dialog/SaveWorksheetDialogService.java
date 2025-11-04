@@ -308,6 +308,7 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
             }
 
             WorksheetEventUtil.updateWorksheetMode(rws);
+            ensureWorksheetDistinct(rws);
             engine.setWorksheet(rws.getWorksheet(), entry, principal, true, !model.updateDep());
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
             SaveWorksheetService.initWorksheetOldName(rws);
@@ -356,6 +357,20 @@ public class SaveWorksheetDialogService extends WorksheetControllerService {
       rws.getWorksheet().setLastModified(date.getTime());
 
       return null;
+   }
+
+   private void ensureWorksheetDistinct(RuntimeWorksheet rws) {
+      Worksheet worksheet = rws.getWorksheet();
+
+      if(worksheet != null) {
+         for(Assembly obj : worksheet.getAssemblies()) {
+            if(obj instanceof AbstractWSAssembly) {
+               // calls pasted which resets the table ids and renames the data files
+               // so that two worksheets remain distinct after a "save as" operation
+              ((AbstractWSAssembly) obj).pasted();
+            }
+         }
+      }
    }
 
    private final Catalog catalog = Catalog.getCatalog();
