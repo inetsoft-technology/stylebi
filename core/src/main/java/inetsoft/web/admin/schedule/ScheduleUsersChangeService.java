@@ -35,7 +35,6 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.util.concurrent.TimeUnit;
 
@@ -51,11 +50,6 @@ public class ScheduleUsersChangeService extends BaseSubscribeChangeHandler imple
    public void destroyInstance() throws Exception {
       this.debouncer.close();
       Cluster.getInstance().removeMessageListener(this);
-   }
-
-   @EventListener
-   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
-      super.handleUnsubscribe(event);
    }
 
    @EventListener
