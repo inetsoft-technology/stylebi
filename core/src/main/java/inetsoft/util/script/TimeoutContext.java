@@ -66,12 +66,23 @@ public class TimeoutContext extends Context {
    /**
     * Start clock.
     */
-   public static void startClock() {
-      if(timeout <= 0) {
+   public static void startClock(Context cx) {
+      if(timeout <= 0 || !(cx instanceof TimeoutContext)) {
          return;
       }
 
-      startTime = System.currentTimeMillis();
+      ((TimeoutContext) cx).startTime = System.currentTimeMillis();
+   }
+
+   /**
+    * Stop clock.
+    */
+   public static void stopClock(Context cx) {
+      if(timeout <= 0 || !(cx instanceof TimeoutContext)) {
+         return;
+      }
+
+      ((TimeoutContext) cx).startTime = -1;
    }
 
    /**
@@ -141,7 +152,7 @@ public class TimeoutContext extends Context {
       return super.hasFeature(featureIndex);
    }
 
-   private static long startTime = -1;
+   private long startTime = -1;
    private static long timeout = -1;
    private static int stackDepth = -1;
 
