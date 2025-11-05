@@ -123,6 +123,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    panX: number = 0;
    panY: number = 0;
    hideTile: boolean = false;
+   destroyed: boolean = false;
 
    private readonly debounceKey: string = "chart_dataTipEvent";
 
@@ -161,7 +162,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    }
 
    protected cleanup(): void {
-      // no-op
+      this.destroyed = true;
    }
 
    private emitFlyover(chartSelection: ChartSelection): void {
@@ -598,18 +599,26 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             this.fireOnLoad();
          }
 
-         if(!status) {
+         if(!status && !this.destroyed) {
             // if loading image failed, try the url with regular http.get to get the
             // error message. (44119)
             const uri = this.getSrc(this.chartObject.tiles[0], this.container);
             this.http.get(uri + "", { responseType: "text" }).subscribe(
                data => {},
                err => {
+                  if(this.destroyed) {
+                     return;
+                  }
+
                   if(this.contextProvider.embed) {
                      console.error(err);
                   }
                   else {
-                     ComponentTool.showHttpError("_#(js:Error)", err, this.modal);
+                     this.debounceService.debounce("chart-plot-error-" + uri, () => {
+                        if(!this.destroyed) {
+                           ComponentTool.showHttpError("_#(js:Error)", err, this.modal);
+                        }
+                     }, 1000);
                   }
                }
             );
