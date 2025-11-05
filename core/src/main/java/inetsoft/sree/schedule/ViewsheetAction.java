@@ -195,7 +195,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
    }
 
    public void parseXML(Element action, boolean isSiteAdminImport) throws Exception {
-      viewsheet = byteDecode(action.getAttribute("viewsheet"));
+      viewsheet = SUtil.handleViewsheetLinkOrgMismatch(byteDecode(action.getAttribute("viewsheet")));
 
       if(isSiteAdminImport) {
          viewsheet = viewsheet.substring(0,viewsheet.lastIndexOf("^")+1) +
