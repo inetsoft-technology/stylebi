@@ -16,7 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component } from "@angular/core";
-import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../../shared/ai-assistant/ai-assistant.service";
 
 @Component({
    selector: "p-schedule-tab",
@@ -25,6 +28,6 @@ import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assist
 })
 export class ScheduleTabComponent {
    constructor(private aiAssistantService: AiAssistantService) {
-      this.aiAssistantService.setContextTypeFieldValue("schedule task");
+      this.aiAssistantService.setContextTypeFieldValue(ContextType.SCHEDULE_TASK);
    }
 }

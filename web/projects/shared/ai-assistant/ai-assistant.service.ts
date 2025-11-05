@@ -61,6 +61,8 @@ export enum ContextType {
    WORKSHEET_SCRIPT = "worksheetScript",
    CHART_SCRIPT = "chartScript",
    CROSSTAB_SCRIPT = "crosstabScript",
+   DASHBOARD_PORTAL = "dashboardPortal",
+   SCHEDULE_TASK = "scheduleTask"
 }
 
 @Injectable({
