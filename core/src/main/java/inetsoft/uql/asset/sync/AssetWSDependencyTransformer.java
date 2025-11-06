@@ -64,6 +64,11 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
          String npath = nentry.getPath();
          String oldUser = oentry.getUser() == null ? null : oentry.getUser().convertToKey();
 
+         //if importing from older version, raw user does not contain organization
+         if(user != null && !user.contains(IdentityID.KEY_DELIMITER) && oldUser != null && oldUser.contains(IdentityID.KEY_DELIMITER)) {
+            oldUser = IdentityID.getIdentityIDFromKey(oldUser).getName();
+         }
+
          if(Tool.equals(val, opath) && Tool.equals(user, oldUser) &&
             Tool.equals(scope, oentry.getScope() + ""))
          {
