@@ -245,7 +245,6 @@ public final class AutoSaveUtils {
       deleteAutoSaveFile(id, principal, true);
    }
 
-
    public static void deleteAutoSaveFile(String id, Principal principal, boolean recycle) {
       try {
          String file = getAutoSavedByName(id, recycle);

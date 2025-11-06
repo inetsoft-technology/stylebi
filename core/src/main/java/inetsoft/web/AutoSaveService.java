@@ -20,6 +20,7 @@ import java.io.FileNotFoundException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+
 @Service
 @Lazy(false)
 public class AutoSaveService {
@@ -34,15 +35,19 @@ public class AutoSaveService {
    private void loopCleanAutoSaveFiles(BlobStorage<AutoSaveUtils.Metadata> blobStorage, boolean isRecycle, Instant sevenDaysAgo) {
       List<String> autoSavedFiles = AutoSaveUtils.getAutoSavedFiles(null, isRecycle);
       long assetLastModifiedTime;
+
       for(String fileName: autoSavedFiles) {
          String file = AutoSaveUtils.getAutoSavedByName(fileName, isRecycle);
+
          try {
             assetLastModifiedTime = blobStorage.getLastModified(file).toEpochMilli();
          }
          catch(FileNotFoundException e) {
             continue;
          }
+
          Instant lastModified = Instant.ofEpochMilli(assetLastModifiedTime);
+
          if(lastModified.isBefore(sevenDaysAgo)) {
             AutoSaveUtils.deleteAutoSaveFile(fileName, null, isRecycle);
          }
