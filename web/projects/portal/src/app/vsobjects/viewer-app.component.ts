@@ -2217,14 +2217,18 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                this.addMobileActionSubsciption();
             }
          }
-         else {
+         else if(this.vsObjects[i].objectType != "VSViewsheet"){
             // sheetMaxMode is global so should apply it to all
+            // except embedded viewsheets which are not updated when maxmode changes
             this.vsObjects[i].sheetMaxMode = command.model.sheetMaxMode;
          }
       }
 
       // sheetMaxMode is global so should apply it to all
-      this.vsObjects.forEach(obj => obj.sheetMaxMode = command.model.sheetMaxMode);
+      // except embedded viewsheets which are not updated when maxmode changes
+      this.vsObjects
+         .filter(obj => obj.objectType != "VSViewsheet")
+         .forEach(obj => obj.sheetMaxMode = command.model.sheetMaxMode);
 
       if(!updated) {
          if(command.model.objectType === "VSGroupContainer") {
