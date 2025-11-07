@@ -281,17 +281,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private void updateRootSandboxMap(String vname, Viewsheet vs) {
       if(root == null || root == this) {
          if(root != null && root.getViewsheet() == vs) {
-            for(Assembly assembly : vs.getAssemblies()) {
-               if(!(assembly instanceof Viewsheet)) {
-                  continue;
-               }
-
-               ViewsheetSandbox box = bmap.get(assembly.getName());
-
-               if(box != null) {
-                  box.setViewsheet((Viewsheet) assembly, false);
-               }
-            }
+            updateEmbeddedViewsheets(vs);
          }
 
          return;
@@ -302,6 +292,21 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       if(parent.containsAssembly(vname) && root.bmap.get(vname) == this) {
          parent.removeAssembly(vname, false, true);
          parent.addAssembly(vs, false, false, false);
+      }
+   }
+
+   private void updateEmbeddedViewsheets(Viewsheet vs) {
+      for(Assembly assembly : vs.getAssemblies()) {
+         if(!(assembly instanceof Viewsheet)) {
+            continue;
+         }
+
+         ViewsheetSandbox box = bmap.get(assembly.getName());
+
+         if(box != null) {
+            box.setViewsheet((Viewsheet) assembly, false);
+            updateEmbeddedViewsheets((Viewsheet) assembly);
+         }
       }
    }
 
