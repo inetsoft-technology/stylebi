@@ -989,11 +989,6 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
     */
    @Override
    protected void parseContents(Element elem) throws Exception {
-      parseContents(elem, false);
-   }
-
-   @Override
-   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       super.parseContents(elem);
       Element dnode = Tool.getChildNodeByTagName(elem, "description");
 
@@ -1041,7 +1036,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       if(lnode != null) {
          Hyperlink link = new Hyperlink();
-         link.parseXML((Element) lnode.getFirstChild(), isSiteAdminImport);
+         link.parseXML((Element) lnode.getFirstChild());
          linkValue.setDValue(link);
       }
 
@@ -1049,7 +1044,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       if(rnode != null) {
          ref = new Hyperlink.Ref();
-         ref.parseXML((Element) rnode.getFirstChild(), isSiteAdminImport);
+         ref.parseXML((Element) rnode.getFirstChild());
       }
 
       Element sNode = Tool.getChildNodeByTagName(elem, "script");

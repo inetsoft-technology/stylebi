@@ -161,12 +161,7 @@ public class GaugeVSAssemblyInfo extends RangeOutputVSAssemblyInfo implements De
     */
    @Override
    protected void parseContents(Element elem) throws Exception {
-      parseContents(elem, false);
-   }
-
-   @Override
-   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
-      super.parseContents(elem, isSiteAdminImport);
+      super.parseContents(elem);
 
       vfColorValue.setDValue(Tool.getChildValueByTagName(elem, "valueFill"));
    }

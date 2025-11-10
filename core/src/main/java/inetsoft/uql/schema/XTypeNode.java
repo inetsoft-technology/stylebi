@@ -357,11 +357,6 @@ public class XTypeNode extends XNode implements Comparable, XMLSerializable {
     */
    @Override
    public void parseXML(Element root) {
-      parseXML(root, false);
-   }
-
-   @Override
-   public void parseXML(Element root, boolean isSiteAdminImport) {
       NamedNodeMap map = root.getAttributes();
 
       for(int i = 0; i < map.getLength(); i++) {
@@ -397,7 +392,7 @@ public class XTypeNode extends XNode implements Comparable, XMLSerializable {
             if(name != null && type != null) {
                XTypeNode attrnode = XSchema.createPrimitiveType(type);
                attrnode.setName(name);
-               attrnode.parseXML(elem, isSiteAdminImport);
+               attrnode.parseXML(elem);
                addAttribute(attrnode);
             }
          }

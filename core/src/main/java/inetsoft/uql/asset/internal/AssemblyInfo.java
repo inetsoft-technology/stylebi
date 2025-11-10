@@ -262,23 +262,14 @@ public abstract class AssemblyInfo implements AssetObject, DataSerializable {
       name = Tool.getChildValueByTagName(elem, "name");
    }
 
-   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
-      name = Tool.getChildValueByTagName(elem, "name");
-   }
-
    /**
     * Method to parse an xml segment.
     * @param elem the specified xml element.
     */
    @Override
    public final void parseXML(Element elem) throws Exception {
-      parseXML(elem, false);
-   }
-
-   @Override
-   public final void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       parseAttributes(elem);
-      parseContents(elem, isSiteAdminImport);
+      parseContents(elem);
    }
 
    /**
