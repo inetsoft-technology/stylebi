@@ -375,6 +375,7 @@ export class VSText extends AbstractVSObject<VSTextModel>
 
             // If can not add one characters, should only return old string.
             if(actualH >= textH) {
+               window.document.body.removeChild(test);
                return lastString + "...";
             }
 

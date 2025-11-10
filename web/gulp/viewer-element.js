@@ -53,6 +53,8 @@ gulp.task("viewer-element:sass", function () {
       .pipe(sass())
       .pipe(replace("inetsoft-viewer :root", "inetsoft-viewer"))
       .pipe(replace("inetsoft-viewer body", "inetsoft-viewer"))
+      .pipe(replace("#inetsoft-viewer-overlay :root", "#inetsoft-viewer-overlay"))
+      .pipe(replace("#inetsoft-viewer-overlay body", "#inetsoft-viewer-overlay"))
       .pipe(postcss([cssnano()]))
       .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/"));
 });
