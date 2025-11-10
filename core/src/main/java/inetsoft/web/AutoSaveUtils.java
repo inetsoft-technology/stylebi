@@ -242,8 +242,12 @@ public final class AutoSaveUtils {
    }
 
    public static void deleteAutoSaveFile(String id, Principal principal) {
+      deleteAutoSaveFile(id, principal, true);
+   }
+
+   public static void deleteAutoSaveFile(String id, Principal principal, boolean recycle) {
       try {
-         String file = getAutoSavedByName(id, true);
+         String file = getAutoSavedByName(id, recycle);
 
          if(!exists(file, principal)) {
             return;
@@ -315,7 +319,7 @@ public final class AutoSaveUtils {
       return format.format(date);
    }
 
-   private static String getAutoSavedByName(String name, boolean recycle) {
+   public static String getAutoSavedByName(String name, boolean recycle) {
       return recycle ? RECYCLE_PREFIX + name : name;
    }
 
