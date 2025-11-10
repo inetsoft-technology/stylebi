@@ -47,7 +47,8 @@ public class DashboardService {
 
       if(vs != null) {
          ViewsheetInfo info = vs.getViewsheetInfo();
-         return new DashboardModelInfo(info.isComposedDashboard(), info.isScaleToScreen(), info.isFitToWidth());
+         return new DashboardModelInfo(info.isComposedDashboard(), info.isScaleToScreen(),
+                                       info.isFitToWidth(), vs.getBaseEntry() != null);
       }
 
       return null;
@@ -60,11 +61,15 @@ public class DashboardService {
       public boolean composedDashboard;
       public boolean scaleToScreen;
       public boolean fitToWidth;
+      public boolean hasBaseEntry;
 
-      public DashboardModelInfo(boolean composedDashboard, boolean scaleToScreen, boolean fitToWidth) {
+      public DashboardModelInfo(boolean composedDashboard, boolean scaleToScreen,
+                                boolean fitToWidth, boolean hasBaseEntry)
+      {
          this.composedDashboard = composedDashboard;
          this.scaleToScreen = scaleToScreen;
          this.fitToWidth = fitToWidth;
+         this.hasBaseEntry = hasBaseEntry;
       }
    }
 

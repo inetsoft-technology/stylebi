@@ -27,4 +27,5 @@ export interface DashboardModel {
    global?: boolean;
    scaleToScreen?: boolean;
    fitToWidth?: boolean;
+   hasBaseEntry?: boolean;
 }
