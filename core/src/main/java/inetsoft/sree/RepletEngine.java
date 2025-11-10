@@ -2027,7 +2027,7 @@ public class RepletEngine extends AbstractAssetEngine
     */
    @Override
    public AbstractSheet getSheet(AssetEntry entry, Principal user,
-                                 boolean permission, AssetContent ctype, boolean isSiteAdminImport)
+                                 boolean permission, AssetContent ctype)
       throws Exception
    {
       // @by larryl, we call this with null user from many places. Calling
@@ -2037,7 +2037,7 @@ public class RepletEngine extends AbstractAssetEngine
          checkAccess(user);
       }
 
-      return super.getSheet(entry, user, permission, ctype, isSiteAdminImport);
+      return super.getSheet(entry, user, permission, ctype);
    }
 
    /**

@@ -51,7 +51,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdminImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       Document doc = Tool.parseXML(input);
@@ -72,9 +72,9 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
       boolean overwriting = config != null && config.isOverwriting();
       AbstractSheet sheet0 = getSheet();
       AssetEntry entry = getAssetEntry();
-      parseSheet(sheet0, root, config, entry.getOrgID(), isSiteAdminImport);
+      parseSheet(sheet0, root, config, entry.getOrgID());
 
-      if(isImport && sheet0 != null && isSiteAdminImport) {
+      if(isImport && sheet0 != null && isSiteAdmin) {
          for(AssetEntry dep : sheet0.getOuterDependencies()) {
             dep.setOrgID(entry.getOrgID());
 
@@ -399,16 +399,6 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
     */
    protected void parseSheet(AbstractSheet sheet, Element elem,
                              XAssetConfig config, String orgId)
-      throws Exception
-   {
-      parseSheet(sheet, elem, config, orgId, false);
-   }
-
-   /**
-    * Parse sheet.
-    */
-   protected void parseSheet(AbstractSheet sheet, Element elem,
-                             XAssetConfig config, String orgId, boolean isSiteAdminImport)
       throws Exception
    {
       sheet.parseXML(elem);

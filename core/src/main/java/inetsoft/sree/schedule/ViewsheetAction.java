@@ -194,10 +194,10 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       parseXML(action, false);
    }
 
-   public void parseXML(Element action, boolean isSiteAdminImport) throws Exception {
-      viewsheet = SUtil.handleViewsheetLinkOrgMismatch(byteDecode(action.getAttribute("viewsheet")));
+   public void parseXML(Element action, boolean isImportSiteAdmin) throws Exception {
+      viewsheet = byteDecode(action.getAttribute("viewsheet"));
 
-      if(isSiteAdminImport) {
+      if(isImportSiteAdmin) {
          viewsheet = viewsheet.substring(0,viewsheet.lastIndexOf("^")+1) +
                      OrganizationManager.getInstance().getCurrentOrgID();
 
@@ -226,7 +226,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             bookmarkNames[i] = bookmark.getAttribute("name");
             bookmarkUsers[i] = IdentityID.getIdentityIDFromKey(bookmark.getAttribute("user"));
 
-            if(isSiteAdminImport) {
+            if(isImportSiteAdmin) {
                bookmarkUsers[i] = bookmarkUsers[i] == null || bookmarkUsers[i].getOrgID() == null ? bookmarkUsers[i] :
                                   new IdentityID(bookmarkUsers[i].getName(), OrganizationManager.getInstance().getCurrentOrgID());
             }
@@ -240,7 +240,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          String bookmarkName = action.getAttribute("bookmarkName");
          IdentityID bookmarkUser = IdentityID.getIdentityIDFromKey(action.getAttribute("bookmarkUser"));
 
-         if(isSiteAdminImport) {
+         if(isImportSiteAdmin) {
             bookmarkUser = bookmarkUser == null || bookmarkUser.getOrgID() == null ? bookmarkUser :
                            new IdentityID(bookmarkUser.getName(), OrganizationManager.getInstance().getCurrentOrgID());
          }
