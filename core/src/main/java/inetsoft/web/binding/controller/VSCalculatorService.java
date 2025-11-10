@@ -71,7 +71,7 @@ public class VSCalculatorService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Map<String, List<DimensionInfo>> getDimensionInfos(@ClusterProxyKey String vsId, String assemblyName,
-                                                             Catalog catalog, Principal principal)
+                                                             Principal principal)
       throws Exception
    {
       Assembly assembly = getAssembly(Tool.byteDecode(vsId), assemblyName, principal);
@@ -308,4 +308,5 @@ public class VSCalculatorService {
    private ViewsheetService viewsheetService;
    private VSChartHandler chartHandler;
    private CalculatorHandler calculatorHandler;
+   private Catalog catalog = Catalog.getCatalog();
 }
