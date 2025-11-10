@@ -324,7 +324,7 @@ public class CalcTableVSAssemblyInfo extends TableDataVSAssemblyInfo {
     * Parse the content part(child node) of XML segment.
     */
    @Override
-   protected void parseContents(Element tag) throws Exception {
+   protected void parseContents(Element tag, boolean isSiteAdminImport) throws Exception {
       Element layout = Tool.getChildNodeByTagName(tag, "tableLayout");
 
       if(layout != null) {
@@ -332,7 +332,7 @@ public class CalcTableVSAssemblyInfo extends TableDataVSAssemblyInfo {
          tlayout.parseXML(layout);
       }
 
-      super.parseContents(tag);
+      super.parseContents(tag, isSiteAdminImport);
 
       Element anode = Tool.getChildNodeByTagName(tag, "ainfo");
 
