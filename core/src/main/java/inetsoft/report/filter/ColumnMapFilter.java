@@ -731,6 +731,10 @@ public class ColumnMapFilter extends AbstractTableLens
       return type != null ? type : table != null ? table.getReportType() : null;
    }
 
+   public Object[] getHeaders() {
+      return headers;
+   }
+
    /**
     * ColumnMapFilter data descriptor.
     */
