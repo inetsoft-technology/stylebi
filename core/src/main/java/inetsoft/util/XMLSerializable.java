@@ -39,9 +39,5 @@ public interface XMLSerializable {
     * Method to parse an xml segment.
     */
    public void parseXML(Element tag) throws Exception;
-
-   public default void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
-      parseXML(tag);
-   }
 }
 

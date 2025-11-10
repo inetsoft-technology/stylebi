@@ -536,12 +536,7 @@ public abstract class OutputVSAssemblyInfo extends VSAssemblyInfo
     */
    @Override
    protected void parseContents(Element elem) throws Exception {
-      parseContents(elem, false);
-   }
-
-   @Override
-   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
-      super.parseContents(elem, isSiteAdminImport);
+      super.parseContents(elem);
 
       Element bnode = Tool.getChildNodeByTagName(elem, "bindingInfo");
 
