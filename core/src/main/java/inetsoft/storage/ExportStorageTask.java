@@ -66,12 +66,14 @@ public class ExportStorageTask implements SingletonCallableTask<String> {
       generator.writeStartObject();
       generator.writeArrayFieldStart("pairs");
 
-      Set<String> blobIncludedKeys = DataSpaceSettingsService.getBlobIncludedKeys(id);
       Set<String> created = new HashSet<>();
       KeyValueEngine.getInstance().stream(id)
          .forEach(pair -> {
             try {
-               exportPair(pair, generator, zip, created, blobIncludedKeys);
+               // Do not back up the plugins, initialization will install/upgrade plugins
+               if(!id.equals("plugins")) {
+                  exportPair(pair, generator, zip, created);
+               }
             }
             catch(RuntimeException e) {
                LoggerFactory.getLogger(ExportStorageTask.class).error(e.getMessage(), e);
@@ -90,14 +92,8 @@ public class ExportStorageTask implements SingletonCallableTask<String> {
    }
 
    private void exportPair(KeyValuePair<?> pair, JsonGenerator generator, ZipOutputStream zip,
-                           Set<String> created, Set<String> blobIncludedKeys)
+                           Set<String> created)
    {
-      if(pair.getValue() instanceof Blob && blobIncludedKeys != null &&
-         !blobIncludedKeys.isEmpty() && !blobIncludedKeys.contains(pair.getKey()))
-      {
-         return;
-      }
-
       try {
          generator.writeObject(pair);
 

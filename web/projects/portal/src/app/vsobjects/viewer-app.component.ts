@@ -367,7 +367,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    set runtimeId(value: string) {
       this._runtimeId = value;
-      this.dialogService.container = `.viewer-container[runtime-id="${value}"]`;
+
+      if(!this.embed) {
+         this.dialogService.container = `.viewer-container[runtime-id="${value}"]`;
+      }
    }
 
    name: string;
@@ -673,6 +676,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       if(this.embed) {
          this.handleDataTipPopComponentChanges();
+         const overlayContainer = document.getElementById("inetsoft-viewer-overlay");
+
+         if(overlayContainer) {
+            this.dialogService.container = overlayContainer;
+         }
       }
 
       // Feed to trigger scroll viewport sizing when the root is visible. For example, if the
@@ -2227,14 +2235,18 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
                this.addMobileActionSubsciption();
             }
          }
-         else {
+         else if(this.vsObjects[i].objectType != "VSViewsheet"){
             // sheetMaxMode is global so should apply it to all
+            // except embedded viewsheets which are not updated when maxmode changes
             this.vsObjects[i].sheetMaxMode = command.model.sheetMaxMode;
          }
       }
 
       // sheetMaxMode is global so should apply it to all
-      this.vsObjects.forEach(obj => obj.sheetMaxMode = command.model.sheetMaxMode);
+      // except embedded viewsheets which are not updated when maxmode changes
+      this.vsObjects
+         .filter(obj => obj.objectType != "VSViewsheet")
+         .forEach(obj => obj.sheetMaxMode = command.model.sheetMaxMode);
 
       if(!updated) {
          if(command.model.objectType === "VSGroupContainer") {

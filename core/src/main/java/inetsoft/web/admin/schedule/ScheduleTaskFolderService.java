@@ -124,6 +124,7 @@ public class ScheduleTaskFolderService {
       parentFolder.removeEntry(folderEntry);
 
       indexedStorage.putXMLSerializable(parentEntry.toIdentifier(), parentFolder);
+      indexedStorage.remove(folderEntry.toIdentifier());
       securityProvider.removePermission(ResourceType.SCHEDULE_TASK_FOLDER, folderEntry.getPath());
    }
 

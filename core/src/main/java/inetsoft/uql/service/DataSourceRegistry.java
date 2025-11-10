@@ -712,6 +712,10 @@ public class DataSourceRegistry implements MessageListener {
             result = object instanceof XDomainWrapper ?
                ((XDomainWrapper) object).getDomain() : (XDomain) object;
          }
+         else {
+            //required to write DataModel to export
+            result = getDataModel(datasource);
+         }
       }
       catch(Exception e) {
          LOG.error("Failed to get domain: " + datasource, e);

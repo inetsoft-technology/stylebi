@@ -455,7 +455,7 @@ public class JavaScriptEngine {
       }
 
       try {
-         TimeoutContext.startClock();
+         TimeoutContext.startClock(cx);
          val = script.exec(cx, (Scriptable) scope);
          val = unwrap(val);
       }
@@ -542,6 +542,7 @@ public class JavaScriptEngine {
          }
 
          Thread.currentThread().setContextClassLoader(loader);
+         TimeoutContext.stopClock(cx);
          Context.exit();
       }
 

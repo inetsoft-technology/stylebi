@@ -742,6 +742,10 @@ public class ColumnMapFilter extends AbstractTableLens
       return type != null ? type : table != null ? table.getReportType() : null;
    }
 
+   public Object[] getHeaders() {
+      return headers;
+   }
+
    @Serial
    private void writeObject(ObjectOutputStream out) throws IOException {
       out.defaultWriteObject();

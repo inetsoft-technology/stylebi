@@ -22,6 +22,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.internal.HttpXMLSerializable;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -177,6 +178,10 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
 
    @Override
    public void parseXML(Element action) throws Exception {
+      parseXML(action, false);
+   }
+
+   public void parseXML(Element action, boolean isSiteAdminImport) throws Exception {
       String filePath = Tool.getAttribute(action, "path");
       ServerPathInfo pathInfo = new ServerPathInfo();
 
@@ -197,10 +202,26 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
       for(int i = 0; i < nodes.getLength(); i++) {
          if(nodes.item(i) instanceof Element node && !node.getNodeName().equals("ServerPath")) {
             String path = byteDecode(node.getAttribute("path"));
+
+            if(isSiteAdminImport) {
+               for(String pathSection : path.split(":")) {
+                  if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
+                     IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
+                     updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+                     path = path.replace(pathSection, updatedUser.convertToKey());
+                  }
+               }
+            }
+
             String type = node.getAttribute("type");
             String userString = node.getAttribute("user");
             IdentityID user = "null".equals(userString) || IdentityID.KEY_DELIMITER.equals(userString) ||
                Tool.isEmptyString(userString) ? null : IdentityID.getIdentityIDFromKey(userString);
+
+            if(isSiteAdminImport && user != null) {
+               user.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+            }
+
             XAsset xAsset = SUtil.getXAsset(type, path, user);
             assets.add(xAsset);
          }

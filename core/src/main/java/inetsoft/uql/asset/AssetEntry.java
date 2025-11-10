@@ -1810,11 +1810,20 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
     */
    @Override
    public void parseXML(Element elem) throws Exception {
+      parseXML(elem, false);
+   }
+
+   public void parseXML(Element elem, boolean isImportAsSiteAdmin) throws Exception {
       this.scope = Integer.parseInt(Tool.getAttribute(elem, "scope"));
       this.type = Type.forId(Integer.parseInt(Tool.getAttribute(elem, "type")));
       this.user = IdentityID.getIdentityIDFromKey(Tool.getChildValueByTagName(elem, "user"));
       this.orgID = Tool.getChildValueByTagName(elem, "organizationID");
-      if(orgID == null) {
+
+      if(isImportAsSiteAdmin && this.user != null) {
+         this.user.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
+      }
+
+      if(orgID == null || isImportAsSiteAdmin) {
          this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
       else {

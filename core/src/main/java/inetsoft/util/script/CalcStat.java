@@ -311,7 +311,7 @@ public class CalcStat {
          if(cond != null) {
             try {
                scope.put("_value_", scope, range[i].toString());
-               TimeoutContext.startClock();
+               TimeoutContext.startClock(cx);
                result = condScript.exec(cx, scope);
 
                if("true".equals(result.toString())) {
@@ -323,6 +323,7 @@ public class CalcStat {
          }
       }
 
+      TimeoutContext.stopClock(cx);
       Context.exit();
 
       return count;

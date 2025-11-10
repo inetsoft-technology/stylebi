@@ -239,8 +239,14 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
             // selected node wasn't found so check along the path.
             // it may not have been loaded yet.
             if(this.selectedNode == null || expandToPath) {
+               let path = entry.path;
+
+               if(!!entry.owner && !entry.path.startsWith(Tool.MY_REPORTS)) {
+                  path = Tool.MY_REPORTS + "/" + path;
+               }
+
                let defaultOrgAsset = this.currOrgID != entry.entry.organization;
-               this.repositoryTree.selectAndExpandToPath(entry.path, this.rootNode, defaultOrgAsset);
+               this.repositoryTree.selectAndExpandToPath(path, this.rootNode, defaultOrgAsset);
             }
          }
          else {

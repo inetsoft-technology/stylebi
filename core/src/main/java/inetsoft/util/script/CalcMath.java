@@ -1031,7 +1031,7 @@ public class CalcMath {
       for(int i = 0; i < rge.length; i++) {
          try {
             scope.put("_value_", scope, rge[i]);
-            TimeoutContext.startClock();
+            TimeoutContext.startClock(cx);
             result = condScript.exec(cx, scope);
 
             if("true".equals(result.toString())) {
@@ -1052,6 +1052,7 @@ public class CalcMath {
          }
       }
 
+      TimeoutContext.stopClock(cx);
       Context.exit();
       return sum;
    }

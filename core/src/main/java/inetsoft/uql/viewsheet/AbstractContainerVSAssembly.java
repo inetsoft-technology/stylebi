@@ -225,15 +225,20 @@ public abstract class AbstractContainerVSAssembly extends AbstractVSAssembly
     */
    @Override
    public void calcChildZIndex() {
+      calcChildZIndex(this.getZIndex());
+   }
+
+   @Override
+   public void calcChildZIndex(int zIndex) {
       String[] arr = getAssemblies();
       Assembly[] assemblies = new Assembly[arr.length];
-      VSUtil.calcChildZIndex(assemblies, this.getZIndex());
+      VSUtil.calcChildZIndex(assemblies, zIndex);
 
       for(int i = 0; i < arr.length; i++) {
          assemblies[i] = getViewsheet().getAssembly(arr[i]);
 
          if(assemblies[i] instanceof ContainerVSAssembly) {
-            ((ContainerVSAssembly) assemblies[i]).calcChildZIndex();
+            ((ContainerVSAssembly) assemblies[i]).calcChildZIndex(zIndex);
          }
       }
    }

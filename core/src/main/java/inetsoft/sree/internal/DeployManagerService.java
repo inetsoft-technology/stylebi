@@ -463,13 +463,17 @@ public class DeployManagerService {
          }
       }
 
-      for(String key : info.getFolderAlias().keySet()) {
-         String path = info.getFolderAlias().get(key);
-         info.getFolderAlias().remove(key);
+      Map<String, String> oFolderAlias = new HashMap<>(info.getFolderAlias());
+      info.getFolderAlias().clear();
 
-         key = key.substring(0, key.lastIndexOf("^") + 1) + currOrgID;
+      for(String key : oFolderAlias.keySet()) {
+         String path = oFolderAlias.get(key);
 
-         if(path != null) {
+         if(key.indexOf("^") > -1) {
+            key = key.substring(0, key.lastIndexOf("^") + 1) + currOrgID;
+         }
+
+         if(path != null && path.indexOf("^") > -1) {
             path = path.substring(0, path.lastIndexOf("^") + 1) + currOrgID;
          }
 
