@@ -93,6 +93,7 @@ public class DeleteColumnsService extends WorksheetControllerService {
       ColumnRefModel[] columnRefs = event.getColumns();
 
       if(table != null && columnRefs != null) {
+         TableAssembly clonedTable = (TableAssembly) table.clone();
          boolean changed = false;
 
          for(int i = 0; i < columnRefs.length; i++) {
@@ -157,6 +158,10 @@ public class DeleteColumnsService extends WorksheetControllerService {
             WorksheetEventUtil.refreshAssembly(rws, tname, true, commandDispatcher, principal);
             WorksheetEventUtil.layout(rws, commandDispatcher);
             AssetEventUtil.refreshTableLastModified(ws, tname, true);
+
+            if(clonedTable instanceof EmbeddedTableAssembly) {
+               WorksheetEventUtil.clearDataCache(clonedTable, rws.getAssetQuerySandbox());
+            }
          }
       }
 
