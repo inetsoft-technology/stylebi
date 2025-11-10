@@ -20,13 +20,11 @@ package inetsoft.web.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.security.Principal;
 import java.util.HashSet;
@@ -37,17 +35,6 @@ import java.util.concurrent.locks.ReentrantLock;
 public abstract class BaseSubscribeChangeHandler {
    public BaseSubscribeChangeHandler(SimpMessagingTemplate messageTemplate) {
       this.messageTemplate = messageTemplate;
-   }
-
-   /**
-    * On unsubscribe remove the subscriber that matches the event's subscription ID.
-    */
-   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
-      final Message<byte[]> message = event.getMessage();
-      final MessageHeaders headers = message.getHeaders();
-      final String sessionId =
-         (String) headers.get(SimpMessageHeaderAccessor.SESSION_ID_HEADER);
-      removeSubscription(sessionId);
    }
 
    /**

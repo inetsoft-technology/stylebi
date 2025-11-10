@@ -45,11 +45,6 @@ public class ComposerClientController {
    }
 
    @EventListener
-   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
-      removeSubscription(event);
-   }
-
-   @EventListener
    public void handleDisconnect(SessionDisconnectEvent event) {
       removeSubscription(event);
    }

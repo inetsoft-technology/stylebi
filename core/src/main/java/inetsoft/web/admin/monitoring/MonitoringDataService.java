@@ -34,7 +34,6 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.simp.user.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
-import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
 import java.security.Principal;
 import java.util.Set;
@@ -61,14 +60,6 @@ public class MonitoringDataService extends BaseSubscribeChangeHandler {
    @PreDestroy
    public void stopDebouncer() throws Exception {
       debouncer.close();
-   }
-
-   /**
-    * On unsubscribe remove the subscriber that matches the event's subscription ID.
-    */
-   @EventListener
-   public void handleUnsubscribe(SessionUnsubscribeEvent event) {
-      super.handleUnsubscribe(event);
    }
 
    /**
