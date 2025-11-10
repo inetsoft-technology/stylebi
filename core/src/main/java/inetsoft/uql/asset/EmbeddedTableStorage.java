@@ -22,9 +22,12 @@ import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.util.SingletonManager;
 import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @SingletonManager.Singleton(EmbeddedTableStorage.Reference.class)
 public class EmbeddedTableStorage implements AutoCloseable {
@@ -32,7 +35,7 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase() +  "__pdata";
+      String storeID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase() + "__pdata";
       return SingletonManager.getInstance(BlobStorage.class, storeID, true);
    }
 
@@ -55,8 +58,12 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    public void writeTable(String path, InputStream input) throws IOException {
+      writeTable(path, input, false);
+   }
+
+   public void writeTable(String path, InputStream input, boolean temp) throws IOException {
       try(BlobTransaction<Metadata> tx = getStorage().beginTransaction();
-          OutputStream output = tx.newStream(path, new Metadata()))
+          OutputStream output = tx.newStream(path, new Metadata(temp)))
       {
          IOUtils.copy(input, output);
          tx.commit();
@@ -75,6 +82,42 @@ public class EmbeddedTableStorage implements AutoCloseable {
       return getStorage().getLastModified(path);
    }
 
+   public boolean isTempTable(String path) {
+      try {
+         return getStorage().getMetadata(path).temp;
+      }
+      catch(FileNotFoundException e) {
+         return false;
+      }
+   }
+
+   public void removeExpiredTempTables() {
+      Instant twoWeeksAgo = Instant.now().minus(14, ChronoUnit.DAYS);
+
+      getStorage().paths().filter(path -> {
+         if(!isTempTable(path)) {
+            return false;
+         }
+
+         try {
+            Instant lastModified = getLastModified(path);
+            return lastModified.isBefore(twoWeeksAgo);
+         }
+         catch(FileNotFoundException ignore) {
+         }
+
+         return false;
+      }).forEach(path -> {
+         try {
+            LOG.debug("Removing expired table {}", path);
+            removeTable(path);
+         }
+         catch(IOException e) {
+            throw new RuntimeException(e);
+         }
+      });
+   }
+
    public static EmbeddedTableStorage getInstance() {
       return SingletonManager.getInstance(EmbeddedTableStorage.class);
    }
@@ -85,6 +128,11 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    public static final class Metadata implements Serializable {
+      public Metadata(boolean temp) {
+         this.temp = temp;
+      }
+
+      private final boolean temp;
    }
 
    public static final class Reference extends SingletonManager.Reference<EmbeddedTableStorage> {
@@ -104,4 +152,6 @@ public class EmbeddedTableStorage implements AutoCloseable {
 
       private EmbeddedTableStorage instance;
    }
+
+   private static final Logger LOG = LoggerFactory.getLogger(EmbeddedTableStorage.class);
 }

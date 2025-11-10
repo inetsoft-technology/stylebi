@@ -452,21 +452,28 @@ public class RuntimeWorksheet extends RuntimeSheet
    @Override
    RuntimeWorksheetState saveState(ObjectMapper mapper) {
       RuntimeWorksheetState state = new RuntimeWorksheetState();
-      super.saveState(state, mapper);
 
-      state.setWs(saveXml(ws));
+      try {
+         Worksheet.setIsTEMP(true);
+         super.saveState(state, mapper);
 
-      if(box != null && box.getVariableTable() != null) {
-         state.setVars(saveJson(box.getVariableTable(), mapper));
+         state.setWs(saveXml(ws));
+
+         if(box != null && box.getVariableTable() != null) {
+            state.setVars(saveJson(box.getVariableTable(), mapper));
+         }
+
+         state.setPreview(preview);
+         state.setGettingStarted(gettingStarted);
+         state.setPid(pid);
+         state.setSyncData(syncData);
+
+         if(joinWS != null) {
+            state.setJoinWS(joinWS.saveState(mapper));
+         }
       }
-
-      state.setPreview(preview);
-      state.setGettingStarted(gettingStarted);
-      state.setPid(pid);
-      state.setSyncData(syncData);
-
-      if(joinWS != null) {
-         state.setJoinWS(joinWS.saveState(mapper));
+      finally {
+         Worksheet.setIsTEMP(false);
       }
 
       return state;
