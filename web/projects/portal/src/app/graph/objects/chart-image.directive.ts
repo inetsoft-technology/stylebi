@@ -46,13 +46,16 @@ export class ChartImageDirective {
             this.onLoading.emit();
          }
 
+         const requestedImage = this._chartImage;
+
          this.http.get(this.chartImage as string, { observe: "response", responseType: "blob" }).subscribe(
             response => {
                if(response.headers?.has("Retry-After")) {
                   const interval = parseInt(response.headers.get("Retry-After"), 10) * 1000;
                   setTimeout(() => this.loadImage(true), interval);
                }
-               else {
+               else if(requestedImage == this.chartImage) {
+                  // Do not set if image address changed before the request returned
                   this.renderer.setAttribute(this.element.nativeElement, "src", URL.createObjectURL(response.body));
                   this.onLoaded.emit();
                }
