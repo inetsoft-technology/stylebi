@@ -240,6 +240,10 @@ public class VSLifecycleService {
             runtimeViewsheetRef, runtimeViewsheetManager, viewer,
             event.getDrillFrom(), variables, event.getFullScreenId(), execSessionId);
 
+         if(result == null) {
+            return null;
+         }
+
          runtimeId = result.getId();
          auditFinish = result.getAuditFinish();
          execTimestamp = new Date(System.currentTimeMillis());
