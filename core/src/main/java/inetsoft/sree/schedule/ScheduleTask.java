@@ -1317,6 +1317,13 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
 
    public void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       name = elem.getAttribute("name");
+
+      //older versions are userName:taskName, breaks unless IdentityID:taskname
+      if(name.indexOf(":") > -1 && name.indexOf(IdentityID.KEY_DELIMITER) == -1) {
+         IdentityID nameUser = new IdentityID(name.substring(0,name.indexOf(":")), OrganizationManager.getInstance().getCurrentOrgID());
+         name = nameUser.convertToKey() + name.substring(name.indexOf(":"));
+      }
+
       owner = IdentityID.getIdentityIDFromKey(elem.getAttribute("owner"));
 
       if(isSiteAdminImport) {
