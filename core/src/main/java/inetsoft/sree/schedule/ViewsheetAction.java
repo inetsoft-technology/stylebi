@@ -200,6 +200,14 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       if(isImportSiteAdmin) {
          viewsheet = viewsheet.substring(0,viewsheet.lastIndexOf("^")+1) +
                      OrganizationManager.getInstance().getCurrentOrgID();
+
+         for(String pathSection : viewsheet.split("\\^")) {
+            if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
+               IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
+               updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+               viewsheet = viewsheet.replace(pathSection, updatedUser.convertToKey());
+            }
+         }
       }
 
       bookmarkReadOnly = "true".equals(action.getAttribute("bookmarkReadOnly"));
