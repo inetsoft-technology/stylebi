@@ -1056,7 +1056,7 @@ public class DeployService {
 
       List<XAsset> entryAssets = getEntryAssets(selectedEntities, principal);
       final Map<XAsset, DependencyInfo> depAssetsMap = DeployUtil.getDependentAssets(entryAssets);
-      final Set<XAsset> assetList = new LinkedHashSet<>(DeployUtil.getDependentAssetsList(entryAssets));
+      final Set<XAsset> assetList = new LinkedHashSet<>(DeployUtil.getDependentAssetsList(depAssetsMap));
 
       List<RequiredAssetModel> requiredAssetModelList =
          assetList.stream()
