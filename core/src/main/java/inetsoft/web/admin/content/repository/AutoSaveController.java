@@ -17,18 +17,16 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.AutoSaveUtils;
+import inetsoft.web.AutoSaveServiceProxy;
 import inetsoft.web.RecycleUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
