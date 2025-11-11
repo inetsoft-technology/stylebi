@@ -59,33 +59,38 @@
     <div class="tab-container" *ngIf="securityEnabled && isRefreshed">
       <nav mat-tab-nav-bar mat-stretch-tabs class="nav-tab" [tabPanel]="tabPanel">
         <a mat-tab-link label="securityLabel" *ngIf="securityProvidersVisible"
-           [routerLink]="['/settings/security/provider']"
+           [routerLink]="orgLoading ? null : ['/settings/security/provider']"
            routerLinkActive #providerActive="routerLinkActive"
-           [active]="providerActive.isActive">
+           [active]="providerActive.isActive"
+           [disabled]="orgLoading">
           _#(Security Providers)
         </a>
         <a mat-tab-link label="usersLabel" *ngIf="usersVisible"
-           [routerLink]="['/settings/security/users']"
+           [routerLink]="orgLoading ? null : ['/settings/security/users']"
            routerLinkActive #usersActive="routerLinkActive"
-           [active]="usersActive.isActive">
+           [active]="usersActive.isActive"
+           [disabled]="orgLoading">
           _#(Users)
         </a>
         <a mat-tab-link label="actionsLabel" *ngIf="actionsVisible"
-           [routerLink]="['/settings/security/actions']"
+           [routerLink]="orgLoading ? null : ['/settings/security/actions']"
            routerLinkActive #actionsActive="routerLinkActive"
-           [active]="actionsActive.isActive">
-          _#(Actions)
+           [active]="actionsActive.isActive"
+           [disabled]="orgLoading">
+        _#(Actions)
         </a>
         <a mat-tab-link *ngIf="ssoVisible"
-           [routerLink]="['/settings/security/sso']"
+           [routerLink]="orgLoading ? null : ['/settings/security/sso']"
            routerLinkActive #ssoActive="routerLinkActive"
-           [active]="ssoActive.isActive">
+           [active]="ssoActive.isActive"
+           [disabled]="orgLoading">
           _#(em.security.sso)
         </a>
         <a mat-tab-link *ngIf="googleSsoVisible"
-           [routerLink]="['/settings/security/googleSignIn']"
+           [routerLink]="orgLoading ? null : ['/settings/security/googleSignIn']"
            routerLinkActive #googleActive="routerLinkActive"
-           [active]="googleActive.isActive">
+           [active]="googleActive.isActive"
+           [disabled]="orgLoading">
           _#(Sign In With Google)
         </a>
       </nav>

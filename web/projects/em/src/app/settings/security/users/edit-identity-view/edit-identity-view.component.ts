@@ -53,6 +53,7 @@ import {
 } from "../edit-identity-pane/edit-identity-pane.model";
 import {GetIdentityNameResponse} from "../get-identity-name-response";
 import { convertToKey, IdentityId } from "../identity-id";
+import { SecurityBusyService } from "../security-busy.service";
 
 interface IdentityTheme {
    id: string;
@@ -170,7 +171,8 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    constructor(private fb: UntypedFormBuilder,
                private http: HttpClient,
                private changeDetector: ChangeDetectorRef,
-               defaultErrorMatcher: ErrorStateMatcher)
+               defaultErrorMatcher: ErrorStateMatcher,
+               private orgBusy: SecurityBusyService)
    {
       this.passwordErrorMatcher = {
          isErrorState: (control: UntypedFormControl | null, form: FormGroupDirective | NgForm | null) =>
@@ -483,6 +485,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
          this.groupSettingsChanged.emit(cmodel);
       }
       else if(this.type == IdentityType.ORGANIZATION) {
+         this.orgBusy.beginOrgSave();
          const cmodel = <EditOrganizationPaneModel> this.model;
          this.organizationSettingsChanged.emit(cmodel);
          this.identityEditable = false;

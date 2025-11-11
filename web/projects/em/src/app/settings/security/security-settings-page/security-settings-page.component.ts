@@ -25,6 +25,7 @@ import { AuthorizationService } from "../../../authorization/authorization.servi
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Secured } from "../../../secured";
+import { SecurityBusyService } from "../users/security-busy.service";
 import { SecurityEnabledEvent } from "./security-enabled-event";
 import { OrganizationDropdownService } from "../../../navbar/organization-dropdown.service";
 import { AppInfoService } from "../../../../../../shared/util/app-info.service";
@@ -57,6 +58,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
    enterprise: boolean;
    orgIDPassOptions: string[] = ["domain", "path"];
    cloudPlatform = false;
+   orgLoading = false;
    private destroy$ = new Subject<void>();
 
    constructor(private pageTitle: PageHeaderService,
@@ -65,7 +67,8 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
                private dialog: MatDialog,
                private appInfoService: AppInfoService,
                private httpClient: HttpClient,
-               private userService: ScheduleUsersService)
+               private userService: ScheduleUsersService,
+               private orgBusy: SecurityBusyService)
    {
    }
 
@@ -101,6 +104,8 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
 
       this.httpClient.get("../api/em/security/get-enable-self-signup")
          .subscribe((event: SecurityEnabledEvent) => this.selfSignupEnabled = event.enable);
+
+      this.orgBusy.orgLoading$.subscribe(v => this.orgLoading = v);
    }
 
    ngOnDestroy(): void {
