@@ -17,24 +17,21 @@
  */
 package inetsoft.web.viewsheet.controller.dialog;
 
-import inetsoft.sree.schedule.*;
+import inetsoft.sree.schedule.TimeRange;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
-import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.model.TimeZoneModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.dialog.schedule.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.VSBookmarkService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+
 import java.security.Principal;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
@@ -49,14 +46,10 @@ public class ScheduleDialogController {
    @Autowired
    public ScheduleDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
                                    SecurityProvider securityProvider,
-                                   ScheduleService scheduleService,
-                                   VSBookmarkService vsBookmarkService,
                                    ScheduleDialogServiceProxy scheduleDialogServiceProxy)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.securityProvider = securityProvider;
-      this.scheduleService = scheduleService;
-      this.vsBookmarkService = vsBookmarkService;
       this.scheduleDialogServiceProxy = scheduleDialogServiceProxy;
    }
 
@@ -141,12 +134,12 @@ public class ScheduleDialogController {
     */
    @RequestMapping(value = "/api/vs/check-schedule-dialog/**", method = RequestMethod.GET)
    @ResponseBody
-   public MessageCommand checkScheduleDialogl(@RemainingPath String runtimeId,
+   public MessageCommand checkScheduleDialog(@RemainingPath String runtimeId,
       @RequestParam(value = "useCurrent", required = false) boolean useCurrent,
       @RequestParam(value = "bookmarkName", required = false, defaultValue = "") String bookmarkName,
       Principal principal) throws Exception
    {
-      return scheduleDialogServiceProxy.checkScheduleDialogl(runtimeId, useCurrent, bookmarkName, principal);
+      return scheduleDialogServiceProxy.checkScheduleDialog(runtimeId, useCurrent, bookmarkName, principal);
    }
 
    /**
@@ -173,9 +166,5 @@ public class ScheduleDialogController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final SecurityProvider securityProvider;
-   private final ScheduleService scheduleService;
-   private ScheduleDialogServiceProxy scheduleDialogServiceProxy;
-   private VSBookmarkService vsBookmarkService;
-   private static final Logger LOG =
-      LoggerFactory.getLogger(ScheduleDialogController.class);
+   private final ScheduleDialogServiceProxy scheduleDialogServiceProxy;
 }

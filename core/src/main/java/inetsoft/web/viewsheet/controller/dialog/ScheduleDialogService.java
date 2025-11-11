@@ -21,8 +21,7 @@ package inetsoft.web.viewsheet.controller.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.cluster.*;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
@@ -272,12 +271,19 @@ public class ScheduleDialogService {
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
-   public MessageCommand checkScheduleDialogl(@ClusterProxyKey String runtimeId, boolean useCurrent,
-                                              String bookmarkName, Principal principal) throws Exception
+   public MessageCommand checkScheduleDialog(@ClusterProxyKey String runtimeId, boolean useCurrent,
+                                             String bookmarkName, Principal principal) throws Exception
    {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-
-      return vsBookmarkService.checkAddBookmark(rvs, bookmarkName, useCurrent, principal);
+      try {
+         RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         return vsBookmarkService.checkAddBookmark(rvs, bookmarkName, useCurrent, principal);
+      }
+      catch(ExpiredSheetException e) {
+         MessageCommand cmd = new MessageCommand();
+         cmd.setType(MessageCommand.Type.ERROR);
+         cmd.setMessage(Catalog.getCatalog(principal).getString("viewer.expiration"));
+         return cmd;
+      }
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
