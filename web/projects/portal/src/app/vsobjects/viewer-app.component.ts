@@ -3495,8 +3495,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       });
    }
 
-   changeMaxMode(maxMode: boolean) {
-      this.maxMode = maxMode;
+   changeMaxMode($event: {assembly: string, maxMode: boolean}) {
+      this.maxMode = $event.maxMode;
+
+      //on change to max mode, toggle off all other object max modes to prevent lingering stale flags
+      this.vsObjects.forEach(obj => (obj as any).maxMode = (obj.absoluteName === $event.assembly) ? $event.maxMode : false);
    }
 
    toggleDoubleCalendar(isDouble: boolean) {
