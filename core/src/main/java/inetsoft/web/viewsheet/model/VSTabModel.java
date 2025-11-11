@@ -20,9 +20,11 @@ package inetsoft.web.viewsheet.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.TabVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.web.binding.model.BaseFormatModel;
 import org.springframework.stereotype.Component;
+
+import java.awt.*;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class VSTabModel extends VSObjectModel<TabVSAssembly> {
@@ -70,6 +72,48 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
       activeFormat = new VSFormatModel(compositeFormat, info);
 
       roundTopCornersOnly = info.isRoundTopCornersOnly();
+      bottomTabs = info.isBottomTabs();
+      roundBottomCornersOnly = info.isRoundBottomCornersOnly();
+
+      if(bottomTabs) {
+         BaseFormatModel.Border topActiveBorder = activeFormat.getBorder();
+         String currBottomBorder = activeFormat.getBorder().getBottom();
+         String currTopBorder = activeFormat.getBorder().getTop();
+         topActiveBorder.setTop(currBottomBorder);
+         topActiveBorder.setBottom(currTopBorder);
+         activeFormat.setBorder(topActiveBorder);
+      }
+
+      if(this.selected != null) {
+         adjustTabPosition(assembly, rvs, bottomTabs);
+      }
+   }
+
+   private void adjustTabPosition(TabVSAssembly tabVSAssembly, RuntimeViewsheet rvs, boolean bottomTabs) {
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly selectedAssembly = vs.getAssembly(this.selected);
+
+      if(selectedAssembly != null) {
+         TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tabVSAssembly.getVSAssemblyInfo();
+         Point selectedOffset = selectedAssembly.getPixelOffset();
+         Dimension selectedSize = selectedAssembly.getPixelSize();
+         Dimension tabSize = tabVSAssembly.getPixelSize();
+
+         if(selectedOffset != null && selectedSize != null && tabSize != null) {
+
+            if(bottomTabs) {
+               int newTop = selectedOffset.y + selectedSize.height;
+               int newLeft = selectedOffset.x;
+               Point newPosition = new Point(newLeft, newTop);
+               tabInfo.setPixelOffset(newPosition);
+            } else {
+               int newTop = selectedOffset.y - tabSize.height;
+               int newLeft = selectedOffset.x;
+               Point newPosition = new Point(newLeft, newTop);
+               tabInfo.setPixelOffset(newPosition);
+            }
+         }
+      }
    }
 
    public String[] getLabels() {
@@ -96,11 +140,29 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
       this.roundTopCornersOnly = roundTopCornersOnly;
    }
 
+   public boolean isBottomTabs() {
+      return this.bottomTabs;
+   }
+
+   public boolean isRoundBottomCornersOnly() {
+      return roundBottomCornersOnly;
+   }
+
+   @Override
+   public String toString() {
+      return "{" + super.toString() +
+         "bottomTabs=" + bottomTabs +
+         "roundBottomCornersOnly=" + roundBottomCornersOnly +
+         "} ";
+   }
+
    private String[] labels;
    private String[] childrenNames;
    private String selected;
    private VSFormatModel activeFormat;
    private boolean roundTopCornersOnly;
+   private boolean bottomTabs;
+   private boolean roundBottomCornersOnly;
 
    @Component
    public static final class VSTabModelFactory
