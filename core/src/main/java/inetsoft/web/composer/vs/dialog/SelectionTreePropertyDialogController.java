@@ -159,6 +159,7 @@ public class SelectionTreePropertyDialogController {
       selectionGeneralPane.setSingleSelection(selectionTreeAssemblyInfo.getSingleSelectionValue());
       selectionGeneralPane.setSuppressBlank(selectionTreeAssemblyInfo.isSuppressBlankValue());
       selectionGeneralPane.setSelectFirstItem(selectionTreeAssemblyInfo.getSelectFirstItemValue());
+      selectionGeneralPane.setQuickSwitchAllowed(false);
 
       if(selectionTreeAssemblyInfo.getSingleSelectionLevels() != null) {
          selectionGeneralPane.setSingleSelectionLevels(
@@ -307,6 +308,7 @@ public class SelectionTreePropertyDialogController {
       streeInfo.setSubmitOnChangeValue(selectionGeneralPane.isSubmitOnChange());
       streeInfo.setSuppressBlankValue(selectionGeneralPane.isSuppressBlank());
       streeInfo.setSelectFirstItemValue(selectionGeneralPane.isSelectFirstItem());
+      streeInfo.setQuickSwitchAllowedValue(false);
 
       setAssemblyInfoTables(streeInfo, selectionTreePaneModel);
       setAssemblyInfoDataRefs(streeInfo, selectionTreePaneModel);
