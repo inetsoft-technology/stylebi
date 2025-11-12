@@ -411,7 +411,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
                              XAssetConfig config, String orgId, boolean isSiteAdminImport)
       throws Exception
    {
-      sheet.parseXML(elem);
+      sheet.parseXML(elem, isSiteAdminImport);
    }
 
    /**

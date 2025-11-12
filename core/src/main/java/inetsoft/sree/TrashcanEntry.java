@@ -123,6 +123,10 @@ public class TrashcanEntry extends RepositoryEntry {
       folder = "true".equals(Tool.getAttribute(tag, "isFolder"));
    }
 
+   public void parseAttributes(Element tag, boolean isSiteAdminImport) throws Exception {
+      parseAttributes(tag);
+   }
+
    /**
     * Write contents.
     * @param writer the destination print writer.

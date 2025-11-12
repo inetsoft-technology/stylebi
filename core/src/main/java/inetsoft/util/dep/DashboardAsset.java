@@ -294,7 +294,8 @@ public class DashboardAsset extends AbstractXAsset {
 
          if(cls != null) {
             board = new VSDashboard();
-            board.parseXML(node);
+            board.parseXML(node, isSiteAdmin);
+
             String identifier = ((VSDashboard) board).getViewsheet().getIdentifier();
             AssetEntry assetEntry = AssetEntry.createAssetEntryForCurrentOrg(identifier);
             ((VSDashboard) board).getViewsheet().setIdentifier(assetEntry.toIdentifier());
