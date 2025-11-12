@@ -282,7 +282,7 @@ export abstract class AbstractVSObject<T extends VSObjectModel> extends CommandP
          return DateTipHelper.getPopUpSourceZIndex();
       }
 
-      return this.viewer ? this.model.objectFormat.zIndex : null;
+      return this.viewer && !this.context.binding ? this.model.objectFormat.zIndex : null;
    }
 
    protected loadingStateChanged(loading: boolean) {
