@@ -169,6 +169,7 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
       this.vsObjects.sort((a, b) => a.objectFormat.zIndex - b.objectFormat.zIndex);
       this.vsObjectActions = this.vsObjects.map(model => this.actionFactory.createActions(model));
 
+      this.dataTipService.clearDataTips(command.name);
       this.dataTipService.registerDataTip(command.model.dataTip, command.name);
       this.dataTipService.registerDataTipVisible(command.model.dataTip, true);
       this.popComponentService.registerPopComponent(
