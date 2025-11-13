@@ -172,8 +172,8 @@ export class AddParameterDialog implements OnInit {
       let vals: string[] = value.split(",");
 
       for(let i = 0; i < vals.length; i++) {
-         if(dataType == XSchema.INTEGER && (parseInt(vals[i], 10) > 2147483647 ||
-            parseInt(vals[i], 10) < -2147483648) || !this.isValidDataTypeValue(vals[i], dataType))
+         if(dataType == XSchema.INTEGER && this.checkIntegerRange(parseInt(vals[i])) ||
+            !this.isValidDataTypeValue(vals[i], dataType))
          {
             return false;
          }
@@ -214,6 +214,10 @@ export class AddParameterDialog implements OnInit {
          default:
             return true;
          }
+   }
+
+   private checkIntegerRange(integer: number): boolean {
+      return !(integer > 2147483647 || integer < -2147483648)
    }
 
    private fixTimeValue() {
@@ -324,7 +328,8 @@ export class AddParameterDialog implements OnInit {
          errorMessage = "_#(js:em.common.param.numberInvalid)";
       }
       else if(value.dataType == XSchema.INTEGER &&
-         !this.validValue(value.value.toString(), value.dataType, this.model.array))
+         (!this.validValue(value.value.toString(), value.dataType, this.model.array) ||
+            !this.checkIntegerRange(value.value)))
       {
          errorMessage = "_#(js:em.common.param.number.outNegativeRange)";
       }
