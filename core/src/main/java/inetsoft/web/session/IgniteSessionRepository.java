@@ -21,7 +21,6 @@ package inetsoft.web.session;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
 import inetsoft.util.audit.SessionRecord;
 import inetsoft.web.admin.server.NodeProtectionService;
 import org.slf4j.Logger;
@@ -34,10 +33,13 @@ import org.springframework.session.*;
 import org.springframework.util.Assert;
 
 import javax.cache.Cache;
+import java.io.Serializable;
 import java.security.Principal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class IgniteSessionRepository
    implements FindByIndexNameSessionRepository<IgniteSessionRepository.IgniteSession>,
@@ -92,34 +94,10 @@ public class IgniteSessionRepository
       javax.cache.expiry.Duration expiry = PropertyAccessedExpiryPolicy.getExpiryFromProperty();
       cached.setMaxInactiveInterval(
          Duration.ofSeconds(expiry.getTimeUnit().toSeconds(expiry.getDurationAmount())));
+      createSessionAttributeMap(cached.getId());
       IgniteSession session = new IgniteSession(cached, true);
       session.flushImmediateIfNecessary();
       return session;
-   }
-
-   /**
-    * Sets an attribute in the specified session and immediately saves it.
-    *
-    * In asynchronous or external threads, the automatic save mechanism triggered by
-    * FlushMode or SaveMode may not execute, so changes to the session might not persist.
-    * This method bypasses that limitation by directly updating the internal delegate
-    * (MapSession), marking the attribute as changed in the delta, and calling save immediately.
-    *
-    * Use this method when you need to guarantee that session updates are persisted
-    * from threads that are not part of the original HTTP request handling.
-    *
-    * @param sessionId     The ID of the session to update
-    * @param attributeName The name of the attribute to set
-    * @param value         The value of the attribute
-    */
-   public void setSessionAttributeAndSave(String sessionId, String attributeName, Object value) {
-      IgniteSession session = findById(sessionId);
-
-      if(session != null) {
-         session.delegate.setAttribute(attributeName, value);
-         session.delta.put(attributeName, value);
-         save(session);
-      }
    }
 
    @Override
@@ -137,63 +115,10 @@ public class IgniteSessionRepository
             session.lastAccessedTimeChanged ? session.getLastAccessedTime() : null;
          Duration maxInactiveInterval =
             session.maxInactiveIntervalChanged ? session.getMaxInactiveInterval() : null;
-         Map<String, Object> delta = session.delta.isEmpty() ? null : session.delta;
-
-         if(delta == null) {
-            delta = new HashMap<>();
-            Object emPrincipal = session.getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
-            Object principal = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
-
-            if(emPrincipal != null && (!(emPrincipal instanceof XPrincipal p) || p.isChanged())) {
-               delta.put(RepletRepository.EM_PRINCIPAL_COOKIE, emPrincipal);
-            }
-
-            if(emPrincipal instanceof XPrincipal p) {
-               p.clearChanged();
-            }
-
-            if(principal != null && (!(principal instanceof XPrincipal p) || p.isChanged())) {
-               delta.put(RepletRepository.PRINCIPAL_COOKIE, principal);
-            }
-
-            if(principal instanceof XPrincipal p) {
-               p.clearChanged();
-            }
-         }
-
-         boolean principalChanged = false;
-         SRPrincipal oldPrincipal = null;
-         SRPrincipal newPrincipal = null;
-
-         if(delta.containsKey(RepletRepository.PRINCIPAL_COOKIE)) {
-            principalChanged = true;
-            oldPrincipal = session.getDelegate().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
-            newPrincipal = (SRPrincipal) delta.get(RepletRepository.PRINCIPAL_COOKIE);
-         }
-
-         boolean emPrincipalChanged = false;
-         SRPrincipal emOldPrincipal = null;
-         SRPrincipal emNewPrincipal = null;
-
-         if(delta.containsKey(RepletRepository.EM_PRINCIPAL_COOKIE)) {
-            emPrincipalChanged = true;
-            emOldPrincipal = session.getDelegate().getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
-            emNewPrincipal = (SRPrincipal) delta.get(RepletRepository.EM_PRINCIPAL_COOKIE);
-         }
 
          this.sessions.invoke(
             session.getId(), new SessionUpdateEntryProcessor(),
-            lastAccessedTime, maxInactiveInterval, delta);
-
-         if(principalChanged) {
-            sendApplicationEvent(
-               new PrincipalChangedEvent(this.getClass().getName(), oldPrincipal, newPrincipal, session.getId(), false));
-         }
-
-         if(emPrincipalChanged) {
-            sendApplicationEvent(
-               new PrincipalChangedEvent(this.getClass().getName(), emOldPrincipal, emNewPrincipal, session.getId(), true));
-         }
+            lastAccessedTime, maxInactiveInterval);
       }
 
       session.clearChangeFlags();
@@ -217,9 +142,10 @@ public class IgniteSessionRepository
 
    @Override
    public void deleteById(String id) {
-      Session session = this.sessions.get(id);
+      MapSession session = this.sessions.get(id);
+      IgniteSession igniteSession = new IgniteSession(session, false);
       this.sessions.remove(id);
-      sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), session));
+      sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), igniteSession));
    }
 
    @Override
@@ -233,15 +159,17 @@ public class IgniteSessionRepository
       Map<String, IgniteSession> result = new HashMap<>();
 
       sessions.iterator().forEachRemaining(session -> {
-         if(isSessionForUser(session.getValue(), indexValue)) {
-            result.put(session.getValue().getId(), new IgniteSession(session.getValue(), false));
+         IgniteSession igniteSession = findById(session.getValue().getId());
+
+         if(isSessionForUser(igniteSession, indexValue)) {
+            result.put(session.getValue().getId(), igniteSession);
          }
       });
 
       return result;
    }
 
-   private boolean isSessionForUser(MapSession session, String userName) {
+   private boolean isSessionForUser(IgniteSession session, String userName) {
       final Object user = session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
       return user instanceof SRPrincipal && userName.equals(((SRPrincipal) user).getName());
    }
@@ -268,6 +196,7 @@ public class IgniteSessionRepository
             LOG.debug("Session deleted with ID: {}", session.getId());
             sendApplicationEvent(new SessionDeletedEvent(this.getClass().getName(), session));
             logout(session, "");
+            destroySessionAttributeMap(event.getOldValue().getId());
          }
       }
    }
@@ -286,6 +215,7 @@ public class IgniteSessionRepository
       LOG.debug("Session expired with ID: {}", event.getOldValue().getId());
       logout(event.getOldValue(), SessionRecord.LOGOFF_SESSION_TIMEOUT);
       sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), event.getOldValue()));
+      destroySessionAttributeMap(event.getOldValue().getId());
    }
 
    private void logout(Session session, String logoffReason) {
@@ -296,8 +226,6 @@ public class IgniteSessionRepository
             String remoteHost = srp.getUser().getIPAddress();
             authenticationService.logout(principal, remoteHost, logoffReason);
          }
-
-         sendApplicationEvent(new PrincipalChangedEvent(this.getClass().getName(), srp, null, session.getId(), false));
       }
    }
 
@@ -318,8 +246,9 @@ public class IgniteSessionRepository
 
          for(Iterator<Cache.Entry<String, MapSession>> i = sessions.iterator(); i.hasNext(); ) {
             Cache.Entry<String, MapSession> entry = i.next();
+            IgniteSession igniteSession = findById(entry.getValue().getId());
 
-            if(principal.equals(entry.getValue().getAttribute(RepletRepository.PRINCIPAL_COOKIE))) {
+            if(principal.equals(igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE))) {
                i.remove();
                break;
             }
@@ -330,7 +259,8 @@ public class IgniteSessionRepository
    public List<SRPrincipal> getActiveSessions() {
       List<SRPrincipal> result = new ArrayList<>();
       sessions.iterator().forEachRemaining(session -> {
-         SRPrincipal principal = session.getValue().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+         IgniteSessionRepository.IgniteSession igniteSession = findById(session.getValue().getId());
+         SRPrincipal principal = igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
          if(principal != null) {
             result.add(principal);
@@ -341,7 +271,7 @@ public class IgniteSessionRepository
    }
 
    public void invalidateSession(String id) {
-      final Session session = this.sessions.get(id);
+      final IgniteSession session = this.findById(id);
 
       if(session != null) {
          this.sessions.remove(id);
@@ -366,15 +296,17 @@ public class IgniteSessionRepository
 
          // only check sessions that haven't expired already
          if(sessionRemainingTime > 0) {
+            IgniteSession igniteSession = findById(session.getId());
+
             if(protectionExpiring) {
-               Long lastProtectionWarningTime = session.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
+               Long lastProtectionWarningTime = igniteSession.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
 
                if(lastProtectionWarningTime == null ||
                   (currentTime - lastProtectionWarningTime) >= PROTECTION_EXPIRATION_WARNING_INTERVAL)
                {
-                  session.setAttribute(LAST_PROTECTION_WARNING_TIME_ATTR, currentTime);
+                  igniteSession.setAttribute(LAST_PROTECTION_WARNING_TIME_ATTR, currentTime);
                   sendApplicationEvent(new SessionExpiringSoonEvent(
-                     this.getClass().getName(), new IgniteSession(session, false), protectionRemainingTime, true,
+                     this.getClass().getName(), igniteSession, protectionRemainingTime, true,
                      true));
                }
             }
@@ -382,29 +314,72 @@ public class IgniteSessionRepository
             // this can happen if some other node was terminated first instead
             // and the protection on this node was extended
             else if(protectionExpirationTime == 0 &&
-               session.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR) != null)
+               igniteSession.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR) != null)
             {
-               session.removeAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
+               igniteSession.removeAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
                sendApplicationEvent(new SessionExpiringSoonEvent(
-                  this.getClass().getName(), new IgniteSession(session, false), protectionRemainingTime, false,
-               true));
+                  this.getClass().getName(), igniteSession, protectionRemainingTime, false,
+                  true));
             }
 
             // warn the user if remaining time is less than EXPIRATION_WARNING_TIME
             if(sessionRemainingTime <= SESSION_EXPIRATION_WARNING_TIME) {
-               session.setAttribute(EXPIRING_SOON_ATTR, true);
+               igniteSession.setAttribute(EXPIRING_SOON_ATTR, true);
                sendApplicationEvent(new SessionExpiringSoonEvent(
-                  this.getClass().getName(), new IgniteSession(session, false), sessionRemainingTime, true,
+                  this.getClass().getName(), igniteSession, sessionRemainingTime, true,
                   false));
             }
-            else if(Boolean.TRUE.equals(session.getAttribute(EXPIRING_SOON_ATTR))) {
-               session.removeAttribute(EXPIRING_SOON_ATTR);
+            else if(Boolean.TRUE.equals(igniteSession.getAttribute(EXPIRING_SOON_ATTR))) {
+               igniteSession.removeAttribute(EXPIRING_SOON_ATTR);
                sendApplicationEvent(new SessionExpiringSoonEvent(
-                  this.getClass().getName(), new IgniteSession(session, false), sessionRemainingTime, false,
+                  this.getClass().getName(), igniteSession, sessionRemainingTime, false,
                   false));
             }
          }
       }
+   }
+
+   private static String getSessionAttributeMapName(String sessionId) {
+      return SESSION_ATTRIBUTE_MAP + sessionId;
+   }
+
+   private static DistributedMap<String, Object> createSessionAttributeMap(String sessionId) {
+      DistributedMap<String, Object> map = Cluster.getInstance()
+         .getReplicatedMap(getSessionAttributeMapName(sessionId));
+      SESSION_ATTRIBUTE_MAPS.put(sessionId, map);
+      return map;
+   }
+
+   private static void destroySessionAttributeMap(String sessionId) {
+      DistributedMap<String, Object> map = SESSION_ATTRIBUTE_MAPS.remove(sessionId);
+
+      if(map != null) {
+         Cluster.getInstance().getScheduledExecutor()
+            .scheduleWithId("destroy-map-" + sessionId,
+                            new DestroyMapTask(getSessionAttributeMapName(sessionId)),
+                            10, TimeUnit.MINUTES);
+      }
+   }
+
+   public static DistributedMap<String, Object> getSessionAttributeMap(String sessionId) {
+      if(SESSION_ATTRIBUTE_MAPS.containsKey(sessionId)) {
+         return SESSION_ATTRIBUTE_MAPS.get(sessionId);
+      }
+
+      Cluster cluster = Cluster.getInstance();
+
+      if(cluster.mapExists(getSessionAttributeMapName(sessionId))) {
+         DistributedMap<String, Object> map = cluster
+            .getReplicatedMap(getSessionAttributeMapName(sessionId));
+
+         if(cluster.getCache(DEFAULT_SESSION_MAP_NAME).containsKey(sessionId)) {
+            SESSION_ATTRIBUTE_MAPS.put(sessionId, map);
+         }
+
+         return map;
+      }
+
+      return null;
    }
 
    private String sessionMapName = DEFAULT_SESSION_MAP_NAME;
@@ -424,16 +399,19 @@ public class IgniteSessionRepository
    private static final int PROTECTION_EXPIRATION_WARNING_INTERVAL = 120000; // 2 minutes, how often to warn about protection expiring
    private static final String EXPIRING_SOON_ATTR = IgniteSessionRepository.class.getName() + ".expiringSoon";
    private static final String LAST_PROTECTION_WARNING_TIME_ATTR = IgniteSessionRepository.class.getName() + ".lastProtectionWarningTime";
+   private static final Map<String, DistributedMap<String, Object>> SESSION_ATTRIBUTE_MAPS = new HashMap<>();
+   private static final String SESSION_ATTRIBUTE_MAP = IgniteSessionRepository.class.getName() + ".sessionAttributeMap.";
 
    public final class IgniteSession implements Session {
       IgniteSession(MapSession cached, boolean isNew) {
          this.delegate = cached;
          this.isNew = isNew;
          this.originalId = cached.getId();
+         DistributedMap<String, Object> map = getSessionAttributeMap(originalId);
 
          if(this.isNew || (IgniteSessionRepository.this.saveMode == SaveMode.ALWAYS)) {
-            getAttributeNames()
-               .forEach(n -> this.delta.put(n, cached.getAttribute(n)));
+            this.delegate.getAttributeNames()
+               .forEach(n -> map.put(getAttributeKey(n), cached.getAttribute(n)));
          }
       }
 
@@ -444,40 +422,68 @@ public class IgniteSessionRepository
 
       @Override
       public String changeSessionId() {
+         String oldSessionId = this.originalId;
          String newSessionId = IgniteSessionRepository.this.sessionIdGenerator.generate();
          this.delegate.setId(newSessionId);
          this.sessionIdChanged = true;
+
+         DistributedMap<String, Object> newMap = getSessionAttributeMap(newSessionId);
+         Set<Map.Entry<String, Object>> oldEntries = getSessionAttributeMap(oldSessionId).entrySet();
+
+         for(Map.Entry<String, Object> entry : oldEntries) {
+            newMap.put(entry.getKey(), entry.getValue());
+         }
+
+         Principal principal = getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+         if(principal instanceof DestinationUserNameProviderPrincipal) {
+            ((DestinationUserNameProviderPrincipal) principal).setHttpSessionId(newSessionId);
+            setAttribute(RepletRepository.PRINCIPAL_COOKIE, principal);
+         }
+
+         principal = getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
+
+         if(principal instanceof DestinationUserNameProviderPrincipal) {
+            ((DestinationUserNameProviderPrincipal) principal).setHttpSessionId(newSessionId);
+            setAttribute(RepletRepository.EM_PRINCIPAL_COOKIE, principal);
+         }
+
          return newSessionId;
       }
 
       @Override
       public <T> T getAttribute(String attributeName) {
-         T attributeValue = this.delegate.getAttribute(attributeName);
-
-         if(attributeValue != null &&
-            IgniteSessionRepository.this.saveMode.equals(SaveMode.ON_GET_ATTRIBUTE))
-         {
-            this.delta.put(attributeName, attributeValue);
-         }
-
-         return attributeValue;
+         return (T) getSessionAttributeMap(originalId).get(getAttributeKey(attributeName));
       }
 
       @Override
       public Set<String> getAttributeNames() {
-         return this.delegate.getAttributeNames();
+         return getSessionAttributeMap(originalId).keySet().stream()
+            .filter(key -> key != null && key.startsWith(ATTR_PREFIX))
+            .map(key -> key.substring(ATTR_PREFIX.length()))
+            .collect(Collectors.toSet());
       }
 
       @Override
       public void setAttribute(String attributeName, Object attributeValue) {
-         this.delegate.setAttribute(attributeName, attributeValue);
-         this.delta.put(attributeName, attributeValue);
-         flushImmediateIfNecessary();
+         if(attributeValue instanceof DestinationUserNameProviderPrincipal &&
+            (RepletRepository.PRINCIPAL_COOKIE.equals(attributeName) ||
+               RepletRepository.EM_PRINCIPAL_COOKIE.equals(attributeName)))
+         {
+            ((DestinationUserNameProviderPrincipal) attributeValue).setHttpSessionId(originalId);
+         }
+
+         if(attributeValue == null) {
+            getSessionAttributeMap(originalId).remove(getAttributeKey(attributeName));
+         }
+         else {
+            getSessionAttributeMap(originalId).put(getAttributeKey(attributeName), attributeValue);
+         }
       }
 
       @Override
       public void removeAttribute(String attributeName) {
-         setAttribute(attributeName, null);
+         getSessionAttributeMap(originalId).remove(getAttributeKey(attributeName));
       }
 
       @Override
@@ -519,8 +525,7 @@ public class IgniteSessionRepository
       }
 
       boolean hasChanges() {
-         return (this.lastAccessedTimeChanged || this.maxInactiveIntervalChanged ||
-            !this.delta.isEmpty());
+         return (this.lastAccessedTimeChanged || this.maxInactiveIntervalChanged);
       }
 
       void clearChangeFlags() {
@@ -528,7 +533,6 @@ public class IgniteSessionRepository
          this.lastAccessedTimeChanged = false;
          this.sessionIdChanged = false;
          this.maxInactiveIntervalChanged = false;
-         this.delta.clear();
       }
 
       private void flushImmediateIfNecessary() {
@@ -537,12 +541,29 @@ public class IgniteSessionRepository
          }
       }
 
+      private String getAttributeKey(String attributeName) {
+         return ATTR_PREFIX + attributeName;
+      }
+
       private final MapSession delegate;
       private boolean isNew;
       private boolean sessionIdChanged;
       private boolean lastAccessedTimeChanged;
       private boolean maxInactiveIntervalChanged;
       private String originalId;
-      private final Map<String, Object> delta = new HashMap<>();
+      private static final String ATTR_PREFIX = "IgniteSession.ATTR.";
+   }
+
+   private final static class DestroyMapTask implements Runnable, Serializable {
+      public DestroyMapTask(String name) {
+         this.name = name;
+      }
+
+      @Override
+      public void run() {
+         Cluster.getInstance().destroyReplicatedMap(name);
+      }
+
+      private final String name;
    }
 }

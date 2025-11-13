@@ -31,13 +31,12 @@ public class SessionUpdateEntryProcessor implements EntryProcessor<String, MapSe
    public Object process(MutableEntry<String, MapSession> entry, Object... arguments)
       throws EntryProcessorException
    {
-      if(arguments.length != 3) {
-         throw new IllegalArgumentException("Expected 3 arguments, got " + arguments.length);
+      if(arguments.length != 2) {
+         throw new IllegalArgumentException("Expected 2 arguments, got " + arguments.length);
       }
 
       Instant lastAccessTime = (Instant) arguments[0];
       Duration maxInactiveInterval = (Duration) arguments[1];
-      Map<String, Object> delta = (Map<String, Object>) arguments[2];
 
       MapSession value = entry.getValue();
 
@@ -51,17 +50,6 @@ public class SessionUpdateEntryProcessor implements EntryProcessor<String, MapSe
 
       if(maxInactiveInterval != null) {
          value.setMaxInactiveInterval(maxInactiveInterval);
-      }
-
-      if(delta != null) {
-         for(Map.Entry<String, Object> attribute : delta.entrySet()) {
-            if(attribute.getValue() == null) {
-               value.removeAttribute(attribute.getKey());
-            }
-            else {
-               value.setAttribute(attribute.getKey(), attribute.getValue());
-            }
-         }
       }
 
       entry.setValue(value);

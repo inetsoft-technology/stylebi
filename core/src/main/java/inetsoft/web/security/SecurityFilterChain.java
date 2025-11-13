@@ -17,6 +17,7 @@
  */
 package inetsoft.web.security;
 
+import inetsoft.web.ThreadLocalCleanupFilter;
 import inetsoft.web.cluster.PauseClusterFilter;
 import org.springframework.web.filter.ForwardedHeaderFilter;
 
@@ -26,6 +27,7 @@ public class SecurityFilterChain extends DelegatingFilterChain {
    public SecurityFilterChain() {
       super(Arrays.asList(
          new ForwardedHeaderFilter(),
+         new ThreadLocalCleanupFilter(),
          new SessionRefreshDisabledFilter(),
          new SecurityHeaderFilter(),
          new PauseClusterFilter(),

@@ -86,6 +86,13 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
       }
    }
 
+   public void scheduleWithId(String id, Runnable command, long delay, TimeUnit unit) {
+      if(!map.containsKey(id)) {
+         map.put(id, new ScheduledExecutorCommand((Serializable) command, delay, 0, unit));
+         scheduleCommand(id, command, delay, unit);
+      }
+   }
+
    @Override
    public void shutdown() {
       executor.shutdown();

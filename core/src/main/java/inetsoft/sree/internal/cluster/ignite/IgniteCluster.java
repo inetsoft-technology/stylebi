@@ -900,6 +900,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public boolean mapExists(String name) {
+      return ignite.cacheNames().contains(name);
+   }
+
+   @Override
    public <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy) {
       CacheConfiguration<K, V> config;
 
@@ -1606,6 +1611,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private <K,V> void addContinuousQuery(IgniteCache<K,V> cache, MapChangeListener<K, V> l) {
       if(cache != null) {
          ContinuousQuery<K, V> qry = new ContinuousQuery<>();
+         qry.setIncludeExpired(true);
          qry.setLocalListener(new MapListenerAdapter<>(l));
          qry.setRemoteFilterFactory(new MapEventFilterFactory<>());
          QueryCursor<?> cursor = cache.query(qry);

@@ -469,7 +469,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
     */
    public void setUser(ClientInfo client) {
       this.client = client;
-      setChanged();
    }
 
    /**
@@ -566,20 +565,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       }
 
       return null;
-   }
-
-   @Override
-   public void copyContent(XPrincipal from) {
-      super.copyContent(from);
-
-      if(!(from instanceof SRPrincipal)) {
-         return;
-      }
-
-      SRPrincipal fromPrincipal = (SRPrincipal) from;
-      client = client == null ? null : (ClientInfo) fromPrincipal.client.clone();
-      host = fromPrincipal.host;
-      locale = fromPrincipal.locale == null ? null : (Locale) fromPrincipal.locale.clone();
    }
 
    /**
@@ -788,8 +773,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       if(locale != null && getProperty(XPrincipal.LOCALE) == null) {
          setProperty(XPrincipal.LOCALE, locale.toString());
       }
-
-      setChanged();
    }
 
    /**
@@ -798,7 +781,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
    public void setSession(Object session) {
       if(session != null) {
          sref = new WeakReference<>(session);
-         setChanged();
       }
    }
 
@@ -868,7 +850,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       out.writeObject(locale);
    }
 
-   private void writeStringExternal(String s, ObjectOutput out) throws IOException {
+   protected void writeStringExternal(String s, ObjectOutput out) throws IOException {
       out.writeUTF(Objects.requireNonNullElse(s, "__EXT_NULL_STR__"));
    }
 
@@ -918,10 +900,9 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       accessed = in.readLong();
       host = (String) in.readObject();
       locale = (Locale) in.readObject();
-      clearChanged();
    }
 
-   private String readStringExternal(ObjectInput in) throws IOException {
+   protected String readStringExternal(ObjectInput in) throws IOException {
       String s = in.readUTF();
 
       if(s.equals("__EXT_NULL_STR__")) {

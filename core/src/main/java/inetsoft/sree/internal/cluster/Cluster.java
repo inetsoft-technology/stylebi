@@ -355,6 +355,8 @@ public interface Cluster extends AutoCloseable {
 
    void removeReplicatedMapListener(String name, MapChangeListener<?, ?> l);
 
+   boolean mapExists(String name);
+
    <E> BlockingQueue<E> getQueue(String name);
 
    void destroyQueue(String name);
