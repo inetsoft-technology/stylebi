@@ -128,6 +128,10 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    public static final class Metadata implements Serializable {
+      public Metadata() {
+         this.temp = false;
+      }
+
       public Metadata(boolean temp) {
          this.temp = temp;
       }
