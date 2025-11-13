@@ -20,19 +20,16 @@ package inetsoft.web.admin.user;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
-import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.viewsheet.ViewsheetService;
 import inetsoft.web.cluster.ServerClusterClient;
 import inetsoft.web.session.IgniteSessionRepository;
-import inetsoft.web.session.PrincipalChangedEvent;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.stereotype.Service;
@@ -48,7 +45,7 @@ import java.util.stream.Collectors;
 @Lazy(false)
 public class UserService
    extends MonitorLevelService
-   implements MessageListener, StatusUpdater, ApplicationListener<PrincipalChangedEvent>
+   implements MessageListener, StatusUpdater
 {
    @Autowired
    public UserService(ViewsheetService viewsheetService,
@@ -394,11 +391,6 @@ public class UserService
       viewsheetService.calculateUserResource(cal);
       getUserAge(cal);
       return cal.getTopNUserResources();
-   }
-
-   @Override
-   public void onApplicationEvent(PrincipalChangedEvent event) {
-      updateStatus();
    }
 
    private final ViewsheetService viewsheetService;
