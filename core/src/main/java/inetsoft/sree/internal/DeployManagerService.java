@@ -710,6 +710,7 @@ public class DeployManagerService {
       Map<String, String> names = info.getNames();
       List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets = new ArrayList<>();
       List<String> ignoreSub = new ArrayList<>();
+      String currOrg = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(int i = 0; i < info.getDependentAssets().size(); i++) {
          if(ignoreList != null && ignoreList.contains(i + "")) {
@@ -826,15 +827,6 @@ public class DeployManagerService {
 
                XAsset asset = DeployHelper.getAsset(file, names);
 
-               //if importing as site admin, should import all assets to current organization
-               if(OrganizationManager.getInstance().isSiteAdmin(principal) && asset != null && asset.getUser() != null) {
-                  asset.getUser().setOrgID(OrganizationManager.getInstance().getCurrentOrgID(principal));
-
-                  if(asset instanceof AbstractSheetAsset) {
-                     ((AbstractSheetAsset) asset).getAssetEntry().toIdentifier(false);
-                  }
-               }
-
                if(asset == null) {
                   importAsset(file, null, ignoreSub, failedList, embeddedTables, ignoreAssets,
                      vss, overwriting, actionRecord, info, desktop, config, space,
@@ -848,7 +840,40 @@ public class DeployManagerService {
 
                Set<AssetObject> dependencies = helper.getDependencies(asset);
                File transformFile = helper.getTransformFile(asset);
+               String originalOrg = asset != null && asset.getUser() != null ? asset.getUser().orgID : null;
+
+               if(OrganizationManager.getInstance().isSiteAdmin(principal) && asset != null) {
+                  if(asset.getUser() != null) {
+                     asset.getUser().setOrgID(currOrg);
+                  }
+
+                  if(asset instanceof AbstractSheetAsset) {
+                     ((AbstractSheetAsset) asset).getAssetEntry().setOrgID(currOrg);
+
+                     if(((AbstractSheetAsset) asset).getAssetEntry().getUser() != null) {
+                        ((AbstractSheetAsset) asset).getAssetEntry().getUser().setOrgID(currOrg);
+                     }
+
+                     ((AbstractSheetAsset) asset).getAssetEntry().toIdentifier(true);
+                  }
+               }
+
                AssetObject entry = getAssetObjectByAsset(asset);
+
+               //requires checking against raw dependency on file, revert to original
+               if(OrganizationManager.getInstance().isSiteAdmin(principal) && originalOrg != null) {
+                  for(AssetObject assetObject : dependencies) {
+                     if(assetObject instanceof AssetEntry) {
+                        ((AssetEntry) assetObject).setOrgID(originalOrg);
+
+                        if(((AssetEntry) assetObject).getUser() != null) {
+                           ((AssetEntry) assetObject).getUser().setOrgID(originalOrg);
+                        }
+
+                        ((AssetEntry) assetObject).toIdentifier(true);
+                     }
+                  }
+               }
 
                // sync file if any depends on asset was auto renamed.
                if(dependencies != null && !dependencies.isEmpty()) {

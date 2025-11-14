@@ -203,7 +203,7 @@ public class ViewsheetEntry extends RepositoryEntry {
       identifier = Tool.byteDecode(Tool.getAttribute(tag, "identifier"));
 
       if(isSiteAdminImport && identifier != null) {
-         identifier = SUtil.handleViewsheetLinkOrgMismatch(identifier);
+         identifier = SUtil.handleViewsheetLinkOrgMismatch(identifier, isSiteAdminImport);
       }
 
       if(StringUtils.ordinalIndexOf(identifier, "^", 4) == -1) {

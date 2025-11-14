@@ -1387,7 +1387,7 @@ public abstract class DependencyTransformer {
 
                   if(link != null) {
                      ((Element) linkList.item(i)).setAttribute("Link",
-                       linkType == Hyperlink.VIEWSHEET_LINK ? SUtil.handleViewsheetLinkOrgMismatch(link) : link);
+                       linkType == Hyperlink.VIEWSHEET_LINK ? SUtil.handleViewsheetLinkOrgMismatch(link, true) : link);
                   }
                }
             }
@@ -1401,7 +1401,7 @@ public abstract class DependencyTransformer {
 
                if(link != null && (Hyperlink.VIEWSHEET_LINK + "").equals(linkType)) {
                   ((Element) dirllList.item(i)).setAttribute("link",
-                     SUtil.handleViewsheetLinkOrgMismatch(link));
+                     SUtil.handleViewsheetLinkOrgMismatch(link, true));
                }
             }
 

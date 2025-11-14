@@ -402,7 +402,7 @@ public class TableVSAssemblyInfo extends TableDataVSAssemblyInfo {
 
       if(node != null) {
          rowHyperlink = new Hyperlink();
-         rowHyperlink.parseXML(node);
+         rowHyperlink.parseXML(node, isSiteAdminImport);
       }
    }
 

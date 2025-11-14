@@ -3441,29 +3441,31 @@ public class SUtil {
    /**
     * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
     */
-   public static String handleViewsheetLinkOrgMismatch(String link) {
+   public static String handleViewsheetLinkOrgMismatch(String link, boolean isSiteAdminImport) {
       String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       int orgIdx = link.lastIndexOf("^");
 
       //handle import assets from older version without org identifier
       boolean hasOrgDelim = link.chars().filter(ch -> ch == '^').count() > 3;
 
-      if(orgIdx > 0 && hasOrgDelim) {
+      if(orgIdx > 0 && hasOrgDelim && isSiteAdminImport) {
          String linkOrg = link.substring(orgIdx + 1);
 
          if(!Tool.equals(linkOrg, curOrgId)) {
             link = link.substring(0, orgIdx + 1) + curOrgId;
          }
       }
-      else if(!hasOrgDelim) {
+      else if(!hasOrgDelim && link.chars().filter(ch -> ch == '^').count() == 3) {
          link = link + "^" + curOrgId;
       }
 
-      for(String pathSection : link.split("\\^")) {
-         if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
-            IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
-            updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
-            link = link.replace(pathSection, updatedUser.convertToKey());
+      if(isSiteAdminImport && link.indexOf("^") > -1) {
+         for(String pathSection : link.split("\\^")) {
+            if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
+               IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
+               updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+               link = link.replace(pathSection, updatedUser.convertToKey());
+            }
          }
       }
 

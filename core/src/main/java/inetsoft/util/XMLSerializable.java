@@ -40,8 +40,6 @@ public interface XMLSerializable {
     */
    public void parseXML(Element tag) throws Exception;
 
-   public default void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
-      parseXML(tag);
-   }
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception;
 }
 

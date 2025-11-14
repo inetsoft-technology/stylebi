@@ -789,7 +789,7 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
 
       if((attr = Tool.getAttribute(tag, "Link")) != null) {
          if(getLinkType() == Hyperlink.VIEWSHEET_LINK) {
-            attr = SUtil.handleViewsheetLinkOrgMismatch(attr);
+            attr = SUtil.handleViewsheetLinkOrgMismatch(attr, isSiteAdminImport);
          }
 
          setLink(attr);
@@ -1680,7 +1680,7 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
 
          if((attr = Tool.getAttribute(tag, "Link")) != null) {
             if(linkType == VIEWSHEET_LINK) {
-               attr = SUtil.handleViewsheetLinkOrgMismatch(attr);
+               attr = SUtil.handleViewsheetLinkOrgMismatch(attr, isSiteAdminImport);
             }
 
             setLink(attr);

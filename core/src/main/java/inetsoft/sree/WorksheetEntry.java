@@ -202,7 +202,7 @@ public class WorksheetEntry extends RepositoryEntry {
       identifier = Tool.byteDecode(Tool.getAttribute(tag, "identifier"));
 
       if(isSiteAdminImport && identifier != null) {
-         identifier = SUtil.handleViewsheetLinkOrgMismatch(identifier);
+         identifier = SUtil.handleViewsheetLinkOrgMismatch(identifier, isSiteAdminImport);
       }
    }
 
