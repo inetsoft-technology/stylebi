@@ -345,10 +345,11 @@ public class DefaultConditionAssembly extends AbstractWSAssembly
    /**
     * Parse contents.
     * @param elem the specified xml element.
+    * @param isSiteAdminImport flag to force into current organization if site admin.
     */
    @Override
-   protected void parseContents(Element elem) throws Exception {
-      super.parseContents(elem);
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
+      super.parseContents(elem, isSiteAdminImport);
 
       Element cnode = Tool.getChildNodeByTagName(elem, "conditions");
       conds.parseXML(cnode);

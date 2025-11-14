@@ -20,6 +20,7 @@ package inetsoft.uql.asset;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.schema.UserVariable;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.log.LogLevel;
@@ -323,7 +324,7 @@ public class MirrorDateRangeAssembly extends AbstractWSAssembly implements DateR
    /**
     * Set the range value data type.
     * @param type the data type of the range. Must be one of the data type
-    * constants defined in {@link inetsoft.uql.schema.XSchema}.
+    * constants defined in {@link XSchema}.
     */
    @Override
    public void setType(String type) {
@@ -549,10 +550,11 @@ public class MirrorDateRangeAssembly extends AbstractWSAssembly implements DateR
    /**
     * Parse contents.
     * @param elem the specified xml element.
+    * @param isSiteAdminImport flag to force into current organization if site admin.
     */
    @Override
-   public void parseContents(Element elem) throws Exception {
-      super.parseContents(elem);
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
+      super.parseContents(elem, isSiteAdminImport);
 
       Element cnode = Tool.getChildNodeByTagName(elem, "xConditionInfo");
       cnode = Tool.getFirstChildNode(cnode);

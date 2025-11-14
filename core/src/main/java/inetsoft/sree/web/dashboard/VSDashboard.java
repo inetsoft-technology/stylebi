@@ -227,6 +227,10 @@ public class VSDashboard implements Dashboard {
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, false);
+   }
+
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       Element node = Tool.getChildNodeByTagName(tag, "description");
 
       if(node != null) {
@@ -264,7 +268,7 @@ public class VSDashboard implements Dashboard {
             viewsheet = new ViewsheetEntry();
          }
 
-         viewsheet.parseXML(node);
+         viewsheet.parseXML(node, isSiteAdminImport);
       }
    }
 

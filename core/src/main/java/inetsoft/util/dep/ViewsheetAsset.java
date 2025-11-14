@@ -542,13 +542,20 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
    protected void parseSheet(AbstractSheet sheet, Element elem, XAssetConfig config, String orgId)
       throws Exception
    {
+      parseSheet(sheet, elem, config, orgId, false);
+   }
+
+   @Override
+   protected void parseSheet(AbstractSheet sheet, Element elem, XAssetConfig config, String orgId, boolean isSiteAdminImport)
+      throws Exception
+   {
       if("viewsheet".equals(elem.getNodeName()) &&
          Tool.getChildNodeByTagName(elem, "viewsheet") != null)
       {
          elem = Tool.getChildNodeByTagName(elem, "viewsheet");
       }
 
-      sheet.parseXML(elem);
+      sheet.parseXML(elem, isSiteAdminImport);
 
       Viewsheet vs = (Viewsheet) sheet;
 

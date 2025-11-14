@@ -17,6 +17,7 @@
  */
 package inetsoft.sree;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.*;
@@ -191,10 +192,18 @@ public class WorksheetEntry extends RepositoryEntry {
     */
    @Override
    public void parseAttributes(Element tag) throws Exception {
+      parseAttributes(tag, false);
+   }
+
+   public void parseAttributes(Element tag, boolean isSiteAdminImport) throws Exception {
       super.parseAttributes(tag);
       onReport = "true".equals(Tool.getAttribute(tag, "onReport"));
       snapshot = "true".equals(Tool.getAttribute(tag, "snapshot"));
       identifier = Tool.byteDecode(Tool.getAttribute(tag, "identifier"));
+
+      if(isSiteAdminImport && identifier != null) {
+         identifier = SUtil.handleViewsheetLinkOrgMismatch(identifier, isSiteAdminImport);
+      }
    }
 
    /**

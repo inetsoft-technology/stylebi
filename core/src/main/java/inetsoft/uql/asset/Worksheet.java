@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.asset;
 
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XCube;
 import inetsoft.uql.asset.internal.*;
@@ -1109,6 +1110,10 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
     */
    @Override
    public void parseXML(Element elem) throws Exception {
+      parseXML(elem, false);
+   }
+
+   public void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       String val = Tool.getAttribute(elem, "modified");
 
       if(val != null) {
@@ -1145,6 +1150,16 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
          for(int i = 0; i < list.getLength(); i++) {
             Element anode = (Element) list.item(i);
             AssetEntry entry = AssetEntry.createAssetEntry(anode);
+
+            if(isSiteAdminImport) {
+               String currOrg = OrganizationManager.getInstance().getCurrentOrgID();
+
+               if(entry.getUser() != null) {
+                  entry.getUser().setOrgID(currOrg);
+               }
+
+               entry.setOrgID(currOrg);
+            }
             this.dependencies.add(entry);
          }
       }

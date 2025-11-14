@@ -986,10 +986,11 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
    /**
     * Parse contents.
     * @param elem the specified xml element.
+    * @param isSiteAdminImport flag to force into current organization if site admin.
     */
    @Override
-   protected void parseContents(Element elem) throws Exception {
-      super.parseContents(elem);
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
+      super.parseContents(elem, isSiteAdminImport);
       Element dnode = Tool.getChildNodeByTagName(elem, "description");
 
       if(dnode != null) {
@@ -1036,7 +1037,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       if(lnode != null) {
          Hyperlink link = new Hyperlink();
-         link.parseXML((Element) lnode.getFirstChild());
+         link.parseXML((Element) lnode.getFirstChild(), isSiteAdminImport);
          linkValue.setDValue(link);
       }
 
@@ -1044,7 +1045,7 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
 
       if(rnode != null) {
          ref = new Hyperlink.Ref();
-         ref.parseXML((Element) rnode.getFirstChild());
+         ref.parseXML((Element) rnode.getFirstChild(), isSiteAdminImport);
       }
 
       Element sNode = Tool.getChildNodeByTagName(elem, "script");

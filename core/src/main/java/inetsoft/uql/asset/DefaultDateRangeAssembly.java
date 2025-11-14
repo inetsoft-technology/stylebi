@@ -345,10 +345,11 @@ public class DefaultDateRangeAssembly extends AbstractWSAssembly implements Date
    /**
     * Parse contents.
     * @param elem the specified xml element.
+    * @param isSiteAdminImport flag to force into current organization if site admin.
     */
    @Override
-   public void parseContents(Element elem) throws Exception {
-      super.parseContents(elem);
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
+      super.parseContents(elem, isSiteAdminImport);
       Element dnode = Tool.getChildNodeByTagName(elem, "xCondition");
       range = (DateCondition) AbstractCondition.createXCondition(dnode);
 

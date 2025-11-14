@@ -108,9 +108,13 @@ public abstract class AbstractAssembly implements Assembly {
     * Parse contents.
     * @param elem the specified xml element.
     */
-   protected void parseContents(Element elem) throws Exception {
+   public final void parseContents(Element elem) throws Exception {
+      parseContents(elem, false);
+   }
+
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       Element inode = Tool.getChildNodeByTagName(elem, "assemblyInfo");
-      getInfo().parseXML(inode);
+      getInfo().parseXML(inode, isSiteAdminImport);
    }
 
    /**
@@ -119,8 +123,13 @@ public abstract class AbstractAssembly implements Assembly {
     */
    @Override
    public final void parseXML(Element elem) throws Exception {
+      parseXML(elem, false);
+   }
+
+   @Override
+   public final void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       parseAttributes(elem);
-      parseContents(elem);
+      parseContents(elem, isSiteAdminImport);
    }
 
    /**

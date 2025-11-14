@@ -155,10 +155,11 @@ public class ContainerVSAssemblyInfo extends VSAssemblyInfo {
    /**
     * Parse contents.
     * @param elem the specified xml element.
+    * @param isSiteAdminImport flag to force into current organization if site admin.
     */
    @Override
-   protected void parseContents(Element elem) throws Exception {
-      super.parseContents(elem);
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
+      super.parseContents(elem, isSiteAdminImport);
       Element node = Tool.getChildNodeByTagName(elem, "assemblies");
 
       if(node != null) {

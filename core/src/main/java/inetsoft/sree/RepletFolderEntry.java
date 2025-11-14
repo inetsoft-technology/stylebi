@@ -99,4 +99,8 @@ public class RepletFolderEntry extends DefaultFolderEntry {
    public void parseAttributes(Element tag) throws Exception {
       super.parseAttributes(tag);
    }
+
+   public void parseAttributes(Element tag, boolean isSiteAdminImport) throws Exception {
+      super.parseAttributes(tag, isSiteAdminImport);
+   }
 }
