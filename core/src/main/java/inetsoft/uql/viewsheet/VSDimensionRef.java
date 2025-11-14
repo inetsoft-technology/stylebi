@@ -1392,13 +1392,24 @@ public class VSDimensionRef extends AbstractDataRef implements ContentObject, XD
          DataRef group = columns.getAttribute(gtext);
 
          if(group == null && !gtext.equals("null") && !gtext.equals("")) {
-            // don't throw an exception so the rendering can complete without
-            // generating a broken chart image
-            LOG.warn("Column not found: " + groupValue + " (" + columns + ")");
+            // Check if the VSAssembly binding did not update the Data group bindings yet
+            if(gtext.startsWith("DataGroup_")) {
+               group = columns.getAttribute(gtext.substring("DataGroup_".length(), gtext.length() - 1));
+            }
+            else {
+               group = columns.getAttribute("DataGroup_" + gtext + "_");
+            }
 
-            if(groupValue.getDValue().startsWith("=")) {
-               CoreTool.addUserMessage(Catalog.getCatalog().getString(
-                  "common.viewsheet.expressionColumn", groupValue));
+            // Don't log an error if in the middle of updating VSAssembly bindings
+            if(group == null) {
+               // don't throw an exception so the rendering can complete without
+               // generating a broken chart image
+               LOG.warn("Column not found: " + groupValue + " (" + columns + ")");
+
+               if(groupValue.getDValue().startsWith("=")) {
+                  CoreTool.addUserMessage(Catalog.getCatalog().getString(
+                     "common.viewsheet.expressionColumn", groupValue));
+               }
             }
 
             continue;
