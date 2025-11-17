@@ -942,6 +942,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.savePoint = command.savePoint;
       this.vs.id = command.id;
       this.notifications.success("_#(js:common.viewsheet.saveSuccess)");
+      this.vs.saving = false;
 
       if(this.vs.gettingStarted) {
          this.onOpenVSOnPortal.emit(this.vs.id);

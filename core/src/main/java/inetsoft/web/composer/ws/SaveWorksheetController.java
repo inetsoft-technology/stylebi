@@ -71,14 +71,6 @@ public class SaveWorksheetController extends WorksheetController {
 
       rws.setSavePoint(rws.getCurrent());
 
-      if(!event.isClose()) {
-         SaveSheetCommand command = SaveSheetCommand.builder()
-            .savePoint(rws.getSavePoint())
-            .id(rws.getEntry().toIdentifier())
-            .build();
-         commandDispatcher.sendCommand(command);
-      }
-
       RenameDependencyInfo dinfo = DependencyTransformer.createRenameInfo(rws);
 
       if(!dinfo.getDependencyMap().isEmpty()) {
@@ -87,6 +79,14 @@ public class SaveWorksheetController extends WorksheetController {
 
       initWorksheetOldName(rws);
       saveWorksheetService.syncNameGroupInfo(rws.getWorksheet(), principal);
+
+      if(!event.isClose()) {
+         SaveSheetCommand command = SaveSheetCommand.builder()
+            .savePoint(rws.getSavePoint())
+            .id(rws.getEntry().toIdentifier())
+            .build();
+         commandDispatcher.sendCommand(command);
+      }
 
       return true;
    }

@@ -187,6 +187,10 @@
                       [runtimeId]="vs.runtimeId"
                       (cancelLoading)="cancelViewsheetLoading()">
   </vs-loading-display>
+  <div *ngIf="vs.saving" class="loading-container viewsheet-loading-container flex-column">
+    <i class="loading-icon--spin icon-size-xlarge loading-icon icon-4x" aria-hidden="true"></i>
+    <div>_#(Saving)</div>
+  </div>
 </div>
 
 <notifications #notifications class="notifications-viewsheet-pane" [timeout]="5000"></notifications>

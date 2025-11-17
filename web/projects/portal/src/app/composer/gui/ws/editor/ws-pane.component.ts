@@ -1129,6 +1129,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.worksheet.savePoint = command.savePoint;
       this.worksheet.id = command.id;
       this.notifications.success("_#(js:common.worksheet.saveSuccess)");
+      this.worksheet.saving = false;
       this.onSaveWorksheetFinish.emit(this.worksheet);
    }
 
