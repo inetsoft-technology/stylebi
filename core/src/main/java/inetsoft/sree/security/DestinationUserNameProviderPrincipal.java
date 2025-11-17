@@ -18,6 +18,7 @@
 package inetsoft.sree.security;
 
 import inetsoft.sree.ClientInfo;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.util.script.JavaScriptEngine;
 import inetsoft.web.session.IgniteSessionRepository;
@@ -95,6 +96,12 @@ public class DestinationUserNameProviderPrincipal
    @Override
    public void setProperty(String name, String val) {
       super.setProperty(name, val);
+
+      // store local only
+      if(SUtil.EM_USER.equals(name) || (!isEMPrincipal() && "curr_org_id".equals(name))) {
+         return;
+      }
+
       DistributedMap<String, Object> map = getSessionAttributeMap();
 
       if(map == null) {
@@ -111,6 +118,14 @@ public class DestinationUserNameProviderPrincipal
 
    @Override
    public String getProperty(String name) {
+      // for non em user, ignore the value of this property
+      if(!isEMPrincipal() && "curr_org_id".equals(name)) {
+         return null;
+      }
+      else if(SUtil.EM_USER.equals(name)) {
+         return super.getProperty(name);
+      }
+
       DistributedMap<String, Object> map = getSessionAttributeMap();
 
       if(map == null) {
@@ -260,6 +275,10 @@ public class DestinationUserNameProviderPrincipal
    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
       super.readExternal(in);
       httpSessionId = readStringExternal(in);
+   }
+
+   private boolean isEMPrincipal() {
+      return "true".equals(prop.get(SUtil.EM_USER));
    }
 
    private String httpSessionId;
