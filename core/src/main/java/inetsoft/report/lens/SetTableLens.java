@@ -527,28 +527,31 @@ public abstract class SetTableLens
 
       // concurrent process
       final MergedTable merged2 = merged;
-      ThreadPool.addOnDemand(() -> {
-         try {
-            merged2.accept(getVisitor());
-         }
-         catch(InterruptedException ex) {
-            // ignore it
-         }
-         catch(Exception ex) {
-            LOG.error("Failed to merge tables", ex);
-         }
-
-         synchronized(SetTableLens.this) {
-            if(rows != null) {
-               rows.complete();
+      ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+         @Override
+         public void run() {
+            try {
+               merged2.accept(getVisitor());
+            }
+            catch(InterruptedException ex) {
+               // ignore it
+            }
+            catch(Exception ex) {
+               LOG.error("Failed to merge tables", ex);
             }
 
-            if(!merged2.isDisposed()) {
-               merged.dispose();
-               merged = null;
-               completed = true;
-               // notify waiting consumers
-               SetTableLens.this.notifyAll();
+            synchronized(SetTableLens.this) {
+               if(rows != null) {
+                  rows.complete();
+               }
+
+               if(!merged2.isDisposed()) {
+                  merged.dispose();
+                  merged = null;
+                  completed = true;
+                  // notify waiting consumers
+                  SetTableLens.this.notifyAll();
+               }
             }
          }
       });

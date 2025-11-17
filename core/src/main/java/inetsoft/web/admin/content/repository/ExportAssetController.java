@@ -67,6 +67,8 @@ public class ExportAssetController {
       session.setAttribute(PERM_ATTR, future);
 
       ThreadPool.addOnDemand(() -> {
+         Principal oldPrincipal = ThreadContext.getContextPrincipal();
+
          try {
             ThreadContext.setPrincipal(principal);
             SelectedAssetModelList list = deployService.filterEntities(assets, principal);
@@ -77,6 +79,7 @@ public class ExportAssetController {
          }
          finally {
             session.setAttribute(PERM_ATTR, future);
+            ThreadContext.setPrincipal(oldPrincipal);
          }
       });
    }
@@ -105,6 +108,8 @@ public class ExportAssetController {
       session.setAttribute(DEPS_ATTR, future);
 
       ThreadPool.addOnDemand(() -> {
+         Principal oldPrincipal = ThreadContext.getPrincipal();
+
          try {
             ThreadContext.setPrincipal(principal);
             RequiredAssetModelList list =
@@ -116,6 +121,7 @@ public class ExportAssetController {
          }
          finally {
             session.setAttribute(DEPS_ATTR, future);
+            ThreadContext.setPrincipal(oldPrincipal);
          }
       });
    }

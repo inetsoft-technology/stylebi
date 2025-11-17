@@ -18,10 +18,8 @@
 package inetsoft.util;
 
 import inetsoft.report.internal.license.*;
-import inetsoft.sree.security.OrganizationContextHolder;
 import org.slf4j.*;
 
-import java.lang.reflect.*;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.*;

@@ -2465,6 +2465,11 @@ public class SUtil {
       try {
          Principal principal = null;
          HttpSession session = req.getSession(create);
+
+         if(session == null) {
+            return null;
+         }
+
          boolean isEmRequest = Tool.equals("true", req.getHeader(RepletRepository.EM_CLIENT)) ||
             "websocket".equals(req.getHeader("Upgrade")) &&
                Tool.equals("true", req.getParameter(RepletRepository.EM_CLIENT));

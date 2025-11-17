@@ -7010,8 +7010,18 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          // this is triggered from ws action when ws is modified, at which point the
          // ws is locked. the shrink() method will call lockRead, which assumes it's
          // called before ws is locked. we run it in a separate thread to avoid deadlock
+         final Principal principal = ThreadContext.getContextPrincipal();
          debouncer.debounce("shrink" + System.identityHashCode(ViewsheetSandbox.this), 1,
-                            TimeUnit.SECONDS, () -> ThreadPool.addOnDemand(this::shrink));
+                            TimeUnit.SECONDS, () -> {
+               ThreadPool.ContextRunnable runnable = new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     ViewsheetSandbox.this.shrink();
+                  }
+               };
+               runnable.setPrincipal(principal);
+               ThreadPool.addOnDemand(runnable);
+            });
       }
 
       /**

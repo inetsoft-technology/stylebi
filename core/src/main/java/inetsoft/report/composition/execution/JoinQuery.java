@@ -1030,6 +1030,7 @@ public class JoinQuery extends AssetQuery {
       @Override
       public Thread newThread(Runnable r) {
          GroupedThread thread = new GroupedThread(r);
+         thread.setPrincipal(ThreadContext.getContextPrincipal());
          thread.setDaemon(true);
          return thread;
       }

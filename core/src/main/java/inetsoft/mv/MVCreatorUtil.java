@@ -82,32 +82,35 @@ public class MVCreatorUtil {
          final CompletableFuture<Void> future = new CompletableFuture<>();
          futures.add(future);
 
-         ThreadPool.addOnDemand(() -> {
-            try {
-               for(int r = start; lens.moreRows(r) && r < end; r++) {
-                  Object obj = lens.getObject(r, dimensions[dimIdx]);
+         ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+            @Override
+            public void run() {
+               try {
+                  for(int r = start; lens.moreRows(r) && r < end; r++) {
+                     Object obj = lens.getObject(r, dimensions[dimIdx]);
 
-                  try {
-                     dicts[dimIdx].addValue(obj);
-                  }
-                  catch(ClassCastException ex) {
-                     throw new RuntimeException("Mixed data type not supported for MV: " +
-                                                   lens.getObject(0, dimensions[dimIdx]) + " = " + obj);
-                  }
+                     try {
+                        dicts[dimIdx].addValue(obj);
+                     }
+                     catch(ClassCastException ex) {
+                        throw new RuntimeException("Mixed data type not supported for MV: " +
+                                                      lens.getObject(0, dimensions[dimIdx]) + " = " + obj);
+                     }
 
-                  // check overflow every 1024 rows
-                  if(r % 1024 == 0) {
-                     if(dicts[dimIdx].resetOverflow()) {
-                        Object header = XUtil.getHeader(lens, dimensions[dimIdx]);
-                        dimensionOverflows.add(header);
+                     // check overflow every 1024 rows
+                     if(r % 1024 == 0) {
+                        if(dicts[dimIdx].resetOverflow()) {
+                           Object header = XUtil.getHeader(lens, dimensions[dimIdx]);
+                           dimensionOverflows.add(header);
+                        }
                      }
                   }
-               }
 
-               future.complete(null);
-            }
-            catch(Throwable t) {
-               future.completeExceptionally(t);
+                  future.complete(null);
+               }
+               catch(Throwable t) {
+                  future.completeExceptionally(t);
+               }
             }
          });
       }
@@ -123,20 +126,23 @@ public class MVCreatorUtil {
             final CompletableFuture<Void> future = new CompletableFuture<>();
             futures.add(future);
 
-            ThreadPool.addOnDemand(() -> {
-               try {
-                  for(int r = start; lens.moreRows(r) && r < end; r++) {
-                     Object obj = lens.getObject(r, measures[mIdx]);
+            ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+               @Override
+               public void run() {
+                  try {
+                     for(int r = start; lens.moreRows(r) && r < end; r++) {
+                        Object obj = lens.getObject(r, measures[mIdx]);
 
-                     if(obj instanceof Number) {
-                        MVCreatorUtil.setRange(mvColumnInfos[mIdx + dcnt], (Number) obj);
+                        if(obj instanceof Number) {
+                           MVCreatorUtil.setRange(mvColumnInfos[mIdx + dcnt], (Number) obj);
+                        }
                      }
-                  }
 
-                  future.complete(null);
-               }
-               catch(Throwable t) {
-                  future.completeExceptionally(t);
+                     future.complete(null);
+                  }
+                  catch(Throwable t) {
+                     future.completeExceptionally(t);
+                  }
                }
             });
          }
@@ -149,57 +155,60 @@ public class MVCreatorUtil {
                final CompletableFuture<Void> future = new CompletableFuture<>();
                futures.add(future);
 
-               ThreadPool.addOnDemand(() -> {
-                  try {
-                     Date min = null;
-                     Date max = null;
+               ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     try {
+                        Date min = null;
+                        Date max = null;
 
-                     for(int r = 0; lens.moreRows(r) && r < end; r++) {
-                        // optimization, avoid calling getObject() on the
-                        // XDynamicTable since it causes DateRangeRef.convert
-                        // which is expensive. We check the type and the
-                        // range to see if the date range would indeed be changed
-                        // before calling the getObject
-                        boolean outOfRange;
+                        for(int r = 0; lens.moreRows(r) && r < end; r++) {
+                           // optimization, avoid calling getObject() on the
+                           // XDynamicTable since it causes DateRangeRef.convert
+                           // which is expensive. We check the type and the
+                           // range to see if the date range would indeed be changed
+                           // before calling the getObject
+                           boolean outOfRange;
 
-                        Object obj0 = ((XDynamicTable) lens).getBaseObject(r, measures[mIdx]);
+                           Object obj0 = ((XDynamicTable) lens).getBaseObject(r, measures[mIdx]);
 
-                        if(!(obj0 instanceof Date)) {
-                           continue;
-                        }
-
-                        Date date0 = (Date) obj0;
-                        outOfRange = false;
-
-                        if(min == null) {
-                           min = date0;
-                           max = date0;
-                           outOfRange = true;
-                        }
-                        else {
-                           if(date0.compareTo(min) < 0) {
-                              min = date0;
-                              outOfRange = true;
+                           if(!(obj0 instanceof Date)) {
+                              continue;
                            }
-                           else if(date0.compareTo(max) > 0) {
+
+                           Date date0 = (Date) obj0;
+                           outOfRange = false;
+
+                           if(min == null) {
+                              min = date0;
                               max = date0;
                               outOfRange = true;
                            }
-                        }
+                           else {
+                              if(date0.compareTo(min) < 0) {
+                                 min = date0;
+                                 outOfRange = true;
+                              }
+                              else if(date0.compareTo(max) > 0) {
+                                 max = date0;
+                                 outOfRange = true;
+                              }
+                           }
 
-                        if(outOfRange) {
-                           Object obj = lens.getObject(r, measures[mIdx]);
+                           if(outOfRange) {
+                              Object obj = lens.getObject(r, measures[mIdx]);
 
-                           if(obj instanceof Date) {
-                              MVCreatorUtil.setDateRange(mvColumnInfos[mIdx + dcnt], (Date) obj);
+                              if(obj instanceof Date) {
+                                 MVCreatorUtil.setDateRange(mvColumnInfos[mIdx + dcnt], (Date) obj);
+                              }
                            }
                         }
-                     }
 
-                     future.complete(null);
-                  }
-                  catch(Throwable t) {
-                     future.completeExceptionally(t);
+                        future.complete(null);
+                     }
+                     catch(Throwable t) {
+                        future.completeExceptionally(t);
+                     }
                   }
                });
             }
@@ -208,26 +217,29 @@ public class MVCreatorUtil {
             final CompletableFuture<Void> future = new CompletableFuture<>();
             futures.add(future);
 
-            ThreadPool.addOnDemand(() -> {
-               try {
-                  for(int r = 0; lens.moreRows(r) && r < end; r++) {
-                     Object val = lens.getObject(r, measures[mIdx]);
+            ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+               @Override
+               public void run() {
+                  try {
+                     for(int r = 0; lens.moreRows(r) && r < end; r++) {
+                        Object val = lens.getObject(r, measures[mIdx]);
 
-                     // check overflow every 1024 rows
-                     if(r % 1024 == 0) {
-                        if(dicts[mIdx + dcnt].resetOverflow()) {
-                           Object header = XUtil.getHeader(lens, measures[mIdx]);
-                           measureOverflows.add(header);
+                        // check overflow every 1024 rows
+                        if(r % 1024 == 0) {
+                           if(dicts[mIdx + dcnt].resetOverflow()) {
+                              Object header = XUtil.getHeader(lens, measures[mIdx]);
+                              measureOverflows.add(header);
+                           }
                         }
+
+                        dicts[mIdx + dcnt].addValue(val);
                      }
 
-                     dicts[mIdx + dcnt].addValue(val);
+                     future.complete(null);
                   }
-
-                  future.complete(null);
-               }
-               catch(Throwable t) {
-                  future.completeExceptionally(t);
+                  catch(Throwable t) {
+                     future.completeExceptionally(t);
+                  }
                }
             });
          }

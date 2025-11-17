@@ -886,7 +886,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
     */
    private class WaitingThread extends GroupedThread {
       public WaitingThread(boolean left) {
-         super();
+         super(ThreadContext.getContextPrincipal());
 
          this.left = left;
       }

@@ -447,7 +447,7 @@ public class ViewsheetService
          throw new IllegalStateException("The viewsheet engine has not been initialized");
       }
 
-      if(service.getSheet(id, null) == null) {
+      if(service.getSheet(id, null, false, true) == null) {
          throw new IllegalArgumentException("No viewsheet with ID \"" + id + "\" exists");
       }
    }

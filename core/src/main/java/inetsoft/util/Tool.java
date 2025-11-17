@@ -4777,7 +4777,7 @@ public final class Tool extends CoreTool {
                future.completeExceptionally(e);
             }
          }
-      });
+      }, ThreadContext.getContextPrincipal());
       reference.set(thread);
       thread.start();
       return future;

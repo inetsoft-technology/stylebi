@@ -18,12 +18,14 @@
 
 package inetsoft.web;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationContextHolder;
-import inetsoft.util.GroupedThread;
 import inetsoft.util.ThreadContext;
 import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.io.IOException;
+import java.security.Principal;
 
 public class ThreadLocalCleanupFilter implements Filter {
    @Override
@@ -31,14 +33,17 @@ public class ThreadLocalCleanupFilter implements Filter {
       throws IOException, ServletException
    {
       try {
+         Principal principal = SUtil.getPrincipal((HttpServletRequest) request);
+
+         if(principal != null) {
+            ThreadContext.setContextPrincipal(principal);
+         }
+
          chain.doFilter(request, response);
       }
       finally {
-         if(Thread.currentThread() instanceof GroupedThread groupedThread) {
-            groupedThread.setPrincipal(null);
-         }
-
          ThreadContext.setContextPrincipal(null);
+         ThreadContext.setPrincipal(null);
          OrganizationContextHolder.clear();
          ThreadContext.setLocale(null);
       }

@@ -29,8 +29,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.xmla.XMLADataSource;
-import inetsoft.util.GroupedThread;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,7 +97,9 @@ public abstract class DependencyTransformer {
          for(int i = 0; i < nthread; i++) {
             List<AssetObject> list = DependencyTool.getThreadAssets(i, count, entries);
 
-            executors.execute((new GroupedThread("AssetTransformerThread_" + i) {
+            executors.execute((new GroupedThread("AssetTransformerThread_" + i,
+                                                 ThreadContext.getContextPrincipal())
+            {
                {
                   setDaemon(true);
                }

@@ -6978,9 +6978,16 @@ public final class VSUtil {
       {
          String debounceKey = VSBookmark.getLockKey(bookmark.getIdentifier(), bookmarkInfo.getOwner().convertToKey())
             + "_" + bookmarkName;
+         final Principal contextPrincipal = ThreadContext.getContextPrincipal();
          getDebouncer().debounce(debounceKey, 2L, TimeUnit.SECONDS, () -> {
-            updateBookmarkLastAccessedTime(bookmark.getIdentifier(), bookmarkName,
-                                           bookmarkInfo.getOwner(), rep);
+            try {
+               ThreadContext.setContextPrincipal(contextPrincipal);
+               updateBookmarkLastAccessedTime(bookmark.getIdentifier(), bookmarkName,
+                                              bookmarkInfo.getOwner(), rep);
+            }
+            finally {
+               ThreadContext.setContextPrincipal(null);
+            }
          });
       }
 

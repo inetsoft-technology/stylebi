@@ -249,7 +249,7 @@ public class MVDispatcher {
                }
 
                MVCompositeDispatcher dispatcher =
-                  new MVCompositeDispatcher(def, vars);
+                  new MVCompositeDispatcher(def, vars, ThreadContext.getContextPrincipal());
                dispatcher.number = this.number;
                dispatcher.isDate = this.isDate;
                dispatcher.isDateTime = this.isDateTime;

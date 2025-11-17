@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.security.Principal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
@@ -86,8 +87,11 @@ public class DistributedTableCacheStore {
 
       String key = getKey(dataKey);
       BlobStorage<Metadata> storage = getStorage();
+      final Principal principal = ThreadContext.getContextPrincipal();
 
       debouncer.debounce(key, 1L, TimeUnit.SECONDS, () -> {
+         ThreadContext.setContextPrincipal(principal);
+
          try(BlobTransaction<Metadata> tx = storage.beginTransaction();
              OutputStream out = tx.newStream(key, null);
              ObjectOutputStream oos = new ObjectOutputStream(out))
@@ -100,6 +104,9 @@ public class DistributedTableCacheStore {
          }
          catch(IOException ex) {
             LOG.error("Failed to write to the blob storage: {}", key, ex);
+         }
+         finally {
+            ThreadContext.setContextPrincipal(null);
          }
       });
    }
