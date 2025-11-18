@@ -180,6 +180,7 @@ export class VSViewsheet extends NavigationComponent<VSViewsheetModel> implement
          return actions;
       });
 
+      this.dataTipService.clearDataTips(command.name);
       this.dataTipService.registerDataTip(command.model.dataTip, command.name);
       this.dataTipService.registerDataTipVisible(command.model.dataTip, true);
       this.popComponentService.registerPopComponent(
