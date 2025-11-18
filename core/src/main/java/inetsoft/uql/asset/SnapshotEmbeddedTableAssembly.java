@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.groovy.io.StringBuilderWriter;
@@ -232,7 +233,22 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
             String fileName = file.getName();
             String dataPath = containsTablePrefix(fileName) ? fileName : tprefix + fileName;
             ZipEntry zipEntry = new ZipEntry("__WS_EMBEDDED_TABLE_" + PDATA + "^_^" + dataPath);
-            out.putNextEntry(zipEntry);
+
+            try {
+               out.putNextEntry(zipEntry);
+            }
+            catch(ZipException e) {
+               if (e.getMessage() != null && e.getMessage().contains("duplicate entry")) {
+                  // Ignore error for duplicate entries and move on
+                  LOG.debug("Duplicate embedded table", e);
+                  continue;
+               }
+               else {
+                  // Log error for other errors
+                  throw e;
+               }
+            }
+
             // 1: should not use dataspace to release the input, because
             // the input is not opened by space
             // 2: should not release the output
