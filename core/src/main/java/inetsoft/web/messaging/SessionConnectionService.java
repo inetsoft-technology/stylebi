@@ -106,13 +106,8 @@ public class SessionConnectionService {
    }
    
    private void messageReceived(MessageEvent event) {
-      Object message = event.getMessage();
-
       if(event.getMessage() instanceof SessionExpiredEvent sessionExpiredEvent) {
          onSessionExpiredEvent(sessionExpiredEvent);
-      }
-      else if(message instanceof PrincipalChangedEvent principalChangedEvent) {
-         handlePrincipalChanged(principalChangedEvent);
       }
    }
 
@@ -161,40 +156,6 @@ public class SessionConnectionService {
                         LOG.warn("Failed to close websocket connection", e);
                      }
                   }
-               }
-            }
-         }
-      }
-   }
-
-   private void handlePrincipalChanged(PrincipalChangedEvent event) {
-      String httpSessionId = event.getSessionId();
-      Set<String> wsSessionIds = httpSessions.get(httpSessionId);
-
-      if(wsSessionIds != null) {
-         for(String wsSessionId : wsSessionIds) {
-            WebSocketSessionRef ref = webSocketSessions.get(wsSessionId);
-            WebSocketSession session = ref == null ? null : ref.getSession();
-
-            if(session != null) {
-               SRPrincipal principal = event.getNewPrincipal();
-
-               if((!event.isEm() || principal == null) &&
-                  session.getAttributes().get(RepletRepository.PRINCIPAL_COOKIE) != null)
-               {
-                  session.getAttributes().put(RepletRepository.PRINCIPAL_COOKIE, principal);
-               }
-
-               if((event.isEm() || principal == null) &&
-                  session.getAttributes().get(RepletRepository.EM_PRINCIPAL_COOKIE) != null)
-               {
-                  session.getAttributes().put(RepletRepository.EM_PRINCIPAL_COOKIE, principal);
-               }
-
-               XPrincipal user = (XPrincipal) session.getPrincipal();
-
-               if(user != null && (event.isEm() && SUtil.isEMPrincipal(user) || !event.isEm() && !SUtil.isEMPrincipal(user))) {
-                  user.copyContent(principal);
                }
             }
          }

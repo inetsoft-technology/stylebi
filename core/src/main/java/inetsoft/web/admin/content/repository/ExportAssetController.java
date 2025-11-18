@@ -76,7 +76,7 @@ public class ExportAssetController {
             future.completeExceptionally(e);
          }
          finally {
-            igniteSessionRepository.setSessionAttributeAndSave(session.getId(), PERM_ATTR, future);
+            session.setAttribute(PERM_ATTR, future);
          }
       });
    }
@@ -115,7 +115,7 @@ public class ExportAssetController {
             future.completeExceptionally(e);
          }
          finally {
-            igniteSessionRepository.setSessionAttributeAndSave(session.getId(), DEPS_ATTR, future);
+            session.setAttribute(DEPS_ATTR, future);
          }
       });
    }

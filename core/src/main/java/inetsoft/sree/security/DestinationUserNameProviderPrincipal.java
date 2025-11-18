@@ -18,7 +18,15 @@
 package inetsoft.sree.security;
 
 import inetsoft.sree.ClientInfo;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.DistributedMap;
+import inetsoft.util.script.JavaScriptEngine;
+import inetsoft.web.session.IgniteSessionRepository;
 import org.springframework.messaging.simp.user.DestinationUserNameProvider;
+
+import java.io.*;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class DestinationUserNameProviderPrincipal
    extends SRPrincipal implements DestinationUserNameProvider
@@ -66,4 +74,216 @@ public class DestinationUserNameProviderPrincipal
 
       return name.toString();
    }
+
+   public void setHttpSessionId(String httpSessionId) {
+      // first time? copy from local to distributed
+      if(this.httpSessionId == null) {
+         this.httpSessionId = httpSessionId;
+
+         prop.forEach(this::setProperty);
+         params.forEach((key, value) -> {
+            setParameter(key, value, paramTS.get(key));
+         });
+
+         setLastAccess(super.getLastAccess());
+         setProfiling(super.isProfiling());
+      }
+      else {
+         this.httpSessionId = httpSessionId;
+      }
+   }
+
+   @Override
+   public void setProperty(String name, String val) {
+      super.setProperty(name, val);
+
+      // store local only
+      if(SUtil.EM_USER.equals(name) || (!isEMPrincipal() && "curr_org_id".equals(name))) {
+         return;
+      }
+
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map == null) {
+         return;
+      }
+
+      if(val == null || val.isEmpty()) {
+         map.remove(PROP_PREFIX + name);
+      }
+      else {
+         map.put(PROP_PREFIX + name, val);
+      }
+   }
+
+   @Override
+   public String getProperty(String name) {
+      // for non em user, ignore the value of this property
+      if(!isEMPrincipal() && "curr_org_id".equals(name)) {
+         return null;
+      }
+      else if(SUtil.EM_USER.equals(name)) {
+         return super.getProperty(name);
+      }
+
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map == null) {
+         return super.getProperty(name);
+      }
+
+      return (String) map.get(PROP_PREFIX + name);
+   }
+
+   @Override
+   public Set<String> getPropertyNames() {
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map == null) {
+         return super.getPropertyNames();
+      }
+
+      return map.keySet().stream()
+         .filter(key -> key != null && key.startsWith(PROP_PREFIX))
+         .map(key -> key.substring(PROP_PREFIX.length()))
+         .collect(Collectors.toSet());
+   }
+
+   @Override
+   protected void setParameter(String name, Object value, long ts) {
+      super.setParameter(name, value, ts);
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map == null) {
+         return;
+      }
+
+      if(value == null) {
+         map.remove(PARAM_PREFIX + name);
+      }
+      else {
+         map.put(PARAM_PREFIX + name, JavaScriptEngine.unwrap(value));
+         map.put(PARAM_TS_PREFIX + name, ts);
+      }
+   }
+
+   @Override
+   public Object getParameter(String name) {
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map == null) {
+         return super.getParameter(name);
+      }
+
+      return map.get(PARAM_PREFIX + name);
+   }
+
+   @Override
+   public long getParameterTS(String name) {
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map == null) {
+         return super.getParameterTS(name);
+      }
+
+      Long ts = (Long) map.get(PARAM_TS_PREFIX + name);
+      return ts != null ? ts.longValue() : 0;
+   }
+
+   @Override
+   public Set<String> getParameterNames() {
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map == null) {
+         return super.getParameterNames();
+      }
+
+      return map.keySet().stream()
+         .filter(key -> key != null && key.startsWith(PARAM_PREFIX))
+         .map(key -> key.substring(PARAM_PREFIX.length()))
+         .collect(Collectors.toSet());
+   }
+
+   @Override
+   public long getLastAccess() {
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map == null) {
+         return super.getLastAccess();
+      }
+
+      Long ts = (Long) getDistributedField("lastAccess");
+      return ts != null ? ts.longValue() : 0;
+   }
+
+   @Override
+   public void setLastAccess(long accessed) {
+      super.setLastAccess(accessed);
+      setDistributedField("lastAccess", accessed);
+   }
+
+   @Override
+   public boolean isProfiling() {
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map == null) {
+         return super.isProfiling();
+      }
+
+      return Boolean.TRUE.equals(getDistributedField("profiling"));
+   }
+
+   @Override
+   public void setProfiling(boolean profiling) {
+      super.setProfiling(profiling);
+      setDistributedField("profiling", profiling);
+   }
+
+   private Object getDistributedField(String name) {
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map != null) {
+         return map.get(FIELD_PREFIX + name);
+      }
+
+      return null;
+   }
+
+   private void setDistributedField(String name, Object value) {
+      DistributedMap<String, Object> map = getSessionAttributeMap();
+
+      if(map != null) {
+         map.put(FIELD_PREFIX + name, value);
+      }
+   }
+
+   private DistributedMap<String, Object> getSessionAttributeMap() {
+      if(httpSessionId == null) {
+         return null;
+      }
+
+      return IgniteSessionRepository.getSessionAttributeMap(httpSessionId);
+   }
+
+   @Override
+   public void writeExternal(ObjectOutput out) throws IOException {
+      super.writeExternal(out);
+      writeStringExternal(httpSessionId, out);
+   }
+
+   @Override
+   public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+      super.readExternal(in);
+      httpSessionId = readStringExternal(in);
+   }
+
+   private boolean isEMPrincipal() {
+      return "true".equals(prop.get(SUtil.EM_USER));
+   }
+
+   private String httpSessionId;
+   private static final String PROP_PREFIX = "DestinationUserNameProviderPrincipal.PROP.";
+   private static final String PARAM_PREFIX = "DestinationUserNameProviderPrincipal.PARAM.";
+   private static final String PARAM_TS_PREFIX = "DestinationUserNameProviderPrincipal.PARAM_TS.";
+   private static final String FIELD_PREFIX = "DestinationUserNameProviderPrincipal.FIELD.";
 }

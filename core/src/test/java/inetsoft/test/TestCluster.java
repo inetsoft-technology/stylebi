@@ -290,6 +290,11 @@ public class TestCluster implements Cluster {
       removeMapListener(name, l);
    }
 
+   @Override
+   public boolean mapExists(String name) {
+      return maps.containsKey(name) || multiMaps.containsKey(name);
+   }
+
    @SuppressWarnings("unchecked")
    @Override
    public <E> BlockingQueue<E> getQueue(String name) {
@@ -1262,6 +1267,11 @@ public class TestCluster implements Cluster {
       @Override
       public void scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
          delegate.scheduleAtFixedRate(command, initialDelay, period, unit);
+      }
+
+      @Override
+      public void scheduleWithId(String id, Runnable command, long delay, TimeUnit unit) {
+         delegate.schedule(command, delay, unit);
       }
 
       @Override

@@ -290,7 +290,7 @@ public abstract class AbstractSecurityFilter
          return null;
       }
 
-      final HttpSession session = request.getSession();
+      final HttpSession session = request.getSession(false);
 
       if(session != null) {
          try {
