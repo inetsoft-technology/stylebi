@@ -1315,6 +1315,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       parseXML(elem, false);
    }
 
+   @Override
    public void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       name = elem.getAttribute("name");
 

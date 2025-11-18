@@ -230,6 +230,7 @@ public class VSDashboard implements Dashboard {
       parseXML(tag, false);
    }
 
+   @Override
    public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       Element node = Tool.getChildNodeByTagName(tag, "description");
 

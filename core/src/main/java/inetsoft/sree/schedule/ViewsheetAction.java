@@ -194,6 +194,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       parseXML(action, false);
    }
 
+   @Override
    public void parseXML(Element action, boolean isSiteAdminImport) throws Exception {
       viewsheet = SUtil.handleViewsheetLinkOrgMismatch(byteDecode(action.getAttribute("viewsheet")), isSiteAdminImport);
       bookmarkReadOnly = "true".equals(action.getAttribute("bookmarkReadOnly"));

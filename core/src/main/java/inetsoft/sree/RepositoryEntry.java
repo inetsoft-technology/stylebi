@@ -425,6 +425,7 @@ public class RepositoryEntry implements Serializable, Comparable, Cloneable, XML
       parseContents(tag);
    }
 
+   @Override
    public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       parseAttributes(tag, isSiteAdminImport);
       parseContents(tag, isSiteAdminImport);

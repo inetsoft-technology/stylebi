@@ -124,8 +124,8 @@ public class TrashcanEntry extends RepositoryEntry {
    }
 
    public void parseAttributes(Element tag, boolean isSiteAdminImport) throws Exception {
-      parseAttributes(tag);
-   }
+      super.parseAttributes(tag, isSiteAdminImport);
+      folder = "true".equals(Tool.getAttribute(tag, "isFolder"));   }
 
    /**
     * Write contents.

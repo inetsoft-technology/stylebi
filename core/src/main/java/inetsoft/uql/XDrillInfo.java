@@ -256,6 +256,7 @@ public class XDrillInfo implements XMLSerializable, Serializable, Cloneable {
       parseXML(tag, false);
    }
 
+   @Override
    public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       NodeList list = Tool.getChildNodesByTagName(tag, "drillPath");
 

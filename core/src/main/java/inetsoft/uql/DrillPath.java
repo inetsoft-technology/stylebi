@@ -547,6 +547,7 @@ public class DrillPath implements XMLSerializable, Serializable, Cloneable {
       parseXML(tag, false);
    }
 
+   @Override
    public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       String attr;
 

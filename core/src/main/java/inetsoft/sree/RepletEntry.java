@@ -208,7 +208,11 @@ public class RepletEntry extends RepositoryEntry {
    }
 
    public void parseAttributes(Element tag, boolean isSiteAdminImport) throws Exception{
-      parseAttributes(tag);
+      super.parseAttributes(tag, isSiteAdminImport);
+      visible = "true".equals(Tool.getAttribute(tag, "visible"));
+      fileReplet = "true".equals(Tool.getAttribute(tag, "fileReplet"));
+      pregen = "true".equals(Tool.getAttribute(tag, "pregen"));
+      paramOnly = "true".equals(Tool.getAttribute(tag, "paramOnly"));
    }
 
    /**
