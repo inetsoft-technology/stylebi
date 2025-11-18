@@ -27,6 +27,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
+import inetsoft.web.admin.content.repository.MVSupportService;
 import org.slf4j.*;
 import org.w3c.dom.*;
 
@@ -1319,7 +1320,10 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       name = elem.getAttribute("name");
 
       //older versions are userName:taskName, breaks unless IdentityID:taskname
-      if(name.indexOf(":") > -1 && name.indexOf(IdentityID.KEY_DELIMITER) == -1) {
+      if(name.indexOf(":") > -1 && name.indexOf(IdentityID.KEY_DELIMITER) == -1 &&
+         !name.startsWith(MVSupportService.MV_TASK_PREFIX) &&
+         !name.startsWith(MVSupportService.MV_TASK_STAGE_PREFIX))
+      {
          IdentityID nameUser = new IdentityID(name.substring(0,name.indexOf(":")), OrganizationManager.getInstance().getCurrentOrgID());
          name = nameUser.convertToKey() + name.substring(name.indexOf(":"));
       }
