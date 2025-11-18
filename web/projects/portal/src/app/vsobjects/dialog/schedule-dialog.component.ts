@@ -89,7 +89,7 @@ export class ScheduleDialog implements OnInit {
                   this.getSimpleScheduleDialog();
                }
                else if(data.type == "CONFIRM") {
-                  ComponentTool.showConfirmDialog(this.modalService, data.type, data.message)
+                  ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", data.message)
                      .then((result: string) => {
                         if(result === "ok") {
                            this.getSimpleScheduleDialog();
