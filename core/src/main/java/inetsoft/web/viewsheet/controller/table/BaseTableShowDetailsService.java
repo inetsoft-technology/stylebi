@@ -361,6 +361,11 @@ public class BaseTableShowDetailsService extends BaseTableService<ShowDetailsEve
             colCount = 500;
          }
 
+         if(end < 0) {
+            // loading
+            end = -1 * (end + 1);
+         }
+
          PreviewTableCellModel[][] tableCells = new PreviewTableCellModel[end][colCount];
          int[] colWidths = {};
 
