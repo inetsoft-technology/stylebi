@@ -19,6 +19,7 @@ package inetsoft.uql.erm;
 
 import inetsoft.report.XSessionManager;
 import inetsoft.report.lens.xnode.XNodeTableLens;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -2980,7 +2981,8 @@ public class XPartition implements Cloneable, Serializable, XMLSerializable, XML
          String ds = datasource != null ? datasource.getFullName() :
             XPartition.this.getDataModel().getDataSource();
          String key = ds;
-         key = key + "__" +  XPartition.this.name + "__" + name + "PhysicalView";
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+         key = orgID + "__" + key + "__" +  XPartition.this.name + "__" + name + "PhysicalView";
 
          return Tool.replaceAll(key, "/", "^_^");
       }
