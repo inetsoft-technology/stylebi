@@ -38,6 +38,7 @@ export interface TreeNodeModel {
    tooltip?: string;
    loading?: boolean;
    materialized?: boolean;
+   calculatedFieldPermission?: boolean;
    childrenLoaded?: boolean;
    parent?: TreeNodeModel;
    treeView?: number;

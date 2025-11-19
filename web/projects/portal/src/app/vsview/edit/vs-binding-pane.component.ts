@@ -188,6 +188,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    @Input() wizardOriginalInfo: WizardOriginalInfo;
    @Input() isCube: boolean = false;
    @Input() assetId: string;
+   @Input() calculatedFieldEnabled: boolean = false;
    @Output() onCloseBindingPane: EventEmitter<any> = new EventEmitter<any>();
    @Output() onOpenWizardPane = new EventEmitter<VsWizardModel>();
    @Output() onAssemblyChanged = new EventEmitter<AssemblyChangedCommand>();

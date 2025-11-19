@@ -117,6 +117,7 @@ export class WSDetailsTableDataComponent extends CommandProcessor
    @Input() selectingColumnSource: boolean;
    @Input() showName: boolean;
    @Input() wrapColumnHeaders: boolean;
+   @Input() expressionColumnEnabled = false;
    @Output() onEditFormulaColumn = new EventEmitter<number>();
    @Output() onEditAggregateColumn = new EventEmitter<void>();
    @Output() onEditGroupColumn = new EventEmitter<void>();

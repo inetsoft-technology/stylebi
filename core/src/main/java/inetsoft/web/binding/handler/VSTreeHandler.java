@@ -29,7 +29,7 @@ import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.BaseField;
 import inetsoft.report.internal.graph.MapHelper;
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
@@ -432,15 +432,20 @@ public class VSTreeHandler {
       return ainfo;
    }
 
-   public TreeNodeModel createTreeNodeModel(AssetTreeModel.Node node, Principal user) {
+   public TreeNodeModel createTreeNodeModel(AssetTreeModel.Node node, Principal user) throws Exception {
       List<TreeNodeModel> children = Arrays.stream(node.getNodes())
          .filter(n -> n.getEntry().getName().indexOf(Assembly.TABLE_VS_BOUND) == -1)
          .map(n -> createChildTreeNode(n, user))
          .collect(Collectors.toList());
 
+      boolean calculatedFieldPermission =
+         SecurityEngine.getSecurity().checkPermission(
+            user, ResourceType.VIEWSHEET_CALCULATED_FIELD, "*", ResourceAction.ACCESS);
+
       return TreeNodeModel.builder()
          .children(children)
          .expanded(true)
+         .calculatedFieldPermission(calculatedFieldPermission)
          .build();
    }
 
