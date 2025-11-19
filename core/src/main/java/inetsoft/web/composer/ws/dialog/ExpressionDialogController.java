@@ -22,6 +22,8 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuery;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
@@ -65,6 +67,12 @@ public class ExpressionDialogController extends WorksheetController {
       @RequestParam(value = "showOriginalName", required = false) boolean showOriginalName,
       Principal principal) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("You do not have permission to modify expression columns.");
+      }
+
       runtimeId = Tool.byteDecode(runtimeId);
       tableName = Tool.byteDecode(tableName);
       int columnIndex = columnIndexAsParam == null ? -1 : Integer.parseInt(columnIndexAsParam);
@@ -321,6 +329,12 @@ public class ExpressionDialogController extends WorksheetController {
       @Payload ExpressionDialogModel model, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("You do not have permission to modify expression columns.");
+      }
+
       RuntimeWorksheet rws = super.getRuntimeWorksheet(principal);
       Worksheet ws = rws.getWorksheet();
       String tname = model.tableName();

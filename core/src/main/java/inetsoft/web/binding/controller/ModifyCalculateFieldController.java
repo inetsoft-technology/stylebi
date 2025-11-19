@@ -24,6 +24,8 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSModelTrapContext;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractModelTrapContext.TrapInfo;
@@ -108,6 +110,12 @@ public class ModifyCalculateFieldController {
       Principal principal, CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.VIEWSHEET_CALCULATED_FIELD, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("You do not have permission to modify calculated fields.");
+      }
+
       String id = runtimeViewsheetRef.getRuntimeId();
 
       if(id == null) {
