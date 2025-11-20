@@ -1001,11 +1001,15 @@ public class DataSourceRegistry implements MessageListener {
     * null otherwise.
     */
    public XDataModel getDataModel(String datasource) {
+      return getDataModel(datasource, null);
+   }
+
+   public XDataModel getDataModel(String datasource, String orgID) {
       if(datasource == null || !checkPermission(ResourceType.DATA_SOURCE, datasource, ResourceAction.READ)) {
          return null;
       }
 
-      XDataSource xds = getDataSource(datasource);
+      XDataSource xds = getDataSource(datasource, orgID);
 
       // for experimental hive data model support
       if(!Drivers.getInstance().isHiveEnabled() && (xds instanceof JDBCDataSource) &&
@@ -1017,7 +1021,7 @@ public class DataSourceRegistry implements MessageListener {
 
       try {
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-                                           AssetEntry.Type.DATA_MODEL, datasource, null);
+                                           AssetEntry.Type.DATA_MODEL, datasource, null, orgID);
          result = (XDataModel) getObject(entry, true);
 
          if(result != null && !drillPathsFixed.containsKey(datasource)) {
@@ -1028,6 +1032,12 @@ public class DataSourceRegistry implements MessageListener {
       catch(Exception e) {
          LOG.error("Failed to get data model for data " +
                       "source: " + datasource, e);
+      }
+
+      if(result == null && SUtil.isDefaultVSGloballyVisible() &&
+         !Tool.equals(orgID, Organization.getDefaultOrganizationID()))
+      {
+         result = getDataModel(datasource, Organization.getDefaultOrganizationID());
       }
 
       return result;
