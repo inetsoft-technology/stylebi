@@ -82,6 +82,7 @@ export class WSHeaderCell implements OnInit, OnChanges, AfterViewInit {
    @Input() searchQueryLength = -1;
    @Input() searchTarget = false;
    @Input() wrapColumnHeaders: boolean;
+   @Input() expressionColumnEnabled = false;
    @Output() onDelete = new EventEmitter<void>();
    @Output() onFormulaButtonClicked = new EventEmitter<void>();
    @Output() onAggregateButtonClicked = new EventEmitter<void>();
@@ -233,7 +234,7 @@ export class WSHeaderCell implements OnInit, OnChanges, AfterViewInit {
          });
       }
 
-      if(this.colInfo.ref.expression) {
+      if(this.colInfo.ref.expression && this.expressionColumnEnabled) {
          this.columnButtons.push(this.getExpressionButton());
       }
 

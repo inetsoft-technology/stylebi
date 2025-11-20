@@ -115,6 +115,7 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
    @Input() selectingColumnSource: boolean;
    @Input() consoleMessages: ConsoleMessage[];
    @Input() freeFormSqlEnabled = true;
+   @Input() expressionColumnEnabled = false;
    @Output() onInsertColumns = new EventEmitter<WSInsertColumnsEvent>();
    @Output() onReplaceColumns = new EventEmitter<WSReplaceColumnsEvent>();
    @Output() onOpenAssemblyConditionDialog = new EventEmitter<string>();
@@ -902,6 +903,7 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
          !(button.id === "ws-table-edit-query" &&
             this.table.tableClassType === "SQLBoundTableAssembly" &&
             !this.freeFormSqlEnabled && (this.table as SQLBoundTableAssembly).sqlEdited) &&
+         !(!this.expressionColumnEnabled && button.id === "ws-table-expression") &&
          (button.label != "visible" || this.table.mode != "edit");
    }
 

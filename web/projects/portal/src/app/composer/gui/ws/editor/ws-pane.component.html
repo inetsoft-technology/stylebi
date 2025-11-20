@@ -55,6 +55,7 @@
                        [worksheet]="worksheet" [table]="worksheet.focusedTable"
                        [selectingColumnSource]="selectingColumnSource"
                        [freeFormSqlEnabled]="freeFormSqlEnabled"
+                       [expressionColumnEnabled]="expressionColumnEnabled"
                        [(consoleMessages)]="consoleMessageMap[worksheet.focusedTable?.name]"
                        (onInsertColumns)="insertColumns($event)"
                        (onReplaceColumns)="replaceColumns($event)"

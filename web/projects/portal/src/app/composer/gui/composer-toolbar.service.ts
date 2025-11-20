@@ -23,4 +23,5 @@ export class ComposerToolbarService {
    sqlEnabled = true;
    freeFormSqlEnabled = true;
    crossJoinEnabled = true;
+   expressionColumnEnabled = true;
 }

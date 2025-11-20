@@ -213,6 +213,24 @@ public class ActionPermissionService {
          .actions(EnumSet.of(ResourceAction.ACCESS))
          .build());
 
+      root.addChildren(ActionTreeNode.builder()
+                          .label(catalog.getString("Edit Dashboard Calculated Fields"))
+                          .resource("*")
+                          .folder(false)
+                          .type(ResourceType.VIEWSHEET_CALCULATED_FIELD)
+                          .grant(true)
+                          .actions(EnumSet.of(ResourceAction.ACCESS))
+                          .build());
+
+      root.addChildren(ActionTreeNode.builder()
+                          .label(catalog.getString("Edit Worksheet Expression Columns"))
+                          .resource("*")
+                          .folder(false)
+                          .type(ResourceType.WORKSHEET_EXPRESSION_COLUMN)
+                          .grant(true)
+                          .actions(EnumSet.of(ResourceAction.ACCESS))
+                          .build());
+
       return root.build();
    }
 
