@@ -40,7 +40,8 @@ public abstract class AbstractRestRuntime extends TabularRuntime {
    public XTableNode runQuery(TabularQuery tabularQuery, VariableTable params) {
       final AbstractRestQuery query = (AbstractRestQuery) tabularQuery;
       QueryManager manager = (QueryManager) query.getProperty("queryManager");
-      ExecutorService executor = Executors.newSingleThreadExecutor(GroupedThread::new);
+      ExecutorService executor = Executors.newSingleThreadExecutor(
+         r -> new GroupedThread(r, ThreadContext.getContextPrincipal()));
       boolean cancelled = false;
       XTableNode result = null;
 

@@ -53,7 +53,7 @@ public class DataSourceStatusService {
       for(int i = 0; i < paths.size(); i++) {
          final int idx = i;
 
-         final Thread thread = new Thread(() -> {
+         final Thread thread = new GroupedThread(() -> {
             XDataSource.Status status = null;
             LogContext.setUser(ThreadContext.getContextPrincipal());
             MDC.put("DATA_SOURCE", paths.get(idx));
@@ -68,7 +68,7 @@ public class DataSourceStatusService {
             }
 
             statuses[idx] = status;
-         });
+         }, principal);
 
          thread.start();
          threads.add(thread);

@@ -30,8 +30,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.GroupedThread;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.web.vswizard.RecommendSequentialContext;
 import inetsoft.web.vswizard.model.recommender.*;
 import inetsoft.web.vswizard.recommender.execution.*;
@@ -40,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
+import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -404,7 +404,7 @@ public final class WizardRecommenderUtil {
    }
 
    public static void calcCardinalities(ViewsheetSandbox box, VSTemporaryInfo tempInfo,
-                                        AssetEntry[] dimEntries)
+                                        AssetEntry[] dimEntries, Principal principal)
    {
       if(dimEntries == null || dimEntries.length == 0) {
          return;
@@ -415,7 +415,7 @@ public final class WizardRecommenderUtil {
       for(int i = 0; i < dimEntries.length; i++) {
          AssetEntry entry = dimEntries[i];
 
-         new GroupedThread() {
+         new GroupedThread(principal) {
             @Override
             protected void doRun() {
                try {

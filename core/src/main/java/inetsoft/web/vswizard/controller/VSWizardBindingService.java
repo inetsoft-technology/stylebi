@@ -282,7 +282,7 @@ public class VSWizardBindingService {
       VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
       // The calculation of cardinality should start as early as possible
       WizardRecommenderUtil.calcCardinalities(box, (VSTemporaryInfo) vsTemporaryInfo.clone(),
-                                              event.getSelectedNodes());
+                                              event.getSelectedNodes(), principal);
 
       box.cancel(true);
       box.lockWrite();

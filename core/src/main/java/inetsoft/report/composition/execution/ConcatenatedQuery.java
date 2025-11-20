@@ -762,6 +762,7 @@ public class ConcatenatedQuery extends AssetQuery {
       public Thread newThread(Runnable r) {
          GroupedThread thread = new GroupedThread(r);
          thread.setDaemon(true);
+         thread.setPrincipal(ThreadContext.getContextPrincipal());
          return thread;
       }
    }

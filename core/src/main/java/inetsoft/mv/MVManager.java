@@ -252,7 +252,7 @@ public final class MVManager implements MessageListener {
 
                String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-               (new GroupedThread() {
+               (new GroupedThread(ThreadContext.getContextPrincipal()) {
                   @Override
                   protected void doRun() {
                      try {

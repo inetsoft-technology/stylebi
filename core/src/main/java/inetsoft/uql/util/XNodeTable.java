@@ -448,7 +448,12 @@ public class XNodeTable implements XTable {
             init(table.getColumnCreators());
 
             if(bgproc) {
-               ThreadPool.addOnDemand(() -> load(table));
+               ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     load(table);
+                  }
+               });
             }
             else {
                load(table);
@@ -465,7 +470,12 @@ public class XNodeTable implements XTable {
             // root is a sequence node now
             if(bgproc) {
                final XNode root2 = root;
-               ThreadPool.addOnDemand(() -> load(root2));
+               ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+                  @Override
+                  public void run() {
+                     load(root2);
+                  }
+               });
             }
             else {
                load(root);
@@ -580,20 +590,23 @@ public class XNodeTable implements XTable {
          boolean bgproc = prop.equalsIgnoreCase("true");
 
          if(bgproc) {
-            ThreadPool.addOnDemand(() -> {
-               try {
-                  loadTable0();
-               }
-               catch(ClassCastException ex) {
-                  loadDataException = ex;
-               }
-               catch(Exception ex) {
-                  cancelled = true;
-                  loadDataException = ex;
-                  LOG.debug("Failed to load XTableNode", ex);
-               }
-               finally {
-                  complete();
+            ThreadPool.addOnDemand(new ThreadPool.AbstractContextRunnable() {
+               @Override
+               public void run() {
+                  try {
+                     loadTable0();
+                  }
+                  catch(ClassCastException ex) {
+                     loadDataException = ex;
+                  }
+                  catch(Exception ex) {
+                     cancelled = true;
+                     loadDataException = ex;
+                     LOG.debug("Failed to load XTableNode", ex);
+                  }
+                  finally {
+                     complete();
+                  }
                }
             });
          }

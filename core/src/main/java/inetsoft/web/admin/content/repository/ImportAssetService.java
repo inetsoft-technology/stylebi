@@ -173,8 +173,9 @@ public class ImportAssetService {
             catch(Exception e) {
                future.completeExceptionally(e);
             }
-
-            ThreadContext.setPrincipal(oPrincipal);
+            finally {
+               ThreadContext.setPrincipal(oPrincipal);
+            }
          });
       }
 

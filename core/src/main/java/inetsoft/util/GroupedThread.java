@@ -41,7 +41,7 @@ public class GroupedThread extends Thread {
     * Create a thread that is in the same thread group as its creator.
     */
    public GroupedThread() {
-      this(ThreadContext.getContextPrincipal());
+      this((Principal) null);
    }
 
    /**
@@ -50,7 +50,7 @@ public class GroupedThread extends Thread {
     * @param name the name of the thread.
     */
    public GroupedThread(String name) {
-      this(name, ThreadContext.getContextPrincipal());
+      this(name, null);
    }
 
    /**
@@ -79,11 +79,6 @@ public class GroupedThread extends Thread {
       this.records = new LinkedHashSet<>();
       this.user = user;
 
-      // if user is null, try getting principal from context
-      if(this.user == null) {
-         this.user = ThreadContext.getContextPrincipal();
-      }
-
       if(Thread.currentThread() instanceof GroupedThread) {
          GroupedThread pthread = (GroupedThread) Thread.currentThread();
          parentStackTrace = pthread.stackTrace;
@@ -96,7 +91,7 @@ public class GroupedThread extends Thread {
     * @param runnable a Runnable instance
     */
    public GroupedThread(Runnable runnable) {
-      this(runnable, ThreadContext.getContextPrincipal());
+      this(runnable, (Principal) null);
    }
 
    /**
@@ -106,7 +101,7 @@ public class GroupedThread extends Thread {
     * @param name     the name of the thread.
     */
    public GroupedThread(Runnable runnable, String name) {
-      this(runnable, name, ThreadContext.getContextPrincipal());
+      this(runnable, name, null);
    }
 
    /**
@@ -136,11 +131,6 @@ public class GroupedThread extends Thread {
       this.stackTrace = Thread.currentThread().getStackTrace();
       this.records = new LinkedHashSet<>();
       this.user = user;
-
-      // if user is null, try getting principal from context
-      if(this.user == null) {
-         this.user = ThreadContext.getContextPrincipal();
-      }
 
       if(Thread.currentThread() instanceof GroupedThread) {
          GroupedThread pthread = (GroupedThread) Thread.currentThread();

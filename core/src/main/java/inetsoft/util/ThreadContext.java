@@ -197,8 +197,8 @@ public final class ThreadContext {
       }
    }
 
-   private static final ThreadLocal<Principal> PRINCIPAL = new InheritableThreadLocal<>();
-   private static final ThreadLocal<Locale> LOCALE = new InheritableThreadLocal<>();
+   private static final ThreadLocal<Principal> PRINCIPAL = new ThreadLocal<>();
+   private static final ThreadLocal<Locale> LOCALE = new ThreadLocal<>();
    private static final Map<Thread,Map<String,Object>> sessionInfos = new WeakHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(ThreadContext.class);
 }

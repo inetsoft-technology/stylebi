@@ -71,7 +71,7 @@ public class XEngine implements XRepository, XQueryRepository {
     * Load data source meta data in background.
     */
    private void loadMetaData(final String dx) {
-      GroupedThread thread = new GroupedThread() {
+      GroupedThread thread = new GroupedThread(ThreadContext.getContextPrincipal()) {
          @Override
          protected void doRun() {
             setPrincipal(ThreadContext.getContextPrincipal());
@@ -1782,7 +1782,7 @@ public class XEngine implements XRepository, XQueryRepository {
       }
 
       MetaDataLoader loader = new MetaDataLoader(session, dx, mtype, clone);
-      new GroupedThread(loader).start();
+      new GroupedThread(loader, ThreadContext.getContextPrincipal()).start();
       long last = System.currentTimeMillis();
       String msg = "";
 
@@ -1978,7 +1978,7 @@ public class XEngine implements XRepository, XQueryRepository {
    private void writeMetaDataCache(final String key, final XNode meta) {
       metaDataCache.put(key, meta);
 
-      (new GroupedThread() {
+      (new GroupedThread(ThreadContext.getContextPrincipal()) {
          {
             setPriority(Thread.MIN_PRIORITY);
          }
