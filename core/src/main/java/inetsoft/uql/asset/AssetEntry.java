@@ -1812,6 +1812,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       parseXML(elem, false);
    }
 
+   @Override
    public void parseXML(Element elem, boolean isImportAsSiteAdmin) throws Exception {
       this.scope = Integer.parseInt(Tool.getAttribute(elem, "scope"));
       this.type = Type.forId(Integer.parseInt(Tool.getAttribute(elem, "type")));

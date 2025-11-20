@@ -1837,13 +1837,18 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     */
    @Override
    public void parseXML(Element tag) throws Exception {
-      parseXML(tag, true);
+      parseXML(tag, true, false);
    }
 
    /**
     * Method to parse an xml segment.
     */
-   public void parseXML(Element tag, boolean fill) throws Exception {
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
+      parseXML(tag, true, isSiteAdminImport);
+   }
+
+   public void parseXML(Element tag, boolean fill, boolean isSiteAdminImport) throws Exception {
       parseXML0(tag, fill, true);
    }
 

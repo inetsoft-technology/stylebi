@@ -261,6 +261,7 @@ public class BatchAction extends AbstractAction {
       parseXML(tag, false);
    }
 
+   @Override
    public void parseXML(Element tag, boolean isImportAsSiteAdmin) throws Exception {
       taskId = Tool.getAttribute(tag, "taskId");
       taskId = byteDecode(taskId);
