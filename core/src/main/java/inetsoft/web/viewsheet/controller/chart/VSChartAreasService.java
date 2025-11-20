@@ -81,7 +81,7 @@ public class VSChartAreasService {
          ThreadContext.setLocale(((SRPrincipal) principal).getLocale());
       }
 
-      VSChartModel model;
+      VSChartModel model = null;
       final ViewsheetSandbox box = state.getViewsheetSandbox();
       ChartVSAssemblyInfo info = state.getChartAssemblyInfo();
       String absoluteName = state.getAssembly().getAbsoluteName();
@@ -105,6 +105,29 @@ public class VSChartAreasService {
             pair = box.getVGraphPair(absoluteName, true, maxSize);
             model = new VSChartModel.VSChartModelFactory().createModel(
                state.getAssembly(), state.getRuntimeViewsheet());
+         }
+         catch(ConfirmException ce) {
+            //retry getVGraphPair if still loading to prevent on demand mv race condition
+            int attempts = 0;
+            int maxAttempts = 5;
+            long delay = 200L;
+
+            while(attempts < maxAttempts) {
+               try {
+                  Thread.sleep(delay);
+                  pair = box.getVGraphPair(absoluteName, true, maxSize);
+                  model = new VSChartModel.VSChartModelFactory().createModel(
+                     state.getAssembly(), state.getRuntimeViewsheet());
+               }
+               catch (ConfirmException again) {
+                  attempts++;
+
+                  if(attempts >= maxAttempts) {
+                     LOG.warn("Data cache still preparing after {} attempts: {}", attempts, ce.getMessage());
+                     throw ce;
+                  }
+               }
+            }
          }
          catch(ExpiredSheetException e) {
             LOG.warn("Viewsheet [{}] is expired.", state.getRuntimeViewsheet().getID());
@@ -269,7 +292,7 @@ public class VSChartAreasService {
             .build();
          dispatcher.sendCommand(absoluteName, command);
 
-         if(e instanceof MessageException || e instanceof ConfirmException) {
+         if(e instanceof MessageException) {
             throw e;
          }
 
