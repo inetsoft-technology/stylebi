@@ -17,8 +17,7 @@
  */
 package inetsoft.web.binding.controller;
 
-import inetsoft.sree.security.ResourceType;
-import inetsoft.sree.security.SecurityEngine;
+import inetsoft.sree.security.*;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.event.ModifyCalculateFieldEvent;
 import inetsoft.web.factory.RemainingPath;
@@ -33,6 +32,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.lang.SecurityException;
 import java.security.Principal;
 
 @Controller
