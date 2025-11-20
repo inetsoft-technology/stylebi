@@ -20,4 +20,5 @@ export interface WSInitCommand {
    sqlEnabled: boolean;
    freeFormSqlEnabled: boolean;
    crossJoinEnabled: boolean;
+   expressionColumnEnabled: boolean;
 }

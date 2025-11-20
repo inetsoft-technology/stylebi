@@ -458,8 +458,19 @@ public class DeployManagerService {
       }
 
       for(PartialDeploymentJarInfo.RequiredAsset asset : info.getDependentAssets()) {
-         if(asset.getUser() != null) {
-            asset.setUser(new IdentityID(asset.getUser().name, currOrgID));
+         if(asset.getUser() != null && asset.getUser().orgID != null) {
+            asset.getUser().orgID = currOrgID;
+         }
+
+         if(asset.getPath() != null && asset.getPath().indexOf(":") > 1) {
+            String pathUserID = asset.getPath().substring(0, asset.getPath().indexOf(":"));
+            String remaining = asset.getPath().substring(asset.getPath().indexOf(":"));
+            IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);
+
+            if(!Tool.equals(userID.orgID, currOrgID)) {
+               userID.setOrgID(currOrgID);
+               asset.setPath(userID.convertToKey() + remaining);
+            }
          }
       }
 
@@ -471,10 +482,26 @@ public class DeployManagerService {
 
          if(key.indexOf("^") > -1) {
             key = key.substring(0, key.lastIndexOf("^") + 1) + currOrgID;
+
+            for(String keySection : key.split("\\^")) {
+               if(keySection.contains(IdentityID.KEY_DELIMITER)) {
+                  IdentityID updatedUser = IdentityID.getIdentityIDFromKey(keySection);
+                  updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+                  key = key.replace(keySection, updatedUser.convertToKey());
+               }
+            }
          }
 
          if(path != null && path.indexOf("^") > -1) {
             path = path.substring(0, path.lastIndexOf("^") + 1) + currOrgID;
+
+            for(String pathSection : path.split("\\^")) {
+               if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
+                  IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
+                  updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+                  path = path.replace(pathSection, updatedUser.convertToKey());
+               }
+            }
          }
 
          info.getFolderAlias().put(key, path);
@@ -663,6 +690,7 @@ public class DeployManagerService {
       Map<String, String> names = info.getNames();
       List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets = new ArrayList<>();
       List<String> ignoreSub = new ArrayList<>();
+      String currOrg = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(int i = 0; i < info.getDependentAssets().size(); i++) {
          if(ignoreList != null && ignoreList.contains(i + "")) {
@@ -778,15 +806,6 @@ public class DeployManagerService {
 
                XAsset asset = DeployHelper.getAsset(file, names);
 
-               //if importing as site admin, should import all assets to current organization
-               if(OrganizationManager.getInstance().isSiteAdmin(principal) && asset != null && asset.getUser() != null) {
-                  asset.getUser().setOrgID(OrganizationManager.getInstance().getCurrentOrgID(principal));
-
-                  if(asset instanceof AbstractSheetAsset) {
-                     ((AbstractSheetAsset) asset).getAssetEntry().toIdentifier(false);
-                  }
-               }
-
                if(asset == null) {
                   importAsset(file, null, ignoreSub, failedList, embeddedTables, ignoreAssets,
                               vss, overwriting, actionRecord, info, desktop, config, space,
@@ -800,7 +819,40 @@ public class DeployManagerService {
 
                Set<AssetObject> dependencies = helper.getDependencies(asset);
                File transformFile = helper.getTransformFile(asset);
+               String originalOrg = asset != null && asset.getUser() != null ? asset.getUser().orgID : null;
+
+               if(OrganizationManager.getInstance().isSiteAdmin(principal) && asset != null) {
+                  if(asset.getUser() != null) {
+                     asset.getUser().setOrgID(currOrg);
+                  }
+
+                  if(asset instanceof AbstractSheetAsset) {
+                     ((AbstractSheetAsset) asset).getAssetEntry().setOrgID(currOrg);
+
+                     if(((AbstractSheetAsset) asset).getAssetEntry().getUser() != null) {
+                        ((AbstractSheetAsset) asset).getAssetEntry().getUser().setOrgID(currOrg);
+                     }
+
+                     ((AbstractSheetAsset) asset).getAssetEntry().toIdentifier(true);
+                  }
+               }
+
                AssetObject entry = getAssetObjectByAsset(asset);
+
+               //requires checking against raw dependency on file, revert to original
+               if(OrganizationManager.getInstance().isSiteAdmin(principal) && originalOrg != null) {
+                  for(AssetObject assetObject : dependencies) {
+                     if(assetObject instanceof AssetEntry) {
+                        ((AssetEntry) assetObject).setOrgID(originalOrg);
+
+                        if(((AssetEntry) assetObject).getUser() != null) {
+                           ((AssetEntry) assetObject).getUser().setOrgID(originalOrg);
+                        }
+
+                        ((AssetEntry) assetObject).toIdentifier(true);
+                     }
+                  }
+               }
 
                // sync file if any depends on asset was auto renamed.
                if(dependencies != null && !dependencies.isEmpty()) {

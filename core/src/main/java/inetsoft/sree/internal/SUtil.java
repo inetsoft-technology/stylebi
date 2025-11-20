@@ -3433,6 +3433,40 @@ public class SUtil {
       return orgID;
    }
 
+   /**
+    * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
+    */
+   public static String handleViewsheetLinkOrgMismatch(String link, boolean isSiteAdminImport) {
+      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      int orgIdx = link.lastIndexOf("^");
+
+      //handle import assets from older version without org identifier
+      boolean hasOrgDelim = link.chars().filter(ch -> ch == '^').count() > 3;
+
+      if(orgIdx > 0 && hasOrgDelim && isSiteAdminImport) {
+         String linkOrg = link.substring(orgIdx + 1);
+
+         if(!Tool.equals(linkOrg, curOrgId)) {
+            link = link.substring(0, orgIdx + 1) + curOrgId;
+         }
+      }
+      else if(!hasOrgDelim && link.chars().filter(ch -> ch == '^').count() == 3) {
+         link = link + "^" + curOrgId;
+      }
+
+      if(isSiteAdminImport && link.indexOf("^") > -1) {
+         for(String pathSection : link.split("\\^")) {
+            if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
+               IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
+               updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+               link = link.replace(pathSection, updatedUser.convertToKey());
+            }
+         }
+      }
+
+      return link;
+   }
+
    private static boolean isIpHost(String host) {
       if(host == null) {
          return false;

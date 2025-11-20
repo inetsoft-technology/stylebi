@@ -240,6 +240,10 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.gettingStartedService.showGettingStartedMessage = show;
    }
 
+   get expressionColumnEnabled(): boolean {
+      return this.composerToolbarService.expressionColumnEnabled;
+   }
+
    constructor(private resizeHandlerService: ResizeHandlerService,
                private changeDetector: ChangeDetectorRef,
                private worksheetClient: ViewsheetClientService,
@@ -861,6 +865,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.composerToolbarService.sqlEnabled = command.sqlEnabled;
       this.composerToolbarService.freeFormSqlEnabled = command.freeFormSqlEnabled;
       this.composerToolbarService.crossJoinEnabled = command.crossJoinEnabled;
+      this.composerToolbarService.expressionColumnEnabled = command.expressionColumnEnabled;
    }
 
    private processRefreshWorksheetCommand(command: RefreshWorksheetCommand): void {

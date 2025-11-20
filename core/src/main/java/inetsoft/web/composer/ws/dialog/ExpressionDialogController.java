@@ -17,6 +17,7 @@
  */
 package inetsoft.web.composer.ws.dialog;
 
+import inetsoft.sree.security.*;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.ws.ExpressionDialogModel;
 import inetsoft.web.composer.model.ws.ExpressionDialogModelValidator;
@@ -27,6 +28,8 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+
+import java.lang.SecurityException;
 import java.security.Principal;
 
 @Controller
@@ -48,6 +51,12 @@ public class ExpressionDialogController extends WorksheetController {
       @RequestParam(value = "showOriginalName", required = false) boolean showOriginalName,
       Principal principal) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("You do not have permission to modify expression columns.");
+      }
+
       runtimeId = Tool.byteDecode(runtimeId);
       tableName = Tool.byteDecode(tableName);
 
@@ -75,6 +84,12 @@ public class ExpressionDialogController extends WorksheetController {
       @Payload ExpressionDialogModel model, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS))
+      {
+         throw new inetsoft.sree.security.SecurityException("You do not have permission to modify expression columns.");
+      }
+
       expressionDialogServiceProxy.setModel(getRuntimeId(), model, principal, commandDispatcher);
    }
 

@@ -258,7 +258,11 @@ public abstract class AssemblyInfo implements AssetObject, DataSerializable {
     * Parse contents.
     * @param elem the specified xml element.
     */
-   protected void parseContents(Element elem) throws Exception {
+   protected final void parseContents(Element elem) throws Exception {
+      name = Tool.getChildValueByTagName(elem, "name");
+   }
+
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       name = Tool.getChildValueByTagName(elem, "name");
    }
 
@@ -268,8 +272,13 @@ public abstract class AssemblyInfo implements AssetObject, DataSerializable {
     */
    @Override
    public final void parseXML(Element elem) throws Exception {
+      parseXML(elem, false);
+   }
+
+   @Override
+   public final void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       parseAttributes(elem);
-      parseContents(elem);
+      parseContents(elem, isSiteAdminImport);
    }
 
    /**

@@ -649,7 +649,8 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
       }
       else {
          wrapped = headerRowCount > 0 && isWrapped(lens, headerRowCount - 1);
-         wrapped = wrapped || isWrapped(lens, headerRowCount);
+         wrapped = wrapped || isWrapped(lens, headerRowCount)
+            || hasAnyWrappedRows(lens, headerRowCount, dataRowCount);
       }
 
       if(wrapped) {
@@ -666,6 +667,18 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
 
       builder.wrapped(wrapped);
    }
+
+   //in cases where data rows are wrapped but header is not, can clip last row if not checked properly
+   private static boolean hasAnyWrappedRows(VSTableLens lens, int startRow, int dataRowCount) {
+      for(int r = startRow; r < startRow + dataRowCount && lens.moreRows(r); r++) {
+         if(isWrapped(lens, r)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
 
    /**
     * {@link TableConditionUtil#createCalcTableConditions(VSAssembly, int[][], String, ViewsheetSandbox)}

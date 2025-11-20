@@ -17,6 +17,8 @@
  */
 package inetsoft.web.binding.controller;
 
+import inetsoft.sree.security.ResourceType;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.event.ModifyCalculateFieldEvent;
 import inetsoft.web.factory.RemainingPath;
@@ -57,6 +59,12 @@ public class ModifyCalculateFieldController {
       Principal principal, CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(
+         principal, ResourceType.VIEWSHEET_CALCULATED_FIELD, "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException("You do not have permission to modify calculated fields.");
+      }
+
       String id = runtimeViewsheetRef.getRuntimeId();
 
       if(id == null) {

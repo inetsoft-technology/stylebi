@@ -4138,6 +4138,11 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     */
    @Override
    public void parseXML(Element elem) throws Exception {
+      parseXML(elem, false);
+   }
+
+   @Override
+   public void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       // form 10.3 ViewsheetAsset begin to write "viewsheet" for root, so
       // VS10_2Transformer need to append "viewsheet" node, but when open
       // an old version viewsheet directly, we should not contain the viewsheet
@@ -4160,7 +4165,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          }
 
          VSAssembly assembly =
-            AbstractVSAssembly.createVSAssembly(anode, this);
+            AbstractVSAssembly.createVSAssembly(anode, this, isSiteAdminImport);
 
          if(assembly == null) {
             continue;

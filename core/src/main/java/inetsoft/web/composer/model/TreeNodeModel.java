@@ -98,6 +98,11 @@ public interface TreeNodeModel extends Comparable<TreeNodeModel> {
       return false;
    }
 
+   @Value.Default
+   default boolean calculatedFieldPermission() {
+      return true;
+   }
+
    @Override
    default int compareTo(TreeNodeModel node) {
       return Comparator.comparing(
