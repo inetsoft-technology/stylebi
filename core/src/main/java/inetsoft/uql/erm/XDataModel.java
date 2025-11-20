@@ -588,13 +588,23 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     *         the specified name.
     */
    public XPartition getPartition(String name) {
+      return getPartition(name, "");
+   }
+
+   public XPartition getPartition(String name, String orgID) {
       String path = getDataSource() + "/" + name;
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-              AssetEntry.Type.PARTITION, path, null);
-      XPartition partition = (XPartition) getRegistry().getObject(entry, true);
+              AssetEntry.Type.PARTITION, path, null, orgID);
+      XPartition partition = (XPartition) getRegistry().getObject(entry, true, true, orgID);
 
       if(partition != null) {
          partition.setDataModel(this);
+      }
+
+      if(partition == null && SUtil.isDefaultVSGloballyVisible() &&
+         !Tool.equals(orgID, Organization.getDefaultOrganizationID()))
+      {
+         partition = getPartition(name, Organization.getDefaultOrganizationID());
       }
 
       return partition;
