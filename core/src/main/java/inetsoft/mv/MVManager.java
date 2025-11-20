@@ -1190,7 +1190,25 @@ public final class MVManager implements MessageListener {
          updateMVDef(newMVDef, oorg, norg);
 
          if(newMVDef != null) {
-            OrganizationManager.runInOrgScope(norgId, () -> mvs.put(newKey, newMVDef, norgId));
+            int attempts = 0;
+
+            //storage might be initializing, check and retry should prevent race condition with future moves
+            while(attempts <= 3) {
+               try {
+                  OrganizationManager.runInOrgScope(norgId, () -> mvs.put(newKey, newMVDef, norgId));
+                  break;
+               }
+               catch(IOException ex) {
+                  attempts ++;
+
+                  if(attempts >= 3) {
+                     throw ex;
+                  }
+                  else {
+                     Thread.sleep(500);
+                  }
+               }
+            }
          }
       }
 
