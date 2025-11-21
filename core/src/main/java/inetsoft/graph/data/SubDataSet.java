@@ -347,7 +347,7 @@ public class SubDataSet extends AbstractDataSetFilter {
       DataSet dset = getDataSet();
 
       // trend/comparison is only valid within the subdataset, so reset it here. (50171)
-      if(href != null && dset instanceof VSDataSet) {
+      if(href != null && dset instanceof VSDataSet && col < dset.getColCount()) {
          Hyperlink link = ((VSDataSet) dset).getHyperlink(getHeader(col));
 
          if(link != null) {

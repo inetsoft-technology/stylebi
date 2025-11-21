@@ -208,9 +208,13 @@ public abstract class AbstractDataSetFilter extends AbstractDataSet
          return null;
       }
 
-      col = getBaseCol(col);
+      int bcol = getBaseCol(col);
       row = getBaseRow(row);
-      return col >= 0 && row >= 0 ? attr.getHyperlink(col, row) : null;
+
+      // if a column doesn't exist in base, still try to get it in case it's set on an
+      // extra column (e.g. 'value') in the filter but called on base in script. (73088)
+      return row >= 0 && (bcol >= 0 || col >= attr.getColCount())
+         ? attr.getHyperlink(bcol >= 0 ? bcol : col, row) : null;
    }
 
    @Override
