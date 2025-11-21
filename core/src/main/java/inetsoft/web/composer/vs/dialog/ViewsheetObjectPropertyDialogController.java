@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo;
 import inetsoft.web.composer.model.vs.*;
@@ -106,6 +107,7 @@ public class ViewsheetObjectPropertyDialogController {
 
       vsAssemblyScriptPaneModel.scriptEnabled(info.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(info.getScript() == null ? "" : info.getScript());
+      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       model.vsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       Point pos = dialogService.getAssemblyPosition(info, vs);

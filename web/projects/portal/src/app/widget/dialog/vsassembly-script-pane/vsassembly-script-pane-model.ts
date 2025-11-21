@@ -18,4 +18,5 @@
 export interface VSAssemblyScriptPaneModel {
    expression?: string;
    scriptEnabled?: boolean;
+   cursorTop?: boolean;
 }
