@@ -625,6 +625,11 @@ public class XEntity implements Cloneable, Serializable, Comparable<XEntity>, XM
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, false);
+   }
+
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       this.attributeListener = new AttributePropertyListener();
 
       String attr = null;
@@ -696,7 +701,7 @@ public class XEntity implements Cloneable, Serializable, Comparable<XEntity>, XM
             xattr = new XAttribute();
          }
 
-         xattr.parseXML((Element) nl.item(i));
+         xattr.parseXML((Element) nl.item(i), isSiteAdminImport);
          attributes.put(xattr.getName(), xattr);
       }
    }

@@ -316,7 +316,7 @@ public class XLogicalModelAsset extends AbstractXAsset implements
 
       Element elem = Tool.parseXML(input).getDocumentElement();
       XLogicalModel model = new XLogicalModel("");
-      model.parseXML(elem);
+      model.parseXML(elem, isSiteAdmin);
       boolean overwriting = config != null && config.isOverwriting();
       XLogicalModel base = getModel().getLogicalModel(getModelName());
       String extended = getExtendedModelName();
