@@ -39,6 +39,8 @@ import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.GlobalParameterProvider;
 import inetsoft.web.portal.model.*;
 import inetsoft.web.reportviewer.model.ParameterPageModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.controller.ComposerClientController;
 import inetsoft.web.viewsheet.controller.dialog.EmailDialogController;
 import inetsoft.web.viewsheet.service.ComposerClientService;
@@ -279,6 +281,11 @@ public class PortalController {
    }
 
    @GetMapping("/api/portal/set-profiling/{profiling}")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PROFILE,
+      resource = "*",
+      actions = ResourceAction.ACCESS)
+   )
    public void setProfiling(@PathVariable("profiling") Boolean profiling, Principal principal) {
       if(principal instanceof XPrincipal) {
          ((XPrincipal) principal).setProfiling(profiling);

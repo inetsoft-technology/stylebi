@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.security.SecurityException;
+import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.log.LogManager;
@@ -61,9 +62,13 @@ public class ControllerErrorHandler extends ResponseEntityExceptionHandler {
     * Handles security exceptions.
     */
    @ExceptionHandler(SecurityException.class)
-   @ResponseStatus(HttpStatus.FORBIDDEN)
-   public void handleSecurityException(Exception e) {
+   public ResponseEntity<Map<String, String>> handleSecurityException(Exception e) {
       log("Unauthorized access", e, LogLevel.WARN);
+
+      Map<String, String> payload = new HashMap<>();
+      payload.put("error", "Forbidden");
+      payload.put("message", Catalog.getCatalog().getString("http.error.unauthorized"));
+      return new ResponseEntity<>(payload, null, HttpStatus.FORBIDDEN);
    }
 
    @ExceptionHandler(MessageException.class)

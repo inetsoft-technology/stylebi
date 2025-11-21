@@ -17,7 +17,11 @@
  */
 package inetsoft.web.portal.data;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,6 +36,11 @@ public class DatasourcesTreeController {
    }
 
    @GetMapping("api/portal/data/tree")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public TreeNodeModel getDataNavigationTree(Principal principal) throws Exception {
       return datasourcesTreeService.getRoot(principal);
    }

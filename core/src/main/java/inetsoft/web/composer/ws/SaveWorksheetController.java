@@ -24,12 +24,13 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.CompositeTableAssemblyInfo;
 import inetsoft.uql.asset.internal.TableAssemblyInfo;
 import inetsoft.uql.asset.sync.*;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -63,6 +64,13 @@ public class SaveWorksheetController extends WorksheetController {
    public boolean saveWorksheet(@Payload SaveSheetEvent event,
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       RuntimeWorksheet rws = getRuntimeWorksheet(principal);
 
       if(!process(rws, event, true, principal, commandDispatcher)) {
@@ -106,6 +114,13 @@ public class SaveWorksheetController extends WorksheetController {
    public SaveWSConfirmationModel checkPrimaryAssembly(@RequestBody SaveSheetEvent event,
       @RemainingPath String runtimeId, Principal principal) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       runtimeId = Tool.byteDecode(runtimeId);
       WorksheetService engine = getWorksheetEngine();
       RuntimeWorksheet rws = engine.getWorksheet(runtimeId, principal);
@@ -130,9 +145,17 @@ public class SaveWorksheetController extends WorksheetController {
 
    @GetMapping("/api/composer/worksheet/checkDependChanged")
    @ResponseBody
-   public boolean checkDependChanged(@RequestParam("rid") String rid, Principal principal) {
-      WorksheetService worksheetService = getWorksheetEngine();
+   public boolean checkDependChanged(@RequestParam("rid") String rid, Principal principal)
+      throws Exception
+   {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
 
+      WorksheetService worksheetService = getWorksheetEngine();
       return worksheetService != null && worksheetService.needRenameDep(rid);
    }
 

@@ -21,7 +21,9 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -78,6 +80,12 @@ public class RepositoryTreeSearchController {
       Principal principal)
       throws Exception
    {
+      if(!PortalThemesManager.getManager().isButtonVisible(PortalThemesManager.SEARCH_BUTTON)) {
+         Catalog catalog = Catalog.getCatalog();
+         throw new SecurityException(catalog.getString("em.common.security.no.permission",
+                                                       catalog.getString("Search")));
+      }
+
       searchString = searchString.toLowerCase();
       SearchResultFolder rootFolder =
          getRootFolder(searchString, favoritesMode, false, principal);

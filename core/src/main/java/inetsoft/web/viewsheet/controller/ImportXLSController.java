@@ -72,9 +72,16 @@ public class ImportXLSController {
    @ResponseBody
    public void processGetAssemblyImage(@RemainingPath String runtimeId,
                                        @PathVariable("type") String type,
-                                       @RequestParam("file") MultipartFile file)
+                                       @RequestParam("file") MultipartFile file,
+                                       Principal principal)
       throws Exception
    {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+      if(rvs == null) {
+         return;
+      }
+
       runtimeId = Tool.byteDecode(runtimeId).replace('/', '_');
       FileSystemService fileSystemService = FileSystemService.getInstance();
       File temp = fileSystemService.getCacheFile(runtimeId + "_" + type);

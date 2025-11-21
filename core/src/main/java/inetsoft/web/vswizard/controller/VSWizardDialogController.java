@@ -21,7 +21,10 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.util.Catalog;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.command.*;
@@ -65,6 +68,13 @@ public class VSWizardDialogController {
                                   Principal principal)
       throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       String id = viewsheetService.openTemporaryViewsheet(event.getEntry(), principal, null);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       rvs.setSocketSessionId(dispatcher.getSessionId());
