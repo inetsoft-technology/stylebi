@@ -80,7 +80,7 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
 
    @Override
    public Enumeration getCubes() {
-      return null;
+      return Collections.emptyEnumeration();
    }
 
    @Override
