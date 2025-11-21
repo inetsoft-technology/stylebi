@@ -17,6 +17,8 @@
  */
 package inetsoft.uql.erm;
 
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.*;
@@ -223,10 +225,14 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     *         specified name exists.
     */
    public XLogicalModel getLogicalModel(String name) {
+      return getLogicalModel(name, "");
+   }
+
+   public XLogicalModel getLogicalModel(String name, String orgID) {
       String path = getDataSource() + "/" + name;
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-              AssetEntry.Type.LOGIC_MODEL, path, null);
-      XLogicalModel res = (XLogicalModel) getRegistry().getObject(entry, true);
+              AssetEntry.Type.LOGIC_MODEL, path, null, orgID);
+      XLogicalModel res = (XLogicalModel) getRegistry().getObject(entry, true, true, orgID);
 
       if(res != null) {
          res.setDataModel(this);
@@ -275,11 +281,22 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     */
    public XLogicalModel getLogicalModel(String name, Principal user,
                                         boolean hideAttributes) {
-      XLogicalModel lmodel = getLogicalModel(name);
+      return getLogicalModel(name, user, hideAttributes, null);
+   }
+
+   public XLogicalModel getLogicalModel(String name, Principal user,
+                                        boolean hideAttributes, String orgID) {
+      XLogicalModel lmodel = getLogicalModel(name, orgID);
       boolean validUser = isActualUser(user);
 
       if(lmodel != null && (validUser)) {
          return lmodel.applyRuntime(user, hideAttributes);
+      }
+
+      if(lmodel == null && SUtil.isDefaultVSGloballyVisible() &&
+         !Tool.equals(orgID, Organization.getDefaultOrganizationID()))
+      {
+         lmodel = getLogicalModel(name, user, hideAttributes, Organization.getDefaultOrganizationID());
       }
 
       return lmodel;
@@ -571,13 +588,23 @@ public class XDataModel implements Cloneable, Serializable, XDomain,
     *         the specified name.
     */
    public XPartition getPartition(String name) {
+      return getPartition(name, "");
+   }
+
+   public XPartition getPartition(String name, String orgID) {
       String path = getDataSource() + "/" + name;
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
-              AssetEntry.Type.PARTITION, path, null);
-      XPartition partition = (XPartition) getRegistry().getObject(entry, true);
+              AssetEntry.Type.PARTITION, path, null, orgID);
+      XPartition partition = (XPartition) getRegistry().getObject(entry, true, true, orgID);
 
       if(partition != null) {
          partition.setDataModel(this);
+      }
+
+      if(partition == null && SUtil.isDefaultVSGloballyVisible() &&
+         !Tool.equals(orgID, Organization.getDefaultOrganizationID()))
+      {
+         partition = getPartition(name, Organization.getDefaultOrganizationID());
       }
 
       return partition;
