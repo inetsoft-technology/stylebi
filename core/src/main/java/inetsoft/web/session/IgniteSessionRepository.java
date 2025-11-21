@@ -260,10 +260,14 @@ public class IgniteSessionRepository
       List<SRPrincipal> result = new ArrayList<>();
       sessions.iterator().forEachRemaining(session -> {
          IgniteSessionRepository.IgniteSession igniteSession = findById(session.getValue().getId());
-         SRPrincipal principal = igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
-         if(principal != null) {
-            result.add(principal);
+         // could be out of sync due to session expiration, need to check for null
+         if(igniteSession != null) {
+            SRPrincipal principal = igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+            if(principal != null) {
+               result.add(principal);
+            }
          }
       });
 
