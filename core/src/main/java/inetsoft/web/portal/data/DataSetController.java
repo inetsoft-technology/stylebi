@@ -17,11 +17,15 @@
  */
 package inetsoft.web.portal.data;
 
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.MessageException;
 import inetsoft.util.MissingAssetClassNameException;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -42,6 +46,11 @@ public class DataSetController {
    }
 
    @GetMapping("api/portal/data/browser/**")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public PortalDataBrowserModel getDataBrowser(@RemainingPath String folderPath,
                                                 @RequestParam(value = "scope") Optional<Integer> scope,
                                                 @RequestParam(value = "home", required = false) boolean home,
@@ -71,6 +80,11 @@ public class DataSetController {
    }
 
    @PostMapping("api/data/search/datasets/assetNames")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public SearchDataResultsModel getSearchAssetNames(@RequestBody SearchDataCommand command,
                                                      Principal principal)
       throws Exception
@@ -98,6 +112,11 @@ public class DataSetController {
    }
 
    @PostMapping("api/data/search/datasets")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public SearchDataResultsModel getSearchAssets(@RequestBody SearchDataCommand command,
                                                  Principal principal)
       throws Exception
@@ -125,6 +144,11 @@ public class DataSetController {
    }
 
    @PostMapping("api/data/datasets/isDuplicate")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public CheckDuplicateResponse duplicateAssetExists(
       @RequestBody CheckDuplicateRequest request,
       Principal principal)
@@ -139,6 +163,11 @@ public class DataSetController {
    @RequestMapping(
       value = "/api/data/move/checkDuplicate",
       method = RequestMethod.POST)
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @ResponseBody
    public boolean checkItemsDuplicate(@RequestBody CheckItemsDuplicateRequest request,
                                       @RequestParam Optional<Integer> assetScope,
@@ -152,6 +181,11 @@ public class DataSetController {
    }
 
    @PostMapping("api/data/datasets/rename/**")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public void renameWorksheet(@RequestBody WorksheetBrowserInfo info,
                                @RemainingPath String newName,
                                @RequestParam(value = "scope") Optional<Integer> scope,
@@ -167,6 +201,11 @@ public class DataSetController {
    }
 
    @PostMapping("api/data/folders/rename/**")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public void renameFolder(@RequestBody WorksheetBrowserInfo info,
                             @RemainingPath String newName,
                             Principal principal)
@@ -176,6 +215,11 @@ public class DataSetController {
    }
 
    @PostMapping("/api/data/folders")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public void addFolder(@RequestBody AddFolderRequest request, Principal principal)
       throws Exception
    {
@@ -203,6 +247,11 @@ public class DataSetController {
    @RequestMapping(
       value = "/api/data/folders/folder/**",
       method = RequestMethod.GET)
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @ResponseBody
    public WorksheetBrowserInfo getFolder(@RemainingPath String name,
                                          @RequestParam(value = "scope") Optional<Integer> scope,
@@ -220,6 +269,11 @@ public class DataSetController {
    @RequestMapping(
       value = "/api/data/folders/move",
       method = RequestMethod.POST)
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @ResponseBody
    public void moveFolder(@RequestBody MoveRequest command,
                           @RequestParam Optional<Integer> assetScope,
@@ -247,6 +301,11 @@ public class DataSetController {
    @RequestMapping(
       value = "/api/data/folders/moveFolders",
       method = RequestMethod.POST)
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    @ResponseBody
    public MessageCommand moveFolders(@RequestBody MoveCommand[] items,
                            @RequestParam(value = "assetScope") Optional<Integer> assetScope,
@@ -279,6 +338,11 @@ public class DataSetController {
 
    // TODO check if asset dependency checks from composer can be reused
    @GetMapping("/api/data/folders/removeableStatus/**")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public AssetDependenciesResponse checkFolderRemoveable(@RemainingPath String path,
                                                           @RequestParam(value = "scope") Optional<Integer> scope,
                                                           Principal principal)
@@ -288,6 +352,11 @@ public class DataSetController {
    }
 
    @PostMapping("/api/data/removeableStatuses")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public CheckRemovablesResponse checkRemoveable(@RequestBody CheckRemovablesRequest request,
                                                   Principal principal) throws Exception
    {
@@ -309,6 +378,11 @@ public class DataSetController {
    }
 
    @GetMapping("/api/data/datasets/removeableStatus/**")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public AssetDependenciesResponse checkDatasetRemoveable(@RemainingPath String path,
                                                            @RequestParam(value = "scope") Optional<Integer> scope,
                                                            Principal principal)
@@ -318,6 +392,11 @@ public class DataSetController {
    }
 
    @DeleteMapping("/api/data/folders/**")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public void deleteFolder(@RemainingPath String path,
                             @RequestParam(value = "scope") Optional<Integer> scope,
                             Principal principal)
@@ -329,6 +408,11 @@ public class DataSetController {
    }
 
    @DeleteMapping("/api/data/datasets/**")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public DeleteDataSetResponse deleteDataSet(
       @RemainingPath String path, @RequestParam(value = "scope") Optional<Integer> scope,
       @RequestParam(value = "force") Optional<Boolean> force, Principal principal)
@@ -359,6 +443,11 @@ public class DataSetController {
    }
 
    @PostMapping("/api/data/removeAll")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public void removeAll(@RequestBody WorksheetBrowserInfo[] entries,
                          Principal principal) throws Exception
    {
@@ -380,6 +469,11 @@ public class DataSetController {
     * @param command the move command.
     */
    @PostMapping("/api/data/datasets/move")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public void moveDataSet(@RequestBody MoveCommand command,
                            @RequestParam Optional<Integer> assetScope,
                            @RequestParam Optional<Integer> targetScope,
@@ -403,6 +497,11 @@ public class DataSetController {
     * @throws Exception if the datasets could not be moved.
     */
    @PostMapping("/api/data/datasets/moveDatasets")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.PORTAL_TAB,
+      resource = "Data",
+      actions = ResourceAction.ACCESS
+   ))
    public MessageCommand moveDataSets(@RequestBody MoveCommand[] items,
                             @RequestParam Optional<Integer> assetScope,
                             @RequestParam Optional<Integer> targetScope,
