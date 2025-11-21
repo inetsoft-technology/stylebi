@@ -482,7 +482,13 @@ public class VGraphPair {
                // do nothing
             }
             else if(nset != null) {
-               this.data = nset;
+               // make sure added dimensions and measures are not lost. (73088)
+               if(this.data instanceof ExpandableDataSet) {
+                  this.data = ((ExpandableDataSet) this.data).create(nset);
+               }
+               else {
+                  this.data = nset;
+               }
             }
 
             // for script chart, if multi-element is defined but no color frame,
