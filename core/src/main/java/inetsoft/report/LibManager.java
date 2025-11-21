@@ -818,7 +818,7 @@ public class LibManager implements AutoCloseable {
 
          String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-         if(parameters != null && parameters.length > 0) {
+         if(parameters != null && parameters.length > 0 && parameters[0] != null) {
             orgID = (String) parameters[0];
          }
 
