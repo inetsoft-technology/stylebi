@@ -32,8 +32,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
-import inetsoft.util.SingletonManager;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -869,6 +868,12 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       private static String doOpenViewsheet(ViewsheetEngine engine, AssetEntry entry, Principal user, String id) throws Exception {
+
+         //if thread has no context principal, set as user to prevent orgid issues
+         if(ThreadContext.getContextPrincipal() == null) {
+            ThreadContext.setContextPrincipal(user);
+         }
+
          String rid = engine.openSheet(entry, user, id);
 
          if(user != null) {
