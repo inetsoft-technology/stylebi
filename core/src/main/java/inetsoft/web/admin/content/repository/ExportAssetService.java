@@ -46,7 +46,9 @@ public class ExportAssetService {
       this.binaryTransferService = binaryTransferService;
 
       this.contextCache = new ConcurrentHashMap<>();
-      this.fileLocationMap = Cluster.getInstance().getMap(FILE_LOCATION_CACHE_NAME);
+      Cluster cluster = Cluster.getInstance();
+      cluster.registerSpringProxyPartitionedCache(FILE_LOCATION_CACHE_NAME);
+      this.fileLocationMap = cluster.getMap(FILE_LOCATION_CACHE_NAME);
       this.filePathMap = new ConcurrentHashMap<>();
    }
 
