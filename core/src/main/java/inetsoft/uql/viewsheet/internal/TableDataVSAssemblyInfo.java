@@ -1102,14 +1102,14 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(node != null) {
          hyperlinkAttr = new TableHyperlinkAttr();
-         hyperlinkAttr.parseXML((Element) node.getFirstChild());
+         hyperlinkAttr.parseXML((Element) node.getFirstChild(), isSiteAdminImport);
       }
 
       node = Tool.getChildNodeByTagName(elem, "highlightAttr");
 
       if(node != null) {
          highlightAttr = new TableHighlightAttr();
-         highlightAttr.parseXML((Element) node.getFirstChild());
+         highlightAttr.parseXML((Element) node.getFirstChild(), isSiteAdminImport);
       }
 
       node = Tool.getChildNodeByTagName(elem, "tipViewValue");
