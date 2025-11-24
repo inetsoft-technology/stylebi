@@ -17,7 +17,6 @@
  */
 package inetsoft.sree.schedule;
 
-import inetsoft.sree.schedule.quartz.JobCompletionListener;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.util.SingletonManager;
 import org.slf4j.Logger;
