@@ -1898,8 +1898,39 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
             continue;
          }
 
+         //assert that bookmark property organization matches asset organization
+         if(Tool.equals("__bookmark_id__", key)) {
+            val = updateBookmarkPropertyOrg(val, getOrgID());
+         }
+
          setProperty(key, val);
       }
+   }
+
+   private String updateBookmarkPropertyOrg(String val, String orgID) {
+      if(val == null) {
+         return null;
+      }
+
+      String updateVal = Arrays.stream(val.split("__"))
+                               .map(uid -> {
+                                  if(uid.contains(IdentityID.KEY_DELIMITER)) {
+                                     IdentityID id = IdentityID.getIdentityIDFromKey(uid);
+                                     id.setOrgID(orgID);
+                                     return id.convertToKey();
+                                  }
+
+                                  return uid;
+                               })
+                              .collect(Collectors.joining("__"));
+
+      boolean hasOrgDelim = val.split("__", -1).length > 3;
+
+      if(hasOrgDelim) {
+         updateVal = updateVal.substring(0, updateVal.lastIndexOf("__") + 2) + orgID;
+      }
+
+      return updateVal;
    }
 
    /**
