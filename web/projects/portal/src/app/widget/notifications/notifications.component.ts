@@ -15,9 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ChangeDetectorRef, Component, Input, OnInit } from "@angular/core";
+import { ChangeDetectorRef, Component, Input, OnInit, OnChanges, SimpleChanges, OnDestroy } from "@angular/core";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 import { Notification, NotificationType } from "../../common/data/notification";
 import { Tool } from "../../../../../shared/util/tool";
+import { VSPropertyDialogService } from "../services/viewsheet-property-dialog-model.service"
 
 /**
  * Component that displays notification messages to the user.
@@ -27,21 +30,41 @@ import { Tool } from "../../../../../shared/util/tool";
    templateUrl: "notifications.component.html",
    styleUrls: ["notifications.component.scss"]
 })
-export class NotificationsComponent implements OnInit {
+export class NotificationsComponent implements OnInit, OnChanges, OnDestroy {
    /* Optional timeout for notifications. */
    @Input() timeout: number = 0;
    @Input() message: string = "";
    @Input() fullWidth: boolean = true;
+   @Input() runtimeId: string;
    alerts: ({id: number} & Notification)[] = [];
    private counter: number = 0;
+   hideNotifications: boolean;
+   private destroy$ = new Subject<void>();
 
-   constructor(private changeDetectionRef: ChangeDetectorRef) {
+   constructor(private changeDetectionRef: ChangeDetectorRef,
+               private vsPropertyDialogService: VSPropertyDialogService) {
    }
 
    ngOnInit() {
       if(this.message) {
          this.info(this.message);
       }
+      this.vsPropertyDialogService.hideNotifications$
+         .pipe(takeUntil(this.destroy$))
+         .subscribe((value: boolean) => {
+            this.hideNotifications = value
+         });
+   }
+
+   ngOnChanges(changes: SimpleChanges) {
+      if(changes['runtimeId'] && this.runtimeId) {
+         this.vsPropertyDialogService.updateHideNotifications(this.runtimeId);
+      }
+   }
+
+   ngOnDestroy(): void {
+      this.destroy$.next();
+      this.destroy$.complete();
    }
 
    /**

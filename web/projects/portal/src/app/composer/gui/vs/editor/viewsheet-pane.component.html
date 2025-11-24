@@ -189,7 +189,7 @@
   </vs-loading-display>
 </div>
 
-<notifications #notifications class="notifications-viewsheet-pane" [timeout]="5000"></notifications>
+<notifications #notifications class="notifications-viewsheet-pane" [timeout]="5000" [runtimeId]="vs.runtimeId"></notifications>
 
 <ng-template #variableInputDialog let-close="close" let-dismiss="dismiss">
   <variable-input-dialog [model]="variableInputDialogModel" [enterParameters]="initialParametersCollect"

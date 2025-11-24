@@ -129,6 +129,7 @@ import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
+import { VSPropertyDialogService } from "../../widget/services/viewsheet-property-dialog-model.service"
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -317,7 +318,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       private gettingStartedService: GettingStartedService,
       private router: Router,
       private scriptService: ScriptService,
-      private fontService: FontService)
+      private fontService: FontService,
+      private vsPropertyDialogService:VSPropertyDialogService)
    {
       GuiTool.isTouchDevice().then((value: boolean) => {
          this.touchDevice = value;
@@ -977,6 +979,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                viewsheet.socketConnection.sendEvent(eventUri, result);
                viewsheet.label = result.vsOptionsPane.alias ?
                   result.vsOptionsPane.alias : viewsheet.label;
+               this.vsPropertyDialogService.updateVSPropertyDialogModel(result);
             },
             () => {
                this.viewsheetPropertyModel = null;
