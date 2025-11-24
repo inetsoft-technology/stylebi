@@ -21,6 +21,9 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphTarget;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractDataRef;
@@ -115,9 +118,20 @@ public class ChartPropertyDialogController {
       ChartVSAssemblyInfo chartAssemblyInfo;
       VSChartInfo vsChartInfo;
       ChartDescriptor chartDescriptor;
+      boolean orgTempDefaultForGloballyVisible = false;
+      String originalOrg = OrganizationManager.getInstance().getCurrentOrgID();
 
       try {
          rvs = viewsheetService.getViewsheet(runtimeId, principal);
+
+         if(rvs != null & rvs.getEntry() != null && SUtil.isDefaultVSGloballyVisible(principal) &&
+            !Tool.equals(originalOrg, Organization.getDefaultOrganizationID()) &&
+            Tool.equals(rvs.getEntry().getOrgID(), Organization.getDefaultOrganizationID()))
+         {
+            OrganizationManager.getInstance().setCurrentOrgID(Organization.getDefaultOrganizationID());
+            orgTempDefaultForGloballyVisible = true;
+         }
+
          vs = rvs.getViewsheet();
          chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
          chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
@@ -127,6 +141,10 @@ public class ChartPropertyDialogController {
       }
       catch(Exception e) {
          //TODO decide what to do with exception
+         if(orgTempDefaultForGloballyVisible) {
+            OrganizationManager.getInstance().setCurrentOrgID(originalOrg);
+         }
+
          throw e;
       }
 
@@ -316,6 +334,10 @@ public class ChartPropertyDialogController {
       vsAssemblyScriptPaneModel.expression(chartAssemblyInfo.getScript() == null ?
                                               "" : chartAssemblyInfo.getScript());
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+
+      if(orgTempDefaultForGloballyVisible) {
+         OrganizationManager.getInstance().setCurrentOrgID(originalOrg);
+      }
 
       return result;
    }

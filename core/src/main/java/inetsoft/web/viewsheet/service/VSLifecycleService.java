@@ -24,7 +24,8 @@ import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -88,6 +89,9 @@ public class VSLifecycleService {
                                String linkUri)
       throws Exception
    {
+      boolean orgTempDefaultForGloballyVisible = false;
+      String originalOrg = OrganizationManager.getInstance().getCurrentOrgID();
+
       try {
          String id = event.getRuntimeViewsheetId();
 
@@ -105,6 +109,14 @@ public class VSLifecycleService {
 
          if(entry == null || !entry.isViewsheet()) {
             return null;
+         }
+
+         if(SUtil.isDefaultVSGloballyVisible() &&
+            !Tool.equals(originalOrg, Organization.getDefaultOrganization()) &&
+            Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
+         {
+            OrganizationManager.getInstance().setCurrentOrgID(Organization.getDefaultOrganizationID());
+            orgTempDefaultForGloballyVisible = true;
          }
 
          if(Thread.currentThread() instanceof GroupedThread) {
@@ -158,6 +170,10 @@ public class VSLifecycleService {
       finally {
          VSUtil.OPEN_VIEWSHEET.remove();
          AssetDataCache.monitor(false);
+
+         if(orgTempDefaultForGloballyVisible) {
+            OrganizationManager.getInstance().setCurrentOrgID(originalOrg);
+         }
       }
    }
 

@@ -34,6 +34,9 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.report.script.*;
 import inetsoft.report.script.viewsheet.*;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -642,43 +645,60 @@ public class VSScriptableController {
       Catalog catalog = Catalog.getCatalog(principal);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       String vsName = null;
+      boolean orgTempDefaultForGloballyVisible = false;
+      String originalOrg = OrganizationManager.getInstance().getCurrentOrgID();
 
-      int dot = assemblyName == null ? -1 : assemblyName.lastIndexOf(".");
-
-      if(dot != -1) {
-         vsName = assemblyName.substring(0, dot);
+      if(rvs != null && rvs.getEntry() != null && SUtil.isDefaultVSGloballyVisible(principal) &&
+         !Tool.equals(originalOrg, Organization.getDefaultOrganizationID()) &&
+         Tool.equals(rvs.getEntry().getOrgID(), Organization.getDefaultOrganizationID()))
+      {
+         OrganizationManager.getInstance().setCurrentOrgID(Organization.getDefaultOrganizationID());
+         orgTempDefaultForGloballyVisible = true;
       }
 
-      final String rootName = "data";
-      final String rootLabel = catalog.getString("Data");
-      final String rootData = null;
+      try {
+         int dot = assemblyName == null ? -1 : assemblyName.lastIndexOf(".");
 
-      List<TreeNodeModel> children = new ArrayList<>();
-      TreeNodeModel componentsNode = createComponentsNode(
-         rvs, vsName, rootName, rootLabel, rootData, catalog);
+         if(dot != -1) {
+            vsName = assemblyName.substring(0, dot);
+         }
 
-      if(componentsNode != null) {
-         children.add(componentsNode);
+         final String rootName = "data";
+         final String rootLabel = catalog.getString("Data");
+         final String rootData = null;
+
+         List<TreeNodeModel> children = new ArrayList<>();
+         TreeNodeModel componentsNode = createComponentsNode(
+            rvs, vsName, rootName, rootLabel, rootData, catalog);
+
+         if(componentsNode != null) {
+            children.add(componentsNode);
+         }
+
+         TreeNodeModel parametersNode = createParametersNode(
+            viewsheetService, rvs, vsName, rootName, rootLabel, rootData, catalog);
+
+         if(parametersNode != null) {
+            children.add(parametersNode);
+         }
+
+         if(assemblyName != null || isVSOption) {
+            TreeNodeModel tablesNode = createTablesNode(viewsheetService, rvs, vsName, rootName,
+                                                        rootLabel, rootData, catalog, principal);
+
+            if(tablesNode != null) {
+               children.add(tablesNode);
+            }
+         }
+
+         return createNode(rootLabel, rootData, false, null, null,
+                           null, rootName, null, children, true);
       }
-
-      TreeNodeModel parametersNode = createParametersNode(
-         viewsheetService, rvs, vsName, rootName, rootLabel, rootData, catalog);
-
-      if(parametersNode != null) {
-         children.add(parametersNode);
-      }
-
-      if(assemblyName != null || isVSOption) {
-         TreeNodeModel tablesNode = createTablesNode(viewsheetService, rvs, vsName, rootName,
-            rootLabel, rootData, catalog, principal);
-
-         if(tablesNode != null) {
-            children.add(tablesNode);
+      finally {
+         if(orgTempDefaultForGloballyVisible) {
+            OrganizationManager.getInstance().setCurrentOrgID(originalOrg);
          }
       }
-
-      return createNode(rootLabel, rootData, false, null, null,
-        null, rootName, null, children, true);
    }
 
    private void createStaticDefinitions(ObjectMapper mapper, ObjectNode library)
