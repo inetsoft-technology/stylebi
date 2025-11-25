@@ -458,6 +458,11 @@ public class XAttribute implements Cloneable, Serializable, XMLSerializable {
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, false);
+   }
+
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       String attr = null;
 
       if((attr = Tool.getAttribute(tag, "name")) != null) {
@@ -515,7 +520,7 @@ public class XAttribute implements Cloneable, Serializable, XMLSerializable {
 
       if(elem != null) {
          meta = new XMetaInfo();
-         meta.parseXML(elem);
+         meta.parseXML(elem, isSiteAdminImport);
       }
 
       Element dsnode = Tool.getChildNodeByTagName(tag, "dependencies");

@@ -278,12 +278,17 @@ public class XMetaInfo implements XMLSerializable, Serializable, Cloneable {
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, false);
+   }
+
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       parseDatePattern(tag);
       Element dnode = Tool.getChildNodeByTagName(tag, "XDrillInfo");
 
       if(dnode != null) {
          dinfo = new XDrillInfo();
-         dinfo.parseXML(dnode);
+         dinfo.parseXML(dnode, isSiteAdminImport);
       }
 
       Element fnode = Tool.getChildNodeByTagName(tag, "XFormatInfo");
