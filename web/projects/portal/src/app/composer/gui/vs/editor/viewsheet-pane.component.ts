@@ -281,6 +281,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    selectionBorderOffset: number = 2;
    snapOffset = 0;
    consoleMessages: ConsoleMessage[] = [];
+   newConsoleMessages: boolean = false;
+   hideNotifications: boolean = false;
    guideLineColor: string;
    autoFocusSearchTimeout: any;
    searchResultCount: number = 0;
@@ -1299,6 +1301,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
             type: command.type
          });
       }
+      this.newConsoleMessages = true;
    }
 
    protected processProgress(command: MessageCommand): void {
@@ -2447,6 +2450,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
          .then((messageLevels: string[]) => {
             this.vs.messageLevels = messageLevels;
          }, () => {});
+      this.newConsoleMessages = false;
    }
 
    getTemplateWidth(): number {
@@ -2683,5 +2687,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
    isFilterInMaxModeView(vsObject: VSObjectModel): boolean {
       return !!this.maxModeAssembly && (<any> vsObject).adhocFilter;
+   }
+
+   onHideNotificationsChange(value: boolean) {
+      this.hideNotifications = value;
    }
 }

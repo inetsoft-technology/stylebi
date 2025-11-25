@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ChangeDetectorRef, Component, Input, OnInit, OnChanges, SimpleChanges, OnDestroy } from "@angular/core";
+import { ChangeDetectorRef, Component, Input, OnInit, OnChanges, SimpleChanges, OnDestroy, Output, EventEmitter } from "@angular/core";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { Notification, NotificationType } from "../../common/data/notification";
@@ -40,6 +40,7 @@ export class NotificationsComponent implements OnInit, OnChanges, OnDestroy {
    private counter: number = 0;
    hideNotifications: boolean;
    private destroy$ = new Subject<void>();
+   @Output() hideNotificationsChange = new EventEmitter<boolean>();
 
    constructor(private changeDetectionRef: ChangeDetectorRef,
                private vsPropertyDialogService: VSPropertyDialogService) {
@@ -53,6 +54,7 @@ export class NotificationsComponent implements OnInit, OnChanges, OnDestroy {
          .pipe(takeUntil(this.destroy$))
          .subscribe((value: boolean) => {
             this.hideNotifications = value
+            this.hideNotificationsChange.emit(value);
          });
    }
 

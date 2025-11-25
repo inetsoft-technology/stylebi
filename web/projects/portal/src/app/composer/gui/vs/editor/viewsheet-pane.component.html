@@ -140,7 +140,7 @@
       <ng-container *ngIf="!isSearchMode()">
         <i class="javascript-icon me-1" *ngIf="hasScript" (click)="onOpenScript.emit(vs)"></i>
         <button type="button" class="btn btn-sm btn-primary me-1 text-nowrap" (click)="openConsoleDialog()">
-          _#(Console) <span class="badge text-bg-light">{{consoleMessages ? consoleMessages.length : 0}}</span>
+          _#(Console) <span class="badge text-bg-light" [class.console-blink]="newConsoleMessages && hideNotifications">{{consoleMessages ? consoleMessages.length : 0}}</span>
         </button>
         <form class="form-inline layout-dropdown-group" *ngIf="layoutToolbarVisible">
           <label class="me-sm-2" for="layoutDropdown">_#(Layout):</label>
@@ -189,7 +189,9 @@
   </vs-loading-display>
 </div>
 
-<notifications #notifications class="notifications-viewsheet-pane" [timeout]="5000" [runtimeId]="vs.runtimeId"></notifications>
+<notifications #notifications class="notifications-viewsheet-pane" [timeout]="5000" [runtimeId]="vs.runtimeId"
+               (hideNotificationsChange)="onHideNotificationsChange($event)">
+</notifications>
 
 <ng-template #variableInputDialog let-close="close" let-dismiss="dismiss">
   <variable-input-dialog [model]="variableInputDialogModel" [enterParameters]="initialParametersCollect"
