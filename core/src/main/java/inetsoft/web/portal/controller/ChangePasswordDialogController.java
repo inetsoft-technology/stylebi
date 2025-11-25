@@ -20,6 +20,7 @@ package inetsoft.web.portal.controller;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.Catalog;
@@ -46,6 +47,10 @@ public class ChangePasswordDialogController {
    public ChangePasswordDialogModel getChangePasswordDialogModel(
       Principal principal) throws Exception
    {
+      if(!SUtil.canChangePWD(principal)) {
+         throw new SecurityException("Password change is not permitted for " + principal.getName());
+      }
+
       ChangePasswordDialogModel model = new ChangePasswordDialogModel();
       model.setUserName(IdentityID.getIdentityIDFromKey(principal.getName()));
       return model;
@@ -56,6 +61,10 @@ public class ChangePasswordDialogController {
       @RequestBody ChangePasswordDialogModel model,
       HttpServletRequest request, Principal principal) throws Exception
    {
+      if(!SUtil.canChangePWD(principal)) {
+         throw new SecurityException("Password change is not permitted for " + principal.getName());
+      }
+
       Catalog catalog = Catalog.getCatalog();
       String actionName = ActionRecord.ACTION_NAME_EDIT;
       String objectType = ActionRecord.OBJECT_TYPE_PASSWORD;

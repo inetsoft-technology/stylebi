@@ -56,7 +56,10 @@ export class PreferencesDialog implements OnInit {
    ngOnInit(): void {
       this.modelService.getModel(PREFERENCES_DIALOG_MODEL_URI).subscribe(
          (data) => {
-            this.model = <PreferencesDialogModel> data;
+            this.model = <PreferencesDialogModel>data;
+         },
+         (error) => {
+            this.closeDialog();
 
             if(this.model.disable) {
                this.emailControl.disable()
