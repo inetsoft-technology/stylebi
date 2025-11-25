@@ -2775,7 +2775,7 @@ public class CoreLifecycleService {
       RuntimeViewsheet rvs;
 
       try {
-         rvs = viewsheetService.getViewsheet(id, user);
+         rvs = viewsheetService.getViewsheet(id, user); //race condition? hits as expires
       }
       catch(Exception e) {
          LoggerFactory.getLogger(getClass()).warn("Missing viewsheet {}", id, new Exception("Stack trace"));
@@ -2972,6 +2972,12 @@ public class CoreLifecycleService {
                                 CommandDispatcher dispatcher, AssetRepository assetRepository,
                                 Principal principal) throws Exception {
       boolean auditFinish = true;
+
+      if(rvs.getViewsheet() == null) {
+         LOG.warn(Catalog.getCatalog().getString("portal.viewsheetClosedAfterOpening", rvs.getID()));
+         return false;
+      }
+
       setExportType(rvs, dispatcher);
       setPermission(rvs, principal, dispatcher);
 
