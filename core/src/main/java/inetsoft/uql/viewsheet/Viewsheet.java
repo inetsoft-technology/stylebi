@@ -617,7 +617,6 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                      tvs.parseState(element);
                      updateVSAssembly((VSAssembly) assemblies.get(i), tvs);
                      clearCache();
-                     tvs.setLastModified(System.currentTimeMillis());
                      in.close();
 
                      // clear cached absolute name since the base viewsheet doesn't
