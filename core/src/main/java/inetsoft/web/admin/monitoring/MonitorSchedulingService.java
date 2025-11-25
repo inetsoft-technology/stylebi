@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.monitoring;
 
+import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.sree.internal.cluster.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -81,6 +82,9 @@ public class MonitorSchedulingService implements MessageListener {
          for(StatusUpdater updater : updaters) {
             try {
                updater.updateStatus(timestamp);
+            }
+            catch(ExpiredSheetException ese) {
+               //
             }
             catch(Exception e) {
                LOG.warn("Failed to update status", e);
