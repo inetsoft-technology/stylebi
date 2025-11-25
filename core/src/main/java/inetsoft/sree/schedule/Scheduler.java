@@ -412,6 +412,7 @@ public class Scheduler {
       if(scheduler != null) {
          Catalog catalog = Catalog.getCatalog();
          Map<JobKey, Long> runningJobs = new HashMap<>();
+         ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
 
          for(JobExecutionContext context : scheduler.getCurrentlyExecutingJobs()) {
             runningJobs.put(
@@ -421,6 +422,16 @@ public class Scheduler {
 
          for(JobKey jobKey : scheduler.getJobKeys(GroupMatcher.jobGroupEquals(GROUP_NAME))) {
             String taskName = jobKey.getName();
+
+            // local instance is not executing the schedule task, get the distributed status
+            if(!runningJobs.containsKey(jobKey)) {
+               ScheduleStatusDao.Status lastStatus = dao.getStatus(taskName);
+
+               if(lastStatus != null && lastStatus.getStatus() == Status.STARTED) {
+                  runningJobs.put(jobKey, lastStatus.getStartTime());
+               }
+            }
+
             TaskActivity activity = new TaskActivity(taskName);
             boolean running = false;
 
@@ -434,7 +445,6 @@ public class Scheduler {
          }
 
          for(String taskName : activities.keySet()) {
-            ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
             ScheduleStatusDao.Status lastStatus = dao.getStatus(taskName);
             TaskActivity activity = activities.get(taskName);
 
