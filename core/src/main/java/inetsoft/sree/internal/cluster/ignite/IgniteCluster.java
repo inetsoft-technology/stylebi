@@ -88,6 +88,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       affinityExecutor = Executors.newFixedThreadPool(
          Runtime.getRuntime().availableProcessors(),
          r -> new GroupedThread(r, "IgniteMessages"));
+      listenerExecutor = Executors.newSingleThreadExecutor(
+         r -> new GroupedThread(r, "IgniteMapEvents"));
 
       if(!config.isClientMode()) {
          initLockTimer();
@@ -1471,6 +1473,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       executorServiceMap.clear();
+      messageExecutor.shutdownNow();
+      affinityExecutor.shutdownNow();
+      listenerExecutor.shutdownNow();
    }
 
    /**
@@ -1608,7 +1613,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       if(cache != null) {
          ContinuousQuery<K, V> qry = new ContinuousQuery<>();
          qry.setIncludeExpired(true);
-         qry.setLocalListener(new MapListenerAdapter<>(l));
+         qry.setLocalListener(new MapListenerAdapter<>(l, listenerExecutor));
          qry.setRemoteFilterFactory(new MapEventFilterFactory<>());
          QueryCursor<?> cursor = cache.query(qry);
          mapListeners.put(l, cursor);
@@ -1637,6 +1642,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final Map<Integer, ExecutorService> executorServiceMap = new ConcurrentHashMap<>();
    private final ExecutorService messageExecutor;
    private final ExecutorService affinityExecutor;
+   private final ExecutorService listenerExecutor;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
    private static final long MIN_LOCK_DURATION_MILLIS = Duration.ofMinutes(10).toMillis();
@@ -1920,8 +1926,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    private static final class MapListenerAdapter<K, V> implements CacheEntryUpdatedListener<K, V> {
-      MapListenerAdapter(MapChangeListener<K, V> listener) {
+      MapListenerAdapter(MapChangeListener<K, V> listener, ExecutorService executor) {
          this.listener = listener;
+         this.executor = executor;
       }
 
       @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -1935,21 +1942,22 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                                                      event.getValue());
 
             if(event.getEventType() == javax.cache.event.EventType.CREATED) {
-               listener.entryAdded(entryEvent);
+               executor.submit(() -> listener.entryAdded(entryEvent));
             }
             else if(event.getEventType() == javax.cache.event.EventType.UPDATED) {
-               listener.entryUpdated(entryEvent);
+               executor.submit(() -> listener.entryUpdated(entryEvent));
             }
             else if(event.getEventType() == javax.cache.event.EventType.REMOVED) {
-               listener.entryRemoved(entryEvent);
+               executor.submit(() -> listener.entryRemoved(entryEvent));
             }
             else if(event.getEventType() == javax.cache.event.EventType.EXPIRED) {
-               listener.entryExpired(entryEvent);
+               executor.submit(() -> listener.entryExpired(entryEvent));
             }
          }
       }
 
       private final MapChangeListener<K, V> listener;
+      private final ExecutorService executor;
    }
 
    private static class MapEventFilterFactory<K, V> implements Factory<CacheEntryEventFilter<K, V>> {
