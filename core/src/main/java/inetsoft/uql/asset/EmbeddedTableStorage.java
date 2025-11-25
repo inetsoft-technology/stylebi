@@ -17,7 +17,7 @@
  */
 package inetsoft.uql.asset;
 
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.util.SingletonManager;
@@ -35,7 +35,12 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase() + "__pdata";
+      return getStorage(null);
+   }
+
+   private BlobStorage<Metadata> getStorage(String orgId) {
+      orgId = orgId == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
+      String storeID = orgId.toLowerCase() + "__pdata";
       return SingletonManager.getInstance(BlobStorage.class, storeID, true);
    }
 
@@ -75,16 +80,28 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    public void removeTable(String path) throws IOException {
-      getStorage().delete(path);
+      removeTable(path, null);
+   }
+
+   public void removeTable(String path, String orgId) throws IOException {
+      getStorage(orgId).delete(path);
    }
 
    public Instant getLastModified(String path) throws FileNotFoundException {
-      return getStorage().getLastModified(path);
+      return getLastModified(path, null);
+   }
+
+   public Instant getLastModified(String path, String orgId) throws FileNotFoundException {
+      return getStorage(orgId).getLastModified(path);
    }
 
    public boolean isTempTable(String path) {
+      return isTempTable(path, null);
+   }
+
+   public boolean isTempTable(String path, String orgId) {
       try {
-         return getStorage().getMetadata(path).temp;
+         return getStorage(orgId).getMetadata(path).temp;
       }
       catch(FileNotFoundException e) {
          return false;
@@ -93,29 +110,33 @@ public class EmbeddedTableStorage implements AutoCloseable {
 
    public void removeExpiredTempTables() {
       Instant twoWeeksAgo = Instant.now().minus(14, ChronoUnit.DAYS);
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      String[] orgIds = provider.getOrganizationIDs();
 
-      getStorage().paths().filter(path -> {
-         if(!isTempTable(path)) {
+      for(String orgId : orgIds) {
+         getStorage(orgId).paths().filter(path -> {
+            if(!isTempTable(path, orgId)) {
+               return false;
+            }
+
+            try {
+               Instant lastModified = getLastModified(path, orgId);
+               return lastModified.isBefore(twoWeeksAgo);
+            }
+            catch(FileNotFoundException ignore) {
+            }
+
             return false;
-         }
-
-         try {
-            Instant lastModified = getLastModified(path);
-            return lastModified.isBefore(twoWeeksAgo);
-         }
-         catch(FileNotFoundException ignore) {
-         }
-
-         return false;
-      }).forEach(path -> {
-         try {
-            LOG.debug("Removing expired table {}", path);
-            removeTable(path);
-         }
-         catch(IOException e) {
-            throw new RuntimeException(e);
-         }
-      });
+         }).forEach(path -> {
+            try {
+               LOG.debug("Removing expired table {}", path);
+               removeTable(path, orgId);
+            }
+            catch(IOException e) {
+               throw new RuntimeException(e);
+            }
+         });
+      }
    }
 
    public static EmbeddedTableStorage getInstance() {

@@ -232,6 +232,8 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
 
    public void deleteDataFiles(String reason) {
       deleteDataFiles(dataPaths, reason);
+      dataPaths = null;
+      fileDirty = false;
    }
 
    public void deleteDataFiles(String[] dataPaths, String reason) {
@@ -256,26 +258,10 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                }
             }
          }
-
-         dataPaths = null;
-         fileDirty = false;
       }
       catch(Exception ex) {
          LOG.debug("Failed to delete data file", ex);
       }
-   }
-
-   private AssetRepository getAssetRepository() {
-      AssetRepository rep = null;
-
-      try {
-         rep = AssetUtil.getAssetRepository(false);
-      }
-      catch(Exception ex) {
-         LOG.debug("Failed to get asset repository", ex);
-      }
-
-      return rep;
    }
 
    /**
