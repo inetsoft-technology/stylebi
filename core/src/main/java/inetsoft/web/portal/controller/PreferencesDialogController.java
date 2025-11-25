@@ -21,14 +21,15 @@ import inetsoft.report.io.Builder;
 import inetsoft.report.io.ExportType;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
-import inetsoft.util.MessageException;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.web.portal.model.PreferencesDialogModel;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.lang.SecurityException;
 import java.security.Principal;
 import java.util.*;
 
@@ -64,6 +65,12 @@ public class PreferencesDialogController {
    public PreferencesDialogModel getPreferencesDialogModel(
       Principal principal) throws Exception
    {
+      if(!PortalThemesManager.getManager().isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
+         Catalog catalog = Catalog.getCatalog();
+         throw new SecurityException(catalog.getString("em.common.security.no.permission",
+                                                       catalog.getString("Preferences")));
+      }
+
       PreferencesDialogModel model = new PreferencesDialogModel();
       SecurityEngine engine = SecurityEngine.getSecurity();
       SecurityProvider provider = engine.getSecurityProvider();
@@ -88,7 +95,7 @@ public class PreferencesDialogController {
          model.setdisable(true);
       }
 
-      model.setChangePasswordAvailable(canChangePWD(principal));
+      model.setChangePasswordAvailable(SUtil.canChangePWD(principal));
       model.setHistoryBarEnabled(this.getHistoryBarStatus(principal));
       return model;
    }
@@ -97,6 +104,12 @@ public class PreferencesDialogController {
    public PreferencesDialogModel setPreferencesDialogModel(
       @RequestBody PreferencesDialogModel model, Principal principal)
    {
+      if(!PortalThemesManager.getManager().isButtonVisible(PortalThemesManager.PREFERENCES_BUTTON)) {
+         Catalog catalog = Catalog.getCatalog();
+         throw new SecurityException(catalog.getString("em.common.security.no.permission",
+                                                       catalog.getString("Preferences")));
+      }
+
       String email = model.getEmail();
       email = email == null ? null : email.trim();
       String[] emails = StringUtils.isEmpty(email) ? new String[0] : email.split(",");
@@ -130,18 +143,6 @@ public class PreferencesDialogController {
 
    }
 
-   /**
-    * Check if change password is allowed.
-    */
-   private boolean canChangePWD(Principal principal) throws Exception {
-      boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
-
-      return securityEnabled &&
-         "true".equals(SreeEnv.getProperty("enable.changePassword")) &&
-         !"anonymous".equals(principal.getName()) &&
-         userExistsInEditableSecurityProvider(principal) && SUtil.isInternalUser(principal);
-   }
-
    private List<Integer> getInvisibleFormats() {
       String globalSetting = SreeEnv.getProperty("export.menu.options");
       List<String> formatsList = Arrays.asList(Tool.split(globalSetting, ','));
@@ -159,23 +160,6 @@ public class PreferencesDialogController {
       }
 
       return invisibleFormats;
-   }
-
-   private boolean userExistsInEditableSecurityProvider(Principal principal) {
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
-      AuthenticationProvider authc = securityProvider.getAuthenticationProvider();
-
-      if(authc instanceof AuthenticationChain) {
-         AuthenticationChain chain = (AuthenticationChain) authc;
-         authc = chain.stream()
-            .filter(p -> p instanceof EditableAuthenticationProvider)
-            .filter(p -> p.getUser(pId) != null)
-            .findFirst()
-            .orElse(null);
-      }
-
-      return authc != null;
    }
 
    private final AnalyticRepository analyticRepository;

@@ -41,6 +41,10 @@ export class ChangePasswordDialog implements OnInit {
       this.modelService.getModel(CHANGE_PASSWORD_DIALOG_MODEL_URI).subscribe(
          (data) => {
             this.model = <ChangePasswordDialogModel> data;
+         },
+         (error) => {
+            console.error(error);
+            this.closeDialog();
          }
       );
 
@@ -69,7 +73,8 @@ export class ChangePasswordDialog implements OnInit {
                this.onCommit.emit("ok");
             }
          },
-         () => {
+         (error) => {
+            console.error(error);
          }
       );
    }

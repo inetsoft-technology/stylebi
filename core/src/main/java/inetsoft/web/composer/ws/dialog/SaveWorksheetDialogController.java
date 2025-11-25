@@ -17,9 +17,13 @@
  */
 package inetsoft.web.composer.ws.dialog;
 
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.ws.*;
 import inetsoft.web.composer.ws.WorksheetController;
+import inetsoft.web.security.RequiredPermission;
+import inetsoft.web.security.Secured;
 import inetsoft.web.viewsheet.HandleAssetExceptions;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.command.CloseSheetCommand;
@@ -28,6 +32,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+
 import java.security.Principal;
 
 @Controller
@@ -39,6 +44,11 @@ public class SaveWorksheetDialogController extends WorksheetController {
    }
 
    @GetMapping("api/composer/ws/dialog/save-worksheet-dialog-model/{runtimeId}")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @ResponseBody
    public SaveWorksheetDialogModel getSaveWorksheetInfo(
       @PathVariable("runtimeId") String runtimeId, Principal principal) throws Exception
@@ -48,6 +58,11 @@ public class SaveWorksheetDialogController extends WorksheetController {
    }
 
    @PostMapping("api/composer/ws/dialog/save-worksheet-dialog-model/{runtimeId}")
+   @Secured(@RequiredPermission(
+      resourceType = ResourceType.WORKSHEET,
+      resource = "*",
+      actions = ResourceAction.ACCESS
+   ))
    @ResponseBody
    public SaveWorksheetDialogModelValidator validateSaveWorksheet(
       @PathVariable("runtimeId") String runtimeId,
@@ -64,6 +79,13 @@ public class SaveWorksheetDialogController extends WorksheetController {
       @Payload SaveWorksheetDialogModel model, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       dialogServiceProxy.saveWorksheet(getRuntimeId(), model, principal, commandDispatcher);
    }
 
@@ -73,6 +95,13 @@ public class SaveWorksheetDialogController extends WorksheetController {
       @Payload SaveWorksheetDialogModel model, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       this.saveWorksheet(model,principal,commandDispatcher);
       commandDispatcher.sendCommand(CloseSheetCommand.builder().build());
    }

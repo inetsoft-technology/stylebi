@@ -18,6 +18,9 @@
 package inetsoft.web.vswizard.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
+import inetsoft.util.Catalog;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.*;
@@ -26,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.web.bind.annotation.*;
+
 import java.security.Principal;
 
 @RestController
@@ -50,6 +54,13 @@ public class VSWizardDialogController {
                                   Principal principal)
       throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       String runtimeId = viewsheetService.openTemporaryViewsheet(event.getEntry(), principal);
       vsWizardDialogServiceProxy.createRuntimeSheet(runtimeId, linkUri, dispatcher, principal);
 

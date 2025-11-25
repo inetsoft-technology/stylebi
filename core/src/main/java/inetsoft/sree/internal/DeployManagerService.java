@@ -1584,8 +1584,9 @@ public class DeployManagerService {
                   }
                }
 
+               alias = jarInfo.getFolderAlias().get(entry.toIdentifier());
+
                if(selected) {
-                  alias = jarInfo.getFolderAlias().get(entry.toIdentifier());
                   desc = jarInfo.getFolderDescription().get(entry.getPath());
                }
                else {

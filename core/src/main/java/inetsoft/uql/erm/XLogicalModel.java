@@ -991,6 +991,11 @@ public class XLogicalModel
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, false);
+   }
+
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       // @by jasons 2003-09-24
       // instantiate these class members because this instance was probably
       // created with the default constructor
@@ -1054,7 +1059,7 @@ public class XLogicalModel
 
       for(int i = 0; list != null && i < list.getLength(); i++) {
          XEntity entity = new XEntity();
-         entity.parseXML((Element) list.item(i));
+         entity.parseXML((Element) list.item(i), isSiteAdminImport);
          addEntity(entity);
       }
 

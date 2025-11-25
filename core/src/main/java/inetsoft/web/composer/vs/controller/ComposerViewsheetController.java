@@ -18,6 +18,8 @@
 package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
 import inetsoft.web.composer.vs.event.CloseSheetEvent;
 import inetsoft.web.composer.vs.event.NewViewsheetEvent;
@@ -69,6 +71,13 @@ public class ComposerViewsheetController {
                             CommandDispatcher commandDispatcher, @LinkUri String linkUri)
       throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       String runtimeId = viewsheetService.openTemporaryViewsheet(event.getDataSource(), principal);
       runtimeViewsheetRef.setRuntimeId(runtimeId);
 
@@ -87,6 +96,13 @@ public class ComposerViewsheetController {
                                 CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       return composerViewsheetService.saveViewsheet(runtimeViewsheetRef.getRuntimeId(),
                                              event, principal, dispatcher, linkUri );
    }
@@ -143,6 +159,13 @@ public class ComposerViewsheetController {
                                 CommandDispatcher dispatcher,
                                 @LinkUri String linkUri) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       runtimeViewsheetRef.setRuntimeId(event.getRuntimeViewsheetId());
       String previewRuntimeID = composerViewsheetService.previewViewsheet(runtimeViewsheetRef.getRuntimeId(),
                                                 event, principal, dispatcher, linkUri);
@@ -168,6 +191,13 @@ public class ComposerViewsheetController {
                                        @LinkUri String linkUri)
       throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       String id = runtimeViewsheetRef.getRuntimeId();
 
       if(composerViewsheetService.refreshPreviewViewsheet(id, event,
@@ -191,6 +221,13 @@ public class ComposerViewsheetController {
                                 @LinkUri String linkUri)
       throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.VIEWSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       composerViewsheetService.refreshViewsheet(runtimeViewsheetRef.getRuntimeId(), event,
                                                 principal, dispatcher, linkUri);
    }

@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.MirrorAssemblyImpl;
 import inetsoft.uql.asset.internal.MirrorTableAssemblyInfo;
@@ -61,8 +62,15 @@ public class OpenWorksheetController extends WorksheetController {
    @PostMapping("api/ws/open")
    @ResponseBody
    public OpenSheetEventValidator validateOpen(
-      @RequestBody OpenWorksheetEvent event, Principal principal)
+      @RequestBody OpenWorksheetEvent event, Principal principal) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       String id = event.id();
       AssetEntry entry = AssetEntry.createAssetEntry(id);
       boolean autoSaveFileExists = AutoSaveUtils.exists(entry, principal);
@@ -85,6 +93,13 @@ public class OpenWorksheetController extends WorksheetController {
       @Payload OpenWorksheetEvent event, Principal principal,
       CommandDispatcher commandDispatcher) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       ThreadContext.setPrincipal(principal);
       String id = event.id();
       AssetEntry entry = AssetEntry.createAssetEntry(id);
@@ -135,6 +150,13 @@ public class OpenWorksheetController extends WorksheetController {
    public void newWorksheet(
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       WorksheetService engine = getWorksheetEngine();
       String runtimeId = engine.openTemporaryWorksheet(principal, null);
       getRuntimeViewsheetRef().setRuntimeId(runtimeId);

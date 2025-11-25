@@ -18,6 +18,8 @@
 
 package inetsoft.web.composer.ws;
 
+import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.ws.SaveWSConfirmationModel;
 import inetsoft.web.composer.ws.event.SaveSheetEvent;
@@ -31,6 +33,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
+
 import java.security.Principal;
 
 @Controller
@@ -45,6 +48,13 @@ public class SaveWorksheetController extends WorksheetController {
    public boolean saveWorksheet(@Payload SaveSheetEvent event,
       Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       return saveWorksheetServiceProxy.saveWorksheet(getRuntimeId(), event, principal, commandDispatcher);
    }
 
@@ -63,6 +73,13 @@ public class SaveWorksheetController extends WorksheetController {
    public SaveWSConfirmationModel checkPrimaryAssembly(@RequestBody SaveSheetEvent event,
       @RemainingPath String runtimeId, Principal principal) throws Exception
    {
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
       runtimeId = Tool.byteDecode(runtimeId);
       return saveWorksheetServiceProxy.checkPrimaryAssembly(runtimeId, event, principal);
    }
@@ -70,8 +87,16 @@ public class SaveWorksheetController extends WorksheetController {
    @GetMapping("/api/composer/worksheet/checkDependChanged")
    @ResponseBody
    public boolean checkDependChanged(@RequestParam("rid") String rid, Principal principal)
+      throws Exception
    {
-    return saveWorksheetServiceProxy.checkDependChanged(rid, principal);
+      if(!SecurityEngine.getSecurity().checkPermission(principal, ResourceType.WORKSHEET,
+                                                       "*", ResourceAction.ACCESS))
+      {
+         throw new SecurityException(Catalog.getCatalog().getString(
+            "composer.authorization.permissionDenied"));
+      }
+
+      return saveWorksheetServiceProxy.checkDependChanged(rid, principal);
    }
 
    @GetMapping("/api/composer/worksheet/checkCycle")

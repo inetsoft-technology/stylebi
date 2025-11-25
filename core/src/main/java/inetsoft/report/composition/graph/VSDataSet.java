@@ -1284,7 +1284,7 @@ public class VSDataSet extends AbstractDataSet implements AttributeDataSet {
          }
       }
 
-      if(link == null || row < 0 || col < 0 || row >= rcount) {
+      if(link == null || row < 0 || col < 0 || row >= rcount || col >= ccount) {
          return null;
       }
 

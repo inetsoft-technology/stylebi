@@ -17,12 +17,14 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.util.*;
+import inetsoft.util.FileSystemService;
+import inetsoft.util.Tool;
 import inetsoft.util.cachefs.CacheFS;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.LinkUri;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -66,15 +68,20 @@ public class ImportXLSController {
       value = "/api/vs/importXLS/upload/{type}/**",
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
    @ResponseBody
-   public void processGetAssemblyImage(@RemainingPath String runtimeId,
-                                       @PathVariable("type") String type,
-                                       @RequestParam("file") MultipartFile file)
+   public void uploadExcelFile(@RemainingPath String runtimeId,  @PathVariable("type") String type,
+                               @RequestParam("file") MultipartFile file, Principal principal)
       throws Exception
    {
-      runtimeId = Tool.byteDecode(runtimeId).replace('/', '_');
+      String id = Tool.byteDecode(runtimeId);
+
+      if(!importXLSControllerServiceProxy.sheetExists(id, principal)) {
+         return;
+      }
+
+      id = id.replace('/', '_');
       FileSystemService fileSystemService = FileSystemService.getInstance();
 
-      String key = "/" + ImportXLSControllerService.class.getName() + "_" + Tool.encodeURL(runtimeId) + "_" + type;
+      String key = "/" + ImportXLSControllerService.class.getName() + "_" + Tool.encodeURL(id) + "_" + type;
       Path path = CacheFS.getPath("tempStorage", key);
       fileSystemService.remove(path, 120000);
 
@@ -106,5 +113,5 @@ public class ImportXLSController {
 
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private ImportXLSControllerServiceProxy importXLSControllerServiceProxy;
+   private final ImportXLSControllerServiceProxy importXLSControllerServiceProxy;
 }

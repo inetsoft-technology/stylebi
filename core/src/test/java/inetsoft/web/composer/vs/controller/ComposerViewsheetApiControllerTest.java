@@ -20,6 +20,7 @@ package inetsoft.web.composer.vs.controller;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.security.*;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
@@ -84,6 +85,10 @@ class ComposerViewsheetApiControllerTest {
       when(rvs.getViewsheetSandbox()).thenReturn(box);
       when(box.isCancelled(any(Long.class))).thenReturn(false);
       when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+      when(principal.isIgnoreLogin()).thenReturn(true);
+      when(principal.getName()).thenReturn(IdentityID.getConvertKey(XPrincipal.ANONYMOUS));
+      when(principal.getAllRoles(any(AuthenticationProvider.class))).thenReturn(new IdentityID[0]);
+      when(principal.getRoles()).thenReturn(new IdentityID[0]);
 
       controller.previewViewsheet(event, principal, dispatcher, "");
       final InOrder coreLifecycleServiceOrder = inOrder(coreLifecycleService);
@@ -105,6 +110,10 @@ class ComposerViewsheetApiControllerTest {
    void initalizeObjectTreeOnNewVSTest() throws Exception {
       when(viewsheetService.getViewsheet(any(), any())).thenReturn(rvs);
       when(rvs.getEntry()).thenReturn(assetEntry);
+      when(principal.isIgnoreLogin()).thenReturn(true);
+      when(principal.getName()).thenReturn(IdentityID.getConvertKey(XPrincipal.ANONYMOUS));
+      when(principal.getAllRoles(any(AuthenticationProvider.class))).thenReturn(new IdentityID[0]);
+      when(principal.getRoles()).thenReturn(new IdentityID[0]);
       NewViewsheetEvent event = mock(NewViewsheetEvent.class);
       controller.newViewsheet(event, principal, dispatcher, "");
       verify(dispatcher).sendCommand(any(PopulateVSObjectTreeCommand.class));
@@ -121,7 +130,7 @@ class ComposerViewsheetApiControllerTest {
    @Mock AssetEntry assetEntry;
    @Mock LayoutInfo layoutInfo;
    @Mock OpenPreviewViewsheetEvent event;
-   @Mock XPrincipal principal;
+   @Mock SRPrincipal principal;
    @Mock CommandDispatcher dispatcher;
    @Mock VSObjectTreeService vsObjectTreeService;
    @Mock VSRefreshController refreshController;

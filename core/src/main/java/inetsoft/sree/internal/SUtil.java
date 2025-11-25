@@ -3504,6 +3504,35 @@ public class SUtil {
          .orElse(lowcase_orgID);
    }
 
+   /**
+    * Check if change password is allowed.
+    */
+   public static boolean canChangePWD(Principal principal) throws Exception {
+      boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+
+      return securityEnabled &&
+         "true".equals(SreeEnv.getProperty("enable.changePassword")) &&
+         !"anonymous".equals(principal.getName()) &&
+         userExistsInEditableSecurityProvider(principal) && SUtil.isInternalUser(principal);
+   }
+
+   private static boolean userExistsInEditableSecurityProvider(Principal principal) {
+      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      AuthenticationProvider authc = securityProvider.getAuthenticationProvider();
+
+      if(authc instanceof AuthenticationChain) {
+         AuthenticationChain chain = (AuthenticationChain) authc;
+         authc = chain.stream()
+            .filter(p -> p instanceof EditableAuthenticationProvider)
+            .filter(p -> p.getUser(pId) != null)
+            .findFirst()
+            .orElse(null);
+      }
+
+      return authc != null;
+   }
+
    private static final List<WeakReference<HttpSession>> userSessions = new ArrayList<>();
    private static BitSet dontNeedEncoding;
    private static ScheduleThread scheduleThread = null;
