@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AttributeRef;
@@ -239,6 +240,7 @@ public class CrosstabPropertyDialogController {
       vsAssemblyScriptPaneModel.scriptEnabled(crosstabAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(crosstabAssemblyInfo.getScript() == null ?
                                               "" : crosstabAssemblyInfo.getScript());
+      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;
