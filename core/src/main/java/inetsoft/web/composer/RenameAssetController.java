@@ -310,6 +310,13 @@ public class RenameAssetController {
          subName = idx < 0 ? subName : subName.substring(idx + 1);
          renameTableStyleFolder(folder, nname + LibManager.SEPARATOR + subName, manager);
       }
+
+      try {
+         manager.save();
+      }
+      catch(Exception e) {
+         //
+      }
    }
 
    /**
