@@ -22,8 +22,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphTarget;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.Organization;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractDataRef;
@@ -122,224 +121,223 @@ public class ChartPropertyDialogController {
       String originalOrg = OrganizationManager.getInstance().getCurrentOrgID();
 
       try {
-         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+         try {
+            rvs = viewsheetService.getViewsheet(runtimeId, principal);
 
-         if(rvs != null & rvs.getEntry() != null && SUtil.isDefaultVSGloballyVisible(principal) &&
-            !Tool.equals(originalOrg, Organization.getDefaultOrganizationID()) &&
-            Tool.equals(rvs.getEntry().getOrgID(), Organization.getDefaultOrganizationID()))
-         {
-            OrganizationManager.getInstance().setCurrentOrgID(Organization.getDefaultOrganizationID());
-            orgTempDefaultForGloballyVisible = true;
+            if(rvs != null & rvs.getEntry() != null && SUtil.isDefaultVSGloballyVisible(principal) &&
+               !Tool.equals(originalOrg, Organization.getDefaultOrganizationID()) &&
+               Tool.equals(rvs.getEntry().getOrgID(), Organization.getDefaultOrganizationID()))
+            {
+               orgTempDefaultForGloballyVisible = true;
+               OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
+            }
+
+            vs = rvs.getViewsheet();
+            chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
+            chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
+            vsChartInfo = chartAssemblyInfo.getVSChartInfo();
+            vsChartInfo = vsChartInfo == null ? new VSChartInfo() : vsChartInfo;
+            chartDescriptor = chartAssemblyInfo.getChartDescriptor();
+         }
+         catch(Exception e) {
+            //TODO decide what to do with exception
+            throw e;
          }
 
-         vs = rvs.getViewsheet();
-         chartAssembly = (ChartVSAssembly) vs.getAssembly(objectId);
-         chartAssemblyInfo = (ChartVSAssemblyInfo) chartAssembly.getVSAssemblyInfo();
-         vsChartInfo = chartAssemblyInfo.getVSChartInfo();
-         vsChartInfo = vsChartInfo == null ? new VSChartInfo() : vsChartInfo;
-         chartDescriptor = chartAssemblyInfo.getChartDescriptor();
-      }
-      catch(Exception e) {
-         //TODO decide what to do with exception
-         if(orgTempDefaultForGloballyVisible) {
-            OrganizationManager.getInstance().setCurrentOrgID(originalOrg);
+         ChartPropertyDialogModel result = new ChartPropertyDialogModel();
+         ChartGeneralPaneModel chartGeneralPaneModel = result.getChartGeneralPaneModel();
+         GeneralPropPaneModel generalPropPaneModel =
+            chartGeneralPaneModel.getGeneralPropPaneModel();
+         BasicGeneralPaneModel basicGeneralPaneModel =
+            generalPropPaneModel.getBasicGeneralPaneModel();
+         TipPaneModel tipPaneModel = chartGeneralPaneModel.getTipPaneModel();
+         TipCustomizeDialogModel tipCustomizeDialogModel =
+            tipPaneModel.getTipCustomizeDialogModel();
+         SizePositionPaneModel sizePositionPaneModel =
+            chartGeneralPaneModel.getSizePositionPaneModel();
+         ChartLinePaneModel chartLinePaneModel = result.getChartLinePaneModel();
+
+         if(chartLinePaneModel == null && chartDescriptor != null) {
+            ChartLinePaneModel linePaneModel =
+               new ChartLinePaneModel(vsChartInfo, chartDescriptor.getPlotDescriptor());
+
+            if(DateComparisonUtil.appliedDateComparison(chartAssemblyInfo)) {
+               linePaneModel.setProjectForwardEnabled(vsChartInfo.canProjectForward(true));
+            }
+
+            result.setChartLinePaneModel(linePaneModel);
          }
 
-         throw e;
-      }
+         HierarchyPropertyPaneModel hierarchyPropertyPaneModel =
+            result.getHierarchyPropertyPaneModel();
+         VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel =
+            VSAssemblyScriptPaneModel.builder();
+         TitlePropPaneModel titlePropPaneModel = chartGeneralPaneModel.getTitlePropPaneModel();
+         PaddingPaneModel paddingPaneModel = chartGeneralPaneModel.getPaddingPaneModel();
 
-      ChartPropertyDialogModel result = new ChartPropertyDialogModel();
-      ChartGeneralPaneModel chartGeneralPaneModel = result.getChartGeneralPaneModel();
-      GeneralPropPaneModel generalPropPaneModel =
-         chartGeneralPaneModel.getGeneralPropPaneModel();
-      BasicGeneralPaneModel basicGeneralPaneModel =
-         generalPropPaneModel.getBasicGeneralPaneModel();
-      TipPaneModel tipPaneModel = chartGeneralPaneModel.getTipPaneModel();
-      TipCustomizeDialogModel tipCustomizeDialogModel =
-         tipPaneModel.getTipCustomizeDialogModel();
-      SizePositionPaneModel sizePositionPaneModel =
-         chartGeneralPaneModel.getSizePositionPaneModel();
-      ChartLinePaneModel chartLinePaneModel = result.getChartLinePaneModel();
+         generalPropPaneModel.setShowEnabledGroup(true);
+         generalPropPaneModel.setEnabled(chartAssemblyInfo.getEnabledValue());
 
-      if(chartLinePaneModel == null && chartDescriptor != null) {
-         ChartLinePaneModel linePaneModel =
-            new ChartLinePaneModel(vsChartInfo, chartDescriptor.getPlotDescriptor());
+         basicGeneralPaneModel.setName(chartAssemblyInfo.getAbsoluteName());
+         basicGeneralPaneModel.setNameEditable(!chartAssemblyInfo.isWizardTemporary());
+         basicGeneralPaneModel.setPrimary(chartAssemblyInfo.isPrimary());
+         basicGeneralPaneModel.setVisible(chartAssemblyInfo.getVisibleValue());
+         basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
+            vs, chartAssemblyInfo.getAbsoluteName()));
 
-         if(DateComparisonUtil.appliedDateComparison(chartAssemblyInfo)) {
-            linePaneModel.setProjectForwardEnabled(vsChartInfo.canProjectForward(true));
-         }
+         paddingPaneModel.setTop(chartAssemblyInfo.getPadding().top);
+         paddingPaneModel.setLeft(chartAssemblyInfo.getPadding().left);
+         paddingPaneModel.setBottom(chartAssemblyInfo.getPadding().bottom);
+         paddingPaneModel.setRight(chartAssemblyInfo.getPadding().right);
 
-         result.setChartLinePaneModel(linePaneModel);
-      }
+         titlePropPaneModel.setVisible(chartAssemblyInfo.getTitleVisibleValue());
+         titlePropPaneModel.setTitle(chartAssemblyInfo.getTitleValue());
 
-      HierarchyPropertyPaneModel hierarchyPropertyPaneModel =
-         result.getHierarchyPropertyPaneModel();
-      VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel =
-         VSAssemblyScriptPaneModel.builder();
-      TitlePropPaneModel titlePropPaneModel = chartGeneralPaneModel.getTitlePropPaneModel();
-      PaddingPaneModel paddingPaneModel = chartGeneralPaneModel.getPaddingPaneModel();
+         tipPaneModel.setChart(true);
+         tipPaneModel.setTipOption(
+            chartAssemblyInfo.getTipOptionValue() == TipVSAssemblyInfo.VIEWTIP_OPTION);
+         tipPaneModel.setTipView(chartAssemblyInfo.getTipViewValue());
+         tipPaneModel.setAlpha(chartAssemblyInfo.getAlphaValue() == null ?
+                                  "100" : chartAssemblyInfo.getAlphaValue());
+         String[] flyoverViews = chartAssemblyInfo.getFlyoverViewsValue();
+         tipPaneModel.setFlyOverViews(flyoverViews == null ? new String[0] : flyoverViews);
+         tipPaneModel.setFlyOnClick(Boolean.valueOf(chartAssemblyInfo.getFlyOnClickValue()));
+         tipPaneModel.setPopComponents(
+            this.vsObjectPropertyService.getSupportedTablePopComponents(
+               rvs, chartAssemblyInfo.getAbsoluteName(), false));
+         tipPaneModel.setFlyoverComponents(
+            this.vsObjectPropertyService.getSupportedTablePopComponents(
+               rvs, chartAssemblyInfo.getAbsoluteName(), true));
+         String srctbl = chartAssemblyInfo.getTableName();
+         tipPaneModel.setDataViewEnabled(srctbl != null && !VSUtil.isVSAssemblyBinding(srctbl));
 
-      generalPropPaneModel.setShowEnabledGroup(true);
-      generalPropPaneModel.setEnabled(chartAssemblyInfo.getEnabledValue());
+         boolean tipViewInPopComponents = false;
+         //prevent broken tipView after passing invalid string
+         for(String popComp : tipPaneModel.getPopComponents()) {
 
-      basicGeneralPaneModel.setName(chartAssemblyInfo.getAbsoluteName());
-      basicGeneralPaneModel.setNameEditable(!chartAssemblyInfo.isWizardTemporary());
-      basicGeneralPaneModel.setPrimary(chartAssemblyInfo.isPrimary());
-      basicGeneralPaneModel.setVisible(chartAssemblyInfo.getVisibleValue());
-      basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
-         vs, chartAssemblyInfo.getAbsoluteName()));
-
-      paddingPaneModel.setTop(chartAssemblyInfo.getPadding().top);
-      paddingPaneModel.setLeft(chartAssemblyInfo.getPadding().left);
-      paddingPaneModel.setBottom(chartAssemblyInfo.getPadding().bottom);
-      paddingPaneModel.setRight(chartAssemblyInfo.getPadding().right);
-
-      titlePropPaneModel.setVisible(chartAssemblyInfo.getTitleVisibleValue());
-      titlePropPaneModel.setTitle(chartAssemblyInfo.getTitleValue());
-
-      tipPaneModel.setChart(true);
-      tipPaneModel.setTipOption(
-         chartAssemblyInfo.getTipOptionValue() == TipVSAssemblyInfo.VIEWTIP_OPTION);
-      tipPaneModel.setTipView(chartAssemblyInfo.getTipViewValue());
-      tipPaneModel.setAlpha(chartAssemblyInfo.getAlphaValue() == null ?
-                               "100" : chartAssemblyInfo.getAlphaValue());
-      String[] flyoverViews = chartAssemblyInfo.getFlyoverViewsValue();
-      tipPaneModel.setFlyOverViews(flyoverViews == null ? new String[0] : flyoverViews);
-      tipPaneModel.setFlyOnClick(Boolean.valueOf(chartAssemblyInfo.getFlyOnClickValue()));
-      tipPaneModel.setPopComponents(
-         this.vsObjectPropertyService.getSupportedTablePopComponents(
-            rvs, chartAssemblyInfo.getAbsoluteName(), false));
-      tipPaneModel.setFlyoverComponents(
-         this.vsObjectPropertyService.getSupportedTablePopComponents(
-            rvs, chartAssemblyInfo.getAbsoluteName(), true));
-      String srctbl = chartAssemblyInfo.getTableName();
-      tipPaneModel.setDataViewEnabled(srctbl != null && !VSUtil.isVSAssemblyBinding(srctbl));
-
-      boolean tipViewInPopComponents = false;
-      //prevent broken tipView after passing invalid string
-      for(String popComp : tipPaneModel.getPopComponents()) {
-
-         if(Tool.equals(popComp, tipPaneModel.getTipView())) {
-            tipViewInPopComponents = true;
-            break;
-         }
-      }
-
-      if(!tipViewInPopComponents) {
-         tipPaneModel.setTipView(null);
-      }
-
-      Point pos = dialogService.getAssemblyPosition(chartAssemblyInfo, vs);
-      Dimension size = dialogService.getAssemblySize(chartAssemblyInfo, vs);
-
-      sizePositionPaneModel.setPositions(pos, size);
-      sizePositionPaneModel.setTitleHeight(chartAssemblyInfo.getTitleHeightValue());
-      sizePositionPaneModel.setContainer(chartAssembly.getContainer() != null);
-      String[] dataRefList = getDataRefList(vsChartInfo, VSUtil.getCubeType(chartAssembly));
-      tipCustomizeDialogModel.setDataRefList(dataRefList);
-      tipCustomizeDialogModel.setAvailableTipValues(VSUtil.getAvailableTipValues(dataRefList));
-
-      String customString = vsChartInfo.getToolTipValue();
-
-      if(vsChartInfo.isTooltipVisible()) {
-         tipCustomizeDialogModel.setCustomRB(customString != null && !customString.isEmpty()
-                                                ? TipCustomizeDialogModel.TipFormat.CUSTOM
-                                                : TipCustomizeDialogModel.TipFormat.DEFAULT);
-      }
-      else {
-         tipCustomizeDialogModel.setCustomRB(TipCustomizeDialogModel.TipFormat.NONE);
-      }
-
-      tipCustomizeDialogModel.setChart(true);
-      tipCustomizeDialogModel.setCustomTip(vsChartInfo.getCustomTooltip());
-
-      if(vsChartInfo.getCombinedToolTipValue()) {
-         tipCustomizeDialogModel.setCombinedTip(true);
-      }
-
-      int chartStyle = vsChartInfo.getChartStyle();
-
-      tipCustomizeDialogModel.setLineChart(!vsChartInfo.isMultiStyles() &&
-                                              (chartStyle == GraphTypes.CHART_LINE ||
-                                              chartStyle == GraphTypes.CHART_LINE_STACK ||
-                                              chartStyle == GraphTypes.CHART_STEP ||
-                                              chartStyle == GraphTypes.CHART_STEP_STACK ||
-                                              chartStyle == GraphTypes.CHART_JUMP ||
-                                              chartStyle == GraphTypes.CHART_STEP_AREA ||
-                                              chartStyle == GraphTypes.CHART_STEP_AREA_STACK ||
-                                              chartStyle == GraphTypes.CHART_AREA ||
-                                              chartStyle == GraphTypes.CHART_AREA_STACK));
-
-      ChartAdvancedPaneModel chartAdvancedPaneModel = result.getChartAdvancedPaneModel();
-
-      if(chartAdvancedPaneModel == null) {
-         chartAdvancedPaneModel = new ChartAdvancedPaneModel(chartAssemblyInfo);
-      }
-
-      chartAdvancedPaneModel.setGlossyEffectSupported(
-         this.chartPropertyService.isSupported(vsChartInfo, "effectEnabled", false));
-      chartAdvancedPaneModel.setSparklineSupported(
-         this.chartPropertyService.isSupported(vsChartInfo, "isSparklineSupported", true));
-
-      ChartTargetLinesPaneModel linesModel = new ChartTargetLinesPaneModel();
-      linesModel.setMapInfo(chartAssemblyInfo.getVSChartInfo() instanceof MapInfo);
-      linesModel.setSupportsTarget(this.chartPropertyService.
-         supportsTarget(vsChartInfo, ChartPropertyService.NO_TARGET_STYLES));
-      boolean appliedDateComparison = DateComparisonUtil.appliedDateComparison(chartAssemblyInfo);
-      linesModel.setChartTargets(this.chartPropertyService.
-         getTargetInfoList(chartDescriptor, vsChartInfo, appliedDateComparison || hasDynamic(vsChartInfo)));
-      linesModel.setNewTargetInfo(this.chartPropertyService.
-         getTargetInfo(vsChartInfo, new GraphTarget(), appliedDateComparison || hasDynamic(vsChartInfo)));
-      linesModel.setAvailableFields(this.chartPropertyService.getMeasures(vsChartInfo,
-         appliedDateComparison || hasDynamic(vsChartInfo)));
-      chartAdvancedPaneModel.setChartTargetLinesPaneModel(linesModel);
-      result.setChartAdvancedPaneModel(chartAdvancedPaneModel);
-
-      SourceInfo sourceInfo = chartAssemblyInfo.getSourceInfo();
-      String tableName = sourceInfo == null ? "" : sourceInfo.getSource();
-      tableName = tableName == null ? "" : tableName;
-
-      hierarchyPropertyPaneModel.setCube(tableName.contains(Assembly.CUBE_VS));
-
-      if(tableName.length() > 0 && !tableName.contains(Assembly.CUBE_VS)) {
-         hierarchyPropertyPaneModel.setColumnList(
-            this.vsObjectPropertyService.getHierarchyColumnList(
-               chartAssemblyInfo.getAbsoluteName(), tableName, rvs, principal));
-      }
-      else {
-         hierarchyPropertyPaneModel.setColumnList(new OutputColumnRefModel[0]);
-      }
-
-      List<VSDimensionModel> vsDimensionModels = new ArrayList<>();
-
-      XCube cube = chartAssemblyInfo.getXCube();
-
-      if(cube instanceof VSCube) {
-         VSCube vsCube = (VSCube) chartAssemblyInfo.getXCube();
-
-         if(vsCube != null) {
-            Enumeration dims = vsCube.getDimensions();
-
-            while(dims.hasMoreElements()) {
-               VSDimension dim = (VSDimension) dims.nextElement();
-               vsDimensionModels.add(this.vsObjectPropertyService.convertVSDimensionToModel(dim));
+            if(Tool.equals(popComp, tipPaneModel.getTipView())) {
+               tipViewInPopComponents = true;
+               break;
             }
          }
+
+         if(!tipViewInPopComponents) {
+            tipPaneModel.setTipView(null);
+         }
+
+         Point pos = dialogService.getAssemblyPosition(chartAssemblyInfo, vs);
+         Dimension size = dialogService.getAssemblySize(chartAssemblyInfo, vs);
+
+         sizePositionPaneModel.setPositions(pos, size);
+         sizePositionPaneModel.setTitleHeight(chartAssemblyInfo.getTitleHeightValue());
+         sizePositionPaneModel.setContainer(chartAssembly.getContainer() != null);
+         String[] dataRefList = getDataRefList(vsChartInfo, VSUtil.getCubeType(chartAssembly));
+         tipCustomizeDialogModel.setDataRefList(dataRefList);
+         tipCustomizeDialogModel.setAvailableTipValues(VSUtil.getAvailableTipValues(dataRefList));
+
+         String customString = vsChartInfo.getToolTipValue();
+
+         if(vsChartInfo.isTooltipVisible()) {
+            tipCustomizeDialogModel.setCustomRB(customString != null && !customString.isEmpty()
+                                                   ? TipCustomizeDialogModel.TipFormat.CUSTOM
+                                                   : TipCustomizeDialogModel.TipFormat.DEFAULT);
+         }
+         else {
+            tipCustomizeDialogModel.setCustomRB(TipCustomizeDialogModel.TipFormat.NONE);
+         }
+
+         tipCustomizeDialogModel.setChart(true);
+         tipCustomizeDialogModel.setCustomTip(vsChartInfo.getCustomTooltip());
+
+         if(vsChartInfo.getCombinedToolTipValue()) {
+            tipCustomizeDialogModel.setCombinedTip(true);
+         }
+
+         int chartStyle = vsChartInfo.getChartStyle();
+
+         tipCustomizeDialogModel.setLineChart(!vsChartInfo.isMultiStyles() &&
+                                                 (chartStyle == GraphTypes.CHART_LINE ||
+                                                    chartStyle == GraphTypes.CHART_LINE_STACK ||
+                                                    chartStyle == GraphTypes.CHART_STEP ||
+                                                    chartStyle == GraphTypes.CHART_STEP_STACK ||
+                                                    chartStyle == GraphTypes.CHART_JUMP ||
+                                                    chartStyle == GraphTypes.CHART_STEP_AREA ||
+                                                    chartStyle == GraphTypes.CHART_STEP_AREA_STACK ||
+                                                    chartStyle == GraphTypes.CHART_AREA ||
+                                                    chartStyle == GraphTypes.CHART_AREA_STACK));
+
+         ChartAdvancedPaneModel chartAdvancedPaneModel = result.getChartAdvancedPaneModel();
+
+         if(chartAdvancedPaneModel == null) {
+            chartAdvancedPaneModel = new ChartAdvancedPaneModel(chartAssemblyInfo);
+         }
+
+         chartAdvancedPaneModel.setGlossyEffectSupported(
+            this.chartPropertyService.isSupported(vsChartInfo, "effectEnabled", false));
+         chartAdvancedPaneModel.setSparklineSupported(
+            this.chartPropertyService.isSupported(vsChartInfo, "isSparklineSupported", true));
+
+         ChartTargetLinesPaneModel linesModel = new ChartTargetLinesPaneModel();
+         linesModel.setMapInfo(chartAssemblyInfo.getVSChartInfo() instanceof MapInfo);
+         linesModel.setSupportsTarget(this.chartPropertyService.
+                                         supportsTarget(vsChartInfo, ChartPropertyService.NO_TARGET_STYLES));
+         boolean appliedDateComparison = DateComparisonUtil.appliedDateComparison(chartAssemblyInfo);
+         linesModel.setChartTargets(this.chartPropertyService.
+                                       getTargetInfoList(chartDescriptor, vsChartInfo, appliedDateComparison || hasDynamic(vsChartInfo)));
+         linesModel.setNewTargetInfo(this.chartPropertyService.
+                                        getTargetInfo(vsChartInfo, new GraphTarget(), appliedDateComparison || hasDynamic(vsChartInfo)));
+         linesModel.setAvailableFields(this.chartPropertyService.getMeasures(vsChartInfo,
+                                                                             appliedDateComparison || hasDynamic(vsChartInfo)));
+         chartAdvancedPaneModel.setChartTargetLinesPaneModel(linesModel);
+         result.setChartAdvancedPaneModel(chartAdvancedPaneModel);
+
+         SourceInfo sourceInfo = chartAssemblyInfo.getSourceInfo();
+         String tableName = sourceInfo == null ? "" : sourceInfo.getSource();
+         tableName = tableName == null ? "" : tableName;
+
+         hierarchyPropertyPaneModel.setCube(tableName.contains(Assembly.CUBE_VS));
+
+         if(tableName.length() > 0 && !tableName.contains(Assembly.CUBE_VS)) {
+            hierarchyPropertyPaneModel.setColumnList(
+               this.vsObjectPropertyService.getHierarchyColumnList(
+                  chartAssemblyInfo.getAbsoluteName(), tableName, rvs, principal));
+         }
+         else {
+            hierarchyPropertyPaneModel.setColumnList(new OutputColumnRefModel[0]);
+         }
+
+         List<VSDimensionModel> vsDimensionModels = new ArrayList<>();
+
+         XCube cube = chartAssemblyInfo.getXCube();
+
+         if(cube instanceof VSCube) {
+            VSCube vsCube = (VSCube) chartAssemblyInfo.getXCube();
+
+            if(vsCube != null) {
+               Enumeration dims = vsCube.getDimensions();
+
+               while(dims.hasMoreElements()) {
+                  VSDimension dim = (VSDimension) dims.nextElement();
+                  vsDimensionModels.add(this.vsObjectPropertyService.convertVSDimensionToModel(dim));
+               }
+            }
+         }
+
+         hierarchyPropertyPaneModel.setDimensions(vsDimensionModels.toArray(new VSDimensionModel[0]));
+         hierarchyPropertyPaneModel.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
+
+         vsAssemblyScriptPaneModel.scriptEnabled(chartAssemblyInfo.isScriptEnabled());
+         vsAssemblyScriptPaneModel.expression(chartAssemblyInfo.getScript() == null ?
+                                                 "" : chartAssemblyInfo.getScript());
+         result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
+
+         return result;
       }
-
-      hierarchyPropertyPaneModel.setDimensions(vsDimensionModels.toArray(new VSDimensionModel[0]));
-      hierarchyPropertyPaneModel.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
-
-      vsAssemblyScriptPaneModel.scriptEnabled(chartAssemblyInfo.isScriptEnabled());
-      vsAssemblyScriptPaneModel.expression(chartAssemblyInfo.getScript() == null ?
-                                              "" : chartAssemblyInfo.getScript());
-      result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
-
-      if(orgTempDefaultForGloballyVisible) {
-         OrganizationManager.getInstance().setCurrentOrgID(originalOrg);
+      finally {
+         if(orgTempDefaultForGloballyVisible) {
+            OrganizationContextHolder.clear();
+         }
       }
-
-      return result;
    }
 
    @PostMapping("api/composer/vs/chart-property-dialog-model/checkTrap/{objectId}/**")

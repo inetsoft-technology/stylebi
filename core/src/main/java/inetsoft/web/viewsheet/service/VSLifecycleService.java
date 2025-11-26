@@ -115,8 +115,8 @@ public class VSLifecycleService {
             !Tool.equals(originalOrg, Organization.getDefaultOrganization()) &&
             Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
          {
-            OrganizationManager.getInstance().setCurrentOrgID(Organization.getDefaultOrganizationID());
             orgTempDefaultForGloballyVisible = true;
+            OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
          }
 
          if(Thread.currentThread() instanceof GroupedThread) {
@@ -172,7 +172,7 @@ public class VSLifecycleService {
          AssetDataCache.monitor(false);
 
          if(orgTempDefaultForGloballyVisible) {
-            OrganizationManager.getInstance().setCurrentOrgID(originalOrg);
+            OrganizationContextHolder.clear();
          }
       }
    }

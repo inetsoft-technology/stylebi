@@ -35,8 +35,7 @@ import inetsoft.report.internal.graph.MapData;
 import inetsoft.report.script.*;
 import inetsoft.report.script.viewsheet.*;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.Organization;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -652,8 +651,8 @@ public class VSScriptableController {
          !Tool.equals(originalOrg, Organization.getDefaultOrganizationID()) &&
          Tool.equals(rvs.getEntry().getOrgID(), Organization.getDefaultOrganizationID()))
       {
-         OrganizationManager.getInstance().setCurrentOrgID(Organization.getDefaultOrganizationID());
          orgTempDefaultForGloballyVisible = true;
+         OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
       }
 
       try {
@@ -696,7 +695,7 @@ public class VSScriptableController {
       }
       finally {
          if(orgTempDefaultForGloballyVisible) {
-            OrganizationManager.getInstance().setCurrentOrgID(originalOrg);
+            OrganizationContextHolder.clear();
          }
       }
    }
