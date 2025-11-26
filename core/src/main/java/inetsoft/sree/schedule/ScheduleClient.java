@@ -223,6 +223,7 @@ public class ScheduleClient {
       args.add("--add-opens=java.desktop/java.awt=ALL-UNNAMED");
       args.add("--add-opens=java.desktop/java.awt.geom=ALL-UNNAMED");
       args.add("--add-opens=java.desktop/java.awt.font=ALL-UNNAMED");
+      args.add("--add-opens=java.desktop/java.beans=ALL-UNNAMED");
       args.add(sreeHome);
       args.add(headless);
       args.add("-jar");
