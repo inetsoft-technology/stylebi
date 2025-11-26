@@ -99,9 +99,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
                GetViewsheetEntryTask task = new GetViewsheetEntryTask(runtimeId, principal);
                AssetEntry entry = ViewsheetEngine.getViewsheetEngine().affinityCall(runtimeId, task);
 
-               if(entry != null) {
-                  thread.addRecord(LogContext.DASHBOARD, entry.getPath());
-               }
+               thread.addRecord(LogContext.DASHBOARD, entry.getPath());
             }
          }
          catch(ExpiredSheetException | InvalidUserException e) {
@@ -160,14 +158,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
 
       @Override
       public AssetEntry call() {
-         try {
-            return ViewsheetEngine.getViewsheetEngine().getSheet(id, principal).getEntry();
-         }
-         catch(ExpiredSheetException ese) {
-            //
-         }
-
-         return null;
+         return ViewsheetEngine.getViewsheetEngine().getSheet(id, principal).getEntry();
       }
 
       private final String id;
