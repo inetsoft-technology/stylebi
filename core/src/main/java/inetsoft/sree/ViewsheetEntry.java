@@ -202,7 +202,7 @@ public class ViewsheetEntry extends RepositoryEntry {
       snapshot = "true".equals(Tool.getAttribute(tag, "snapshot"));
       identifier = Tool.byteDecode(Tool.getAttribute(tag, "identifier"));
 
-      if(isSiteAdminImport && identifier != null) {
+      if(identifier != null) {
          identifier = SUtil.handleViewsheetLinkOrgMismatch(identifier, isSiteAdminImport);
       }
 
