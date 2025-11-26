@@ -118,6 +118,7 @@ public class ViewsheetPropertyDialogController {
       vsOptionsPaneModel.setPromptForParams(!info.isDisableParameterSheet());
       vsOptionsPaneModel.setSelectionAssociation(info.isAssociationEnabled());
       vsOptionsPaneModel.setMaxRowsWarning(info.isMaxRowsWarning());
+      vsOptionsPaneModel.setHideNotifications(info.isHideNotifications());
       vsOptionsPaneModel.setCreateMv(info.isMVOnDemand());
       vsOptionsPaneModel.setOnDemandMvEnabled(!SUtil.isSharedDefaultOrgDashboard(rvs.getEntry()) &&
                                                  "true".equals(SreeEnv.getProperty("mv.ondemand")));
@@ -310,6 +311,7 @@ public class ViewsheetPropertyDialogController {
       info.setDisableParameterSheet(!vsOptionsPaneModel.isPromptForParams());
       info.setAssociationEnabled(vsOptionsPaneModel.isSelectionAssociation());
       info.setMaxRowsWarning(vsOptionsPaneModel.isMaxRowsWarning());
+      info.setHideNotifications(vsOptionsPaneModel.isHideNotifications());
 
       if(info.isMVOnDemand() != vsOptionsPaneModel.isCreateMv()) {
          info.setMVOnDemand(vsOptionsPaneModel.isCreateMv());

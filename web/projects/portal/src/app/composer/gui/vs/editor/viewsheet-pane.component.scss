@@ -170,3 +170,12 @@ div.vs-pane .bl-selected {
     min-width: 60px;
   }
 }
+
+.console-blink {
+  animation: slow-blink 2.5s infinite;
+}
+
+@keyframes slow-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.1; }
+}
