@@ -256,6 +256,11 @@ public class DrillSubQuery implements XMLSerializable, Serializable, Cloneable {
       if(!Tool.equals(curOrgId, wsOrg)) {
          wsEntry.setOrgID(curOrgId);
       }
+
+      if(wsEntry.getUser() != null && !Tool.equals(wsEntry.getUser().orgID, curOrgId)) {
+         wsEntry.getUser().orgID = curOrgId;
+      }
+
    }
 
    private String query;
