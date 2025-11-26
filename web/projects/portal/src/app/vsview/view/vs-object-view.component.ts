@@ -129,6 +129,11 @@ export class VSObjectView extends CommandProcessor implements OnDestroy, OnInit,
    onChartMaxModeChange($event: {assembly: string, maxMode: boolean}) {
       this.chartMaxMode = $event.maxMode;
       this.chartMaxModeChange.emit($event);
+
+      if(this._model.objectType == "VSChart" && !!(this._model as VSChartModel).notAuto) {
+         (this._model as VSChartModel).maxMode = this.chartMaxMode;
+      }
+
       LocalStorage.setItem("chart-edit-max-mode", this.chartMaxMode ? "true" : "");
    }
 
