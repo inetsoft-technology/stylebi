@@ -562,7 +562,7 @@ public class DrillPath implements XMLSerializable, Serializable, Cloneable {
 
       if((attr = Tool.getAttribute(tag, "link")) != null) {
          if(linkType == VIEWSHEET_LINK) {
-            attr = SUtil.handleViewsheetLinkOrgMismatch(attr, isSiteAdminImport);
+            attr = SUtil.handleViewsheetLinkOrgMismatch(attr, true);
          }
 
          setLink(attr);
