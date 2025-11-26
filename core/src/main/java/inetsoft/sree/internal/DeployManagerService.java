@@ -862,7 +862,11 @@ public class DeployManagerService {
 
                //requires checking against raw dependency on file, revert to original
                if(OrganizationManager.getInstance().isSiteAdmin(principal) && originalOrg != null) {
-                  for(AssetObject assetObject : dependencies) {
+                  Set<AssetObject> originalDependencies = dependencies.stream()
+                     .map(dep -> (AssetObject) dep.clone())
+                     .collect(Collectors.toSet());
+
+                  for(AssetObject assetObject : originalDependencies) {
                      if(assetObject instanceof AssetEntry) {
                         ((AssetEntry) assetObject).setOrgID(originalOrg);
 
@@ -873,6 +877,8 @@ public class DeployManagerService {
                         ((AssetEntry) assetObject).toIdentifier(true);
                      }
                   }
+
+                  dependencies.addAll(originalDependencies);
                }
 
                // sync file if any depends on asset was auto renamed.
