@@ -3436,14 +3436,18 @@ public class SUtil {
    /**
     * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
     */
-   public static String handleViewsheetLinkOrgMismatch(String link, boolean isSiteAdminImport) {
+   public static String handleViewsheetLinkOrgMismatch(String link) {
+      return handleViewsheetLinkOrgMismatch(link, false);
+   }
+
+   public static String handleViewsheetLinkOrgMismatch(String link, boolean forceUpdate) {
       String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       int orgIdx = link.lastIndexOf("^");
 
       //handle import assets from older version without org identifier
       boolean hasOrgDelim = link.chars().filter(ch -> ch == '^').count() > 3;
 
-      if(orgIdx > 0 && hasOrgDelim && isSiteAdminImport) {
+      if(orgIdx > 0 && hasOrgDelim && forceUpdate) {
          String linkOrg = link.substring(orgIdx + 1);
 
          if(!Tool.equals(linkOrg, curOrgId)) {
@@ -3454,7 +3458,7 @@ public class SUtil {
          link = link + "^" + curOrgId;
       }
 
-      if(isSiteAdminImport && link.indexOf("^") > -1) {
+      if(forceUpdate && link.indexOf("^") > -1) {
          for(String pathSection : link.split("\\^")) {
             if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
                IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
