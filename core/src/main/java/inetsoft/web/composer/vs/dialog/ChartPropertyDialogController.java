@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.GraphTarget;
 import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractDataRef;
@@ -315,6 +316,7 @@ public class ChartPropertyDialogController {
       vsAssemblyScriptPaneModel.scriptEnabled(chartAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(chartAssemblyInfo.getScript() == null ?
                                               "" : chartAssemblyInfo.getScript());
+      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;

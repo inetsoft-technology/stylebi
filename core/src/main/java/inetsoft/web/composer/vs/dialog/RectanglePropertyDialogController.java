@@ -20,6 +20,7 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.Util;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.RectangleVSAssemblyInfo;
 import inetsoft.util.Tool;
@@ -166,6 +167,7 @@ public class RectanglePropertyDialogController {
       vsAssemblyScriptPaneModel.scriptEnabled(rectangleAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(rectangleAssemblyInfo.getScript() == null ?
                                               "" : rectangleAssemblyInfo.getScript());
+      vsAssemblyScriptPaneModel.cursorTop(Boolean.parseBoolean(SreeEnv.getProperty("script.cursor.top")));
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;
