@@ -38,7 +38,9 @@ public class ImportAssetController {
    public void initializeCache() {
       // ensure that the cache is initialized because ImportAssetService may be lazily initialized
       // in a different order than the controller and proxy
-      Cluster.getInstance().getCache(ImportAssetService.CACHE_NAME);
+      Cluster cluster = Cluster.getInstance();
+      cluster.registerSpringProxyPartitionedCache(ImportAssetService.CACHE_NAME);
+      cluster.getCache(ImportAssetService.CACHE_NAME);
    }
 
    @PostMapping("/api/em/content/repository/set-jar-file")
