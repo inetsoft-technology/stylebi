@@ -2117,6 +2117,8 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
          newEntry.setProperty("__bookmark_id__", bookmarkId);
       }
 
+      newEntry.setProperty("onReport", getProperty("onReport"));
+
       return newEntry;
    }
 
