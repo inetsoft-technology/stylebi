@@ -1453,7 +1453,7 @@ public class AssetEventUtil {
          manager.save();
       }
       catch(Exception e) {
-         //
+         LOG.warn("Failed to save table style folder.", e);
       }
    }
 
