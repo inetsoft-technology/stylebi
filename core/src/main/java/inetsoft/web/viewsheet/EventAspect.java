@@ -561,11 +561,14 @@ public class EventAspect {
       if(Organization.getDefaultOrganizationID().equals(orgId)) {
          OrganizationContextHolder.setCurrentOrgId(orgId);
       }
+
+      ServiceProxyContext.aspectTasks.get().add(new SwitchOrgAspectTask(orgId));
    }
 
    @After("@annotation(SwitchOrg) && within(inetsoft.web..*)")
    public void afterController() {
       OrganizationContextHolder.clear();
+      ServiceProxyContext.aspectTasks.get().removeIf((task) -> task instanceof SwitchOrgAspectTask);
    }
 
    private static class AnnotationParameterTuple<T> {
@@ -723,5 +726,27 @@ public class EventAspect {
       private final Lock lock = new ReentrantLock();
       private final AtomicBoolean complete = new AtomicBoolean(false);
       private final AtomicBoolean loading = new AtomicBoolean(false);
+   }
+
+   public static final class SwitchOrgAspectTask implements AspectTask {
+      public SwitchOrgAspectTask(String orgId) {
+         this.orgId = orgId;
+      }
+
+      @Override
+      public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         if(orgId != null) {
+            OrganizationContextHolder.setCurrentOrgId(orgId);
+         }
+      }
+
+      @Override
+      public void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
+         if(orgId != null) {
+            OrganizationContextHolder.clear();
+         }
+      }
+
+      private final String orgId;
    }
 }
