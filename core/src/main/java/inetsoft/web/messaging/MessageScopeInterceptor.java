@@ -98,6 +98,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
             if(runtimeId != null) {
                GetViewsheetEntryTask task = new GetViewsheetEntryTask(runtimeId, principal);
                AssetEntry entry = ViewsheetEngine.getViewsheetEngine().affinityCall(runtimeId, task);
+
                thread.addRecord(LogContext.DASHBOARD, entry.getPath());
             }
          }
