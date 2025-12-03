@@ -580,7 +580,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
    public AssetEntry(int scope, Type type, String path, IdentityID user, String orgID) {
       this();
 
-      if(orgID == null) {
+      if(Tool.isEmptyString(orgID)) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
 

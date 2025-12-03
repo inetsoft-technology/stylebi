@@ -25,8 +25,7 @@ import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.AffinityCallable;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
@@ -309,8 +308,15 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
    {
       String id = null;
       String nextId = originalId == null ? getNextID(entry, user) : getNextTemporaryID(originalId);
+      boolean orgTempDefaultForGloballyVisible = false;
 
       try {
+         //if globally visible default org asset, run in org scope
+         if(VSUtil.isDefaultVSGloballyViewsheet(entry, user)) {
+            OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
+            orgTempDefaultForGloballyVisible = true;
+         }
+
          // @by yuz, fix bug1246261678219, should use viewer any time
          entry.setProperty("viewer", "" + viewer);
          id = OpenViewsheetTask.openViewsheet(this, entry, user, nextId);
@@ -318,6 +324,10 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       finally {
          entry.setProperty("viewer",  null);
          lifecycleMessageService.viewsheetOpened(id);
+
+         if(orgTempDefaultForGloballyVisible) {
+            OrganizationContextHolder.clear();
+         }
       }
 
       return id;

@@ -76,6 +76,12 @@ public class ChartPropertyDialogService {
    public ChartPropertyDialogModel getChartPropertyDialogModel(@ClusterProxyKey String runtimeId,
                                                                String objectId, Principal principal) throws Exception
    {
+      return VSUtil.globalShareVsRunInHostScope(
+         runtimeId, principal,
+         () -> getChartPropertyDialogModel0(objectId, runtimeId, principal));
+   }
+
+   public ChartPropertyDialogModel getChartPropertyDialogModel0(String objectId, String runtimeId, Principal principal) throws Exception {
       RuntimeViewsheet rvs;
       Viewsheet vs;
       ChartVSAssembly chartAssembly;

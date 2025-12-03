@@ -121,8 +121,16 @@ public class VSScriptableService {
    public TreeNodeModel getColumnTree(@ClusterProxyKey String vsId, String assemblyName, String tableName,
                                       boolean isCondition, boolean isVSOption, Principal principal) throws Exception
    {
-      Catalog catalog = Catalog.getCatalog(principal);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      return VSUtil.globalShareVsRunInHostScope(
+         rvs.getID(), principal,
+         () -> getColumnTree0(assemblyName, tableName, isCondition, isVSOption, rvs, principal));
+   }
+
+   private TreeNodeModel getColumnTree0(String assemblyName, String tableName, boolean isCondition,
+                                        boolean isVSOption, RuntimeViewsheet rvs, Principal principal) throws Exception
+   {
+      Catalog catalog = Catalog.getCatalog(principal);
       String vsName = null;
 
       int dot = assemblyName == null ? -1 : assemblyName.lastIndexOf(".");

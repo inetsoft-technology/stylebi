@@ -361,7 +361,7 @@ public class ExpressionAttribute extends XAttribute {
       this.parseable = parseable;
    }
 
-   private String expr;
+   private String expr = "";
    private boolean aggr = false;
    private boolean parseable = true;
 }

@@ -525,7 +525,8 @@ public class EventAspect {
       Principal contextPrincipal = ThreadContext.getContextPrincipal();
 
       if(!(contextPrincipal instanceof XPrincipal xPrincipal) ||
-         Organization.getDefaultOrganizationID().equals(xPrincipal.getOrgId()))
+         Organization.getDefaultOrganizationID().equals(xPrincipal.getOrgId()) ||
+         !SUtil.isDefaultVSGloballyVisible(xPrincipal))
       {
          return;
       }
@@ -557,7 +558,9 @@ public class EventAspect {
          return;
       }
 
-      switchOrganization(orgId);
+      if(Organization.getDefaultOrganizationID().equals(orgId)) {
+         OrganizationContextHolder.setCurrentOrgId(orgId);
+      }
    }
 
    @After("@annotation(SwitchOrg) && within(inetsoft.web..*)")
@@ -589,10 +592,6 @@ public class EventAspect {
 
       private T annotation;
       private Object parameter;
-   }
-
-   public static void switchOrganization(String orgID) {
-      OrganizationContextHolder.setCurrentOrgId(orgID);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
