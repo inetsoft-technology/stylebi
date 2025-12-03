@@ -1448,6 +1448,13 @@ public class AssetEventUtil {
       for(String folder : folders) {
          changeTableStyleFolder(nfolder, folder, manager);
       }
+
+      try {
+         manager.save();
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to save table style folder.", e);
+      }
    }
 
    /**

@@ -35,6 +35,8 @@ import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.composer.model.RenameAssetEvent;
 import inetsoft.web.viewsheet.command.MessageCommand;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
@@ -310,6 +312,13 @@ public class RenameAssetController {
          subName = idx < 0 ? subName : subName.substring(idx + 1);
          renameTableStyleFolder(folder, nname + LibManager.SEPARATOR + subName, manager);
       }
+
+      try {
+         manager.save();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to save table style folder.", e);
+      }
    }
 
    /**
@@ -329,4 +338,6 @@ public class RenameAssetController {
    private final ViewsheetService viewsheetService;
    private final RepletRepository repletRepository;
    private final SecurityProvider securityProvider;
+   private static final Logger LOG =
+      LoggerFactory.getLogger(RenameAssetController.class);
 }
