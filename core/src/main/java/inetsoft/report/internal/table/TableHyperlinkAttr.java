@@ -304,6 +304,11 @@ public class TableHyperlinkAttr extends TableAttr {
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, false);
+   }
+
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       NodeList hnodes = Tool.getChildNodesByTagName(tag, "aHyperlink");
 
       for(int i = 0; i < hnodes.getLength(); i++) {
@@ -313,7 +318,7 @@ public class TableHyperlinkAttr extends TableAttr {
          TableDataPath dpath = new TableDataPath();
          Hyperlink link = new Hyperlink();
          dpath.parseXML(pathnode);
-         link.parseXML(linknode);
+         link.parseXML(linknode, isSiteAdminImport);
 
          hlmap.put(dpath, link);
       }
