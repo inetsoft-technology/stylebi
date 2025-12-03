@@ -131,7 +131,7 @@ export class ModelService {
       }
 
       if(res.status == 502 || res.status == 503) {
-         this.router.navigate(['/reload'],
+         this.router.navigate(["/reload"],
             {queryParams: { redirectTo: this.router.url }, replaceUrl: true})
       }
 
