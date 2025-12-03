@@ -34,6 +34,8 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.report.script.*;
 import inetsoft.report.script.viewsheet.*;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -639,10 +641,17 @@ public class VSScriptableController {
       @RequestParam(name = "isVSOption", required = false) boolean isVSOption,
       Principal principal) throws Exception
    {
-      Catalog catalog = Catalog.getCatalog(principal);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
-      String vsName = null;
 
+      return VSUtil.globalShareVsRunInHostScope(rvs.getID(), principal,
+                    () -> getColumnTree0(assemblyName, tableName, isCondition, isVSOption, rvs, principal));
+   }
+
+   private TreeNodeModel getColumnTree0(String assemblyName, String tableName, boolean isCondition,
+                                        boolean isVSOption, RuntimeViewsheet rvs, Principal principal) throws Exception
+   {
+      Catalog catalog = Catalog.getCatalog(principal);
+      String vsName = null;
       int dot = assemblyName == null ? -1 : assemblyName.lastIndexOf(".");
 
       if(dot != -1) {
@@ -670,7 +679,7 @@ public class VSScriptableController {
 
       if(assemblyName != null || isVSOption) {
          TreeNodeModel tablesNode = createTablesNode(viewsheetService, rvs, vsName, rootName,
-            rootLabel, rootData, catalog, principal);
+                                                     rootLabel, rootData, catalog, principal);
 
          if(tablesNode != null) {
             children.add(tablesNode);
@@ -678,7 +687,7 @@ public class VSScriptableController {
       }
 
       return createNode(rootLabel, rootData, false, null, null,
-        null, rootName, null, children, true);
+                        null, rootName, null, children, true);
    }
 
    private void createStaticDefinitions(ObjectMapper mapper, ObjectNode library)
