@@ -111,10 +111,7 @@ public class VSLifecycleService {
             return null;
          }
 
-         if(SUtil.isDefaultVSGloballyVisible() &&
-            !Tool.equals(originalOrg, Organization.getDefaultOrganization()) &&
-            Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()))
-         {
+         if(VSUtil.isDefaultVSGloballyViewsheet(entry, principal)) {
             orgTempDefaultForGloballyVisible = true;
             OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
          }

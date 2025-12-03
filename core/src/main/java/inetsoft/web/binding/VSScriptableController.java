@@ -641,63 +641,53 @@ public class VSScriptableController {
       @RequestParam(name = "isVSOption", required = false) boolean isVSOption,
       Principal principal) throws Exception
    {
-      Catalog catalog = Catalog.getCatalog(principal);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+
+      return VSUtil.globalShareVsRunInHostScope(rvs.getID(), principal,
+                    () -> getColumnTree0(assemblyName, tableName, isCondition, isVSOption, rvs, principal));
+   }
+
+   private TreeNodeModel getColumnTree0(String assemblyName, String tableName, boolean isCondition,
+                                        boolean isVSOption, RuntimeViewsheet rvs, Principal principal) throws Exception
+   {
+      Catalog catalog = Catalog.getCatalog(principal);
       String vsName = null;
-      boolean orgTempDefaultForGloballyVisible = false;
-      String originalOrg = OrganizationManager.getInstance().getCurrentOrgID();
+      int dot = assemblyName == null ? -1 : assemblyName.lastIndexOf(".");
 
-      if(rvs != null && rvs.getEntry() != null && SUtil.isDefaultVSGloballyVisible(principal) &&
-         !Tool.equals(originalOrg, Organization.getDefaultOrganizationID()) &&
-         Tool.equals(rvs.getEntry().getOrgID(), Organization.getDefaultOrganizationID()))
-      {
-         orgTempDefaultForGloballyVisible = true;
-         OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
+      if(dot != -1) {
+         vsName = assemblyName.substring(0, dot);
       }
 
-      try {
-         int dot = assemblyName == null ? -1 : assemblyName.lastIndexOf(".");
+      final String rootName = "data";
+      final String rootLabel = catalog.getString("Data");
+      final String rootData = null;
 
-         if(dot != -1) {
-            vsName = assemblyName.substring(0, dot);
-         }
+      List<TreeNodeModel> children = new ArrayList<>();
+      TreeNodeModel componentsNode = createComponentsNode(
+         rvs, vsName, rootName, rootLabel, rootData, catalog);
 
-         final String rootName = "data";
-         final String rootLabel = catalog.getString("Data");
-         final String rootData = null;
-
-         List<TreeNodeModel> children = new ArrayList<>();
-         TreeNodeModel componentsNode = createComponentsNode(
-            rvs, vsName, rootName, rootLabel, rootData, catalog);
-
-         if(componentsNode != null) {
-            children.add(componentsNode);
-         }
-
-         TreeNodeModel parametersNode = createParametersNode(
-            viewsheetService, rvs, vsName, rootName, rootLabel, rootData, catalog);
-
-         if(parametersNode != null) {
-            children.add(parametersNode);
-         }
-
-         if(assemblyName != null || isVSOption) {
-            TreeNodeModel tablesNode = createTablesNode(viewsheetService, rvs, vsName, rootName,
-                                                        rootLabel, rootData, catalog, principal);
-
-            if(tablesNode != null) {
-               children.add(tablesNode);
-            }
-         }
-
-         return createNode(rootLabel, rootData, false, null, null,
-                           null, rootName, null, children, true);
+      if(componentsNode != null) {
+         children.add(componentsNode);
       }
-      finally {
-         if(orgTempDefaultForGloballyVisible) {
-            OrganizationContextHolder.clear();
+
+      TreeNodeModel parametersNode = createParametersNode(
+         viewsheetService, rvs, vsName, rootName, rootLabel, rootData, catalog);
+
+      if(parametersNode != null) {
+         children.add(parametersNode);
+      }
+
+      if(assemblyName != null || isVSOption) {
+         TreeNodeModel tablesNode = createTablesNode(viewsheetService, rvs, vsName, rootName,
+                                                     rootLabel, rootData, catalog, principal);
+
+         if(tablesNode != null) {
+            children.add(tablesNode);
          }
       }
+
+      return createNode(rootLabel, rootData, false, null, null,
+                        null, rootName, null, children, true);
    }
 
    private void createStaticDefinitions(ObjectMapper mapper, ObjectNode library)
