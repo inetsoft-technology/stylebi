@@ -127,6 +127,11 @@ public class DeleteColumnsController extends WorksheetController {
 
             if(!ok) {
                ColumnSelection columns = table.getColumnSelection();
+
+               if(table instanceof SnapshotEmbeddedTableAssembly && column.getDataRef().isExpression()) {
+                  columns = ((SnapshotEmbeddedTableAssembly) table).getDefaultColumnSelection();
+               }
+
                int index = columns.indexOfAttribute(column);
 
                if(index >= 0) {
