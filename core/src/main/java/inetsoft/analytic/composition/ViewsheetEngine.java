@@ -32,6 +32,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.*;
+import inetsoft.web.ServiceProxyContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -862,7 +863,14 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       @Override
       public String call() throws Exception {
          ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
-         return doOpenViewsheet(engine, entry, user, id);
+         proxyContext.preprocess();
+
+         try {
+            return doOpenViewsheet(engine, entry, user, id);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       public static String openViewsheet(ViewsheetEngine engine, AssetEntry entry, Principal user,
@@ -902,6 +910,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       private final AssetEntry entry;
       private final Principal user;
       private final String id;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 
    private static final class OpenTemporaryViewsheetTask implements AffinityCallable<String> {
