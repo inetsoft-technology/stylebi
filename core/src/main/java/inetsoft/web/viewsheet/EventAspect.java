@@ -560,9 +560,8 @@ public class EventAspect {
 
       if(Organization.getDefaultOrganizationID().equals(orgId)) {
          OrganizationContextHolder.setCurrentOrgId(orgId);
+         ServiceProxyContext.aspectTasks.get().add(new SwitchOrgAspectTask(orgId));
       }
-
-      ServiceProxyContext.aspectTasks.get().add(new SwitchOrgAspectTask(orgId));
    }
 
    @After("@annotation(SwitchOrg) && within(inetsoft.web..*)")
