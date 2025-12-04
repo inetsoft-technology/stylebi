@@ -49,14 +49,14 @@ const PORTAL_CURRENT_USER_URI: string = "../api/portal/get-current-user";
 const EM_CURRENT_USER_URI: string = "../api/em/security/get-current-user";
 
 export enum ContextType {
-   VIEWSHEET = "Dashboard",
-   WORKSHEET = "Data Worksheet",
+   VIEWSHEET = "viewsheet",
+   WORKSHEET = "worksheet",
    FREEHAND = "freehand",
    CHART = "chart",
    CROSSTAB = "crosstab",
    TABLE = "table",
    PORTAL_DATA = "portal",
-   EM = "Enterprise Manager",
+   EM = "em",
    VIEWSHEET_SCRIPT = "viewsheetScript",
    WORKSHEET_SCRIPT = "worksheetScript",
    CHART_SCRIPT = "chartScript",
