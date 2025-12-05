@@ -44,7 +44,6 @@ public class CacheFileSystem extends FileSystem {
 
       if(!storage.exists("/")) {
          CacheMetadata metadata = new CacheMetadata(System.currentTimeMillis());
-         metadata.setChildren(new String[0]);
 
          try {
             storage.createDirectory("/", metadata);
