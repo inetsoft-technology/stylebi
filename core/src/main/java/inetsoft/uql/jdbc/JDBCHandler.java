@@ -1928,7 +1928,7 @@ public class JDBCHandler extends XHandler {
                   defaultSchema = "public";
                }
                else if(databricks) {
-                  defaultSchema = "default";
+                  defaultSchema = meta.getConnection().getSchema();
                }
             }
             catch(SQLException exc) {
