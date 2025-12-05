@@ -370,13 +370,6 @@ public class DeployService {
             entry.getUser().orgID = currOrg;
          }
 
-         if(siteAdmin && entry.getPath() != null) {
-            if(entry.getPath().indexOf(":") > -1 && entry.getPath().indexOf(IdentityID.KEY_DELIMITER) > -1) {
-               IdentityID nameUser = IdentityID.getIdentityIDFromKey(entry.getPath().substring(entry.getPath().indexOf(":")));
-               entry.setPath(nameUser.convertToKey() + entry.getPath().substring(entry.getPath().indexOf(":")));
-            }
-         }
-
          if(VSAutoSaveAsset.AUTOSAVEVS.equals(entry.getType()) ||
             WSAutoSaveAsset.AUTOSAVEWS.equals(entry.getType()))
          {
@@ -398,13 +391,6 @@ public class DeployService {
       for(PartialDeploymentJarInfo.RequiredAsset asset : info.getDependentAssets()) {
          if(siteAdmin && asset.getUser() != null && !Tool.equals(asset.getUser().orgID, currOrg)) {
             asset.getUser().orgID = currOrg;
-         }
-
-         if(siteAdmin && asset.getPath() != null) {
-            if(asset.getPath().indexOf(":") > -1 && asset.getPath().indexOf(IdentityID.KEY_DELIMITER) > -1) {
-               IdentityID nameUser = IdentityID.getIdentityIDFromKey(asset.getPath().substring(asset.getPath().indexOf(":")));
-               asset.setPath(nameUser.convertToKey() + asset.getPath().substring(asset.getPath().indexOf(":")));
-            }
          }
 
          if(isUser(asset.getUser())) {
