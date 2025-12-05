@@ -56,4 +56,5 @@ export interface VSChartModel extends VSObjectModel, ChartModel {
    summarySortCol?: number;
    summarySortVal?: number;
    sendingFlyover?: boolean;
+   readonly titleLinkValue?: HyperlinkModel;
 }

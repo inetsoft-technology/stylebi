@@ -133,12 +133,18 @@ export class ChartActionHandlerDirective extends AbstractActionHandler implement
 
          if(regions) {
             colName = ChartTool.getDim(this.model, regions[0]);
+            params = params.append("isAxis", "true");
+         }
+         else if (this.model.titleSelected) {
+            params = params.append("titleLink", "true");
          }
          else {
             colName = ChartTool.getFirstAvailableMeasure(this.model);
          }
 
-         params = params.append("isAxis", "true");
+         if (!this.model.titleSelected) {
+            params = params.append("isAxis", "true");
+         }
       }
 
       if(colName) {

@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.internal;
 
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.internal.DimensionD;
+import inetsoft.report.Hyperlink;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
@@ -1242,6 +1243,10 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
             if(dateComparison != null) {
                info.dateComparison = dateComparison.clone();
             }
+
+            if(titleLinkValue != null) {
+               info.titleLinkValue = (Hyperlink) titleLinkValue.clone();
+            }
          }
 
          return info;
@@ -1376,6 +1381,12 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          writer.println("</excludeSelection>");
       }
 
+      if(titleLinkValue != null) {
+         writer.print("<titleLinkValue>");
+        titleLinkValue.writeXML(writer);
+         writer.println("</titleLinkValue>");
+      }
+
       if(bselection != null) {
          writer.print("<brushSelection>");
          bselection.writeXML(writer);
@@ -1477,6 +1488,17 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          if(node2 != null) {
             xselection = new VSSelection();
             xselection.parseXML(node2);
+         }
+      }
+
+      Element titleLinkNode = Tool.getChildNodeByTagName(elem, "titleLinkValue");
+
+      if(titleLinkNode != null){
+         Element node2 = Tool.getChildNodeByTagName(titleLinkNode, "Hyperlink");
+
+         if (node2 != null) {
+            titleLinkValue = new Hyperlink();
+            titleLinkValue.parseXML(node2);
          }
       }
 
@@ -1628,6 +1650,11 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(!Tool.equals(titleInfo, ninfo.titleInfo)) {
          titleInfo = ninfo.titleInfo;
+         result = true;
+      }
+
+      if(!Tool.equals(titleLinkValue, ninfo.getTitleLinkValue())) {
+         titleLinkValue = ninfo.getTitleLinkValue();
          result = true;
       }
 
@@ -2707,6 +2734,14 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       return parentParams;
    }
 
+   public void setTitleLinkValue(Hyperlink titleLinkValue) {
+      this.titleLinkValue = titleLinkValue;
+   }
+
+   public Hyperlink getTitleLinkValue() {
+      return this.titleLinkValue;
+   }
+
    private Dimension maxSize = null;
    private int maxModeZIndex = -1;
    private VSSelection bselection = null;
@@ -2721,6 +2756,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private DynamicValue tipViewValue = new DynamicValue();
    private DynamicValue alphaValue = new DynamicValue();
    private ClazzHolder<String[]> flyoverValue = new ClazzHolder<>();
+   private Hyperlink titleLinkValue;
    private String cubeType = null;
    private DimensionD scalingRatio = new DimensionD(1.0, 1.0);
    private TitleInfo titleInfo = new TitleInfo("Chart");

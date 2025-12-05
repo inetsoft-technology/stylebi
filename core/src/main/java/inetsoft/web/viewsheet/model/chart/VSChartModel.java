@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.model.chart;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.report.Hyperlink;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -75,6 +76,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.noData = info.isNoData();
       this.summarySortCol = info.getSummarySortCol();
       this.summarySortVal = info.getSummarySortVal();
+      this.titleLinkValue = info.getTitleLinkValue();
    }
 
    private boolean containsDynamic(ChartVSAssembly assembly) {
@@ -511,6 +513,14 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.errorFormat = errorFormat;
    }
 
+   public Hyperlink getTitleLinkValue() {
+      return titleLinkValue;
+   }
+
+   public void setTitleLinkValue(Hyperlink titleLinkValue) {
+      this.titleLinkValue = titleLinkValue;
+   }
+
    private int chartType = GraphTypes.CHART_AUTO;
    private List<Axis> axes = new ArrayList<>();
    private List<Facet> facets = new ArrayList<>();
@@ -561,6 +571,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    private int summarySortCol;
    private int summarySortVal;
    private FormatInfoModel errorFormat;
+   private Hyperlink titleLinkValue;
 
    @Component
    public static final class VSChartModelFactory

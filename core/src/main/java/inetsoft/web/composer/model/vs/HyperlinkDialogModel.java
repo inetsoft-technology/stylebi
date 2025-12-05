@@ -209,6 +209,14 @@ public class HyperlinkDialogModel {
       this.grayedOutFields = grayedOutFields;
    }
 
+   public boolean isTitleLink() {
+      return titleLink;
+   }
+
+   public void setTitleLink(boolean titleLink) {
+      this.titleLink = titleLink;
+   }
+
    @Override
    public String toString() {
       return "HyperlinkDialogModel{" +
@@ -253,4 +261,5 @@ public class HyperlinkDialogModel {
    private boolean applyToRow;
    private boolean showRow;
    private DataRefModel[] grayedOutFields;
+   private boolean titleLink;
 }

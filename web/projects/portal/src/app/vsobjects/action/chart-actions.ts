@@ -153,6 +153,13 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
                 this.model.facets && this.model.facets.length > 0) &&
                this.isActionVisible("Reset Size") && !this.annotationsSelected
          },
+         {
+            id: () => "chart plot-hyperlink",
+            label: () => "_#(js:Hyperlink Title)",
+            icon: () => "fa fa-link",
+            enabled: () => true,
+            visible: () => this.chartTitleHyperlinkVisible()
+         }
       ]));
       groups.push(new AssemblyActionGroup([
          {
@@ -319,6 +326,13 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          this.model.plotHighlightEnabled &&
          (this.model.mapInfo && ChartTool.isPlotSelected(this.model) ||
             ChartTool.isPlotMeasureSelected(this.model, true));
+   }
+
+   private chartTitleHyperlinkVisible(): boolean {
+      if (this.composer && this.model?.titleSelected) {
+         return true;
+      }
+      return false;
    }
 
    private chartHighlightVisible(): boolean {
