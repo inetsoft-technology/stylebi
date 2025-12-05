@@ -21,7 +21,10 @@ import { ActivatedRoute, NavigationExtras, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable ,  Subscription } from "rxjs";
 import { tap } from "rxjs/operators";
-import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { DashboardModel } from "../../common/data/dashboard-model";
 import { AssetLoadingService } from "../../common/services/asset-loading.service";
 import { GuiTool } from "../../common/util/gui-tool";
@@ -62,7 +65,7 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
                private assetLoadingService: AssetLoadingService,
                private aiAssistantService: AiAssistantService)
    {
-      this.aiAssistantService.setContextTypeFieldValue("Dashboard Portal");
+      this.aiAssistantService.setContextTypeFieldValue(ContextType.DASHBOARD_PORTAL);
 
       this.subscriptions.add(dashboardService.newDashboard.subscribe(
          () => this.newDashboard()
