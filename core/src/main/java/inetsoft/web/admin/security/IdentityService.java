@@ -2366,6 +2366,13 @@ public class IdentityService {
                permission.removeGrantAllByOrg(oldOrgId);
             }
          }
+         else if(permission.getOrgEditedGrantAll().containsKey(oldOrgId) &&
+            permission.getOrgEditedGrantAll().get(oldOrgId) &&
+            !Tool.equals(oldOrgId, newOrgId))
+         {
+            permission.updateGrantAllByOrg(newOrgId, true);
+            permission.removeGrantAllByOrg(oldOrgId);
+         }
       }
    }
 
