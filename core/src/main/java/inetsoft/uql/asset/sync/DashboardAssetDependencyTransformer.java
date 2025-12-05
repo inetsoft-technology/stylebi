@@ -144,9 +144,16 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
       if(!match && getAssetFile() != null && dashboard != null) {
          AssetEntry entry = AssetEntry.createAssetEntry(identifier);
 
-         if(!Tool.equals(entry.getOrgID(), dashboard.getOrgID())) {
+         if(!Tool.equals(entry.getOrgID(), dashboard.getOrgID()) ||
+            entry.getUser() != null && !Tool.equals(entry.getUser().orgID, dashboard.getOrgID()))
+         {
             entry.setOrgID(dashboard.getOrgID());
-            identifier = entry.toIdentifier();
+
+            if(entry.getUser() != null) {
+               entry.getUser().setOrgID(dashboard.getOrgID());
+            }
+
+            identifier = entry.toIdentifier(true);
             match = Tool.equals(identifier, info.getOldName());
          }
       }

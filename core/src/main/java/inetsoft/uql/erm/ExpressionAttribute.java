@@ -164,6 +164,11 @@ public class ExpressionAttribute extends XAttribute {
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, false);
+   }
+
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       String attr = null;
 
       if((attr = Tool.getAttribute(tag, "name")) != null) {

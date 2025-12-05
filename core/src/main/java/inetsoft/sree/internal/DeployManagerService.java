@@ -443,34 +443,12 @@ public class DeployManagerService {
       for(PartialDeploymentJarInfo.SelectedAsset asset : info.getSelectedEntries()) {
          if(asset.getUser() != null && asset.getUser().orgID != null) {
             asset.getUser().orgID = currOrgID;
-
-            if(asset.getPath() != null && asset.getPath().indexOf(":") > 1) {
-               String pathUserID = asset.getPath().substring(0, asset.getPath().indexOf(":"));
-               String remaining = asset.getPath().substring(asset.getPath().indexOf(":"));
-               IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);
-
-               if(!Tool.equals(userID.orgID, currOrgID)) {
-                  userID.setOrgID(currOrgID);
-                  asset.setPath(userID.convertToKey() + remaining);
-               }
-            }
          }
       }
 
       for(PartialDeploymentJarInfo.RequiredAsset asset : info.getDependentAssets()) {
          if(asset.getUser() != null && asset.getUser().orgID != null) {
             asset.getUser().orgID = currOrgID;
-         }
-
-         if(asset.getPath() != null && asset.getPath().indexOf(":") > 1) {
-            String pathUserID = asset.getPath().substring(0, asset.getPath().indexOf(":"));
-            String remaining = asset.getPath().substring(asset.getPath().indexOf(":"));
-            IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);
-
-            if(!Tool.equals(userID.orgID, currOrgID)) {
-               userID.setOrgID(currOrgID);
-               asset.setPath(userID.convertToKey() + remaining);
-            }
          }
       }
 
@@ -488,18 +466,6 @@ public class DeployManagerService {
                   IdentityID updatedUser = IdentityID.getIdentityIDFromKey(keySection);
                   updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
                   key = key.replace(keySection, updatedUser.convertToKey());
-               }
-            }
-         }
-
-         if(path != null && path.indexOf("^") > -1) {
-            path = path.substring(0, path.lastIndexOf("^") + 1) + currOrgID;
-
-            for(String pathSection : path.split("\\^")) {
-               if(pathSection.contains(IdentityID.KEY_DELIMITER)) {
-                  IdentityID updatedUser = IdentityID.getIdentityIDFromKey(pathSection);
-                  updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
-                  path = path.replace(pathSection, updatedUser.convertToKey());
                }
             }
          }
@@ -854,6 +820,15 @@ public class DeployManagerService {
                         }
 
                         ((AssetEntry) assetObject).toIdentifier(true);
+                        AssetEntry newOrgAsset = (AssetEntry) assetObject.clone();
+                        newOrgAsset.setOrgID(currOrg);
+
+                        if(newOrgAsset.getUser() != null) {
+                           newOrgAsset.getUser().setOrgID(currOrg);
+                        }
+
+                        newOrgAsset.toIdentifier(true);
+                        changeAssetMap.put(assetObject, newOrgAsset);
                      }
                   }
 

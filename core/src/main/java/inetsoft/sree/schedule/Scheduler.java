@@ -229,6 +229,19 @@ public class Scheduler {
     */
    public void runTask(String taskName) throws SchedulerException {
       if(running.get()) {
+         ScheduleStatusDao.Status status = ScheduleStatusDao.getInstance().getStatus(taskName);
+
+         if(status != null && status.getStatus() == Status.STARTED) {
+            long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+            long currTime = System.currentTimeMillis();
+
+            // in case the status did not update due to a node abruptly shutting down
+            // only consider it as running if it's still within the timeout window
+            if((currTime - status.getStartTime()) < timeout) {
+               throw new SchedulerException("Task is still running: " + taskName);
+            }
+         }
+
          JobKey key = new JobKey(taskName, GROUP_NAME);
          JobDataMap data = new JobDataMap();
          data.put("runNow", true);

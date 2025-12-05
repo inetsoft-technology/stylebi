@@ -29,12 +29,12 @@
        [class.icon-disabled]="isDownDisabled()" (click)="moveDown()">
     </i>
   </div>
-  <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Add Expression)">
+  <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Add Expression)" *ngIf="model?.expressionAllowed">
     <i class="icon-size-medium formula-icon txt-secondary"
        [class.icon-disabled]="!model || !databaseFieldsTree" (click)="addExpression()">
     </i>
   </div>
-  <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Edit Expression)">
+  <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Edit Expression)" *ngIf="model?.expressionAllowed">
     <i class="icon-size-medium formula-edit-icon txt-secondary"
        [class.icon-disabled]="!selectedField || selectedFieldIndexes?.length > 1"
        (click)="editExpression()">

@@ -1599,7 +1599,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          if(entry.isVSAssembly()) {
             try {
-               VSAssemblyInfo info = (VSAssemblyInfo) vs.getAssembly(entry.getName()).getInfo();
+               VSAssemblyInfo info = (VSAssemblyInfo) vs.getAssembly(entry.getAbsoluteName()).getInfo();
 
                //  If the assembly script was executed earlier before the viewsheet's onInit
                //  do not execute it again
