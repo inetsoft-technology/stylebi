@@ -7034,7 +7034,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                ThreadPool.ContextRunnable runnable = new ThreadPool.AbstractContextRunnable() {
                   @Override
                   public void run() {
-                     ViewsheetSandbox.this.shrink();
+                     TableMetaDataRepository.this.shrink();
                   }
                };
                runnable.setPrincipal(principal);
