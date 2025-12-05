@@ -22,6 +22,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
@@ -202,19 +203,19 @@ public class QueryManagerService {
       }
    }
 
-   public AdvancedSQLQueryModel getQueryModel(String runtimeId) {
+   public AdvancedSQLQueryModel getQueryModel(String runtimeId, Principal principal) {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
 
       if(runtimeQuery != null) {
-         return getAdvancedQueryModel(runtimeQuery);
+         return getAdvancedQueryModel(runtimeQuery, principal);
       }
 
       return null;
    }
 
    public AdvancedSQLQueryModel getAdvancedQueryModel(
-      RuntimeQueryService.RuntimeXQuery runtimeQuery)
+      RuntimeQueryService.RuntimeXQuery runtimeQuery, Principal principal)
    {
       if(runtimeQuery == null || runtimeQuery.getQuery() == null) {
          return null;
@@ -261,6 +262,18 @@ public class QueryManagerService {
 
       fieldPaneModel.setFields(queryFields);
       model.setFieldPaneModel(fieldPaneModel);
+
+      boolean expressionAllowed = true;
+
+      try {
+         expressionAllowed = SecurityEngine.getSecurity().checkPermission(
+            principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS);
+      }
+      catch(SecurityException e) {
+         expressionAllowed = false;
+      }
+
+      fieldPaneModel.setExpressionAllowed(expressionAllowed);
 
       QueryConditionPaneModel conditionPaneModel = new QueryConditionPaneModel();
       List<Column> fields = new ArrayList<>();
@@ -366,7 +379,7 @@ public class QueryManagerService {
          createNewRuntimeQuery(runtimeId, tableName, dataSource);
 
       if(advancedEdit) {
-         AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery);
+         AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery, principal);
          model.setAdvancedModel(advancedModel);
       }
       else {
@@ -712,7 +725,7 @@ public class QueryManagerService {
          model.setAdvancedEdit(assembly.isAdvancedEditing());
 
          if(assembly.isAdvancedEditing()) {
-            AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery);
+            AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery, principal);
             model.setAdvancedModel(advancedModel);
          }
          else {
@@ -903,7 +916,7 @@ public class QueryManagerService {
          parseSqlString(model.getRuntimeId(), simpleModel.getSqlString(), false, true, principal);
       }
 
-      AdvancedSQLQueryModel sqlQueryModel = getAdvancedQueryModel(runtimeQuery);
+      AdvancedSQLQueryModel sqlQueryModel = getAdvancedQueryModel(runtimeQuery, principal);
       AdvancedSQLQueryModel oldSqlQueryModel = model.getAdvancedModel();
 
       if(oldSqlQueryModel != null && oldSqlQueryModel.getConditionPaneModel() != null) {

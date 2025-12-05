@@ -36,6 +36,15 @@ public class QueryFieldPaneModel {
       this.distinct = distinct;
    }
 
+   public boolean isExpressionAllowed() {
+      return expressionAllowed;
+   }
+
+   public void setExpressionAllowed(boolean expressionAllowed) {
+      this.expressionAllowed = expressionAllowed;
+   }
+
    private List<QueryFieldModel> fields;
    private boolean distinct;
+   private boolean expressionAllowed;
 }
