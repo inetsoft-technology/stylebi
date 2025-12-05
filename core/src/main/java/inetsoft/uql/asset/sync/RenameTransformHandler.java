@@ -18,6 +18,7 @@
 package inetsoft.uql.asset.sync;
 
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.XPartition;
 import inetsoft.util.SingletonManager;
@@ -114,7 +115,7 @@ public class RenameTransformHandler implements AutoCloseable {
       }
 
       for(AssetObject entry : entries) {
-         if(changeScope && !supportScope(entry)) {
+         if(changeScope && !supportScope(entry, rinfo.getNewName())) {
             continue;
          }
 
@@ -124,10 +125,15 @@ public class RenameTransformHandler implements AutoCloseable {
       addTransformTask(dinfo);
    }
 
-   private boolean supportScope(AssetObject entry) {
+   private boolean supportScope(AssetObject entry, String nname) {
       if(entry instanceof AssetEntry) {
          AssetEntry asset = (AssetEntry) entry;
-         return !asset.isViewsheet() || asset.getScope() != AssetRepository.USER_SCOPE;
+
+         if(asset.isViewsheet() && asset.getScope() == AssetRepository.USER_SCOPE) {
+            IdentityID user = AssetEntry.createAssetEntry(nname).getUser();
+
+            return asset.getUser() != null && asset.getUser().equals(user);
+         }
       }
 
       return true;
