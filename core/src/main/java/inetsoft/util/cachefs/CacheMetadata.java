@@ -28,6 +28,7 @@ public final class CacheMetadata implements Serializable {
    @JsonCreator
    public CacheMetadata(@JsonProperty("creationTime")long creationTime) {
       this.creationTime = creationTime;
+      this.children = new String[0];
    }
 
    public long getCreationTime() {

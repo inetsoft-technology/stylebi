@@ -208,7 +208,8 @@ public class CacheFileSystemProvider extends FileSystemProvider {
    private void removeFromParent(CachePath path) throws IOException {
       BlobStorage<CacheMetadata> storage = getStorage(path);
       CacheMetadata metadata = storage.getMetadata(path.toAbsolutePath().getParent().toString());
-      Set<String> children = new TreeSet<>(Arrays.asList(metadata.getChildren()));
+      Set<String> children = metadata != null && metadata.getChildren() != null ?
+         new TreeSet<>(Arrays.asList(metadata.getChildren())) : new TreeSet<>();
       children.remove(path.toAbsolutePath().getFileName().toString());
       metadata.setChildren(children.toArray(new String[0]));
       storage.createDirectory(path.toAbsolutePath().getParent().toString(), metadata);
