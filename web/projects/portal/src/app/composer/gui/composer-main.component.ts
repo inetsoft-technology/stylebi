@@ -1758,6 +1758,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    saveWorksheet(sheet: Worksheet, close: boolean = false) {
+      sheet.saving = true;
       this.saveWorksheet0(sheet, close, false);
    }
 
@@ -1987,6 +1988,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    saveViewsheet(sheet: Viewsheet, close: boolean = false) {
+      sheet.saving = true;
       this.saveViewsheet0(sheet, close, false);
    }
 
