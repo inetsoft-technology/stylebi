@@ -47,5 +47,14 @@ public class PingController {
       }
    }
 
+   @GetMapping("/sso/ping")
+   public void ssoPing(HttpServletResponse response) throws IOException {
+      response.setContentType("text/plain");
+
+      try(PrintWriter writer = response.getWriter()) {
+         writer.println("ok");
+      }
+   }
+
    private ServerClusterClient client;
 }
