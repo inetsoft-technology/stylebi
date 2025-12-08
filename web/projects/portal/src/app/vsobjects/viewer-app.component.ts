@@ -451,6 +451,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    public cancelled = false;
    private clickOnVS: boolean = false;
    private currOrgID: string = null;
+   private resetFormat = false;
 
    // Keyboard nav - Section 508 compliance
    keyNavigation: Subject<FocusObjectEventModel> =
@@ -2122,8 +2123,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    //set current select area formatInfoModel
    private processSetCurrentFormatCommand(command: SetCurrentFormatCommand): void {
-      this.currentFormat = command.model;
-      this.origFormat = Tool.clone(command.model);
+      // reset would return a null model, call server for reset model
+      if(command.model) {
+         this.currentFormat = command.model;
+         this.origFormat = Tool.clone(command.model);
+      }
+      else if(this.resetFormat) {
+         this.resetFormat = false;
+         this.getCurrentFormat();
+      }
    }
 
    // noinspection JSUnusedGlobalSymbols
@@ -3158,6 +3166,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this.updateFormat(this.currentFormat);
          break;
       case "reset":
+         this.resetFormat = true;
          this.updateFormat(null);
          break;
       }
