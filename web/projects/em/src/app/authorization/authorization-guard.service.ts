@@ -19,7 +19,10 @@ import { Injectable } from "@angular/core";
 import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
-import { AiAssistantService } from "../../../../shared/ai-assistant/ai-assistant.service";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AuthorizationService } from "./authorization.service";
 
 @Injectable()
@@ -56,7 +59,7 @@ export class AuthorizationGuard implements CanActivate {
             }
 
             this.aiAssistantService.loadCurrentUser(true);
-            this.aiAssistantService.setContextTypeFieldValue("em");
+            this.aiAssistantService.setContextTypeFieldValue(ContextType.EM);
 
             return allowed;
          })
