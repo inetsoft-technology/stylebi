@@ -9,9 +9,9 @@ StyleBI is a cloud-native, small-footprint business intelligence web application
 
 _Screenshots of [StyleBI Cloud](https://www.inetsoft.com/company/bi_dashboard_pricing)_.
 
-## Resources & Scaliblity
+## Resources & Scalablity
 
-StyleBI Open Source can be deployed on any Docker engine, including Docker Desktop. For cloud deployments, a minimum capacity of 2 cores and 4GB of RAM is recommended. [StyleBI Cloud](https://www.inetsoft.com) offers elastic scaling through native cloud servies from AWA, GCP and Azure, built on top of StyleBI Open Source.
+StyleBI Open Source can be deployed on any Docker engine, including Docker Desktop. For cloud deployments, a minimum capacity of 2 cores and 8GB of RAM is recommended. [StyleBI Cloud](https://www.inetsoft.com) offers elastic scaling through native cloud servies from AWA, GCP and Azure, built on top of StyleBI Open Source.
 
 ## Security
 
