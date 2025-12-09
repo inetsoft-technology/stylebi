@@ -68,6 +68,8 @@ management:
             - cacheSwap
             - reportFailure
             - scheduler
+            - securityProvider
+            - fileSystem
         liveness:
           include:
             - livenessState
@@ -76,6 +78,8 @@ management:
             - cacheSwap
             - reportFailure
             - scheduler
+            - securityProvider
+            - fileSystem
       show-details: always
       show-components: always
   health:
@@ -94,6 +98,10 @@ management:
     reportFailure:
       enabled: true
     scheduler:
+      enabled: true
+    securityProvider:
+      enabled: true
+    fileSystem:
       enabled: true
   server:
     port: 8081

@@ -25,13 +25,17 @@ public final class HealthStatus implements Serializable {
                        DeadlockStatus deadlockStatus,
                        OutOfMemoryStatus outOfMemoryStatus,
                        ReportFailureStatus reportFailureStatus,
-                       SchedulerStatus schedulerStatus)
+                       SchedulerStatus schedulerStatus,
+                       SecurityProviderStatus securityProviderStatus,
+                       FileSystemStatus fileSystemStatus)
    {
       this.cacheSwapStatus = cacheSwapStatus;
       this.deadlockStatus = deadlockStatus;
       this.outOfMemoryStatus = outOfMemoryStatus;
       this.reportFailureStatus = reportFailureStatus;
       this.schedulerStatus = schedulerStatus;
+      this.securityProviderStatus = securityProviderStatus;
+      this.fileSystemStatus = fileSystemStatus;
    }
 
    public boolean isDown() {
@@ -39,7 +43,9 @@ public final class HealthStatus implements Serializable {
          deadlockStatus.getDeadlockedThreadCount() > 0 ||
          outOfMemoryStatus.isOutOfMemory() ||
          reportFailureStatus.isExcessiveFailures() ||
-         !schedulerStatus.isHealthy();
+         !schedulerStatus.isHealthy() ||
+         securityProviderStatus.isProviderDown() ||
+         fileSystemStatus.isFileSystemDown();
    }
 
    public CacheSwapStatus getCacheSwapStatus() {
@@ -62,6 +68,14 @@ public final class HealthStatus implements Serializable {
       return schedulerStatus;
    }
 
+   public SecurityProviderStatus getSecurityProviderStatus() {
+      return securityProviderStatus;
+   }
+
+   public FileSystemStatus getFileSystemStatus() {
+      return fileSystemStatus;
+   }
+
    @Override
    public String toString() {
       return "HealthStatus{" +
@@ -70,6 +84,8 @@ public final class HealthStatus implements Serializable {
          ", outOfMemoryStatus=" + outOfMemoryStatus +
          ", reportFailureStatus=" + reportFailureStatus +
          ", schedulerStatus=" + schedulerStatus +
+         ", securityProviderStatus=" + securityProviderStatus +
+         ", fileSystemStatus=" + fileSystemStatus +
          '}';
    }
 
@@ -78,6 +94,8 @@ public final class HealthStatus implements Serializable {
    private final OutOfMemoryStatus outOfMemoryStatus;
    private final ReportFailureStatus reportFailureStatus;
    private final SchedulerStatus schedulerStatus;
+   private final SecurityProviderStatus securityProviderStatus;
+   private final FileSystemStatus fileSystemStatus;
    @Serial
    private static final long serialVersionUID = 1L;
 }
