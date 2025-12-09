@@ -200,6 +200,7 @@ import { ViewerResizeService } from "./util/viewer-resize.service";
 import { VSUtil } from "./util/vs-util";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
 import { BaseHrefService } from "../common/services/base-href.service";
+import { DashboardTabModel } from "../portal/dashboard/dashboard-tab-model";
 
 declare const window: any;
 declare var globalPostParams: { [name: string]: string[] } | null;
@@ -344,6 +345,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Input() globalLoadingIndicator: boolean = false;
    @Input() embedViewer: boolean = false;
    @Input() viewerOffsetFunc: () => { x: number, y: number, width: number, height: number, scrollLeft: number, scrollTop: number };
+   @Input() dashboardTabModel: DashboardTabModel;
    @Output() onAnnotationChanged = new EventEmitter<boolean>();
    @Output() runtimeIdChange = new EventEmitter<string>();
    @Output() socket = new EventEmitter<ViewsheetClientService>();
@@ -359,6 +361,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    @Output() onLoadingStateChanged = new EventEmitter<{ name: string, loading: boolean }>();
    @Output() onDataTipPopComponentVisible = new EventEmitter<boolean>();
    @Output() onViewerSizeChanged = new EventEmitter<{width: number, height: number}>();
+   @Output() toolbarVisibleChange = new EventEmitter<boolean>();
 
    @Input()
    get runtimeId(): string {
@@ -2312,6 +2315,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
     */
    processInitGridCommand(command: InitGridCommand): void {
       this.toolbarVisible = command.toolbarVisible;
+      this.toolbarVisibleChange.emit(this.toolbarVisible);
       this.stompClientService.reloadOnFailure = command.wallboard;
       this.wallboard = !!command.wallboard;
       this.hyperlinkService.singleClick = command.singleClick;
@@ -2339,6 +2343,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    processSetPermissionsCommand(command: SetPermissionsCommand): void {
       this.toolbarPermissions = command.permissions || [];
       this.toolbarVisible = this.toolbarPermissions.indexOf("Toolbar") < 0;
+      this.toolbarVisibleChange.emit(this.toolbarVisible);
       this.hyperlinkService.portalRepositoryPermission =
          this.toolbarPermissions.indexOf("PortalRepository") < 0;
       this.profilingVisible = !!command.permissions && command.permissions.indexOf("Profiling") > 0;
@@ -4216,5 +4221,33 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       }
 
       return { top: 0, left: 0, width: 0, height: 0 };
+   }
+
+   private getTopPx(): string {
+      if (this.dashboardTabModel) {
+         if (this.dashboardTabModel.drillTabsTop) {
+            if(this.toolbarVisible && this.mobileDevice) {
+               return this.tabsHeight + 66 +  'px !important';
+            } else if (this.toolbarVisible && !this.mobileDevice){
+               return this.tabsHeight + 33 +  'px !important';
+            } else {
+               return '0px !important';
+            }
+         } else {
+            return null;
+         }
+      }
+      return null;
+   }
+
+   private getBottomPx() {
+      if (this.dashboardTabModel) {
+         if (this.dashboardTabModel.drillTabsTop) {
+            return '0px !important';
+         } else {
+            return this.tabsHeight + 'px !important';
+         }
+      }
+      return null;
    }
 }
