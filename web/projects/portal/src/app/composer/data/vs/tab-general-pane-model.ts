@@ -23,4 +23,5 @@ export interface TabGeneralPaneModel {
    generalPropPaneModel: GeneralPropPaneModel;
    tabListPaneModel: TabListPaneModel;
    sizePositionPaneModel: SizePositionPaneModel;
+   bottomTabs: boolean;
 }
