@@ -306,6 +306,14 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                   this.vsInfo ? this.vsInfo.linkUri : null,
                   this.isForceTab());
                break;
+            case "chart show-titleHyperlink":
+               this.hyperlinkService.showHyperlinks(
+                  event.event, [this.model.titleLinkModel],
+                  this.dropdownService,
+                  this.viewsheetClient.runtimeId,
+                  this.vsInfo ? this.vsInfo.linkUri : null,
+                  this.isForceTab());
+               break;
             case "chart auto-refresh":
             case "chart manual-refresh":
                this.changeAutoRefresh();
@@ -836,19 +844,22 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       this.model.selectedRegions = [];
    }
 
-   selectTitle(): void {
-      if(this.context.preview) {
+   selectTitle(event: MouseEvent): void {
+      if(this.context.preview && this.model.titleLinkModel == null) {
          return;
       }
 
       this.clearSelection();
       this.model.selectedRegions = [DataPathConstants.TITLE];
       this.model.titleSelected = true;
-      this.clickTitleHyperlink();
+
+      if(event.button == 0) {
+         this.clickTitleHyperlink();
+      }
    }
 
    clickTitleHyperlink(): void {
-      let titleLinkModel = this.model.titleLinkModel;
+      let titleLinkModel = Tool.clone(this.model.titleLinkModel);
 
       if (this.viewer && titleLinkModel != null &&
             (!this.mobileDevice || this.hyperlinkService.singleClick)) {

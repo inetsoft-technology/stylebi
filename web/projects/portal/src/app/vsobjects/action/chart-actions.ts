@@ -143,6 +143,14 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
                this.isActionVisible("Resize Plot")
          },
          {
+            id: () => "chart show-titleHyperlink",
+            label: () => "_#(js:Show Hyperlinks)",
+            icon: () => "fa fa-link",
+            enabled: () => true,
+            visible: () => this.model.titleSelected && this.model.titleLinkModel &&
+                              this.isActionVisibleInViewer("Show Hyperlinks") && this.mobileDevice
+         },
+         {
             id: () => "chart reset-size",
             label: () => "_#(js:Reset Size)",
             icon: () => "reset-icon",
