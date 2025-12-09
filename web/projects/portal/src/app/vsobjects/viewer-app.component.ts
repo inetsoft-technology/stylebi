@@ -661,7 +661,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          console.error("The runtime or asset identifier must be provided");
       }
 
-      if(this.viewerRoot?.nativeElement && !this.isIframe) {
+      if(this.viewerRoot?.nativeElement) {
          this.zone.runOutsideAngular(() => {
             new ResizeSensor(this.viewerRoot.nativeElement, () => {
                this.onViewerRootResizeEvent();
