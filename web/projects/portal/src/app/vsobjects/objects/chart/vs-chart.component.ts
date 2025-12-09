@@ -844,6 +844,17 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       this.clearSelection();
       this.model.selectedRegions = [DataPathConstants.TITLE];
       this.model.titleSelected = true;
+      this.clickTitleHyperlink();
+   }
+
+   clickTitleHyperlink(): void {
+      let titleLinkModel = this.model.titleLinkModel;
+
+      if (this.viewer && titleLinkModel != null &&
+            (!this.mobileDevice || this.hyperlinkService.singleClick)) {
+         this.hyperlinkService.clickLink(titleLinkModel, this.viewsheetClient.runtimeId,
+                     this.vsInfo.linkUri);
+      }
    }
 
    protected getHyperlinks(): HyperlinkModel[] {

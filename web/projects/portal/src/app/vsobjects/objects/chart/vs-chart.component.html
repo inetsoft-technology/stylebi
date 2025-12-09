@@ -68,7 +68,8 @@
             (changeTitle)="changeTitle($event)"
             (titleResizeMove)="titleResizeMove($event)"
             (titleResizeEnd)="titleResizeEnd()"
-            [zIndex]="viewer ? getZIndex() + 1 : 0">
+            [zIndex]="viewer ? getZIndex() + 1 : 0"
+            [class.cursor-pointer]="viewer && model.titleLinkModel">
   </vs-title>
   <chart-area *ngIf="!viewer || model.visible || model.active"
               #chartArea

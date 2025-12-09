@@ -31,6 +31,7 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.model.FormatInfoModel;
+import inetsoft.web.composer.model.vs.HyperlinkModel;
 import inetsoft.web.graph.GraphBuilder;
 import inetsoft.web.graph.model.*;
 import inetsoft.web.viewsheet.model.*;
@@ -77,6 +78,11 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.summarySortCol = info.getSummarySortCol();
       this.summarySortVal = info.getSummarySortVal();
       this.titleLinkValue = info.getTitleLinkValue();
+
+      if(titleLinkValue != null) {
+         Hyperlink.Ref ref = new Hyperlink.Ref(this.titleLinkValue);
+         this.titleLinkModel = HyperlinkModel.createHyperlinkModel(ref);
+      }
    }
 
    private boolean containsDynamic(ChartVSAssembly assembly) {
@@ -521,6 +527,14 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.titleLinkValue = titleLinkValue;
    }
 
+   public HyperlinkModel getTitleLinkModel() {
+      return titleLinkModel;
+   }
+
+   public void setTitleLinkModel(HyperlinkModel titleLinkModel) {
+      this.titleLinkModel = titleLinkModel;
+   }
+
    private int chartType = GraphTypes.CHART_AUTO;
    private List<Axis> axes = new ArrayList<>();
    private List<Facet> facets = new ArrayList<>();
@@ -572,6 +586,7 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    private int summarySortVal;
    private FormatInfoModel errorFormat;
    private Hyperlink titleLinkValue;
+   private HyperlinkModel titleLinkModel;
 
    @Component
    public static final class VSChartModelFactory
