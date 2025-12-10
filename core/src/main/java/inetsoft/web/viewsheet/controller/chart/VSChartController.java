@@ -264,6 +264,13 @@ public abstract class VSChartController<T extends VSChartEvent> {
          Assembly other = assemblies[i];
 
          if(other instanceof Viewsheet) {
+            try {
+               coreLifecycleService.addDeleteVSObject(rvs, (Viewsheet) other, dispatcher, false);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to refresh assembly: " + other.getAbsoluteName(), e);
+            }
+
             reloadOtherAssemblies(rvs, (Viewsheet) other, priorAssembly, uri, dispatcher, refreshData);
             continue;
          }
