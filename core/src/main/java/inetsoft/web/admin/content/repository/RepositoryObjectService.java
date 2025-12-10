@@ -171,7 +171,7 @@ public class RepositoryObjectService {
 
                   try {
                      AbstractSheet assetSheet =
-                        assetRepository.getSheet(asset, principal, true, AssetContent.ALL);
+                        assetRepository.getSheet(asset, principal, true, AssetContent.CONTEXT);
                      RecycleBin.Entry binEntry = recycleBin.getEntry(path);
                      AssetEntry dasset = new AssetEntry(
                         binEntry.getOriginalScope(), type, binEntry.getOriginalPath(),
