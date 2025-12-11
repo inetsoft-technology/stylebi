@@ -250,6 +250,8 @@ public class SaveWorksheetService extends WorksheetControllerService {
                             Principal user, CommandDispatcher dispatcher)
       throws Exception
    {
+      Worksheet ws = rws.getWorksheet();
+
       if(rws.isDisposed()) {
          return false;
       }
@@ -292,10 +294,10 @@ public class SaveWorksheetService extends WorksheetControllerService {
 
          String alias = entry.getAlias();
          entry.setAlias(alias);
-         rws.getWorksheet().setLastModified(System.currentTimeMillis());
-         getWorksheetEngine().setWorksheet(rws.getWorksheet(), entry, user, event.isForceSave(),
+         ws.setLastModified(System.currentTimeMillis());
+         getWorksheetEngine().setWorksheet(ws, entry, user, event.isForceSave(),
                                            !event.isUpdateDepend());
-         rws.getWorksheet().fireEvent(AbstractSheet.SHEET_SAVED, null);
+         ws.fireEvent(AbstractSheet.SHEET_SAVED, null);
 
          if(actionRecord != null) {
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
