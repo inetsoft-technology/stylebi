@@ -82,6 +82,7 @@ public class WSEditTableDataService extends WorksheetControllerService {
       String name = event.getTableName();
       EmbeddedTableAssembly table =
          (EmbeddedTableAssembly) ws.getAssembly(name);
+      EmbeddedTableAssembly clonedTable = (EmbeddedTableAssembly) table.clone();
 
       while(!queue.isEmpty()) {
          event = queue.poll();
@@ -163,6 +164,7 @@ public class WSEditTableDataService extends WorksheetControllerService {
                int mode = AssetEventUtil.getMode(table);
                DataKey key = AssetDataCache.getCacheKey(table, box, null, mode, true);
                AssetDataCache.removeCachedData(key);
+               WorksheetEventUtil.clearDataCache(clonedTable, rws.getAssetQuerySandbox());
             }
             catch(Exception ex) {
                LOG.debug("Failed to remove cached data", ex);
