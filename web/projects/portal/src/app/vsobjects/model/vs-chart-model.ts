@@ -58,4 +58,6 @@ export interface VSChartModel extends VSObjectModel, ChartModel {
    sendingFlyover?: boolean;
    readonly titleLinkValue?: HyperlinkModel;
    readonly titleLinkModel?: HyperlinkModel;
+   readonly emptyPlotLinkValue?: HyperlinkModel;
+   readonly emptyPlotLinkModel?: HyperlinkModel;
 }

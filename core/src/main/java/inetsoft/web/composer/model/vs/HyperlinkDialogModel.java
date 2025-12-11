@@ -217,6 +217,14 @@ public class HyperlinkDialogModel {
       this.titleLink = titleLink;
    }
 
+   public boolean isEmptyPlotLink() {
+      return emptyPlotLink;
+   }
+
+   public void setEmptyPlotLink(boolean emptyPlotLink) {
+      this.emptyPlotLink = emptyPlotLink;
+   }
+
    @Override
    public String toString() {
       return "HyperlinkDialogModel{" +
@@ -262,4 +270,5 @@ public class HyperlinkDialogModel {
    private boolean showRow;
    private DataRefModel[] grayedOutFields;
    private boolean titleLink;
+   private boolean emptyPlotLink;
 }

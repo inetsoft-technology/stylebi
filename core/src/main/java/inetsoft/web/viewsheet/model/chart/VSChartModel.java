@@ -78,10 +78,16 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.summarySortCol = info.getSummarySortCol();
       this.summarySortVal = info.getSummarySortVal();
       this.titleLinkValue = info.getTitleLinkValue();
+      this.emptyPlotLinkValue = info.getEmptyPlotLinkValue();
 
       if(titleLinkValue != null) {
          Hyperlink.Ref ref = new Hyperlink.Ref(this.titleLinkValue);
          this.titleLinkModel = HyperlinkModel.createHyperlinkModel(ref);
+      }
+
+      if(emptyPlotLinkValue != null) {
+         Hyperlink.Ref ref = new Hyperlink.Ref(this.emptyPlotLinkValue);
+         this.emptyPlotLinkModel = HyperlinkModel.createHyperlinkModel(ref);
       }
    }
 
@@ -535,6 +541,22 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.titleLinkModel = titleLinkModel;
    }
 
+   public Hyperlink getEmptyPlotLinkValue() {
+      return emptyPlotLinkValue;
+   }
+
+   public void setEmptyPlotLinkValue(Hyperlink emptyPlotLinkValue) {
+      this.emptyPlotLinkValue = emptyPlotLinkValue;
+   }
+
+   public HyperlinkModel getEmptyPlotLinkModel() {
+      return emptyPlotLinkModel;
+   }
+
+   public void setEmptyPlotLinkModel(HyperlinkModel emptyPlotLinkModel) {
+      this.emptyPlotLinkModel = emptyPlotLinkModel;
+   }
+
    private int chartType = GraphTypes.CHART_AUTO;
    private List<Axis> axes = new ArrayList<>();
    private List<Facet> facets = new ArrayList<>();
@@ -587,6 +609,8 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    private FormatInfoModel errorFormat;
    private Hyperlink titleLinkValue;
    private HyperlinkModel titleLinkModel;
+   private Hyperlink emptyPlotLinkValue;
+   private HyperlinkModel emptyPlotLinkModel;
 
    @Component
    public static final class VSChartModelFactory

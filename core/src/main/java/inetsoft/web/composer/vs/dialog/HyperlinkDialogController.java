@@ -127,6 +127,7 @@ public class HyperlinkDialogController {
       @RequestParam(value = "isAxis", required = false) boolean isAxis,
       @RequestParam(value = "isText", required = false) boolean isText,
       @RequestParam(value = "titleLink", required = false) boolean titleLink,
+      @RequestParam(value = "emptyPlotLink", required = false) boolean emptyPlotLink,
       @RequestParam("runtimeId") String runtimeId, Principal principal)
       throws Exception
    {
@@ -213,6 +214,12 @@ public class HyperlinkDialogController {
          model.setTitleLink(true);
          ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
          hyperlink = info.getTitleLinkValue();
+      }
+
+      if (emptyPlotLink) {
+         model.setEmptyPlotLink(true);
+         ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
+         hyperlink = info.getEmptyPlotLinkValue();
       }
 
       if(hyperlink == null) {
@@ -414,6 +421,10 @@ public class HyperlinkDialogController {
 
          if(model.isTitleLink()) {
             info.setTitleLinkValue(hyperlink);
+         }
+
+         if(model.isEmptyPlotLink()) {
+            info.setEmptyPlotLinkValue(hyperlink);
          }
 
          if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !model.isAxis()) {

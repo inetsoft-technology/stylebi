@@ -186,6 +186,13 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
             visible: () => this.chartHyperlinkVisible()
          },
          {
+            id: () => "chart emptyPlot-hyperlink",
+            label: () => "Hyperlink Empty Plot",
+            icon: () => "fa fa-link",
+            enabled: () => true,
+            visible: () => this.chartEmptyPlotHyperlinkVisible()
+         },
+         {
             id: () => "chart highlight",
             label: () => this.highlightLabel,
             icon: () => "fa fa-filter",
@@ -337,10 +344,11 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
    }
 
    private chartTitleHyperlinkVisible(): boolean {
-      if (this.composer && this.model?.titleSelected) {
-         return true;
-      }
-      return false;
+      return this.composer && this.model?.titleSelected;
+   }
+
+   private chartEmptyPlotHyperlinkVisible(): boolean {
+      return this.composer && this.model?.chartSelection?.regions?.length == 0;
    }
 
    private chartHighlightVisible(): boolean {
