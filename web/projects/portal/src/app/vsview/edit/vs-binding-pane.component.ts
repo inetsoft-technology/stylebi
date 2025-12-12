@@ -215,6 +215,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
    private closed: boolean = false;
    private committed: boolean = false;
    private textFormat: boolean = false; // true if editing format from text field
+   private resetFormat: boolean = false;
    @ViewChild("notifications") notifications: NotificationsComponent;
    @ViewChild("objectView") objectView: VSObjectView;
 
@@ -658,7 +659,13 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
 
    private processSetCurrentFormatCommand(command: SetCurrentFormatCommand): void {
       if(JSON.stringify(this.currentFormat) != JSON.stringify(command.model)) {
-         this.zone.run(() => this.currentFormat = command.model);
+         if(command.model != null) {
+            this.zone.run(() => this.currentFormat = command.model);
+         }
+         else if(this.resetFormat) {
+            this.resetFormat = false;
+            this.getCurrentFormat(false);
+         }
       }
 
       this.origFormat = Tool.clone(command.model);
@@ -744,6 +751,7 @@ export class VSBindingPane extends CommandProcessor implements OnInit, OnDestroy
             this.updateFormat(this.currentFormat);
             break;
          case "reset":
+            this.resetFormat = true;
             this.updateFormat(null);
             break;
       }
