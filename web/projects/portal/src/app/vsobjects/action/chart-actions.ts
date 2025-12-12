@@ -151,6 +151,15 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
                               this.isActionVisibleInViewer("Show Hyperlinks") && this.mobileDevice
          },
          {
+            id: () => "chart show-emptyPlotHyperlink",
+            label: () => "_#(js:Show Hyperlinks)",
+            icon: () => "fa fa-link",
+            enabled: () => true,
+            visible: () => this.model.emptyPlotLinkModel &&
+               this.model.chartSelection?.regions.length == 0 &&
+               this.isActionVisibleInViewer("Show Hyperlinks") && this.mobileDevice
+         },
+         {
             id: () => "chart reset-size",
             label: () => "_#(js:Reset Size)",
             icon: () => "reset-icon",

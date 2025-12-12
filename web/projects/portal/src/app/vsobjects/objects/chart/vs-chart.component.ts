@@ -314,6 +314,14 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                   this.vsInfo ? this.vsInfo.linkUri : null,
                   this.isForceTab());
                break;
+            case "chart show-emptyPlotHyperlink":
+               this.hyperlinkService.showHyperlinks(
+                  event.event, [this.model.emptyPlotLinkModel],
+                  this.dropdownService,
+                  this.viewsheetClient.runtimeId,
+                  this.vsInfo ? this.vsInfo.linkUri : null,
+                  this.isForceTab());
+               break;
             case "chart auto-refresh":
             case "chart manual-refresh":
                this.changeAutoRefresh();
@@ -819,10 +827,13 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    }
 
    clickHyperlink(event: MouseEvent) {
-      if(this.clickAction && event.button === 0) {
+      if(this.clickAction && event.button === 0 && this.getSelectedRegions().length > 0) {
          this.clickAction.action(event);
-         event.stopPropagation();
+      } else if (this.clickAction && event.button === 0 && this.getSelectedRegions().length == 0) {
+         this.clickEmptyPlotHyperlink();
       }
+
+      event.stopPropagation();
    }
 
    /**
@@ -864,6 +875,16 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       if (this.viewer && titleLinkModel != null &&
             (!this.mobileDevice || this.hyperlinkService.singleClick)) {
          this.hyperlinkService.clickLink(titleLinkModel, this.viewsheetClient.runtimeId,
+                     this.vsInfo.linkUri);
+      }
+   }
+
+   clickEmptyPlotHyperlink(): void {
+      let emptyPlotLinkModel = Tool.clone(this.model.emptyPlotLinkModel);
+
+      if (this.viewer && emptyPlotLinkModel != null &&
+            (!this.mobileDevice || this.hyperlinkService.singleClick)) {
+         this.hyperlinkService.clickLink(emptyPlotLinkModel, this.viewsheetClient.runtimeId,
                      this.vsInfo.linkUri);
       }
    }
