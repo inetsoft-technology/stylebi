@@ -29,7 +29,6 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularQuery;
-import inetsoft.util.DurationFormat;
 import inetsoft.web.binding.drm.AggregateRefModel;
 import inetsoft.web.binding.model.AggregateInfoModel;
 import inetsoft.web.binding.model.GroupRefModel;
