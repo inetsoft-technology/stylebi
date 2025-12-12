@@ -38,6 +38,7 @@ export abstract class AbstractTableAssembly implements WSTableAssembly {
    primary: boolean;
    outerMirror: boolean;
 
+   duration: number;
    totalRows: number;
    rowsCompleted: boolean;
    columnTypeEnabled: boolean;
@@ -77,6 +78,7 @@ export abstract class AbstractTableAssembly implements WSTableAssembly {
       this.primary = table.primary;
       this.classType = table.classType as "TableAssembly";
 
+      this.duration = table.duration;
       this.totalRows = table.totalRows;
       this.rowsCompleted = table.rowsCompleted;
       this.columnTypeEnabled = table.columnTypeEnabled;

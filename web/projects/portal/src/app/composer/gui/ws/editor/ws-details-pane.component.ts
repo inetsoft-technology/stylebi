@@ -409,6 +409,10 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
          status += `, ${this.table.totalRows} _#(js:records)`;
       }
 
+      if(this.table.duration) {
+         status += ` _#(js:in) ${this.table.duration}ms`;
+      }
+
       if(this.table.exceededMaximum) {
          status += `, ${this.table.exceededMaximum}`;
 
