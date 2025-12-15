@@ -582,6 +582,14 @@ public class FileSystemService {
                            }
                         }
                         catch(IOException e) {
+                           // File is currently used by ImportCSVDialogController and cannot be deleted in Windows
+                           // ImportCSVDialogController will delete the file itself, so swallow the error and skip the file
+                           if(path.toString().endsWith("_csv") &&
+                              e.getMessage().contains("The process cannot access the file because it is being used by another process"))
+                           {
+                              continue;
+                           }
+
                            if(LOG.isDebugEnabled()) {
                               LOG.warn("Failed to delete cache file {}", path, e);
                            }
