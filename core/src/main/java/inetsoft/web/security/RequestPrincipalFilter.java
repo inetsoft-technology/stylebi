@@ -43,6 +43,7 @@ public class RequestPrincipalFilter extends AbstractSecurityFilter {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
       Locale oldLocale = ThreadContext.getLocale();
+      boolean oldProfiling = ThreadContext.isProfiling();
 
       if(!isPublicApi(httpRequest)) {
          Principal principal = getPrincipal(httpRequest);
@@ -70,6 +71,7 @@ public class RequestPrincipalFilter extends AbstractSecurityFilter {
       finally {
          ThreadContext.setContextPrincipal(oldPrincipal);
          ThreadContext.setLocale(oldLocale);
+         ThreadContext.setProfiling(oldProfiling);
       }
    }
 

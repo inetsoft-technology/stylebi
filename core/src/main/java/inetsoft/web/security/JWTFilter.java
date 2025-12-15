@@ -57,6 +57,7 @@ public class JWTFilter extends AbstractSecurityFilter {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
       Principal oldPrincipal = ThreadContext.getContextPrincipal();
       Locale oldLocale = ThreadContext.getLocale();
+      Boolean oldProfiling = ThreadContext.isProfiling();
 
       if(!isPageRequested(LOGIN_URI, httpRequest) && !isDocumentationResource(httpRequest) &&
          isPublicApi(httpRequest) || isTeamWebsocketEndpoint(httpRequest))
@@ -109,6 +110,7 @@ public class JWTFilter extends AbstractSecurityFilter {
       finally {
          ThreadContext.setContextPrincipal(oldPrincipal);
          ThreadContext.setLocale(oldLocale);
+         ThreadContext.setProfiling(oldProfiling);
       }
    }
 

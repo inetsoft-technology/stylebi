@@ -18,6 +18,7 @@
 package inetsoft.util;
 
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -137,6 +138,26 @@ public final class ThreadContext {
       }
    }
 
+   public static boolean isProfiling() {
+      Boolean profiling = PROFILING.get();
+
+      if(profiling == null && getContextPrincipal() instanceof XPrincipal principal) {
+         profiling = principal.isProfiling();
+         PROFILING.set(profiling);
+      }
+
+      return Boolean.TRUE.equals(profiling);
+   }
+
+   public static void setProfiling(Boolean profiling) {
+      if(profiling == null) {
+         PROFILING.remove();
+      }
+      else {
+         PROFILING.set(profiling);
+      }
+   }
+
    /**
     * Set a value in the current user session. Ignored if there is no user session in
     * current thread.
@@ -199,6 +220,7 @@ public final class ThreadContext {
 
    private static final ThreadLocal<Principal> PRINCIPAL = new ThreadLocal<>();
    private static final ThreadLocal<Locale> LOCALE = new ThreadLocal<>();
+   private static final ThreadLocal<Boolean> PROFILING = new ThreadLocal<>();
    private static final Map<Thread,Map<String,Object>> sessionInfos = new WeakHashMap<>();
    private static final Logger LOG = LoggerFactory.getLogger(ThreadContext.class);
 }

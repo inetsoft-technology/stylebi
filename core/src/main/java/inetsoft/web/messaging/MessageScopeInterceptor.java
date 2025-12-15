@@ -82,6 +82,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
       // clear the ThreadContext thread local variables
       ThreadContext.setPrincipal(null);
       ThreadContext.setLocale(null);
+      ThreadContext.setProfiling(null);
    }
 
    private void addViewsheetRecord(GroupedThread thread) {
