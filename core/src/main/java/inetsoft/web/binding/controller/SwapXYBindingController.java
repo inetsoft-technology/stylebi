@@ -18,6 +18,7 @@
 package inetsoft.web.binding.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.graph.aesthetic.SizeFrame;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -193,6 +194,13 @@ public class SwapXYBindingController {
          }
 
          cinfo.addYField(i, yref);
+      }
+
+      if(xfields.length == 1 && yfields.length == 1 &&
+         xfields[0] instanceof VSChartAggregateRef && yfields[0] instanceof VSChartAggregateRef)
+      {
+         SizeFrame oldSizeFrame = (SizeFrame) ((VSChartAggregateRef) yfields[0]).getSizeFrame().clone();
+         ((VSChartAggregateRef) xfields[0]).setSizeFrame(oldSizeFrame);
       }
    }
 
