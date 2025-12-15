@@ -125,6 +125,15 @@ public class TableAssemblyModel extends WSAssemblyModel {
       this.aggregateInfo = aggregateInfo;
    }
 
+   public long getDuration() {
+      return duration;
+   }
+
+   public void setDuration(long duration) {
+      this.duration = duration;
+   }
+
+   private long duration;
    private int totalRows;
    private boolean rowsCompleted;
    private boolean columnTypeEnabled;
