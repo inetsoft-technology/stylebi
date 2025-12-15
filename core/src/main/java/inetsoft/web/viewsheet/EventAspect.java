@@ -241,6 +241,7 @@ public class EventAspect {
       String objectName = null;
       String actionName = null;
       String actionError = null;
+      boolean defaultOrg = annotation.defaultOrg();
 
       if(!annotation.objectName().isEmpty()) {
          objectName = annotation.objectName();
@@ -326,6 +327,11 @@ public class EventAspect {
       record = SUtil.getActionRecord(
          SUtil.getUserName(principal), actionName, objectName, annotation.objectType(),
          new Timestamp(System.currentTimeMillis()), actionError, principal, false);
+
+      if(defaultOrg && ActionRecord.OBJECT_TYPE_EMPROPERTY.equals(annotation.objectType())) {
+         record.setResourceOrganization(Organization.getDefaultOrganizationID());
+         record.setResourceOrganizationName(Organization.getDefaultOrganizationName());
+      }
 
       Object result;
 
