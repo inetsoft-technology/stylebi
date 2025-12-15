@@ -2291,6 +2291,10 @@ public class AssetUtil {
          }
       }
 
+      if(prefix == null) {
+         return null;
+      }
+
       try {
          XRepository repository = XFactory.getRepository();
          XDomain domain = repository.getDomain(prefix);

@@ -4815,7 +4815,7 @@ public final class XUtil {
       }
 
       XEntity xentity = lmodel.getEntity(entity);
-      XAttribute xattr = xentity.getAttribute(attr);
+      XAttribute xattr = xentity != null ? xentity.getAttribute(attr) : null;
       return xattr != null && xattr.getBrowseDataQuery() != null;
    }
 

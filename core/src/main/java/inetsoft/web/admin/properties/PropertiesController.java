@@ -45,7 +45,8 @@ public class PropertiesController {
 
    @Audited(
       actionName = ActionRecord.ACTION_NAME_DELETE,
-      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY,
+      defaultOrg = true
    )
    @DeleteMapping("/api/admin/properties/delete")
    public void deleteProperty(Principal user,
@@ -64,7 +65,8 @@ public class PropertiesController {
 
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
-      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY,
+      defaultOrg = true
    )
    @PutMapping("/api/admin/properties/edit")
    public void editProperty(Principal user,

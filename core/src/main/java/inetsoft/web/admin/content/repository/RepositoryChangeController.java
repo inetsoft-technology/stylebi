@@ -276,11 +276,14 @@ public class RepositoryChangeController {
    }
 
    private void sendChangeMessage(String orgId) {
-      for(Principal principal : subscriptions.values()) {
-         String principalOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal) == null ?
-            null : OrganizationManager.getInstance().getCurrentOrgID(principal).toLowerCase();
+      if(orgId == null) {
+         return;
+      }
 
-         if(Tool.equals(orgId, principalOrgID)) {
+      for(Principal principal : subscriptions.values()) {
+         String principalOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+         if(Tool.equals(orgId, principalOrgID, false)) {
             messagingTemplate
                .convertAndSendToUser(SUtil.getUserDestination(principal), CHANGE_TOPIC, "");
          }

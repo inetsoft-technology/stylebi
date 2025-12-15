@@ -43,6 +43,8 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.time.Duration;
+import java.time.Instant;
 
 @Service
 @ClusterProxy
@@ -203,6 +205,7 @@ public class WSLoadTableDataService extends WorksheetControllerService {
          return null;
       }
 
+      Instant start = Instant.now();
       int mode = WorksheetEventUtil.getMode(table);
       TableLens lens = box.getTableLens(name, mode);
       int count = 0;
@@ -226,10 +229,14 @@ public class WSLoadTableDataService extends WorksheetControllerService {
          ex = e;
       }
 
+      Instant end = Instant.now();
+      Duration elapsed = Duration.between(start, end);
+
       WSLoadTableDataCountCommand.Builder commandBuilder = WSLoadTableDataCountCommand.builder()
          .name(name)
          .count(count)
-         .completed(!more);
+         .completed(!more)
+         .duration(elapsed.toMillis());
 
       // set exceeded information if completed
       if(!more) {

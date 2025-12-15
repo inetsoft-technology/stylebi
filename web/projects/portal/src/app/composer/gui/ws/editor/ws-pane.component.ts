@@ -1155,6 +1155,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       const table = tables[index];
 
       if(table) {
+         table.duration = command.duration;
          table.rowsCompleted = command.completed;
          table.totalRows = command.count;
          table.exceededMaximum = command.exceededMsg;
