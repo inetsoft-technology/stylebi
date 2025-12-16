@@ -46,6 +46,7 @@ public class ThreadLocalCleanupFilter implements Filter {
          ThreadContext.setPrincipal(null);
          OrganizationContextHolder.clear();
          ThreadContext.setLocale(null);
+         ThreadContext.setProfiling(null);
       }
    }
 }

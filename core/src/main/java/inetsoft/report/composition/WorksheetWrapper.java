@@ -45,6 +45,8 @@ public final class WorksheetWrapper extends Worksheet {
    public WorksheetWrapper(Worksheet ws) {
       super();
       this.inner_ws = ws;
+      setCreated(ws.getCreated());
+      setLastModified(ws.getLastModified());
    }
 
    /**

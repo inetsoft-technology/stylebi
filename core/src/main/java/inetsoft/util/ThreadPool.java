@@ -618,6 +618,7 @@ public class ThreadPool {
                      // GroupedThread
                      ThreadContext.setPrincipal(null);
                      ThreadContext.setLocale(null);
+                     ThreadContext.setProfiling(null);
                   }
                }
 

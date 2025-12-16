@@ -256,6 +256,7 @@ public class MonitoringDataService extends BaseSubscribeChangeHandler {
          // clear the ThreadContext thread local variables
          ThreadContext.setPrincipal(null);
          ThreadContext.setLocale(null);
+         ThreadContext.setProfiling(null);
 
          return result;
       }
