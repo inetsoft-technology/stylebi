@@ -1858,7 +1858,7 @@ public class DeployManagerService {
          }
          else {
             if(createUserFolder && asset.getUser() != null &&
-               !Tool.isEmptyString(asset.getUser().name) &&
+               !Tool.isEmptyString(asset.getUser().name) && !(commonPrefixFolder.getUser() == null) &&
                !Tool.equals(asset.getUser().getName(), commonPrefixFolder.getUser().getName()))
             {
                targetFolderPath += "/" + asset.getUser().name;
