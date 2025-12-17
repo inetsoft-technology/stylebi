@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -133,9 +134,11 @@ public class LogicalModelController {
    {
       LogicalModelDefinition model = event.getModel();
       String folder = model != null ? model.getFolder() : null;
-
-      return modelService.updateModel(
+      LogicalModelDefinition newModel = modelService.updateModel(
          event.getDatabase(), folder, event.getName(), model, event.getParent(), principal);
+      AssetDataCache.removeCacheDependence(event.getDatabase());
+
+      return newModel;
    }
 
    /**

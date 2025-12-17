@@ -220,6 +220,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     */
    public static List<AssemblyEntry> removeCacheDependence(String source) {
       AssetDataCache cache = getCache();
+      DistributedTableCacheStore store = DistributedTableCacheStore.getInstance();
 
       // find entries matching the source
       List<DataKey> entries = cache.dependenceMap.entrySet().stream()
@@ -230,6 +231,11 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       // remove the entries
       entries.stream().forEach(key -> {
          cache.dependenceMap.remove(key);
+
+         if(store.exists(key)) {
+            store.remove(key);
+         }
+
          // recursively remove the parent dependency
          removeCacheDependence(key.getAssemblyEntry().toString());
       });
