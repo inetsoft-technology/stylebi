@@ -45,8 +45,11 @@ public final class WorksheetWrapper extends Worksheet {
    public WorksheetWrapper(Worksheet ws) {
       super();
       this.inner_ws = ws;
-      setCreated(ws.getCreated());
-      setLastModified(ws.getLastModified());
+
+      if(inner_ws != null) {
+         setCreated(ws.getCreated());
+         setLastModified(ws.getLastModified());
+      }
    }
 
    /**
@@ -90,15 +93,13 @@ public final class WorksheetWrapper extends Worksheet {
     * @return <tt>true</tt> if yes, <tt>false</tt> otherwise.
     */
    public boolean containsAssembly(String name, boolean all) {
-      int len = alist.size();
-
-      for(int i = 0; i < len; i++) {
-         if(alist.get(i).getName().equals(name)) {
+      for(WSAssembly wsAssembly : alist) {
+         if(wsAssembly.getName().equals(name)) {
             return true;
          }
       }
 
-      return all ? inner_ws.containsAssembly(name) : false;
+      return all && inner_ws.containsAssembly(name);
    }
 
    /**
@@ -127,11 +128,7 @@ public final class WorksheetWrapper extends Worksheet {
     * @return the assembly, <tt>null</tt> if not found.
     */
    public Assembly getAssembly(String name, boolean create) {
-      int len = alist.size();
-
-      for(int i = 0; i < len; i++) {
-         WSAssembly assembly = alist.get(i);
-
+      for(WSAssembly assembly : alist) {
          if(assembly.getName().equals(name)) {
             return assembly;
          }
@@ -201,6 +198,7 @@ public final class WorksheetWrapper extends Worksheet {
     * <tt>false</tt> otherwise.
     * @return all the assemblies.
     */
+   @SuppressWarnings("unchecked")
    @Override
    public Assembly[] getAssemblies(boolean sort) {
       Assembly[] arr = new Assembly[alist.size()];
@@ -322,11 +320,8 @@ public final class WorksheetWrapper extends Worksheet {
    @Override
    public boolean update() {
       boolean result = true;
-      Iterator<WSAssembly> values = alist.iterator();
 
-      while(values.hasNext()) {
-         WSAssembly assembly = values.next();
-
+      for(WSAssembly assembly : alist) {
          if(!assembly.update()) {
             result = false;
          }
@@ -406,10 +401,7 @@ public final class WorksheetWrapper extends Worksheet {
     */
    @Override
    public void reset() {
-      Iterator<WSAssembly> values = alist.iterator();
-
-      while(values.hasNext()) {
-         WSAssembly assembly = values.next();
+      for(WSAssembly assembly : alist) {
          assembly.reset();
       }
    }
@@ -484,8 +476,11 @@ public final class WorksheetWrapper extends Worksheet {
          WSAssembly aobj = AbstractWSAssembly.createWSAssembly(node, this);
          addAssembly(aobj);
       }
+
+      setCreated(inner_ws.getCreated());
+      setLastModified(inner_ws.getLastModified());
    }
 
    private Worksheet inner_ws;
-   private List<WSAssembly> alist = new ArrayList<>();
+   private final List<WSAssembly> alist = new ArrayList<>();
 }
