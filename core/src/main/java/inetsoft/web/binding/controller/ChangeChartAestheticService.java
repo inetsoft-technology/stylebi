@@ -37,16 +37,15 @@ import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @ClusterProxy
@@ -72,12 +71,17 @@ public class ChangeChartAestheticService {
    {
       String name = event.getName();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
       final ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
 
       if(assembly == null) {
-         LOG.warn("Chart assembly is missing, could not apply aesthetic: " + name);
+         LOG.warn("Chart assembly is missing, could not apply aesthetic: {}", name);
          return null;
       }
 
@@ -101,7 +105,7 @@ public class ChangeChartAestheticService {
          ChangeChartAestheticController.fixAggregateRefSizeField(ninfo.getVSChartInfo());
 
          int hint = assembly.setVSAssemblyInfo(ninfo);
-         box.updateAssembly(assembly.getAbsoluteName());
+         box.get().updateAssembly(assembly.getAbsoluteName());
 
          // fix bug1352448598261, chart type is not valid when in flex side,
          // so GraphUtil.as.fixVisualFrame may cause invalid result, here
@@ -129,7 +133,7 @@ public class ChangeChartAestheticService {
          try {
             ChangedAssemblyList clist =
                coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-            box.processChange(name, hint, clist);
+            box.get().processChange(name, hint, clist);
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
          }

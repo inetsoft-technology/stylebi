@@ -325,7 +325,7 @@ public class ChartVSAScriptableTest {
     */
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      viewsheetSandbox = rvs.getViewsheetSandbox();
+      viewsheetSandbox = rvs.getViewsheetSandbox().orElseThrow();
 
       chartVSAssembly1 = (ChartVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);

@@ -42,6 +42,7 @@ import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
+
 import java.awt.*;
 import java.security.Principal;
 import java.util.*;
@@ -296,8 +297,13 @@ public class SelectionTreePropertyDialogService {
                                        String objectId, Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          SelectionTreeVSAssembly assembly =
@@ -323,7 +329,7 @@ public class SelectionTreePropertyDialogService {
          return trap;
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
    }
 
@@ -332,8 +338,13 @@ public class SelectionTreePropertyDialogService {
                                                 String objectId, Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          SelectionTreeVSAssembly assembly =
@@ -359,7 +370,7 @@ public class SelectionTreePropertyDialogService {
          return grayed;
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
    }
 

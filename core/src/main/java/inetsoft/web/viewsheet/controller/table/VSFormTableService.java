@@ -63,9 +63,14 @@ public class VSFormTableService {
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       String assemblyName = event.getAssemblyName();
-      FormTableLens form = box.getFormTableLens(assemblyName);
+      FormTableLens form = box.get().getFormTableLens(assemblyName);
 
       assert form != null;
 
@@ -86,8 +91,8 @@ public class VSFormTableService {
          form.appendRow(event.row());
       }
 
-      box.resetDataMap(assemblyName);
-      BaseTableService.loadTableData(rvs, assemblyName, box.getMode(),
+      box.get().resetDataMap(assemblyName);
+      BaseTableService.loadTableData(rvs, assemblyName, box.get().getMode(),
                                         event.start(), 100, linkUri, dispatcher);
       this.coreLifecycleService.refreshVSAssembly(rvs, assemblyName, dispatcher);
 
@@ -99,9 +104,14 @@ public class VSFormTableService {
                           CommandDispatcher dispatcher, Principal principal) throws Exception
    {
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       final String assemblyName = event.getAssemblyName();
-      final FormTableLens form = box.getFormTableLens(assemblyName);
+      final FormTableLens form = box.get().getFormTableLens(assemblyName);
 
       assert form != null;
 
@@ -113,8 +123,8 @@ public class VSFormTableService {
 
       rows.sort(Collections.reverseOrder());
       rows.forEach(form::deleteRow);
-      box.resetDataMap(assemblyName);
-      BaseTableService.loadTableData(rvs, event.getAssemblyName(), box.getMode(),
+      box.get().resetDataMap(assemblyName);
+      BaseTableService.loadTableData(rvs, event.getAssemblyName(), box.get().getMode(),
                                         event.start(), 100, linkUri, dispatcher);
       return null;
    }
@@ -126,8 +136,13 @@ public class VSFormTableService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      FormTableLens form = box.getFormTableLens(event.getAssemblyName());
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      FormTableLens form = box.get().getFormTableLens(event.getAssemblyName());
 
       int col = event.col();
       int row = event.row();
@@ -252,7 +267,7 @@ public class VSFormTableService {
          coreLifecycleService.dispatchEvent(scriptEvent, dispatcher, rvs);
       }
 
-      BaseTableService.loadTableData(rvs, event.getAssemblyName(), box.getMode(),
+      BaseTableService.loadTableData(rvs, event.getAssemblyName(), box.get().getMode(),
                                         event.start(), 100, linkUri, dispatcher);
       return null;
    }
@@ -281,12 +296,17 @@ public class VSFormTableService {
       String assemblyName = event.getAssemblyName();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       TableVSAssembly table = (TableVSAssembly) viewsheet.getAssembly(assemblyName);
-      box.writeBackFormData(table);
+      box.get().writeBackFormData(table);
 
       try {
-         box.saveWsData(viewsheetService.getAssetRepository(), table.getViewsheet());
+         box.get().saveWsData(viewsheetService.getAssetRepository(), table.getViewsheet());
       }
       catch(Exception ex) {
          MessageCommand mcmd = new MessageCommand();
@@ -296,7 +316,7 @@ public class VSFormTableService {
       }
 
       rvs.resetRuntime();
-      BaseTableService.loadTableData(rvs, assemblyName, box.getMode(),
+      BaseTableService.loadTableData(rvs, assemblyName, box.get().getMode(),
                                         0, 100, linkUri, dispatcher);
       ChangedAssemblyList clist =
          coreLifecycleService.createList(false, dispatcher, rvs, linkUri);

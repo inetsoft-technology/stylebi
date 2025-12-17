@@ -42,7 +42,7 @@ class GraphRenderTest {
    @Test
    void testRenderGraph() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
       VGraphPair pair = box.getVGraphPair("Chart1", true, null);
       BufferedImage image = pair.getImage(true, 72 * 2);
       String outputDirectory = System.getProperty("test.output.dir", ".");

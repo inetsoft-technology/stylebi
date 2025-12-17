@@ -37,6 +37,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.servlet.mvc.method.annotation.PrincipalMethodArgumentResolver;
 
 import java.security.Principal;
+import java.util.Optional;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -85,7 +87,7 @@ public class CancelViewsheetLoadingControllerTest {
       when(vs.getViewsheetInfo()).thenReturn(vsInfo);
       when(vsInfo.isMetadata()).thenReturn(false);
       when(viewsheetService.getViewsheet(eq("test-rvs-id"), any(Principal.class))).thenReturn(rvs);
-      when(rvs.getViewsheetSandbox()).thenReturn(box);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
       when(rvs.getViewsheet()).thenReturn(vs);
       when(rvs.getID()).thenReturn("test-rvs-id");
 

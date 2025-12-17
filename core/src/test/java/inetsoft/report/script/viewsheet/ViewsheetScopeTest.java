@@ -63,7 +63,7 @@ public class ViewsheetScopeTest {
    void setUp() throws Exception {
       openMocks(this);
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      sandbox = rvs.getViewsheetSandbox();
+      sandbox = rvs.getViewsheetSandbox().orElseThrow();
       viewsheetScope = new ViewsheetScope(sandbox, false);
    }
 

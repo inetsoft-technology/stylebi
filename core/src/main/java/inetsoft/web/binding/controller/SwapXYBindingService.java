@@ -32,12 +32,14 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -62,16 +64,21 @@ public class SwapXYBindingService {
    {
       String name = event.getName();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
       String srctable = null;
-      box.lockRead();
+      box.get().lockRead();
 
       try {
          ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
 
          if(chart == null) {
-            LOG.warn("Chart assembly is missing, failed to process swap XY binding event: " + name);
+            LOG.warn("Chart assembly is missing, failed to process swap XY binding event: {}", name);
             return null;
          }
 
@@ -84,7 +91,7 @@ public class SwapXYBindingService {
          fixInfo(ninfo, vs);
 
          int hint = chart.setVSAssemblyInfo(ninfo);
-         box.updateAssembly(chart.getAbsoluteName());
+         box.get().updateAssembly(chart.getAbsoluteName());
          coreLifecycleService.refreshVSAssembly(rvs, chart, dispatcher);
          hint = hint | chartHandler.createCommands(oinfo, ninfo);
          boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) == VSAssembly.INPUT_DATA_CHANGED;
@@ -106,7 +113,7 @@ public class SwapXYBindingService {
          final double originalHeightRatio = cinfo.getInitialHeightRatio();
 
          ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-         box.processChange(name, hint, clist);
+         box.get().processChange(name, hint, clist);
          coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
          assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
 
@@ -126,14 +133,14 @@ public class SwapXYBindingService {
          }
 
          // force ratio to be recalculated
-         box.getVGraphPair(name);
+         box.get().getVGraphPair(name);
 
          BindingModel binding = bindingFactory.createModel(chart);
          SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
          dispatcher.sendCommand(bcommand);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
 
          if(srctable != null) {
             vs.setBrush(srctable, null);

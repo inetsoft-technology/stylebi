@@ -45,7 +45,7 @@ public class LogbackSpringExceptionFilter extends TurboFilter {
          return FilterReply.NEUTRAL;
       }
 
-      if(isDeliveryException(t) || isConnectionResetException(t)) {
+      if(isDeliveryException(t) || isConnectionResetException(t) || isSandboxDisposedException(t)) {
          return FilterReply.DENY;
       }
 
@@ -63,8 +63,14 @@ public class LogbackSpringExceptionFilter extends TurboFilter {
          "Connection reset by peer".equals(t.getCause().getMessage());
    }
 
+   private boolean isSandboxDisposedException(Throwable t) {
+      return t != null && DISPOSED_EXCEPTION.equals(t.getClass().getName());
+   }
+
    private LogManager log = null;
    private static final String DELIVERY_EXCEPTION =
       "org.springframework.web.socket.sockjs.SockJsMessageDeliveryException";
    private static final String EOF_EXCEPTION = "org.eclipse.jetty.io.EofException";
+   private static final String DISPOSED_EXCEPTION =
+      "inetsoft.report.composition.execution.SandboxDisposedException";
 }

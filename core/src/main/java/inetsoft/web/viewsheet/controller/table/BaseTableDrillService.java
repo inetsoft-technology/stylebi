@@ -83,10 +83,10 @@ public abstract class BaseTableDrillService <T extends BaseTableEvent> extends B
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       long startTime = System.currentTimeMillis();
       Viewsheet vs = rvs.getViewsheet();
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       String name = assemblyName != null ? assemblyName : event.getAssemblyName();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
@@ -98,12 +98,12 @@ public abstract class BaseTableDrillService <T extends BaseTableEvent> extends B
          sname = name.substring(index + 1);
       }
 
-      box.lockRead();
+      box.get().lockRead();
 
       try {
          // @by davidd, Stop all queries related to this Viewsheet to make way for
          // this Drill down request.
-         box.cancelAllQueries();
+         box.get().cancelAllQueries();
 
          VSAssembly aobj = vs.getAssembly(sname);
          CrosstabVSAssembly oldTable = null;
@@ -116,7 +116,7 @@ public abstract class BaseTableDrillService <T extends BaseTableEvent> extends B
             table.setLastDrillDownRequest(startTime);
             VSCrosstabInfo crosstabInfo = table.getVSCrosstabInfo();
             table.getCrosstabInfo().clearHiddenColumns();
-            VSTableLens lens = getVsTableLens(box, name, table);
+            VSTableLens lens = getVsTableLens(box.get(), name, table);
             XCube cube = crosstabDrillHandler.getCube(table);
 
             if(DrillCellsEvent.DrillTarget.CROSSTAB == drillTarget) {
@@ -145,7 +145,7 @@ public abstract class BaseTableDrillService <T extends BaseTableEvent> extends B
          }
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
    }
 
@@ -227,17 +227,21 @@ public abstract class BaseTableDrillService <T extends BaseTableEvent> extends B
       }
 
       crosstabTree.clearDrills();
-      // Optimize performance, use expanded lens to get expand status insteadof recursive do drill.
-      VSTableLens expandedLens = getVsTableLens(rvs.getViewsheetSandbox(), name, assembly);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(expandedPaths != null) {
-         expandedPaths.putAll(backupExpandedPaths);
+      if(box.isPresent()) {
+         // Optimize performance, use expanded lens to get expand status insteadof recursive do drill.
+         VSTableLens expandedLens = getVsTableLens(box.get(), name, assembly);
+
+         if(expandedPaths != null) {
+            expandedPaths.putAll(backupExpandedPaths);
+         }
+
+         boolean drillX = ChartConstants.DRILL_DIRECTION_X.equals(event.getDirection());
+         row = drillX ? row : getExpandedRowOrCol(expandedLens, path, drillX, row, col, crosstabTree);
+         col = drillX ? getExpandedRowOrCol(expandedLens, path, drillX, row, col, crosstabTree) : col;
+         setExpandCell(expandedLens, assembly, drillX, row, col, path);
       }
-
-      boolean drillX = ChartConstants.DRILL_DIRECTION_X.equals(event.getDirection());
-      row = drillX ? row : getExpandedRowOrCol(expandedLens, path, drillX, row, col, crosstabTree);
-      col = drillX ? getExpandedRowOrCol(expandedLens, path, drillX, row, col, crosstabTree) : col;
-      setExpandCell(expandedLens, assembly, drillX, row, col, path);
    }
 
    private void setExpandCell(VSTableLens expandedLens, CrosstabVSAssembly assembly,

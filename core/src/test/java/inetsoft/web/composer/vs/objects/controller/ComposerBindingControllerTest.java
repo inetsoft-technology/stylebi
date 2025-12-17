@@ -48,8 +48,7 @@ import static org.mockito.ArgumentMatchers.nullable;
 import org.mockito.quality.Strictness;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -214,7 +213,7 @@ class ComposerBindingControllerTest {
 
       Worksheet worksheet = spy(new Worksheet());
       when(viewsheet.getBaseWorksheet()).thenReturn(worksheet);
-      when(rvs.getViewsheetSandbox()).thenReturn(viewsheetSandbox);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
       AssetVariable variable = new AssetVariable();
       VariableAssembly variableAssembly =
          new DefaultVariableAssembly(worksheet, "Variable");

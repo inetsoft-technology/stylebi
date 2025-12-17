@@ -22,8 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
-import inetsoft.report.composition.execution.DataMap;
-import inetsoft.report.composition.execution.VSAQuery;
+import inetsoft.report.composition.execution.*;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
@@ -47,8 +46,7 @@ import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 @Service
 @ClusterProxy
@@ -143,9 +141,12 @@ public class VSChartDndService {
          SourceInfo source = nassembly.getSourceInfo();
 
          if(source.getType() == SourceInfo.VS_ASSEMBLY) {
-            VSAQuery query = VSAQuery.createVSAQuery(rvs.getViewsheetSandbox(),
-                                                     nassembly, DataMap.DETAIL);
-            query.createAssemblyTable(nassembly.getTableName());
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isPresent()) {
+               VSAQuery query = VSAQuery.createVSAQuery(box.get(), nassembly, DataMap.DETAIL);
+               query.createAssemblyTable(nassembly.getTableName());
+            }
          }
       }
 

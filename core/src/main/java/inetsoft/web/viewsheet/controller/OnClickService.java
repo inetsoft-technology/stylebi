@@ -65,8 +65,13 @@ public class OnClickService {
                          Principal principal, CommandDispatcher dispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      ViewsheetScope scope = box.getScope();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      ViewsheetScope scope = box.get().getScope();
       List<UserMessage> usrmsg = new ArrayList<>();
 
       //Bug #21607 on confirm event, first execute script to get the correct message
@@ -143,8 +148,13 @@ public class OnClickService {
                        CommandDispatcher dispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      WSExecution.setAssetQuerySandbox(rvs.getViewsheetSandbox().getAssetQuerySandbox());
+      if(box.isEmpty()) {
+         return;
+      }
+
+      WSExecution.setAssetQuerySandbox(box.get().getAssetQuerySandbox());
 
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = vs != null ? vs.getAssembly(name) : null;
@@ -173,16 +183,16 @@ public class OnClickService {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
       VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
 
       if(assembly == null) {
-         LOG.warn("Assembly is missing, failed to process on click event: " + name);
+         LOG.warn("Assembly is missing, failed to process on click event: {}", name);
          return;
       }
 
@@ -196,7 +206,7 @@ public class OnClickService {
          return;
       }
 
-      ViewsheetSandbox box0 = getVSBox(name, box);
+      ViewsheetSandbox box0 = getVSBox(name, box.get());
       ViewsheetScope scope = box0.getScope();
       String script = getScript(assembly);
 
@@ -256,24 +266,24 @@ public class OnClickService {
             VSAssembly assembly0 = (VSAssembly) vs.getAssembly(name0);
 
             if(assembly0 instanceof TableVSAssembly) {
-               box.resetDataMap(name0);
+               box.get().resetDataMap(name0);
 
                // @by yanie: fix #691, refresh FormTableLens after commit
                TableVSAssembly ta = (TableVSAssembly) assembly0;
                TableVSAssemblyInfo tinfo = (TableVSAssemblyInfo) ta.getInfo();
 
                if(tinfo.isForm()) {
-                  FormTableLens flens = box.getFormTableLens(name0);
+                  FormTableLens flens = box.get().getFormTableLens(name0);
 
                   if(hasFormScript(script, name0) && flens.isChanged()) {
-                     box.addScriptChangedForm(name0);
+                     box.get().addScriptChangedForm(name0);
                   }
 
-                  box.syncFormData(name0);
+                  box.get().syncFormData(name0);
                }
             }
             else if(assembly0 instanceof CrosstabVSAssembly) {
-               box.resetDataMap(name0);
+               box.get().resetDataMap(name0);
             }
             else if(assembly0 instanceof ChartVSAssembly) {
                processChart(rvs, name0, linkUri, principal, dispatcher);
@@ -284,7 +294,7 @@ public class OnClickService {
          }
 
          for(VSAssembly inputAssembly : inputAssemblies) {
-            box.processChange(inputAssembly.getAbsoluteName(),
+            box.get().processChange(inputAssembly.getAbsoluteName(),
                               VSAssembly.OUTPUT_DATA_CHANGED, clist);
          }
 
@@ -297,12 +307,12 @@ public class OnClickService {
                                                        false, true, true, clist, true);
          }
          else {
-            box.processChange(name, VSAssembly.INPUT_DATA_CHANGED, clist);
+            box.get().processChange(name, VSAssembly.INPUT_DATA_CHANGED, clist);
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          }
       }
       finally {
-         box.clearScriptChangedFormSet();
+         box.get().clearScriptChangedFormSet();
       }
 
       if(!isConfirm) {
@@ -364,14 +374,14 @@ public class OnClickService {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
-      box.clearGraph(name);
+      VSAssembly assembly = vs.getAssembly(name);
+      box.get().clearGraph(name);
       coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
    }
 

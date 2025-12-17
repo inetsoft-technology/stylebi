@@ -20,8 +20,8 @@ package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.*;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
@@ -30,7 +30,8 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.VSDialogService;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -54,22 +55,21 @@ public class TableViewPropertyDialogService {
                                                                        String objectId, Principal principal) throws Exception
    {
       RuntimeViewsheet rvs;
-      Viewsheet vs;
+      Viewsheet vs = null;
       TableVSAssembly tableAssembly;
       TableVSAssemblyInfo tableAssemblyInfo;
       rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow(
+         () -> new ExpiredSheetException(runtimeId, principal));
 
       try {
-         rvs.getViewsheetSandbox().lockRead();
+         box.lockRead();
          vs = rvs.getViewsheet();
          tableAssembly = (TableVSAssembly) vs.getAssembly(objectId);
          tableAssemblyInfo = (TableVSAssemblyInfo) tableAssembly.getVSAssemblyInfo();
       }
-      catch(Exception e) {
-         throw e;
-      }
       finally {
-         rvs.getViewsheetSandbox().unlockRead();
+         box.unlockRead();
       }
 
       TableViewPropertyDialogModel result = new TableViewPropertyDialogModel();

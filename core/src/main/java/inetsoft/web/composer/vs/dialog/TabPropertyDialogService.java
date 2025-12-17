@@ -62,7 +62,8 @@ public class TabPropertyDialogService {
       TabVSAssembly tabAssembly;
       TabVSAssemblyInfo tabAssemblyInfo;
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow(
+         () -> new ExpiredSheetException(runtimeId, principal));
       box.lockRead();
 
       try {

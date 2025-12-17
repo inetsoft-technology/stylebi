@@ -56,6 +56,7 @@ import inetsoft.web.viewsheet.model.PreviewTableCellModel;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
+
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.security.Principal;
@@ -166,7 +167,8 @@ public class VSChartShowDetailsService extends VSChartControllerService<VSChartS
    private FormatTableLens2 applyChanges(RuntimeViewsheet rvs, ChartVSAssembly chartVSAssembly,
                                          VSChartShowDetailsEvent event, Principal principal, String linkUri, CommandDispatcher dispatcher) throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow(
+         () -> new ExpiredSheetException(rvs.getID(), principal));
       String name = event.getChartName();
       int hint = VSAssembly.DETAIL_INPUT_DATA_CHANGED;
       VSDataSet alens;

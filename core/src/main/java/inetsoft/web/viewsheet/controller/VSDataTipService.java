@@ -33,13 +33,13 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.viewsheet.DataTipDependencyCheckResult;
 import inetsoft.web.viewsheet.event.OpenDataTipEvent;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.*;
 import java.util.function.Predicate;
 
 @Service
@@ -63,11 +63,11 @@ public class VSDataTipService {
 
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      Worksheet ws = box.getWorksheet();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      Worksheet ws = box.map(ViewsheetSandbox::getWorksheet).orElse(null);
       VSAssembly comp = vs.getAssembly(parent);
 
-      if(comp == null) {
+      if(ws == null || comp == null) {
          return null;
       }
 

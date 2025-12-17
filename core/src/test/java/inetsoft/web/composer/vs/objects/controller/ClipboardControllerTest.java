@@ -39,7 +39,7 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -78,7 +78,7 @@ class ClipboardControllerTest {
    void pastedObjectPosition() throws Exception {
       when(viewsheetService.getViewsheet(any(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(rvs.getViewsheetSandbox()).thenReturn(sandbox);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
 
       List<Assembly> assemblies = new ArrayList<>();
       ImageVSAssembly image = new ImageVSAssembly(viewsheet, "Image");

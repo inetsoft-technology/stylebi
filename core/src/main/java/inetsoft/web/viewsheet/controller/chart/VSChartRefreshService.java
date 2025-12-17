@@ -30,11 +30,14 @@ import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.controller.VSRefreshController;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.event.chart.VSChartRefreshEvent;
-import inetsoft.web.viewsheet.model.*;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.model.VSObjectModel;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -78,7 +81,7 @@ public class VSChartRefreshService extends VSChartControllerService<VSChartRefre
    {
       String name = chartState.getChartAssemblyInfo().getAbsoluteName();
       RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(rvs.getEmbedAssemblyInfo() != null) {
          VSRefreshEvent refresh = VSRefreshEvent.builder()
@@ -89,7 +92,11 @@ public class VSChartRefreshService extends VSChartControllerService<VSChartRefre
          return;
       }
 
-      box.lockRead();
+      if(box.isEmpty()) {
+         return;
+      }
+
+      box.get().lockRead();
 
       try {
          Viewsheet vs = rvs.getViewsheet();
@@ -102,7 +109,7 @@ public class VSChartRefreshService extends VSChartControllerService<VSChartRefre
          dispatcher.sendCommand(rcommand);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
    }
 

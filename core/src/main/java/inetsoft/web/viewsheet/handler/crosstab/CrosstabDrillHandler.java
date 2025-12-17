@@ -153,12 +153,15 @@ public class CrosstabDrillHandler
 
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(
          runtimeViewsheetRef.getRuntimeId(), principal);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VSTableLens lens = box.getVSTableLens(table.getAbsoluteName(), false);
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      for(String field : drillFilterAction.getFields()) { // for chart
-         drillAllField(true, drillFilterAction.isDrillUp(), field,
-                       table, this::drillChildEnabled, false, lens);
+      if(box.isPresent()) {
+         VSTableLens lens = box.get().getVSTableLens(table.getAbsoluteName(), false);
+
+         for(String field : drillFilterAction.getFields()) { // for chart
+            drillAllField(true, drillFilterAction.isDrillUp(), field,
+                          table, this::drillChildEnabled, false, lens);
+         }
       }
    }
 
@@ -599,10 +602,14 @@ public class CrosstabDrillHandler
                              boolean refreshData)
       throws Exception
    {
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
 
       rvs.resetMVOptions();
-      box.updateAssembly(name);
+      box.get().updateAssembly(name);
 
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = vs != null ? vs.getAssembly(name) : null;
@@ -618,10 +625,10 @@ public class CrosstabDrillHandler
 
       int hint = VSAssembly.INPUT_DATA_CHANGED;
       ChangedAssemblyList clist = coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
-      box.processChange(name, hint, clist);
+      box.get().processChange(name, hint, clist);
 
       if(assembly instanceof CrosstabVSAssembly) {
-         TableLens nlens = box.getVSTableLens(name, false);
+         TableLens nlens = box.get().getVSTableLens(name, false);
          // restore the saved (in syncCrosstabPath) header info with the new table.
          BaseTableDrillService.restoreColumnInfo(
             ((CrosstabVSAssembly) assembly).getCrosstabInfo(), nlens);

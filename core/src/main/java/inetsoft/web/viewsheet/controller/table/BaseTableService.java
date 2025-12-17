@@ -46,9 +46,9 @@ import inetsoft.web.composer.vs.objects.controller.VSTableService;
 import inetsoft.web.viewsheet.command.LoadTableDataCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.table.BaseTableEvent;
-import inetsoft.web.viewsheet.model.ModelPrototype;
 import inetsoft.web.viewsheet.model.VSFormatModel;
-import inetsoft.web.viewsheet.model.table.*;
+import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
+import inetsoft.web.viewsheet.model.table.BaseTableModel;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
@@ -114,15 +114,17 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                                     CommandDispatcher dispatcher, boolean refreshData)
       throws Exception
    {
-      // for Feature #26586, add ui processing time record.
+      Optional<ViewsheetSandbox> sandbox = rvs.getViewsheetSandbox();
 
-      ProfileUtils.addExecutionBreakDownRecord(rvs.getViewsheetSandbox().getID(),
-                                               ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
+      if(sandbox.isEmpty()) {
+         return;
+      }
+
+      // for Feature #26586, add ui processing time record.
+      ProfileUtils.addExecutionBreakDownRecord(sandbox.get().getID(), ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
             loadTableData0(rvs, name, mode, start, rowCount, linkUri, dispatcher, refreshData);
          }
       );
-
-      //loadTableData0(rvs, name, mode, start, rowCount, linkUri, dispatcher, refreshData);
    }
 
    /**
@@ -142,10 +144,10 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                                       CommandDispatcher dispatcher, boolean refreshData)
    {
       long startTime = System.currentTimeMillis();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
@@ -175,7 +177,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
             //ignore, not expecting any exception here.
          }
 
-         VSTableLens lens = box.getVSTableLens(oname, detail);
+         VSTableLens lens = box.get().getVSTableLens(oname, detail);
 
          if(vsassembly instanceof CalcTableVSAssembly) {
             CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) vsassembly.getVSAssemblyInfo();
@@ -183,7 +185,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
 
             if(info.getHeaderColCount() != properColCount) {
                info.setHeaderColCount(properColCount);
-               lens = box.getVSTableLens(oname, detail);
+               lens = box.get().getVSTableLens(oname, detail);
             }
          }
 
@@ -194,7 +196,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
             !vs.getFlyoverViews().contains(oname) &&
             !vs.getPopComponents().contains(oname))
          {
-            formLens = box.getFormTableLens(oname);
+            formLens = box.get().getFormTableLens(oname);
          }
 
          if(lens == null) {
@@ -248,14 +250,14 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          more = more || count > start + rowCount;
 
          if(!more) {
-            LOG.debug("Table " + name + " finished processing: " + tableRowCount);
+            LOG.debug("Table {} finished processing: {}", name, tableRowCount);
          }
 
          int end = Math.min(count, start + rowCount);
          String limitMessage = "";
 
          if(!more && (rvs.isPreview() || rvs.isViewer())) {
-            limitMessage = VSEventUtil.addWarningText(lens, box, name, true);
+            limitMessage = VSEventUtil.addWarningText(lens, box.get(), name, true);
          }
 
          // this looks backwards but it's not
@@ -294,7 +296,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          }
 
          VSEventUtil.getAssemblyInfo(rvs, vsassembly);
-         addScriptables(lens, vsassembly, box);
+         addScriptables(lens, vsassembly, box.get());
 
          if(refreshData) {
             BaseTableCellModel[][] tableCells = getTableCells(vsassembly.getVSAssemblyInfo(), lens,
@@ -355,7 +357,7 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
          }
 
          if(ex instanceof ScriptException) {
-            ViewsheetScope scope = box.getScope();
+            ViewsheetScope scope = box.get().getScope();
             ScriptEnv senv = scope.getScriptEnv();
             String suggestion = senv.getSuggestion((ScriptException)ex, null, scope);
             String updateMessage = "Script execution error in assembly: " +
@@ -1125,8 +1127,13 @@ public abstract class BaseTableService<T extends BaseTableEvent> {
                                                BaseTableModel model)
       throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VSTableLens lens = box.getVSTableLens(assembly.getAbsoluteName(), false);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      VSTableLens lens = box.get().getVSTableLens(assembly.getAbsoluteName(), false);
       TableDataVSAssemblyInfo tinfo = (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
 
       if(lens != null && tinfo != null) {

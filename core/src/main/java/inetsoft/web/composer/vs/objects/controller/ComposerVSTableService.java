@@ -98,9 +98,13 @@ public class ComposerVSTableService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockWrite();
+      if(viewsheet == null || box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          VSAssembly assembly = viewsheet.getAssembly(event.getName());
@@ -160,8 +164,8 @@ public class ComposerVSTableService {
 
             table.setFormatInfo(nfinfo);
             table.getTableDataVSAssemblyInfo().updateColumnWidthNames(oname, event.getText());
-            box.resetDataMap(table.getName());
-            ViewsheetSandbox currentBox = getSandbox(box, table.getAbsoluteName());
+            box.get().resetDataMap(table.getName());
+            ViewsheetSandbox currentBox = getSandbox(box.get(), table.getAbsoluteName());
 
             if(currentBox != null) {
                currentBox.syncFormData(table.getName());
@@ -183,7 +187,7 @@ public class ComposerVSTableService {
                oname = oname.substring(Assembly.DETAIL.length());
             }
 
-            VSTableLens lens = box.getVSTableLens(oname, detail);
+            VSTableLens lens = box.get().getVSTableLens(oname, detail);
             TableDataPath dataPath = lens.getTableDataPath(row, col);
 
             String messageTxt = event.getText();
@@ -211,12 +215,12 @@ public class ComposerVSTableService {
 
          int hint = assembly.setVSAssemblyInfo(info);
          ChangedAssemblyList clist = coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
-         box.processChange(event.getName(), hint, clist);
+         box.get().processChange(event.getName(), hint, clist);
          coreLifecycleService.execute(rvs, event.getName(), linkUri, clist, dispatcher, true);
          coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       return null;
@@ -273,9 +277,9 @@ public class ComposerVSTableService {
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(vsId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return null;
       }
 
@@ -301,7 +305,7 @@ public class ComposerVSTableService {
          }
 
          if(table instanceof EmbeddedTableVSAssembly) {
-            new EmbeddedTableVSAQuery(box, tableName, false).resetEmbeddedData();
+            new EmbeddedTableVSAQuery(box.get(), tableName, false).resetEmbeddedData();
          }
          // clear binding if no column left
          else if(columns.getAttributeCount() == 0) {
@@ -311,7 +315,7 @@ public class ComposerVSTableService {
          int hint = table.setColumnSelection(columns);
          ChangedAssemblyList clist =
             coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
-         box.processChange(event.getName(), hint, clist);
+         box.get().processChange(event.getName(), hint, clist);
          coreLifecycleService.execute(rvs, event.getName(), linkUri, clist, dispatcher, true);
          coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
 
@@ -335,9 +339,9 @@ public class ComposerVSTableService {
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(vsId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return null;
       }
 
@@ -355,7 +359,7 @@ public class ComposerVSTableService {
          tableInfo.clearHiddenColumns();
       }
       else if(columns != null && columns.length > 0) {
-         VSTableLens lens = box.getVSTableLens(tableName, false);
+         VSTableLens lens = box.get().getVSTableLens(tableName, false);
 
          for(int column : columns) {
             tableInfo.addHiddenColumn(column, lens);
@@ -364,7 +368,7 @@ public class ComposerVSTableService {
 
       int hint = 0;
       ChangedAssemblyList clist = coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
-      box.processChange(event.getName(), hint, clist);
+      box.get().processChange(event.getName(), hint, clist);
       coreLifecycleService.execute(rvs, event.getName(), linkUri, clist, dispatcher, true);
       coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
 
@@ -402,7 +406,7 @@ public class ComposerVSTableService {
       info.setExplicitTableWidthValue(false);
       info.setUserHeaderRowHeight(false);
       info.setUserDataRowHeight(false);
-      rvs.getViewsheetSandbox().resetDataMap(table.getAbsoluteName());
+      rvs.getViewsheetSandbox().ifPresent(b -> b.resetDataMap(table.getAbsoluteName()));
       BaseTableService.loadTableData(rvs, table.getAbsoluteName(), 0, 0, 100, "",
                                         dispatcher);
       coreLifecycleService.refreshVSAssembly(rvs, table, dispatcher);
@@ -451,10 +455,10 @@ public class ComposerVSTableService {
       RuntimeViewsheet rvs = engine.getViewsheet(vsId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
       VSAssembly assembly = (VSAssembly) viewsheet.getAssembly(event.getName());
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       int hint = 0;
 
-      if(box == null || !(assembly instanceof TableDataVSAssembly)) {
+      if(box.isEmpty() || !(assembly instanceof TableDataVSAssembly)) {
          return null;
       }
 
@@ -482,7 +486,7 @@ public class ComposerVSTableService {
       CalcTableVSAssemblyInfo freehandInfo = (CalcTableVSAssemblyInfo)
          freehandAssembly.getVSAssemblyInfo();
       freehandInfo.setPixelOffset(pos);
-      final VSTableLens lens = box.getVSTableLens(assembly.getAbsoluteName(), false);
+      final VSTableLens lens = box.get().getVSTableLens(assembly.getAbsoluteName(), false);
       boolean mergeSpan = false;
       List<String> clearCalcs = null;
 
@@ -494,7 +498,7 @@ public class ComposerVSTableService {
          reset = reset || clearDataGroup(crosstabInfo.getRuntimeColHeaders());
 
          if(reset) {
-            box.resetDataMap(assembly.getAbsoluteName());
+            box.get().resetDataMap(assembly.getAbsoluteName());
          }
 
          freehandInfo.setFillBlankWithZeroValue(crosstabInfo.isFillBlankWithZero());
@@ -504,7 +508,7 @@ public class ComposerVSTableService {
       }
 
       // 1. get metadata
-      TableLens source = (TableLens) box.getData(oname);
+      TableLens source = (TableLens) box.get().getData(oname);
 
       if(assembly instanceof CrosstabVSAssembly) {
          VSCrosstabInfo crosstabInfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
@@ -513,7 +517,7 @@ public class ComposerVSTableService {
       }
 
       boolean vsSrc = sourceInfo != null && sourceInfo.getType() == SourceInfo.VS_ASSEMBLY;
-      TableLens metadata = getMetadata(box, oname, vsSrc);
+      TableLens metadata = getMetadata(box.get(), oname, vsSrc);
 
       // 2. generate crosstab/simple table layout
       TableLayout olayout = VSLayoutTool.generateLayout(tableAssembly, metadata, viewsheet);
@@ -541,8 +545,8 @@ public class ComposerVSTableService {
 
       // 6. sync format
       String freehandName = freehandAssembly.getName();
-      box.resetDataMap(freehandName);
-      TableLens target = (TableLens) box.getData(freehandName);
+      box.get().resetDataMap(freehandName);
+      TableLens target = (TableLens) box.get().getData(freehandName);
       VSLayoutTool.syncCellFormat((CalcTableVSAssembly) freehandAssembly,
                                   source, target, olayout.isCrosstab(), clearCalcs, vsSrc);
 
@@ -892,15 +896,18 @@ public class ComposerVSTableService {
       Viewsheet vs = rvs.getViewsheet();
 
       if(vs.renameAssembly(oname, nname)) {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         ViewsheetScope scope = box.getScope();
-         VariableScriptable vscriptable = scope.getVariableScriptable();
-         VariableTable vtable = (VariableTable) vscriptable.unwrap();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-         if(vtable != null && vtable.contains(oname)) {
-            Object value = vtable.get(oname);
-            vtable.remove(oname);
-            vtable.put(nname, value);
+         if(box.isPresent()) {
+            ViewsheetScope scope = box.get().getScope();
+            VariableScriptable vscriptable = scope.getVariableScriptable();
+            VariableTable vtable = (VariableTable) vscriptable.unwrap();
+
+            if(vtable != null && vtable.contains(oname)) {
+               Object value = vtable.get(oname);
+               vtable.remove(oname);
+               vtable.put(nname, value);
+            }
          }
 
          return true;
@@ -917,8 +924,13 @@ public class ComposerVSTableService {
       final String tableName = event.getAssemblyName();
       final TableDataVSAssembly table = (TableDataVSAssembly) vs.getAssembly(tableName);
       final TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) table.getInfo();
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      final VSTableLens lens = box.getVSTableLens(table.getAbsoluteName(), false);
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      final VSTableLens lens = box.get().getVSTableLens(table.getAbsoluteName(), false);
 
       if(event.header()) {
          final int headerRowCount;
@@ -963,11 +975,15 @@ public class ComposerVSTableService {
    private int changeColumnWidth(RuntimeViewsheet rvs, ResizeTableColumnEvent event,
                                  boolean removePadding) throws Exception
    {
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       int hint = VSAssembly.NONE_CHANGED;
 
+      if(box.isEmpty()) {
+         return hint;
+      }
+
       try {
-         box.lockRead();
+         box.get().lockRead();
          Viewsheet vs = rvs.getViewsheet();
          String tableName = event.getName();
          TableDataVSAssembly table = (TableDataVSAssembly) vs.getAssembly(tableName);
@@ -977,7 +993,7 @@ public class ComposerVSTableService {
          }
 
          final String name = table.getAbsoluteName();
-         final VSTableLens lens = box.getVSTableLens(name, false);
+         final VSTableLens lens = box.get().getVSTableLens(name, false);
 
          if(lens == null) {
             return hint;
@@ -1079,7 +1095,7 @@ public class ComposerVSTableService {
          }
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return hint;

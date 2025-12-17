@@ -20,6 +20,7 @@ package inetsoft.web.composer.controller;
 
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.Viewsheet;
@@ -63,11 +64,11 @@ public class HeartBeatService {
             return "AssetUnLockBy";
          }
 
-         if(rs instanceof RuntimeViewsheet) {
-            RuntimeViewsheet rvs = (RuntimeViewsheet) rs;
+         if(rs instanceof RuntimeViewsheet rvs) {
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-            if(rvs.getViewsheetSandbox().needRefresh.get()) {
-               rvs.getViewsheetSandbox().needRefresh.set(false);
+            if(box.isPresent() && box.get().needRefresh.get()) {
+               box.get().needRefresh.set(false);
                return "changed";
             }
 

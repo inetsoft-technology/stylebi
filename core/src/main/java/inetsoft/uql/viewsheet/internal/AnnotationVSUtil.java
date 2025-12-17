@@ -23,13 +23,13 @@ import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.PointElement;
 import inetsoft.report.*;
-import inetsoft.report.composition.RegionTableLens;
 import inetsoft.report.composition.*;
+import inetsoft.report.composition.RegionTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.graph.VSDataSet;
-import inetsoft.report.composition.region.TextArea;
 import inetsoft.report.composition.region.*;
+import inetsoft.report.composition.region.TextArea;
 import inetsoft.report.filter.CrossFilter;
 import inetsoft.report.filter.HiddenRowColFilter;
 import inetsoft.report.internal.*;
@@ -59,13 +59,14 @@ import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.jsoup.Jsoup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.*;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.awt.*;
 import java.awt.geom.Rectangle2D;
 import java.text.NumberFormat;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -927,10 +928,14 @@ public final class AnnotationVSUtil {
       boolean visible = cinfo.isVisible() && VSEventUtil.isVisibleInTab(cinfo);
       String cname = assembly.getName();
       DataSet data = chart;
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
 
       if(visible && data == null) {
-         data = AnnotationVSUtil.getDataSet(box, assembly);
+         data = AnnotationVSUtil.getDataSet(box.get(), assembly);
       }
 
       if(!(cinfo instanceof ChartVSAssemblyInfo) || data == null && visible) {
@@ -953,14 +958,14 @@ public final class AnnotationVSUtil {
                {
                   resetAnnotation(
                      (AnnotationVSAssembly) annotation, rvs, dispatcher, coreLifecycleService,
-                     visible && cinfo.isEnabled(), box);
+                     visible && cinfo.isEnabled(), box.get());
                }
                else if(Tool.equals(maxMode || rvs.isTipView(cname) ||
                                       rvs.isPopComponent(cname), ainfo.isVisible()) && checkMaxOrTip)
                {
                   resetAnnotation(
                      (AnnotationVSAssembly) annotation, rvs, dispatcher, coreLifecycleService, !maxMode &&
-                     !rvs.isTipView(cname) && !rvs.isPopComponent(cname), box);
+                     !rvs.isTipView(cname) && !rvs.isPopComponent(cname), box.get());
                }
             }
             else if(ainfo.getType() == AnnotationVSAssemblyInfo.DATA) {
@@ -997,9 +1002,9 @@ public final class AnnotationVSUtil {
                // @by skyf, when chart refreshed, we should also refresh
                // its related annotation assemblies for re-position.
                if(coreLifecycleService != null) {
-                  coreLifecycleService.refreshVSObject(annotation, rvs, null, box, dispatcher);
-                  coreLifecycleService.refreshVSObject(lineAssembly, rvs, null, box, dispatcher);
-                  coreLifecycleService.refreshVSObject(rectAssembly, rvs, null, box, dispatcher);
+                  coreLifecycleService.refreshVSObject(annotation, rvs, null, box.get(), dispatcher);
+                  coreLifecycleService.refreshVSObject(lineAssembly, rvs, null, box.get(), dispatcher);
+                  coreLifecycleService.refreshVSObject(rectAssembly, rvs, null, box.get(), dispatcher);
                }
             }
          }
@@ -1764,7 +1769,12 @@ public final class AnnotationVSUtil {
       VSAssemblyInfo info = VSEventUtil.getAssemblyInfo(rvs, assembly);
 
       if(info instanceof BaseAnnotationVSAssemblyInfo && rvs.isRuntime()) {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isEmpty()) {
+            return;
+         }
+
          List<String> list = ((BaseAnnotationVSAssemblyInfo) info).getAnnotations();
 
          if(list.isEmpty()) {
@@ -1785,8 +1795,8 @@ public final class AnnotationVSUtil {
                if(visible) {
                   VSChartInfo cinfo =
                      ((ChartVSAssembly) assembly).getVSChartInfo();
-                  VGraphPair pair = box.getVGraphPair(aname);
-                  data = pair != null ? pair.getData() : (DataSet) box.getData(aname);
+                  VGraphPair pair = box.get().getVGraphPair(aname);
+                  data = pair != null ? pair.getData() : (DataSet) box.get().getData(aname);
                   area = pair == null || !pair.isCompleted()
                      ? null : new ChartArea(pair, null, cinfo, null, false, true);
                }
@@ -1820,7 +1830,7 @@ public final class AnnotationVSUtil {
                      ((TableVSAssemblyInfo) info).isForm();
 
                   if(!isForm && visible && info.isEnabled()) {
-                     int[] idx = getRuntimeIndex(box, assembly, null, ainfo);
+                     int[] idx = getRuntimeIndex(box.get(), assembly, null, ainfo);
                      ainfo.setAvailable(idx != null ? true : false);
 
                      if(idx != null) {
@@ -1833,11 +1843,11 @@ public final class AnnotationVSUtil {
                         final VSAssembly parentAssembly =
                            (VSAssembly) vs.getAssembly(annotationParent);
                         resetAnnotation(
-                           annotation, rvs, dispatcher, coreLifecycleService, true, box);
+                           annotation, rvs, dispatcher, coreLifecycleService, true, box.get());
 
                         if(coreLifecycleService != null) {
                            coreLifecycleService.refreshVSObject(
-                                   parentAssembly, rvs, null, box, dispatcher);
+                                   parentAssembly, rvs, null, box.get(), dispatcher);
                         }
                      }
                      else {
@@ -1845,7 +1855,7 @@ public final class AnnotationVSUtil {
                         ainfo.setCol(-1);
 
                         resetAnnotation(
-                           annotation, rvs, dispatcher, coreLifecycleService, false, box);
+                           annotation, rvs, dispatcher, coreLifecycleService, false, box.get());
                      }
                   }
                   else {
@@ -1853,7 +1863,7 @@ public final class AnnotationVSUtil {
                      ainfo.setCol(-1);
 
                      resetAnnotation(
-                        annotation, rvs, dispatcher, coreLifecycleService, false, box);
+                        annotation, rvs, dispatcher, coreLifecycleService, false, box.get());
                   }
                }
                else if(!Tool.equals(visible && info.isEnabled(),
@@ -1861,7 +1871,7 @@ public final class AnnotationVSUtil {
                {
                   resetAnnotation(
                      annotation, rvs, dispatcher, coreLifecycleService,
-                     visible && info.isEnabled(), box);
+                     visible && info.isEnabled(), box.get());
                }
             }
          }
@@ -2296,7 +2306,12 @@ public final class AnnotationVSUtil {
       }
 
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       VSAssemblyInfo info = VSEventUtil.getAssemblyInfo(rvs, assembly);
       List<String> annotations = ((BaseAnnotationVSAssemblyInfo) info).getAnnotations();
 
@@ -2318,7 +2333,7 @@ public final class AnnotationVSUtil {
          int col = Integer.parseInt(value.getValues()[1]);
 
          if(col == sourceIndex) {
-            annotationInfo.setValue(getAnnotationDataValue(box, assembly, row, targetIndex, null));
+            annotationInfo.setValue(getAnnotationDataValue(box.get(), assembly, row, targetIndex, null));
          }
       }
    }

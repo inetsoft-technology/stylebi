@@ -36,6 +36,7 @@ import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -55,8 +56,13 @@ public class VSWizardFormatService {
                             CommandDispatcher dispatcher, Principal principal, String linkUri) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          VSTemporaryInfo tinfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -102,7 +108,7 @@ public class VSWizardFormatService {
          }
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
          viewsheetService.flushRuntimeSheet(id);
       }
 

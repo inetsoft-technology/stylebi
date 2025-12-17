@@ -33,8 +33,8 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.ObjectWrapper;
 import inetsoft.util.cachefs.BinaryTransfer;
-import inetsoft.web.service.BinaryTransferService;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
+import inetsoft.web.service.BinaryTransferService;
 import org.apache.commons.io.output.DeferredFileOutputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +44,7 @@ import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -64,19 +65,21 @@ public class PresenterService {
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
 
       PresenterRef.CONVERTER.set(VSUtil.getPreConverter(vs));
       BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-      VSTableLens lens;
+      VSTableLens lens = null;
 
-      try {
-         box.lockWrite();
-         lens = box.getVSTableLens(assembly, false);
-      }
-      finally {
-         box.unlockWrite();
+      if(box.isPresent()) {
+         try {
+            box.get().lockWrite();
+            lens = box.get().getVSTableLens(assembly, false);
+         }
+         finally {
+            box.get().unlockWrite();
+         }
       }
 
       if(lens != null) {
@@ -172,7 +175,7 @@ public class PresenterService {
                                  Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
       TextVSAssembly text;
 
@@ -194,7 +197,7 @@ public class PresenterService {
       }
 
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return null;
       }
 

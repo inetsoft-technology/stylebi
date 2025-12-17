@@ -55,6 +55,7 @@ import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.service.HighlightService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
+
 import java.security.Principal;
 import java.util.*;
 
@@ -81,7 +82,7 @@ public class HighlightDialogService {
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet viewsheet = rvs.getViewsheet();
       VSAssembly assembly = viewsheet.getAssembly(objectId);
       VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
@@ -91,8 +92,8 @@ public class HighlightDialogService {
       VSTableLens lens = null;
       TableDataPath dataPath = null;
 
-      if(assemblyInfo instanceof TableDataVSAssemblyInfo) {
-         lens = box.getVSTableLens(objectId, false);
+      if(box.isPresent() && assemblyInfo instanceof TableDataVSAssemblyInfo) {
+         lens = box.get().getVSTableLens(objectId, false);
          dataPath = lens.getTableDataPath(row, col);
 
          if(assemblyInfo instanceof TableVSAssemblyInfo) {
@@ -100,7 +101,7 @@ public class HighlightDialogService {
             model.setShowRow(true);
 
             if(((TableVSAssemblyInfo) assemblyInfo).isForm()) {
-               FormTableLens formLens = box.getFormTableLens(objectId);
+               FormTableLens formLens = box.get().getFormTableLens(objectId);
 
                model.setConfirmChanges(formLens != null &&
                                           formLens.getRowCount() != lens.getRowHeights().length);
@@ -152,8 +153,8 @@ public class HighlightDialogService {
                   }
                }
 
-               if(assembly instanceof CalcTableVSAssembly) {
-                  TableLens table = (TableLens) box.getData(assembly.getAbsoluteName());
+               if(box.isPresent() && assembly instanceof CalcTableVSAssembly) {
+                  TableLens table = (TableLens) box.get().getData(assembly.getAbsoluteName());
 
                   if(table instanceof RuntimeCalcTableLens) {
                      List<String> nonSupportBrowseFields = this.highlightService.
@@ -406,11 +407,16 @@ public class HighlightDialogService {
                                        CommandDispatcher dispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet viewsheet = rvs.getViewsheet();
       VSAssembly assembly = viewsheet.getAssembly(objectId);
       VSAssemblyInfo oldAssemblyInfo = assembly.getVSAssemblyInfo();
-      VSAssemblyInfo assemblyInfo = updateHighlights(model, oldAssemblyInfo, box, principal);
+      VSAssemblyInfo assemblyInfo = updateHighlights(model, oldAssemblyInfo, box.get(), principal);
 
       this.vsObjectPropertyService.editObjectProperty(
          rvs, assemblyInfo, objectId, objectId, linkUri, principal, dispatcher);
@@ -424,17 +430,17 @@ public class HighlightDialogService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(objectId);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      VSAssembly assembly = vs.getAssembly(objectId);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(!(assembly instanceof TableVSAssembly)) {
+      if(box.isEmpty() || !(assembly instanceof TableVSAssembly)) {
          return VSTableTrapModel.builder()
             .showTrap(false)
             .build();
       }
 
       TableVSAssemblyInfo oinfo = (TableVSAssemblyInfo) assembly.getInfo().clone();
-      VSAssemblyInfo ninfo = updateHighlights(model, oinfo, box, principal);
+      VSAssemblyInfo ninfo = updateHighlights(model, oinfo, box.get(), principal);
       assembly.setVSAssemblyInfo(ninfo);
 
       VSTableTrapModel result = vsTrapService.checkTrap(rvs, oinfo, ninfo);

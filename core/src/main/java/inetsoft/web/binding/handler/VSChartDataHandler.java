@@ -60,8 +60,8 @@ import java.awt.geom.Dimension2D;
 import java.awt.geom.Rectangle2D;
 import java.math.BigDecimal;
 import java.text.Format;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
@@ -303,7 +303,12 @@ public class VSChartDataHandler {
    public void convertChartRef(RuntimeViewsheet rvs, ChartVSAssembly chart,
                                String refName, int changeType) throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       Viewsheet vs = chart.getViewsheet();
       String name = chart.getAbsoluteName();
       String table = chart.getTableName();
@@ -323,7 +328,7 @@ public class VSChartDataHandler {
       vsChartInfo.clearRuntime();
 
       // keep geographic
-      chartHandler.updateGeoColumns(box, vs, chart, vsChartInfo);
+      chartHandler.updateGeoColumns(box.get(), vs, chart, vsChartInfo);
       boolean isGeo = vsChartInfo.isGeoColumn(refName);
 
       if(isGeo) {
@@ -340,12 +345,12 @@ public class VSChartDataHandler {
             chartHandler.changeGeographic(vsChartInfo, refName, SET_GEOGRAPHIC, todim);
          }
 
-         chartHandler.updateGeoColumns(box, vs, chart, vsChartInfo);
+         chartHandler.updateGeoColumns(box.get(), vs, chart, vsChartInfo);
          changed = changed || refChanged || detectRequired;
       }
 
       int hint = 0;
-      box.updateAssembly(chart.getAbsoluteName());
+      box.get().updateAssembly(chart.getAbsoluteName());
 
       if(changed) {
          vsChartInfo = (VSChartInfo)
@@ -362,10 +367,10 @@ public class VSChartDataHandler {
          }
 
          ChangedAssemblyList clist = new ChangedAssemblyList(false);
-         box.processChange(name, hint, clist);
+         box.get().processChange(name, hint, clist);
 
          if(detectRequired) {
-            DataSet source = chartHandler.getChartData(box, chart);
+            DataSet source = chartHandler.getChartData(box.get(), chart);
             SourceInfo sourceInfo = chart.getSourceInfo();
             chartHandler.autoDetect(vs, sourceInfo, vsChartInfo, refName, source);
          }
@@ -382,7 +387,12 @@ public class VSChartDataHandler {
    {
       boolean checkTrap = evt == null ? false : evt.checkTrap();
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       String name = ninfo.getAbsoluteName2();
       ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
 
@@ -397,7 +407,7 @@ public class VSChartDataHandler {
 
          ChartVSAssemblyInfo ninfoCopy = (ChartVSAssemblyInfo) ninfo.clone();
          int hint = assembly.setVSAssemblyInfo(ninfo);
-         box.updateAssembly(assembly.getAbsoluteName());
+         box.get().updateAssembly(assembly.getAbsoluteName());
          ninfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
          // ChangeChartDataProcessor logic would clear runtime value,
          // get chart type would use runtime value, so get chart type before clear operator.
@@ -438,7 +448,7 @@ public class VSChartDataHandler {
          pro.fixNamedGroup(ocinfo, ncinfo);
          pro.updateColorFrameCSSParentParams(ninfo, ncinfo);
          // fix Bug #32912, update again to refresh the runtime values.
-         box.updateAssembly(assembly.getAbsoluteName());
+         box.get().updateAssembly(assembly.getAbsoluteName());
          hint = hint | chartHandler.createCommands(oinfo, ninfoCopy);
 
          boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==
@@ -452,7 +462,7 @@ public class VSChartDataHandler {
          }
 
          ChangedAssemblyList clist = new ChangedAssemblyList(false);
-         box.processChange(name, hint, clist);
+         box.get().processChange(name, hint, clist);
 
          if(checkTrap) {
             VSModelTrapContext context = new VSModelTrapContext(rvs, true);
@@ -490,7 +500,12 @@ public class VSChartDataHandler {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       String name = ninfo.getAbsoluteName2();
       ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
 
@@ -511,10 +526,10 @@ public class VSChartDataHandler {
 
             if(!Tool.equals(otype, ntype)) {
                ninfo.setVSChartInfo(ncinfo);
-               box.updateAssembly(name);
+               box.get().updateAssembly(name);
                ncinfo = ninfo.getVSChartInfo();
-               chartHandler.updateGeoColumns(box, vs, assembly, ncinfo);
-               DataSet source = chartHandler.getChartData(box, assembly);
+               chartHandler.updateGeoColumns(box.get(), vs, assembly, ncinfo);
+               DataSet source = chartHandler.getChartData(box.get(), assembly);
                SourceInfo sourceInfo = ninfo.getSourceInfo();
                layerChanged = fixMapLayer(vs, sourceInfo, source, ncinfo);
             }
@@ -527,14 +542,14 @@ public class VSChartDataHandler {
                vs.setBrush(table, assembly);
             }
 
-            box.updateAssembly(name);
+            box.get().updateAssembly(name);
             new ChangeChartDataProcessor().sortRefs(assembly.getVSChartInfo());
             ChangeChartProcessor process = new ChangeChartProcessor();
             process.fixMapFrame(ocinfo, ncinfo);
             process.fixNamedGroup(ocinfo, ncinfo);
             ChangeChartProcessor.fixTarget(ocinfo, ncinfo, assembly.getChartDescriptor());
             ChangedAssemblyList clist = new ChangedAssemblyList(false);
-            box.processChange(name, hint, clist);
+            box.get().processChange(name, hint, clist);
          }
       }
    }
@@ -547,20 +562,22 @@ public class VSChartDataHandler {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       DataVSAssembly assembly = (DataVSAssembly) vs.getAssembly(assemblyName);
       DataSet set = null;
 
-      try {
-         set = getDistinctValues(box, assembly, dim);
-      }
-      catch(Exception ex) {
-         if(ex.getMessage() != null && ex.getMessage().startsWith("Query timeout")) {
-            throw new TimeoutException(Catalog.getCatalog()
-               .getString("common.timeout", assemblyName));
+      if(box.isPresent()) {
+         try {
+            set = getDistinctValues(box.get(), assembly, dim);
          }
+         catch(Exception ex) {
+            if(ex.getMessage() != null && ex.getMessage().startsWith("Query timeout")) {
+               throw new TimeoutException(Catalog.getCatalog()
+                                             .getString("common.timeout", assemblyName));
+            }
 
-         throw ex;
+            throw ex;
+         }
       }
 
       if(set instanceof VSDataSet && Util.isTimeoutTable(((VSDataSet) set).getTable())) {
@@ -630,7 +647,12 @@ public class VSChartDataHandler {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       String name = ninfo.getAbsoluteName2();
       ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
 
@@ -643,7 +665,7 @@ public class VSChartDataHandler {
          fixAggregateRefSizeField(ninfo);
 
          int hint = assembly.setVSAssemblyInfo(ninfo);
-         box.updateAssembly(assembly.getAbsoluteName());
+         box.get().updateAssembly(assembly.getAbsoluteName());
 
          // fix bug1352448598261, chart type is not valid when in flex side,
          // so GraphUtil.as.fixVisualFrame may cause invalid result, here
@@ -665,7 +687,7 @@ public class VSChartDataHandler {
          }
 
          ChangedAssemblyList clist = new ChangedAssemblyList(false);
-         box.processChange(name, hint, clist);
+         box.get().processChange(name, hint, clist);
       }
    }
 
@@ -676,14 +698,14 @@ public class VSChartDataHandler {
       Dimension reqsize) throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
       String cname = info.getAbsoluteName();
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(cname);
+      VSAssembly assembly = vs.getAssembly(cname);
 
       if(assembly == null) {
          return;
@@ -691,9 +713,9 @@ public class VSChartDataHandler {
 
       VGraphPair pair = null;
 
-      AssetQuerySandbox wbox = box.getAssetQuerySandbox();
+      AssetQuerySandbox wbox = box.get().getAssetQuerySandbox();
       VSChartInfo cinfo = ((ChartVSAssembly) assembly).getVSChartInfo();
-      VSDataSet chart = (VSDataSet) box.getData(cname);
+      VSDataSet chart = (VSDataSet) box.get().getData(cname);
       String[] names = Tool.split(cname, '.');
       Viewsheet viewsheet = vs;
       String name = cname;
@@ -709,14 +731,14 @@ public class VSChartDataHandler {
       cinfo.setLocalMap(
          VSUtil.getLocalMap(viewsheet, names[names.length -1]));
 
-      pair = box.getVGraphPair(cname, true, reqsize);
+      pair = box.get().getVGraphPair(cname, true, reqsize);
 
       if(pair != null && pair.isCancelled()) {
-         box.clearGraph(cname);
-         pair = box.getVGraphPair(cname, true, reqsize);
+         box.get().clearGraph(cname);
+         pair = box.get().getVGraphPair(cname, true, reqsize);
       }
 
-      box.updateAssembly(assembly.getAbsoluteName());
+      box.get().updateAssembly(assembly.getAbsoluteName());
 
       if(pair != null && pair.isCompleted()) {
          // update size in descriptor
@@ -732,7 +754,12 @@ public class VSChartDataHandler {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
       vs = chart.getViewsheet();
       ChartVSAssemblyInfo oinfo =
@@ -754,23 +781,23 @@ public class VSChartDataHandler {
       }
 
       // change geographic
-      chartHandler.updateGeoColumns(box, vs, chart, cinfo);
+      chartHandler.updateGeoColumns(box.get(), vs, chart, cinfo);
       chartHandler.changeGeographic(cinfo, refName, type, isDimension);
 
       // fix map info
-      VSChartInfo ocinfo = (VSChartInfo) cinfo.clone();
+      VSChartInfo ocinfo = cinfo.clone();
       changed = chartHandler.fixMapInfo(cinfo, refName, type) || changed;
       new ChangeChartProcessor().fixMapFrame(ocinfo, cinfo);
 
       // refresh map
       chart.setVSAssemblyInfo(ninfo);
-      box.updateAssembly(chart.getAbsoluteName());
+      box.get().updateAssembly(chart.getAbsoluteName());
 
       // auto detect
       if(type.equals(SET_GEOGRAPHIC)) {
          if(isDimension) {
-            chartHandler.updateAllGeoColumns(box, vs, chart);
-            DataSet source = chartHandler.getChartData(box, chart);
+            chartHandler.updateAllGeoColumns(box.get(), vs, chart);
+            DataSet source = chartHandler.getChartData(box.get(), chart);
             chartHandler.autoDetect(vs, nsinfo, cinfo, refName, source);
          }
          else if(!MapHelper.isValidType(cinfo.getMapType())) {
@@ -796,7 +823,7 @@ public class VSChartDataHandler {
          }
 
          ChangedAssemblyList clist = new ChangedAssemblyList(false);
-         box.processChange(name, hint, clist);
+         box.get().processChange(name, hint, clist);
       }
    }
 

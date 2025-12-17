@@ -46,7 +46,7 @@ public class VSTableLayoutInfoTest {
    @BeforeEach
    void setUp() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      viewsheetSandbox = rvs.getViewsheetSandbox();
+      viewsheetSandbox = rvs.getViewsheetSandbox().orElseThrow();
 
       calcTableVSAssembly = (CalcTableVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly("FreehandTable1");

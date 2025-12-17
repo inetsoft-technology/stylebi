@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
+import inetsoft.report.composition.execution.SandboxDisposedException;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.graph.ChangeChartProcessor;
 import inetsoft.uql.ColumnSelection;
@@ -43,6 +44,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
+
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -143,8 +145,12 @@ public class ComposerGroupColumnsService {
             refs.add(ref);
          }
 
-         TableLens lens = (TableLens) rvs.getViewsheetSandbox().getData(assembly.getAbsoluteName());
-         value = getCrosstabValues(value, lens);
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            TableLens lens = (TableLens) box.get().getData(assembly.getAbsoluteName());
+            value = getCrosstabValues(value, lens);
+         }
       }
 
       List<VSDimensionRef> oldRefs = (List<VSDimensionRef>) Tool.clone(refs);
@@ -234,16 +240,19 @@ public class ComposerGroupColumnsService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       String assemblyName = event.getName();
-      Object data = box.getData(assemblyName);
+      Object data = null;
 
-      if(!(data instanceof TableLens)) {
+      if(box.isPresent()) {
+         data = box.get().getData(assemblyName);
+      }
+
+      if(!(data instanceof TableLens lens)) {
          return false;
       }
 
-      TableLens lens = (TableLens) data;
       String groupName = event.getGroupName();
 
       for(int r = 0; lens.moreRows(r); r++) {
@@ -265,7 +274,13 @@ public class ComposerGroupColumnsService {
    private DataRef getCellDataRef(RuntimeViewsheet rvs, CrosstabVSAssembly table, int row,
                                   int col) throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         // VSTableService..getCrosstabCellDataRef() defaults to null so this should be safe
+         return null;
+      }
+
       String oname = table.getAbsoluteName();
       boolean detail = oname.startsWith(Assembly.DETAIL);
 
@@ -273,7 +288,7 @@ public class ComposerGroupColumnsService {
          oname = oname.substring(Assembly.DETAIL.length());
       }
 
-      VSTableLens lens = box.getVSTableLens(oname, detail);
+      VSTableLens lens = box.get().getVSTableLens(oname, detail);
       TableDataPath tpath = lens.getTableDataPath(row, col);
 
       boolean dc = DateComparisonUtil.appliedDateComparison(table.getCrosstabInfo());
@@ -309,7 +324,7 @@ public class ComposerGroupColumnsService {
    private TableDataPath getTablePath(RuntimeViewsheet rvs, CrosstabVSAssembly table, int row,
                                       int col) throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow(SandboxDisposedException::new);
       String oname = table.getAbsoluteName();
       boolean detail = oname.startsWith(Assembly.DETAIL);
 

@@ -37,7 +37,8 @@ import inetsoft.util.audit.ExecutionRecord;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.CollectParametersOverEvent;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -94,11 +95,13 @@ public class VSCollectParametersService {
          return null;
       }
 
-      if(vs == null) {
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(vs == null || box.isEmpty()) {
          return null;
       }
 
-      resetVariable(rvs.getViewsheetSandbox(), rvs.getViewsheet(), vtable);
+      resetVariable(box.get(), vs, vtable);
 
       try {
          // @by stephenwebster, For Bug #6758
@@ -134,7 +137,7 @@ public class VSCollectParametersService {
          VSUtil.OPEN_VIEWSHEET.set(event.openVS());
          ChangedAssemblyList clist =
             this.coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
-         rvs.getViewsheetSandbox().clearInit();
+         rvs.getViewsheetSandbox().ifPresent(ViewsheetSandbox::clearInit);
          this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, width, height, false,
                                                     null, dispatcher, false, true, true, clist);
       }

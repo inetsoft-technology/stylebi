@@ -33,12 +33,14 @@ import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.VSDialogService;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
 import java.util.Arrays;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -68,15 +70,21 @@ public class CalcTablePropertyDialogService {
       VSTableLens lens;
 
       try {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         String name = calcTableAssemblyInfo.getAbsoluteName();
-         boolean detail = name.startsWith(Assembly.DETAIL);
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-         if(detail) {
-            name = name.substring(Assembly.DETAIL.length());
+         if(box.isEmpty()) {
+            lens = null;
          }
+         else {
+            String name = calcTableAssemblyInfo.getAbsoluteName();
+            boolean detail = name.startsWith(Assembly.DETAIL);
 
-         lens = box.getVSTableLens(name, detail);
+            if(detail) {
+               name = name.substring(Assembly.DETAIL.length());
+            }
+
+            lens = box.get().getVSTableLens(name, detail);
+         }
       }
       catch(Exception e) {
          if(e instanceof ScriptException) {

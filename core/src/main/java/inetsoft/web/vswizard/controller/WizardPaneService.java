@@ -24,12 +24,12 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.service.WizardViewsheetService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -49,8 +49,13 @@ public class WizardPaneService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          this.wizardViewsheetService.refreshWizardViewsheet(vsId, linkUri, principal,
@@ -64,7 +69,7 @@ public class WizardPaneService {
                                                                commandDispatcher);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
          viewsheetService.flushRuntimeSheet(vsId);
       }
 

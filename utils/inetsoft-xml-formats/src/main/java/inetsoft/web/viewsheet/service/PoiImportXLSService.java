@@ -31,7 +31,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
-import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataController;
 import inetsoft.web.viewsheet.controller.table.BaseTableLoadDataService;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
@@ -79,9 +78,12 @@ public class PoiImportXLSService implements ImportXLSService {
       bSheetNames = bSheet == null ? null : PoiExcelVSUtil.getSheetNames(bSheet);
 
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      updateViewsheet(rvs, vs, box, assemblies, linkUri, dispatcher, coreLifecycleService,
-                      sheet, bSheet, sheetNames, bSheetNames, notInRange);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent()) {
+         updateViewsheet(rvs, vs, box.get(), assemblies, linkUri, dispatcher, coreLifecycleService,
+                         sheet, bSheet, sheetNames, bSheetNames, notInRange);
+      }
    }
 
    /**

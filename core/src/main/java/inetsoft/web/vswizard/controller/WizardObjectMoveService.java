@@ -26,13 +26,11 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.composer.vs.objects.event.MoveVSObjectEvent;
 import inetsoft.web.composer.vs.objects.event.MultiMoveVsObjectEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.LinkUri;
 import inetsoft.web.vswizard.service.WizardVSObjectService;
-import jakarta.resource.spi.work.Work;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -54,14 +52,19 @@ public class WizardObjectMoveService {
          return null;
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          this.wizardVSObjectService.moveVSObject(rvs, event, linkUri, principal, commandDispatcher);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          engine.flushRuntimeSheet(vId);
       }
 
@@ -79,14 +82,19 @@ public class WizardObjectMoveService {
          return null;
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          this.wizardVSObjectService.moveVSObjects(rvs, multiEvent, linkUri, principal, dispatcher);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          engine.flushRuntimeSheet(vId);
       }
 

@@ -147,13 +147,13 @@ public class ModifyCalculateFieldService {
          }
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return null;
       }
 
-      AssetQuerySandbox wbox = box.getAssetQuerySandbox();
+      AssetQuerySandbox wbox = box.get().getAssetQuerySandbox();
       ScriptEnv env = wbox == null ? null : wbox.getScriptEnv();
       CalculateRef oldCalc = null;
 

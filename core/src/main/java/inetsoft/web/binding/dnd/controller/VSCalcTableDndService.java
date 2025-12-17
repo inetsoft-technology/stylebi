@@ -23,10 +23,8 @@ import inetsoft.cluster.*;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
-import inetsoft.report.composition.execution.DataMap;
-import inetsoft.report.composition.execution.VSAQuery;
-import inetsoft.uql.asset.AggregateInfo;
-import inetsoft.uql.asset.SourceInfo;
+import inetsoft.report.composition.execution.*;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -39,9 +37,9 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSCalcTableBindingHandler;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
-import inetsoft.uql.asset.ConfirmException;
 
 import java.awt.*;
 import java.security.Principal;
@@ -202,9 +200,12 @@ public class VSCalcTableDndService {
             if(!osource.getSource().equals(nsource.getSource()) &&
                nsource.getType() == SourceInfo.VS_ASSEMBLY)
             {
-               VSAQuery query = VSAQuery.createVSAQuery(rvs.getViewsheetSandbox(),
-                                                        nassembly, DataMap.DETAIL);
-               query.createAssemblyTable(nassembly.getTableName());
+               Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+               if(box.isPresent()) {
+                  VSAQuery query = VSAQuery.createVSAQuery(box.get(), nassembly, DataMap.DETAIL);
+                  query.createAssemblyTable(nassembly.getTableName());
+               }
             }
 
             if(!osource.getSource().equals(nsource.getSource()) ||

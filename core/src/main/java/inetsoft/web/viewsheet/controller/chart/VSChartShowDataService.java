@@ -55,6 +55,7 @@ import inetsoft.web.viewsheet.model.PreviewTableCellModel;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
+
 import java.security.Principal;
 import java.text.Format;
 import java.util.*;
@@ -100,12 +101,13 @@ public class VSChartShowDataService extends VSChartControllerService<VSChartShow
 
       RuntimeViewsheet rvs = getViewsheetEngine().getViewsheet(vsId, principal);
       DataVSAssembly assembly = (DataVSAssembly) rvs.getViewsheet().getAssembly(assemblyName);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       VSChartShowDataEvent event = new VSChartShowDataEvent();
       event.setColumn(columnIndex);
       event.setWorksheetId(wsId);
       event.setChartName(assemblyName);
-      FormatTableLens2 table = applyChanges(vsId, box, assembly, event, principal, null);
+      FormatTableLens2 table = box.map(
+         b -> applyChanges(vsId, b, assembly, event, principal, null)).orElse(null);
       FormatInfoModel format = new FormatInfoModel();
 
       if(table != null) {

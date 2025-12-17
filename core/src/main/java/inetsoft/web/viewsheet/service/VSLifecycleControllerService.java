@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.*;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
@@ -53,43 +54,46 @@ public class VSLifecycleControllerService {
          viewsheetService.getViewsheet(runtimeId, principal);
       parameters = parameters == null ? new HashMap<>() : parameters;
 
-      if(rvs != null && rvs.getViewsheetSandbox() != null) {
-         Hyperlink.Ref hyperlinkRef = new Hyperlink.Ref();
-         // get selection parameters of source rvs
-         VSUtil.addSelectionParameter(hyperlinkRef,
-                                      rvs.getViewsheetSandbox().getSelections());
-         Enumeration<?> keys = hyperlinkRef.getParameterNames();
+      if(rvs != null) {
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-         while(keys.hasMoreElements()) {
-            String pname = (String) keys.nextElement();
+         if(box.isPresent()) {
+            Hyperlink.Ref hyperlinkRef = new Hyperlink.Ref();
+            // get selection parameters of source rvs
+            VSUtil.addSelectionParameter(hyperlinkRef, box.get().getSelections());
+            Enumeration<?> keys = hyperlinkRef.getParameterNames();
 
-            // dont add parameters that already have values set
-            if(parameters.containsKey(pname)) {
-               continue;
-            }
+            while(keys.hasMoreElements()) {
+               String pname = (String) keys.nextElement();
 
-            Object paramValue = hyperlinkRef.getParameter(pname);
-            String[] values = new String[0];
+               // dont add parameters that already have values set
+               if(parameters.containsKey(pname)) {
+                  continue;
+               }
 
-            if(Tool.getDataType(paramValue).equals(Tool.ARRAY)) {
-               if(((Object[]) paramValue).length > 0) {
-                  paramValue = ((Object[]) paramValue)[0].toString().split("\\^");
-                  Object[] params =
-                     (Object[]) Tool.getData(Tool.ARRAY, Tool.getDataString(paramValue));
+               Object paramValue = hyperlinkRef.getParameter(pname);
+               String[] values = new String[0];
 
-                  if(params != null && params.length > 0) {
-                     values = Arrays.stream(params)
-                        .map((param) -> Tool.getData(Tool.getDataType(param),
-                                                     Tool.getDataString(param)).toString())
-                        .toArray(String[]::new);
+               if(Tool.getDataType(paramValue).equals(Tool.ARRAY)) {
+                  if(((Object[]) paramValue).length > 0) {
+                     paramValue = ((Object[]) paramValue)[0].toString().split("\\^");
+                     Object[] params =
+                        (Object[]) Tool.getData(Tool.ARRAY, Tool.getDataString(paramValue));
+
+                     if(params != null && params.length > 0) {
+                        values = Arrays.stream(params)
+                           .map((param) -> Tool.getData(Tool.getDataType(param),
+                                                        Tool.getDataString(param)).toString())
+                           .toArray(String[]::new);
+                     }
                   }
                }
-            }
-            else {
-               values = new String[] { Tool.getDataString(paramValue) };
-            }
+               else {
+                  values = new String[]{ Tool.getDataString(paramValue) };
+               }
 
-            parameters.put(pname, values);
+               parameters.put(pname, values);
+            }
          }
       }
 

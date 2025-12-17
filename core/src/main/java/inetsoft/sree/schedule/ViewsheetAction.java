@@ -67,8 +67,8 @@ import java.io.*;
 import java.security.Principal;
 import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -529,7 +529,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             Viewsheet vs = rvs.getViewsheet().clone();
             Assembly[] assemblies = vs.getAssemblies();
             List<String> alertTriggeredBookmarks = new ArrayList<>();
-            ViewsheetSandbox obox = rvs.getViewsheetSandbox();
+            Optional<ViewsheetSandbox> obox = rvs.getViewsheetSandbox();
 
             for(int i = 0; i < bookmarks.length; i++) {
                int vmode = Viewsheet.SHEET_RUNTIME_MODE;
@@ -537,7 +537,10 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                   rvs.getOriginalBookmark(bookmarks[i].getName()), vmode, principal, false,
                   rvs.getEntry());
 
-               box.getAssetQuerySandbox().refreshVariableTable(obox.getVariableTable());
+               if(obox.isPresent()) {
+                  box.getAssetQuerySandbox().refreshVariableTable(obox.get().getVariableTable());
+               }
+
                setScheduleParameters(rvs.getVariableTable());
                box.resetAll(new ChangedAssemblyList());
 
@@ -792,7 +795,13 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          StringBuilder status = new StringBuilder();
          Viewsheet vs = rvs.getViewsheet();
          Assembly[] assemblies = vs.getAssemblies();
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+         if(boxOpt.isEmpty()) {
+            return id;
+         }
+
+         ViewsheetSandbox box = boxOpt.get();
          AssetEntry entry = getViewsheetEntry();
          Object[] msgParams = {entry.getName(), new Date(), (principal != null) ?
             IdentityID.getIdentityIDFromKey(principal.getName()).getName() : ""};

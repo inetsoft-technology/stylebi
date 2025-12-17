@@ -22,11 +22,12 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.ViewsheetBookmarkChangedEvent;
@@ -34,12 +35,12 @@ import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
-import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.util.log.LogUtil;
-import inetsoft.web.viewsheet.command.*;
+import inetsoft.web.viewsheet.command.AnnotationChangedCommand;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.*;
 import inetsoft.web.viewsheet.model.RemoveAnnotationsCondition;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
@@ -159,7 +160,11 @@ public class VSBookmarkService implements ApplicationListener<ProcessBookmarkEve
             }
          }
          else {
-            rvs.getViewsheetSandbox().updateAssemblies();
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isPresent()) {
+               box.get().updateAssemblies();
+            }
          }
       }
 

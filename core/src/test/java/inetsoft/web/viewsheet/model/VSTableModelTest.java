@@ -35,6 +35,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
@@ -62,7 +64,7 @@ class VSTableModelTest {
       VSTableLens lens = createEmptyTable();
 
       Mockito.when(rvs.getViewsheet()).thenReturn(viewsheet);
-      Mockito.when(rvs.getViewsheetSandbox()).thenReturn(sandbox);
+      Mockito.when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(sandbox));
       System.err.println("sandbox: " + sandbox);
       Mockito.when(sandbox.getVSTableLens(Mockito.anyString(), Mockito.anyBoolean()))
          .thenReturn(lens);

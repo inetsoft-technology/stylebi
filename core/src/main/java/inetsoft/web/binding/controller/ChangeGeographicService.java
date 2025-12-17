@@ -46,16 +46,17 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.binding.service.VSChartBindingFactory;
 import inetsoft.web.binding.service.graph.ChartGeoInfoFactory;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
-import inetsoft.web.viewsheet.model.*;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.model.VSObjectModel;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.vswizard.command.RefreshWizardTreeTriggerCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
 @ClusterProxy
@@ -98,19 +99,23 @@ public class ChangeGeographicService {
    {
       String name = event.name();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
       ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
 
       if(chart == null) {
-         LOG.warn("Chart assembly is missing, failed to process change geographic chart " +
-                     "reference event: " + name);
+         LOG.warn("Chart assembly is missing, failed to process change geographic chart reference event: {}", name);
          return null;
       }
 
       // Handle source changed.
       if(assemblyInfoHandler.handleSourceChanged(chart, event.table(),
-                                                 "/events/vs/chart/changeGeographic", event, dispatcher, box))
+                                                 "/events/vs/chart/changeGeographic", event, dispatcher, box.get()))
       {
          return null;
       }
@@ -151,7 +156,7 @@ public class ChangeGeographicService {
       }
 
       // change geographic
-      chartHandler.updateGeoColumns(box, vs, chart, cinfo);
+      chartHandler.updateGeoColumns(box.get(), vs, chart, cinfo);
       chartHandler.changeGeographic(cinfo, refName, type, isDim);
 
       // fix map info
@@ -161,7 +166,7 @@ public class ChangeGeographicService {
 
       // refresh map
       chart.setVSAssemblyInfo(ninfo);
-      box.updateAssembly(chart.getAbsoluteName());
+      box.get().updateAssembly(chart.getAbsoluteName());
       coreLifecycleService.refreshVSAssembly(rvs, chart, dispatcher);
       ninfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       cinfo = ninfo.getVSChartInfo();
@@ -169,8 +174,8 @@ public class ChangeGeographicService {
       // auto detect
       if(type.equals(SET_GEOGRAPHIC)) {
          if(isDim) {
-            chartHandler.updateAllGeoColumns(box, vs, chart);
-            DataSet source = chartHandler.getChartData(box, chart, true);
+            chartHandler.updateAllGeoColumns(box.get(), vs, chart);
+            DataSet source = chartHandler.getChartData(box.get(), chart, true);
             chartHandler.autoDetect(vs, nsinfo, cinfo, refName, source);
          }
          else if(!MapHelper.isValidType(cinfo.getMapType())) {
@@ -212,7 +217,7 @@ public class ChangeGeographicService {
             ChangedAssemblyList clist =
                coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
 
-            box.processChange(name, hint, clist);
+            box.get().processChange(name, hint, clist);
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
             //processTableChange(oinfo, ninfo, rvs, this, dispatcher);

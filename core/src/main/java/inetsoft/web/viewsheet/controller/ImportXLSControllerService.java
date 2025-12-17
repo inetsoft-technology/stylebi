@@ -23,13 +23,14 @@ import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.util.cachefs.CacheFS;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.*;
 import org.springframework.stereotype.Service;
 
-import java.io.*;
+import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Principal;
@@ -70,9 +71,9 @@ public class ImportXLSControllerService {
          return null;
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return null;
       }
 

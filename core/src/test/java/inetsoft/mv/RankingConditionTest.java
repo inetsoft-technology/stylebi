@@ -44,7 +44,7 @@ public class RankingConditionTest {
    @Test
    public void testOneGroupTopN() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
       VSTableLens table = sandbox.getVSTableLens("OneGroup_TopN", false);
       table.moreRows(XTable.EOT);
       List<MVInfo> mvInfos = MVQuery.getMVInfos(table);
@@ -63,7 +63,7 @@ public class RankingConditionTest {
    @Test
    public void testTwoGroupsOuterTopN() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
       VSTableLens table = sandbox.getVSTableLens("TwoGroups_OuterTopN", false);
       table.moreRows(XTable.EOT);
       List<MVInfo> mvInfos = MVQuery.getMVInfos(table);
@@ -88,7 +88,7 @@ public class RankingConditionTest {
    @Test
    public void testTwoGroupsInnerTopN() throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
       VSTableLens table = sandbox.getVSTableLens("TwoGroups_InnerTopN", false);
       table.moreRows(XTable.EOT);
       List<MVInfo> mvInfos = MVQuery.getMVInfos(table);

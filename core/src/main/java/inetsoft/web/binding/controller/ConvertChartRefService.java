@@ -39,13 +39,15 @@ import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -94,13 +96,17 @@ public class ConvertChartRefService {
    {
       String name = event.name();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
       ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
 
       if(chart == null) {
-         LOG.warn("Chart assembly is missing, failed to process convert chart " +
-                     "reference event: " + name);
+         LOG.warn("Chart assembly is missing, failed to process convert chart reference event: {}", name);
          return null;
       }
 
@@ -120,7 +126,7 @@ public class ConvertChartRefService {
       // Handle source changed.
       if(assemblyInfoHandler.handleSourceChanged(nchart, tableName,
                                                  "/events/vs/chart/convertRef",
-                                                 event, dispatcher, box))
+                                                 event, dispatcher, box.get()))
       {
          return null;
       }
@@ -168,7 +174,7 @@ public class ConvertChartRefService {
          }
 
          // keep geographic
-         chartHandler.updateGeoColumns(box, vs, chart, vsChartInfo);
+         chartHandler.updateGeoColumns(box.get(), vs, chart, vsChartInfo);
 
          if(isGeo) {
             boolean todim = changeType == CONVERT_TO_DIMENSION;
@@ -183,7 +189,7 @@ public class ConvertChartRefService {
                chartHandler.changeGeographic(vsChartInfo, refName, SET_GEOGRAPHIC, todim);
             }
 
-            chartHandler.updateGeoColumns(box, vs, chart, vsChartInfo);
+            chartHandler.updateGeoColumns(box.get(), vs, chart, vsChartInfo);
             changed = changed || refChanged || detectRequired;
          }
 
@@ -194,7 +200,7 @@ public class ConvertChartRefService {
             hint = chart.setVSAssemblyInfo(ninfo);
          }
 
-         box.updateAssembly(chart.getAbsoluteName());
+         box.get().updateAssembly(chart.getAbsoluteName());
 
          if(changed) {
             // clear runtime fields so the aesthetic fields won't be restored
@@ -216,7 +222,7 @@ public class ConvertChartRefService {
             try {
                ChangedAssemblyList clist =
                   coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-               box.processChange(name, hint, clist);
+               box.get().processChange(name, hint, clist);
                coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             }
             finally {
@@ -224,7 +230,7 @@ public class ConvertChartRefService {
             }
 
             if(detectRequired) {
-               DataSet source = chartHandler.getChartData(box, chart);
+               DataSet source = chartHandler.getChartData(box.get(), chart);
                SourceInfo sourceInfo = chart.getSourceInfo();
                chartHandler.autoDetect(vs, sourceInfo, vsChartInfo, refName, source);
             }

@@ -42,6 +42,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -54,9 +55,10 @@ public class VSTestService {
    public String openViewsheet(@ClusterProxyKey String id, Principal principal) throws Exception {
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet nrvs = engine.getViewsheet(id, principal);
-      VariableTable variables = nrvs.getViewsheetSandbox().getVariableTable();
-      nrvs.getViewsheetSandbox().getAssetQuerySandbox().refreshVariableTable(variables);
-      nrvs.getViewsheetSandbox().reset(null, nrvs.getViewsheet().getAssemblies(),
+      ViewsheetSandbox box = nrvs.getViewsheetSandbox().orElseThrow();
+      VariableTable variables = box.getVariableTable();
+      box.getAssetQuerySandbox().refreshVariableTable(variables);
+      box.reset(null, nrvs.getViewsheet().getAssemblies(),
                                        new ChangedAssemblyList(), true, true, null);
 
       return id;
@@ -91,9 +93,9 @@ public class VSTestService {
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return 0;
       }
 
@@ -116,7 +118,7 @@ public class VSTestService {
             //ignore, not expecting any exception here.
          }
 
-         VSTableLens lens = box.getVSTableLens(oname, detail);
+         VSTableLens lens = box.get().getVSTableLens(oname, detail);
 
          if(lens == null || Util.isTimeoutTable(lens)) {
             return 0;
@@ -125,7 +127,8 @@ public class VSTestService {
          int ccount = lens.getColCount();
 
          return ccount;
-      }catch(Exception e) {
+      }
+      catch(Exception e) {
          e.printStackTrace();
          throw new Exception(e);
       }
@@ -139,7 +142,7 @@ public class VSTestService {
       ChartArea chartArea;
 
       try {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
          box.setUser(SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false));
 
          VSChartInfo cinfo = chartAssembly.getVSChartInfo();

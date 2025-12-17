@@ -18,11 +18,13 @@
 
 package inetsoft.web.binding;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.graph.internal.ManualOrderComparer;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.VSAQuery;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.filter.ConditionGroup;
 import inetsoft.report.internal.binding.AssetNamedGroupInfo;
 import inetsoft.report.internal.binding.OrderInfo;
@@ -36,7 +38,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.event.GetAvailableValuesEvent;
 import inetsoft.web.binding.handler.VSChartDataHandler;
@@ -46,7 +47,6 @@ import inetsoft.web.binding.model.graph.ChartDimensionRefModel;
 import inetsoft.web.binding.service.graph.ChartRefModelFactoryService;
 import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.security.Principal;
 import java.util.*;
@@ -74,7 +74,8 @@ public class VSDataService {
       DataRefModel dimension = event.dimension();
       VSDimensionRef dim = null;
       List<VariableAssemblyModelInfo> varInfos = event.variables();
-      VariableTable vars = rvs.getViewsheetSandbox().getVariableTable();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VariableTable vars = box.map(ViewsheetSandbox::getVariableTable).orElseGet(VariableTable::new);
       VariableTable collectedVars = VariableAssemblyModelInfo.getVariableTable(varInfos);
 
       if(collectedVars != null) {
@@ -130,10 +131,14 @@ public class VSDataService {
 
       DataVSAssembly dataAssembly = (DataVSAssembly) assembly;
       XSourceInfo sourceInfo = dataAssembly.getSourceInfo();
-      UserVariable[] vars = BrowsedData.getVariables(sourceInfo,
-                                                     dataAssembly.getTableName(), null,
-                                                     rvs.getViewsheetSandbox().getAssetQuerySandbox(),
-                                                     principal, rvs.getViewsheetSandbox().getVariableTable());
+      UserVariable[] vars = null;
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent()) {
+         vars = BrowsedData.getVariables(sourceInfo, dataAssembly.getTableName(), null,
+                                         box.get().getAssetQuerySandbox(),
+                                         principal, box.get().getVariableTable());
+      }
 
       if(vars == null) {
          return null;

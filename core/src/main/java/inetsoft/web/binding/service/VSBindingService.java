@@ -67,8 +67,8 @@ import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 /**
  * Class that acts as a facade for all registered instances of
@@ -288,11 +288,14 @@ public class VSBindingService {
 
          if(newAssembly instanceof TableDataVSAssembly) {
             ChangedAssemblyList clist = new ChangedAssemblyList();
-            ViewsheetSandbox box = rvs.getViewsheetSandbox();
-            // reset so association conditions are applied on new table
-            box.reset(null, viewsheet.getAssemblies(), clist, true, true, null);
-            BaseTableService.loadTableData(
-               rvs, newAssembly.getAbsoluteName(), 0, 0, 100, linkUri, dispatcher);
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isPresent()) {
+               // reset so association conditions are applied on new table
+               box.get().reset(null, viewsheet.getAssemblies(), clist, true, true, null);
+               BaseTableService.loadTableData(
+                  rvs, newAssembly.getAbsoluteName(), 0, 0, 100, linkUri, dispatcher);
+            }
          }
 
          coreLifecycleService.addDeleteVSObject(rvs, newAssembly, dispatcher);
@@ -394,7 +397,6 @@ public class VSBindingService {
       throws Exception
    {
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
       VSAssemblyInfo info = assembly == null ? null : assembly.getVSAssemblyInfo();
 
       AssetEntry binding = bindings.get(0);
@@ -707,9 +709,9 @@ public class VSBindingService {
       throws Exception
    {
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      AssetEntry binding = bindings.get(0);
+      AssetEntry binding = bindings.getFirst();
       String vname = binding.getName();
       Worksheet ws = viewsheet.getBaseWorksheet();
       VariableAssembly vassembly = (VariableAssembly) ws.getAssembly(vname);
@@ -770,11 +772,13 @@ public class VSBindingService {
       Object dValue = vassembly.getVariable().getValueNode() == null ?
          null : vassembly.getVariable().getValueNode().getValue();
 
-      try {
-         // use the user input value when default value is expresion or else execute it.
-         dValue = executeWSExpressionVariable(dValue, vassembly, box.getAssetQuerySandbox());
-      }
-      catch(Exception ignore) {
+      if(box.isPresent()) {
+         try {
+            // use the user input value when default value is expresion or else execute it.
+            dValue = executeWSExpressionVariable(dValue, vassembly, box.get().getAssetQuerySandbox());
+         }
+         catch(Exception ignore) {
+         }
       }
 
       if(nassembly instanceof InputVSAssembly) {
@@ -787,14 +791,16 @@ public class VSBindingService {
             ListInputVSAssembly lassembly = (ListInputVSAssembly) iassembly;
             AssetVariable avar = vassembly.getVariable();
 
-            // fix bug1284005618690, if the varible has no table, and the
-            // choice is from query, execute the varible
-            if(avar != null && avar.getTableName() == null &&
-               avar.getChoiceQuery() != null)
-            {
-               avar = (AssetVariable) avar.clone();
-               AssetQuerySandbox wbox = box.getAssetQuerySandbox();
-               AssetEventUtil.executeVariable(wbox, avar);
+            if(box.isPresent()) {
+               // fix bug1284005618690, if the varible has no table, and the
+               // choice is from query, execute the varible
+               if(avar != null && avar.getTableName() == null &&
+                  avar.getChoiceQuery() != null)
+               {
+                  avar = (AssetVariable) avar.clone();
+                  AssetQuerySandbox wbox = box.get().getAssetQuerySandbox();
+                  AssetEventUtil.executeVariable(wbox, avar);
+               }
             }
 
             assert avar != null;
@@ -1698,17 +1704,22 @@ public class VSBindingService {
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(Tool.byteDecode(vsId), principal);
       AssetEntry entry = rvs.getEntry();
-      Viewsheet vs = (Viewsheet) rvs.getViewsheet().cloneForBindingEditor();
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VariableTable variables = box.getVariableTable();
+      Viewsheet vs = rvs.getViewsheet().cloneForBindingEditor();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.cancel();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      VariableTable variables = box.get().getVariableTable();
+
+      box.get().cancel();
 
       if(variables != null) {
          variables = (VariableTable) variables.clone();
       }
 
-      box.lockWrite();
+      box.get().lockWrite();
       String id;
       RuntimeViewsheet nrvs;
 
@@ -1741,7 +1752,7 @@ public class VSBindingService {
          rvs.setBindingID(id);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       nrvs.setOriginalID(vsId);
@@ -1749,21 +1760,21 @@ public class VSBindingService {
       nrvs.setVSTemporaryInfo(wizardTemporaryInfoService.getVSTemporaryInfo(rvs));
       engine.flushRuntimeSheet(id);
 
-      AssetQuerySandbox wbox = nrvs.getViewsheetSandbox().getAssetQuerySandbox();
+      Optional<ViewsheetSandbox> nbox = nrvs.getViewsheetSandbox();
 
-      if(wbox != null) {
-         wbox.refreshVariableTable(variables);
-      }
+      if(nbox.isPresent()) {
+         AssetQuerySandbox wbox = nbox.get().getAssetQuerySandbox();
 
-      ViewsheetSandbox nbox = nrvs.getViewsheetSandbox();
-
-      if(nbox != null) {
-         if(viewer) {
-            nbox.updateLastOnInit();
+         if(wbox != null) {
+            wbox.refreshVariableTable(variables);
          }
 
-         nbox.processOnInit();
-         nbox.reset(null, vs.getAssemblies(), new ChangedAssemblyList(),
+         if(viewer) {
+            nbox.get().updateLastOnInit();
+         }
+
+         nbox.get().processOnInit();
+         nbox.get().reset(null, vs.getAssemblies(), new ChangedAssemblyList(),
             true, true, null);
       }
 
@@ -1791,7 +1802,13 @@ public class VSBindingService {
       RuntimeViewsheet nrvs = engine.getViewsheet(nid, principal);
       String oid = getOriginalRuntimeId(nid, principal);
       RuntimeViewsheet orvs = oid == null ? nrvs : engine.getViewsheet(oid, principal);
-      orvs.getViewsheetSandbox().getVariableTable().addAll(nrvs.getViewsheetSandbox().getVariableTable());
+      Optional<ViewsheetSandbox> obox = orvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> nbox = nrvs.getViewsheetSandbox();
+
+      if(obox.isPresent() && nbox.isPresent()) {
+         obox.get().getVariableTable().addAll(nbox.get().getVariableTable());
+      }
+
       updateVSAssemblyBoundAssemblies(nrvs, orvs, assemblyName);
       Viewsheet nvs = nrvs.getViewsheet().clone();
       VSAssembly assembly = nvs.getAssembly(assemblyName);
@@ -1806,9 +1823,9 @@ public class VSBindingService {
          chartInfo.setSummarySortVal(0);
       }
 
-      if(VSUtil.isVSAssemblyBinding(assembly) && assembly instanceof CalcTableVSAssembly) {
+      if(nbox.isPresent() && VSUtil.isVSAssemblyBinding(assembly) && assembly instanceof CalcTableVSAssembly) {
          String source = VSUtil.getVSAssemblyBinding(assembly.getTableName());
-         nrvs.getViewsheetSandbox().resetDataMap(source);
+         nbox.get().resetDataMap(source);
       }
 
       if(info instanceof DataVSAssemblyInfo && !VSWizardEditModes.VIEWSHEET_PANE.equals(editMode)) {
@@ -1920,11 +1937,15 @@ public class VSBindingService {
             continue;
          }
 
-         try {
-            nrvs.getViewsheetSandbox().updateAssembly(dataVSAssemblyName);
-         }
-         catch(Exception e) {
-            LOG.warn("Failed to update assembly: {}", dataVSAssemblyName, e);
+         Optional<ViewsheetSandbox> nbox = nrvs.getViewsheetSandbox();
+
+         if(nbox.isPresent()) {
+            try {
+               nbox.get().updateAssembly(dataVSAssemblyName);
+            }
+            catch(Exception e) {
+               LOG.warn("Failed to update assembly: {}", dataVSAssemblyName, e);
+            }
          }
 
          if(dataVSAssembly instanceof TableDataVSAssembly) {

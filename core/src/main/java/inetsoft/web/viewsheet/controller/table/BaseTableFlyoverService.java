@@ -38,8 +38,7 @@ import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @ClusterProxy
@@ -65,10 +64,15 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
 
       // get runtime viewsheet and assembly
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      Viewsheet viewsheet = box.getViewsheet();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockRead();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      Viewsheet viewsheet = box.get().getViewsheet();
+
+      box.get().lockRead();
 
       try {
          VSAssembly comp = viewsheet.getAssembly(name);
@@ -79,24 +83,24 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
          // If map is empty then clear
          if(!selectedCells.isEmpty()) {
             if(comp instanceof TableVSAssembly) {
-               clist = this.processTable((TableVSAssembly) comp, box, name, selectedCells);
+               clist = this.processTable((TableVSAssembly) comp, box.get(), name, selectedCells);
             }
             else if(comp instanceof CrosstabVSAssembly) {
-               clist = this.processCrosstab(box, (CrosstabVSAssembly) comp, name, selectedCells);
+               clist = this.processCrosstab(box.get(), (CrosstabVSAssembly) comp, name, selectedCells);
             }
             else if(comp instanceof CalcTableVSAssembly) {
                clist = createCalcTableConditions(
-                  (CalcTableVSAssembly) comp, box, name, selectedCells, null, dispatcher);
+                  (CalcTableVSAssembly) comp, box.get(), name, selectedCells, null, dispatcher);
             }
          }
          else {
             clist = new ConditionList();
          }
 
-         applyFlyovers(name, comp, rvs, box.getWorksheet(), clist, linkUri, dispatcher);
+         applyFlyovers(name, comp, rvs, box.get().getWorksheet(), clist, linkUri, dispatcher);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;
@@ -208,9 +212,9 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
                               ConditionList clist, String linkUri,
                               CommandDispatcher dispatcher) throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(comp == null) {
+      if(comp == null || box.isEmpty()) {
          return;
       }
 
@@ -257,7 +261,7 @@ public class BaseTableFlyoverService extends BaseTableService<FlyoverEvent> {
             // separately in another loop.  This will ensure if the tip
             // assemblies are dependent on each other, their state will be
             // correct before one of the tip assemblies is executed.
-            box.executeView(tip.getAbsoluteName(), true);
+            box.get().executeView(tip.getAbsoluteName(), true);
          }
       }
 

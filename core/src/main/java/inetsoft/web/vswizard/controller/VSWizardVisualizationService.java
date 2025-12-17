@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -64,10 +65,14 @@ public class VSWizardVisualizationService {
       }
 
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.cancel(true);
-      box.lockWrite();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().cancel(true);
+      box.get().lockWrite();
 
       try {
          VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -118,7 +123,7 @@ public class VSWizardVisualizationService {
          }
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          viewsheetService.flushRuntimeSheet(id);
       }
 

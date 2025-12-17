@@ -38,7 +38,8 @@ import inetsoft.web.binding.model.table.CrosstabBindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
-import inetsoft.web.viewsheet.model.*;
+import inetsoft.web.viewsheet.model.VSObjectModel;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.model.table.*;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.vswizard.model.VSWizardOriginalModel;
@@ -47,6 +48,7 @@ import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -73,10 +75,15 @@ public class VSBindingModelService {
    {
       String name = event.getName();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet viewsheet = rvs.getViewsheet();
 
-      box.lockRead();
+      box.get().lockRead();
 
       try {
          VSAssembly assembly = viewsheet.getAssembly(name);
@@ -151,7 +158,7 @@ public class VSBindingModelService {
          }
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;

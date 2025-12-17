@@ -74,7 +74,7 @@ public class DistributedTableCacheKeyTest {
    }
 
    private String getCacheKey(RuntimeViewsheet rvs, String vsAssemblyName, boolean onlyTable) throws Exception {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
       Viewsheet vs = box.getViewsheet();
       TableVSAssembly vsTable = (TableVSAssembly) vs.getAssembly(vsAssemblyName);
       Worksheet ws = box.getWorksheet();
@@ -94,7 +94,7 @@ public class DistributedTableCacheKeyTest {
    }
 
    private DataKey getDataKey(RuntimeViewsheet rvs, String vsAssemblyName) throws Exception {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow();
       Viewsheet vs = box.getViewsheet();
       TableVSAssembly vsTable = (TableVSAssembly) vs.getAssembly(vsAssemblyName);
       Worksheet ws = box.getWorksheet();

@@ -30,7 +30,8 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.*;
+import inetsoft.util.GroupedThread;
+import inetsoft.util.Tool;
 import inetsoft.web.vswizard.RecommendSequentialContext;
 import inetsoft.web.vswizard.model.recommender.*;
 import inetsoft.web.vswizard.recommender.execution.*;
@@ -766,10 +767,15 @@ public final class WizardRecommenderUtil {
                                             String tname, VSTemporaryInfo tempInfo)
          throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       String refValue = dim.getGroupColumnValue();
       String field = refValue.substring(6); // strip off Range@
-      IntervalData interval = IntervalExecutor.getData(box, tempInfo, dim, tname, XSchema.DOUBLE);
+      IntervalData interval = IntervalExecutor.getData(box.get(), tempInfo, dim, tname, XSchema.DOUBLE);
 
       double min = interval != null ? interval.getMin() : 0;
       double max = interval != null ? interval.getMax() : 100;

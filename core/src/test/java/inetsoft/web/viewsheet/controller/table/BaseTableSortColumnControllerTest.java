@@ -41,6 +41,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.security.Principal;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -82,7 +83,7 @@ class BaseTableSortColumnControllerTest {
       when(viewsheetService.getViewsheet(any(), nullable(Principal.class)))
          .thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(rvs.getViewsheetSandbox()).thenReturn(box);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
       TableVSAssembly assembly = spy(new TableVSAssembly());
       when(viewsheet.getAssembly(anyString())).thenReturn(assembly);
       when(viewsheet.getRuntimeEntry()).thenReturn(new AssetEntry());

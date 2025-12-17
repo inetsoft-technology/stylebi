@@ -44,6 +44,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -121,8 +122,13 @@ public class VSTableDndService {
          return null;
       }
 
-      ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
-      vbox.lockRead();
+      Optional<ViewsheetSandbox> vbox = rvs.getViewsheetSandbox();
+
+      if(vbox.isEmpty()) {
+         return null;
+      }
+
+      vbox.get().lockRead();
 
       try {
          TableVSAssembly assembly = (TableVSAssembly) rvs.getViewsheet().getAssembly(event.name());
@@ -162,7 +168,7 @@ public class VSTableDndService {
                            "/events/vstable/dnd/addColumns", linkUri);
       }
       finally {
-         vbox.unlockRead();
+         vbox.get().unlockRead();
       }
 
       return null;
@@ -296,9 +302,12 @@ public class VSTableDndService {
             if(!osource.getSource().equals(nsource.getSource()) &&
                nsource.getType() == SourceInfo.VS_ASSEMBLY)
             {
-               VSAQuery query = VSAQuery.createVSAQuery(rvs.getViewsheetSandbox(),
-                                                        nassembly, DataMap.DETAIL);
-               query.createAssemblyTable(nassembly.getTableName());
+               Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+               if(box.isPresent()) {
+                  VSAQuery query = VSAQuery.createVSAQuery(box.get(), nassembly, DataMap.DETAIL);
+                  query.createAssemblyTable(nassembly.getTableName());
+               }
             }
 
             if(!osource.getSource().equals(nsource.getSource()) ||

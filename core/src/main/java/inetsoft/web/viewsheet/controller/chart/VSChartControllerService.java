@@ -27,18 +27,19 @@ import inetsoft.report.composition.graph.VSDataSet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.SelectionVSAssemblyInfo;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.chart.VSChartEvent;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.messaging.handler.annotation.Payload;
 
 import java.security.Principal;
-import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
 
@@ -144,8 +145,13 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
       }
 
       RuntimeViewsheet rvs = chartState.getRuntimeViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      box.get().lockRead();
 
       try {
          String name = event.getChartName();
@@ -162,7 +168,7 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
          throw new RuntimeException(e);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
    }
 
@@ -219,9 +225,13 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
                                      CommandDispatcher dispatcher, Principal principal,
                                      boolean refreshOthersData)
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockRead();
+      if(box.isEmpty()) {
+         return;
+      }
+
+      box.get().lockRead();
 
       try {
          VSAssembly vsAssembly = rvs.getViewsheet().getAssembly(priorAssembly);
@@ -246,7 +256,7 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
          reloadOtherAssemblies(rvs, rvs.getViewsheet(), priorAssembly, uri, dispatcher, refreshOthersData);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
    }
 
@@ -367,13 +377,13 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
 
          RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
          Viewsheet vs = rvs.getViewsheet();
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-         if(vs == null || box == null) {
+         if(vs == null || box.isEmpty()) {
             return null;
          }
 
-         box.lockRead();
+         box.get().lockRead();
 
          try {
             int index = name.lastIndexOf(".");
@@ -410,12 +420,12 @@ public abstract class VSChartControllerService<T extends VSChartEvent>  {
 
             LegendsDescriptor legendsDes = chartDescriptor.getLegendsDescriptor();
 
-            return new VSChartStateInfo(engine, rvs, vs, box,
+            return new VSChartStateInfo(engine, rvs, vs, box.get(),
                                         chartAssembly, chartAssemblyInfo,
                                         chartDescriptor, chartInfo, legendsDes);
          }
          finally {
-            box.unlockRead();
+            box.get().unlockRead();
          }
       }
 

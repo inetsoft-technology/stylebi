@@ -40,7 +40,8 @@ import inetsoft.web.viewsheet.command.UpdateLayoutCommand;
 import inetsoft.web.viewsheet.command.UpdateLayoutUndoStateCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -90,9 +91,15 @@ public class VSLayoutControllerService {
          String rvsCloneId = viewsheetService.openTemporaryViewsheet(
             id, (AssetEntry) rvs.getEntry().clone(), principal);
          RuntimeViewsheet rvsClone = viewsheetService.getViewsheet(rvsCloneId, principal);
-         // apply same parameters in layout as in master vs. (59025)
-         rvsClone.getViewsheetSandbox().getAssetQuerySandbox().getVariableTable()
-            .addAll(rvs.getViewsheetSandbox().getAssetQuerySandbox().getVariableTable());
+         Optional<ViewsheetSandbox> boxClone = rvsClone.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(boxClone.isPresent() && box.isPresent()) {
+            // apply same parameters in layout as in master vs. (59025)
+            boxClone.get().getAssetQuerySandbox().getVariableTable()
+               .addAll(box.get().getAssetQuerySandbox().getVariableTable());
+         }
+
          rvsClone.setOriginalID(id);
 
          vsLayoutService.findViewsheetLayout(viewsheet, layoutName).ifPresent(layout -> {
@@ -100,8 +107,11 @@ public class VSLayoutControllerService {
             // Use scale font 1 when editing layouts.
             layoutClone.setScaleFont(1);
             rvsClone.setViewsheet(layoutClone.apply(viewsheet));
-            // reset box for new layout vs
-            rvsClone.getViewsheetSandbox().resetAll(new ChangedAssemblyList());
+
+            if(boxClone.isPresent()) {
+               // reset box for new layout vs
+               boxClone.get().resetAll(new ChangedAssemblyList());
+            }
 
             if(!layoutName.equals(currLayout)) {
                rvs.resetLayoutUndoRedo();
@@ -140,8 +150,13 @@ public class VSLayoutControllerService {
          AbstractLayout layoutClone = (AbstractLayout) parentRvs.layoutUndo().clone();
          this.vsLayoutService.updateVSLayouts(parentRvs, layoutClone, layoutName);
          rvs.setViewsheet(layoutClone.apply(parentRvs.getViewsheet()));
-         rvs.getViewsheetSandbox().reset(
-            null, rvs.getViewsheet().getAssemblies(), new ChangedAssemblyList(), true, true, null);
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            box.get().reset(
+               null, rvs.getViewsheet().getAssemblies(), new ChangedAssemblyList(), true, true, null);
+         }
+
          vsLayoutService.sendLayout(rvs, layoutClone, dispatcher);
          //update client side layout points
          UpdateLayoutUndoStateCommand command = new UpdateLayoutUndoStateCommand();
@@ -168,8 +183,13 @@ public class VSLayoutControllerService {
          AbstractLayout layoutClone = (AbstractLayout) parentRvs.layoutRedo().clone();
          this.vsLayoutService.updateVSLayouts(parentRvs, layoutClone, layoutName);
          rvs.setViewsheet(layoutClone.apply(parentRvs.getViewsheet()));
-         rvs.getViewsheetSandbox().reset(
-            null, rvs.getViewsheet().getAssemblies(), new ChangedAssemblyList(), true, true, null);
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            box.get().reset(
+               null, rvs.getViewsheet().getAssemblies(), new ChangedAssemblyList(), true, true, null);
+         }
+
          vsLayoutService.sendLayout(rvs, layoutClone, dispatcher);
          //update client side layout points
          UpdateLayoutUndoStateCommand command = new UpdateLayoutUndoStateCommand();
@@ -192,7 +212,6 @@ public class VSLayoutControllerService {
    {
       RuntimeViewsheet rvs = viewsheetService
          .getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
       RuntimeViewsheet parentRvs = rvs.getOriginalID() == null ? rvs :
          viewsheetService.getViewsheet(rvs.getOriginalID(), principal);
       Viewsheet viewsheet = parentRvs.getViewsheet();
@@ -331,8 +350,10 @@ public class VSLayoutControllerService {
       }
 
       rvs.setViewsheet(vs);
-      rvs.getViewsheetSandbox().reset(null, viewsheet.getAssemblies(),
-                                      new ChangedAssemblyList(), true, true, null);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      box.ifPresent(viewsheetSandbox -> viewsheetSandbox.reset(
+         null, viewsheet.getAssemblies(), new ChangedAssemblyList(), true, true, null));
+
       List<VSAssemblyLayout> refreshLayouts = null;
 
       if(refreshAll) {

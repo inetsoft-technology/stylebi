@@ -29,6 +29,7 @@ import inetsoft.web.vswizard.service.WizardVSObjectService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -49,15 +50,20 @@ public class WizardInsertObjectService {
          return null;
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          this.wizardVsObjectService.insertVsObject(rvs, event, linkUri, principal,
                                                    commandDispatcher);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          engine.flushRuntimeSheet(vId);
       }
 

@@ -25,12 +25,11 @@ import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.web.composer.vs.objects.event.RemoveVSObjectsEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.LinkUri;
 import inetsoft.web.vswizard.service.WizardVSObjectService;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -54,14 +53,19 @@ public class WizardDeleteObjectService {
          return null;
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          this.wizardVsObjectService.deleteVSObject(rvs, event, linkUri, principal, commandDispatcher);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          engine.flushRuntimeSheet(vsId);
       }
 

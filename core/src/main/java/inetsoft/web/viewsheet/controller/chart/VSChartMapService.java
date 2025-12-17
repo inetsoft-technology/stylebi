@@ -34,7 +34,8 @@ import inetsoft.uql.viewsheet.graph.ChartDescriptor;
 import inetsoft.uql.viewsheet.graph.PlotDescriptor;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.web.viewsheet.command.ClearMapPanCommand;
-import inetsoft.web.viewsheet.event.chart.*;
+import inetsoft.web.viewsheet.event.chart.VSMapPanEvent;
+import inetsoft.web.viewsheet.event.chart.VSMapZoomEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
@@ -46,6 +47,7 @@ import java.awt.geom.Dimension2D;
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -84,17 +86,22 @@ public class VSChartMapService {
                             int increment, double panX, double panY)
    {
       try {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
          Viewsheet vs = rvs.getViewsheet();
+
+         if(vs == null || box.isEmpty()) {
+            return;
+         }
+
          final ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(chartName);
          ChartDescriptor desc = assembly.getChartDescriptor();
          ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getInfo();
          Dimension maxSize = info.getMaxSize();
-         VGraphPair vpair = box.getVGraphPair(chartName, true, maxSize);
+         VGraphPair vpair = box.get().getVGraphPair(chartName, true, maxSize);
          applyZoomPan(increment, panX, panY, desc, vpair.getRealSizeVGraph(),
                       vpair.getEGraph(), vpair.getData());
          assembly.getChartInfo().setRTChartDescriptor(null);
-         box.clearGraph(chartName);
+         box.get().clearGraph(chartName);
 
          coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
       }
@@ -103,7 +110,7 @@ public class VSChartMapService {
 
          // if zoom failed (e.g. lat out of range), ignore the zoom
          if(LOG.isDebugEnabled()) {
-            LOG.debug("Failed to get map background: " + ex, ex);
+            LOG.debug("Failed to get map background: {}", ex, ex);
          }
       }
    }
@@ -115,14 +122,19 @@ public class VSChartMapService {
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null || box.isEmpty()) {
+         return null;
+      }
+
       final ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(event.getChartName());
       ChartDescriptor desc = assembly.getChartDescriptor();
       PlotDescriptor plot = desc.getPlotDescriptor();
 
       clearPanZoom(plot);
-      box.clearGraph(event.getChartName());
+      box.get().clearGraph(event.getChartName());
       coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
       return null;
    }

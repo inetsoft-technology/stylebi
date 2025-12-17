@@ -18,6 +18,7 @@
 
 package inetsoft.web.binding;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
@@ -28,7 +29,6 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.web.binding.drm.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
@@ -57,9 +57,13 @@ public class VSFormulaService {
       ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = engine.getViewsheet(vsId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockRead();
+      if(box.isEmpty()) {
+         return new HashMap<>();
+      }
+
+      box.get().lockRead();
 
       try {
          VSAssembly assembly = (VSAssembly) viewsheet.getAssembly(assemblyName);
@@ -121,7 +125,7 @@ public class VSFormulaService {
          return result;
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
    }
 

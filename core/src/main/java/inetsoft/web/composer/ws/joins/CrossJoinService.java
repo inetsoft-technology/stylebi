@@ -27,7 +27,8 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.VSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.MessageException;
 import inetsoft.web.composer.ws.TableModeService;
 import inetsoft.web.composer.ws.WorksheetControllerService;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
@@ -40,6 +41,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 /**
  * Handle re-executing the query after prompting for a cross join
@@ -117,9 +119,14 @@ public class CrossJoinService extends WorksheetControllerService {
       final Assembly table = worksheet.getAssembly(tableName);
       final AssemblyEntry assemblyEntry = table.getAssemblyEntry();
       final AssemblyRef[] dependings = viewsheet.getDependings(assemblyEntry);
-      final ViewsheetSandbox box = sheet.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = sheet.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       final ChangedAssemblyList clist = service.createList(true, dispatcher, sheet, linkUri);
-      box.lockWrite();
+      box.get().lockWrite();
 
       try {
          if(sheet.isWizardViewsheet()) {
@@ -149,7 +156,7 @@ public class CrossJoinService extends WorksheetControllerService {
                                   true, true, true, clist);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
    }
 

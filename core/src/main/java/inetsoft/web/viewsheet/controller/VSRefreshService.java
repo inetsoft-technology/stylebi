@@ -53,7 +53,7 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.security.Principal;
 import java.sql.Date;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -117,7 +117,7 @@ public class VSRefreshService {
       int width = event.width();
       int height = event.height();
       VariableTable variables = null;
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       if(event.parameters() != null) {
          variables = parameterService.readParameters(event.parameters());
@@ -130,7 +130,11 @@ public class VSRefreshService {
          return null;
       }
 
-      box.lockWrite();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
       pending.put(id, true);
 
       // reset embed assembly size on refresh
@@ -187,7 +191,7 @@ public class VSRefreshService {
       }
       finally {
          pending.remove(id);
-         box.unlockWrite();
+         box.get().unlockWrite();
 
          if(entry != null && executionRecord != null) {
             Audit.getInstance().auditExecution(executionRecord, principal);
@@ -226,9 +230,9 @@ public class VSRefreshService {
          rlistener.setID(rvs.getID());
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return;
       }
 
@@ -243,7 +247,7 @@ public class VSRefreshService {
       }
 
       try {
-         AssetQuerySandbox wbox = box.getAssetQuerySandbox();
+         AssetQuerySandbox wbox = box.get().getAssetQuerySandbox();
 
          if(variables != null && wbox != null) {
             wbox.refreshVariableTable(variables);
@@ -260,13 +264,13 @@ public class VSRefreshService {
          // Here we will hint to the ViewsheetSandbox that the viewsheet is
          // being refreshed so we can prevent these errors from being
          // propogated to the end users.
-         box.setRefreshing(true);
+         box.get().setRefreshing(true);
 
          String maxModeChart = null;
          Dimension maxModeSize = null;
 
          if(resizing) {
-            for(Assembly assembly : box.getViewsheet().getAssemblies(true)) {
+            for(Assembly assembly : box.get().getViewsheet().getAssemblies(true)) {
                if(assembly instanceof ChartVSAssembly) {
                   maxModeSize = ((ChartVSAssemblyInfo) assembly.getInfo()).getMaxSize();
 
@@ -282,11 +286,11 @@ public class VSRefreshService {
          else if(!tableMetaData) {
             rvs.resetRuntime();
             rvs.setTouchTimestamp(System.currentTimeMillis());
-            box.setTouchTimestamp(rvs.getTouchTimestamp());
+            box.get().setTouchTimestamp(rvs.getTouchTimestamp());
          }
 
          if(maxModeChart != null) {
-            ((ChartVSAssemblyInfo) box.getViewsheet().getAssembly(maxModeChart).getInfo())
+            ((ChartVSAssemblyInfo) box.get().getViewsheet().getAssembly(maxModeChart).getInfo())
                .setMaxSize(maxModeSize);
          }
 
@@ -316,7 +320,7 @@ public class VSRefreshService {
          }
       }
       finally {
-         box.setRefreshing(false);
+         box.get().setRefreshing(false);
       }
    }
 
@@ -340,20 +344,20 @@ public class VSRefreshService {
             }
 
             RuntimeViewsheet rv = (RuntimeViewsheet) runtimeSheet;
-            ViewsheetSandbox rbox = rv.getViewsheetSandbox();
+            Optional<ViewsheetSandbox> rbox = rv.getViewsheetSandbox();
 
-            if(rbox == null) {
+            if(rbox.isEmpty()) {
                continue;
             }
 
-            ViewsheetSandbox[] boxes = rbox.getSandboxes();
+            ViewsheetSandbox[] boxes = rbox.get().getSandboxes();
 
             for(ViewsheetSandbox box : boxes) {
                Viewsheet vs = box.getViewsheet();
 
                List<VSAssembly> list = VSUtil.getSharedVSAssemblies(vs, (VSAssembly) assembly);
 
-               if(list.size() > 0) {
+               if(!list.isEmpty()) {
                   return true;
                }
             }
@@ -448,8 +452,9 @@ public class VSRefreshService {
 
       Assembly[] rarr = new Assembly[rlist.size()];
       rlist.toArray(rarr);
-      rvs.getViewsheetSandbox().reset(null, rarr, clist, false, false,
-                                      null);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      box.ifPresent(
+         b -> b.reset(null, rarr, clist, false, false, null));
       coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri, clist, dispatcher,
                                    false);
 

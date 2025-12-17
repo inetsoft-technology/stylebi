@@ -31,6 +31,7 @@ import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -51,9 +52,9 @@ public class DelayVisibilityService {
       RuntimeViewsheet rvs = (RuntimeViewsheet)
          viewsheetService.getSheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return null;
       }
 

@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.security.*;
 import inetsoft.test.SreeHome;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -41,6 +42,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationContext;
+
+import java.util.Optional;
 
 import static org.mockito.Mockito.*;
 
@@ -63,8 +66,8 @@ class ComposerViewsheetApiControllerTest {
                                       objectModelService,
                                       vsCompositionService);
       ComposerViewsheetServiceProxy composerViewsheetServiceProxy = new ComposerViewsheetServiceProxy();
-      Mockito.when(configurationContext.getSpringBean(inetsoft.web.composer.vs.controller.ComposerViewsheetService.class))
-         .thenReturn(composerViewsheetService);
+      Mockito.doReturn(composerViewsheetService).when(configurationContext)
+         .getSpringBean(inetsoft.web.composer.vs.controller.ComposerViewsheetService.class);
       controller = new ComposerViewsheetController(runtimeViewsheetRef,
                                                    viewsheetService,
                                                    composerViewsheetServiceProxy);
@@ -79,12 +82,14 @@ class ComposerViewsheetApiControllerTest {
    // Bug #10686 Make sure permissions are set for preview viewsheets
    @Test
    void previewViewsheetSetPermissionsTest() throws Exception {
+      Assembly[] assemblies = new Assembly[0];
       when(viewsheetService.getViewsheet(any(), any())).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       when(rvs.getEntry()).thenReturn(assetEntry);
-      when(rvs.getViewsheetSandbox()).thenReturn(box);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
       when(box.isCancelled(any(Long.class))).thenReturn(false);
       when(viewsheet.getLayoutInfo()).thenReturn(layoutInfo);
+      when(viewsheet.getAssemblies()).thenReturn(assemblies);
       when(principal.isIgnoreLogin()).thenReturn(true);
       when(principal.getName()).thenReturn(IdentityID.getConvertKey(XPrincipal.ANONYMOUS));
       when(principal.getAllRoles(any(AuthenticationProvider.class))).thenReturn(new IdentityID[0]);
@@ -138,7 +143,7 @@ class ComposerViewsheetApiControllerTest {
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSCompositionService vsCompositionService;
    @Mock ApplicationContext applicationContext;
-   @Mock ConfigurationContext configurationContext;
+   @Spy ConfigurationContext configurationContext;
    MockedStatic<ConfigurationContext> staticConfigurationContext;
    MockedStatic<VSUtil> vsutil;
 

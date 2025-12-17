@@ -448,18 +448,18 @@ public class SelectionListTestService {
       throws Exception
    {
       ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return;
       }
 
-      ViewsheetScope scope = box.getScope();
+      ViewsheetScope scope = box.get().getScope();
 
       scope.addVariable("event", new InputScriptEvent(assembly.getAbsoluteName(), assembly));
 
       try {
-         box.processChange(assembly.getAbsoluteName(), hint, clist);
+         box.get().processChange(assembly.getAbsoluteName(), hint, clist);
          sharedFilterService.processExtSharedFilters(assembly, hint, rvs, principal, dispatcher);
       }
       finally {

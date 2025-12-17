@@ -40,15 +40,15 @@ import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.ChartBindingModel;
 import inetsoft.web.binding.model.graph.*;
 import inetsoft.web.binding.service.VSBindingService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.vswizard.command.RefreshWizardTreeTriggerCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
 @ClusterProxy
@@ -75,14 +75,18 @@ public class ChangeChartRefService {
 
       String name = event.getName();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
       vs.clearSharedFrames();
       ChartVSAssembly assembly = (ChartVSAssembly) vs.getAssembly(name);
 
       if(assembly == null) {
-         LOG.warn("Chart assembly does not exist, failed to process change chart " +
-                     "reference event: " + name);
+         LOG.warn("Chart assembly does not exist, failed to process change chart reference event: {}", name);
          return null;
       }
 
@@ -110,11 +114,11 @@ public class ChangeChartRefService {
 
          if(!Tool.equals(otype, ntype)) {
             info.setVSChartInfo(ncinfo);
-            box.updateAssembly(name);
+            box.get().updateAssembly(name);
             ncinfo = info.getVSChartInfo();
          }
 
-         chartHandler.updateGeoColumns(box, vs, assembly, ncinfo);
+         chartHandler.updateGeoColumns(box.get(), vs, assembly, ncinfo);
 
          boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==
             VSAssembly.INPUT_DATA_CHANGED;
@@ -128,7 +132,7 @@ public class ChangeChartRefService {
          try {
             ChangedAssemblyList clist =
                coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-            box.updateAssembly(name);
+            box.get().updateAssembly(name);
             // update chart type after refreshing runtime refs.
             ncinfo.updateChartType(!ncinfo.isMultiStyles());
             GraphUtil.fixVisualFrames(ncinfo);
@@ -145,7 +149,7 @@ public class ChangeChartRefService {
             // coreLifecycleService.execute will refresh the assembly after
             // refreshing the data.
             // coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
-            box.processChange(name, hint, clist);
+            box.get().processChange(name, hint, clist);
             refreshDrillFilter(assembly, ocinfo, ncinfo);
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             assemblyInfoHandler.checkTrap(oinfo, info, obinding, dispatcher, rvs);

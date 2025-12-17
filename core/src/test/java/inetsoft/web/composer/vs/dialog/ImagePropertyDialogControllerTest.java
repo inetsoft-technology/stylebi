@@ -58,7 +58,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -137,7 +137,7 @@ class ImagePropertyDialogControllerTest {
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(rvs.getViewsheetSandbox()).thenReturn(viewsheetSandbox);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
       when(viewsheetSandbox.getScope()).thenReturn(viewsheetScope);
       when(viewsheetScope.getVSAScriptable(anyString())).thenReturn(null);
       when(viewsheetScope.getVariableScriptable()).thenReturn(variableScriptable);

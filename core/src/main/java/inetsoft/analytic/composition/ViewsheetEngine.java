@@ -240,9 +240,10 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       rvs.setEditable(false);
       rvs.setOriginalID(id);
 
-      ViewsheetSandbox ovbox = orvs.getViewsheetSandbox();
-      AssetQuerySandbox oBox = ovbox != null ? ovbox.getAssetQuerySandbox() : null;
-      AssetQuerySandbox nBox = rvs.getViewsheetSandbox().getAssetQuerySandbox();
+      Optional<ViewsheetSandbox> ovbox = orvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> nvbox = rvs.getViewsheetSandbox();
+      AssetQuerySandbox oBox = ovbox.map(ViewsheetSandbox::getAssetQuerySandbox).orElse(null);
+      AssetQuerySandbox nBox = nvbox.map(ViewsheetSandbox::getAssetQuerySandbox).orElse(null);
 
       // the new RuntimeViewsheet's VariableTable is based on vs,
       // we should synchronize it with orws
@@ -900,7 +901,8 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
             // add user to var table so the query key used for caching would match
             // the subsequent queries where the user is in vars.
             if(rvs != null) {
-               rvs.getViewsheetSandbox().getVariableTable().put("__principal__", user);
+               rvs.getViewsheetSandbox().ifPresent(
+                  box -> box.getVariableTable().put("__principal__", user));
             }
          }
 

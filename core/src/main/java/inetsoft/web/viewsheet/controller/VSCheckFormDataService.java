@@ -29,6 +29,7 @@ import inetsoft.web.viewsheet.model.CheckFormTableDataModel;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -62,10 +63,10 @@ public class VSCheckFormDataService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(model.name());
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      VSAssembly assembly = vs.getAssembly(model.name());
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return false;
       }
 
@@ -73,7 +74,7 @@ public class VSCheckFormDataService {
 
       if(assemblyInfo instanceof TableVSAssemblyInfo &&
          ((TableVSAssemblyInfo) assemblyInfo).isForm()) {
-         FormTableLens flens = box.getFormTableLens(model.name());
+         FormTableLens flens = box.get().getFormTableLens(model.name());
          return FormUtil.formDataChanged(flens);
       }
 
@@ -91,7 +92,12 @@ public class VSCheckFormDataService {
          }
 
          Viewsheet viewsheet = rvs.getViewsheet();
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(viewsheet == null || box.isEmpty()) {
+            return false;
+         }
+
          Assembly[] assemblies = viewsheet.getAssemblies();
 
          int added = 0;
@@ -101,7 +107,7 @@ public class VSCheckFormDataService {
          // Go through each table,
          for(int i = 0; i < assemblies.length; i++) {
             String assemblyName = assemblies[i].getAbsoluteName();
-            FormTableLens lens = box.getFormTableLens(assemblyName);
+            FormTableLens lens = box.get().getFormTableLens(assemblyName);
 
             // could be cancelled
             if(lens != null) {

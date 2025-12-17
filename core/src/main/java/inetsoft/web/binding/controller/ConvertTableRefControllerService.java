@@ -22,6 +22,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.TableDataVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -33,6 +34,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -58,11 +60,12 @@ public class ConvertTableRefControllerService {
       Viewsheet vs = rvs.getViewsheet();
       TableDataVSAssembly assembly = (TableDataVSAssembly) vs.getAssembly(name);
       String tableName = VSUtil.getTableName(event.table());
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       // Handle source changed.
-      if(assemblyInfoHandler.handleSourceChanged(assembly, tableName,
+      if(box.isEmpty() || assemblyInfoHandler.handleSourceChanged(assembly, tableName,
                                                  "/events/vs/table/convertRef", event, dispatcher,
-                                                 rvs.getViewsheetSandbox()))
+                                                 box.get()))
       {
          return null;
       }

@@ -124,7 +124,8 @@ public class BaseTableShowDetailsService extends BaseTableService<ShowDetailsEve
       String name = event.getAssemblyName();
       int eventColumn = event.column().size() == 0 ? 0 : event.column().get(0);
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      ViewsheetSandbox box = rvs.getViewsheetSandbox().orElseThrow(
+         () -> new ExpiredSheetException(rvs.getID(), principal));
       Viewsheet viewsheet = box.getViewsheet();
       final TableDataVSAssembly data = (TableDataVSAssembly) viewsheet.getAssembly(name);
       int hint;

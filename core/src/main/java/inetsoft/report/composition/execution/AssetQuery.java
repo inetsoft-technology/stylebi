@@ -705,7 +705,7 @@ public abstract class AssetQuery extends PreAssetQuery {
 
          if(base == null) {
             if(box.isDisposed()) {
-               throw new RuntimeException("Asset query sandbox is disposed");
+               throw new SandboxDisposedException("Asset query sandbox is disposed");
             }
 
             List<String> infos = XUtil.QUERY_INFOS.get();
