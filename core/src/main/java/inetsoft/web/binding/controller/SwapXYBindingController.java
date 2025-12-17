@@ -42,6 +42,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
+import java.util.Arrays;
 
 @Controller
 public class SwapXYBindingController {
@@ -196,11 +197,21 @@ public class SwapXYBindingController {
          cinfo.addYField(i, yref);
       }
 
-      if(xfields.length == 1 && yfields.length == 1 &&
-         xfields[0] instanceof VSChartAggregateRef && yfields[0] instanceof VSChartAggregateRef)
-      {
-         SizeFrame oldSizeFrame = (SizeFrame) ((VSChartAggregateRef) yfields[0]).getSizeFrame().clone();
-         ((VSChartAggregateRef) xfields[0]).setSizeFrame(oldSizeFrame);
+      // Copy size frames from the first y field to the x fields, if available
+      VSChartAggregateRef yfield =
+         (VSChartAggregateRef) Arrays.stream(yfields)
+            .filter(VSChartAggregateRef.class::isInstance)
+            .findFirst()
+            .orElse(null);
+
+      if(yfield != null) {
+         SizeFrame oldSizeFrame =  yfield.getSizeFrame();
+
+         for(ChartRef xfield : xfields) {
+            if(xfield instanceof VSChartAggregateRef) {
+               ((VSChartAggregateRef) xfield).setSizeFrame((SizeFrame) oldSizeFrame.clone());
+            }
+         }
       }
    }
 
