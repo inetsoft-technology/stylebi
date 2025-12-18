@@ -1845,25 +1845,11 @@ public class DataSourceRegistry implements MessageListener {
 
       if(type == AssetEntry.Type.DATA_SOURCE_FOLDER) {
          resourceType = ResourceType.DATA_SOURCE_FOLDER;
-
-         if(this.allFolders.containsKey(orgID)) {
-            cachedNames = this.allFolders.get(orgID);
-         }
-         else {
-            cachedNames = new ConcurrentHashMap<>();
-            this.allFolders.put(orgID, cachedNames);
-         }
+         cachedNames = this.allFolders.computeIfAbsent(orgID, k -> new ConcurrentHashMap<>());
       }
       else {
          resourceType = ResourceType.DATA_SOURCE;
-
-         if(this.allDataSources.containsKey(orgID)) {
-            cachedNames = this.allDataSources.get(orgID);
-         }
-         else {
-            cachedNames = new ConcurrentHashMap<>();
-            this.allDataSources.put(orgID, cachedNames);
-         }
+         cachedNames = this.allDataSources.computeIfAbsent(orgID, k -> new ConcurrentHashMap<>());
       }
 
       synchronized(cachedNames) {

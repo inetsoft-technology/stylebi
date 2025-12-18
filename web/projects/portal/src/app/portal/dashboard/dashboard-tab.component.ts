@@ -68,7 +68,7 @@ export class DashboardTabComponent implements OnInit, OnDestroy {
          (dashboardName) => {
             this.selectedDashboardName = dashboardName;
 
-            if(dashboardName.indexOf(";hasBaseEntry=") != -1) {
+            if(!!dashboardName && dashboardName.indexOf(";hasBaseEntry=") != -1) {
                this.selectedDashboardName =
                   dashboardName.substring(0, dashboardName.indexOf(";hasBaseEntry="));
             }

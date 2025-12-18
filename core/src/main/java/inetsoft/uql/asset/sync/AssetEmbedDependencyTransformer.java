@@ -71,8 +71,8 @@ public class AssetEmbedDependencyTransformer extends AssetDependencyTransformer 
          replacePropertyNode0(elem, "_description_", oentry.getDescription(),
             nentry.getDescription(), false);
          replaceChildValue(elem, "user",
-                           oentry.getUser() == null ? null : oentry.getUser().name,
-                           nentry.getUser() == null ? null : nentry.getUser().name,
+                           oentry.getUser() == null ? null : oentry.getUser().convertToKey(),
+                           nentry.getUser() == null ? null : nentry.getUser().convertToKey(),
                            true, true);
          elem.setAttribute("scope", nentry.getScope() + "");
       }

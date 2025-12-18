@@ -34,14 +34,18 @@
                  aria-hidden="true"></i>
             </button>
           </div>
+          <div class="form-check col-auto px-0">
+            <input class="mx-0" type="checkbox" title="_#(Switch To Manual Input)"
+                   [(ngModel)]="colorMap.manualInput" [ngModelOptions]="{standalone: true}">
+          </div>
           <div class="col">
-            <select class="form-control" *ngIf="truncatedDimensionData?.length > 0"
+            <select class="form-control" *ngIf="truncatedDimensionData?.length > 0 && !colorMap.manualInput"
                     [(ngModel)]="colorMap.option" [ngModelOptions]="{standalone: true}">
               <option [value]="data.value"
                       *ngFor="let data of truncatedDimensionData">{{data.label}}
               </option>
             </select>
-            <input class="form-control" *ngIf="truncatedDimensionData?.length == 0"
+            <input class="form-control" *ngIf="truncatedDimensionData?.length == 0 || colorMap.manualInput"
                    [ngModelOptions]="{standalone: true}"
                    [(ngModel)]="colorMap.option">
           </div>

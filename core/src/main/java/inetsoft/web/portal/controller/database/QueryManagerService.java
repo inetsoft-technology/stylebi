@@ -671,7 +671,13 @@ public class QueryManagerService {
          }
 
          String column = col.substring(dot + 1);
-         String ctbl = sql.getFieldByPath(col).getTable();
+         XField field = sql.getFieldByPath(col);
+
+         if(field == null) {
+            return null;
+         }
+
+         String ctbl = field.getTable();
          String dataType = Tool.isEmptyString(sql.getSelection().getType(col)) ?
             XField.STRING_TYPE : sql.getSelection().getType(col);
 
