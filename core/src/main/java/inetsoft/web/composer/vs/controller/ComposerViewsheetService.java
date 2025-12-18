@@ -196,7 +196,16 @@ public class ComposerViewsheetService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void closeViewsheet(@ClusterProxyKey String runtimeId, CloseSheetEvent event, Principal principal) throws Exception {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      RuntimeViewsheet rvs;
+
+      try {
+         rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      }
+      catch(ExpiredSheetException ex) {
+         // vs already closed, don't need to do anything
+         return null;
+      }
+
       final String bindingId = rvs.getBindingID();
       String rid = rvs.getViewsheetSandbox().getID();
 
