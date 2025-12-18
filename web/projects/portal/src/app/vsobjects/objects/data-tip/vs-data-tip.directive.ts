@@ -162,8 +162,19 @@ export class VSDataTipDirective implements DoCheck {
             left += 1;
 
             // if displaying top/left, make sure it's not out of bounds
-            top = Math.max(top, viewerRect.scrollTop - reducedEmbeddedVsTop);
-            left = Math.max(left, viewerRect.scrollLeft - reducedEmbeddedVsLeft);
+            if(containerInfo) {
+               if(containerInfo.top < viewerRect.scrollTop) {
+                  top += viewerRect.scrollTop;
+               }
+
+               if(containerInfo.left < viewerRect.scrollLeft) {
+                  left += viewerRect.scrollLeft;
+               }
+            }
+            else {
+               top = Math.max(top, viewerRect.scrollTop - reducedEmbeddedVsTop);
+               left = Math.max(left, viewerRect.scrollLeft - reducedEmbeddedVsLeft);
+            }
 
             this.renderer.setStyle(nativeElement, "left", left + "px");
             this.renderer.setStyle(nativeElement, "top", top + "px");
