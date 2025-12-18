@@ -79,7 +79,7 @@ or on Windows:
 ```powershell
 .\mvnw.cmd clean install
 ```
-
+> **NOTE**  When building the Java libraries, it is possible certain build tests will fail.  While we try to keep the trunk as stable as possible, this repository is actively being developed with a trunk based development workflow. For a production stable release, please check out one of the [release tags](https://github.com/inetsoft-technology/stylebi/releases). Alternatively, use the `-DskipTests` flag when building the Java libraries to skip the build tests entirely.
 ### Building the Docker Image
 
 If you have already built the Java libraries, you can then run the following command:
