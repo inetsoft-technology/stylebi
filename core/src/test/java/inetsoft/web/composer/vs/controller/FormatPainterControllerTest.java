@@ -43,6 +43,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.awt.*;
 import java.security.Principal;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -74,7 +75,7 @@ class FormatPainterControllerTest {
       when(viewsheetEngine.getViewsheet(anyString(), nullable(Principal.class)))
          .thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(rvs.getViewsheetSandbox()).thenReturn(viewsheetSandbox);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
       doNothing().when(graphPair).waitInit();
       when(viewsheetSandbox.getVGraphPair(anyString(), anyBoolean(), nullable(Dimension.class)))
          .thenReturn(graphPair);

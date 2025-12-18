@@ -135,15 +135,15 @@ public class ClipboardControllerService {
    {
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       final Viewsheet viewsheet = rvs.getViewsheet();
-      final ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> vbox = rvs.getViewsheetSandbox();
 
       final ClipboardService service = getClipboardService(principal);
 
-      if(service == null) {
+      if(service == null || vbox.isEmpty()) {
          return null;
       }
 
-      vbox.lockWrite();
+      vbox.get().lockWrite();
 
       try {
          final List<Assembly> oldassemblies = service.paste();
@@ -208,7 +208,7 @@ public class ClipboardControllerService {
             }
          }
 
-         rvs.getViewsheetSandbox().resetRuntime();
+         vbox.get().resetRuntime();
 
          for(int i = 0; i < assemblies.size(); i++) {
             final Assembly assembly = assemblies.get(i);
@@ -367,7 +367,7 @@ public class ClipboardControllerService {
          dispatcher.sendCommand(treeCommand);
       }
       finally {
-         vbox.unlockWrite();
+         vbox.get().unlockWrite();
       }
 
       return null;

@@ -60,8 +60,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.awt.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -140,9 +140,9 @@ public class VSAssemblyInfoHandler {
                      throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
@@ -152,11 +152,11 @@ public class VSAssemblyInfoHandler {
 
       String name = info.getAbsoluteName2();
       VSAssembly assembly = vs.getAssembly(name);
-      fixColumnWidths(assembly, box);
+      fixColumnWidths(assembly, box.get());
 
       if(assembly != null) {
          VSAssemblyInfo oinfo = assembly.getVSAssemblyInfo().clone();
-         ViewsheetScope scope = box.getScope();
+         ViewsheetScope scope = box.get().getScope();
          int hint = assembly.setVSAssemblyInfo(info);
 
          if(isEvent) {
@@ -164,13 +164,13 @@ public class VSAssemblyInfoHandler {
          }
 
          if(info instanceof DataVSAssemblyInfo && oinfo instanceof DataVSAssemblyInfo) {
-            removeVariable(box, (DataVSAssemblyInfo)info, (DataVSAssemblyInfo) oinfo);
+            removeVariable(box.get(), (DataVSAssemblyInfo)info, (DataVSAssemblyInfo) oinfo);
          }
 
          try {
             if(refreshPara) {
                List vars = new ArrayList();
-               VSEventUtil.refreshParameters(engine, box, vs, false, null, vars);
+               VSEventUtil.refreshParameters(engine, box.get(), vs, false, null, vars);
 
                if(!vars.isEmpty() && !vs.getViewsheetInfo().isDisableParameterSheet()) {
                   UserVariable[] vtable = new UserVariable[vars.size()];
@@ -191,7 +191,7 @@ public class VSAssemblyInfoHandler {
             if(assembly instanceof CrosstabVSAssembly) {
                // execute runtime fields for crosstab
                try {
-                  box.updateAssembly(assembly.getAbsoluteName());
+                  box.get().updateAssembly(assembly.getAbsoluteName());
                   CrosstabVSAssembly cross = (CrosstabVSAssembly) assembly;
                   CrosstabVSAssemblyInfo ocinfo = (CrosstabVSAssemblyInfo) oinfo;
                   FormatInfo finfo = cross.getFormatInfo();
@@ -199,7 +199,7 @@ public class VSAssemblyInfoHandler {
                      cross.getVSAssemblyInfo();
                   TableHyperlinkAttr hyperlink = ncinfo.getHyperlinkAttr();
                   TableHighlightAttr highlight = ncinfo.getHighlightAttr();
-                  TableLens lens = box.getVSTableLens(name, false);
+                  TableLens lens = box.get().getVSTableLens(name, false);
 
                   // save the column header info to be restored after change is applied. (60379)
                   BaseTableDrillService.saveColumnInfo(cross.getCrosstabInfo(), lens);
@@ -268,7 +268,7 @@ public class VSAssemblyInfoHandler {
                                                  linkUri, hint, refreshData, commandDispatcher);
 
                if(assembly instanceof CrosstabVSAssembly) {
-                  TableLens lens2 = box.getVSTableLens(name, false);
+                  TableLens lens2 = box.get().getVSTableLens(name, false);
 
                   // restore the column header info saved before the change is applied. (60379)
                   boolean changed = BaseTableDrillService.restoreColumnInfo(
@@ -287,7 +287,7 @@ public class VSAssemblyInfoHandler {
             }
 
             // fix the column width to make the column fit the data
-            if(assembly instanceof TableVSAssembly && fixColumnWidths(assembly, box) &&
+            if(assembly instanceof TableVSAssembly && fixColumnWidths(assembly, box.get()) &&
                commandDispatcher != null)
             {
                this.coreLifecycleService.refreshVSAssembly(rvs, assembly.getAbsoluteName(),

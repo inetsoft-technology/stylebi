@@ -138,7 +138,7 @@ public class FormatPainterService {
          return null;
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
       // fetch circle packing container format.
       if(assembly instanceof ChartVSAssembly && ChartFormatConstants.VO.equals(event.getRegion())) {
@@ -215,11 +215,11 @@ public class FormatPainterService {
             oname = oname.substring(Assembly.DETAIL.length());
          }
 
-         if(box.isCancelled(System.currentTimeMillis())) {
+         if(box.isEmpty() || box.get().isCancelled(System.currentTimeMillis())) {
             return null;
          }
 
-         VSTableLens lens = box.getVSTableLens(oname, detail);
+         VSTableLens lens = box.get().getVSTableLens(oname, detail);
 
          if(lens == null || !lens.moreRows(event.getRow()) ||
             event.getColumn() >= lens.getColCount())
@@ -460,7 +460,12 @@ public class FormatPainterService {
       Catalog catalog = Catalog.getCatalog(principal);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       RuntimeViewsheet parentRvs = rvs.getOriginalID() == null ? rvs :
          viewsheetService.getViewsheet(rvs.getOriginalID(), principal);
       final Viewsheet parentViewsheet = parentRvs.getViewsheet();
@@ -478,7 +483,7 @@ public class FormatPainterService {
          objects = event.getObjects();
       }
 
-      box.lockWrite();
+      box.get().lockWrite();
 
       try {
          for(int i = 0; i < objects.length; i++) {
@@ -651,7 +656,7 @@ public class FormatPainterService {
                                                  info.getVSChartInfo());
                }
 
-               box.reset(clist);
+               box.get().reset(clist);
                hasResetClist = true;
 
                setChartRegionsFormat(chartFormatInfo, event.getFormat(), event.getOrigFormat(),
@@ -680,10 +685,10 @@ public class FormatPainterService {
             VSChartInfo cinfo = assembly.getVSChartInfo();
             info.setRTChartDescriptor(null);
             cinfo.clearRuntime();
-            box.updateAssembly(name);
+            box.get().updateAssembly(name);
 
             if(!hasResetClist) {
-               box.reset(clist);
+               box.get().reset(clist);
             }
 
             this.coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
@@ -697,7 +702,7 @@ public class FormatPainterService {
          }
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       SetCurrentFormatCommand command = new SetCurrentFormatCommand(event.getFormat());
@@ -1447,10 +1452,10 @@ public class FormatPainterService {
       ChartDescriptor chartDescriptor = chart.getChartDescriptor();
 
       // Get Chart Area
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) chart.getInfo();
       Dimension maxSize = info.getMaxSize();
-      VGraphPair pair = box.getVGraphPair(name, true, maxSize);
+      VGraphPair pair = box.isEmpty() ? null : box.get().getVGraphPair(name, true, maxSize);
 
       XCube cube = chart.getXCube();
       boolean drill = !rvs.isTipView(name) &&
@@ -1604,40 +1609,40 @@ public class FormatPainterService {
          format.getCSSFormat().setCSSType(CSSConstants.CHART_AXIS_TITLE);
          format.getCSSFormat().addCSSAttribute("axis", "y2");
       }
-      else if(region.equals(ChartFormatConstants.BOTTOM_X_AXIS)) {
+      else if(box.isPresent() && region.equals(ChartFormatConstants.BOTTOM_X_AXIS)) {
          if(columnName == null || columnName.isEmpty()) {
             columnName = regionHandler.getAxisColumnName(chartInfo, area, region, index);
          }
 
-         format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box,
+         format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box.get(),
                                          area, true);
          format.getCSSFormat().addCSSAttribute("axis", "x");
       }
-      else if(region.equals(ChartFormatConstants.TOP_X_AXIS)) {
+      else if(box.isPresent() && region.equals(ChartFormatConstants.TOP_X_AXIS)) {
          if(columnName == null || columnName.isEmpty()) {
             columnName = regionHandler.getAxisColumnName(chartInfo, area, region, index);
          }
 
-         format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box,
+         format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box.get(),
                                          area, true);
          format.getCSSFormat().addCSSAttribute("axis", "x2");
       }
-      else if(region.equals(ChartFormatConstants.LEFT_Y_AXIS)) {
+      else if(box.isPresent() && region.equals(ChartFormatConstants.LEFT_Y_AXIS)) {
          if(columnName == null || columnName.isEmpty()) {
             columnName = regionHandler.getAxisColumnName(chartInfo, area, region, index);
          }
 
-         format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box,
+         format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box.get(),
                                          area, false);
          String axisIndex = ChartRegionHandler.getXfieldsIndex(chartInfo, columnName, true);
          format.getCSSFormat().addCSSAttribute("axis", axisIndex);
       }
-      else if(region.equals(ChartFormatConstants.RIGHT_Y_AXIS)) {
-         format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box,
+      else if(box.isPresent() && region.equals(ChartFormatConstants.RIGHT_Y_AXIS)) {
+         format = getAxisLabelTextFormat(name, region, index, columnName, chartInfo, box.get(),
                                          area, false);
          format.getCSSFormat().addCSSAttribute("axis", "y2");
       }
-      else if(region.equals(ChartFormatConstants.LEGEND_CONTENT)) {
+      else if(box.isPresent() && region.equals(ChartFormatConstants.LEGEND_CONTENT)) {
          LegendDescriptor descriptor = getLegendDescriptor(chartDescriptor, chartInfo, area, index);
 
          if(descriptor != null) {
@@ -1652,7 +1657,7 @@ public class FormatPainterService {
             }
          }
 
-         fixAxisDefaultFormat(box, chartInfo, format, name, columnName);
+         fixAxisDefaultFormat(box.get(), chartInfo, format, name, columnName);
          format.getCSSFormat().setCSSType(CSSConstants.CHART_LEGEND_CONTENT);
       }
       else if(region.equals(ChartFormatConstants.LEGEND_TITLE)) {

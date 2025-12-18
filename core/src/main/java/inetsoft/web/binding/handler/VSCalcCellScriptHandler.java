@@ -28,6 +28,8 @@ import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+
 @Component
 public class VSCalcCellScriptHandler {
    /**
@@ -35,9 +37,9 @@ public class VSCalcCellScriptHandler {
     */
    public String get(RuntimeViewsheet rvs, VSAssemblyInfo info, int row, int col) {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null ||
+      if(vs == null || box.isEmpty() ||
          !(info instanceof CalcTableVSAssemblyInfo))
       {
          return "";

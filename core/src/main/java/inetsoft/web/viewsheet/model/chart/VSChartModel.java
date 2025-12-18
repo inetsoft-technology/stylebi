@@ -39,8 +39,8 @@ import org.springframework.stereotype.Component;
 
 import java.awt.*;
 import java.awt.geom.RectangularShape;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -576,14 +576,14 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
          final ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getInfo();
          final Dimension maxSize = info.getMaxSize();
 
-         final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-         if(box == null) {
+         if(box.isEmpty()) {
             return null;
          }
 
          final Viewsheet viewsheet =
-            assembly.isEmbedded() ? info.getViewsheet() : box.getViewsheet();
+            assembly.isEmbedded() ? info.getViewsheet() : box.get().getViewsheet();
 
          if(viewsheet == null) {
             return null;

@@ -40,7 +40,9 @@ import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.springframework.stereotype.Service;
+
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -109,8 +111,13 @@ public class VSWizardConvertColumnService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          VSTemporaryInfo tempInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -156,7 +163,7 @@ public class VSWizardConvertColumnService {
          dispatcher.sendCommand(new RefreshWizardTreeTriggerCommand());
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;

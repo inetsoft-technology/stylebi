@@ -25,12 +25,15 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.command.*;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.vswizard.event.CloseVsWizardEvent;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import inetsoft.web.vswizard.service.WizardViewsheetService;
 import org.springframework.stereotype.Service;
+
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -90,15 +93,19 @@ public class VSWizardDialogService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       AssetEntry entry = rvs.getEntry();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockWrite();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          rvs.setVSTemporaryInfo(null);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          viewsheetService.flushRuntimeSheet(runtimeId);
       }
 

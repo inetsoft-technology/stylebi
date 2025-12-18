@@ -38,7 +38,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
-import inetsoft.web.viewsheet.controller.dialog.ExportDialogController;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
@@ -97,7 +96,11 @@ public class VSEmailService {
    {
       Catalog catalog = Catalog.getCatalog(principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
 
       if(formatType == FileFormatInfo.EXPORT_TYPE_SNAPSHOT && isCube(vs)) {
          throw new MessageException(catalog.getString("cube.not.supported"), LogLevel.WARN);
@@ -194,7 +197,7 @@ public class VSEmailService {
                   VSPortalHelper helper = new VSPortalHelper();
 
                   if(includeCurrent && i >= bookmarks.length) {
-                     exporter.export(box, catalog.getString("Current View"), helper);
+                     exporter.export(box.get(), catalog.getString("Current View"), helper);
                   }
                   else {
                      int vmode = Viewsheet.SHEET_RUNTIME_MODE;
@@ -415,7 +418,12 @@ public class VSEmailService {
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
       VSExporter exporter = AbstractVSExporter.getVSExporter(
               formatType, PortalThemesManager.getColorTheme(), output, false, csvConfig);
       exporter.setLogExport(true);
@@ -423,7 +431,7 @@ public class VSEmailService {
       exporter.setExpandSelections(expandSelections);
       exporter.setAssetEntry(rvs.getEntry());
       exporter.setOnlyDataComponents(onlyDataComponent && !matchLayout);
-      exporter.setSandbox(box);
+      exporter.setSandbox(box.get());
       VSPortalHelper helper = new VSPortalHelper();
 
       if(exporter instanceof CSVVSExporter) {
@@ -435,7 +443,7 @@ public class VSEmailService {
       }
 
       if(includeCurrent) {
-         exporter.export(box, catalog.getString("Current View"), helper);
+         exporter.export(box.get(), catalog.getString("Current View"), helper);
       }
 
       int vmode = Viewsheet.SHEET_RUNTIME_MODE;

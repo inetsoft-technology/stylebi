@@ -36,6 +36,7 @@ import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -150,9 +151,10 @@ public class VSAnnotationAddService {
          }
 
          if(assemblyType == AnnotationVSAssemblyInfo.DATA) {
-            ViewsheetSandbox box = rvs.getViewsheetSandbox();
-            ainfo.setValue(AnnotationVSUtil.getAnnotationDataValue(box, parentAssembly, row, col,
-                                                                   measureName));
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+            box.ifPresent(b -> ainfo.setValue(
+               AnnotationVSUtil.getAnnotationDataValue(b, parentAssembly, row, col, measureName)));
+
             ainfo.setRow(row);
             ainfo.setCol(col);
 

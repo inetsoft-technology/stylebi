@@ -36,13 +36,11 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
-import inetsoft.web.viewsheet.event.ApplySelectionListEvent;
-import inetsoft.web.viewsheet.event.SortSelectionListEvent;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -76,8 +74,13 @@ public class VSSelectionService {
    {
       final Context context = createContext(runtimeId, principal, dispatcher, linkUri);
 
-      ViewsheetSandbox box = context.rvs().getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = context.rvs().getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          SelectionVSAssembly assembly = (SelectionVSAssembly) context.getAssembly(assemblyName);
@@ -87,7 +90,7 @@ public class VSSelectionService {
          }
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;
@@ -214,9 +217,13 @@ public class VSSelectionService {
    {
       final Context context = createContext(runtimeId, principal, dispatcher, linkUri);
       final RuntimeViewsheet rvs = context.rvs();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockRead();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          SelectionVSAssembly assembly = (SelectionVSAssembly) context.getAssembly(assemblyName);
@@ -227,10 +234,10 @@ public class VSSelectionService {
 
          final ChangedAssemblyList clist =
             coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-         box.processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
+         box.get().processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;
@@ -249,9 +256,13 @@ public class VSSelectionService {
    {
       final Context context = createContext(runtimeId, principal, dispatcher, linkUri);
       final RuntimeViewsheet rvs = context.rvs();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockRead();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          SelectionVSAssembly assembly = (SelectionVSAssembly) context.getAssembly(assemblyName);
@@ -265,10 +276,10 @@ public class VSSelectionService {
 
          final ChangedAssemblyList clist =
             coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-         box.processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
+         box.get().processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;
@@ -299,14 +310,19 @@ public class VSSelectionService {
                               Context context)
       throws Exception
    {
-      final ViewsheetSandbox box = context.rvs().getViewsheetSandbox();
-      box.lockWrite();
+      final Optional<ViewsheetSandbox> box = context.rvs().getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      box.get().lockWrite();
 
       try {
          doApplySelection(assembly, event, context);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
    }
 
@@ -514,16 +530,20 @@ public class VSSelectionService {
                                    Context context)
    {
       final RuntimeViewsheet rvs = context.rvs();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockRead();
+      if(box.isEmpty()) {
+         return;
+      }
+
+      box.get().lockRead();
 
       try {
          SelectionTreeVSAssembly assembly = (SelectionTreeVSAssembly) context.getAssembly(assemblyName);
          assembly.setExpandedValues(event.getExpandedValues().toArray(new String[0]));
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
    }
 
@@ -791,18 +811,18 @@ public class VSSelectionService {
       final CommandDispatcher dispatcher = context.dispatcher();
       final String linkUri = context.linkUri();
       ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return;
       }
 
-      ViewsheetScope scope = box.getScope();
+      ViewsheetScope scope = box.get().getScope();
 
       scope.addVariable("event", new InputScriptEvent(assembly.getAbsoluteName(), assembly));
 
       try {
-         box.processChange(assembly.getAbsoluteName(), hint, clist);
+         box.get().processChange(assembly.getAbsoluteName(), hint, clist);
          sharedFilterService.processExtSharedFilters(assembly, hint, rvs, principal, dispatcher);
       }
       finally {
@@ -838,7 +858,7 @@ public class VSSelectionService {
       List<VSAssembly> tassemblies = VSUtil.getSharedVSAssemblies(rvs.getViewsheet(), assembly);
 
       for(VSAssembly tassembly : tassemblies) {
-         coreLifecycleService.refreshVSObject(tassembly, rvs, null, box, dispatcher);
+         coreLifecycleService.refreshVSObject(tassembly, rvs, null, box.get(), dispatcher);
       }
    }
 

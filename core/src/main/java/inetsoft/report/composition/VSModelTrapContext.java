@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition;
 
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.CompositeColumnHelper;
@@ -53,9 +54,8 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
       this.initAgg = initAgg;
 
       init(vs == null ? null : vs.getBaseEntry(),
-           rvs.getViewsheetSandbox() == null ?
-           null : rvs.getViewsheetSandbox().getUser(),
-           vs == null ? false : !vs.isDirectSource());
+           rvs.getViewsheetSandbox().map(ViewsheetSandbox::getUser).orElse(null),
+           vs != null && !vs.isDirectSource());
    }
 
    /**

@@ -38,14 +38,16 @@ import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.command.AddLayoutObjectCommand;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
 import java.awt.*;
 import java.beans.PropertyDescriptor;
 import java.security.Principal;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 
 @Service
@@ -73,7 +75,7 @@ public class PresenterPropertyDialogService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(Tool.byteDecode(runtimeId), principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       VSAssembly assembly;
       Presenter pr;
       PresenterRef ref;
@@ -95,7 +97,7 @@ public class PresenterPropertyDialogService {
          assembly = (VSAssembly) viewsheet.getAssembly(objectId);
       }
 
-      if(assembly instanceof TableDataVSAssembly) {
+      if(box.isPresent() && assembly instanceof TableDataVSAssembly) {
          TableDataVSAssembly table = (TableDataVSAssembly) assembly;
          FormatInfo info = table.getVSAssemblyInfo().getFormatInfo();
          String oname = table.getAbsoluteName();
@@ -105,7 +107,7 @@ public class PresenterPropertyDialogService {
             oname = oname.substring(Assembly.DETAIL.length());
          }
 
-         VSTableLens lens = box.getVSTableLens(oname, detail);
+         VSTableLens lens = box.get().getVSTableLens(oname, detail);
          TableDataPath path = getTableDataPath(row, col, rvs, table ,lens);
          Object data = lens.getObject(row, col);
          VSCompositeFormat format = info.getFormat(path, false);
@@ -168,7 +170,7 @@ public class PresenterPropertyDialogService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       VSAssembly assembly;
       VSAssemblyLayout layoutAssembly = null;
       PresenterRef ref;
@@ -190,7 +192,7 @@ public class PresenterPropertyDialogService {
          assembly = viewsheet.getAssembly(objectId);
       }
 
-      if(assembly instanceof TableDataVSAssembly) {
+      if(box.isPresent() && assembly instanceof TableDataVSAssembly) {
          TableDataVSAssembly table = (TableDataVSAssembly) assembly;
          FormatInfo info = table.getVSAssemblyInfo().getFormatInfo();
          String oname = table.getAbsoluteName();
@@ -200,7 +202,7 @@ public class PresenterPropertyDialogService {
             oname = oname.substring(Assembly.DETAIL.length());
          }
 
-         VSTableLens lens = box.getVSTableLens(oname, detail);
+         VSTableLens lens = box.get().getVSTableLens(oname, detail);
          TableDataPath path = getTableDataPath(row, col, rvs, table ,lens);
          VSCompositeFormat format = info.getFormat(path, false);
          ref = format.getPresenterValue();

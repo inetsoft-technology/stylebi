@@ -49,10 +49,10 @@ import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
-import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.model.database.StringWrapper;
 import inetsoft.web.viewsheet.command.*;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -307,7 +307,12 @@ public class ViewsheetPropertyDialogService {
             viewsheet.setBaseEntry(datasource);
             viewsheet.update(viewsheetService.getAssetRepository(), datasource, principal);
             updateBoundAssemblies(oldDatasource, ows, viewsheet);
-            rvs.getViewsheetSandbox().resetRuntime();
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isPresent()) {
+               box.get().resetRuntime();
+            }
+
             commandDispatcher.sendCommand(new VSDependencyChangedCommand(false));
          }
       }
@@ -317,7 +322,11 @@ public class ViewsheetPropertyDialogService {
          }
 
          viewsheet.setBaseEntry(null);
-         rvs.getViewsheetSandbox().resetRuntime();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            box.get().resetRuntime();
+         }
       }
 
       ViewsheetParametersDialogModel vsParametersDialogModel =
@@ -493,14 +502,19 @@ public class ViewsheetPropertyDialogService {
       throws Exception
    {
       RuntimeViewsheet rvs = this.viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       VSScriptPaneModel scriptPane = model.vsScriptPane();
       StringWrapper result = new StringWrapper();
       Catalog catalog = Catalog.getCatalog();
       String scriptable = null;
 
       try {
-         box.getScope().execute(scriptPane.onInit(), scriptable);
+         box.get().getScope().execute(scriptPane.onInit(), scriptable);
       }
       catch(Exception ex) {
          result.setBody(
@@ -509,7 +523,7 @@ public class ViewsheetPropertyDialogService {
       }
 
       try {
-         box.getScope().execute(scriptPane.onLoad(), scriptable);
+         box.get().getScope().execute(scriptPane.onLoad(), scriptable);
       }
       catch(Exception ex) {
          result.setBody(

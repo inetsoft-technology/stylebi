@@ -35,8 +35,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.security.Principal;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -99,8 +98,10 @@ public class TouchAssetService {
                }
             }
 
-            if(rvs.getViewsheetSandbox().needRefresh.get()) {
-               rvs.getViewsheetSandbox().needRefresh.set(false);
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isPresent() && box.get().needRefresh.get()) {
+               box.get().needRefresh.set(false);
                MessageCommand command = new MessageCommand();
                command.setMessage(Catalog.getCatalog().getString("viewer.viewsheet.data.changed"));
                command.setType(MessageCommand.Type.CONFIRM);
@@ -183,16 +184,13 @@ public class TouchAssetService {
       AssetEntry entry = rs.getEntry();
 
       if(rs.getLastAccessed() > AutoSaveUtils.getLastModified(entry, principal)) {
-         ViewsheetSandbox vbox = rs instanceof RuntimeViewsheet
-            ? ((RuntimeViewsheet) rs).getViewsheetSandbox() : null;
+         Optional<ViewsheetSandbox> vbox = rs instanceof RuntimeViewsheet
+            ? ((RuntimeViewsheet) rs).getViewsheetSandbox() : Optional.empty();
 
-         if(vbox != null) {
-            vbox.lockRead();
-         }
+         vbox.ifPresent(ViewsheetSandbox::lockRead);
 
          try {
 //            XTableStorageService.setEnabled(false);
-
             byte[] data = AbstractIndexedStorage.encodeXMLSerializable(
                value, entry.toIdentifier());
 
@@ -204,10 +202,7 @@ public class TouchAssetService {
          }
          finally {
 //            XTableStorageService.setEnabled(true);
-
-            if(vbox != null) {
-               vbox.unlockRead();
-            }
+            vbox.ifPresent(ViewsheetSandbox::unlockRead);
          }
       }
    }

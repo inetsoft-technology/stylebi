@@ -181,7 +181,8 @@ public class VSExportService {
 
       for(Assembly assembly : vs.getAssemblies()) {
          if(assembly instanceof TableDataVSAssembly) {
-            rvs.getViewsheetSandbox().resetDataMap(assembly.getAbsoluteName());
+            rvs.getViewsheetSandbox().ifPresent(
+               b -> b.resetDataMap(assembly.getAbsoluteName()));
          }
       }
 
@@ -301,19 +302,23 @@ public class VSExportService {
    {
       PrintLayout tempLayout = rvs.getViewsheet().getLayoutInfo().getPrintLayout();
       boolean excelToCSV = false;
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
 
       // update css format before executing the vs
-      rvs.getViewsheet().updateCSSFormat(AbstractVSExporter.getFileType(format), null,
-                                         rvs.getViewsheetSandbox());
+      rvs.getViewsheet().updateCSSFormat(AbstractVSExporter.getFileType(format), null, box.get());
 
       // execute the vs to ensure script variable is available(variable is isolated for threads).
       // see code VSAScriptable#varMap
       CommandDispatcher.withDummyDispatcher(principal, d -> {
          ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
          // do not reset the form table.
-         rvs.getViewsheetSandbox().exportRefresh.set(true);
+         ViewsheetSandbox.exportRefresh.set(true);
          coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
-         rvs.getViewsheetSandbox().exportRefresh.set(false);
+         ViewsheetSandbox.exportRefresh.set(false);
          return null;
       });
 
@@ -363,8 +368,8 @@ public class VSExportService {
          }
 
          if(!rvs.isDisposed()) {
-            rvs.getViewsheet().updateCSSFormat(null, null,
-                                               rvs.getViewsheetSandbox());
+            rvs.getViewsheetSandbox().ifPresent(
+               b -> rvs.getViewsheet().updateCSSFormat(null, null, b));
          }
       }
    }
@@ -715,15 +720,15 @@ public class VSExportService {
       exporter.setMatchLayout(match);
       exporter.setAssetEntry(rvs.getEntry());
       exporter.setOnlyDataComponents(onlyDataComponents && !match);
-      exporter.setSandbox(rvs.getViewsheetSandbox());
 
-      int vmode = Viewsheet.SHEET_RUNTIME_MODE;
-      ViewsheetSandbox rbox = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> rbox = rvs.getViewsheetSandbox();
 
-      if(rbox == null) {
+      if(rbox.isEmpty()) {
          return;
       }
 
+      exporter.setSandbox(rbox.get());
+      int vmode = Viewsheet.SHEET_RUNTIME_MODE;
       Viewsheet viewsheet = rvs.getViewsheet();
 
       if(viewsheet == null) {
@@ -752,19 +757,19 @@ public class VSExportService {
                AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, null, null);
             }
 
-            ViewsheetSandbox exportBox = rbox;
+            ViewsheetSandbox exportBox = rbox.get();
 
-            if(previewPrintLayout && rbox.getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
-               exportBox = new ViewsheetSandbox(null, cviewsheet, vmode, rbox.getUser(),
-                  false,rbox.getAssetEntry(), null);
+            if(previewPrintLayout && rbox.get().getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
+               exportBox = new ViewsheetSandbox(null, cviewsheet, vmode, rbox.get().getUser(),
+                  false, rbox.get().getAssetEntry(), null);
 
                if(exportBox.getAssetQuerySandbox() != null) {
-                  exportBox.getAssetQuerySandbox().refreshVariableTable(rbox.getVariableTable());
+                  exportBox.getAssetQuerySandbox().refreshVariableTable(rbox.get().getVariableTable());
                }
 
                exportBox.reset(new ChangedAssemblyList());
                exportBox.prepareMVCreation();
-               exportBox.getScope().prepareVariables(rbox.getVariableTable());
+               exportBox.getScope().prepareVariables(rbox.get().getVariableTable());
 
                for(int i = 0; exportBox != null && i < assemblies.length; i++) {
                   VSAssembly assembly = (VSAssembly) assemblies[i];
@@ -774,7 +779,7 @@ public class VSExportService {
                final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();
 
                if(assetQuerySandbox != null) {
-                  assetQuerySandbox.refreshVariableTable(rbox.getVariableTable());
+                  assetQuerySandbox.refreshVariableTable(rbox.get().getVariableTable());
                }
             }
             else {
@@ -790,7 +795,7 @@ public class VSExportService {
             exporter.export(exportBox, catalog.getString("Current View"), new VSPortalHelper());
          }
          finally {
-            rbox.setViewsheet(viewsheet, false);
+            rbox.get().setViewsheet(viewsheet, false);
             rvs.setViewsheet(viewsheet);
          }
       }
@@ -813,7 +818,7 @@ public class VSExportService {
          AssetQuerySandbox abox = sandbox.getAssetQuerySandbox();
 
          if(abox != null) {
-            abox.refreshVariableTable(rbox.getVariableTable());
+            abox.refreshVariableTable(rbox.get().getVariableTable());
          }
 
          try {

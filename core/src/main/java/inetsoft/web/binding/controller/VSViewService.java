@@ -31,6 +31,7 @@ import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -50,9 +51,14 @@ public class VSViewService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VSAssembly assembly = (VSAssembly)viewsheet.getAssembly(event.getName());
-      holder.refreshVSObject(assembly, rvs, null, box, dispatcher);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      VSAssembly assembly = viewsheet.getAssembly(event.getName());
+      holder.refreshVSObject(assembly, rvs, null, box.get(), dispatcher);
 
       if(assembly instanceof TableDataVSAssembly) {
          int hint = VSAssembly.BINDING_CHANGED;

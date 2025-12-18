@@ -37,6 +37,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.security.Principal;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -73,7 +74,7 @@ class VSFormTableControllerTest {
       when(viewsheetService.getViewsheet(any(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
       ViewsheetSandbox box = mock(ViewsheetSandbox.class);
-      when(rvs.getViewsheetSandbox()).thenReturn(box);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(box));
       FormTableLens form = mock(FormTableLens.class);
       when(box.getFormTableLens(anyString())).thenReturn(form);
       TableVSAssembly assembly = spy(new TableVSAssembly());

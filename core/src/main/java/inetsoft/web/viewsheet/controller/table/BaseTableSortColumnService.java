@@ -35,7 +35,8 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.UpdateSortInfoCommand;
 import inetsoft.web.viewsheet.event.table.SortColumnEvent;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
@@ -62,12 +63,16 @@ public class BaseTableSortColumnService extends BaseTableService<SortColumnEvent
                             String linkUri) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockRead();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
-         tableSortColumn(rvs, box, event, principal, dispatcher, linkUri);
+         tableSortColumn(rvs, box.get(), event, principal, dispatcher, linkUri);
       }
       catch(Exception e) {
          MessageCommand command = new MessageCommand();
@@ -76,7 +81,7 @@ public class BaseTableSortColumnService extends BaseTableService<SortColumnEvent
          dispatcher.sendCommand(command);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;
@@ -89,15 +94,19 @@ public class BaseTableSortColumnService extends BaseTableService<SortColumnEvent
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockRead();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
-         crosstabSortColumn(rvs, box, event, principal, dispatcher, linkUri);
+         crosstabSortColumn(rvs, box.get(), event, principal, dispatcher, linkUri);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;

@@ -489,11 +489,11 @@ public class CoreLifecycleService {
                                 boolean isOpenVS, boolean toggleMaxMode) throws Exception
    {
       Viewsheet sheet = rvs.getViewsheet();
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       boolean ignoreRefreshTempAssembly = WizardRecommenderUtil.ignoreRefreshTempAssembly();
       boolean loadTablesInLock = Boolean.TRUE.equals(VSUtil.OPEN_VIEWSHEET.get());
 
-      if(box == null || sheet == null) {
+      if(box.isEmpty() || sheet == null) {
          return;
       }
 
@@ -533,7 +533,7 @@ public class CoreLifecycleService {
       // anything else.
       Dimension viewSize = sheet.getPreferredSize(true, false);
       Assembly[] assemblies;
-      box.lockWrite();
+      box.get().lockWrite();
 
       try {
          viewsheetService.addExecution(id);
@@ -554,7 +554,7 @@ public class CoreLifecycleService {
             if(!applyScale) {
                // Bug #69536, delay scaling until parameters are submitted and prevent
                // an early execution of the viewsheet.
-               List<UserVariable> vars = parameterService.getPromptParameters(sheet, box, initvars);
+               List<UserVariable> vars = parameterService.getPromptParameters(sheet, box.get(), initvars);
                applyScale = vars.isEmpty();
             }
 
@@ -562,16 +562,16 @@ public class CoreLifecycleService {
                // applyScale may trigger execution, which in turn may depend on variables
                // set in onInit. since viewsheetsandbox tracks whether onInit needs to be executed
                // again, calling it here should be safe
-               box.processOnInit();
+               box.get().processOnInit();
                // variables in onLoad should also be accessible by assembly scripts. (56119)
-               box.processOnLoadIf();
+               box.get().processOnLoadIf();
                Assembly[] allAssemblies = sheet.getAssemblies();
 
                if(allAssemblies != null) {
                   // execute script, because it maybe set the pop component by script.
                   for(Assembly assembly : allAssemblies) {
                      try {
-                        box.executeScript((VSAssembly) assembly);
+                        box.get().executeScript((VSAssembly) assembly);
                      }
                      catch(MessageException ex) {
                         // During script execution, exception may be thrown because of permission control
@@ -586,7 +586,7 @@ public class CoreLifecycleService {
                viewSize = sheet.getPreferredSize(true, false);
                Point2D.Double scaleRatio = VSEventUtil.calcScalingRatio(
                   sheet, viewSize, width, height, mobile);
-               VSEventUtil.applyScale(sheet, scaleRatio, mobile, userAgent, width, height, box);
+               VSEventUtil.applyScale(sheet, scaleRatio, mobile, userAgent, width, height, box.get());
 
                // remember the current bounds
                rvs.setProperty("viewsheet.init.bounds", sheet.getPreferredBounds());
@@ -601,17 +601,17 @@ public class CoreLifecycleService {
          }
 
          try {
-            box.setRefreshing(true);
+            box.get().setRefreshing(true);
 
             if(resetRuntime || manualRefresh) {
                rvs.resetRuntime();
                rvs.setTouchTimestamp(System.currentTimeMillis());
-               box.setTouchTimestamp(rvs.getTouchTimestamp());
+               box.get().setTouchTimestamp(rvs.getTouchTimestamp());
             }
 
             if(manualRefresh) {
                List<UserVariable> vars = new ArrayList<>();
-               VSEventUtil.refreshParameters(viewsheetService, box, sheet, true, initvars, vars);
+               VSEventUtil.refreshParameters(viewsheetService, box.get(), sheet, true, initvars, vars);
 
                if(!vars.isEmpty() && !disableParameterSheet) {
                   setViewsheetInfo(rvs, uri, dispatcher);
@@ -625,11 +625,11 @@ public class CoreLifecycleService {
             }
 
             if(isOpenVS) {
-               refreshInputValues(box);
+               refreshInputValues(box.get());
             }
 
             // viewsheetsandbox tracks whether onInit needs to be executed
-            box.processOnInit();
+            box.get().processOnInit();
 
             if(!component && !inited) {
                // send init after onInit/onLoad so changes in toolbar visibility is picked up
@@ -667,7 +667,7 @@ public class CoreLifecycleService {
                refreshContainer(rvs);
 
                // Bug #71955, don't add embedded assemblies until the parameters are entered
-               if(parameterService.getPromptParameters(sheet, box, initvars).isEmpty()) {
+               if(parameterService.getPromptParameters(sheet, box.get(), initvars).isEmpty()) {
                   // make sure embedded viewsheet is created before the children so
                   // the position is available in VSObject.getPixelPosition
                   refreshEmbeddedViewsheet(rvs, rvs.getViewsheet(), uri, dispatcher,
@@ -678,7 +678,7 @@ public class CoreLifecycleService {
                // more reasonable, otherwise if during reset box the code need
                // parameters to access database, error will be thrown.
                // @see bug1234937851455
-               List<UserVariable> vars = parameterService.getPromptParameters(sheet, box, initvars);
+               List<UserVariable> vars = parameterService.getPromptParameters(sheet, box.get(), initvars);
 
                if(!vars.isEmpty() && !disableParameterSheet) {
                   setViewsheetInfo(rvs, uri, dispatcher);
@@ -696,7 +696,7 @@ public class CoreLifecycleService {
                // make the assemblies paint before the data is fetched so the
                // user could see the vs without a long wait
                for(Assembly assembly : assemblies) {
-                  if(box.isCancelled(ts)) {
+                  if(box.get().isCancelled(ts)) {
                      return;
                   }
 
@@ -718,7 +718,7 @@ public class CoreLifecycleService {
                      //bug1395797472256, chart need update for onload script.
                      if(vsassembly instanceof ChartVSAssembly) {
                         try {
-                           box.updateAssembly(vsassembly.getAbsoluteName());
+                           box.get().updateAssembly(vsassembly.getAbsoluteName());
                         }
                         catch(ScriptException scriptException) {
                            // ScriptException should be logged at appropriate level when created
@@ -751,21 +751,21 @@ public class CoreLifecycleService {
 
             // need process onload every time when refresh the viewsheet, since
             // onload script will effect without delay
-            if(box.isCancelled(ts)) {
+            if(box.get().isCancelled(ts)) {
                return;
             }
             else if(reset) {
-               box.reset(null, sheetAssemblies, clist, true, true, null, toggleMaxMode);
+               box.get().reset(null, sheetAssemblies, clist, true, true, null, toggleMaxMode);
                rvs.refreshAllTipViewOrPopComponentTable();
             }
             else if(initing) {
-               box.reset(null, sheetAssemblies, clist, true, true, copiedSelections);
+               box.get().reset(null, sheetAssemblies, clist, true, true, copiedSelections);
                rvs.refreshAllTipViewOrPopComponentTable();
             }
 
-            if(!box.getDelayedVisibilityAssemblies().isEmpty()) {
+            if(!box.get().getDelayedVisibilityAssemblies().isEmpty()) {
                for(Map.Entry<Integer, Set<String>> e :
-                  box.getDelayedVisibilityAssemblies().entrySet())
+                  box.get().getDelayedVisibilityAssemblies().entrySet())
                {
                   DelayVisibilityCommand cmd =
                      new DelayVisibilityCommand(e.getKey(), new ArrayList<>(e.getValue()));
@@ -797,7 +797,7 @@ public class CoreLifecycleService {
                Assembly[] assemblies0 = vs.getAssemblies(false, true, false, !ignoreRefreshTempAssembly);
 
                for(Assembly assembly : assemblies0) {
-                  if(box.isCancelled(ts)) {
+                  if(box.get().isCancelled(ts)) {
                      return;
                   }
 
@@ -826,7 +826,7 @@ public class CoreLifecycleService {
             Arrays.sort(assemblies, new TabAnnotationComparator());
 
             for(Assembly assembly : assemblies) {
-               if(box.isCancelled(ts)) {
+               if(box.get().isCancelled(ts)) {
                   return;
                }
 
@@ -856,12 +856,12 @@ public class CoreLifecycleService {
             }
          }
          finally {
-            box.setRefreshing(false);
+            box.get().setRefreshing(false);
          }
       }
       finally {
-         box.clearDelayedVisibilityAssemblies();
-         box.unlockWrite();
+         box.get().clearDelayedVisibilityAssemblies();
+         box.get().unlockWrite();
          viewsheetService.removeExecution(id);
       }
 
@@ -1040,11 +1040,8 @@ public class CoreLifecycleService {
       if(manualRefresh && refreshParent) {
          // make sure that any embedded viewsheets have their contents updated
          sheet.update(rvs.getAssetRepository(), null, rvs.getUser());
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-         if(box != null) {
-            box.disposeSandbox();
-         }
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+         box.ifPresent(ViewsheetSandbox::disposeSandbox);
       }
 
       Assembly[] assemblies = sheet.getAssemblies(false, true);
@@ -1188,9 +1185,9 @@ public class CoreLifecycleService {
          return;
       }
 
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return;
       }
 
@@ -1199,7 +1196,7 @@ public class CoreLifecycleService {
             (ViewsheetVSAssemblyInfo) VSEventUtil.getAssemblyInfo(rvs, assembly);
          assembly.setVSAssemblyInfo(info);
 
-         refreshVSObject(assembly, rvs, shared, box, dispatcher);
+         refreshVSObject(assembly, rvs, shared, box.get(), dispatcher);
 
          for(Object infoObj : info.getChildAssemblies()) {
             VSAssemblyInfo childInfo =
@@ -1224,11 +1221,11 @@ public class CoreLifecycleService {
             if(!name2.contains(".")) {
                VSAssemblyInfo info2 = VSEventUtil.getAssemblyInfo(rvs, vs2);
                vs2.setVSAssemblyInfo(info2);
-               refreshVSObject(vs2, rvs, shared, box, dispatcher);
+               refreshVSObject(vs2, rvs, shared, box.get(), dispatcher);
             }
          }
 
-         box.lockWrite();
+         box.get().lockWrite();
 
          try {
             VSAssemblyInfo info = VSEventUtil.getAssemblyInfo(rvs, assembly);
@@ -1238,7 +1235,7 @@ public class CoreLifecycleService {
                AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, dispatcher, this);
             }
 
-            refreshVSObject(assembly, rvs, shared, box, dispatcher);
+            refreshVSObject(assembly, rvs, shared, box.get(), dispatcher);
 
             if((info instanceof SelectionListVSAssemblyInfo) &&
                ((SelectionListVSAssemblyInfo) info).isAdhocFilter())
@@ -1257,13 +1254,13 @@ public class CoreLifecycleService {
             if(info instanceof GroupContainerVSAssemblyInfo ||
                info instanceof TabVSAssemblyInfo)
             {
-               Object linkUri = box.getVariableTable().get("__LINK_URI__");
+               Object linkUri = box.get().getVariableTable().get("__LINK_URI__");
                addContainerVSObject(rvs, assembly, linkUri == null ? "" : linkUri.toString(),
                                     dispatcher, new ArrayList<>());
             }
          }
          finally {
-            box.unlockWrite();
+            box.get().unlockWrite();
          }
       }
    }
@@ -1369,11 +1366,13 @@ public class CoreLifecycleService {
       }
 
       String name = assembly.getAbsoluteName();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(boxOpt.isEmpty()) {
          return;
       }
+
+      ViewsheetSandbox box = boxOpt.get();
 
       if(rvs.getEmbedAssemblyInfo() != null && name != null) {
          EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
@@ -1554,7 +1553,7 @@ public class CoreLifecycleService {
             AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, dispatcher, this);
          }
 
-         if(rvs.getViewsheetSandbox() == null) {
+         if(rvs.getViewsheetSandbox().isEmpty()) {
             return;
          }
 
@@ -1612,12 +1611,13 @@ public class CoreLifecycleService {
    {
       final String id = rvs.getID();
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null || assemblies.length == 0) {
+      if(vs == null || boxOpt.isEmpty() || assemblies.length == 0) {
          return;
       }
 
+      ViewsheetSandbox box = boxOpt.get();
       final Viewsheet gvs = vs; // global viewsheet
       String name0 = assemblies[0].getAbsoluteName();
       final int dot = name0.lastIndexOf('.');
@@ -2038,16 +2038,16 @@ public class CoreLifecycleService {
                        boolean refreshData, CommandDispatcher dispatcher)
       throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return;
       }
 
       ChangedAssemblyList clist = new ChangedAssemblyList();
 
       try {
-         box.processChange(name, hint, clist);
+         box.get().processChange(name, hint, clist);
       }
       catch(ConfirmException e) {
          if(!waitForMV(e, rvs, dispatcher)) {
@@ -2091,9 +2091,9 @@ public class CoreLifecycleService {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
@@ -2157,9 +2157,9 @@ public class CoreLifecycleService {
          // VGraphPair before calling executeView() so that a VGraphPair with the dynamic values
          // will be placed in the cache. If we can perform the refreshData() without generating a
          // VGraphPair, we should be able to remove this.
-         box.clearGraph(entry.getAbsoluteName());
+         box.get().clearGraph(entry.getAbsoluteName());
 
-         box.executeView(entry.getAbsoluteName(), false);
+         box.get().executeView(entry.getAbsoluteName(), false);
 
          if(included || !vname.equals(name)) {
             if(refreshData) {
@@ -2199,7 +2199,7 @@ public class CoreLifecycleService {
          if(!WizardRecommenderUtil.isWizardTempBindingAssembly(vname)) {
             // Bug 19946, dynamic format properties not applied on cached table
             // need to clear and re-create VSTableLens
-            box.resetDataMap(vname);
+            box.get().resetDataMap(vname);
             loadTableLens(rvs, vname, uri, dispatcher, refreshData);
          }
       }
@@ -2248,7 +2248,8 @@ public class CoreLifecycleService {
 
                // clear the graph, because it is invalid(cancelled)
                if(vass instanceof ChartVSAssembly) {
-                  rvs.getViewsheetSandbox().clearGraph(info.getAbsoluteName());
+                  rvs.getViewsheetSandbox().ifPresent(
+                     b -> b.clearGraph(info.getAbsoluteName()));
                }
 
                if(!clist.getViewList().contains(vref)) {
@@ -2550,9 +2551,9 @@ public class CoreLifecycleService {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
@@ -2562,13 +2563,13 @@ public class CoreLifecycleService {
          // set link uri to output assembly info
          OutputVSAssemblyInfo oinfo = (OutputVSAssemblyInfo) assembly.getInfo();
          oinfo.setLinkURI(uri);
-         box.executeOutput(entry);
+         box.get().executeOutput(entry);
          Object data = oinfo.getValue();
 
          if(data != null) {
             ((OutputVSAssembly) assembly).updateHighlight(
-               box.getAllVariables(),
-               box.getConditionAssetQuerySandbox(assembly.getViewsheet()));
+               box.get().getAllVariables(),
+               box.get().getConditionAssetQuerySandbox(assembly.getViewsheet()));
          }
       }
 
@@ -2656,9 +2657,14 @@ public class CoreLifecycleService {
     * @param event event provide event source, type and other properties.
     */
    public void dispatchEvent(ScriptEvent event, CommandDispatcher dispatcher, RuntimeViewsheet rvs) {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      Viewsheet vs = box.getViewsheet();
-      ViewsheetScope vsscope = box.getScope();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      Viewsheet vs = box.get().getViewsheet();
+      ViewsheetScope vsscope = box.get().getScope();
       vsscope.addVariable("event" , event);
       String onload = vs.getViewsheetInfo().getOnLoad();
 
@@ -2815,7 +2821,8 @@ public class CoreLifecycleService {
          rvs.updateVSBookmark();
          // @by davyc, if full screen viewsheet, keep its variables
          // fix bug1366833082660
-         VariableTable temp = rvs.getViewsheetSandbox().getVariableTable();
+         VariableTable temp = rvs.getViewsheetSandbox()
+            .map(ViewsheetSandbox::getVariableTable).orElse(null);
 
          if(temp != null) {
             temp.addAll(variables);
@@ -2881,16 +2888,19 @@ public class CoreLifecycleService {
       }
 
       Set<String> scopied = new HashSet<>();
-      ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
-      AssetQuerySandbox box = vbox.getAssetQuerySandbox();
-      executeVariablesQuery(rvs, vbox);
+      Optional<ViewsheetSandbox> vbox = rvs.getViewsheetSandbox();
+      Optional<AssetQuerySandbox> box = vbox.map(ViewsheetSandbox::getAssetQuerySandbox);
+
+      if(vbox.isPresent()) {
+         executeVariablesQuery(rvs, vbox.get());
+      }
 
       // drilldown vs inherit selections from source
       if(drillFrom != null) {
          RuntimeViewsheet ovs = viewsheetService.getViewsheet(drillFrom, user);
 
          if(ovs != null) {
-            ViewsheetSandbox ovbox = ovs.getViewsheetSandbox();
+            Optional<ViewsheetSandbox> ovbox = ovs.getViewsheetSandbox();
             VSEventUtil.copySelections(ovs.getViewsheet(), rvs.getViewsheet(), scopied);
 
             if(!scopied.isEmpty()) {
@@ -2898,27 +2908,27 @@ public class CoreLifecycleService {
                rvs.getViewsheet().layout();
             }
 
-            if(box != null) {
-               vbox.setPViewsheet(ovbox.getScope());
+            if(box.isPresent() && ovbox.isPresent()) {
+               vbox.ifPresent(b -> b.setPViewsheet(ovbox.get().getScope()));
             }
          }
 
-         if(box != null) {
+         if(box.isPresent()) {
             // replace all drilldown variables so they don't accumulate
             variables.remove("drillfrom");
          }
       }
 
-      if(variables != null && box != null) {
+      if(variables != null && box.isPresent()) {
          Enumeration<String> iter = variables.keys();
 
          while(iter.hasMoreElements()) {
             String key = iter.nextElement();
             Object val = variables.get(key);
-            box.getVariableTable().put(key, val);
+            box.get().getVariableTable().put(key, val);
          }
 
-         vbox.resetRuntime();
+         vbox.ifPresent(ViewsheetSandbox::resetRuntime);
       }
 
       List<String> ids = null;
@@ -3001,7 +3011,7 @@ public class CoreLifecycleService {
       }
 
       if(rvs != null) {
-         auditFinish = shouldAuditFinish(rvs.getViewsheetSandbox());
+         auditFinish = rvs.getViewsheetSandbox().map(this::shouldAuditFinish).orElse(false);
 
          if(event.getPreviousUrl() != null) {
             rvs.setPreviousURL(event.getPreviousUrl());
@@ -3472,10 +3482,15 @@ public class CoreLifecycleService {
          }
 
          Viewsheet vs = rvs.getViewsheet();
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isEmpty()) {
+            return;
+         }
+
          String vname = entry.getAbsoluteName();
 
-         box.lockRead();
+         box.get().lockRead();
 
          try {
             VSAssembly assembly = vs.getAssembly(vname);
@@ -3492,13 +3507,13 @@ public class CoreLifecycleService {
                }
             }
 
-            box.executeView(entry.getAbsoluteName(), false);
+            box.get().executeView(entry.getAbsoluteName(), false);
 
             // execute view will execute the selection script,
             // process selected states change after set select the first item.
             if(shouldApplyTheSelection(canApplySelectFirst, assembly)) {
                ChangedAssemblyList list = createList(true, dispatcher, rvs, uri);
-               box.processChange(assembly.getAbsoluteName(), VSAssembly.OUTPUT_DATA_CHANGED, list);
+               box.get().processChange(assembly.getAbsoluteName(), VSAssembly.OUTPUT_DATA_CHANGED, list);
                execute(rvs, assembly.getName(), uri, list, dispatcher, false);
             }
 
@@ -3512,7 +3527,7 @@ public class CoreLifecycleService {
             updateExternalUrl(rvs, dispatcher, entry, uri);
          }
          finally {
-            box.unlockRead();
+            box.get().unlockRead();
          }
       }
 

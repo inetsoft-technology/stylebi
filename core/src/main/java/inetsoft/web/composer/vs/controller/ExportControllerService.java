@@ -36,7 +36,8 @@ import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.uql.asset.AbstractSheet;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.cachefs.BinaryTransfer;
 import inetsoft.web.service.BinaryTransferService;
@@ -48,6 +49,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -76,9 +78,9 @@ public class ExportControllerService {
       CommandDispatcher.withDummyDispatcher(principal, d -> {
          ChangedAssemblyList clist = this.coreLifecycleService.createList(false, d, rvs, null);
          // do not reset the form table.
-         rvs.getViewsheetSandbox().exportRefresh.set(true);
+         ViewsheetSandbox.exportRefresh.set(true);
          coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), null, d, false, true, true, clist);
-         rvs.getViewsheetSandbox().exportRefresh.set(false);
+         ViewsheetSandbox.exportRefresh.set(false);
          return null;
       });
 
@@ -93,9 +95,13 @@ public class ExportControllerService {
          }
       }
 
-      for(Assembly assembly : vs.getAssemblies()) {
-         if(assembly instanceof TableDataVSAssembly) {
-            rvs.getViewsheetSandbox().resetDataMap(assembly.getAbsoluteName());
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent() && vs != null) {
+         for(Assembly assembly : vs.getAssemblies()) {
+            if(assembly instanceof TableDataVSAssembly) {
+               box.get().resetDataMap(assembly.getAbsoluteName());
+            }
          }
       }
 
@@ -181,15 +187,16 @@ public class ExportControllerService {
       exporter.setMatchLayout(match);
       exporter.setAssetEntry(rvs.getEntry());
       exporter.setOnlyDataComponents(onlyDataComponents && !match);
-      exporter.setSandbox(rvs.getViewsheetSandbox());
 
-      int vmode = Viewsheet.SHEET_RUNTIME_MODE;
-      ViewsheetSandbox rbox = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> rbox = rvs.getViewsheetSandbox();
 
-      if(rbox == null) {
+      if(rbox.isEmpty()) {
          return;
       }
 
+      exporter.setSandbox(rbox.get());
+
+      int vmode = Viewsheet.SHEET_RUNTIME_MODE;
       Viewsheet viewsheet = rvs.getViewsheet();
 
       if(viewsheet == null) {
@@ -218,11 +225,11 @@ public class ExportControllerService {
                AnnotationVSUtil.refreshAllAnnotations(rvs, assembly, null, null);
             }
 
-            ViewsheetSandbox exportBox = rbox;
+            ViewsheetSandbox exportBox = rbox.get();
 
-            if(previewPrintLayout && rbox.getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
+            if(previewPrintLayout && rbox.get().getMode() == AbstractSheet.SHEET_DESIGN_MODE) {
                exportBox =
-                  new ViewsheetSandbox(cviewsheet, vmode, rbox.getUser(), rbox.getAssetEntry());
+                  new ViewsheetSandbox(cviewsheet, vmode, rbox.get().getUser(), rbox.get().getAssetEntry());
                exportBox.prepareMVCreation();
 
                for(int i = 0; exportBox != null && i < assemblies.length; i++) {
@@ -233,7 +240,7 @@ public class ExportControllerService {
                final AssetQuerySandbox assetQuerySandbox = exportBox.getAssetQuerySandbox();
 
                if(assetQuerySandbox != null) {
-                  assetQuerySandbox.refreshVariableTable(rbox.getVariableTable());
+                  assetQuerySandbox.refreshVariableTable(rbox.get().getVariableTable());
                }
             }
             else {
@@ -249,7 +256,7 @@ public class ExportControllerService {
             exporter.export(exportBox, catalog.getString("Current View"), new VSPortalHelper());
          }
          finally {
-            rbox.setViewsheet(viewsheet, false);
+            rbox.get().setViewsheet(viewsheet, false);
             rvs.setViewsheet(viewsheet);
          }
       }
@@ -272,7 +279,7 @@ public class ExportControllerService {
          AssetQuerySandbox abox = sandbox.getAssetQuerySandbox();
 
          if(abox != null) {
-            abox.refreshVariableTable(rbox.getVariableTable());
+            abox.refreshVariableTable(rbox.get().getVariableTable());
          }
 
          try {

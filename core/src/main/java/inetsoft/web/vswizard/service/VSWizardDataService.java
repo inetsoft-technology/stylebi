@@ -20,6 +20,7 @@ package inetsoft.web.vswizard.service;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.erm.AbstractModelTrapContext;
@@ -34,6 +35,7 @@ import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -104,8 +106,12 @@ public class VSWizardDataService {
 
       this.bindingHandler.updateTemporaryFields(rvs, entries, vsTemporaryInfo);
 
-      if(rvs != null && rvs.getViewsheetSandbox() != null) {
-         rvs.getViewsheetSandbox().updateAssembly(vsTemporaryInfo.getTempChart().getAbsoluteName());
+      if(rvs != null) {
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            box.get().updateAssembly(vsTemporaryInfo.getTempChart().getAbsoluteName());
+         }
       }
 
       ChartVSAssemblyInfo ninfo =

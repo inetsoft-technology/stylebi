@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.ConfirmDataException;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.VSAssembly;
@@ -141,8 +142,12 @@ public class SharedFilterService {
                   continue;
                }
 
-               boolean changed = rvs.getViewsheetSandbox().processSharedFilters(
-                  assembly, null, true);
+               Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+               boolean changed = false;
+
+               if(box.isPresent()) {
+                  changed = box.get().processSharedFilters(assembly, null, true);
+               }
 
                if(changed) {
                   result.add(new ChangedViewsheet(rvs));

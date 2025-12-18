@@ -18,10 +18,11 @@
 
 package inetsoft.web.portal.controller;
 
+import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.util.profile.Profile;
 import inetsoft.util.profile.ProfileInfo;
 import org.springframework.stereotype.Service;
@@ -45,7 +46,7 @@ public class PortalProfileService {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(name, principal);
 
          if(rvs != null) {
-            key = rvs.getViewsheetSandbox().getID();
+            key = rvs.getViewsheetSandbox().map(ViewsheetSandbox::getID).orElse(name);
          }
       }
 

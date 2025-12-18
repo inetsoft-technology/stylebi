@@ -38,7 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -82,7 +82,7 @@ public class ViewsheetPropertyDialogControllerTest {
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(viewsheetService.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
       when(rvs.getViewsheet()).thenReturn(viewsheet);
-      when(rvs.getViewsheetSandbox()).thenReturn(viewsheetSandbox);
+      when(rvs.getViewsheetSandbox()).thenReturn(Optional.of(viewsheetSandbox));
       ViewsheetInfo viewsheetInfo = new ViewsheetInfo();
       when(viewsheet.getViewsheetInfo()).thenReturn(viewsheetInfo);
       LayoutInfo layoutInfo = new LayoutInfo();

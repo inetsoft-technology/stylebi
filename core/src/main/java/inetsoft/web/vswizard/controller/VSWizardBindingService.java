@@ -87,8 +87,13 @@ public class VSWizardBindingService {
                               CommandDispatcher dispatcher, Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -115,7 +120,7 @@ public class VSWizardBindingService {
          dispatcher.sendCommand(command);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;
@@ -127,10 +132,14 @@ public class VSWizardBindingService {
                                       String linkUri) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.cancel(true);
-      box.lockWrite();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().cancel(true);
+      box.get().lockWrite();
 
       try {
          VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -173,7 +182,7 @@ public class VSWizardBindingService {
          }
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       return null;
@@ -187,14 +196,18 @@ public class VSWizardBindingService {
       AssetEntry[] entries = event.selectedEntries();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.cancel(true);
-      box.lockWrite();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().cancel(true);
+      box.get().lockWrite();
 
       try {
          // binding hcanged, clear out cached dataset. (44576)
-         box.resetDataMap(VSWizardConstants.TEMP_CHART_NAME);
+         box.get().resetDataMap(VSWizardConstants.TEMP_CHART_NAME);
 
          VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
          VSWizardOriginalModel originalModel = vsTemporaryInfo.getOriginalModel();
@@ -264,7 +277,7 @@ public class VSWizardBindingService {
          temp.setVSChartInfo(oinfo);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          viewsheetService.flushRuntimeSheet(id);
       }
 
@@ -277,15 +290,19 @@ public class VSWizardBindingService {
                                   String linkUri) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
 
       VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
       // The calculation of cardinality should start as early as possible
-      WizardRecommenderUtil.calcCardinalities(box, (VSTemporaryInfo) vsTemporaryInfo.clone(),
+      WizardRecommenderUtil.calcCardinalities(box.get(), (VSTemporaryInfo) vsTemporaryInfo.clone(),
                                               event.getSelectedNodes(), principal);
 
-      box.cancel(true);
-      box.lockWrite();
+      box.get().cancel(true);
+      box.get().lockWrite();
 
       try {
          vsTemporaryInfo.setAutoOrder(event.isAutoOrder());
@@ -308,7 +325,7 @@ public class VSWizardBindingService {
                               linkUri, dispatcher, principal);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          viewsheetService.flushRuntimeSheet(id);
       }
 
@@ -321,8 +338,13 @@ public class VSWizardBindingService {
                              String linkUri) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -387,7 +409,7 @@ public class VSWizardBindingService {
          }
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       return null;
@@ -400,7 +422,8 @@ public class VSWizardBindingService {
       int nogeoCounts = cinfo.getGeoColumns() == null ? 0 : cinfo.getGeoColumns().getAttributeCount();
 
       if(ogeoCounts != nogeoCounts) {
-         chartHandler.updateGeoColumns(rvs.getViewsheetSandbox(), rvs.getViewsheet(), tempChart, cinfo);
+         rvs.getViewsheetSandbox().ifPresent(
+            b -> chartHandler.updateGeoColumns(b, rvs.getViewsheet(), tempChart, cinfo));
 
          if(!MapHelper.isValidType(cinfo.getMapType())) {
             cinfo.setMeasureMapType("World");
@@ -469,7 +492,11 @@ public class VSWizardBindingService {
 
       try {
          VSRecommendationFactory factory = recommenderService.getFactory();
-         WizardRecommenderUtil.refreshStartEndDate(rvs.getViewsheetSandbox(), entries, tempInfo);
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            WizardRecommenderUtil.refreshStartEndDate(box.get(), entries, tempInfo);
+         }
          model = factory.recommend(new VSWizardData(entries,
                                                     (VSTemporaryInfo) tempInfo.clone()), principal);
       }

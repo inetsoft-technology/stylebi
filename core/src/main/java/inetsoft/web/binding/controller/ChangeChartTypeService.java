@@ -44,12 +44,14 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.binding.service.graph.ChartRefModelFactoryService;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -86,12 +88,17 @@ public class ChangeChartTypeService {
    {
       String name = event.getName();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
       ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
 
       if(chart == null) {
-         LOG.warn("Chart assembly is missing, failed to process change chart type event: " + name);
+         LOG.warn("Chart assembly is missing, failed to process change chart type event: {}", name);
          return null;
       }
 
@@ -133,7 +140,7 @@ public class ChangeChartTypeService {
       }
 
       if(ref != null && (ref.isVariable() || ref.isScript())) {
-         box.executeDynamicValues(name, ref.getDynamicValues());
+         box.get().executeDynamicValues(name, ref.getDynamicValues());
       }
 
       // make sure the old aesthetic fields will not override the new one
@@ -153,9 +160,9 @@ public class ChangeChartTypeService {
       String table = chart.getTableName();
 
       if(GraphTypes.isGeo(newType) && !GraphTypes.isGeo(oldType)) {
-         box.updateAssembly(chart.getAbsoluteName());
+         box.get().updateAssembly(chart.getAbsoluteName());
          cinfo = ninfo.getVSChartInfo();
-         chartHandler.updateGeoColumns(box, vs, chart, cinfo);
+         chartHandler.updateGeoColumns(box.get(), vs, chart, cinfo);
       }
 
       cinfo = (VSChartInfo) new ChangeChartTypeProcessor(oldType, newType,
@@ -165,22 +172,22 @@ public class ChangeChartTypeService {
 
       if(cinfo instanceof VSMapInfo) {
          ninfo.setVSChartInfo(cinfo);
-         box.updateAssembly(chart.getAbsoluteName());
+         box.get().updateAssembly(chart.getAbsoluteName());
          new ChangeChartProcessor().fixSizeField(cinfo, GraphTypes.CHART_MAP);
          new ChangeChartProcessor().fixMapFrame(oinfo.getVSChartInfo(), cinfo);
          cinfo = ninfo.getVSChartInfo();
          VSMapInfo minfo = (VSMapInfo) cinfo;
          // make sure rt geo columns are populated
-         chartHandler.updateGeoColumns(box, vs, chart, minfo);
+         chartHandler.updateGeoColumns(box.get(), vs, chart, minfo);
          boolean colsChanged = fixGeoColumns(minfo);
-         chartHandler.updateGeoColumns(box, vs, chart, minfo);
-         DataSet source = chartHandler.getChartData(box, chart);
+         chartHandler.updateGeoColumns(box.get(), vs, chart, minfo);
+         DataSet source = chartHandler.getChartData(box.get(), chart);
          autoDetect(vs, minfo, sourceInfo, source);
       }
 
       ninfo.setVSChartInfo(cinfo);
       GraphFormatUtil.fixDefaultNumberFormat(chart.getChartDescriptor(), cinfo);
-      box.updateAssembly(chart.getAbsoluteName());
+      box.get().updateAssembly(chart.getAbsoluteName());
       new ChangeChartProcessor().fixSizeFrame(ninfo.getVSChartInfo());
       ChangeChartProcessor.fixTarget(oinfo.getVSChartInfo(), cinfo, desc);
       handleMulti(name, omulti, nmulti, separate, chart, principal, dispatcher, linkUri);
@@ -206,7 +213,7 @@ public class ChangeChartTypeService {
 
       try {
          ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-         box.processChange(name, hint, clist);
+         box.get().processChange(name, hint, clist);
          coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
       }

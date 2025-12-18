@@ -39,7 +39,8 @@ import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.vs.objects.event.*;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
@@ -96,7 +97,12 @@ public class ComposerAdhocFilterService {
       else if(table instanceof CalcTableVSAssembly) {
          CalcTableVSAssemblyInfo info = (CalcTableVSAssemblyInfo) table.getInfo();
          TableLayout layout = info.getTableLayout();
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isEmpty()) {
+            return null;
+         }
+
          String oname = table.getAbsoluteName();
          String refName = "";
          boolean detail = oname.startsWith(Assembly.DETAIL);
@@ -105,7 +111,7 @@ public class ComposerAdhocFilterService {
             oname = oname.substring(Assembly.DETAIL.length());
          }
 
-         VSTableLens lens = box.getVSTableLens(oname, detail);
+         VSTableLens lens = box.get().getVSTableLens(oname, detail);
          TableDataPath tpath = lens.getTableDataPath(event.getRow(), event.getCol());
          String[] path = tpath.getPath();
 
@@ -279,7 +285,14 @@ public class ComposerAdhocFilterService {
    private DataRef getCellDataRef(RuntimeViewsheet rvs, CrosstabVSAssembly table, int row, int col)
       throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         // VSTableService.getCrosstabCellDataRef() defaults to a null return, so this should be
+         // safe
+         return null;
+      }
+
       String oname = table.getAbsoluteName();
       boolean detail = oname.startsWith(Assembly.DETAIL);
 
@@ -287,7 +300,7 @@ public class ComposerAdhocFilterService {
          oname = oname.substring(Assembly.DETAIL.length());
       }
 
-      VSTableLens lens = box.getVSTableLens(oname, detail);
+      VSTableLens lens = box.get().getVSTableLens(oname, detail);
       TableDataPath tpath = lens.getTableDataPath(row, col);
 
       return VSTableService.getCrosstabCellDataRef(table.getVSCrosstabInfo(), tpath, row,

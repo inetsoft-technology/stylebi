@@ -93,8 +93,13 @@ public class VSWizardObjectService {
 
       final Viewsheet vs = rvs.getViewsheet();
       AssetEntry baseEntry = vs.getBaseEntry();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          if(rvs.getRuntimeWorksheet() != null) {
@@ -213,7 +218,7 @@ public class VSWizardObjectService {
             rvs.getRuntimeWorksheet().getWorksheet().getWorksheetInfo().setTempMaxRow(-1);
          }
 
-         box.unlockWrite();
+         box.get().unlockWrite();
          viewsheetService.flushRuntimeSheet(vsId);
       }
 
@@ -229,7 +234,13 @@ public class VSWizardObjectService {
       }
 
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
+
+      if(boxOpt.isEmpty()) {
+         return;
+      }
+
+      ViewsheetSandbox box = boxOpt.get();
 
       String name = assembly.getAbsoluteName();
       final String fname = name;
@@ -367,8 +378,13 @@ public class VSWizardObjectService {
                                    CommandDispatcher dispatcher, String linkUri) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -390,7 +406,7 @@ public class VSWizardObjectService {
          }
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
          viewsheetService.flushRuntimeSheet(id);
       }
 
@@ -404,14 +420,24 @@ public class VSWizardObjectService {
       String assemblyName = event.getAssemblyName();
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(rid, principal);
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          VSAssembly tempAssembly = vs.getAssembly(assemblyName);
          VSTemporaryInfo vsTemporaryInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
          RuntimeViewsheet orvs = getOriginalRViewsheet(rvs, principal);
-         orvs.getViewsheetSandbox().getVariableTable().addAll(rvs.getViewsheetSandbox().getVariableTable());
+         Optional<ViewsheetSandbox> obox = orvs.getViewsheetSandbox();
+
+         if(obox.isPresent()) {
+            obox.get().getVariableTable().addAll(box.get().getVariableTable());
+         }
+
          OpenObjectWizardCommand command = new OpenObjectWizardCommand();
 
          // click cancel on objectWizard and finish on binding.
@@ -473,7 +499,7 @@ public class VSWizardObjectService {
          dispatcher.sendCommand(command);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          viewsheetService.flushRuntimeSheet(rid);
       }
 
@@ -496,8 +522,13 @@ public class VSWizardObjectService {
                             Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          cancelExecution(rvs);
@@ -512,7 +543,7 @@ public class VSWizardObjectService {
          rvs.addCheckpoint(rvs.getViewsheet().prepareCheckpoint());
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
          viewsheetService.flushRuntimeSheet(id);
       }
 
@@ -520,9 +551,12 @@ public class VSWizardObjectService {
    }
 
    private void cancelExecution(RuntimeViewsheet rvs) {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.cancel();
-      AssetDataCache.cancel(CACHE_ID_PREFIX + box.getID());
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent()) {
+         box.get().cancel();
+         AssetDataCache.cancel(CACHE_ID_PREFIX + box.get().getID());
+      }
    }
 
    /**

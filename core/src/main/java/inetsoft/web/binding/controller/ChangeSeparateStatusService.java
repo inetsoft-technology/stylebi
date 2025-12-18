@@ -32,12 +32,14 @@ import inetsoft.web.binding.event.ChangeSeparateStatusEvent;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -61,16 +63,20 @@ public class ChangeSeparateStatusService {
       String name = event.getName();
 
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
-      box.lockRead();
+      box.get().lockRead();
 
       try {
          ChartVSAssembly chart = (ChartVSAssembly) vs.getAssembly(name);
 
          if(chart == null) {
-            LOG.warn("Chart assembly is missing, failed to process change separate " +
-                        "status event: " + name);
+            LOG.warn("Chart assembly is missing, failed to process change separate status event: {}", name);
             return null;
          }
 
@@ -91,7 +97,7 @@ public class ChangeSeparateStatusService {
          new ChangeSeparateStatusProcessor(cinfo, cdesc).process(separated, multi);
          new ChangeChartProcessor().fixSizeFrame(cinfo);
 
-         box.updateAssembly(chart.getAbsoluteName());
+         box.get().updateAssembly(chart.getAbsoluteName());
          int hint = chartHandler.createCommands(oinfo, ninfo);
          boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==
             VSAssembly.INPUT_DATA_CHANGED;
@@ -106,7 +112,7 @@ public class ChangeSeparateStatusService {
          try {
             ChangedAssemblyList clist =
                coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
-            box.processChange(name, hint, clist);
+            box.get().processChange(name, hint, clist);
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          }
          finally {
@@ -121,7 +127,7 @@ public class ChangeSeparateStatusService {
          dispatcher.sendCommand(bcommand);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;

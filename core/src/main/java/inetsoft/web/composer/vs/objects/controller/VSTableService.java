@@ -38,7 +38,7 @@ import org.springframework.util.StringUtils;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.Arrays;
+import java.util.*;
 import java.util.List;
 
 @Component
@@ -515,20 +515,20 @@ public class VSTableService {
       }
 
       AssetRepository engine = viewsheetService.getAssetRepository();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return new ColumnSelection();
       }
 
-      Principal user = box.getUser();
+      Principal user = box.get().getUser();
       List<TableAssembly> list = VSEventUtil.createPseudoAssemblies(engine,
                                                                     vs.getBaseEntry(), user);
 
       for(TableAssembly tassembly : list) {
          if(tassembly.getName().equals(entry.getName())) {
-            return (ColumnSelection) tassembly.getColumnSelection().clone();
+            return tassembly.getColumnSelection().clone();
          }
       }
 

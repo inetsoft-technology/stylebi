@@ -42,7 +42,9 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -120,8 +122,13 @@ public class RegionPropertyDialogService {
                                                   vs.isMaxMode());
       chartAssemblyInfo.resetRuntimeValues();
       cinfo.clearRuntime();
-      rvs.getViewsheetSandbox().updateAssembly(chartAssembly.getAbsoluteName());
-      rvs.getViewsheetSandbox().clearGraph(chartAssembly.getAbsoluteName());
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent()) {
+         box.get().updateAssembly(chartAssembly.getAbsoluteName());
+         box.get().clearGraph(chartAssembly.getAbsoluteName());
+      }
+
       this.vsObjectPropertyService.editObjectProperty(
          rvs, chartAssemblyInfo, objectId, objectId, linkUri, principal, commandDispatcher);
 
@@ -274,25 +281,27 @@ public class RegionPropertyDialogService {
       ChartArea chartArea;
 
       try {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
          VSChartInfo cinfo = chartAssembly.getVSChartInfo();
          ChartVSAssemblyInfo chartInfo = chartAssembly.getChartInfo();
          final String absoluteName = chartAssembly.getAbsoluteName();
          cinfo.setLocalMap(
             VSUtil.getLocalMap(rvs.getViewsheet(), absoluteName));
 
-         VGraphPair pair;
+         VGraphPair pair = null;
 
-         if(maxMode && chartInfo != null && chartInfo.getMaxSize() != null) {
-            pair = box.getVGraphPair(absoluteName, true, chartInfo.getMaxSize());
-         }
-         else {
-            pair = box.getVGraphPair(absoluteName);
-         }
+         if(box.isPresent()) {
+            if(maxMode && chartInfo != null && chartInfo.getMaxSize() != null) {
+               pair = box.get().getVGraphPair(absoluteName, true, chartInfo.getMaxSize());
+            }
+            else {
+               pair = box.get().getVGraphPair(absoluteName);
+            }
 
-         if(pair != null && !pair.isCompleted()) {
-            box.clearGraph(absoluteName);
-            pair = box.getVGraphPair(absoluteName);
+            if(pair != null && !pair.isCompleted()) {
+               box.get().clearGraph(absoluteName);
+               pair = box.get().getVGraphPair(absoluteName);
+            }
          }
 
          XCube cube = chartAssembly.getXCube();

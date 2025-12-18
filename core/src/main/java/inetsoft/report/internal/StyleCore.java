@@ -21,7 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.data.DataSet;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
-import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.table.CachedTableLens;
 import inetsoft.report.lens.*;
 import inetsoft.report.painter.*;
@@ -29,10 +29,11 @@ import inetsoft.report.script.viewsheet.PViewsheetScriptable;
 import inetsoft.report.style.TableStyle;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.uql.*;
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.XTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.schema.UserVariable;
-import inetsoft.uql.util.*;
+import inetsoft.uql.util.XTableDataSet;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,10 +44,11 @@ import java.io.PrintWriter;
 import java.security.Principal;
 import java.text.Format;
 import java.text.MessageFormat;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
-import static inetsoft.report.ReportSheet.*;
+import static inetsoft.report.ReportSheet.DEFAULT_FOOTER;
+import static inetsoft.report.ReportSheet.DEFAULT_HEADER;
 
 /**
  * StyleCore is the base class of ReportSheet. It holds all inner class
@@ -1896,7 +1898,8 @@ public abstract class StyleCore extends AbstractAssetEngine
                   ((ViewsheetService) service).getViewsheet(id, user);
 
                if(sheet != null) {
-                  scriptenv.put("pviewsheet", sheet.getViewsheetSandbox().getScope());
+                  Optional<ViewsheetSandbox> boxOpt = sheet.getViewsheetSandbox();
+                  boxOpt.ifPresent(box -> scriptenv.put("pviewsheet", box.getScope()));
                }
             }
          }

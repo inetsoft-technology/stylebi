@@ -477,8 +477,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * Get the asset query sandbox.
     * @return the asset query sandbox.
     */
-   public ViewsheetSandbox getViewsheetSandbox() {
-      return box;
+   public Optional<ViewsheetSandbox> getViewsheetSandbox() {
+      return Optional.ofNullable(box);
    }
 
    /**
@@ -1888,12 +1888,13 @@ public class RuntimeViewsheet extends RuntimeSheet {
          }
 
          RuntimeViewsheet rvs = (RuntimeViewsheet) rarr[i];
-         ViewsheetSandbox rbox = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> rboxOpt = rvs.getViewsheetSandbox();
 
-         if(rbox == null) {
+         if(rboxOpt.isEmpty()) {
             continue;
          }
 
+         ViewsheetSandbox rbox = rboxOpt.get();
          ViewsheetSandbox[] boxes = rbox.getSandboxes();
 
          for(ViewsheetSandbox box : boxes) {

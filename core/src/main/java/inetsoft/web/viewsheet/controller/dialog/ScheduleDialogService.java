@@ -45,7 +45,6 @@ import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.model.TimeZoneModel;
 import inetsoft.web.admin.schedule.model.UsersModel;
 import inetsoft.web.composer.model.TreeNodeModel;
-import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.model.CSVConfigModel;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.dialog.EmailAddrDialogModel;
@@ -54,9 +53,7 @@ import inetsoft.web.viewsheet.service.CommandDispatcher;
 import inetsoft.web.viewsheet.service.VSBookmarkService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.security.Principal;
 import java.sql.Timestamp;
@@ -301,7 +298,7 @@ public class ScheduleDialogService {
       }
 
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       AssetEntry entry = rvs.getEntry();
       ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
       SimpleScheduleDialogModel simpleScheduleDialogModel = value.simpleScheduleDialogModel();
@@ -423,12 +420,19 @@ public class ScheduleDialogService {
       }
 
       List<UserVariable> vars = new ArrayList<>();
-      VSEventUtil.refreshParameters(viewsheetService, box,
-                                    rvs.getViewsheet(), false,
-                                    new VariableTable(), vars);
-      VariableTable variable = box.getVariableTable();
+      VariableTable variable;
 
-      if(vars.size() > 0) {
+      if(box.isPresent()) {
+         VSEventUtil.refreshParameters(viewsheetService, box.get(),
+                                       rvs.getViewsheet(), false,
+                                       new VariableTable(), vars);
+         variable = box.get().getVariableTable();
+      }
+      else {
+         variable = new VariableTable();
+      }
+
+      if(!vars.isEmpty()) {
          RepletRequest request = new RepletRequest();
 
          for(UserVariable var : vars) {

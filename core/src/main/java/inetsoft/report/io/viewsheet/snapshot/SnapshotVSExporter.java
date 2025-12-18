@@ -65,13 +65,13 @@ public class SnapshotVSExporter {
     */
    public void write(OutputStream out) throws Exception {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
-      vs = (Viewsheet) vs.clone();
+      vs = vs.clone();
       AssetEntry entry = rvs.getEntry();
       asset = new ViewsheetAsset2(entry);
       asset.setSheet(vs);
@@ -83,14 +83,14 @@ public class SnapshotVSExporter {
 
        // log export action in audit
       if(logExport) {
-         IdentityID userID = IdentityID.getIdentityIDFromKey(box.getUser().getName());
+         IdentityID userID = IdentityID.getIdentityIDFromKey(box.get().getUser().getName());
          Timestamp exportTimestamp = new Timestamp(System.currentTimeMillis());
          ExportRecord exportRecord = new ExportRecord(userID.getName(), null,
             ExportRecord.OBJECT_TYPE_VIEWSHEET, null, exportTimestamp, Tool.getHost());
          String objectName = entry.getDescription(false);
          exportRecord.setExportType("vso");
          exportRecord.setObjectName(objectName);
-         Audit.getInstance().auditExport(exportRecord, box.getUser());
+         Audit.getInstance().auditExport(exportRecord, box.get().getUser());
 
          setLogExport(false);
       }
@@ -300,13 +300,13 @@ public class SnapshotVSExporter {
             vs.getBaseEntry(), null, false, AssetContent.ALL);
       }
 
-      ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> vbox = rvs.getViewsheetSandbox();
 
-      if(vbox == null) {
+      if(vbox.isEmpty()) {
          return;
       }
 
-      AssetQuerySandbox box = vbox.getAssetQuerySandbox();
+      AssetQuerySandbox box = vbox.get().getAssetQuerySandbox();
       Principal user = box.getUser();
       VariableTable table = box.getVariableTable();
       originalSheet = new WorksheetWrapper(originalSheet);

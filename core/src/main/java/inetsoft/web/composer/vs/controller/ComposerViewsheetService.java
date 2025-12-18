@@ -57,6 +57,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -207,7 +208,8 @@ public class ComposerViewsheetService {
       }
 
       final String bindingId = rvs.getBindingID();
-      String rid = rvs.getViewsheetSandbox().getID();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      String rid = box.map(ViewsheetSandbox::getID).orElse(null);
 
       if(bindingId != null) {
          viewsheetService.closeViewsheet(bindingId, principal);
@@ -216,10 +218,13 @@ public class ComposerViewsheetService {
 
       viewsheetService.closeViewsheet(runtimeId, principal);
       runtimeViewsheetManager.sheetClosed(principal, runtimeId);
-      Profile.getInstance().removeProfileData(rid);
+
+      if(rid != null) {
+         Profile.getInstance().removeProfileData(rid);
+      }
+
       VSEventUtil.deleteAutoSavedFile(rvs.getEntry(), principal);
       AssetEntry entry = rvs.getEntry();
-      Viewsheet vs = rvs.getViewsheet();
 
       AssetRepository rep = AssetUtil.getAssetRepository(false);
       ((AbstractAssetEngine)rep).fireAutoSaveEvent(entry);
@@ -289,14 +294,17 @@ public class ComposerViewsheetService {
 
             ChangedAssemblyList clist = coreLifecycleService.createList(
                true, event, dispatcher, rvs2, linkUri);
-            ViewsheetSandbox box = rvs2.getViewsheetSandbox();
-            AssetQuerySandbox qbox = box.getAssetQuerySandbox();
+            Optional<ViewsheetSandbox> box = rvs2.getViewsheetSandbox();
 
-            if(qbox != null) {
-               qbox.setActive(true);
+            if(box.isPresent()) {
+               AssetQuerySandbox qbox = box.get().getAssetQuerySandbox();
+
+               if(qbox != null) {
+                  qbox.setActive(true);
+               }
             }
 
-            if(!box.isCancelled(execTimestamp.getTime())) {
+            if(box.isPresent() && !box.get().isCancelled(execTimestamp.getTime())) {
                coreLifecycleService.refreshViewsheet(rvs2, rvs2.getEntry().toIdentifier(),
                                                      linkUri, event.getWidth(), event.getHeight(), event.isMobile(),
                                                      event.getUserAgent(), dispatcher, true, false, true, clist);
@@ -515,14 +523,14 @@ public class ComposerViewsheetService {
       }
       // wait for is not confirmed
       else if(event.isConfirmed()) {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-         if(box == null) {
+         if(box.isEmpty()) {
             return null;
          }
 
-         if(mgr.isPending(box.getAssetEntry(), (XPrincipal) principal)) {
-            mgr.cancelMV(box.getAssetEntry(), (XPrincipal) principal);
+         if(mgr.isPending(box.get().getAssetEntry(), (XPrincipal) principal)) {
+            mgr.cancelMV(box.get().getAssetEntry(), (XPrincipal) principal);
 
             if(rvs.isRuntime()) {
                if(required) {
@@ -533,14 +541,14 @@ public class ComposerViewsheetService {
                   dispatcher.sendCommand(cmd);
                }
                else {
-                  box.setMVDisabled(true);
+                  box.get().setMVDisabled(true);
                }
             }
             else if(metadata) {
                vs.getViewsheetInfo().setMetadata(true);
             }
             else {
-               box.setMVDisabled(true);
+               box.get().setMVDisabled(true);
             }
          }
       }

@@ -48,8 +48,8 @@ import org.springframework.util.StringUtils;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Stream;
 
 @Component
@@ -71,8 +71,13 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(
          runtimeViewsheetRef.getRuntimeId(), principal);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      VGraphPair pair = box.getVGraphPair(drillAction.getAssemblyName());
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      VGraphPair pair = box.get().getVGraphPair(drillAction.getAssemblyName());
       VGraph vgraph = pair.getRealSizeVGraph();
       VSSelection selection = getVSSelection(rvs, assembly, vgraph, drillAction.getSelected(),
             drillAction.isRangeSelection());
@@ -706,11 +711,16 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
                                      VGraph vgraph, String selected, boolean rangeSelection)
       throws Exception
    {
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       VSChartInfo chartInfo = assembly.getVSChartInfo();
       ChartVSAssemblyInfo assemblyInfo = assembly.getChartInfo();
-      VSDataSet lens = (VSDataSet) box.getData(assembly.getAbsoluteName());
-      VSDataSet alens = (VSDataSet) box.getData(
+      VSDataSet lens = (VSDataSet) box.get().getData(assembly.getAbsoluteName());
+      VSDataSet alens = (VSDataSet) box.get().getData(
          assembly.getAbsoluteName(), true, DataMap.DRILL_FILTER);
       String ctype = ((ChartVSAssemblyInfo)
          VSEventUtil.getAssemblyInfo(rvs, assembly)).getCubeType();

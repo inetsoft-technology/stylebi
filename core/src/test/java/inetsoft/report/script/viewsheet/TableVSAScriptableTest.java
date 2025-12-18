@@ -364,7 +364,7 @@ public class TableVSAScriptableTest {
     */
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
 
       tableVSAssembly2 = (TableVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);

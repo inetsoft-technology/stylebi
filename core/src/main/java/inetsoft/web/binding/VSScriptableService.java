@@ -48,7 +48,8 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.*;
+import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.util.script.JSObject;
 import inetsoft.util.script.TimeoutContext;
 import inetsoft.web.binding.handler.VSTreeHandler;
@@ -81,7 +82,7 @@ public class VSScriptableService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       String vsName = null;
 
       int dot = assemblyName == null ? -1 : assemblyName.lastIndexOf(".");
@@ -93,15 +94,17 @@ public class VSScriptableService {
       ObjectMapper mapper = new ObjectMapper();
       ObjectNode root = createScriptDefinitions(mapper);
 
-      try {
-         box.lockRead();
-         createComponentDefinitions(mapper, root, rvs, vsName, assemblyName);
-         createParameterDefinitions(mapper, root, viewsheetService, rvs, vsName);
-         createFieldDefinitions(mapper, root, rvs, viewsheet, assemblyName, tableName,
-                                isCondition);
-      }
-      finally {
-         box.unlockRead();
+      if(box.isPresent()) {
+         try {
+            box.get().lockRead();
+            createComponentDefinitions(mapper, root, rvs, vsName, assemblyName);
+            createParameterDefinitions(mapper, root, viewsheetService, rvs, vsName);
+            createFieldDefinitions(mapper, root, rvs, viewsheet, assemblyName, tableName,
+                                   isCondition);
+         }
+         finally {
+            box.get().unlockRead();
+         }
       }
 
       // copy assembly properties and methods to top-level scope
@@ -175,11 +178,13 @@ public class VSScriptableService {
                                            RuntimeViewsheet rvs, String vsName,
                                            String assemblyName)
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(boxOpt.isEmpty()) {
          return;
       }
+
+      ViewsheetSandbox box = boxOpt.get();
 
       if(vsName != null) {
          box = box.getSandbox(vsName);
@@ -334,11 +339,13 @@ public class VSScriptableService {
                                            ViewsheetService engine, RuntimeViewsheet rvs,
                                            String vsName)
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(boxOpt.isEmpty()) {
          return;
       }
+
+      ViewsheetSandbox box = boxOpt.get();
 
       if(vsName != null) {
          box = box.getSandbox(vsName);
@@ -386,11 +393,13 @@ public class VSScriptableService {
                                               String parentName, String parentLabel,
                                               Object parentData, Catalog catalog)
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(boxOpt.isEmpty()) {
          return null;
       }
+
+      ViewsheetSandbox box = boxOpt.get();
 
       if(vsName != null) {
          box = box.getSandbox(vsName);
@@ -451,9 +460,9 @@ public class VSScriptableService {
                                           Object parentData, Catalog catalog,
                                           Principal principal)
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return null;
       }
 
@@ -573,11 +582,13 @@ public class VSScriptableService {
                                               String parentName, String parentLabel,
                                               Object parentData, Catalog catalog)
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> boxOpt = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(boxOpt.isEmpty()) {
          return null;
       }
+
+      ViewsheetSandbox box = boxOpt.get();
 
       if(vsName != null) {
          box = box.getSandbox(vsName);
@@ -1517,13 +1528,14 @@ public class VSScriptableService {
       }
 
       List params = new ArrayList();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      try {
-         VSEventUtil.refreshParameters(engine, rvs.getViewsheetSandbox(),
-                                       vs, false, null, params, true);
-      }
-      catch(Exception ex) {
-         // ignore it
+      if(box.isPresent()) {
+         try {
+            VSEventUtil.refreshParameters(engine, box.get(), vs, false, null, params, true);
+         }
+         catch(Exception ignore) {
+         }
       }
 
       for(Object obj : params) {
@@ -1541,13 +1553,13 @@ public class VSScriptableService {
                                       String tname)
    {
       ColumnSelection columns = null;
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box != null && vassembly instanceof ChartVSAssembly) {
+      if(box.isPresent() && vassembly instanceof ChartVSAssembly) {
          String cname = vassembly.getName();
 
          try {
-            DataSet data = (DataSet) box.getData(cname);
+            DataSet data = (DataSet) box.get().getData(cname);
 
             if(data != null) {
                VSDataSet vdata = null;

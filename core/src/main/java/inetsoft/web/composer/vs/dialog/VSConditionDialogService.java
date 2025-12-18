@@ -169,16 +169,21 @@ public class VSConditionDialogService {
                         Principal principal, CommandDispatcher commandDispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
 
-      box.lockWrite();
+      box.get().lockWrite();
 
       try {
          VSAssembly assembly = vs.getAssembly(assemblyName);
          VSAssemblyInfo info = assembly.getVSAssemblyInfo().clone();
          RuntimeWorksheet rws = assembly != null && assembly.isEmbedded() ?
-            VSUtil.getRuntimeWorksheet(assembly.getViewsheet(), rvs.getViewsheetSandbox()) :
+            VSUtil.getRuntimeWorksheet(assembly.getViewsheet(), box.get()) :
             rvs.getRuntimeWorksheet();
          String tName = assembly.getTableName();
 
@@ -198,7 +203,7 @@ public class VSConditionDialogService {
                                           true, false, commandDispatcher, null, null, linkUri, null);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       return null;
@@ -234,9 +239,15 @@ public class VSConditionDialogService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       VSAssembly assembly = (VSAssembly) vs.getAssembly(assemblyName);
       RuntimeWorksheet rws = assembly != null && assembly.isEmbedded() ?
-         VSUtil.getRuntimeWorksheet(assembly.getViewsheet(), rvs.getViewsheetSandbox()) :
+         VSUtil.getRuntimeWorksheet(assembly.getViewsheet(), box.get()) :
          rvs.getRuntimeWorksheet();
 
       BrowseDataController browseDataController = new BrowseDataController();
@@ -250,8 +261,7 @@ public class VSConditionDialogService {
          boolean refChanged = false;
 
          if(highlight != null && highlight) {
-            ViewsheetSandbox box = rvs.getViewsheetSandbox();
-            TableLens table = (TableLens) box.getData(assembly.getAbsoluteName());
+            TableLens table = (TableLens) box.get().getData(assembly.getAbsoluteName());
             CalcTableLens calc = (CalcTableLens) Util.getNestedTable(table, CalcTableLens.class);
 
             if(calc != null) {
@@ -334,11 +344,17 @@ public class VSConditionDialogService {
                                                     Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = vs.getAssembly(model.tableName());
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       RuntimeWorksheet rws = assembly != null && assembly.isEmbedded() ?
-         VSUtil.getRuntimeWorksheet(assembly.getViewsheet(), rvs.getViewsheetSandbox()) :
+         VSUtil.getRuntimeWorksheet(assembly.getViewsheet(), box.get()) :
          rvs.getRuntimeWorksheet();
       String tName = assembly.getTableName();
 

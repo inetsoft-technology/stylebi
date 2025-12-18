@@ -38,6 +38,7 @@ import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -237,7 +238,7 @@ public class VSCalendarService {
                                   String linkUri, String eventSource)
       throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
       int hint = calendarAssembly.setVSAssemblyInfo(newInfo);
 
@@ -256,7 +257,11 @@ public class VSCalendarService {
 
       ChangedAssemblyList clist = this.coreLifecycleService.createList(true, commandDispatcher,
                                                                        rvs, linkUri);
-      box.processChange(calendarAssembly.getAbsoluteName(), hint, clist);
+
+      if(box.isPresent()) {
+         box.get().processChange(calendarAssembly.getAbsoluteName(), hint, clist);
+      }
+
       // Iterate over all assemblies and add to view list if they have
       // hyperlinks that "send selection parameters"
       this.coreLifecycleService.executeInfluencedHyperlinkAssemblies(vs, commandDispatcher,

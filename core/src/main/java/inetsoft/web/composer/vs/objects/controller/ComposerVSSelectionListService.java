@@ -33,15 +33,13 @@ import inetsoft.util.Tool;
 import inetsoft.web.binding.dnd.TableTransfer;
 import inetsoft.web.binding.event.VSDndEvent;
 import inetsoft.web.composer.vs.objects.event.*;
-import inetsoft.web.viewsheet.service.*;
-import org.springframework.messaging.handler.annotation.DestinationVariable;
-import org.springframework.messaging.handler.annotation.Payload;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.*;
 
 @Service
 @ClusterProxy
@@ -58,10 +56,14 @@ public class ComposerVSSelectionListService {
                               Principal principal, CommandDispatcher dispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet viewsheet = rvs.getViewsheet();
 
-      box.lockRead();
+      if(viewsheet == null || box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          VSAssembly assembly = viewsheet.getAssembly(event.getName());
@@ -76,7 +78,7 @@ public class ComposerVSSelectionListService {
          coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
       }
 
       return null;

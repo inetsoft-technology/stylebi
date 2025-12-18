@@ -133,8 +133,8 @@ public class AssemblyImageService {
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vid, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      String sheetName = box.getAssetEntry() == null ? "" : box.getAssetEntry().getPath();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      String sheetName = box.map(ViewsheetSandbox::getAssetEntry).map(AssetEntry::getPath).orElse("");
       String assemblyName = Tool.byteDecode(aid);
       AtomicReference<ImageRenderResult> imageResultsRef = new AtomicReference<>();
 
@@ -145,7 +145,7 @@ public class AssemblyImageService {
          });
 
          // for Feature #26586, add ui processing time record.
-         ProfileUtils.addExecutionBreakDownRecord(box.getID(),
+         ProfileUtils.addExecutionBreakDownRecord(box.map(ViewsheetSandbox::getID).orElse(vid),
              ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
                ImageRenderResult result = processGetAssemblyImage1(vid, aid, width, height, maxWidth, maxHeight, aname, index,
                                         row, col, principal, svg, export);
@@ -184,13 +184,13 @@ public class AssemblyImageService {
                                                     String agent, Principal principal) throws Exception {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       RuntimeWorksheet worksheet = rvs.getRuntimeWorksheet();
-      ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> vbox = rvs.getViewsheetSandbox();
 
-      if(vbox == null) {
+      if(vbox.isEmpty()) {
          return null;
       }
 
-      TableLens lens = vbox.getVSTableLens(assemblyName, false);
+      TableLens lens = vbox.get().getVSTableLens(assemblyName, false);
 
       if(lens == null) {
          lens = new DefaultTableLens();
@@ -244,7 +244,7 @@ public class AssemblyImageService {
       if(isPreviewWsTable) {
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
          VSAssembly assembly = rvs.getViewsheet().getAssembly(assemblyName);
-         ViewsheetSandbox vsBox = rvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> vsBox = rvs.getViewsheetSandbox();
          DataTableAssembly tableAssembly =
             (DataTableAssembly) worksheet.getAssembly(tableAssemblyName);
          FormatTableLens2 formatLens = null;
@@ -254,9 +254,9 @@ public class AssemblyImageService {
             appliedDC = ((ChartVSAssembly) assembly).getVSChartInfo().isAppliedDateComparison();
          }
 
-         if(appliedDC && tableAssembly != null) {
+         if(vsBox.isPresent() && appliedDC && tableAssembly != null) {
             formatLens = new DcFormatTableLens(
-               new MaxRowsTableLens(lens, 5002), getDcFormat(vsBox, assemblyName));
+               new MaxRowsTableLens(lens, 5002), getDcFormat(vsBox.get(), assemblyName));
             formatLens.addTableFormat((DataVSAssembly) assembly, tableAssembly,
                                       tableAssembly.getColumnSelection(), null, null);
          }
@@ -452,8 +452,8 @@ public class AssemblyImageService {
                                                  Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vid, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      String sheetName = box.getAssetEntry() == null ? "" : box.getAssetEntry().getPath();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      String sheetName = box.map(ViewsheetSandbox::getAssetEntry).map(AssetEntry::getPath).orElse("");
       String hash = Tool.byteDecode(hashEncoded);
 
       try {
@@ -461,7 +461,7 @@ public class AssemblyImageService {
             groupedThread.addRecord(LogContext.DASHBOARD.getRecord(sheetName));
          });
          // for Feature #26586, add ui processing time record.
-         return (ImageRenderResult) ProfileUtils.addExecutionBreakDownRecord(box.getID(),
+         return (ImageRenderResult) ProfileUtils.addExecutionBreakDownRecord(box.map(ViewsheetSandbox::getID).orElse(vid),
                                                   ExecutionBreakDownRecord.UI_PROCESSING_CYCLE, args -> {
                ImageHashService imageHashService = rvs.getImageHashService();
                return imageHashService.sendImageResponse(hash, rvs.getViewsheet(), vid, binaryTransferService);
@@ -581,9 +581,9 @@ public class AssemblyImageService {
       }
 
       final Viewsheet vs = rvs.getViewsheet();
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return null;
       }
 
@@ -639,10 +639,10 @@ public class AssemblyImageService {
                // pair.getPlotGraphics() may trigger script which in turn could request data,
                // and calls a lockWrite, resulting a deadlock. Only lock getVGraphPair. (42202)
                final VGraphPair pair;
-               box.lockRead();
+               box.get().lockRead();
 
                try {
-                  pair = box.getVGraphPair(name, false, maxSize, export, 1);
+                  pair = box.get().getVGraphPair(name, false, maxSize, export, 1);
 
                   if(pair == null || !pair.isCompleted() || pair.isCancelled() ||
                      !pair.isPlotted())
@@ -651,14 +651,14 @@ public class AssemblyImageService {
                   }
 
                   if(svg) {
-                     svgGraphics = getChartSVG(aname, row, col, index, pair, box, name, height);
+                     svgGraphics = getChartSVG(aname, row, col, index, pair, box.get(), name, height);
 
                      if(svgGraphics == null) {
-                        image = getChartImage(aname, row, col, index, pair, box, name, dpi * scale);
+                        image = getChartImage(aname, row, col, index, pair, box.get(), name, dpi * scale);
                      }
                   }
                   else {
-                     image = getChartImage(aname, row, col, index, pair, box, name, dpi * scale);
+                     image = getChartImage(aname, row, col, index, pair, box.get(), name, dpi * scale);
                   }
                }
                // web map limit exceeded, disable web map for 24 hours.
@@ -666,17 +666,17 @@ public class AssemblyImageService {
                   long hours24 = System.currentTimeMillis() + 24 * 60 * 60000L;
                   SreeEnv.setProperty("webmap.suspend.until", hours24 + "");
 
-                  box.clearGraph(name);
+                  box.get().clearGraph(name);
                   return processGetAssemblyImage1(vid, aid, width, height, maxWidth, maxHeight, aname,
                                            index, row, col, principal, svg, export);
                }
                finally {
-                  box.unlockRead();
+                  box.get().unlockRead();
                }
             }
             // non chart
             else {
-               box.lockRead();
+               box.get().lockRead();
 
                try {
                   if(assembly instanceof GaugeVSAssembly) {
@@ -714,7 +714,7 @@ public class AssemblyImageService {
                   }
                }
                finally {
-                  box.unlockRead();
+                  box.get().unlockRead();
                }
             }
 

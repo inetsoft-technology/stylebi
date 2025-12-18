@@ -25,10 +25,12 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.event.CancelViewsheetLoadingEvent;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -46,9 +48,14 @@ public class CancelViewsheetLoadingService {
                                Principal principal, CommandDispatcher dispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(rId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
-      box.cancelAllQueries();
+
+      if(vs == null || box.isEmpty()) {
+         return null;
+      }
+
+      box.get().cancelAllQueries();
 
       if(event.isMeta() && !vs.getViewsheetInfo().isMetadata()) {
          vs.getViewsheetInfo().setMetadata(true);

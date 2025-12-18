@@ -20,6 +20,7 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.report.StyleConstants;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -33,6 +34,7 @@ import org.springframework.stereotype.Service;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
+import java.util.Optional;
 
 @Service
 public class VSAnnotationService {
@@ -328,8 +330,14 @@ public class VSAnnotationService {
       VSTableLens tableLens = ((CrosstabVSAssembly) parentAssembly).getLastTableLens();
 
       if(tableLens == null) {
-         tableLens = rvs.getViewsheetSandbox()
-            .getVSTableLens(parentAssembly.getAbsoluteName(), false);
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            tableLens = box.get().getVSTableLens(parentAssembly.getAbsoluteName(), false);
+         }
+         else {
+            return new Point(1, 1);
+         }
       }
 
       int[] cellWidth = tableLens.getColumnWidths();

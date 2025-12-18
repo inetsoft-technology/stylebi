@@ -22,7 +22,6 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
-import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.TableVSAssembly;
@@ -85,7 +84,6 @@ public class HideColumnsDialogService {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
       TableVSAssembly assembly = (TableVSAssembly) viewsheet.getAssembly(objectId);
       TableVSAssemblyInfo info = (TableVSAssemblyInfo) assembly.getVSAssemblyInfo();
       TableVSAssemblyInfo clone = (TableVSAssemblyInfo)info.clone();

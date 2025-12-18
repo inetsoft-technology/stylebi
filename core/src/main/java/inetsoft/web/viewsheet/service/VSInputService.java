@@ -118,8 +118,7 @@ public class VSInputService {
    private void detachScriptEvent(String vsId, Principal principal) throws Exception {
       RuntimeViewsheet rvs =
          vsObjectService.getRuntimeViewsheet(vsId, principal);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.detachScriptEvent();
+      rvs.getViewsheetSandbox().ifPresent(ViewsheetSandbox::detachScriptEvent);
    }
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
@@ -217,8 +216,13 @@ public class VSInputService {
                          VSOnClickEvent confirmEvent, String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      ViewsheetScope scope = box.getScope();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      ViewsheetScope scope = box.get().getScope();
       List<UserMessage> usrmsg = new ArrayList<>();
 
       //Bug #21607 on confirm event, first execute script to get the correct message
@@ -1895,8 +1899,13 @@ public class VSInputService {
                                                           ComboBoxEditorModel model, Principal principal) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId,principal);
-      ViewsheetSandbox viewsheetSandbox = rvs.getViewsheetSandbox();
-      ComboBoxVSAssembly comboBoxVSAssembly = (ComboBoxVSAssembly) viewsheetSandbox.getViewsheet().getAssembly(objectId);
+      Optional<ViewsheetSandbox> vsBox = rvs.getViewsheetSandbox();
+
+      if(vsBox.isEmpty()) {
+         return null;
+      }
+
+      ComboBoxVSAssembly comboBoxVSAssembly = (ComboBoxVSAssembly) vsBox.get().getViewsheet().getAssembly(objectId);
       ComboBoxVSAssembly cassembly = (ComboBoxVSAssembly) comboBoxVSAssembly.clone();
       cassembly.getInfo().setName(VSWizardConstants.TEMP_ASSEMBLY_PREFIX + cassembly.getName());
 
@@ -1929,8 +1938,8 @@ public class VSInputService {
             cassembly.setSourceType(ListInputVSAssembly.NONE_SOURCE);
          }
 
-         viewsheetSandbox.getViewsheet().addAssembly(cassembly);
-         InputVSAQuery inputVSAQuery = new InputVSAQuery(viewsheetSandbox, cassembly.getName());
+         vsBox.get().getViewsheet().addAssembly(cassembly);
+         InputVSAQuery inputVSAQuery = new InputVSAQuery(vsBox.get(), cassembly.getName());
          VariableListDialogModel variableListDialogModel = model.getVariableListDialogModel();
          ListData data = new ListData();
          String dtype = variableListDialogModel.getDataType();
@@ -1978,7 +1987,7 @@ public class VSInputService {
          }
       }
       finally {
-         viewsheetSandbox.getViewsheet().removeAssembly(cassembly);
+         vsBox.get().getViewsheet().removeAssembly(cassembly);
       }
 
       return null;
@@ -2304,8 +2313,13 @@ public class VSInputService {
                        CommandDispatcher dispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      WSExecution.setAssetQuerySandbox(rvs.getViewsheetSandbox().getAssetQuerySandbox());
+      if(box.isEmpty()) {
+         return;
+      }
+
+      WSExecution.setAssetQuerySandbox(box.get().getAssetQuerySandbox());
 
       try {
          process0(rvs, name, x, y, linkUri, isConfirm, usrmsg, principal, dispatcher);
@@ -2321,16 +2335,16 @@ public class VSInputService {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
+      VSAssembly assembly = vs.getAssembly(name);
 
       if(assembly == null) {
-         LOG.warn("Assembly is missing, failed to process on click event: " + name);
+         LOG.warn("Assembly is missing, failed to process on click event: {}", name);
          return;
       }
 
@@ -2344,7 +2358,7 @@ public class VSInputService {
          return;
       }
 
-      ViewsheetSandbox box0 = getVSBox(name, box);
+      ViewsheetSandbox box0 = getVSBox(name, box.get());
       ViewsheetScope scope = box0.getScope();
       String script = null;
 
@@ -2409,24 +2423,24 @@ public class VSInputService {
             VSAssembly assembly0 = (VSAssembly) vs.getAssembly(name0);
 
             if(assembly0 instanceof TableVSAssembly) {
-               box.resetDataMap(name0);
+               box.get().resetDataMap(name0);
 
                // @by yanie: fix #691, refresh FormTableLens after commit
                TableVSAssembly ta = (TableVSAssembly) assembly0;
                TableVSAssemblyInfo tinfo = (TableVSAssemblyInfo) ta.getInfo();
 
                if(tinfo.isForm()) {
-                  FormTableLens flens = box.getFormTableLens(name0);
+                  FormTableLens flens = box.get().getFormTableLens(name0);
 
                   if(hasFormScript(script, name0) && flens.isChanged()) {
-                     box.addScriptChangedForm(name0);
+                     box.get().addScriptChangedForm(name0);
                   }
 
-                  box.syncFormData(name0);
+                  box.get().syncFormData(name0);
                }
             }
             else if(assembly0 instanceof CrosstabVSAssembly) {
-               box.resetDataMap(name0);
+               box.get().resetDataMap(name0);
             }
             else if(assembly0 instanceof ChartVSAssembly) {
                processChart(rvs, name0, linkUri, principal, dispatcher);
@@ -2437,7 +2451,7 @@ public class VSInputService {
          }
 
          for(VSAssembly inputAssembly : inputAssemblies) {
-            box.processChange(inputAssembly.getAbsoluteName(),
+            box.get().processChange(inputAssembly.getAbsoluteName(),
                               VSAssembly.OUTPUT_DATA_CHANGED, clist);
          }
 
@@ -2450,12 +2464,12 @@ public class VSInputService {
                                                        false, true, true, clist, true);
          }
          else {
-            box.processChange(name, VSAssembly.INPUT_DATA_CHANGED, clist);
+            box.get().processChange(name, VSAssembly.INPUT_DATA_CHANGED, clist);
             coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          }
       }
       finally {
-         box.clearScriptChangedFormSet();
+         box.get().clearScriptChangedFormSet();
       }
 
       if(!isConfirm) {
@@ -2517,14 +2531,14 @@ public class VSInputService {
       throws Exception
    {
       Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null || box == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
       VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
-      box.clearGraph(name);
+      box.get().clearGraph(name);
       coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
    }
 
@@ -2563,19 +2577,24 @@ public class VSInputService {
 
       RuntimeViewsheet rvs =
          vsObjectService.getRuntimeViewsheet(vsId, principal);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return 0;
+      }
+
       int hint;
 
       rvs.setSocketSessionId(dispatcher.getSessionId());
       rvs.setSocketUserName(dispatcher.getUserName());
 
-      box.lockWrite();
+      box.get().lockWrite();
 
       try {
          hint = applySelection0(rvs, assemblyName, selectedObject, dispatcher);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       return hint;
@@ -2657,9 +2676,9 @@ public class VSInputService {
 
       final int hint = hint0;
 
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null) {
+      if(box.isEmpty()) {
          return 0;
       }
 
@@ -2672,11 +2691,11 @@ public class VSInputService {
       // will execute the onLoad script.
       if(form) {
          ScriptEvent event0 = new InputScriptEvent(assemblyName, assembly);
-         box.attachScriptEvent(event0);
+         box.get().attachScriptEvent(event0);
       }
 
       if(info.getWriteBackValue()) {
-         ViewsheetSandbox baseBox = coreLifecycleService.getSandbox(box, assemblyName);
+         ViewsheetSandbox baseBox = coreLifecycleService.getSandbox(box.get(), assemblyName);
          String tableName = VSUtil.stripOuter(info.getTableName());
 
          baseBox.writeBackFormDataDirectly(viewsheetService.getAssetRepository(),
@@ -2684,13 +2703,13 @@ public class VSInputService {
                                            info.getRow(), info.getSelectedObject());
       }
 
-      final AssetQuerySandbox wbox = box.getAssetQuerySandbox();
+      final AssetQuerySandbox wbox = box.get().getAssetQuerySandbox();
       Worksheet ws = assembly.getViewsheet().getBaseWorksheet();
       refreshVariable(assembly, wbox, ws, vs);
 
       // if assembly is a variable then check if any worksheet tables depend on it and
       // clear any metadata that selection lists/trees might be using
-      resetTableMetadata(assembly, ws, box);
+      resetTableMetadata(assembly, ws, box.get());
 
       return hint;
    }
@@ -2702,15 +2721,20 @@ public class VSInputService {
    {
       RuntimeViewsheet rvs =
          vsObjectService.getRuntimeViewsheet(vsId, principal);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      box.get().lockWrite();
 
       try {
          refreshVS0(rvs, principal, dispatcher, oldCrosstabInfo,
                     assemblyNames, selectedObjects, hints, linkUri);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
    }
@@ -2721,12 +2745,12 @@ public class VSInputService {
                            @LinkUri String linkUri) throws Exception
    {
       ChangedAssemblyList clist = vsObjectService.createList(true, dispatcher, rvs, linkUri);
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet vs = rvs.getViewsheet();
       InputVSAssembly[] assemblies = new InputVSAssembly[assemblyNames.length];
       Object[] objs = new Object[selectedObjects.length];
 
-      if(vs == null) {
+      if(vs == null || box.isEmpty()) {
          return;
       }
 
@@ -2741,7 +2765,7 @@ public class VSInputService {
          assemblies[i] = (InputVSAssembly) vsAssembly;
       }
 
-      final AssetQuerySandbox wbox = box.getAssetQuerySandbox();
+      final AssetQuerySandbox wbox = box.get().getAssetQuerySandbox();
       boolean wsOutputDataChanged = false;
       // true to refresh all input assemblies.
       boolean refreshInput = true;
@@ -2786,7 +2810,7 @@ public class VSInputService {
             // @by larryl, should not be necessary to reset, optimization
             // Bug #24751, some dependency assemblies don't refresh after applying selection
             if(info.isSubmitOnChange() && info.isRefresh()) {
-               box.reset(clist);
+               box.get().reset(clist);
                vsObjectService.execute(
                   rvs, assemblyNames[i], linkUri, hints[i] | VSAssembly.VIEW_CHANGED, dispatcher);
             }
@@ -2796,7 +2820,7 @@ public class VSInputService {
       if(wsOutputDataChanged) {
          wbox.setIgnoreFiltering(false);
          coreLifecycleService.refreshEmbeddedViewsheet(rvs, linkUri, dispatcher);
-         box.resetRuntime();
+         box.get().resetRuntime();
          // @by stephenwebster, For Bug #6575
          // refreshViewsheet() already calls reset() making this call redundant
          // It also has a side-effect of making the viewsheet load twice.
@@ -2832,7 +2856,7 @@ public class VSInputService {
          // @davidd bug1364406849572, refactored processing of shared filters to
          // external and local.
          vsObjectService.processExtSharedFilters(assembly, hints[i], rvs, principal, dispatcher);
-         box.processSharedFilters(assembly, clist, true);
+         box.get().processSharedFilters(assembly, clist, true);
       }
 
       // @by ankitmathur, Fix Bug #4211, Use the old VSCrosstabInfo's to sync
@@ -2841,7 +2865,7 @@ public class VSInputService {
       for(Assembly cassembly : vs.getAssemblies()) {
          if(cassembly instanceof CrosstabVSAssembly) {
             try {
-               box.updateAssembly(cassembly.getAbsoluteName());
+               box.get().updateAssembly(cassembly.getAbsoluteName());
                CrosstabVSAssembly cross = (CrosstabVSAssembly) cassembly;
                CrosstabVSAssemblyInfo ocinfo = (CrosstabVSAssemblyInfo) oldCrosstabInfo.get(
                   cassembly.getName());
@@ -2888,14 +2912,14 @@ public class VSInputService {
          // also execute, or some dependency assembly will not refresh.
          if(info.isSubmitOnChange()) {
             if(Arrays.asList(assemblyNames).contains(info.getAbsoluteName())) {
-               box.processChange(assembly.getAbsoluteName(), VSAssembly.INPUT_DATA_CHANGED, clist);
+               box.get().processChange(assembly.getAbsoluteName(), VSAssembly.INPUT_DATA_CHANGED, clist);
             }
 
             for(Assembly a : vs.getAssemblies()) {
                if(isAssemblyReferenced(assembly, a)) {
                   // Bug #71186, execute dynamic values
                   if(a instanceof OutputVSAssembly) {
-                     box.updateAssembly(a.getAbsoluteName());
+                     box.get().updateAssembly(a.getAbsoluteName());
                   }
 
                   clist.getDataList().add(a.getAssemblyEntry());
@@ -2926,7 +2950,7 @@ public class VSInputService {
       if(refreshInput) {
          for(Assembly assembly : vs.getAssemblies()) {
             if(assembly instanceof InputVSAssembly) {
-               box.executeView(assembly.getAbsoluteName(), true);
+               box.get().executeView(assembly.getAbsoluteName(), true);
                coreLifecycleService.refreshVSAssembly(rvs, (VSAssembly) assembly, dispatcher);
             }
          }

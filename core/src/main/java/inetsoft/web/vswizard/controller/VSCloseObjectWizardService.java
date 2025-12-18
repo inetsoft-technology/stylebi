@@ -26,7 +26,6 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AggregateRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.model.VSObjectModel;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
@@ -47,6 +46,7 @@ import org.springframework.util.StringUtils;
 import java.awt.*;
 import java.security.Principal;
 import java.util.Arrays;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -86,11 +86,16 @@ public class VSCloseObjectWizardService {
          return null;
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
       // shouldn't hold up save/close a vs by a long running query/filter since the
       // saved info doesn't need the runtime data.
-      box.cancel();
-      box.lockWrite();
+      box.get().cancel();
+      box.get().lockWrite();
 
       try {
          VSTemporaryInfo tempInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -212,7 +217,7 @@ public class VSCloseObjectWizardService {
          dispatcher.sendCommand(command);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
          // In any case, the user should be able to close the dialog.
          CloseObjectWizardCommand command = new CloseObjectWizardCommand(model, save);
          dispatcher.sendCommand(command);

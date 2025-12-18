@@ -49,18 +49,13 @@ import inetsoft.web.composer.vs.objects.event.ResizeCalcTableCellEvent;
 import inetsoft.web.viewsheet.command.AssemblyLoadingCommand;
 import inetsoft.web.viewsheet.command.ClearAssemblyLoadingCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.LinkUri;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.*;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.*;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
 
 @Service
@@ -414,8 +409,11 @@ public class VSTableLayoutService {
       TableLens lens = assembly.getBaseTable();
 
       if(lens == null) {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         lens = box.getVSTableLens(assembly.getAbsoluteName(), false);
+         Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+         if(box.isPresent()) {
+            lens = box.get().getVSTableLens(assembly.getAbsoluteName(), false);
+         }
       }
 
       if(lens == null) {

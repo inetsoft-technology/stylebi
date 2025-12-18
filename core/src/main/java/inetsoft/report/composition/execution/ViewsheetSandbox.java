@@ -4774,8 +4774,11 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                continue;
             }
 
-            rvs.getViewsheetSandbox().processSharedFilters(
-               assembly, null, true);
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+            if(box.isPresent()) {
+               box.get().processSharedFilters(assembly, null, true);
+            }
          }
 
          return null;

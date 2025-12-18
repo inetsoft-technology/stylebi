@@ -74,8 +74,13 @@ public class ComposerGroupService {
       final List<VSAssembly> oldGroups = new ArrayList<>();
       Set<String> tabChildren = new HashSet<>();
       final List<TabVSAssembly> tabParents = new ArrayList<>();
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockWrite();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          for(String name : event.objects()) {
@@ -219,7 +224,7 @@ public class ComposerGroupService {
          }
 
          ChangedAssemblyList clist = coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
-         box.reset(null, arr, clist, false, false, null);
+         box.get().reset(null, arr, clist, false, false, null);
          coreLifecycleService.execute(rvs, group.getName(), linkUri, clist, dispatcher, true);
          //VSEventUtil.fixTipOrPopAssemblies(rvs, command);
          coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
@@ -229,7 +234,7 @@ public class ComposerGroupService {
          dispatcher.sendCommand(treeCommand);
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       return null;

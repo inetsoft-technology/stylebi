@@ -203,7 +203,7 @@ public class SelectionTreeVSAScriptableTest {
     */
    private void processAssembly(String assemblyName) throws Exception {
       RuntimeViewsheet rvs = viewsheetResource.getRuntimeViewsheet();
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
+      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox().orElseThrow();
 
       selectionTreeVSAssembly1 = (SelectionTreeVSAssembly) viewsheetResource
          .getRuntimeViewsheet().getViewsheet().getAssembly(assemblyName);

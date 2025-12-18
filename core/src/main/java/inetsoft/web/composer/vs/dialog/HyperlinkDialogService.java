@@ -81,16 +81,16 @@ public class HyperlinkDialogService {
                                                        boolean isText, Principal principal)throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet viewsheet = rvs.getViewsheet();
       VSAssembly assembly = viewsheet.getAssembly(objectId);
       HyperlinkDialogModel model = new HyperlinkDialogModel();
       Hyperlink hyperlink = null;
 
-      if(assembly instanceof TableDataVSAssembly) {
+      if(box.isPresent() && assembly instanceof TableDataVSAssembly) {
          TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
 
-         VSTableLens lens = box.getVSTableLens(objectId, false);
+         VSTableLens lens = box.get().getVSTableLens(objectId, false);
          boolean isRowHeader = row < lens.getHeaderRowCount();
          TableDataPath dataPath = lens.getTableDataPath(row, col);
 
@@ -222,7 +222,7 @@ public class HyperlinkDialogService {
                                        @LinkUri String linkUri, Principal principal, CommandDispatcher dispatcher) throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
       Viewsheet viewsheet = rvs.getViewsheet();
       VSAssembly assembly = viewsheet.getAssembly(objectId);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
@@ -231,8 +231,8 @@ public class HyperlinkDialogService {
       if(assembly instanceof TableDataVSAssembly) {
          TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) assembly.getInfo();
 
-         if(!model.isApplyToRow()) {
-            VSTableLens lens = box.getVSTableLens(objectId, false);
+         if(box.isPresent() && !model.isApplyToRow()) {
+            VSTableLens lens = box.get().getVSTableLens(objectId, false);
             TableDataPath dataPath = lens.getTableDataPath(model.getRow(), model.getCol());
 
             if(info.getHyperlinkAttr() == null) {
@@ -317,9 +317,9 @@ public class HyperlinkDialogService {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
       VSAssembly assembly = (VSAssembly) vs.getAssembly(objectId);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(!(assembly instanceof TableVSAssembly)) {
+      if(box.isEmpty() || !(assembly instanceof TableVSAssembly)) {
          return VSTableTrapModel.builder()
             .showTrap(false)
             .build();
@@ -330,7 +330,7 @@ public class HyperlinkDialogService {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
 
       Hyperlink hyperlink = getHyperlink(model, pId);
-      VSTableLens lens = box.getVSTableLens(objectId, false);
+      VSTableLens lens = box.get().getVSTableLens(objectId, false);
       TableDataPath dataPath = lens.getTableDataPath(model.getRow(), model.getCol());
 
       if(ninfo.getHyperlinkAttr() == null) {

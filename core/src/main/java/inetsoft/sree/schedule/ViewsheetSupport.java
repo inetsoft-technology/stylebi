@@ -33,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
+import java.util.Optional;
 
 /**
  * Defines the common API for actions that support executing viewsheet.
@@ -77,15 +78,15 @@ public interface ViewsheetSupport extends ScheduleAction {
       getViewsheetEntry();
       ViewsheetService engine = ViewsheetEngine.getViewsheetEngine();
       RuntimeViewsheet rvs = engine.getViewsheet(id, principal);
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box == null || !box.isScheduleAction()) {
+      if(!box.map(ViewsheetSandbox::isScheduleAction).orElse(false)) {
          closeViewsheet(id, principal);
          return null;
       }
 
       ViewsheetVSAScriptable vscriptable = (ViewsheetVSAScriptable)
-         box.getScope().getVSAScriptable(ViewsheetScope.VIEWSHEET_SCRIPTABLE);
+         box.get().getScope().getVSAScriptable(ViewsheetScope.VIEWSHEET_SCRIPTABLE);
 
       if(vscriptable != null) {
          vscriptable.addProperty("taskName", getViewsheetTaskName(principal));

@@ -36,16 +36,13 @@ import inetsoft.web.composer.vs.event.CopyVSObjectsEvent;
 import inetsoft.web.composer.vs.objects.command.ChangeVSSelectionTitleCommand;
 import inetsoft.web.composer.vs.objects.command.ForceEditModeCommand;
 import inetsoft.web.composer.vs.objects.event.*;
-import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.RequestBody;
 
 import java.awt.*;
 import java.security.Principal;
@@ -367,9 +364,9 @@ public class ComposerObjectService {
       final RuntimeViewsheet rvs =
          this.engine.getViewsheet(vsId, principal);
       final Viewsheet vs = rvs.getViewsheet();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(vs == null) {
+      if(vs == null || box.isEmpty()) {
          return null;
       }
 
@@ -379,7 +376,7 @@ public class ComposerObjectService {
       }
 
       try {
-         box.lockWrite();
+         box.get().lockWrite();
          boolean getGrayedOutFields = false;
          List<VSAssembly> assemblies = new ArrayList<>();
 
@@ -420,7 +417,7 @@ public class ComposerObjectService {
          }
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       final VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
@@ -623,9 +620,13 @@ public class ComposerObjectService {
       final RuntimeViewsheet rvs = engine.getViewsheet(runtimeId, principal);
       final Viewsheet viewsheet = rvs.getViewsheet();
       final String name = event.getName();
-      final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      box.lockWrite();
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockWrite();
 
       try {
          final VSAssembly assembly = viewsheet.getAssembly(name);
@@ -721,7 +722,7 @@ public class ComposerObjectService {
          dispatcher.flush();
       }
       finally {
-         box.unlockWrite();
+         box.get().unlockWrite();
       }
 
       return null;

@@ -24,8 +24,7 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.cluster.*;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.*;
-import inetsoft.report.composition.execution.DataMap;
-import inetsoft.report.composition.execution.VSAQuery;
+import inetsoft.report.composition.execution.*;
 import inetsoft.report.composition.graph.calc.*;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.XConstants;
@@ -43,15 +42,16 @@ import inetsoft.web.binding.dnd.TableTransfer;
 import inetsoft.web.binding.event.VSDndEvent;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.binding.service.*;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import inetsoft.web.binding.model.SourceInfo;
 
 import java.security.Principal;
 import java.util.*;
@@ -172,7 +172,11 @@ public class VSCrosstabDndService {
       clearRuntimeInfo(clone);
 
       rvs.getViewsheet().getAssembly(event.name()).setVSAssemblyInfo(clone.getVSAssemblyInfo());
-      rvs.getViewsheetSandbox().updateAssembly(event.name());
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent()) {
+         box.get().updateAssembly(event.name());
+      }
 
       if(("rows".equals(dragType) || "cols".equals(dragType)) &&
          "aggregates".equals(dropType) ||
@@ -186,8 +190,7 @@ public class VSCrosstabDndService {
                                                     null, false);
          }
          else {
-            LOG.error("Crosstab dnd failed: " + transfer.getDragIndex() + " of " + dragType +
-                         ": " + assembly.getVSCrosstabInfo());
+            LOG.error("Crosstab dnd failed: {} of {}: {}", transfer.getDragIndex(), dragType, assembly.getVSCrosstabInfo());
          }
       }
 
@@ -413,9 +416,12 @@ public class VSCrosstabDndService {
             if(!osource.getSource().equals(nsource.getSource()) &&
                nsource.getType() == inetsoft.uql.asset.SourceInfo.VS_ASSEMBLY)
             {
-               VSAQuery query = VSAQuery.createVSAQuery(rvs.getViewsheetSandbox(),
-                                                        nassembly, DataMap.DETAIL);
-               query.createAssemblyTable(nassembly.getTableName());
+               Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+               if(box.isPresent()) {
+                  VSAQuery query = VSAQuery.createVSAQuery(box.get(), nassembly, DataMap.DETAIL);
+                  query.createAssemblyTable(nassembly.getTableName());
+               }
             }
 
             if(!osource.getSource().equals(nsource.getSource()) ||

@@ -29,24 +29,25 @@ import inetsoft.report.filter.Highlight;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.io.viewsheet.excel.CSVUtil;
-import inetsoft.sree.*;
+import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
-import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.graph.HighlightRef;
+import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.RecycleUtils;
 import inetsoft.web.admin.content.repository.RepletRegistryManager;
 import inetsoft.web.admin.schedule.model.*;
-import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.viewsheet.model.VSBookmarkInfoModel;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -352,8 +353,13 @@ public class ScheduleTaskActionService {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       List<UserVariable> vars = new ArrayList<>();
       addSchedulerOnlyParameters(vars, rvs);
-      VSEventUtil.refreshParameters(viewsheetService, rvs.getViewsheetSandbox(),
-                                    rvs.getViewsheet(), false, null, vars);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isPresent()) {
+         VSEventUtil.refreshParameters(viewsheetService, box.get(),
+                                       rvs.getViewsheet(), false, null, vars);
+      }
+
       addSchedulerOnlyParameters(vars, rvs);
       List<String> parameters = new ArrayList<>();
 
@@ -365,9 +371,14 @@ public class ScheduleTaskActionService {
    }
 
    private void addSchedulerOnlyParameters(List list, RuntimeViewsheet rvs) throws Exception {
-      ViewsheetSandbox vbox = rvs.getViewsheetSandbox();
-      String vsName = vbox.getSheetName();
-      AssetQuerySandbox box = vbox.getAssetQuerySandbox();
+      Optional<ViewsheetSandbox> vbox = rvs.getViewsheetSandbox();
+
+      if(vbox.isEmpty()) {
+         return;
+      }
+
+      String vsName = vbox.get().getSheetName();
+      AssetQuerySandbox box = vbox.get().getAssetQuerySandbox();
       VariableTable vart = box.getVariableTable();
 
       UserVariable[] vars = AssetEventUtil.executeVariables(

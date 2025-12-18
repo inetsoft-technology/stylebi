@@ -30,6 +30,7 @@ import inetsoft.web.vswizard.service.WizardVSObjectService;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Optional;
 
 @Service
 @ClusterProxy
@@ -51,14 +52,19 @@ public class WizardObjectResizeService {
          return null;
       }
 
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.lockRead();
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return null;
+      }
+
+      box.get().lockRead();
 
       try {
          this.wizardVSObjectService.resizeVSObject(rvs, event, linkUri, principal, commandDispatcher);
       }
       finally {
-         box.unlockRead();
+         box.get().unlockRead();
          engine.flushRuntimeSheet(vID);
       }
 

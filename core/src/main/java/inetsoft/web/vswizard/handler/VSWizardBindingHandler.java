@@ -19,7 +19,6 @@ package inetsoft.web.vswizard.handler;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.util.data.CommonKVModel;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
@@ -38,8 +37,9 @@ import inetsoft.uql.util.XNamedGroupInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.MessageFormat;
 import inetsoft.util.*;
+import inetsoft.util.MessageFormat;
+import inetsoft.util.data.CommonKVModel;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
 import inetsoft.web.binding.event.VSDndEvent;
 import inetsoft.web.binding.handler.VSChartDataHandler;
@@ -56,7 +56,6 @@ import inetsoft.web.graph.GraphBuilder;
 import inetsoft.web.graph.handler.ChartRegionHandler;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
-import inetsoft.web.viewsheet.controller.chart.VSChartLegendsVisibilityController;
 import inetsoft.web.viewsheet.controller.chart.VSChartLegendsVisibilityService;
 import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
@@ -79,8 +78,8 @@ import org.springframework.util.StringUtils;
 import java.awt.*;
 import java.security.Principal;
 import java.text.*;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -341,8 +340,8 @@ public class VSWizardBindingHandler {
       }
 
       // cancel the old queries and vgraphs to improve performance.
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      box.cancel(true);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+      box.ifPresent(b -> b.cancel(true));
       assembly.getVSAssemblyInfo().setWizardTemporary(true);
       Viewsheet vs = rvs.getViewsheet();
       VSTemporaryInfo tempInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
@@ -1314,8 +1313,13 @@ public class VSWizardBindingHandler {
                                      VSTemporaryInfo vsTemporaryInfo)
       throws Exception
    {
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      WizardRecommenderUtil.refreshDateInterval(box, entries, vsTemporaryInfo);
+      Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+
+      if(box.isEmpty()) {
+         return;
+      }
+
+      WizardRecommenderUtil.refreshDateInterval(box.get(), entries, vsTemporaryInfo);
       ChartVSAssembly tempChart = vsTemporaryInfo.getTempChart();
       ChartVSAssemblyInfo oldVsAssemblyInfo = tempChart.getChartInfo();
       ChartVSAssemblyInfo newVsAssemblyInfo = (ChartVSAssemblyInfo) oldVsAssemblyInfo.clone();
@@ -2154,8 +2158,12 @@ public class VSWizardBindingHandler {
          String numberFormatSpec = ExtendedDecimalFormat.AUTO_FORMAT;
 
          try {
-            final VSDataSet data = (VSDataSet) rvs.getViewsheetSandbox()
-               .getData(assembly.getAbsoluteName());
+            Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
+            VSDataSet data = null;
+
+            if(box.isPresent()) {
+               data = (VSDataSet) box.get().getData(assembly.getAbsoluteName());
+            }
 
             if(data != null) {
                final Format dataFormat = data.getFormat(ref.getFullName(), 0);
@@ -2265,8 +2273,13 @@ public class VSWizardBindingHandler {
                                       TableDataVSAssembly assembly, boolean update)
       throws Exception
    {
-      ViewsheetSandbox sandbox = rvs.getViewsheetSandbox();
-      VSTableLens lens = sandbox.getVSTableLens(assembly.getName(), false);
+      Optional<ViewsheetSandbox> sandbox = rvs.getViewsheetSandbox();
+
+      if(sandbox.isEmpty()) {
+         return;
+      }
+
+      VSTableLens lens = sandbox.get().getVSTableLens(assembly.getName(), false);
 
       if(assembly instanceof CrosstabVSAssembly) {
          VSCrosstabInfo crosstabInfo = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
