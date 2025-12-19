@@ -78,7 +78,7 @@ public class DistributedTableCacheStore {
 
       try(InputStream storageInputStream = storage.getInputStream(key)) {
          lens = (TableLens) new ObjectInputStream(storageInputStream).readObject();
-         LOG.debug("Loaded lens " + key + " from distributed table cache store");
+         LOG.debug("Loaded lens {} from distributed table cache store", key);
       }
 
       return lens;
