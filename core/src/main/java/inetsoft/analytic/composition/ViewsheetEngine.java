@@ -888,8 +888,8 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
       private static String doOpenViewsheet(ViewsheetEngine engine, AssetEntry entry, Principal user, String id) throws Exception {
 
-         //if thread has no context principal, set as user to prevent orgid issues
-         if(ThreadContext.getContextPrincipal() == null) {
+         //if thread has the wrong principal, set as user to prevent orgid issues
+         if(ThreadContext.getContextPrincipal() != user) {
             ThreadContext.setContextPrincipal(user);
          }
 
