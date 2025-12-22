@@ -19,6 +19,7 @@ package inetsoft.web.vswizard.handler;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.report.StyleConstants;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.VSTableLens;
@@ -2411,6 +2412,14 @@ public class VSWizardBindingHandler {
                   formatObj.setFormatExtent(format.getFormatExtent());
                }
             }
+         }
+
+         if(assembly instanceof GaugeVSAssembly && formatObj != null) {
+            formatObj.setAlignmentValue(StyleConstants.CENTER);
+         }
+
+         if(assembly instanceof TextVSAssembly && formatObj != null) {
+            formatObj.setAlignmentValue(StyleConstants.LEFT);
          }
 
          if((assembly instanceof SelectionListVSAssembly ||
