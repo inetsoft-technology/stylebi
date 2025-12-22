@@ -143,6 +143,23 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
                this.isActionVisible("Resize Plot")
          },
          {
+            id: () => "chart show-titleHyperlink",
+            label: () => "_#(js:Show Hyperlinks)",
+            icon: () => "fa fa-link",
+            enabled: () => true,
+            visible: () => this.model.titleSelected && this.model.titleLinkModel &&
+                              this.isActionVisibleInViewer("Show Hyperlinks") && this.mobileDevice
+         },
+         {
+            id: () => "chart show-emptyPlotHyperlink",
+            label: () => "_#(js:Show Hyperlinks)",
+            icon: () => "fa fa-link",
+            enabled: () => true,
+            visible: () => this.model.emptyPlotLinkModel &&
+               this.model.chartSelection?.regions.length == 0 &&
+               this.isActionVisibleInViewer("Show Hyperlinks") && this.mobileDevice
+         },
+         {
             id: () => "chart reset-size",
             label: () => "_#(js:Reset Size)",
             icon: () => "reset-icon",
@@ -153,6 +170,13 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
                 this.model.facets && this.model.facets.length > 0) &&
                this.isActionVisible("Reset Size") && !this.annotationsSelected
          },
+         {
+            id: () => "chart plot-hyperlink",
+            label: () => "_#(js:Hyperlink Title)",
+            icon: () => "fa fa-link",
+            enabled: () => true,
+            visible: () => this.chartTitleHyperlinkVisible()
+         }
       ]));
       groups.push(new AssemblyActionGroup([
          {
@@ -169,6 +193,13 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
             icon: () => "fa fa-link",
             enabled: () => true,
             visible: () => this.chartHyperlinkVisible()
+         },
+         {
+            id: () => "chart emptyPlot-hyperlink",
+            label: () => "_#(js:Hyperlink Empty Plot Area)",
+            icon: () => "fa fa-link",
+            enabled: () => true,
+            visible: () => this.chartEmptyPlotHyperlinkVisible()
          },
          {
             id: () => "chart highlight",
@@ -319,6 +350,15 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
          this.model.plotHighlightEnabled &&
          (this.model.mapInfo && ChartTool.isPlotSelected(this.model) ||
             ChartTool.isPlotMeasureSelected(this.model, true));
+   }
+
+   private chartTitleHyperlinkVisible(): boolean {
+      return this.composer && this.model?.titleSelected;
+   }
+
+   private chartEmptyPlotHyperlinkVisible(): boolean {
+      return this.composer && this.model?.chartSelection?.regions?.length == 0
+         && !this.model?.titleSelected;
    }
 
    private chartHighlightVisible(): boolean {
