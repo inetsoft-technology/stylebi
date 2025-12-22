@@ -1590,6 +1590,7 @@ public class IdentityService {
                                             "Rename " + oldID.name + " to " + name, state);
       }
       else {
+         actionRecord.setObjectName(model.name());
          return SUtil.getIdentityInfoRecord(oldID, type, IdentityInfoRecord.ACTION_TYPE_MODIFY,
                                             null, state);
       }
