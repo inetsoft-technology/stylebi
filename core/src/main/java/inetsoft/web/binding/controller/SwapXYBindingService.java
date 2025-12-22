@@ -20,6 +20,7 @@ package inetsoft.web.binding.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
+import inetsoft.graph.aesthetic.SizeFrame;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.graph.SwapXYBindingProcessor;
@@ -39,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.util.Arrays;
 import java.util.Optional;
 
 @Service
@@ -184,6 +186,23 @@ public class SwapXYBindingService {
          }
 
          cinfo.addYField(i, yref);
+      }
+
+      // Copy size frames from the first y field to the x fields, if available
+      VSChartAggregateRef yfield =
+         (VSChartAggregateRef) Arrays.stream(yfields)
+            .filter(VSChartAggregateRef.class::isInstance)
+            .findFirst()
+            .orElse(null);
+
+      if(yfield != null) {
+         SizeFrame oldSizeFrame =  yfield.getSizeFrame();
+
+         for(ChartRef xfield : xfields) {
+            if(xfield instanceof VSChartAggregateRef) {
+               ((VSChartAggregateRef) xfield).setSizeFrame((SizeFrame) oldSizeFrame.clone());
+            }
+         }
       }
    }
 

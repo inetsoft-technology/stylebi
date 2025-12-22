@@ -34,6 +34,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.QueryManager;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import inetsoft.util.script.ScriptEnv;
 import inetsoft.web.admin.monitoring.MonitorLevelService;
 import inetsoft.web.messaging.MessageAttributes;
 import inetsoft.web.messaging.MessageContextHolder;
@@ -409,6 +410,28 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       }
       catch(Exception ex) {
          LOG.warn("failed to merge variable", ex);
+      }
+
+      // execute expression values
+      try {
+         Enumeration<String> keys = vtable.keys();
+
+         while(keys.hasMoreElements()) {
+            String key = keys.nextElement();
+            Object val = vtable.get(key);
+
+            if(val instanceof ExpressionValue expressionValue) {
+               if(expressionValue.getType().equals(ExpressionValue.JAVASCRIPT)) {
+                  ScriptEnv senv = box.getScriptEnv();
+                  Object result = senv.exec(senv.compile(expressionValue.getExpression()),
+                                            box.getScope(), null, null);
+                  vtable.put(key, result);
+               }
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.debug("Failed execute expression values", ex);
       }
 
       return vtable;

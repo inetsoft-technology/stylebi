@@ -2137,8 +2137,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       IdentityID user = getUser();
 
       if(user != null) {
-         user.setOrgID(org.getId());
-         newEntry.user = user;
+         newEntry.user = new IdentityID(user.name, org.getId());
       }
 
       if(newEntry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
