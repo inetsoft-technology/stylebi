@@ -69,14 +69,18 @@ public class DistributedTableCacheStore {
    public TableLens get(DataKey dataKey, long touchTime) throws Exception {
       String key = getKey(dataKey);
       BlobStorage<Metadata> storage = getStorage();
+      TableLens lens = null;
 
       // don't return stale data from the store
       if(touchTime > 0 && storage.getLastModified(key).toEpochMilli() < touchTime) {
          return null;
       }
 
-      TableLens lens = (TableLens) new ObjectInputStream(storage.getInputStream(key)).readObject();
-      LOG.debug("Loaded lens " + key + " from distributed table cache store");
+      try(InputStream storageInputStream = storage.getInputStream(key)) {
+         lens = (TableLens) new ObjectInputStream(storageInputStream).readObject();
+         LOG.debug("Loaded lens {} from distributed table cache store", key);
+      }
+
       return lens;
    }
 
