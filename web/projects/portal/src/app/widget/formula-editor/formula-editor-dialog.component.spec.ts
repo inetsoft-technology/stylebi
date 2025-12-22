@@ -45,6 +45,7 @@ describe("Formula Editor Test", () => {
    let modalService: any;
    let renderer: any;
    let element: any;
+   let dropdownService: any;
 
    beforeEach(() => {
       const editorService: any = {
@@ -57,8 +58,9 @@ describe("Formula Editor Test", () => {
       modalService = { open: jest.fn() };
       renderer = { };
       element = { };
+      dropdownService = { open: jest.fn() };
 
-      formulaEditor = new FormulaEditorDialog(editorService, modalService, renderer, element);
+      formulaEditor = new FormulaEditorDialog(editorService, modalService, renderer, element, dropdownService);
       formulaEditor.formulaName = "formula name";
       formulaEditor.dataType = "string";
    });
