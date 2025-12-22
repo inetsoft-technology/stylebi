@@ -71,6 +71,7 @@ export enum ContextType {
 export class AiAssistantService {
    assistantBaseUrl: string = "";
    userId: string = "";
+   email: string = "";
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
    calcTableAggregates: string[] = [];
    private contextMap: Record<string, string> = {};
@@ -91,6 +92,7 @@ export class AiAssistantService {
       const uri = em ? EM_CURRENT_USER_URI : PORTAL_CURRENT_USER_URI;
       this.http.get(uri).subscribe((model: CurrentUser) => {
          this.userId = convertToKey(model.name);
+         this.email = model.email;
       });
    }
 
