@@ -163,6 +163,14 @@ public class VSOptionsPaneModel {
       this.maxRowsWarning = maxRowsWarning;
    }
 
+   public boolean isHideNotifications() {
+      return hideNotifications;
+   }
+
+   public void setHideNotifications(boolean hideNotifications) {
+      this.hideNotifications = hideNotifications;
+   }
+
    private ViewsheetParametersDialogModel viewsheetParametersDialogModel;
    private SelectDataSourceDialogModel selectDataSourceDialogModel;
    private String alias;
@@ -180,4 +188,5 @@ public class VSOptionsPaneModel {
    private int snapGrid = 20;
    private boolean autoRefreshEnabled;
    private boolean maxRowsWarning;
+   private boolean hideNotifications;
 }
