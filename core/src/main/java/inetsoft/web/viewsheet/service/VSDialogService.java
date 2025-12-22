@@ -74,7 +74,9 @@ public class VSDialogService {
          if(containerInfo instanceof TabVSAssemblyInfo) {
             Dimension originalSize = containerInfo.getLayoutSize() != null ?
                containerInfo.getLayoutSize() : vs.getPixelSize(containerInfo);
-            ychange += height - originalSize.height;
+            if (!((TabVSAssemblyInfo) containerInfo).isBottomTabs()) {
+               ychange += height - originalSize.height;
+            }
          }
 
          setAssemblyPosition(containerInfo, model);
