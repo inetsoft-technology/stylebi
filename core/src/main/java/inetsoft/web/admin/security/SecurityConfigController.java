@@ -186,7 +186,8 @@ public class SecurityConfigController {
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
       objectName = "Enable-Self-Signup",
-      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY,
+      defaultOrg = true
    )
    @PostMapping("/api/em/security/set-enable-self-signup")
    public SecurityEnabledEvent setEnableSelfSignup(@RequestBody SecurityEnabledEvent event)
