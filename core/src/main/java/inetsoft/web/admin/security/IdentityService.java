@@ -943,12 +943,14 @@ public class IdentityService {
       DependencyStorageService.getInstance().removeDependencyStorage(orgID);
       RecycleBin.getRecycleBin().removeStorage(orgID);
       IndexedStorage.getIndexedStorage().removeStorage(orgID);
+      LibManager.getManager(orgID).close();
 
       removeBlobStorage("__mv", orgID, MVStorage.Metadata.class);
       removeBlobStorage("__mvws", orgID, MVWorksheetStorage.Metadata.class);
       removeBlobStorage("__mvBlock", orgID, BlockFileStorage.Metadata.class);
       removeBlobStorage("__pdata", orgID, EmbeddedTableStorage.Metadata.class);
       removeBlobStorage("__library", orgID, LibManager.Metadata.class);
+      removeBlobStorage("__tableCacheStore", orgID, LibManager.Metadata.class);
       removeBlobStorage("__autoSave", orgID, AutoSaveUtils.Metadata.class);
       EmbeddedDataCacheHandler.clearOrgCache(orgID);
    }
