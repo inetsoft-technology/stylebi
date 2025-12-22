@@ -22,6 +22,7 @@ import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dro
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { DataInputPaneModel } from "../../data/vs/data-input-pane-model";
+import { DatePipe } from '@angular/common';
 
 const ROW_URI: string = "../vs/dataInput/rows/";
 const COLUMN_URI: string = "../vs/dataInput/columns/";
@@ -30,13 +31,15 @@ const POPUP_TABLE_URI: string = "../vs/dataInput/popupTable/";
 @Component({
    selector: "data-input-pane",
    templateUrl: "data-input-pane.component.html",
-   styleUrls: ["data-input-pane.component.scss"]
+   styleUrls: ["data-input-pane.component.scss"],
+   providers: [DatePipe]
 })
 export class DataInputPane implements OnInit {
    @Input() model: DataInputPaneModel;
    @Input() variableValues: string[] = [];
    @Input() runtimeId: string = "";
    @Input() checkBox: boolean = false;
+   @Input() comboBox: boolean = false;
    headers: HttpHeaders;
    columns: any[] = [];
    rows: string[] = [];
@@ -45,7 +48,8 @@ export class DataInputPane implements OnInit {
    popupTable: PopupEmbeddedTable;
    @ViewChild(FixedDropdownDirective) dropdown: FixedDropdownDirective;
 
-   constructor(private http: HttpClient) {
+   constructor(private http: HttpClient,
+               private datePipe: DatePipe) {
       this.headers = new HttpHeaders({
          "Content-Type": "application/json"
       });
@@ -335,6 +339,36 @@ export class DataInputPane implements OnInit {
 
    getPageLabel(): string {
       return Tool.formatCatalogString("_#(js:nOfTotal)", ["", this.popupTable.numPages]);
+   }
+
+   validateDateFormat(format: string) {
+      try {
+         // Allow only known date tokens and separators
+         const allowed = /^[yMd:\-/. ]+$/;
+
+         // Must include y, M, and d
+         const required = /(?=.*y{2,4})(?=.*M{1,2})(?=.*d{1,2})/;
+
+         if (!allowed.test(format) || !required.test(format)) {
+            this.model.dateFormatInvalid = true;
+            return;
+         }
+
+         const d1 = new Date();
+         const d2 = new Date(d1.getDate() + 1);
+
+         const r1 = this.datePipe.transform(d1, format);
+         const r2 = this.datePipe.transform(d2, format);
+
+         if (!r1 || !r2 || r1 === r2) {
+            this.model.dateFormatInvalid = true;
+            return;
+         }
+
+         this.model.dateFormatInvalid = false;
+      } catch {
+         this.model.dateFormatInvalid = true;
+      }
    }
 }
 

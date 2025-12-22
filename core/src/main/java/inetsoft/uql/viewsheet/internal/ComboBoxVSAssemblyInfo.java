@@ -32,6 +32,7 @@ import java.awt.*;
 import java.io.PrintWriter;
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * ComboBoxVSAssemblyInfo stores basic combobox assembly information.
@@ -200,6 +201,8 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       writer.print(" serverTZ=\"" + serverTZ + "\"");
       writer.print(" rowCount=\"" + getRowCount() + "\"");
       writer.print(" rowCountValue=\"" + getRowCountValue() + "\"");
+      writer.print(" queryDateFormat=\"" + queryDateFormat + "\"");
+      writer.print(" dateFormatPattern=\"" + dateFormatPattern + "\"");
 
       if(getDefaultValue() == null) {
          writer.print(" defaultValue=\"" + Tool.NULL_PARAMETER_VALUE + "\"");
@@ -224,6 +227,8 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       String text = getAttributeStr(elem, "rowCount", "5");
       setRowCountValue(Integer.parseInt(text));
       defaultValue = getAttributeStr(elem, "defaultValue", "");
+      queryDateFormat = "true".equals(Tool.getAttribute(elem, "queryDateFormat"));
+      dateFormatPattern = getAttributeStr(elem, "dateFormatPattern", "yyyy-MM-dd");
 
       if(defaultValue.equals(Tool.NULL_PARAMETER_VALUE)) {
          defaultValue = null;
@@ -343,6 +348,16 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
          !Tool.equals(getRowCount(), cinfo.getRowCount()))
       {
          rowCountValue = cinfo.rowCountValue;
+         result = true;
+      }
+
+      if(queryDateFormat != cinfo.queryDateFormat) {
+         this.queryDateFormat = cinfo.queryDateFormat;
+         result = true;
+      }
+
+      if(!Objects.equals(dateFormatPattern, cinfo.dateFormatPattern)) {
+         this.dateFormatPattern = cinfo.dateFormatPattern;
          result = true;
       }
 
@@ -564,6 +579,22 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
       return super.getListData();
    }
 
+   public boolean isQueryDateFormat() {
+      return queryDateFormat;
+   }
+
+   public void setQueryDateFormat(boolean queryDateFormat) {
+      this.queryDateFormat = queryDateFormat;
+   }
+
+   public String getDateFormatPattern() {
+      return dateFormatPattern;
+   }
+
+   public void setDateFormatPattern(String dateFormatPattern) {
+      this.dateFormatPattern = dateFormatPattern;
+   }
+
    private DynamicValue2 rowCountValue; //the number of rows to show
    // output data
    private Object selectedObject;
@@ -574,6 +605,8 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
    private Object autoSelectValue;
    private DynamicValue maxDate = new DynamicValue(null, XSchema.TIME_INSTANT);
    private DynamicValue minDate = new DynamicValue(null, XSchema.TIME_INSTANT);
+   private boolean queryDateFormat;
+   private String dateFormatPattern = "yyyy-MM-dd";
    public static final int TIME_INSTANT_DEFAULT_WIDTH = 180;
    public static final int TIME_DEFAULT_WIDTH = 125;
 
