@@ -52,6 +52,7 @@ import { ViewData } from "../view-data";
 import { Tool } from "../../../../../shared/util/tool";
 import { map, mergeMap } from "rxjs/operators";
 import { ModelService } from "../../widget/services/model.service";
+import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model"
 
 @Component({
    selector: "v-viewer-view",
@@ -78,6 +79,8 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
    fullScreenId: string;
    tabBarHeight: number = 0;
    hasBaseEntry: boolean = false;
+   dashboardTabModel: DashboardTabModel = null;
+   toolbarVisible: boolean;
    public modified: boolean = false;
    private subscriptions: Subscription = new Subscription();
 
@@ -128,6 +131,9 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
       this.subscriptions.add(this.pageTabService.onRefreshPage.subscribe((tab: TabInfoModel) => {
          this.runtimeId = tab.runtimeId;
       }));
+
+      this.subscriptions.add(this.http.get<DashboardTabModel>("../api/portal/dashboard-tab-model")
+         .subscribe(data => this.dashboardTabModel = data));
    }
 
    /**
@@ -303,5 +309,24 @@ export class ViewerViewComponent implements OnInit, OnDestroy, CanComponentDeact
 
    isIframe(): boolean {
       return GuiTool.isIFrame();
+   }
+
+   getDrillTabsTopPx(): number {
+      const isMobile = GuiTool.isMobileDevice();
+      if(this.dashboardTabModel.drillTabsTop) {
+         if (this.toolbarVisible){
+            if(isMobile) {
+               return 66;
+            }
+            return 33;
+         }
+         return 0;
+      } else {
+         return null;
+      }
+   }
+
+   onToolbarVisibleChange(value: boolean) {
+      this.toolbarVisible = value;
    }
 }
