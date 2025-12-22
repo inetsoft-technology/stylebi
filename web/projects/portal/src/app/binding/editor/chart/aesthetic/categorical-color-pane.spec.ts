@@ -149,7 +149,9 @@ describe("Categorical Color Pane Unit Test", () => {
       let staticColor: StaticColorEditor = new StaticColorEditor();
       let fixedDropdownService: any = { open: jest.fn() };
       let elemRef = { nativeElement: {} };
-      let dropDownDirective = new FixedDropdownDirective(fixedDropdownService, elemRef);
+      const changeRef: any = { };
+      const zone: any = { };
+      let dropDownDirective = new FixedDropdownDirective(fixedDropdownService, elemRef, changeRef, zone);
       let close = jest.spyOn(dropDownDirective, "close");
 
       staticColor.dropdown = dropDownDirective;

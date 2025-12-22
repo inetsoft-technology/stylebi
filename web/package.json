@@ -10,6 +10,7 @@
     "build:font": "gulp fonts:generate",
     "test": "ng test",
     "test:em": "ng test em",
+    "test:watch": "ng test --watch",
     "lint": "ng lint",
     "lint:prod": "npm run-script --silent -- ng lint --project=portal --format=checkstyle >portal-lint-results.xml && npm run-script --silent -- ng lint --project=em --format=checkstyle >em-lint-results.xml",
     "verify": "ng lint && ng test",

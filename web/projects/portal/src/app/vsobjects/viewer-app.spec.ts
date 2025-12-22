@@ -40,6 +40,7 @@ import { of as observableOf } from "rxjs";
 import { DownloadService } from "../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { AssetLoadingService } from "../common/services/asset-loading.service";
+import { BaseHrefService } from "../common/services/base-href.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { FullScreenService } from "../common/services/full-screen.service";
 import { DropDownTestModule } from "../common/test/test-module";
@@ -145,6 +146,7 @@ describe("ViewerApp Unit Tests", () => {
    let miniToolbarService: any;
    let assetLoadingService: any;
    let viewContainerRef: any;
+   let baseHrefService: any;
 
    beforeEach(async(() => {
       formDataService = {
@@ -272,6 +274,9 @@ describe("ViewerApp Unit Tests", () => {
       viewContainerRef = {
          element: jest.fn(),
       };
+      baseHrefService = {
+         getBaseHref: jest.fn()
+      };
 
       window.IntersectionObserver = jest.fn().mockImplementation(() => ({
          observe: () => {},
@@ -317,6 +322,7 @@ describe("ViewerApp Unit Tests", () => {
             { provide: MiniToolbarService, useValue: miniToolbarService },
             { provide: AssetLoadingService, useValue: assetLoadingService },
             { provide: ViewContainerRef, useValue: viewContainerRef },
+            { provide: BaseHrefService, useValue: baseHrefService },
             AppInfoService
          ],
          declarations: [
@@ -372,7 +378,7 @@ describe("ViewerApp Unit Tests", () => {
          firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
-         assetLoadingService, viewContainerRef);
+         assetLoadingService, viewContainerRef, baseHrefService);
       const mockChart = TestUtils.createMockVSChartModel("Mock Chart");
       const mockTable = TestUtils.createMockVSTableModel("Mock Table");
       const mockCrosstab = TestUtils.createMockVSCrosstabModel("Mock Crosstab");
