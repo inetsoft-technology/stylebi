@@ -887,26 +887,28 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       }
 
       private static String doOpenViewsheet(ViewsheetEngine engine, AssetEntry entry, Principal user, String id) throws Exception {
+         Principal oldPrincipal = ThreadContext.getPrincipal();
+         ThreadContext.setContextPrincipal(user);
 
-         //if thread has the wrong principal, set as user to prevent orgid issues
-         if(ThreadContext.getContextPrincipal() != user) {
-            ThreadContext.setContextPrincipal(user);
-         }
+         try {
+            String rid = engine.openSheet(entry, user, id);
 
-         String rid = engine.openSheet(entry, user, id);
+            if(user != null) {
+               RuntimeViewsheet rvs = engine.getViewsheet(rid, user);
 
-         if(user != null) {
-            RuntimeViewsheet rvs = engine.getViewsheet(rid, user);
-
-            // add user to var table so the query key used for caching would match
-            // the subsequent queries where the user is in vars.
-            if(rvs != null) {
-               rvs.getViewsheetSandbox().ifPresent(
-                  box -> box.getVariableTable().put("__principal__", user));
+               // add user to var table so the query key used for caching would match
+               // the subsequent queries where the user is in vars.
+               if(rvs != null) {
+                  rvs.getViewsheetSandbox().ifPresent(
+                     box -> box.getVariableTable().put("__principal__", user));
+               }
             }
-         }
 
-         return rid;
+            return rid;
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldPrincipal);
+         }
       }
 
       private final AssetEntry entry;
