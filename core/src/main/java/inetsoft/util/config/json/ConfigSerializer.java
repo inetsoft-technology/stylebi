@@ -72,10 +72,6 @@ public class ConfigSerializer extends StdSerializer<InetsoftConfig> {
          gen.writeObjectField("secrets", value.getSecrets());
       }
 
-      if(value.getWiz() != null) {
-         gen.writeObjectField("wiz", value.getWiz());
-      }
-
       gen.writeObjectField("cloudRunner", value.getCloudRunner());
       gen.writeObjectField("audit", value.getAudit());
       gen.writeObjectField("additionalProperties", additional);
