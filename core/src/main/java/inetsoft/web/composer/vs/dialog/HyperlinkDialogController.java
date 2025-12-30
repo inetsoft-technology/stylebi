@@ -198,7 +198,11 @@ public class HyperlinkDialogController {
          }
 
          model.setColName(colName);
-         model.setFields(getFields(rvs, assembly, row, col, null, colName));
+
+         if (!titleLink && !emptyPlotLink) {
+            model.setFields(getFields(rvs, assembly, row, col, null, colName));
+         }
+
          model.setTable(false);
       }
       else {
