@@ -40,6 +40,7 @@ import { of as observableOf } from "rxjs";
 import { DownloadService } from "../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { AssetLoadingService } from "../common/services/asset-loading.service";
+import { BaseHrefService } from "../common/services/base-href.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { FullScreenService } from "../common/services/full-screen.service";
 import { DropDownTestModule } from "../common/test/test-module";
@@ -322,6 +323,7 @@ describe("ViewerApp Unit Tests", () => {
             { provide: MiniToolbarService, useValue: miniToolbarService },
             { provide: AssetLoadingService, useValue: assetLoadingService },
             { provide: ViewContainerRef, useValue: viewContainerRef },
+            { provide: BaseHrefService, useValue: baseHrefService },
             AppInfoService
          ],
          declarations: [

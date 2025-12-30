@@ -28,9 +28,17 @@ describe("Static Shape Pane Unit Test", () => {
    let fixture: ComponentFixture<StaticShapePane>;
    let shapePane: StaticShapePane;
    let httpService = { get: jest.fn(), post: jest.fn() };
-   let modelService = { getModel: jest.fn(() => observableOf({})) };
+   let modelService = { getModel: jest.fn() };
 
    beforeEach(async(() => {
+      modelService.getModel.mockImplementation((controller, params) => {
+         if(controller === "../api/composer/imageShapes") {
+            return observableOf([]);
+         }
+         else {
+            return observableOf({});
+         }
+      });
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule

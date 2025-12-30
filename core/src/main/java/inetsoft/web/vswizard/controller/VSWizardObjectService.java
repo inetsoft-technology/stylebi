@@ -20,6 +20,7 @@ package inetsoft.web.vswizard.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.cluster.*;
+import inetsoft.mv.MVManager;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -102,7 +103,11 @@ public class VSWizardObjectService {
       box.get().lockWrite();
 
       try {
-         if(rvs.getRuntimeWorksheet() != null) {
+         AssetEntry vsEntry = rvs.getEntry();
+         boolean materialized = vsEntry != null &&
+            MVManager.getManager().isMaterialized(vsEntry.toIdentifier(), false);
+
+         if(rvs.getRuntimeWorksheet() != null && !materialized) {
             rvs.getRuntimeWorksheet().getWorksheet().getWorksheetInfo().setTempMaxRow(100);
          }
 

@@ -64,6 +64,10 @@ describe("Schedule Task Dialog Unit Test", () => {
    httpService.get.mockImplementation(() => responseObservable);
    httpService.post.mockImplementation(() => responseObservable);
 
+   let scheduleTaskNamesService: any = { getAllTasks: jest.fn() };
+   let allTasksObservable = new BehaviorSubject([]);
+   scheduleTaskNamesService.getAllTasks.mockImplementation(() => allTasksObservable);
+
    beforeEach(async(() => {
       TestBed.configureTestingModule({
          imports: [

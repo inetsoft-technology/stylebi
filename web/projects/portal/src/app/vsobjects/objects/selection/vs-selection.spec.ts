@@ -195,6 +195,7 @@ describe("VSSelection Test", () => {
       fixture.componentInstance.selectionValues = createMockSelectionValues();
       fixture.componentInstance.model = createListModel();
       fixture.detectChanges();
+      const httpClient = fixture.debugElement.injector.get(HttpClient);
       vsSelection = new VSSelection(
          viewsheetClientService, formDataService, renderer, adhocFilterService, elementRef, changeRef,
          zone, scaleService, contextService, dataTipService, fixedDropdownService, globalSubmitService,
