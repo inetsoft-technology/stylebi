@@ -358,7 +358,9 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
 
    private chartEmptyPlotHyperlinkVisible(): boolean {
       return this.composer && this.model?.chartSelection?.regions?.length == 0
-         && !this.model?.titleSelected;
+         && !this.model?.titleSelected && !GraphTypes.isMekko(this.model.chartType)
+         && this.model.chartType !== GraphTypes.CHART_TREEMAP
+         && this.model.chartType !== GraphTypes.CHART_ICICLE;
    }
 
    private chartHighlightVisible(): boolean {
