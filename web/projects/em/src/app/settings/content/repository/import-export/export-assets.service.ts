@@ -145,7 +145,7 @@ export class ExportAssetsService {
       const data = { selectedEntities, dependentAssets, overwriting, name, newerVersion };
       const uri = "../api/em/content/repository/export/create";
       const statusUri = "../api/em/content/repository/export/create/status/";
-      return this.http.post(uri, data, { responseType: 'text' })
+      return this.http.post(uri, data, { responseType: "text" })
          .pipe(
             map(exportID => JSON.parse(exportID)),
             switchMap((exportID: string) => {
