@@ -17,14 +17,14 @@
  */
 import { Injectable } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { ActivatedRouteSnapshot, CanDeactivate, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { PresentationThemesViewComponent } from "./presentation-themes-view.component";
 
 @Injectable()
-export class ThemesSaveGuard implements CanDeactivate<PresentationThemesViewComponent> {
+export class ThemesSaveGuard  {
    constructor(private dialog: MatDialog) {
    }
 

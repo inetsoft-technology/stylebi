@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
@@ -35,7 +35,7 @@ const URL_TAB_MAP = {
 const DASHBOARD_TAB_ERROR_MSG = "_#(js:em.security.permit.view)";
 
 @Injectable()
-export class CanTabActivateService implements CanActivate {
+export class CanTabActivateService  {
 
    constructor(private portalTabsService: PortalTabsService,
                private router: Router,

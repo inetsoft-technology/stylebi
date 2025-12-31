@@ -17,14 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import {
-   ActivatedRouteSnapshot,
-   CanActivate,
-   ParamMap, Params,
-   Router,
-   RouterStateSnapshot,
-   UrlTree
-} from "@angular/router";
+import { ActivatedRouteSnapshot, ParamMap, Params, Router, RouterStateSnapshot, UrlTree } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of, Subject } from "rxjs";
 import { mergeMap } from "rxjs/operators";
@@ -43,7 +36,7 @@ interface GlobalParameterModel {
 @Injectable({
    providedIn: "root"
 })
-export class GlobalParameterGuard implements CanActivate {
+export class GlobalParameterGuard  {
    constructor(private http: HttpClient, private router: Router, private modal: NgbModal) {
    }
 

@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
@@ -27,7 +27,7 @@ import { DashboardTabModel } from "../dashboard/dashboard-tab-model";
 const DASHBOARD_TAB_ERROR_MSG = "_#(js:em.security.permit.dashboard)";
 
 @Injectable()
-export class DashboardTabResolver implements Resolve<DashboardTabModel> {
+export class DashboardTabResolver  {
    constructor(private http: HttpClient, private modalService: NgbModal, private router: Router) {
    }
 

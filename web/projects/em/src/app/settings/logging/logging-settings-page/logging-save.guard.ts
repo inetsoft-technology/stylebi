@@ -15,11 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-   ActivatedRouteSnapshot,
-   CanDeactivate,
-   RouterStateSnapshot
-} from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { LoggingSettingsPageComponent } from "./logging-settings-page.component";
 import { Injectable } from "@angular/core";
 import { Observable, of } from "rxjs";
@@ -29,7 +25,7 @@ import { MessageDialog, MessageDialogType } from "../../../common/util/message-d
 import { map } from "rxjs/operators";
 
 @Injectable()
-export class LoggingSaveGuard implements CanDeactivate<LoggingSettingsPageComponent> {
+export class LoggingSaveGuard  {
    constructor(private dialog: MatDialog) {
    }
 

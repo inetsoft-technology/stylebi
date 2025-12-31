@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable, of } from "rxjs";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Tool } from "../../../../../shared/util/tool";
@@ -28,7 +28,7 @@ const CHECK_DATA_MODEL_EDITABLE_URI = "../api/data/model/checkEditable/";
 const CHECK_LOGICAL_MODEL_EDITABLE_URI = "../api/data/logicalmodel/permission/editable";
 
 @Injectable()
-export class CanDatabaseModelActivateService implements CanActivate {
+export class CanDatabaseModelActivateService  {
    constructor(public http: HttpClient,
                private modalService: NgbModal) { }
 

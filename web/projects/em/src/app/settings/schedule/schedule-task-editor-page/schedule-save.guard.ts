@@ -16,11 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import {
-   ActivatedRouteSnapshot,
-   CanDeactivate,
-   RouterStateSnapshot
-} from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { ScheduleTaskEditorPageComponent } from "./schedule-task-editor-page.component";
 import { Observable, of } from "rxjs";
 import { Tool } from "../../../../../../shared/util/tool";
@@ -29,7 +25,7 @@ import { MessageDialog, MessageDialogType } from "../../../common/util/message-d
 import { map } from "rxjs/operators";
 
 @Injectable()
-export class ScheduleSaveGuard implements CanDeactivate<ScheduleTaskEditorPageComponent> {
+export class ScheduleSaveGuard  {
    constructor(private dialog: MatDialog) {
    }
 

@@ -17,12 +17,12 @@
  */
 import { Injectable } from "@angular/core";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { RepositoryTreeService } from "../../widget/repository-tree/repository-tree.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 
 @Injectable()
-export class RouteSourceResolver implements Resolve<SafeResourceUrl> {
+export class RouteSourceResolver  {
    constructor(private repositoryTreeService: RepositoryTreeService,
                private sanitationService: DomSanitizer)
    {

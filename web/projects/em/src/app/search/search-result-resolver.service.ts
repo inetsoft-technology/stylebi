@@ -16,13 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable, of as observableOf } from "rxjs";
 import { SearchResult } from "./search-result";
 import { SearchService } from "./search.service";
 
 @Injectable()
-export class SearchResultResolver implements Resolve<SearchResult[]> {
+export class SearchResultResolver  {
    constructor(private service: SearchService) {
    }
 

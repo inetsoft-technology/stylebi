@@ -16,11 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import {
-   ActivatedRouteSnapshot,
-   CanDeactivate,
-   RouterStateSnapshot
-} from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, of as observableOf, Subject } from "rxjs";
 import { ScheduleConditionModel } from "../../../../../shared/schedule/model/schedule-condition-model";
@@ -31,7 +27,7 @@ import { ScheduleTaskEditorComponent } from "./schedule-task-editor/schedule-tas
 import { ComponentTool } from "../../common/util/component-tool";
 
 @Injectable()
-export class ScheduleSaveGuard implements CanDeactivate<ScheduleTaskEditorComponent> {
+export class ScheduleSaveGuard  {
    constructor(private modalService: NgbModal) {
    }
 

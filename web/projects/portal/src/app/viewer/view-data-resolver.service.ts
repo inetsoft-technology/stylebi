@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable, of as observableOf } from "rxjs";
 import { map } from "rxjs/operators";
 import { DashboardModel } from "../common/data/dashboard-model";
@@ -35,7 +35,7 @@ interface ViewsheetRouteDataModel {
 }
 
 @Injectable()
-export class ViewDataResolver implements Resolve<ViewData> {
+export class ViewDataResolver  {
    constructor(private editDataService: ViewDataService, private http: HttpClient) {
    }
 

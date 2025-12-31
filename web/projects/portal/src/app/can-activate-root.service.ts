@@ -17,7 +17,7 @@
  */
 import { DOCUMENT } from "@angular/common";
 import { Inject, Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { map, tap } from "rxjs/operators";
 import { LicenseInfo } from "./common/data/license-info";
@@ -27,7 +27,7 @@ const INVALID_LICENSE_URL = "../error/invalid-license";
 const REMOTE_DEVELOPER_LICENSE = "../error/remote-developer-license";
 
 @Injectable()
-export class CanActivateRootService implements CanActivate {
+export class CanActivateRootService  {
    constructor(private licenseInfoService: LicenseInfoService,
                @Inject(DOCUMENT) private document: any)
    {

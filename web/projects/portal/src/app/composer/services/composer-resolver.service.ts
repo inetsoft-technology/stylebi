@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, throwError } from "rxjs";
 import { catchError, map } from "rxjs/operators";
@@ -27,7 +27,7 @@ import { SetPrincipalCommand } from "../../vsobjects/command/set-principal-comma
 const NO_PERMISSION_ERROR = "_#(js:composer.authorization.permissionDenied)";
 
 @Injectable()
-export class ComposerResolver implements Resolve<SetPrincipalCommand> {
+export class ComposerResolver  {
    constructor(private http: HttpClient, private modalService: NgbModal, private router: Router) {
    }
 

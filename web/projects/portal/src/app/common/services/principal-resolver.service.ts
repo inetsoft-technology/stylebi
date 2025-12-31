@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { publishReplay, refCount } from "rxjs/operators";
 import { SetPrincipalCommand } from "../../vsobjects/command/set-principal-command";
@@ -25,7 +25,7 @@ import { ModelService } from "../../widget/services/model.service";
 export const VIEWSHEET_PRINCIPAL_URI = "../api/viewsheet/get-principal";
 
 @Injectable()
-export class PrincipalResolver implements Resolve<SetPrincipalCommand> {
+export class PrincipalResolver  {
    private command: Observable<SetPrincipalCommand>;
 
    constructor(private service: ModelService) {

@@ -16,12 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { RepositoryEntry } from "../../../../../shared/data/repository-entry";
 import { RepositoryTreeService } from "../../widget/repository-tree/repository-tree.service";
 
 @Injectable()
-export class RouteEntryResolver implements Resolve<RepositoryEntry> {
+export class RouteEntryResolver  {
    constructor(private repositoryTreeService: RepositoryTreeService) {
    }
 

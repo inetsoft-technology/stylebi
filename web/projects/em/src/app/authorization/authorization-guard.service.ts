@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import { AuthorizationService } from "./authorization.service";
@@ -25,7 +25,7 @@ import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { MessageDialog, MessageDialogType } from "../common/util/message-dialog";
 
 @Injectable()
-export class AuthorizationGuard implements CanActivate {
+export class AuthorizationGuard  {
    constructor(private service: AuthorizationService, private router: Router,
                private dialog: MatDialog, private http: HttpClient)
    {

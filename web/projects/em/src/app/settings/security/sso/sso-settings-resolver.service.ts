@@ -17,12 +17,12 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { SSOSettingsModel } from "./sso-settings-model";
 
 @Injectable()
-export class SsoSettingsResolverService implements Resolve<SSOSettingsModel> {
+export class SsoSettingsResolverService  {
    constructor(private httpClient: HttpClient) {
    }
 

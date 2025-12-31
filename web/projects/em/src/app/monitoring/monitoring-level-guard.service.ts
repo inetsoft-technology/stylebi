@@ -16,16 +16,13 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import {
-   ActivatedRouteSnapshot, CanActivate, Router,
-   RouterStateSnapshot
-} from "@angular/router";
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from "@angular/router";
 import { MonitorLevel, MonitorLevelService } from "./monitor-level.service";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 
 @Injectable()
-export class MonitoringLevelGuard implements CanActivate {
+export class MonitoringLevelGuard  {
    constructor(private monitorLevelService: MonitorLevelService, private router: Router) {
    }
 

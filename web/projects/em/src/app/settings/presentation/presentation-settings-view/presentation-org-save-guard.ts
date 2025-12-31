@@ -16,11 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import {
-   ActivatedRouteSnapshot,
-   CanDeactivate,
-   RouterStateSnapshot
-} from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { PresentationOrgSettingsViewComponent } from "./presentation-org-settings-view.component";
 import { Observable, of } from "rxjs";
 import { MatDialog } from "@angular/material/dialog";
@@ -28,7 +24,7 @@ import { MessageDialog, MessageDialogType } from "../../../common/util/message-d
 import { map } from "rxjs/operators";
 
 @Injectable()
-export class PresentationOrgSaveGuard implements CanDeactivate<PresentationOrgSettingsViewComponent> {
+export class PresentationOrgSaveGuard  {
    constructor(private dialog: MatDialog) {
    }
 

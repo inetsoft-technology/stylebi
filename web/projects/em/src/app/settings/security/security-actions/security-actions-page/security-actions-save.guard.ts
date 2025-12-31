@@ -16,11 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import {
-   ActivatedRouteSnapshot,
-   CanDeactivate,
-   RouterStateSnapshot
-} from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { MatDialog } from "@angular/material/dialog";
 import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
@@ -28,7 +24,7 @@ import { MessageDialog, MessageDialogType } from "../../../../common/util/messag
 import { SecurityActionsPageComponent } from "./security-actions-page.component";
 
 @Injectable()
-export class SecurityActionsSaveGuard implements CanDeactivate<SecurityActionsPageComponent> {
+export class SecurityActionsSaveGuard  {
    constructor(private dialog: MatDialog) {
    }
 

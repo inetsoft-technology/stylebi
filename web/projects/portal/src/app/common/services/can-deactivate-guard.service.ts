@@ -16,11 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanDeactivate, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { CanComponentDeactivate } from "../../../../../shared/util/guard/can-component-deactivate";
 
 @Injectable()
-export class CanDeactivateGuard implements CanDeactivate<CanComponentDeactivate> {
+export class CanDeactivateGuard  {
    canDeactivate(component: CanComponentDeactivate, route: ActivatedRouteSnapshot,
                  currentState: RouterStateSnapshot, nextState?: RouterStateSnapshot)
    {

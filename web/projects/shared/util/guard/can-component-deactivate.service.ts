@@ -15,13 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ActivatedRouteSnapshot, CanDeactivate, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { CanComponentDeactivate } from "./can-component-deactivate";
 import { Injectable } from "@angular/core";
 
 @Injectable()
-export class CanComponentDeactivateService implements CanDeactivate<CanComponentDeactivate> {
+export class CanComponentDeactivateService  {
    canDeactivate(component: CanComponentDeactivate, currentRoute: ActivatedRouteSnapshot,
                  currentState: RouterStateSnapshot,
                  nextState?: RouterStateSnapshot): Observable<boolean> | Promise<boolean> | boolean

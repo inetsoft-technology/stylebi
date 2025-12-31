@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 
@@ -30,7 +30,7 @@ export interface ComposerAccessModel {
 }
 
 @Injectable()
-export class CanActivateComposerService implements CanActivate {
+export class CanActivateComposerService  {
    constructor(private http: HttpClient) {}
 
    canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {

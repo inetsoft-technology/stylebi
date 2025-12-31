@@ -17,7 +17,7 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { ReportTabModel } from "../report/report-tab-model";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
@@ -26,7 +26,7 @@ import { map } from "rxjs/operators";
 const REPORT_TAB_MODEL_URI: string = "../api/portal/report-tab-model";
 
 @Injectable()
-export class ReportTabResolver implements Resolve<ReportTabModel> {
+export class ReportTabResolver  {
    constructor(private http: HttpClient) {
    }
 

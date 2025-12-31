@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Tool } from "../../../../../shared/util/tool";
 import { SourcePermissionModel } from "../data/model/source-permission-model";
@@ -26,7 +26,7 @@ import { Observable } from "rxjs";
 const GET_DATA_FOLDER_PERMISSION_URI = "../api/data/datasources/folderPermission";
 
 @Injectable()
-export class CanDatabaseCreateActivateService implements CanActivate {
+export class CanDatabaseCreateActivateService  {
 
    constructor(public http: HttpClient) { }
 
