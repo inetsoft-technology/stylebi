@@ -28,7 +28,7 @@
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch" id="switchEditMode"
                 [ngModel]="model.advancedEdit" (change)="onSwitchChange($event)"
-                [disabled]="!model.freeFormSqlEnabled && model.advancedEdit">
+                [disabled]="!model.freeFormSqlEnabled">
           <label class="form-check-label" for="switchEditMode">_#(Advanced Query)</label>
         </div>
       </div>
