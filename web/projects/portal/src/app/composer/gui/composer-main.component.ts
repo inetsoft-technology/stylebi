@@ -2058,7 +2058,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          });
          return;
       }
-
+      worksheet.saving = true;
       this.finishSave(worksheet, close || this.closeOnComplete, dialogModel);
    }
 
@@ -2145,6 +2145,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                         SAVE_VIEWSHEET_DIALOG_SOCKET_URI, result);
                   }
 
+                  sheet.saving = true;
                   this.designSaved = true;
                }).
                catch(() => { });
