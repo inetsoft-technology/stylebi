@@ -32,7 +32,7 @@
     "@angular/router": "^16.2.12",
     "@ckeditor/ckeditor5-angular": "^8.0.0",
     "@ctrl/tinycolor": "^3.4.1",
-    "@ng-bootstrap/ng-bootstrap": "^14.2.0",
+    "@ng-bootstrap/ng-bootstrap": "^15.1.2",
     "@thebespokepixel/es-tinycolor": "^2.1.1",
     "approx-string-match": "^2.0.0",
     "bootstrap": "^5.2.3",
