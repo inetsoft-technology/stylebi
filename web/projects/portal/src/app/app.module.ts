@@ -38,8 +38,6 @@ import { CanActivateComposerService } from "./composer/services/can-activate-com
 import {
    CollapseRepositoryTreeService
 } from "./portal/report/desktop/collapse-repository-tree.service.component";
-import { ReloadPageComponent } from "./reload/reload-page.component";
-import { ServiceUnavailableInterceptor } from "./reload/service-unavailable-interceptor";
 import { PageTabService } from "./viewer/services/page-tab.service";
 import { ViewDataService } from "./viewer/services/view-data.service";
 import { SessionExpirationDialogModule } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.module";
@@ -59,7 +57,6 @@ export const httpInterceptorProviders = [
    {provide: HTTP_INTERCEPTORS, useClass: RequestedWithInterceptor, multi: true},
    {provide: HTTP_INTERCEPTORS, useClass: InvalidSessionInterceptor, multi: true},
    {provide: HTTP_INTERCEPTORS, useClass: SsoHeartbeatInterceptor, multi: true},
-   {provide: HTTP_INTERCEPTORS, useClass: ServiceUnavailableInterceptor, multi: true}
 ];
 
 @NgModule({
@@ -96,8 +93,7 @@ export const httpInterceptorProviders = [
       DomService,
    ],
    declarations: [
-      AppComponent,
-      ReloadPageComponent
+      AppComponent
    ],
    bootstrap: [AppComponent]
 })
