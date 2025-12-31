@@ -49,8 +49,7 @@ export class StompClient {
                private onReconnectError: (error: string) => any,
                private ssoHeartbeatService: SsoHeartbeatService,
                private logoutService: LogoutService, emClient: boolean, private baseHref: string,
-               private customElement: boolean,
-               private router: Router, private http: HttpClient, private zone: NgZone)
+               private customElement: boolean)
    {
       this.emClient = emClient;
       this.client = this.createStompClient();
@@ -143,11 +142,6 @@ export class StompClient {
                // session timeout with security enabled
                this.logoutService.sessionExpired();
             }
-            else if(event?.code === 1001 || event?.code === 1006) {
-               // 1001 Connection intentionally closed
-               // 1006 Abnormal closure — possibly due to 502/503 errors
-               this.pingServer();
-            }
          }
 
          if(onclose) {
@@ -172,25 +166,20 @@ export class StompClient {
                this.onReconnectError(error);
             }
 
-            if(this.redirecting) {
-               this.redirecting = false
+            if(this.reconnectCnt > 30) {
+               if(this.reloadOnFailure) {
+                  console.error("Failed to reconnect to server, reloading: ", error);
+                  window.location.reload(true);
+               }
+
+               console.error("Failed to reconnect to server: ", error);
+               this.connected = false;
+               this.pendingConnections = [];
+               this.onDisconnect(this.endpoint);
+               this.clientSubject.complete();
             }
             else {
-               if(this.reconnectCnt > 30) {
-                  if(this.reloadOnFailure) {
-                     console.error("Failed to reconnect to server, reloading: ", error);
-                     window.location.reload(true);
-                  }
-
-                  console.error("Failed to reconnect to server: ", error);
-                  this.connected = false;
-                  this.pendingConnections = [];
-                  this.onDisconnect(this.endpoint);
-                  this.clientSubject.complete();
-               }
-               else {
-                  setTimeout(() => this.reconnect(), 10000);
-               }
+               setTimeout(() => this.reconnect(), 10000);
             }
          });
    }
@@ -222,32 +211,10 @@ export class StompClient {
       }
    }
 
-   public redirectToErrorPage() {
-      this.onDisconnect(this.endpoint);
-      this.redirecting = true;
-   }
-
-   private pingServer() {
-      if(!this.router.url.startsWith("/reload")) {
-         this.zone.run(() => {
-            this.http.get("../ping", { responseType: "text" }).subscribe({
-               next: () => {},
-               error:  (error) => {
-                  // Check to make sure that it is a 502/503 error
-                  if(error.status === 502 || error.status == 503) {
-                     this.router.navigate(["/reload"],
-                        {queryParams: {redirectTo: this.router.url}, replaceUrl: true});
-                  }
-               }
-            });
-         })
-      }
-   }
-
    private createConnection(): StompClientConnection {
       return new StompClientConnection(
          this.clientChannel, this.heartbeat, () => this.onConnectionDisconnect(),
-         this.ssoHeartbeatService, this.emClient, () => this.pingServer());
+         this.ssoHeartbeatService, this.emClient);
    }
 
    resolveURL(url: string): string {
