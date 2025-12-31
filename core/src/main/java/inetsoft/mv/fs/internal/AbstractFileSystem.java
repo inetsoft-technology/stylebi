@@ -326,7 +326,7 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
    public final void parseXML(Element elem) throws Exception {
       lock.lock();
 
-      Map<String, XFile> xfilemap = new ConcurrentHashMap<>();
+      Map<String, XFile> xfilemap = new TreeMap<>();
 
       try {
          Element valuesNode = Tool.getChildNodeByTagName(elem, "Files");
