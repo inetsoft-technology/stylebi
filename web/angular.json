@@ -107,6 +107,9 @@
             "reporters": [
               "default",
               "jest-junit"
+            ],
+            "setupFiles": [
+              "jest-canvas-mock"
             ]
           }
         },
@@ -222,6 +225,9 @@
             "reporters": [
               "default",
               "jest-junit"
+            ],
+            "setupFiles": [
+              "jest-canvas-mock"
             ]
           }
         },
