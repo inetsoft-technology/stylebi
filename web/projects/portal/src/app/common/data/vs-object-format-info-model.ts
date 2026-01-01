@@ -27,6 +27,7 @@ export interface VSObjectFormatInfoModel extends FormatInfoModel {
    backgroundAlpha?: number;
    roundCorner?: number;
    roundTopCornersOnly?: boolean;
+   roundBottomCornersOnly?: boolean;
    wrapText?: boolean;
    cssID?: string;
    cssClass?: string;
