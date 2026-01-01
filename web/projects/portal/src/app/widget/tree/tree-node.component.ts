@@ -20,7 +20,7 @@ import {
    ChangeDetectorRef,
    Component,
    ElementRef,
-   EventEmitter,
+   EventEmitter, forwardRef,
    HostListener,
    Input,
    OnChanges,
@@ -77,7 +77,7 @@ export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() parentLoading: boolean = false;
    @Input() searchEndNode: (node: TreeNodeModel) => boolean;
    @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel]>();
-   @ViewChildren(TreeNodeComponent) nodes: QueryList<TreeNodeComponent>;
+   @ViewChildren(forwardRef(() => TreeNodeComponent)) nodes: QueryList<TreeNodeComponent>;
    @ViewChild("nodeElement") nodeElement: ElementRef;
    @ViewChild("toggleElement") toggleElement: ElementRef;
    readonly INDENT_SIZE: number = 15;

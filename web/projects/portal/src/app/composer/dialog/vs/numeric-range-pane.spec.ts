@@ -52,10 +52,6 @@ const createModel: () => NumericRangePaneModel = () => {
       FixedDropdownComponent,
       FixedDropdownContextmenuComponent,
    ],
-   entryComponents: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ]
 })
 class TestModule {
 }

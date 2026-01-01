@@ -99,10 +99,6 @@ let createModel: () => TableViewGeneralPaneModel = () => {
       FixedDropdownComponent,
       FixedDropdownContextmenuComponent
    ],
-   entryComponents: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ]
 })
 class TestModule {}
 

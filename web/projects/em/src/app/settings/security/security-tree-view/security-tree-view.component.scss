@@ -35,6 +35,13 @@
     cursor: pointer;
     overflow: visible;
 
+    > .mdc-icon-button, .mat-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+
     p {
       width: 300px;
       overflow: hidden;

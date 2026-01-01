@@ -20,11 +20,10 @@ import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, NgZone, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { MatIconModule } from "@angular/material/icon";
-import { MatLegacyButtonModule } from "@angular/material/legacy-button";
-import { MatLegacyCheckboxModule } from "@angular/material/legacy-checkbox";
-import { MatLegacyMenuModule } from "@angular/material/legacy-menu";
+import { MatMenuModule } from "@angular/material/menu";
 import { NEVER, of as observableOf } from "rxjs";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
@@ -67,9 +66,8 @@ describe("RepositoryTreeViewComponent", () => {
             HttpClientTestingModule,
             FormsModule,
             ReactiveFormsModule,
-            MatLegacyCheckboxModule,
-            MatLegacyMenuModule,
-            MatLegacyButtonModule,
+            MatMenuModule,
+            MatCheckboxModule,
             MatIconModule,
             MatDialogModule
          ],
