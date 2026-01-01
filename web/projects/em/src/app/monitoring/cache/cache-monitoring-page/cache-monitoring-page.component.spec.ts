@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatSelectModule } from "@angular/material/select";
@@ -36,7 +36,7 @@ describe("CacheMonitoringPageComponent", () => {
    let component: CacheMonitoringPageComponent;
    let fixture: ComponentFixture<CacheMonitoringPageComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const monitoringDataService = {
          connect: jest.fn(() => observableOf()),
          subscribe: jest.fn(),

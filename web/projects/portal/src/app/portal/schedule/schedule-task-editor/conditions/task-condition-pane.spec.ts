@@ -17,7 +17,7 @@
  */
 import { HttpClient, HttpClientModule } from "@angular/common/http";
 import { Component, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -69,7 +69,7 @@ describe("Task Condition Pane Unit Test", () => {
    let fixture: ComponentFixture<TestApp>;
    let taskConditionPane: TaskConditionPane;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule, HttpClientModule

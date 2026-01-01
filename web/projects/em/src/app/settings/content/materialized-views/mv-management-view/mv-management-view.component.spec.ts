@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
@@ -32,14 +32,14 @@ import { MatSortModule } from "@angular/material/sort";
 import { MatTableModule } from "@angular/material/table";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterTestingModule } from "@angular/router/testing";
+import { Subject } from "rxjs";
+import { SsoHeartbeatService } from "../../../../../../../shared/sso/sso-heartbeat.service";
 import { EditorPanelModule } from "../../../../common/util/editor-panel/editor-panel.module";
 import { LoadingSpinnerModule } from "../../../../common/util/loading-spinner/loading-spinner.module";
 import { MessageDialogModule } from "../../../../common/util/message-dialog.module";
 import { TableViewModule } from "../../../../common/util/table/table-view.module";
-import { MvManagementViewComponent } from "./mv-management-view.component";
-import { SsoHeartbeatService } from "../../../../../../../shared/sso/sso-heartbeat.service";
 import { MVChangeService } from "./mv-change.service";
-import { of as observableOf, Subject } from "rxjs";
+import { MvManagementViewComponent } from "./mv-management-view.component";
 
 describe("MvManagementViewComponent", () => {
    let component: MvManagementViewComponent;
@@ -47,7 +47,7 @@ describe("MvManagementViewComponent", () => {
    let ssoHeartbeatService: any;
    let changes = new Subject<void>();
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       ssoHeartbeatService = { heartbeat: jest.fn() };
       const changeService = {
         mvChanged: changes.asObservable()

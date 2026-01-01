@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, TestBed } from "@angular/core/testing";
+import { waitForAsync, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { Observable, of as observableOf } from "rxjs";
 import { FontService } from "../../../widget/services/font.service";
@@ -56,7 +56,7 @@ describe("Rich Text Dialog Tests", () => {
    let fontService: any;
    const fontObservable: Observable<string[]> = observableOf([]);
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       fontService = { getAllFonts: jest.fn() };
       fontService.getAllFonts.mockImplementation(() => fontObservable);
 

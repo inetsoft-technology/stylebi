@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async, TestBed, ComponentFixture } from "@angular/core/testing";
+import { waitForAsync, TestBed, ComponentFixture } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { StaticSizePane } from "./static-size-pane.component";
@@ -25,7 +25,7 @@ describe("Static Size Pane Unit Test", () => {
    let fixture: ComponentFixture<StaticSizePane>;
    let sizePane: StaticSizePane;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule

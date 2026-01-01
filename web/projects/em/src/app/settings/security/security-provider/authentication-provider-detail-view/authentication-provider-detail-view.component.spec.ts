@@ -17,7 +17,7 @@
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatAutocompleteModule } from "@angular/material/autocomplete";
 import { MatBottomSheetModule } from "@angular/material/bottom-sheet";
@@ -41,7 +41,7 @@ describe("AuthenticationProviderDetailViewComponent", () => {
    let component: AuthenticationProviderDetailViewComponent;
    let fixture: ComponentFixture<AuthenticationProviderDetailViewComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const providerService = {};
       (window.document.body as any).createTextRange = jest.fn().mockImplementation(() => ({
          setEnd: jest.fn(),

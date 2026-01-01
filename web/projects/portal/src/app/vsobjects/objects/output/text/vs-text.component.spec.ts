@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { Router } from "@angular/router";
@@ -63,7 +63,7 @@ describe("VS Text Component Unit Test", () => {
    let router: any;
    let richTextService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       viewsheetClientService = {};
       dropdownService = {};
       modelService = { sendModel: jest.fn() };

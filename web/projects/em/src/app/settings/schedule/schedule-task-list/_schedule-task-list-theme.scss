@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@import '../../../../../../../node_modules/@angular/material/theming';
+@use '@angular/material' as mat;
 
 @mixin schedule-task-list-theme($theme) {
   $is-dark: map-get($theme, is-dark);
@@ -28,47 +28,47 @@
   .task-list-table {
     @if $is-dark {
       .table-header-row {
-        background-color: mat-color($primary);
-        color: mat-contrast($primary, default);
+        background-color: mat.get-color-from-palette($primary);
+        color: mat.get-contrast-color-from-palette($primary, default);
       }
 
       tr.table-row {
         &.disabled-row {
-          background-color: mat-color($foreground, base, 0.05);
-          color: mat-color($foreground, disabled-text)
+          background-color: mat.get-color-from-palette($foreground, base, 0.05);
+          color: mat.get-color-from-palette($foreground, disabled-text)
         }
 
         &:not(.table-expanded-row):hover {
-          background-color: mat-color($accent);
-          color: mat-contrast($accent, default);
+          background-color: mat.get-color-from-palette($accent);
+          color: mat.get-contrast-color-from-palette($accent, default);
         }
 
         &:not(.table-expanded-row):active {
-          background-color: mat-color($accent, 100);
-          color: mat-contrast($accent, 100);
+          background-color: mat.get-color-from-palette($accent, 100);
+          color: mat.get-contrast-color-from-palette($accent, 100);
         }
       }
     }
     @else {
       .table-row-header {
-        background-color: mat-color($primary, 200);
-        color: mat-contrast($primary, 200);
+        background-color: mat.get-color-from-palette($primary, 200);
+        color: mat.get-contrast-color-from-palette($primary, 200);
       }
 
       tr.table-row {
         &.disabled-row {
-          background-color: mat-color($foreground, base, 0.02);
-          color: mat-color($foreground, disabled-text)
+          background-color: mat.get-color-from-palette($foreground, base, 0.02);
+          color: mat.get-color-from-palette($foreground, disabled-text)
         }
 
         &:not(.table-expanded-row):hover {
-          background-color: mat-color($primary, 50);
-          color: mat-contrast($primary, 50);
+          background-color: mat.get-color-from-palette($primary, 50);
+          color: mat.get-contrast-color-from-palette($primary, 50);
         }
 
         &:not(.table-expanded-row):active {
-          background-color: mat-color($primary, 100);
-          color: mat-contrast($primary, 100);
+          background-color: mat.get-color-from-palette($primary, 100);
+          color: mat.get-contrast-color-from-palette($primary, 100);
         }
       }
     }

@@ -18,7 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Optional } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { SsoHeartbeatService } from "../../../../../../shared/sso/sso-heartbeat.service";
@@ -45,7 +45,7 @@ describe("CurrentSelection Unit Tests", () => {
    let interactService: any;
    let ssoHeartbeatService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       dropdownService = {};
       interactService = {
          addInteractable: jest.fn(),

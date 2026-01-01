@@ -17,7 +17,7 @@
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatIconModule } from "@angular/material/icon";
 import { RouterTestingModule } from "@angular/router/testing";
 import { of as observableOf } from "rxjs";
@@ -29,7 +29,7 @@ describe("MonitoringSidenavComponent", () => {
    let component: MonitoringSidenavComponent;
    let fixture: ComponentFixture<MonitoringSidenavComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const authzService = {
          getPermissions: jest.fn(() => observableOf({permissions: {}}))
       };

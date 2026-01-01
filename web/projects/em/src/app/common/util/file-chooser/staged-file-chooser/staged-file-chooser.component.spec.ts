@@ -17,14 +17,14 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { StagedFileChooserComponent } from "./staged-file-chooser.component";
 
 describe("StagedFileChooserComponent", () => {
    let component: StagedFileChooserComponent;
    let fixture: ComponentFixture<StagedFileChooserComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule

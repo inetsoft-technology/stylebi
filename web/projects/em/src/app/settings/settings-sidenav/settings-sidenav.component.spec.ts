@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatIconModule } from "@angular/material/icon";
 import { RouterTestingModule } from "@angular/router/testing";
 import { of as observableOf } from "rxjs";
@@ -27,7 +27,7 @@ describe("SettingsSidenavComponent", () => {
    let component: SettingsSidenavComponent;
    let fixture: ComponentFixture<SettingsSidenavComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const authzService = {
          getPermissions: jest.fn(() => observableOf({permissions: {}}))
       };

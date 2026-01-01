@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@import '../../../../../../../node_modules/@angular/material/theming';
+@use '@angular/material' as mat;
 @import '../../../../styles/constants';
 
 @mixin license-key-settings-view-theme($theme) {
@@ -24,7 +24,7 @@
   $warn: map-get($theme, warn);
   $background: map-get($theme, background);
   $foreground: map-get($theme, foreground);
-  $color-warn: mat-color($warn);
+  $color-warn: mat.get-color-from-palette($warn);
 
   .license-list {
     & + .license-error {

@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule, HttpTestingController } from "@angular/common/http/testing";
 import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -112,7 +112,7 @@ describe("Edit Dashboard Dialog Unit Test", () => {
    let httpClient: HttpClient;
    let httpTestingController: HttpTestingController;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       dragService = { currentlyDragging: false };
 
       TestBed.configureTestingModule({

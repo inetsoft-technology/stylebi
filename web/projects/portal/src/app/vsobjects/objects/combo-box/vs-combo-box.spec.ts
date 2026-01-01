@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { of as observableOf } from "rxjs";
 import { XSchema } from "../../../common/data/xschema";
@@ -40,7 +40,7 @@ describe("VS Combo Box Test", () => {
    let dataTipService: any;
    let firstDayOfWeekService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const formDataService: any = {
          checkFormData: jest.fn(),
          removeObject: jest.fn(),

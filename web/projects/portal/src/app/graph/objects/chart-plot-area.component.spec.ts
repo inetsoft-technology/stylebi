@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component } from "@angular/core";
-import { async, TestBed } from "@angular/core/testing";
+import { waitForAsync, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { HttpClient } from "@angular/common/http";
 import { BehaviorSubject, Subject } from "rxjs";
@@ -307,7 +307,7 @@ describe("ChartPlotArea Integration Tests", () => {
    httpService.get.mockImplementation(() => responseObservable);
    httpService.post.mockImplementation(() => responseObservable);
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       modelService = {};
 
       TestBed.configureTestingModule({

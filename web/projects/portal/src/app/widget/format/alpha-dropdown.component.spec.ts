@@ -15,16 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { TestBed, ComponentFixture, async } from "@angular/core/testing";
-import { TestUtils } from "../../common/test/test-utils";
-import { Tool } from "../../../../../shared/util/tool";
-import { NgModule } from "@angular/core";
+import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
-import { NgModel, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { AlphaDropdown } from "./alpha-dropdown.component";
-import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { DropDownTestModule } from "../../common/test/test-module";
+import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { DebounceService } from "../services/debounce.service";
+import { AlphaDropdown } from "./alpha-dropdown.component";
 
 describe("alpha dropdown component unit case", () => {
    let fixture: ComponentFixture<AlphaDropdown>;

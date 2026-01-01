@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@import '../../../../../../../node_modules/@angular/material/theming';
+@use '@angular/material' as mat;
 @import '../../../../styles/constants';
 
 @mixin flat-tree-view-theme($theme) {
@@ -29,12 +29,12 @@
     .flat-tree-node.selected,
     .flat-tree-node:hover
     {
-      background: mat-color($background, hover, .12);
+      background: mat.get-color-from-palette($background, hover, .12);
     }
 
     .flat-tree-node {
       .menu-selected-over:hover {
-        background: mat-color($background, hover, .12);
+        background: mat.get-color-from-palette($background, hover, .12);
       }
     }
   }

@@ -17,7 +17,7 @@
  */
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatSelectModule } from "@angular/material/select";
 import { RouterTestingModule } from "@angular/router/testing";
@@ -30,7 +30,7 @@ describe("ClusterSelectorComponent", () => {
    let component: ClusterSelectorComponent;
    let fixture: ComponentFixture<ClusterSelectorComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const monitoringDataService = {
          refresh: jest.fn()
       };

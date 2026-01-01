@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, NgZone, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatDialog, MatDialogModule } from "@angular/material/dialog";
@@ -53,7 +53,7 @@ describe("RepositoryTreeViewComponent", () => {
    let component: TestApp;
    let fixture: ComponentFixture<TestApp>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const stompConnection = {
          subscribe: jest.fn(() => NEVER),
          disconnect: jest.fn()

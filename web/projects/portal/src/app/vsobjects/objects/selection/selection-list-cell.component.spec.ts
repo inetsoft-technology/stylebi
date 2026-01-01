@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { BrowserModule, By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -123,7 +123,7 @@ describe("Selection List Cell Test", () => {
    let cell: any;
    let fixture: ComponentFixture<SelectionListCell>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       vsSelectionComponent = { getMarginSize: jest.fn() };
       selectionListController = { getCellFormat: jest.fn() };
       selectionTreeController = { getCellFormat: jest.fn() };
