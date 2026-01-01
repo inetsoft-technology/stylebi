@@ -27,11 +27,11 @@ import { MatGridListModule } from "@angular/material/grid-list";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
+import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { SecurityTableViewModule } from "../../security-table-view/security-table-view.module";
 import { SecurityTreeViewModule } from "../../security-tree-view/security-tree-view.module";
 import { UsersSettingsViewComponent } from "./users-settings-view.component";
-import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 
 describe("UsersSettingsViewComponent", () => {
    let component: UsersSettingsViewComponent;
@@ -41,7 +41,7 @@ describe("UsersSettingsViewComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             NoopAnimationsModule,
-            RouterTestingModule,
+            RouterModule.forRoot([]),
             SecurityTreeViewModule,
             MatSelectModule,
             MatDialogModule,

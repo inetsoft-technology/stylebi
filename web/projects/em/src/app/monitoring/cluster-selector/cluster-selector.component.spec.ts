@@ -17,10 +17,10 @@
  */
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { MatButtonModule } from "@angular/material/button";
 import { MatSelectModule } from "@angular/material/select";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { of as observableOf } from "rxjs";
 import { ClusterNodesService } from "../cluster/cluster-nodes.service";
 import { MonitoringDataService } from "../monitoring-data.service";
@@ -41,7 +41,7 @@ describe("ClusterSelectorComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             CommonModule,
-            RouterTestingModule,
+            RouterModule.forRoot([]),
             MatSelectModule,
             MatButtonModule
          ],

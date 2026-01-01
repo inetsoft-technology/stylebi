@@ -31,7 +31,7 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatSortModule } from "@angular/material/sort";
 import { MatTableModule } from "@angular/material/table";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { Subject } from "rxjs";
 import { SsoHeartbeatService } from "../../../../../../../shared/sso/sso-heartbeat.service";
 import { EditorPanelModule } from "../../../../common/util/editor-panel/editor-panel.module";
@@ -58,7 +58,7 @@ describe("MvManagementViewComponent", () => {
             NoopAnimationsModule,
             FormsModule,
             HttpClientTestingModule,
-            RouterTestingModule,
+            RouterModule.forRoot([]),
             LoadingSpinnerModule,
             MatButtonModule,
             MatCardModule,

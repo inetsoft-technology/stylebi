@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
@@ -26,14 +26,14 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { DownloadModule } from "../../../../../../shared/download/download.module";
+import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
 import { TableViewModule } from "../../../common/util/table/table-view.module";
 import { LoggingLevelTableComponent } from "../logging-level-table/logging-level-table.component";
 import { LoggingSettingsViewComponent } from "../logging-settings-view/logging-settings-view.component";
 import { LoggingSettingsPageComponent } from "./logging-settings-page.component";
-import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 
 describe("LoggingSettingsPageComponent", () => {
    let component: LoggingSettingsPageComponent;
@@ -50,7 +50,7 @@ describe("LoggingSettingsPageComponent", () => {
             HttpClientTestingModule,
             FormsModule,
             ReactiveFormsModule,
-            RouterTestingModule,
+            RouterModule.forRoot([]),
             MatButtonModule,
             MatCardModule,
             MatCheckboxModule,

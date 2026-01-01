@@ -30,6 +30,7 @@ import { DefaultScaleService } from "../../widget/services/scale/default-scale-s
 import { ModelService } from "../../widget/services/model.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { ChartObject } from "../model/chart-object";
+import { Plot } from "../model/plot";
 import { ChartService } from "../services/chart.service";
 import { ChartPlotArea } from "./chart-plot-area.component";
 
@@ -41,7 +42,10 @@ import { ChartPlotArea } from "./chart-plot-area.component";
    `
 })
 class TestApp {
-   public mockObject: ChartObject = {
+   public mockObject: Plot = {
+      showReferenceLine: false,
+      xboundaries: [],
+      yboundaries: [],
       areaName: "plot_area",
       bounds: new Rectangle(32, 2, 367, 255),
       layoutBounds: new Rectangle(32, 2, 367, 255),

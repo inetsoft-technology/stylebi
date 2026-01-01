@@ -16,51 +16,46 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { DOCUMENT } from "@angular/common";
-import { Inject, Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, CanActivateFn, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
-import { map, tap } from "rxjs/operators";
+import { map } from "rxjs/operators";
 import { LicenseInfo } from "./common/data/license-info";
 import { LicenseInfoService } from "./common/services/license-info.service";
 
 const INVALID_LICENSE_URL = "../error/invalid-license";
 const REMOTE_DEVELOPER_LICENSE = "../error/remote-developer-license";
 
-@Injectable()
-export class CanActivateRootService  {
-   constructor(private licenseInfoService: LicenseInfoService,
-               @Inject(DOCUMENT) private document: any)
-   {
+export const canActivateRoot: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
+   const licenseInfoService = inject(LicenseInfoService);
+   const document = inject(DOCUMENT);
+
+   return licenseInfoService.getLicenseInfo().pipe(
+      map((info: LicenseInfo) => {
+         if(!info.valid) {
+            document.defaultView.location.replace(INVALID_LICENSE_URL);
+            return false;
+         }
+
+         if(!info.access) {
+            document.defaultView.location.replace(REMOTE_DEVELOPER_LICENSE);
+            return false;
+         }
+
+         if(!isComponentAvailable(info, state.url)) {
+            document.defaultView.location.replace(INVALID_LICENSE_URL);
+            return false;
+         }
+
+         return true;
+      })
+   );
+};
+
+function isComponentAvailable(info: LicenseInfo, url: string): boolean {
+   if(!info.valid) {
+      return false;
    }
 
-   private isComponentAvailable(info: LicenseInfo, url: string): boolean {
-      if(!info.valid) {
-         return false;
-      }
-
-      return true;
-   }
-
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      return this.licenseInfoService.getLicenseInfo().pipe(
-         map((info: LicenseInfo) => {
-            if(!info.valid) {
-               this.document.defaultView.location.replace(INVALID_LICENSE_URL);
-               return false;
-            }
-
-            if(!info.access) {
-               this.document.defaultView.location.replace(REMOTE_DEVELOPER_LICENSE);
-               return false;
-            }
-
-            if(!this.isComponentAvailable(info, state.url)) {
-               this.document.defaultView.location.replace(INVALID_LICENSE_URL);
-               return false;
-            }
-
-            return true;
-         })
-      );
-   }
+   return true;
 }

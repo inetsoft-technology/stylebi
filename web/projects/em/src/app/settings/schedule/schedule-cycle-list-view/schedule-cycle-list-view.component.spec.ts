@@ -24,7 +24,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatTableModule } from "@angular/material/table";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { ScheduleCycleListViewComponent } from "./schedule-cycle-list-view.component";
 
 describe("ScheduleCycleListViewComponent", () => {
@@ -42,7 +42,7 @@ describe("ScheduleCycleListViewComponent", () => {
             MatInputModule,
             NoopAnimationsModule,
             MatIconModule,
-            RouterTestingModule
+            RouterModule.forRoot([])
          ],
          declarations: [
             ScheduleCycleListViewComponent

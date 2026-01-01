@@ -15,43 +15,35 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
-import { Observable, of as observableOf} from "rxjs";
-import { Tool } from "../../../../../../shared/util/tool";
+import { inject } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
+import { ActivatedRouteSnapshot, CanDeactivateFn, RouterStateSnapshot } from "@angular/router";
+import { Observable, of as observableOf } from "rxjs";
+import { map } from "rxjs/operators";
+import { Tool } from "../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { ScheduleCycleEditorPageComponent } from "./schedule-cycle-editor-page.component";
-import { map } from "rxjs/operators";
 
-@Injectable()
-export class ScheduleCycleSaveGuard  {
-   constructor(private dialog: MatDialog) {
-   }
+export const scheduleCycleSaveGuard: CanDeactivateFn<ScheduleCycleEditorPageComponent> = (component: ScheduleCycleEditorPageComponent, currentRoute: ActivatedRouteSnapshot, currentState: RouterStateSnapshot, nextState: RouterStateSnapshot): Observable<boolean> => {
+   const dialog = inject(MatDialog);
+   let result: Observable<boolean>;
 
-   canDeactivate(component: ScheduleCycleEditorPageComponent, currentRoute: ActivatedRouteSnapshot,
-                 currentState: RouterStateSnapshot,
-                 nextState?: RouterStateSnapshot): Observable<boolean>
+   if(component.originalModel && component.model &&
+      !Tool.isEquals(component.originalModel, component.model))
    {
-      let result: Observable<boolean>;
+      const ref = dialog.open(MessageDialog, {
+         data: {
+            title: "_#(js:em.scheduler.cycle.cycleChanged)",
+            content: "_#(js:em.scheduler.cycle.unsaved)",
+            type: MessageDialogType.CONFIRMATION
+         }
+      });
 
-      if(component.originalModel && component.model &&
-         !Tool.isEquals(component.originalModel, component.model))
-      {
-         const ref = this.dialog.open(MessageDialog, {
-            data: {
-               title: "_#(js:em.scheduler.cycle.cycleChanged)",
-               content: "_#(js:em.scheduler.cycle.unsaved)",
-               type: MessageDialogType.CONFIRMATION
-            }
-         });
-
-         result = ref.afterClosed().pipe(map((value) => !!value));
-      }
-      else {
-         result = observableOf(true);
-      }
-
-      return result;
+      result = ref.afterClosed().pipe(map((value) => !!value));
    }
-}
+   else {
+      result = observableOf(true);
+   }
+
+   return result;
+};

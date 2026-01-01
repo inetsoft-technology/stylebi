@@ -15,15 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
+import { NO_ERRORS_SCHEMA } from "@angular/core";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { MatIconModule } from "@angular/material/icon";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { of as observableOf } from "rxjs";
+import { AppInfoService } from "../../../../../shared/util/app-info.service";
 import { AuthorizationService } from "../../authorization/authorization.service";
 import { MonitoringSidenavComponent } from "./monitoring-sidenav.component";
-import { AppInfoService } from "../../../../../shared/util/app-info.service";
 
 describe("MonitoringSidenavComponent", () => {
    let component: MonitoringSidenavComponent;
@@ -44,7 +44,7 @@ describe("MonitoringSidenavComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,
-            RouterTestingModule,
+            RouterModule.forRoot([]),
             MatIconModule
          ],
          declarations: [

@@ -45,35 +45,43 @@ export const enum StyleConstants {
    /**
     * Font normal style.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    FONT_PLAIN = 0,
    /**
     * Font bold style.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    FONT_BOLD = 1,
    /**
     * Font italic style.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    FONT_ITALIC = 2,
    /**
     * Font bold and italic style.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    FONT_BOLDITALIC = 3,
 
    /**
     * No sorting.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    SORT_NONE = 0,
    /**
     * Ascending sorting order.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    SORT_ASC = 1,
    /**
     * Descending sorting order.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    SORT_DESC = 2,
    /**
     * Original sorting.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    SORT_ORIGINAL = 4,
    /**
     * Ascending sorting order by value.
@@ -104,10 +112,12 @@ export const enum StyleConstants {
    /**
     * Line style: no border
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    NO_BORDER = 0,
    /**
     * Line style: mixed border
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    MIXED_BORDER = 1,
    /**
     * Line style: medium line
@@ -240,22 +250,27 @@ export const enum StyleConstants {
    /**
     * Pattern 0.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_0 = 0,
    /**
     * Pattern 1.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_1 = 1,
    /**
     * Pattern 2.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_2 = 2,
    /**
     * Pattern 3.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_3 = 3,
    /**
     * Pattern 4.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_4 = 4,
    /**
     * Pattern 5.
@@ -272,14 +287,17 @@ export const enum StyleConstants {
    /**
     * Pattern 8.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_8 = 8,
    /**
     * Pattern 9.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_9 = 9,
    /**
     * Pattern 10.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_10 = 10,
    /**
     * Pattern 11.
@@ -308,10 +326,12 @@ export const enum StyleConstants {
    /**
     * Pattern 17.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_17 = 17,
    /**
     * Pattern 18.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PATTERN_18 = 18,
    /**
     * Pattern 19.
@@ -320,14 +340,17 @@ export const enum StyleConstants {
    /**
     * Filled arrow.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    FILLED_ARROW = 1,
    /**
     * Not filled arrow.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    WHITE_ARROW = 3,
    /**
     * Two sided arrow.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    EMPTY_ARROW = 2,
    /**
     * horizontal flag.
@@ -340,18 +363,22 @@ export const enum StyleConstants {
    /**
     *
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    NONE = 0,
    /**
     * Left at horizontal direction.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    H_LEFT = 1,
    /**
     * Center at horizontal direction.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    H_CENTER = 2,
    /**
     * Right align at horizontal direction.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    H_RIGHT = 4,
    /**
     * Currency align at horizontal direction.
@@ -360,10 +387,12 @@ export const enum StyleConstants {
    /**
     * Top align at vertical direction.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    V_TOP = 8,
    /**
     * Center at vertical direction.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    V_CENTER = 16,
    /**
     * Bottom align at vertical direction.
@@ -378,57 +407,70 @@ export const enum StyleConstants {
    /**
     * No Percentage.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PERCENTAGE_NONE = 0,
    /**
     * Percentage of group.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PERCENTAGE_OF_GROUP = 1,
    /**
     * Percentage of grand total.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PERCENTAGE_OF_GRANDTOTAL = 2,
    /**
     * Percentage of row group.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PERCENTAGE_OF_ROW_GROUP = 4,
    /**
     * Percentage of col group.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PERCENTAGE_OF_COL_GROUP = 8,
    /**
     * Percentage of row grand total.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PERCENTAGE_OF_ROW_GRANDTOTAL = 16,
    /**
     * Percentage of col grand total.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PERCENTAGE_OF_COL_GRANDTOTAL = 32,
    /**
     * Report background layout, tiled.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    BACKGROUND_TILED = 1,
    /**
     * Report background layout, center.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    BACKGROUND_CENTER = 2,
 
    /**
     * Percentage by column. Only use in CrossTabFilter.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PERCENTAGE_BY_COL = 1,
 
    /**
     * Percentage by row. Only use in CrossTabFilter.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    PERCENTAGE_BY_ROW = 2,
 
    /**
     * Grand total option.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    GRAND_TOTAL = 1,
 
    /**
     * Sub total option.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    SUB_TOTAL = 2
 }

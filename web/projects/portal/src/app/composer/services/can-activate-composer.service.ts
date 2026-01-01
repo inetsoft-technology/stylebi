@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, CanActivateFn, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 
@@ -29,24 +29,20 @@ export interface ComposerAccessModel {
    permitted: boolean;
 }
 
-@Injectable()
-export class CanActivateComposerService  {
-   constructor(private http: HttpClient) {}
+export const canActivateComposer: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
+   const http = inject(HttpClient);
+   return http.get<ComposerAccessModel>("../api/composerAccessCheck")
+      .pipe(map(model => {
+         if(!model.licensed) {
+            window.location.replace(NO_COMPOSER_LICENSE_URL);
+            return false;
+         }
 
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      return this.http.get<ComposerAccessModel>("../api/composerAccessCheck")
-         .pipe(map(model => {
-            if(!model.licensed) {
-               window.location.replace(NO_COMPOSER_LICENSE_URL);
-               return false;
-            }
+         if(!model.permitted) {
+            window.location.replace(NO_COMPOSER_ACCESS_URL);
+            return false;
+         }
 
-            if(!model.permitted) {
-               window.location.replace(NO_COMPOSER_ACCESS_URL);
-               return false;
-            }
-
-            return true;
-         }));
-   }
-}
+         return true;
+      }));
+};

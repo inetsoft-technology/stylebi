@@ -15,23 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
+import { inject } from "@angular/core";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
-import { RepositoryTreeService } from "../../widget/repository-tree/repository-tree.service";
+import { ActivatedRouteSnapshot, ResolveFn, RouterStateSnapshot } from "@angular/router";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
+import { RepositoryTreeService } from "../../widget/repository-tree/repository-tree.service";
 
-@Injectable()
-export class RouteSourceResolver  {
-   constructor(private repositoryTreeService: RepositoryTreeService,
-               private sanitationService: DomSanitizer)
-   {
-   }
-
-   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): SafeResourceUrl {
-      const queryParamMap = ShowHyperlinkService.getQueryParams(route.queryParamMap);
-      return this.sanitationService.bypassSecurityTrustResourceUrl(
-         this.repositoryTreeService.getRouteParamsContentSource(route.url, queryParamMap));
-
-   }
-}
+export const routeSourceResolver: ResolveFn<SafeResourceUrl> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): SafeResourceUrl => {
+   const repositoryTreeService = inject(RepositoryTreeService);
+   const sanitationService = inject(DomSanitizer);
+   const queryParamMap = ShowHyperlinkService.getQueryParams(route.queryParamMap);
+   return sanitationService.bypassSecurityTrustResourceUrl(
+      repositoryTreeService.getRouteParamsContentSource(route.url, queryParamMap));
+};

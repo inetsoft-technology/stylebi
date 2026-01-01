@@ -15,25 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, ResolveFn, RouterStateSnapshot } from "@angular/router";
 import { Observable, of as observableOf } from "rxjs";
 import { SearchResult } from "./search-result";
 import { SearchService } from "./search.service";
 
-@Injectable()
-export class SearchResultResolver  {
-   constructor(private service: SearchService) {
-   }
+export const searchResultResolver: ResolveFn<SearchResult[]> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<SearchResult[]> => {
+   const service = inject(SearchService);
+   const query = route.queryParamMap.get("search");
 
-   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<SearchResult[]> {
-      const query = route.queryParamMap.get("search");
-
-      if(query) {
-         return this.service.search(query);
-      }
-      else {
-         return observableOf([]);
-      }
+   if(query) {
+      return service.search(query);
    }
-}
+   else {
+      return observableOf([]);
+   }
+};

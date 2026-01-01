@@ -22,12 +22,14 @@ import { Observable, of as observableOf } from "rxjs";
 import { FontService } from "../../../widget/services/font.service";
 import { RichTextDialog } from "./rich-text-dialog.component";
 
+// noinspection AngularMissingRequiredDirectiveInputBinding
 const singleTemplate = `<rich-text-dialog
        *ngIf="exist"
        (onCommit)="onCommit($event)"
        (onCancel)="onCancel($event)">
      </rich-text-dialog>`;
 
+// noinspection AngularMissingRequiredDirectiveInputBinding
 const doubleTemplate = `<rich-text-dialog
        *ngIf="exist"
        (onCommit)="onCommit($event)"

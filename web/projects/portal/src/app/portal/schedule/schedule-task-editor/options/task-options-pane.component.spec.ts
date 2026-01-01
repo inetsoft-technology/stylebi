@@ -16,9 +16,16 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { Component, EventEmitter, NO_ERRORS_SCHEMA, Output, ViewChild } from "@angular/core";
+import {
+   Component,
+   EventEmitter,
+   inject,
+   NO_ERRORS_SCHEMA,
+   Output,
+   ViewChild
+} from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
-import { FormControl, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { FormBuilder, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject } from "rxjs";
@@ -26,7 +33,6 @@ import { TaskOptionsPaneModel } from "../../../../../../../shared/schedule/model
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { TaskOptionsPane } from "./task-options-pane.component";
-import { IdentityId} from "../../../../../../../em/src/app/settings/security/users/identity-id";
 
 @Component({
    selector: "execute-as-dialog",
@@ -47,7 +53,7 @@ class TestApp {
    @ViewChild(TaskOptionsPane, {static: false}) optionPane: TaskOptionsPane;
    model = createModel();
    taskName = "Task1";
-   form = new FormControl();
+   form = inject(FormBuilder).group({});
 }
 
 let createModel: () => TaskOptionsPaneModel = () => {

@@ -17,7 +17,7 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
-import { AuthorizationGuard } from "./authorization/authorization-guard.service";
+import { authorizationGuard } from "./authorization/authorization-guard.service";
 import { ManageFavoritesComponent } from "./manage-favorites/manage-favorites.component";
 import { PasswordComponent } from "./password/password.component";
 
@@ -28,7 +28,7 @@ const routes: Routes = [
          {
             path: "monitoring",
             loadChildren: () => import("./monitoring/monitoring.module").then(m => m.MonitoringModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "",
                permissionChild: "monitoring"
@@ -37,7 +37,7 @@ const routes: Routes = [
          {
             path: "auditing",
             loadChildren: () => import("./auditing/auditing.module").then(m => m.AuditingModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "",
                permissionChild: "auditing"
@@ -46,7 +46,7 @@ const routes: Routes = [
          {
             path: "settings",
             loadChildren: () => import("./settings/settings.module").then(m => m.SettingsModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "",
                permissionChild: "settings"
@@ -79,7 +79,6 @@ const routes: Routes = [
 @NgModule({
    imports: [RouterModule.forRoot(routes, { onSameUrlNavigation: "reload", anchorScrolling: "enabled" })],
    exports: [RouterModule],
-   providers: [AuthorizationGuard]
 })
 export class AppRoutingModule {
 }

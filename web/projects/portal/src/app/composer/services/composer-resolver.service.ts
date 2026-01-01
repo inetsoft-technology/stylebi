@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, ResolveFn, Router, RouterStateSnapshot } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, throwError } from "rxjs";
 import { catchError, map } from "rxjs/operators";
@@ -26,26 +26,22 @@ import { SetPrincipalCommand } from "../../vsobjects/command/set-principal-comma
 
 const NO_PERMISSION_ERROR = "_#(js:composer.authorization.permissionDenied)";
 
-@Injectable()
-export class ComposerResolver  {
-   constructor(private http: HttpClient, private modalService: NgbModal, private router: Router) {
-   }
+export const composerResolver: ResolveFn<SetPrincipalCommand> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<SetPrincipalCommand> => {
+   const http = inject(HttpClient);
+   const modalService = inject(NgbModal);
+   const router = inject(Router);
 
-   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot):
-      Observable<SetPrincipalCommand>
-   {
-      return this.http.get<SetPrincipalCommand>("../api/viewsheet/get-principal").pipe(
-         catchError((error) =>  {
-           return throwError(error);
-         })
-      ).pipe(map((data: SetPrincipalCommand) => {
-         if(!data.worksheetPermission && !data.viewsheetPermission && !data.tableStylePermission &&
-            !data.scriptPermission) {
-            ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", NO_PERMISSION_ERROR)
-               .then(() => this.router.navigate(["/portal/tab/report"]));
-         }
+   return http.get<SetPrincipalCommand>("../api/viewsheet/get-principal").pipe(
+      catchError((error) =>  {
+         return throwError(error);
+      })
+   ).pipe(map((data: SetPrincipalCommand) => {
+      if(!data.worksheetPermission && !data.viewsheetPermission && !data.tableStylePermission &&
+         !data.scriptPermission) {
+         ComponentTool.showMessageDialog(modalService, "_#(js:Error)", NO_PERMISSION_ERROR)
+            .then(() => router.navigate(["/portal/tab/report"]));
+      }
 
-         return data;
-      }));
-   }
+      return data;
+   }));
 }

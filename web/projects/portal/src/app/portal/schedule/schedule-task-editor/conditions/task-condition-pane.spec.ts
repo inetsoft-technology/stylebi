@@ -16,13 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpClientModule } from "@angular/common/http";
-import { Component, ViewChild } from "@angular/core";
+import { Component, inject, ViewChild } from "@angular/core";
 import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
-import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
+import {
+   FormBuilder,
+   FormControl,
+   FormGroup,
+   FormsModule,
+   ReactiveFormsModule
+} from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject, Subject } from "rxjs";
 import { CompletionConditionModel } from "../../../../../../../shared/schedule/model/completion-condition-model";
+import { TaskConditionPaneModel } from "../../../../../../../shared/schedule/model/task-condition-pane-model";
 import {
    TimeConditionModel,
    TimeConditionType
@@ -49,14 +56,15 @@ import { TaskConditionPane } from "./task-condition-pane.component";
 })
 class TestApp {
    @ViewChild(TaskConditionPane, {static: true}) taskConditionPane: TaskConditionPane;
-   model = {
+   model: TaskConditionPaneModel = {
+      timeProp: "",
+      twelveHourSystem: false,
       conditions: [{conditionType: "TimeCondition", label: "test condition"}],
       userDefinedClasses: [],
-      userDefinedClassLabels: [],
-      allTasks: ["Task1", "Task2", "Task3"]
+      userDefinedClassLabels: []
    };
    taskName = "Task1";
-   form = new FormControl();
+   form = inject(FormBuilder).group({});
 }
 
 describe("Task Condition Pane Unit Test", () => {

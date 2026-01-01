@@ -15,38 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
-import { ScheduleTaskEditorPageComponent } from "./schedule-task-editor-page.component";
-import { Observable, of } from "rxjs";
-import { Tool } from "../../../../../../shared/util/tool";
+import { inject } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
-import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
+import { ActivatedRouteSnapshot, CanDeactivateFn, RouterStateSnapshot } from "@angular/router";
+import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
+import { Tool } from "../../../../../../shared/util/tool";
+import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
+import { ScheduleTaskEditorPageComponent } from "./schedule-task-editor-page.component";
 
-@Injectable()
-export class ScheduleSaveGuard  {
-   constructor(private dialog: MatDialog) {
-   }
+export const scheduleSaveGuard: CanDeactivateFn<ScheduleTaskEditorPageComponent> = (component: ScheduleTaskEditorPageComponent, currentRoute: ActivatedRouteSnapshot, currentState: RouterStateSnapshot, nextState: RouterStateSnapshot): Observable<boolean> => {
+   const dialog = inject(MatDialog);
 
-   canDeactivate(component: ScheduleTaskEditorPageComponent, currentRoute: ActivatedRouteSnapshot,
-                 currentState: RouterStateSnapshot,
-                 nextState?: RouterStateSnapshot): Observable<boolean>
+   if(component.originalModel && component.model &&
+      (!Tool.isEquals(component.originalModel, component.model) || component.form.value["taskName"] !== component.model.label))
    {
-      if(component.originalModel && component.model &&
-         (!Tool.isEquals(component.originalModel, component.model) || component.form.value["taskName"] !== component.model.label))
-      {
-         const ref = this.dialog.open(MessageDialog, {
-            data: {
-               title: "_#(js:em.scheduler.taskchanged)", //make general keystring for both em and portal
-               content: "_#(js:em.scheduler.unsave.confirm)",
-               type: MessageDialogType.CONFIRMATION
-            }
-         });
+      const ref = dialog.open(MessageDialog, {
+         data: {
+            title: "_#(js:em.scheduler.taskchanged)", //make general keystring for both em and portal
+            content: "_#(js:em.scheduler.unsave.confirm)",
+            type: MessageDialogType.CONFIRMATION
+         }
+      });
 
-         return ref.afterClosed().pipe(map((value) => !!value));
-      }
-
-      return of(true);
+      return ref.afterClosed().pipe(map((value) => !!value));
    }
-}
+
+   return of(true);
+};

@@ -15,18 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, ResolveFn, RouterStateSnapshot } from "@angular/router";
 import { RepositoryEntry } from "../../../../../shared/data/repository-entry";
 import { RepositoryTreeService } from "../../widget/repository-tree/repository-tree.service";
 
-@Injectable()
-export class RouteEntryResolver  {
-   constructor(private repositoryTreeService: RepositoryTreeService) {
-   }
-
-   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): RepositoryEntry {
-      return this.repositoryTreeService.getRouteParamsEntry(
-         route.url.map((s) => s.path), route.queryParamMap);
-   }
+export const routeEntryResolver: ResolveFn<RepositoryEntry> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): RepositoryEntry => {
+   const repositoryTreeService = inject(RepositoryTreeService);
+   return repositoryTreeService.getRouteParamsEntry(
+      route.url.map((s) => s.path), route.queryParamMap);
 }

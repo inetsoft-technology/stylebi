@@ -31,6 +31,8 @@ import { DragService } from "../../widget/services/drag.service";
 import { TreeNodeComponent } from "../../widget/tree/tree-node.component";
 import { TreeSearchPipe } from "../../widget/tree/tree-search.pipe";
 import { TreeComponent } from "../../widget/tree/tree.component";
+import { RangeSliderDataPaneModel } from "../model/range-slider-data-pane-model";
+import { RangeSliderSizePaneModel } from "../model/range-slider-size-pane-model";
 import { DataTreeValidatorService } from "./data-tree-validator.service";
 import { RangeSliderDataPane } from "./range-slider-data-pane.component";
 
@@ -41,7 +43,10 @@ import { RangeSliderDataPane } from "./range-slider-data-pane.component";
 })
 class TestApp {
    @ViewChild(RangeSliderDataPane, {static: false}) rangeSliderDataPane: RangeSliderDataPane;
-   mockModel = {
+   mockModel: RangeSliderDataPaneModel = {
+      additionalTables: [],
+      assemblySource: false,
+      grayedOutFields: [],
       selectedTable: "Query1",
       selectedColumns: [],
       targetTree: TestUtils.createMockWorksheetDataTree(),
@@ -49,7 +54,8 @@ class TestApp {
       composite: true
    };
 
-   mockSizeModel = {
+   mockSizeModel: RangeSliderSizePaneModel = {
+      submitOnChange: false,
       length: 1,
       logScale: false,
       upperInclusive: false,

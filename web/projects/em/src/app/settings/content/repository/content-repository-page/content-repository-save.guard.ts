@@ -15,37 +15,30 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
+import { ActivatedRouteSnapshot, CanDeactivateFn, RouterStateSnapshot } from "@angular/router";
 import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
 import { MessageDialog, MessageDialogType } from "../../../../common/util/message-dialog";
 import { ContentRepositoryPageComponent } from "./content-repository-page.component";
 
-@Injectable()
-export class ContentRepositorySaveGuard  {
-   constructor(private dialog: MatDialog) {
+export const contentRepositorySaveGuard: CanDeactivateFn<ContentRepositoryPageComponent> = (component: ContentRepositoryPageComponent, currentRoute: ActivatedRouteSnapshot, currentState: RouterStateSnapshot, nextState: RouterStateSnapshot): Observable<boolean> => {
+   const dialog = inject(MatDialog);
+
+   if(component.unsavedChanges) {
+      const ref = dialog.open(MessageDialog, {
+         data: {
+            title: "_#(js:em.settings.repositorySettingsChanged)",
+            content: "_#(js:em.settings.repositorySettings.confirm)",
+            type: MessageDialogType.CONFIRMATION
+         }
+      });
+
+      return ref.afterClosed().pipe(
+         map(result => !!result)
+      );
    }
 
-   canDeactivate(component: ContentRepositoryPageComponent, currentRoute: ActivatedRouteSnapshot,
-                 currentState: RouterStateSnapshot, nextState?: RouterStateSnapshot): Observable<boolean>
-   {
-      if(component.unsavedChanges) {
-         const ref = this.dialog.open(MessageDialog, {
-            data: {
-               title: "_#(js:em.settings.repositorySettingsChanged)",
-               content: "_#(js:em.settings.repositorySettings.confirm)",
-               type: MessageDialogType.CONFIRMATION
-            }
-         });
-
-         return ref.afterClosed().pipe(
-            map(result => !!result)
-         );
-      }
-
-      return of(true);
-   }
-
-}
+   return of(true);
+};

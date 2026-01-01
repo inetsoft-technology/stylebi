@@ -16,19 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, ResolveFn, RouterStateSnapshot } from "@angular/router";
 import { Observable } from "rxjs";
 import { SSOSettingsModel } from "./sso-settings-model";
 
-@Injectable()
-export class SsoSettingsResolverService  {
-   constructor(private httpClient: HttpClient) {
-   }
-
-   resolve(route: ActivatedRouteSnapshot,
-           state: RouterStateSnapshot): Observable<SSOSettingsModel>
-   {
-      return this.httpClient.get<SSOSettingsModel>("../api/sso/settings");
-   }
+export const ssoSettingsResolver: ResolveFn<SSOSettingsModel> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<SSOSettingsModel> => {
+   const httpClient = inject(HttpClient);
+   return httpClient.get<SSOSettingsModel>("../api/sso/settings");
 }

@@ -16,12 +16,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { of as observableOf } from "rxjs";
 import { TableViewModule } from "../../../common/util/table/table-view.module";
 import { ClusterSelectorModule } from "../../cluster-selector/cluster-selector.module";
@@ -54,7 +54,7 @@ describe("CacheMonitoringPageComponent", () => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientTestingModule,
-            RouterTestingModule,
+            RouterModule.forRoot([]),
             NoopAnimationsModule,
             MatCardModule,
             MatFormFieldModule,
