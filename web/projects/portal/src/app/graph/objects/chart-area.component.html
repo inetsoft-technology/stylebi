@@ -154,6 +154,7 @@
         <chart-plot-area *ngIf="model.plot"
                        #chartPlotArea
                        [viewerMode]="viewerMode"
+                       [hasEmptyPlotLinkModel]="!!model.emptyPlotLinkModel"
                        [previewMode]="previewMode"
                        [wTooltip]="tooltipString"
                        [followCursor]="true"
