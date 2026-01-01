@@ -31,7 +31,6 @@ import { Viewsheet } from "../../../data/vs/viewsheet";
 import { AbstractActionComponent } from "./abstract-action-component";
 
 @Component({
-   moduleId: module.id,
    selector: "mobile-toolbar",
    templateUrl: "mobile-toolbar.component.html"
 })

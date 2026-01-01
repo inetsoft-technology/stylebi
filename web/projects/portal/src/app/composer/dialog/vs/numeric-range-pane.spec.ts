@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NgModule, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../../common/test/test-utils";
@@ -52,10 +52,6 @@ const createModel: () => NumericRangePaneModel = () => {
       FixedDropdownComponent,
       FixedDropdownContextmenuComponent,
    ],
-   entryComponents: [
-      FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
-   ]
 })
 class TestModule {
 }
@@ -65,7 +61,7 @@ describe("Numeric Range Pane Tests", () => {
    let fixture: ComponentFixture<NumericRangePane>;
    let element: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             NgbModule, ReactiveFormsModule, FormsModule, TestModule

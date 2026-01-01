@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient } from "@angular/common/http";
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, Router, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, ResolveFn, Router, RouterStateSnapshot } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
@@ -26,18 +26,16 @@ import { DashboardTabModel } from "../dashboard/dashboard-tab-model";
 
 const DASHBOARD_TAB_ERROR_MSG = "_#(js:em.security.permit.dashboard)";
 
-@Injectable()
-export class DashboardTabResolver implements Resolve<DashboardTabModel> {
-   constructor(private http: HttpClient, private modalService: NgbModal, private router: Router) {
-   }
+export const dashboardTabResolver: ResolveFn<DashboardTabModel> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<DashboardTabModel> => {
+   const http = inject(HttpClient);
+   const modalService = inject(NgbModal);
+   const router = inject(Router);
 
-   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<DashboardTabModel> {
-      return this.http.get<DashboardTabModel>("../api/portal/dashboard-tab-model").pipe(
-         catchError((error) =>  {
-            ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", DASHBOARD_TAB_ERROR_MSG)
-               .then(() => this.router.navigate(["/portal/tab/report"]));
-            return throwError(error);
-         })
-      );
-   }
+   return http.get<DashboardTabModel>("../api/portal/dashboard-tab-model").pipe(
+      catchError((error) =>  {
+         ComponentTool.showMessageDialog(modalService, "_#(js:Error)", DASHBOARD_TAB_ERROR_MSG)
+            .then(() => router.navigate(["/portal/tab/report"]));
+         return throwError(error);
+      })
+   );
 }

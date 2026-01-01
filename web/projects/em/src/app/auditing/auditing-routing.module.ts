@@ -15,18 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
 import { inject, NgModule } from "@angular/core";
 import { CanActivateFn, Router, RouterModule, Routes, UrlTree } from "@angular/router";
 import { Observable, of } from "rxjs";
 import { switchMap } from "rxjs/operators";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
-import { AuthorizationGuard } from "../authorization/authorization-guard.service";
-import { AuditingResolverService } from "./auditing-resolver.service";
+import { authorizationGuard } from "../authorization/authorization-guard.service";
+import { auditingResolver } from "./auditing-resolver.service";
 import { AuditingSidenavComponent } from "./auditing-sidenav/auditing-sidenav.component";
 
 export const canActivateAuditViewer: CanActivateFn = (): Observable<boolean | UrlTree> => {
-   const http = inject(HttpClient);
    const appInfoService = inject(AppInfoService);
    const router = inject(Router);
 
@@ -50,145 +48,145 @@ const routes: Routes = [
          {
             path: "inactive-resource",
             loadChildren: () => import("./audit-inactive-resource/audit-inactive-resource.module").then(m => m.AuditInactiveResourceModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "inactive-resource"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "inactive-user",
             loadChildren: () => import("./audit-inactive-user/audit-inactive-user.module").then(m => m.AuditInactiveUserModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "inactive-user"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "identity-info",
             loadChildren: () => import("./audit-identity-info/audit-identity-info.module").then(m => m.AuditIdentityInfoModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "identity-info"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "logon-error",
             loadChildren: () => import("./audit-logon-error/audit-logon-error.module").then(m => m.AuditLogonErrorModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "logon-error"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "logon-history",
             loadChildren: () => import("./audit-logon-history/audit-logon-history.module").then(m => m.AuditLogonHistoryModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "logon-history"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "modification-history",
             loadChildren: () => import("./audit-modification-history/audit-modification-history.module").then(m => m.AuditModificationHistoryModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "modification-history"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "user-session",
             loadChildren: () => import("./audit-user-session/audit-user-session.module").then(m => m.AuditUserSessionModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "user-session"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "dependent-assets",
             loadChildren: () => import("./audit-dependent-assets/audit-dependent-assets.module").then(m => m.AuditDependentAssetsModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "dependent-assets"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "required-assets",
             loadChildren: () => import("./audit-required-assets/audit-required-assets.module").then(m => m.AuditRequiredAssetsModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "required-assets"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "export-history",
             loadChildren: () => import("./audit-export-history/audit-export-history.module").then(m => m.AuditExportHistoryModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "export-history"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "schedule-history",
             loadChildren: () => import("./audit-schedule-history/audit-schedule-history.module").then(m => m.AuditScheduleHistoryModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "schedule-history"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
             path: "bookmark-history",
             loadChildren: () => import("./audit-bookmark-history/audit-bookmark-history.module").then(m => m.AuditBookmarkHistoryModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "auditing",
                permissionChild: "bookmark-history"
             },
             resolve: {
-               model: AuditingResolverService
+               model: auditingResolver
             }
          },
          {
@@ -202,7 +200,6 @@ const routes: Routes = [
 @NgModule({
    imports: [RouterModule.forChild(routes)],
    exports: [RouterModule],
-   providers: [AuditingResolverService]
 })
 export class AuditingRoutingModule {
 }

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { VSWizardPreviewPane } from "./wizard-preview-pane.component";
 
@@ -24,7 +24,7 @@ describe("VSWizardPreviewPane", () => {
   let component: VSWizardPreviewPane;
   let fixture: ComponentFixture<VSWizardPreviewPane>;
 
-  beforeEach(async(() => {
+  beforeEach(waitForAsync(() => {
     const viewsheetClientService = { sendEvent: jest.fn() };
 
     TestBed.configureTestingModule({

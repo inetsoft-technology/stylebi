@@ -32,8 +32,8 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <node.version>v18.18.1</node.version>
-    <npm.version>9.8.1</npm.version>
+    <node.version>v18.20.8</node.version>
+    <npm.version>10.8.2</npm.version>
     <ng.build.script>build</ng.build.script>
     <ng.verify.script>verify</ng.verify.script>
   </properties>

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ComponentFixture, TestBed, async } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { DebugElement } from "@angular/core";
 import { FormsModule, ReactiveFormsModule, FormGroup } from "@angular/forms";
@@ -45,7 +45,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
    let de: DebugElement;
    let el: HTMLSelectElement;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule],
          declarations: [RangeSliderSizePane]
@@ -61,7 +61,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
       fixture.detectChanges();
    }));
 
-   it("should instantiate RangeSliderSizePane comboBox with string Month", async(() => {
+   it("should instantiate RangeSliderSizePane comboBox with string Month", waitForAsync(() => {
       fixture.whenStable().then(() => {
          de = fixture.debugElement.query(By.css("select.form-control"));
          el = de.nativeElement;
@@ -77,7 +77,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
    }));
 
    //bug #18465, #18469, slider size input check
-   it("slider size input check", async(() => { // broken test
+   it("slider size input check", waitForAsync(() => { // broken test
       let sliderSize = fixture.debugElement.query(By.css("input#length")).nativeElement;
       sliderSize.value = "0.75";
       sliderSize.dispatchEvent(new Event("input"));

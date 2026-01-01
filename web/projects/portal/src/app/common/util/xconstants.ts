@@ -48,6 +48,7 @@ export const enum XConstants {
    /**
     * None date group.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    NONE_DATE_GROUP = 0,
    /**
     * Year date group.
@@ -56,6 +57,7 @@ export const enum XConstants {
    /**
     * Quarter date group.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    QUARTER_DATE_GROUP = 4,
    /**
     * Month date group.
@@ -64,10 +66,12 @@ export const enum XConstants {
    /**
     * Week date group.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    WEEK_DATE_GROUP = 2,
    /**
     * Day date group.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    DAY_DATE_GROUP = 1,
    /**
     * AM/PM date group.
@@ -76,6 +80,7 @@ export const enum XConstants {
    /**
     * Hour date group.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    HOUR_DATE_GROUP = 8,
    /**
     * Minute date group.
@@ -140,6 +145,7 @@ export const enum XConstants {
    /**
     * Join operation.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    JOIN = 1,
    /**
     * Inner join operation.
@@ -180,6 +186,7 @@ export const enum XConstants {
    /**
     * Concatenation operation.
     */
+   // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
    CONCATENATION = 512,
    /**
     * Union operation.

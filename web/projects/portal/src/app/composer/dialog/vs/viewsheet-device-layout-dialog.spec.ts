@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../../common/util/component-tool";
@@ -44,7 +44,7 @@ describe("Viewsheet Device Layout Dialog Unit Test", () => {
    let modalService: any;
    let ngbModalRef: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       ngbModalRef = {
          close: jest.fn(),
          dismiss: jest.fn(),

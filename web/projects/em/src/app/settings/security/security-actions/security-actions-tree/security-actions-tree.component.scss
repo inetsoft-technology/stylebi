@@ -29,5 +29,17 @@
 
   .mat-tree-node {
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    flex: 1 1 auto;
+    font-size: 12px;
+
+    > button, .mat-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
   }
 }

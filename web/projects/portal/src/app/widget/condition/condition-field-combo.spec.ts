@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -56,7 +56,7 @@ describe ("condition field combo tree test", () => {
    let conCombo: ConditionFieldComboComponent;
    let wizard: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       wizard = {};
       TestBed.configureTestingModule({
          imports: [

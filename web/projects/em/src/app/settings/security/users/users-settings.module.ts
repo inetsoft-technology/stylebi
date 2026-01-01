@@ -18,6 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { MatAutocompleteModule } from "@angular/material/autocomplete";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -30,11 +31,15 @@ import { MatInputModule } from "@angular/material/input";
 import { MatListModule } from "@angular/material/list";
 import { MatSelectModule } from "@angular/material/select";
 import { MatSidenavModule } from "@angular/material/sidenav";
+import { MatSlideToggleModule } from "@angular/material/slide-toggle";
 import { EditorPanelModule } from "../../../common/util/editor-panel/editor-panel.module";
 import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
+import { LoadingSpinnerModule } from "../../../common/util/loading-spinner/loading-spinner.module";
 import { MessageDialogModule } from "../../../common/util/message-dialog.module";
+import { ModalHeaderModule } from "../../../common/util/modal-header/modal-header.module";
 import { TopScrollModule } from "../../../top-scroll/top-scroll.module";
 import { EmailPickerModule } from "../../email-picker/email-picker.module";
+import { PropertyTableViewModule } from "../property-table-view/property-table-view.module";
 import { SecurityTableViewModule } from "../security-table-view/security-table-view.module";
 import { SecurityTreeViewModule } from "../security-tree-view/security-tree-view.module";
 import { EditIdentityPaneComponent } from "./edit-identity-pane/edit-identity-pane.component";
@@ -42,15 +47,9 @@ import { EditIdentityViewComponent } from "./edit-identity-view/edit-identity-vi
 import { IdentityTablesPaneComponent } from "./identity-tables-pane/identity-tables-pane.component";
 import { SecurityTreeService } from "./security-tree.service";
 import { UsersSettingsPageComponent } from "./users-settings-page/users-settings-page.component";
-import { UsersSettingsSaveGuard } from "./users-settings-page/users-settings-save.guard";
 import { UsersSettingsRoutingModule } from "./users-settings-routing.module";
 import { CreateOrganizationDialogComponent } from "./users-settings-view/create-organization-dialog.component";
 import { UsersSettingsViewComponent } from "./users-settings-view/users-settings-view.component";
-import { PropertyTableViewModule } from "../property-table-view/property-table-view.module";
-import { MatSlideToggleModule } from "@angular/material/slide-toggle";
-import {MatAutocompleteModule} from "@angular/material/autocomplete";
-import {ModalHeaderModule} from "../../../common/util/modal-header/modal-header.module";
-import {LoadingSpinnerModule} from "../../../common/util/loading-spinner/loading-spinner.module";
 
 @NgModule({
     imports: [
@@ -93,7 +92,6 @@ import {LoadingSpinnerModule} from "../../../common/util/loading-spinner/loading
    providers: [
       SecurityTreeService,
       ErrorHandlerService,
-      UsersSettingsSaveGuard
    ]
 })
 export class UsersSettingsModule {

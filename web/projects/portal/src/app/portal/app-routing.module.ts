@@ -17,39 +17,42 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes, UrlMatchResult, UrlSegment } from "@angular/router";
-import { CanDeactivateGuard } from "../common/services/can-deactivate-guard.service";
+import { canDeactivateGuard } from "../common/services/can-deactivate-guard.service";
+import {
+   principalResolver,
+   PrincipalResolverService
+} from "../common/services/principal-resolver.service";
 import { PortalAppComponent } from "./app.component";
 import { CustomTabComponent } from "./custom/custom-tab.component";
 import { DashboardTabComponent } from "./dashboard/dashboard-tab.component";
 import { DashboardLandingComponent } from "./dashboard/landing/dashboard-landing.component";
-import { DatabasePhysicalModelComponent } from "./data/data-datasource-browser/datasources-database/database-physical-model/database-physical-model.component";
 import { DataDatasourceBrowserComponent } from "./data/data-datasource-browser/data-datasource-browser.component";
 import { DatasourceSelectionViewComponent } from "./data/data-datasource-browser/datasource-selection/datasource-selection-view.component";
+import { DatabaseDataModelBrowserComponent } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/database-data-model-browser.component";
+import { DatabaseVPMBrowserComponent } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/database-vpm-browser/database-vpm-browser.component";
+import { DatabasePhysicalModelComponent } from "./data/data-datasource-browser/datasources-database/database-physical-model/database-physical-model.component";
+import { LogicalModelComponent } from "./data/data-datasource-browser/datasources-database/database-physical-model/logical-model/logical-model.component";
+import { DatabaseVPMComponent } from "./data/data-datasource-browser/datasources-database/database-vpm/database-vpm.component";
 import { DatasourcesDatabaseComponent } from "./data/data-datasource-browser/datasources-database/datasources-database.component";
 import { DatasourcesDatasourceComponent } from "./data/data-datasource-browser/datasources-datasource/datasources-datasource.component";
+import { DatasourcesXmlaComponent } from "./data/data-datasource-browser/datasources-xmla/datasources-xmla.component";
 import { DataFolderBrowserComponent } from "./data/data-folder-browser/data-folder-browser.component";
 import { DataTabComponent } from "./data/data-tab.component";
 import { PortalRedirectComponent } from "./portal-redirect.component";
 import { ReportTabComponent } from "./report/report-tab.component";
 import { PortalReportComponent } from "./report/report/portal-report.component";
 import { WelcomePageComponent } from "./report/welcome/welcome-page.component";
-import { ScheduleSaveGuard } from "./schedule/schedule-save.guard";
+import { scheduleSaveGuard } from "./schedule/schedule-save.guard";
 import { ScheduleTabComponent } from "./schedule/schedule-tab.component";
 import { ScheduleTaskEditorComponent } from "./schedule/schedule-task-editor/schedule-task-editor.component";
 import { ScheduleTaskListComponent } from "./schedule/schedule-task-list/schedule-task-list.component";
-import { CanTabActivateService } from "./services/can-tab-activate.service";
-import { DashboardTabResolver } from "./services/dashboard-tab-resolver.service";
-import { ReportTabResolver } from "./services/report-tab-resolver.service";
-import { RouteEntryResolver } from "./services/route-entry-resolver.service";
-import { RouteSourceResolver } from "./services/route-source-resolver.service";
-import { LogicalModelComponent } from "./data/data-datasource-browser/datasources-database/database-physical-model/logical-model/logical-model.component";
-import { DatabaseVPMComponent } from "./data/data-datasource-browser/datasources-database/database-vpm/database-vpm.component";
-import { DatabaseVPMBrowserComponent } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/database-vpm-browser/database-vpm-browser.component";
-import { CanDatabaseModelActivateService } from "./services/can-database-model-activate.service";
-import { DatabaseDataModelBrowserComponent } from "./data/data-datasource-browser/datasources-database/database-data-model-browser/database-data-model-browser.component";
-import { CanDatabaseCreateActivateService } from "./services/can-database-create-activate.service";
-import { PrincipalResolver } from "../common/services/principal-resolver.service";
-import { DatasourcesXmlaComponent } from "./data/data-datasource-browser/datasources-xmla/datasources-xmla.component";
+import { canDatabaseCreateActivate } from "./services/can-database-create-activate.service";
+import { canDatabaseModelActivate } from "./services/can-database-model-activate.service";
+import { canTabActivate } from "./services/can-tab-activate.service";
+import { dashboardTabResolver } from "./services/dashboard-tab-resolver.service";
+import { reportTabResolver } from "./services/report-tab-resolver.service";
+import { routeEntryResolver } from "./services/route-entry-resolver.service";
+import { routeSourceResolver } from "./services/route-source-resolver.service";
 
 export function REPORT_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
    let result: any = null;
@@ -81,16 +84,16 @@ const appRoutes: Routes = [
          {
             path: "tab/dashboard",
             component: DashboardTabComponent,
-            canActivate: [CanTabActivateService],
+            canActivate: [canTabActivate],
             resolve: {
-               dashboardTabModel: DashboardTabResolver
+               dashboardTabModel: dashboardTabResolver
             },
             children: [
                {
                   path: "",
                   component: DashboardLandingComponent,
                   resolve: {
-                     dashboardTabModel: DashboardTabResolver
+                     dashboardTabModel: dashboardTabResolver
                   }
                },
                {
@@ -110,9 +113,9 @@ const appRoutes: Routes = [
          {
             path: "tab/report",
             component: ReportTabComponent,
-            canActivate: [CanTabActivateService],
+            canActivate: [canTabActivate],
             resolve: {
-               reportTabModel: ReportTabResolver
+               reportTabModel: reportTabResolver
             },
             children: [
                {
@@ -123,8 +126,8 @@ const appRoutes: Routes = [
                   component: PortalReportComponent,
                   matcher: REPORT_URL_MATCHER,
                   resolve: {
-                     repositoryEntry: RouteEntryResolver,
-                     contentSource: RouteSourceResolver
+                     repositoryEntry: routeEntryResolver,
+                     contentSource: routeSourceResolver
                   },
                },
                {
@@ -141,7 +144,7 @@ const appRoutes: Routes = [
          {
             path: "tab/schedule",
             component: ScheduleTabComponent,
-            canActivate: [CanTabActivateService],
+            canActivate: [canTabActivate],
             children: [
                {
                   path: "tasks",
@@ -150,7 +153,7 @@ const appRoutes: Routes = [
                {
                   path: "tasks/:task",
                   component: ScheduleTaskEditorComponent,
-                  canDeactivate: [ScheduleSaveGuard]
+                  canDeactivate: [scheduleSaveGuard]
                },
                {
                   path: "**",
@@ -161,10 +164,11 @@ const appRoutes: Routes = [
          {
             path: "tab/data",
             component: DataTabComponent,
+            providers: [PrincipalResolverService],
             resolve: {
-               principalCommand: PrincipalResolver
+               principalCommand: principalResolver
             },
-            canActivate: [CanTabActivateService],
+            canActivate: [canTabActivate],
             children: [
                {
                   path: "",
@@ -185,51 +189,51 @@ const appRoutes: Routes = [
                      {
                         // route for new datasource with parameter for type
                         path: "datasources/datasource/new/:datasourceType/:parentPath",
-                        canDeactivate: [CanDeactivateGuard],
+                        canDeactivate: [canDeactivateGuard],
                         component: DatasourcesDatasourceComponent
                      },
                      {
                         // route for a new data source from a listing
                         path: "datasources/datasource/listing/:listingName/:parentPath",
-                        canDeactivate: [CanDeactivateGuard],
+                        canDeactivate: [canDeactivateGuard],
                         component: DatasourcesDatasourceComponent
                      },
                      {
                         path: "datasources/datasource/:datasourcePath",
-                        canDeactivate: [CanDeactivateGuard],
+                        canDeactivate: [canDeactivateGuard],
                         component: DatasourcesDatasourceComponent
                      },
                      {
                         // route for new database with no parameter
                         path: "datasources/database/new/:parentPath",
-                        canDeactivate: [CanDeactivateGuard],
+                        canDeactivate: [canDeactivateGuard],
                         component: DatasourcesDatabaseComponent
                      },
                      {
                         // route for a new database from a listing
                         path: "datasources/database/listing/:listingName/:parentPath",
-                        canDeactivate: [CanDeactivateGuard],
+                        canDeactivate: [canDeactivateGuard],
                         component: DatasourcesDatabaseComponent
                      },
                      {
                         path: "datasources/database/:databasePath",
-                        canDeactivate: [CanDeactivateGuard],
+                        canDeactivate: [canDeactivateGuard],
                         component: DatasourcesDatabaseComponent
                      },
                      {
                         path: "datasources/datasource/xmla/new/:parentPath",
-                        canDeactivate: [CanDeactivateGuard],
+                        canDeactivate: [canDeactivateGuard],
                         component: DatasourcesXmlaComponent
                      },
                      {
                         path: "datasources/datasource/xmla/edit/:datasourcePath",
-                        canDeactivate: [CanDeactivateGuard],
+                        canDeactivate: [canDeactivateGuard],
                         component: DatasourcesXmlaComponent
                      },
                      {
                         path: "datasources/listing/:parentPath",
-                        canDeactivate: [CanDeactivateGuard],
-                        canActivate: [CanDatabaseCreateActivateService],
+                        canDeactivate: [canDeactivateGuard],
+                        canActivate: [canDatabaseCreateActivate],
                         component: DatasourceSelectionViewComponent
                      },
                      {
@@ -238,14 +242,14 @@ const appRoutes: Routes = [
                      },
                      {
                         path: "datasources/database/:databasePath/physicalModel/:physicalName",
-                        canDeactivate: [CanDeactivateGuard],
-                        canActivate: [CanDatabaseModelActivateService],
+                        canDeactivate: [canDeactivateGuard],
+                        canActivate: [canDatabaseModelActivate],
                         component: DatabasePhysicalModelComponent
                      },
                      {
                         path: "datasources/database/:databasePath/physicalModel/:physicalModelName/logicalModel/:logicalModelName",
-                        canDeactivate: [CanDeactivateGuard],
-                        canActivate: [CanDatabaseModelActivateService],
+                        canDeactivate: [canDeactivateGuard],
+                        canActivate: [canDatabaseModelActivate],
                         component: LogicalModelComponent
                      },
                      {
@@ -254,8 +258,8 @@ const appRoutes: Routes = [
                      },
                      {
                         path: "datasources/database/vpm/:vpmPath",
-                        canDeactivate: [CanDeactivateGuard],
-                        canActivate: [CanDatabaseModelActivateService],
+                        canDeactivate: [canDeactivateGuard],
+                        canActivate: [canDatabaseModelActivate],
                         component: DatabaseVPMComponent
                      },
                      {
@@ -291,7 +295,6 @@ const appRoutes: Routes = [
    exports: [
       RouterModule
    ],
-   providers: [ PrincipalResolver ]
 })
 export class PortalAppRoutingModule {
 }

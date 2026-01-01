@@ -25,11 +25,10 @@ import {
    Renderer2,
    ViewContainerRef
 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { BrowserModule, By, Title } from "@angular/platform-browser";
 import { Router } from "@angular/router";
 import {
-   NgbConfig,
    NgbDatepickerConfig,
    NgbDropdownConfig,
    NgbModal,
@@ -43,11 +42,13 @@ import { AssetLoadingService } from "../common/services/asset-loading.service";
 import { BaseHrefService } from "../common/services/base-href.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { FullScreenService } from "../common/services/full-screen.service";
+import { PagingControlService } from "../common/services/paging-control.service";
 import { DropDownTestModule } from "../common/test/test-module";
 import { TestUtils } from "../common/test/test-utils";
 import { ComponentTool } from "../common/util/component-tool";
 import { StompClientService, ViewsheetClientService } from "../common/viewsheet-client";
 import { Viewsheet } from "../composer/data/vs/viewsheet";
+import { ComposerRecentService } from "../composer/gui/composer-recent.service";
 import { PageTabService } from "../viewer/services/page-tab.service";
 import { ViewDataService } from "../viewer/services/view-data.service";
 import { DomService } from "../widget/dom-service/dom.service";
@@ -77,17 +78,14 @@ import { VSChartService } from "./objects/chart/services/vs-chart.service";
 import { DataTipService } from "./objects/data-tip/data-tip.service";
 import { PopComponentService } from "./objects/data-tip/pop-component.service";
 import { VSPopComponentDirective } from "./objects/data-tip/vs-pop-component.directive";
+import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
+import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
 import { ShowHyperlinkService } from "./show-hyperlink.service";
+import { ToolbarActionsHandler } from "./toolbar-actions-handler";
 import { CheckFormDataService } from "./util/check-form-data.service";
+import { GlobalSubmitService } from "./util/global-submit.service";
 import { ViewerResizeService } from "./util/viewer-resize.service";
 import { ViewerAppComponent } from "./viewer-app.component";
-import { ResizeSensor } from "css-element-queries";
-import { ToolbarActionsHandler } from "./toolbar-actions-handler";
-import { ComposerRecentService } from "../composer/gui/composer-recent.service";
-import { PagingControlService } from "../common/services/paging-control.service";
-import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
-import { GlobalSubmitService } from "./util/global-submit.service";
-import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
 
 jest.mock("css-element-queries");
 
@@ -148,7 +146,7 @@ describe("ViewerApp Unit Tests", () => {
    let viewContainerRef: any;
    let baseHrefService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       formDataService = {
          checkFormData: jest.fn(),
          removeObject: jest.fn(),
@@ -348,7 +346,7 @@ describe("ViewerApp Unit Tests", () => {
 
    //Bug #16456 TODO, logica changed, can not get fixed dropdown pane
    // Bug #19176 hide full screen in preview
-   it("should have disabled set as default and hidden full screen button in preview mode", async(() => {
+   it("should have disabled set as default and hidden full screen button in preview mode", waitForAsync(() => {
       const fixture: ComponentFixture<ViewerAppComponent> = TestBed.createComponent(ViewerAppComponent);
       fixture.componentInstance.touchDevice = false;
       fixture.componentInstance.preview = true;
@@ -371,12 +369,13 @@ describe("ViewerApp Unit Tests", () => {
 
    it("should remove the vsobject's actions when removing the vsobject", () => {
       const httpClient = TestBed.inject(HttpClient);
+      const tooltipConfig = TestBed.inject(NgbTooltipConfig);
       const viewerApp = new ViewerAppComponent(
          viewsheetClientService, null, null, null, null, null, null, null,
          new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
          debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
          renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
-         firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,
+         firstDayOfWeekService, tooltipConfig, shareService, null,
          richTextService, viewerToolbarMessageService, mobileToolbarService, mockDocument, composerRecentService,
          pageTabService, pagingControlService, selectionMobileService,
          assetLoadingService, viewContainerRef, baseHrefService);
@@ -422,7 +421,7 @@ describe("ViewerApp Unit Tests", () => {
    // Bug #16961 should refresh scale to screen vs when viewer root pane size changes
    // @by jasonshobe, this test case is failing, but it is bad (testing implementation instead of
    // behavior) so I'm disabling it.
-   xit("should refresh viewsheet on viewer root resize", async(() => {
+   xit("should refresh viewsheet on viewer root resize", waitForAsync(() => {
       const fixture: ComponentFixture<ViewerAppComponent> = TestBed.createComponent(ViewerAppComponent);
       fixture.componentInstance.toolbarVisible = true;
       fixture.componentInstance.preview = true;
@@ -492,7 +491,7 @@ describe("ViewerApp Unit Tests", () => {
    });
 
    // Bug #20628 Bug #20715 should display correct status for previous page
-   it("should display correct status for previous page", async(() => {
+   it("should display correct status for previous page", waitForAsync(() => {
       const fixture: ComponentFixture<ViewerAppComponent> =
          TestBed.createComponent(ViewerAppComponent);
       fixture.componentInstance.toolbarPermissions = [];

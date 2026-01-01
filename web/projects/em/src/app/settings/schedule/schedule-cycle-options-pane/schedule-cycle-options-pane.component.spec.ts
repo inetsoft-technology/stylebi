@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
@@ -36,7 +36,7 @@ describe("ScheduleCycleOptionsPaneComponent", () => {
    let component: ScheduleCycleOptionsPaneComponent;
    let fixture: ComponentFixture<ScheduleCycleOptionsPaneComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const scheduleUsersService = {
          getGroups: jest.fn(() => new BehaviorSubject([]) ),
          getEmailUsers: jest.fn(() => new BehaviorSubject([]) ),

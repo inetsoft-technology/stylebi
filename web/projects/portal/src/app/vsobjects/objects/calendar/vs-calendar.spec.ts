@@ -18,7 +18,7 @@
 import { CommonModule } from "@angular/common";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
@@ -53,7 +53,7 @@ describe("VSCalendar Unit Tests", () => {
    let firstDayOfWeekService: any;
    let dropdownService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       viewsheetClientService = { sendEvent: jest.fn() };
       interactService = {
          addInteractable: jest.fn(),

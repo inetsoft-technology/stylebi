@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { SsoHeartbeatService } from "../../../../../../shared/sso/sso-heartbeat.service";
@@ -42,7 +42,7 @@ describe("VSSelectionContainer Unit Tests", () => {
    let dropdownService: any;
    let ssoHeartbeatService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       interactService = {
          addInteractable: jest.fn(),
          notify: jest.fn(),

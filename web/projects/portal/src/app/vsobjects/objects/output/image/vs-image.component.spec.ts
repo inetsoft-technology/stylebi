@@ -214,7 +214,7 @@ describe("VSImage", () => {
       let debugElement = fixture.debugElement.query(By.directive(VSAnnotation));
       expect(debugElement).not.toBeNull();
 
-      while(debugElement) {
+      while(debugElement && debugElement.nativeElement) {
          const style = window.getComputedStyle(debugElement.nativeElement);
 
          if(style != null && Object.keys(style).length > 0) {

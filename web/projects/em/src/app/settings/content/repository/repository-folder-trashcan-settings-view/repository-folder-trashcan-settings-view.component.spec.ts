@@ -29,7 +29,7 @@ import { MatRadioModule } from "@angular/material/radio";
 import { MatSelectModule } from "@angular/material/select";
 import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
 import { EditorPanelComponent } from "../../../../common/util/editor-panel/editor-panel.component";
 import { TableViewModule } from "../../../../common/util/table/table-view.module";
 import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
@@ -41,7 +41,7 @@ describe("RepositoryFolderTrashcanSettingsViewComponent", () => {
 
    beforeEach(() => {
       TestBed.configureTestingModule({
-         imports: [HttpClientTestingModule, RouterTestingModule, MatCardModule, MatDialogModule,
+         imports: [HttpClientTestingModule, RouterModule.forRoot([]), MatCardModule, MatDialogModule,
             MatButtonModule, MatInputModule, MatSelectModule, NoopAnimationsModule,
             MatOptionModule, MatTabsModule, MatFormFieldModule, FormsModule, ReactiveFormsModule,
             MatRadioModule, MatCheckboxModule, ResourcePermissionModule, TableViewModule],

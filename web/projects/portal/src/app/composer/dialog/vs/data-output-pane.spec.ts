@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, DebugElement, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -112,7 +112,7 @@ describe("Data Output Pane Test", () => {
    let de: DebugElement;
    let el: HTMLElement;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       httpService = { get: jest.fn() };
       dragService = { reset: jest.fn(), put: jest.fn() };
       treeService = { validateTreeNode: jest.fn() };
@@ -191,7 +191,7 @@ describe("Data Output Pane Test", () => {
       expect(httpService.get.mock.calls[0][1]).toBeTruthy();
    });
 
-   it("should display the node label and not the node data", async(() => {
+   it("should display the node label and not the node data", waitForAsync(() => {
       fixture.detectChanges();
 
       de = fixture.debugElement.query(By.css("tree-dropdown"));

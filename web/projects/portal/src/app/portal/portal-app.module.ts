@@ -35,7 +35,6 @@ import { ScheduleTaskNamesService } from "../../../../shared/schedule/schedule-t
 import { PORTAL, ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
 import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
-import { CanDeactivateGuard } from "../common/services/can-deactivate-guard.service";
 import { UIContextService } from "../common/services/ui-context.service";
 import { FormatModule } from "../format/format.module";
 import { DataTreeValidatorService } from "../vsobjects/dialog/data-tree-validator.service";
@@ -174,7 +173,6 @@ import { ReportTabComponent } from "./report/report-tab.component";
 import { PortalReportComponent } from "./report/report/portal-report.component";
 import { RepositoryTreeViewComponent } from "./report/tree/repository-tree-view.component";
 import { WelcomePageComponent } from "./report/welcome/welcome-page.component";
-import { ScheduleSaveGuard } from "./schedule/schedule-save.guard";
 import { ScheduleTabComponent } from "./schedule/schedule-tab.component";
 import { ActionAccordion } from "./schedule/schedule-task-editor/actions/action-accordian/action-accordion.component";
 import { TaskActionPane } from "./schedule/schedule-task-editor/actions/task-action-pane.component";
@@ -192,18 +190,11 @@ import { EditTaskFolderDialog } from "./schedule/schedule-task-list/edit-task-fo
 import { MoveTaskDialogComponent } from "./schedule/schedule-task-list/move-task-dialog/move-task-dialog.component";
 import { TaskFolderBrowserComponent } from "./schedule/schedule-task-list/move-task-dialog/task-folder-browser/task-folder-browser.component";
 import { ScheduleTaskListComponent } from "./schedule/schedule-task-list/schedule-task-list.component";
-import { CanDatabaseCreateActivateService } from "./services/can-database-create-activate.service";
-import { CanDatabaseModelActivateService } from "./services/can-database-model-activate.service";
-import { CanTabActivateService } from "./services/can-tab-activate.service";
 import { CurrentRouteService } from "./services/current-route.service";
-import { DashboardTabResolver } from "./services/dashboard-tab-resolver.service";
 import { HideNavService } from "./services/hide-nav.service";
 import { HistoryBarService } from "./services/history-bar.service";
 import { PortalModelService } from "./services/portal-model.service";
 import { PortalTabsService } from "./services/portal-tabs.service";
-import { ReportTabResolver } from "./services/report-tab-resolver.service";
-import { RouteEntryResolver } from "./services/route-entry-resolver.service";
-import { RouteSourceResolver } from "./services/route-source-resolver.service";
 
 @NgModule({
    declarations: [
@@ -370,20 +361,11 @@ import { RouteSourceResolver } from "./services/route-source-resolver.service";
       PortalAppComponent
    ],
    providers: [
-      CanTabActivateService,
-      CanDatabaseModelActivateService,
-      CanDatabaseCreateActivateService,
-      CanDeactivateGuard,
       DataModelNameChangeService,
       DataTreeValidatorService,
       FolderChangeService,
       PortalTabsService,
       DebounceService,
-      ScheduleSaveGuard,
-      RouteEntryResolver,
-      RouteSourceResolver,
-      ReportTabResolver,
-      DashboardTabResolver,
       DataPhysicalModelService,
       CurrentRouteService,
       HideNavService,

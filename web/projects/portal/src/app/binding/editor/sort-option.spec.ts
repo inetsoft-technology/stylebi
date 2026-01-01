@@ -17,7 +17,7 @@
  */
 import { HttpParams, HttpResponse } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
@@ -54,7 +54,7 @@ describe("Sort Option Unit Test", () => {
    let fixture: ComponentFixture<SortOption>;
    let sortOption: SortOption;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule, DropDownTestModule

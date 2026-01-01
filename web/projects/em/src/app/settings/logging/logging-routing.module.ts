@@ -16,15 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NgModule } from "@angular/core";
-import { Routes, RouterModule } from "@angular/router";
+import { RouterModule, Routes } from "@angular/router";
+import { loggingSaveGuard } from "./logging-settings-page/logging-save.guard";
 import { LoggingSettingsPageComponent } from "./logging-settings-page/logging-settings-page.component";
-import { LoggingSaveGuard } from "./logging-settings-page/logging-save.guard";
 
 const routes: Routes = [
    {
       path: "",
       component: LoggingSettingsPageComponent,
-      canDeactivate: [LoggingSaveGuard]
+      canDeactivate: [loggingSaveGuard]
       // children: [
       //
       // ]

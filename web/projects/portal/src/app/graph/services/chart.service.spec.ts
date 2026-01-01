@@ -15,14 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async } from "@angular/core/testing";
+import { waitForAsync } from "@angular/core/testing";
 import { ChartAggregateRef } from "../../binding/data/chart/chart-aggregate-ref";
-import { FormatInfoModel } from "../../common/data/format-info-model";
 import { Axis } from "../model/axis";
 import { ChartModel } from "../model/chart-model";
+import { ChartTool } from "../model/chart-tool";
 import { LegendOption } from "../model/legend-option";
 import { ChartService } from "./chart.service";
-import { ChartTool } from "../model/chart-tool";
 
 export class TestChartService extends ChartService {
    TestChartService() {
@@ -90,13 +89,13 @@ describe("Chart service test", () => {
 
    let chartService: TestChartService;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       chartService = new TestChartService();
    }));
 
    // Bug #10792, #9838 find axis column name by the select measure label
    // or dimension label.
-   it("should find the axis column name by index of the selected region", async(() => {
+   it("should find the axis column name by index of the selected region", waitForAsync(() => {
       let chartModel = createMockChartModel();
       chartModel.stringDictionary = ["AxisColumnName"];
       chartModel.regionMetaDictionary = [{meaIdx: 0}];

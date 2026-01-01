@@ -16,15 +16,15 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NgModule } from "@angular/core";
-import { Routes, RouterModule } from "@angular/router";
+import { RouterModule, Routes } from "@angular/router";
 import { SecurityActionsPageComponent } from "./security-actions-page/security-actions-page.component";
-import { SecurityActionsSaveGuard } from "./security-actions-page/security-actions-save.guard";
+import { securityActionsSaveGuard } from "./security-actions-page/security-actions-save.guard";
 
 const routes: Routes = [
    {
       path: "",
       component: SecurityActionsPageComponent,
-      canDeactivate: [SecurityActionsSaveGuard]
+      canDeactivate: [securityActionsSaveGuard]
    }
 ];
 

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-@import '../../../../../../../../node_modules/@angular/material/theming';
+@use '@angular/material' as mat;
 @import '../../../../../styles/constants';
 
 @mixin custom-provider-view-theme($theme) {
@@ -24,8 +24,8 @@
   $warn: map-get($theme, warn);
   $background: map-get($theme, background);
   $foreground: map-get($theme, foreground);
-  $label-color: mat-color($foreground, secondary-text, 0.6);
-  $underline-color: mat-color($foreground, divider, 0.87);
+  $label-color: mat.get-color-from-palette($foreground, secondary-text, 0.6);
+  $underline-color: mat.get-color-from-palette($foreground, divider, 0.87);
 
   .json-config-label {
     color: $label-color;

@@ -17,12 +17,15 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes, UrlMatchResult, UrlSegment } from "@angular/router";
-import { CanComponentDeactivateService } from "../../../../shared/util/guard/can-component-deactivate.service";
-import { GlobalParameterGuard } from "../../../../shared/util/guard/global-parameter-guard.service";
-import { ViewDataResolver } from "./view-data-resolver.service";
+import { canComponentDeactivate } from "../../../../shared/util/guard/can-component-deactivate.service";
+import { globalParameterGuard } from "../../../../shared/util/guard/global-parameter-guard.service";
+import {
+   principalResolver,
+   PrincipalResolverService
+} from "../common/services/principal-resolver.service";
+import { viewDataResolver } from "./view-data-resolver.service";
 import { ViewerRootComponent } from "./viewer-root.component";
 import { ViewerViewComponent } from "./viewer-view/viewer-view.component";
-import { PrincipalResolver } from "../common/services/principal-resolver.service";
 
 export function VIEW_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
    let result: UrlMatchResult = null;
@@ -121,11 +124,12 @@ const routes: Routes = [
       children: [
          {
             component: ViewerViewComponent,
-            canActivate: [GlobalParameterGuard],
-            canDeactivate: [CanComponentDeactivateService],
+            providers: [PrincipalResolverService],
+            canActivate: [globalParameterGuard],
+            canDeactivate: [canComponentDeactivate],
             resolve: {
-               viewData: ViewDataResolver,
-               principalCommand: PrincipalResolver
+               viewData: viewDataResolver,
+               principalCommand: principalResolver
             },
             matcher: VIEW_URL_MATCHER
          },
@@ -133,7 +137,7 @@ const routes: Routes = [
             path: "edit",
             loadChildren: () => import("./viewer-edit/viewer-edit.module").then(m => m.ViewerEditModule),
             resolve: {
-               viewData: ViewDataResolver
+               viewData: viewDataResolver
             }
          },
          {
@@ -151,12 +155,6 @@ const routes: Routes = [
 @NgModule({
    imports: [RouterModule.forChild(routes)],
    exports: [RouterModule],
-   providers: [
-      ViewDataResolver,
-      PrincipalResolver,
-      CanComponentDeactivateService,
-      GlobalParameterGuard
-   ]
 })
 export class ViewerAppRoutingModule {
 }

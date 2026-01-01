@@ -19,10 +19,10 @@ import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
-import { RouterTestingModule } from "@angular/router/testing";
+import { RouterModule } from "@angular/router";
+import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 
 import { PresentationNavViewComponent } from "./presentation-nav-view.component";
-import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 
 describe("PresentationNavViewComponent", () => {
    let component: PresentationNavViewComponent;
@@ -33,7 +33,7 @@ describe("PresentationNavViewComponent", () => {
          imports: [
             NoopAnimationsModule,
             HttpClientTestingModule,
-            RouterTestingModule
+            RouterModule.forRoot([])
          ],
          declarations: [
             PresentationNavViewComponent

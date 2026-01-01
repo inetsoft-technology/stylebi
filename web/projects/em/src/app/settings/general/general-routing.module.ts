@@ -17,14 +17,14 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
+import { generalSaveGuard } from "./general-settings-page/general-save.guard";
 import { GeneralSettingsPageComponent } from "./general-settings-page/general-settings-page.component";
-import { GeneralSaveGuard } from "./general-settings-page/general-save.guard";
 
 const routes: Routes = [
    {
       path: "",
       component: GeneralSettingsPageComponent,
-      canDeactivate: [GeneralSaveGuard]
+      canDeactivate: [generalSaveGuard],
       // children: [
       //
       // ]

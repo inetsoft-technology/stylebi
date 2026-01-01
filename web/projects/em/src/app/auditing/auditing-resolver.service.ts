@@ -15,17 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
-import { Injectable } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
+import { ActivatedRouteSnapshot, ResolveFn, RouterStateSnapshot } from "@angular/router";
 
-@Injectable()
-export class AuditingResolverService implements Resolve<boolean> {
-   constructor(private httpClient: HttpClient) {
-   }
-
-    resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
-       // return this.httpClient.get<boolean>("../api/em/monitoring/audit/multi-tenant");
-       return true;
-    }
-}
+export const auditingResolver: ResolveFn<boolean> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): boolean => {
+   // return this.httpClient.get<boolean>("../api/em/monitoring/audit/multi-tenant");
+   return true;
+};

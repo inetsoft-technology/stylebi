@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { NEVER } from "rxjs";
@@ -63,7 +63,7 @@ describe("VSRangeSlider Test", () => {
    const contextProvider = {};
    dialogService = { open: jest.fn() };
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       adhocFilterService = {
          adhocFilterShowing: jest.fn(),
          showFilter: jest.fn()
@@ -101,7 +101,7 @@ describe("VSRangeSlider Test", () => {
       fixture.detectChanges();
    }));
 
-   it("should have \"..\" between the range values when the upperInclusive checkbox is checked and \"->\" when the upperInclusive checkbox is unchecked", async(() => {
+   it("should have \"..\" between the range values when the upperInclusive checkbox is checked and \"->\" when the upperInclusive checkbox is unchecked", waitForAsync(() => {
       // set mock labels. They needed to not be set before to run previous tests as if right after onInit/before data selected
       fixture.componentInstance.model.labels = ["1", "2", "3", "4", "5"];
       fixture.detectChanges();

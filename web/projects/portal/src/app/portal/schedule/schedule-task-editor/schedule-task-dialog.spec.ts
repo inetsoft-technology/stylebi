@@ -17,11 +17,12 @@
  */
 import { HttpClient } from "@angular/common/http";
 import { Component, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject, Subject } from "rxjs";
+import { ScheduleTaskDialogModel } from "../../../../../../shared/schedule/model/schedule-task-dialog-model";
 import { ScheduleTaskNamesService } from "../../../../../../shared/schedule/schedule-task-names.service";
 import { TestUtils } from "../../../common/test/test-utils";
 import { EnterSubmitDirective } from "../../../widget/directive/enter-submit.directive";
@@ -40,16 +41,25 @@ import { ScheduleTaskDialog } from "./schedule-task-dialog.component";
 })
 class TestApp {
    @ViewChild(ScheduleTaskDialog, {static: false}) scheduleTaskDialog: ScheduleTaskDialog;
-   model = {
+   model: ScheduleTaskDialogModel = {
+      internalTask: false,
+      startTimeEnabled: false,
+      taskDefaultTime: false,
+      timeRangeEnabled: false,
+      timeRanges: [],
       name: "",
       label: "",
       timeZone: "",
       taskActionPaneModel: null,
       taskConditionPaneModel: {
-         conditions: [{taskName: "Task1", conditionType: "CompletionCondition", label: "TimeCondition: 01:30:00, every 1 day(s)"}],
+         conditions: [{
+            conditionType: "CompletionCondition",
+            label: "TimeCondition: 01:30:00, every 1 day(s)"
+         }],
          userDefinedClasses: [],
          userDefinedClassLabels: [],
-         allTasks: ["Task1", "Task2", "Task3"]
+         timeProp: "",
+         twelveHourSystem: false
       },
       taskOptionsPaneModel: null
       };
@@ -68,7 +78,7 @@ describe("Schedule Task Dialog Unit Test", () => {
    let allTasksObservable = new BehaviorSubject([]);
    scheduleTaskNamesService.getAllTasks.mockImplementation(() => allTasksObservable);
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule

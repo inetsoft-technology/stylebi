@@ -16,17 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, Resolve, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, ResolveFn, RouterStateSnapshot } from "@angular/router";
 import { Observable, of as observableOf } from "rxjs";
 import { map } from "rxjs/operators";
 import { DashboardModel } from "../common/data/dashboard-model";
 import { GuiTool } from "../common/util/gui-tool";
-import { ViewDataService } from "./services/view-data.service";
-import { ViewData } from "./view-data";
-import { PreviousSnapshot } from "../widget/hyperlink/previous-snapshot";
 import { ShowHyperlinkService } from "../vsobjects/show-hyperlink.service";
+import { PreviousSnapshot } from "../widget/hyperlink/previous-snapshot";
+import { ViewDataService } from "./services/view-data.service";
 import { ViewConstants } from "./view-constants";
+import { ViewData } from "./view-data";
 
 interface ViewsheetRouteDataModel {
    scaleToScreen: boolean;
@@ -34,99 +34,95 @@ interface ViewsheetRouteDataModel {
    hasBaseEntry: boolean;
 }
 
-@Injectable()
-export class ViewDataResolver implements Resolve<ViewData> {
-   constructor(private editDataService: ViewDataService, private http: HttpClient) {
-   }
+export const viewDataResolver: ResolveFn<ViewData> = (route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ViewData> => {
+   const editDataService = inject(ViewDataService);
+   const http = inject(HttpClient);
+   let data = editDataService.data;
+   const routeParamMap = route.paramMap;
+   const routeQueryParamMap = ShowHyperlinkService.getQueryParams(route.queryParamMap);
 
-   resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<ViewData> {
-      let data = this.editDataService.data;
-      const routeParamMap = route.paramMap;
-      const routeQueryParamMap = ShowHyperlinkService.getQueryParams(route.queryParamMap);
-
-      if(data && (data.assetId !== routeParamMap.get("assetId") ||
+   if(data && (data.assetId !== routeParamMap.get("assetId") ||
          data.dashboardName !== routeParamMap.get("dashboardName")) ||
-         routeQueryParamMap.get("resetData") === "true")
-      {
-         // different viewsheet, reset view data
-         data = null;
-         this.editDataService.data = null;
-      }
-
-      const { inPortal, inDashboard } = route.parent.data;
-
-      if(inPortal || !data) {
-         let assetId = routeParamMap.get("assetId");
-
-         if(!!assetId) {
-            assetId = decodeURIComponent(assetId);
-         }
-
-         data = {
-            ...data,
-            assetId,
-            queryParameters: GuiTool.getQueryParameters(),
-            portal: inPortal,
-            dashboard: inDashboard,
-            isMetadata: routeParamMap.get("isMetadata") == "true",
-            dashboardName: routeParamMap.get("dashboardName"),
-            fullScreenId: routeQueryParamMap.get("fullscreenId"),
-            runtimeId: routeQueryParamMap.get("runtimeId"),
-            collapseTree: routeQueryParamMap.get("collapseTree") == "true",
-            previousSnapshots: routeQueryParamMap.getAll(ViewConstants.PRE_SNAPSHOT_PARAM_NAME),
-            hasBaseEntry: routeParamMap.get("hasBaseEntry") == "true"
-         };
-
-         this.editDataService.data = data;
-      }
-
-      if(routeQueryParamMap) {
-         for(const k of routeQueryParamMap.keys) {
-            data.queryParameters.set(k, routeQueryParamMap.getAll(k));
-         }
-      }
-
-      if(data.previousSnapshots) {
-         data.previousSnapshots
-            .map((snapshot: string) => <PreviousSnapshot> JSON.parse(snapshot))
-            .forEach((snapshot: PreviousSnapshot) => decodeURIComponent(snapshot.url));
-      }
-
-      data.fullScreen = routeQueryParamMap.get("fullScreen") === "true";
-
-      if(!route.url || route.url.length < 1 || route.url[0].path !== "edit") {
-         data.tableModel = null;
-         data.variableValues = null;
-      }
-
-      if(!data.assetId && !!data.dashboardName) {
-         const name = encodeURIComponent(data.dashboardName);
-         const uri = `../api/portal/dashboard-tab-model/${name}`;
-         return this.http.get<DashboardModel>(uri).pipe(
-            map((model) => {
-               data.assetId = model.identifier;
-               data.scaleToScreen = model.scaleToScreen;
-               data.fitToWidth = model.fitToWidth;
-               data.hasBaseEntry = model.hasBaseEntry;
-               return data;
-            })
-         );
-      }
-
-      if(!data.runtimeId && !!data.assetId) {
-         const uri = "../api/vs/route-data";
-         const params = new HttpParams()
-            .set("id", data.assetId);
-         return this.http.get<ViewsheetRouteDataModel>(uri, {params}).pipe(
-            map(model => {
-               data.scaleToScreen = model.scaleToScreen;
-               data.fitToWidth = model.fitToWidth;
-               data.hasBaseEntry = model.hasBaseEntry;
-               return data;
-            })
-         );
-      }
-
-      return observableOf(data);
+      routeQueryParamMap.get("resetData") === "true")
+   {
+      // different viewsheet, reset view data
+      data = null;
+      editDataService.data = null;
    }
-}
+
+   const { inPortal, inDashboard } = route.parent.data;
+
+   if(inPortal || !data) {
+      let assetId = routeParamMap.get("assetId");
+
+      if(!!assetId) {
+         assetId = decodeURIComponent(assetId);
+      }
+
+      data = {
+         ...data,
+         assetId,
+         queryParameters: GuiTool.getQueryParameters(),
+         portal: inPortal,
+         dashboard: inDashboard,
+         isMetadata: routeParamMap.get("isMetadata") == "true",
+         dashboardName: routeParamMap.get("dashboardName"),
+         fullScreenId: routeQueryParamMap.get("fullscreenId"),
+         runtimeId: routeQueryParamMap.get("runtimeId"),
+         collapseTree: routeQueryParamMap.get("collapseTree") == "true",
+         previousSnapshots: routeQueryParamMap.getAll(ViewConstants.PRE_SNAPSHOT_PARAM_NAME),
+         hasBaseEntry: routeParamMap.get("hasBaseEntry") == "true"
+      };
+
+      editDataService.data = data;
+   }
+
+   if(routeQueryParamMap) {
+      for(const k of routeQueryParamMap.keys) {
+         data.queryParameters.set(k, routeQueryParamMap.getAll(k));
+      }
+   }
+
+   if(data.previousSnapshots) {
+      data.previousSnapshots
+         .map((snapshot: string) => <PreviousSnapshot> JSON.parse(snapshot))
+         .forEach((snapshot: PreviousSnapshot) => decodeURIComponent(snapshot.url));
+   }
+
+   data.fullScreen = routeQueryParamMap.get("fullScreen") === "true";
+
+   if(!route.url || route.url.length < 1 || route.url[0].path !== "edit") {
+      data.tableModel = null;
+      data.variableValues = null;
+   }
+
+   if(!data.assetId && !!data.dashboardName) {
+      const name = encodeURIComponent(data.dashboardName);
+      const uri = `../api/portal/dashboard-tab-model/${name}`;
+      return http.get<DashboardModel>(uri).pipe(
+         map((model) => {
+            data.assetId = model.identifier;
+            data.scaleToScreen = model.scaleToScreen;
+            data.fitToWidth = model.fitToWidth;
+            data.hasBaseEntry = model.hasBaseEntry;
+            return data;
+         })
+      );
+   }
+
+   if(!data.runtimeId && !!data.assetId) {
+      const uri = "../api/vs/route-data";
+      const params = new HttpParams()
+         .set("id", data.assetId);
+      return http.get<ViewsheetRouteDataModel>(uri, {params}).pipe(
+         map(model => {
+            data.scaleToScreen = model.scaleToScreen;
+            data.fitToWidth = model.fitToWidth;
+            data.hasBaseEntry = model.hasBaseEntry;
+            return data;
+         })
+      );
+   }
+
+   return observableOf(data);
+};

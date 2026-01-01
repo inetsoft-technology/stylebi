@@ -15,26 +15,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, RouterStateSnapshot } from "@angular/router";
 import { HttpClient, HttpParams } from "@angular/common/http";
+import { inject } from "@angular/core";
+import { ActivatedRouteSnapshot, CanActivateFn, RouterStateSnapshot } from "@angular/router";
+import { Observable } from "rxjs";
+import { map } from "rxjs/operators";
 import { Tool } from "../../../../../shared/util/tool";
 import { SourcePermissionModel } from "../data/model/source-permission-model";
-import { map } from "rxjs/operators";
-import { Observable } from "rxjs";
 
 const GET_DATA_FOLDER_PERMISSION_URI = "../api/data/datasources/folderPermission";
 
-@Injectable()
-export class CanDatabaseCreateActivateService implements CanActivate {
+export const canDatabaseCreateActivate: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
+   const http = inject(HttpClient);
+   const parentPath = next.paramMap.get("parentPath");
 
-   constructor(public http: HttpClient) { }
-
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      let parentPath = route.paramMap.get("parentPath");
-
-      return this.http.get<SourcePermissionModel>(GET_DATA_FOLDER_PERMISSION_URI,
-         {params: new HttpParams().set("path", Tool.byteEncode(parentPath))})
-         .pipe(map(model => model.writable));
-   }
-}
+   return http.get<SourcePermissionModel>(GET_DATA_FOLDER_PERMISSION_URI,
+      {params: new HttpParams().set("path", Tool.byteEncode(parentPath))})
+      .pipe(map(model => model.writable));
+};

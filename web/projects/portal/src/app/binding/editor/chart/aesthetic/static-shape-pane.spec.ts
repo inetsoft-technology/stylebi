@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
@@ -30,7 +30,7 @@ describe("Static Shape Pane Unit Test", () => {
    let httpService = { get: jest.fn(), post: jest.fn() };
    let modelService = { getModel: jest.fn() };
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       modelService.getModel.mockImplementation((controller, params) => {
          if(controller === "../api/composer/imageShapes") {
             return observableOf([]);

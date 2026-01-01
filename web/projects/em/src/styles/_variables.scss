@@ -20,8 +20,8 @@
   --inet-em-font-family: "Roboto","Helvetica Neue Light","Helvetica Neue",Helvetica,Arial,"Lucida Grande",sans-serif;
 
   // light/dark
-  --inet-em-light-primary-text: #{$light-primary-text};
-  --inet-em-dark-primary-text: #{$dark-primary-text};
+  --inet-em-light-primary-text: #fff;
+  --inet-em-dark-primary-text: rgba(0,0,0.87);
 
   // primary
   --inet-em-primary-50: #e0e0e0;

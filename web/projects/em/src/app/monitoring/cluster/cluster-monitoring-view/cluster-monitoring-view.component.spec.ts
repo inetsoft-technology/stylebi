@@ -15,8 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
-
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ClusterMonitoringViewComponent } from "./cluster-monitoring-view.component";
 import { TableViewModule } from "../../../common/util/table/table-view.module";
 import { CommonModule } from "@angular/common";
@@ -25,7 +24,7 @@ describe("ClusterMonitoringViewComponent", () => {
    let component: ClusterMonitoringViewComponent;
    let fixture: ComponentFixture<ClusterMonitoringViewComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             CommonModule,

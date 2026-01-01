@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatTableModule } from "@angular/material/table";
 import { SelectedAssetListComponent } from "./selected-asset-list.component";
 
@@ -24,7 +24,7 @@ describe("SelectedAssetListComponent", () => {
    let component: SelectedAssetListComponent;
    let fixture: ComponentFixture<SelectedAssetListComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             MatTableModule

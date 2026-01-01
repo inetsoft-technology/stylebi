@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { EventEmitter, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { AssemblyActionEvent } from "../../../../common/action/assembly-action-event";
@@ -63,7 +63,7 @@ describe("EditableObjectContainer", () => {
    let miniToolbarService: any;
    let composerVsSearchService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       selectionContainerChildrenService = { pushModel: jest.fn() };
       composerObjectService = {
          getNewObject: jest.fn(),

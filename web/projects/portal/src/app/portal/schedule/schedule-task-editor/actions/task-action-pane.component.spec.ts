@@ -17,15 +17,13 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, Input, NO_ERRORS_SCHEMA, ViewChild } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { ControlValueAccessor, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { BehaviorSubject } from "rxjs";
 import { GeneralActionModel } from "../../../../../../../shared/schedule/model/general-action-model";
 import { TaskActionPaneModel } from "../../../../../../../shared/schedule/model/task-action-pane-model";
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
-import { TestUtils } from "../../../../common/test/test-utils";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { AssetTreeComponent } from "../../../../widget/asset-tree/asset-tree.component";
 import { DateValueEditorComponent } from "../../../../widget/date-type-editor/date-value-editor.component";
@@ -157,7 +155,7 @@ describe("Task Action Pane Unit Test", () => {
    let fixture: ComponentFixture<TestApp>;
    let taskActionPane: TaskActionPane;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule

@@ -17,7 +17,7 @@
  */
 import { ImageScalePaneModel } from "../../data/vs/image-scale-pane-model";
 import { ImageScalePane } from "./image-scale-pane.component";
-import { async, TestBed, ComponentFixture } from "@angular/core/testing";
+import { waitForAsync, TestBed, ComponentFixture } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 
 let createModel: () => ImageScalePaneModel = () => {
@@ -39,7 +39,7 @@ describe("Image Scale Pane Test", () => {
    let fixture: ComponentFixture<ImageScalePane>;
    let scalePane: ImageScalePane;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             FormsModule

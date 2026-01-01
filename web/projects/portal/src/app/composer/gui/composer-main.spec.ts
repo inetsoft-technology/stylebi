@@ -15,9 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClientTestingModule } from "@angular/common/http/testing";
+import { HttpClient } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf, Subject } from "rxjs";
@@ -29,6 +29,7 @@ import { ViewDataService } from "../../viewer/services/view-data.service";
 import { DataTipService } from "../../vsobjects/objects/data-tip/data-tip.service";
 import { PopComponentService } from "../../vsobjects/objects/data-tip/pop-component.service";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
+import { AssetTreeService } from "../../widget/asset-tree/asset-tree.service";
 import { FixedDropdownService } from "../../widget/fixed-dropdown/fixed-dropdown.service";
 import { FontService } from "../../widget/services/font.service";
 import { ModelService } from "../../widget/services/model.service";
@@ -36,12 +37,10 @@ import { Viewsheet } from "../data/vs/viewsheet";
 import { Worksheet } from "../data/ws/worksheet";
 import { ClipboardService } from "./clipboard.service";
 import { ComposerMainComponent } from "./composer-main.component";
-import { ResizeHandlerService } from "./resize-handler.service";
-import { ComposerObjectService } from "./vs/composer-object.service";
-import { HttpClient } from "@angular/common/http";
-import { AssetTreeService } from "../../widget/asset-tree/asset-tree.service";
 import { ComposerRecentService } from "./composer-recent.service";
+import { ResizeHandlerService } from "./resize-handler.service";
 import { ScriptService } from "./script/script.service";
+import { ComposerObjectService } from "./vs/composer-object.service";
 
 describe("ComposerMain Unit Tests", () => {
    const oldBroadcastChannel = window.BroadcastChannel;
@@ -61,7 +60,7 @@ describe("ComposerMain Unit Tests", () => {
    let appInfoService: any;
    let fontService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       composerObjectService = { getNewIndex: jest.fn() };
       resizeHandlerService = { onVerticalDragEnd: jest.fn() };
       clipboardService = { clipboardEmpty: false, sheetClosed: jest.fn() };
@@ -159,7 +158,7 @@ describe("ComposerMain Unit Tests", () => {
       TestBed.compileComponents();
    }));
 
-   afterEach(async(() => {
+   afterEach(waitForAsync(() => {
       window.BroadcastChannel = oldBroadcastChannel;
    }));
 

@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { ComponentFixture, TestBed, async } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ManualOrderingDialog } from "./manual-ordering-dialog.component";
@@ -27,7 +27,7 @@ describe("manual ordering dialog Unit case: ", () => {
    let fixture: ComponentFixture<ManualOrderingDialog>;
    let manualOrderDialog: ManualOrderingDialog;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule],
          declarations: [ManualOrderingDialog, LargeFormFieldComponent],

@@ -55,7 +55,6 @@ import {
 } from "./data-space-settings-view/data-space-settings-view.component";
 import { EmailSettingsViewComponent } from "./email-settings-view/email-settings-view.component";
 import { GeneralRoutingModule } from "./general-routing.module";
-import { GeneralSaveGuard } from "./general-settings-page/general-save.guard";
 import { GeneralSettingsPageComponent } from "./general-settings-page/general-settings-page.component";
 import { ApiKeyComponent } from "./license-key-settings-view/api-key/api-key.component";
 import { EditLicenseKeyDialogComponent } from "./license-key-settings-view/edit-license-key-dialog/edit-license-key-dialog.component";
@@ -119,7 +118,6 @@ import { PerformanceSettingsViewComponent } from "./performance-settings-view/pe
    providers: [
       ErrorHandlerService,
       MatDatepickerModule,
-      GeneralSaveGuard,
       {provide: MatPaginatorIntl, useClass: LocalizedMatPaginator},
    ]
 })

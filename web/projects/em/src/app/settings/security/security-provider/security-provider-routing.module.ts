@@ -17,7 +17,7 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
-import { CanComponentDeactivateService } from "../../../../../../shared/util/guard/can-component-deactivate.service";
+import { canComponentDeactivate } from "../../../../../../shared/util/guard/can-component-deactivate.service";
 import { AuthenticationProviderDetailPageComponent } from "./authentication-provider-detail-page/authentication-provider-detail-page.component";
 import { AuthorizationProviderDetailPageComponent } from "./authorization-provider-detail-page/authorization-provider-detail-page.component";
 import { SecurityProviderPageComponent } from "./security-provider-page/security-provider-page.component";
@@ -26,12 +26,12 @@ const routes: Routes = [
    {
       path: "show-authorization-provider",
       component: AuthorizationProviderDetailPageComponent,
-      canDeactivate: [CanComponentDeactivateService]
+      canDeactivate: [canComponentDeactivate]
    },
    {
       path: "show-authentication-provider",
       component: AuthenticationProviderDetailPageComponent,
-      canDeactivate: [CanComponentDeactivateService]
+      canDeactivate: [canComponentDeactivate]
    },
    {
       path: "",
@@ -42,7 +42,6 @@ const routes: Routes = [
 @NgModule({
    imports: [RouterModule.forChild(routes)],
    exports: [RouterModule],
-   providers: [CanComponentDeactivateService]
 })
 export class SecurityProviderRoutingModule {
 }

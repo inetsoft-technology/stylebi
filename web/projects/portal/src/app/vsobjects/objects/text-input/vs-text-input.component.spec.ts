@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { DebugElement, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
@@ -66,7 +66,7 @@ describe("VS Text Input Component Unit Test", () => {
    let dataTipService: any;
    let firstDayOfWeekService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const viewsheetClientService = {};
       debounceService = { debounce: jest.fn((key, fn, delay, args) => fn(...args)) };
       dataTipService = { isDataTip: jest.fn() };

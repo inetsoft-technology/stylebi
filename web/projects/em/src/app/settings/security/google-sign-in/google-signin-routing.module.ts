@@ -17,7 +17,7 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
-import { GoogleSignInResolver } from "./google-sign-in-resolver.service";
+import { googleSignInResolver } from "./google-sign-in-resolver.service";
 import { GoogleSignInSettingComponent } from "./google-sign-in-setting/google-sign-in-setting.component";
 
 const routes: Routes = [
@@ -25,7 +25,7 @@ const routes: Routes = [
       path: "",
       component: GoogleSignInSettingComponent,
       resolve: {
-         model: GoogleSignInResolver
+         model: googleSignInResolver
       }
    }
 ];
@@ -33,7 +33,6 @@ const routes: Routes = [
 @NgModule({
    imports: [RouterModule.forChild(routes)],
    exports: [RouterModule],
-   providers: [GoogleSignInResolver]
 })
 export class GoogleSignInRoutingModule {
 }

@@ -84,10 +84,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "browserTarget": "portal:build:production"
+              "buildTarget": "portal:build:production"
             },
             "development": {
-              "browserTarget": "portal:build:development"
+              "buildTarget": "portal:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -95,7 +95,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "portal:build"
+            "buildTarget": "portal:build"
           }
         },
         "test": {
@@ -107,6 +107,9 @@
             "reporters": [
               "default",
               "jest-junit"
+            ],
+            "setupFiles": [
+              "jest-canvas-mock"
             ]
           }
         },
@@ -199,10 +202,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "browserTarget": "em:build:production"
+              "buildTarget": "em:build:production"
             },
             "development": {
-              "browserTarget": "em:build:development"
+              "buildTarget": "em:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -210,7 +213,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "em:build"
+            "buildTarget": "em:build"
           }
         },
         "test": {
@@ -222,6 +225,9 @@
             "reporters": [
               "default",
               "jest-junit"
+            ],
+            "setupFiles": [
+              "jest-canvas-mock"
             ]
           }
         },
@@ -312,10 +318,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "browserTarget": "elements:build:production"
+              "buildTarget": "elements:build:production"
             },
             "development": {
-              "browserTarget": "elements:build:development"
+              "buildTarget": "elements:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -323,7 +329,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "elements:build"
+            "buildTarget": "elements:build"
           }
         }
       }
@@ -404,10 +410,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "browserTarget": "viewer-element:build:production"
+              "buildTarget": "viewer-element:build:production"
             },
             "development": {
-              "browserTarget": "viewer-element:build:development"
+              "buildTarget": "viewer-element:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -415,7 +421,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "viewer-element:build"
+            "buildTarget": "viewer-element:build"
           }
         }
       }

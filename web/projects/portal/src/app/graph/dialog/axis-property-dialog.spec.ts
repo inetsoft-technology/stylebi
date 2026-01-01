@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { UIContextService } from "../../common/services/ui-context.service";
@@ -76,7 +76,7 @@ describe("Axis Property Dialog Unit Tests", () => {
    let axisPropertyDialog: AxisPropertyDialog;
    let uiContextService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       uiContextService = {
          isVS: jest.fn(),
          isAdhoc: jest.fn(),

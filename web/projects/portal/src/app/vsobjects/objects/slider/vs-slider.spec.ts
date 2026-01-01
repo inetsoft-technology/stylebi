@@ -17,7 +17,7 @@
  */
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { TestUtils } from "../../../common/test/test-utils";
 import { StompClientService, ViewsheetClientService } from "../../../common/viewsheet-client";
@@ -36,7 +36,7 @@ describe("VSSlider Unit Tests", () => {
    let dataTipService: any;
    let fixture: ComponentFixture<VSSlider>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       stompClient = TestUtils.createMockStompClientService();
       dataTipService = {isDataTip: jest.fn()};
       const contextProvider = {};

@@ -17,6 +17,7 @@
  */
 import { HTTP_INTERCEPTORS, HttpClientModule } from "@angular/common/http";
 import { NgModule } from "@angular/core";
+import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { BrowserModule } from "@angular/platform-browser";
 import { UrlSerializer } from "@angular/router";
 import { NgbModalModule } from "@ng-bootstrap/ng-bootstrap";
@@ -24,7 +25,6 @@ import { SsoHeartbeatInterceptor } from "../../../shared/sso/sso-heartbeat-inter
 import { SsoHeartbeatService } from "../../../shared/sso/sso-heartbeat.service";
 import { AppRoutingModule } from "./app-routing.module";
 import { AppComponent } from "./app.component";
-import { CanActivateRootService } from "./can-activate-root.service";
 import { CsrfInterceptor } from "./common/services/csrf-interceptor";
 import { DateLevelExamplesService } from "./common/services/date-level-examples.service";
 import { FirstDayOfWeekService } from "./common/services/first-day-of-week.service";
@@ -34,21 +34,17 @@ import { InvalidSessionInterceptor } from "./common/services/invalid-session-int
 import { LicenseInfoService } from "./common/services/license-info.service";
 import { RequestedWithInterceptor } from "./common/services/requested-with-interceptor";
 import { StandardUrlSerializer } from "./common/services/standard-url-serializer";
-import { CanActivateComposerService } from "./composer/services/can-activate-composer.service";
-import {
-   CollapseRepositoryTreeService
-} from "./portal/report/desktop/collapse-repository-tree.service.component";
+import { CollapseRepositoryTreeService } from "./portal/report/desktop/collapse-repository-tree.service.component";
 import { PageTabService } from "./viewer/services/page-tab.service";
 import { ViewDataService } from "./viewer/services/view-data.service";
+import { GettingStartedModule } from "./widget/dialog/getting-started-dialog/getting-started.module";
 import { SessionExpirationDialogModule } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.module";
+import { DomService } from "./widget/dom-service/dom.service";
 import { NotificationsModule } from "./widget/notifications/notifications.module";
+import { DebounceService } from "./widget/services/debounce.service";
 import { DragService } from "./widget/services/drag.service";
 import { FontService } from "./widget/services/font.service";
 import { ModelService } from "./widget/services/model.service";
-import { DebounceService } from "./widget/services/debounce.service";
-import { DomService } from "./widget/dom-service/dom.service";
-import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { GettingStartedModule } from "./widget/dialog/getting-started-dialog/getting-started.module";
 
 export const httpInterceptorProviders = [
    {provide: HTTP_INTERCEPTORS, useClass: HttpDebounceInterceptor, multi: true},
@@ -75,8 +71,6 @@ export const httpInterceptorProviders = [
       SsoHeartbeatService,
       httpInterceptorProviders,
       ViewDataService,
-      CanActivateRootService,
-      CanActivateComposerService,
       DateLevelExamplesService,
       LicenseInfoService,
       FirstDayOfWeekService,

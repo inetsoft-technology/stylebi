@@ -70,7 +70,6 @@ import { EditTaskFolderDialogComponent } from "./edit-task-folder-dialog/edit-ta
 import { ImportExportTaskModule } from "./import-export/import-export.module";
 import { MoveTaskFolderDialogComponent } from "./move-folder-dialog/move-task-folder-dialog.component";
 import { ParameterTableModule } from "./parameter-table/parameter-table.module";
-import { ScheduleConfigSaveGuard } from "./schedule-configuration-page/schedule-config-save.guard";
 import { ScheduleConfigurationPageComponent } from "./schedule-configuration-page/schedule-configuration-page.component";
 import { ServerLocationEditorComponent } from "./schedule-configuration-page/server-location-editor/server-location-editor.component";
 import { ServerLocationsViewComponent } from "./schedule-configuration-page/server-locations-view/server-locations-view.component";
@@ -80,7 +79,6 @@ import { EditClasspathTextDialogComponent } from "./schedule-configuration-view/
 import { ScheduleClasspathDialogComponent } from "./schedule-configuration-view/schedule-classpath-dialog/schedule-classpath-dialog.component";
 import { ScheduleConfigurationViewComponent } from "./schedule-configuration-view/schedule-configuration-view.component";
 import { ScheduleCycleEditorPageComponent } from "./schedule-cycle-editor-page/schedule-cycle-editor-page.component";
-import { ScheduleCycleSaveGuard } from "./schedule-cycle-editor-page/schedule-cycle-save.guard";
 import { ScheduleCycleListPageComponent } from "./schedule-cycle-list-page/schedule-cycle-list-page.component";
 import { ScheduleCycleListViewComponent } from "./schedule-cycle-list-view/schedule-cycle-list-view.component";
 import { ScheduleCycleOptionsPaneComponent } from "./schedule-cycle-options-pane/schedule-cycle-options-pane.component";
@@ -88,7 +86,6 @@ import { ScheduleFolderTreeComponent } from "./schedule-folder-tree/schedule-fol
 import { ScheduleRoutingModule } from "./schedule-routing.module";
 import { ScheduleSettingsPageComponent } from "./schedule-settings-page/schedule-settings-page.component";
 import { ScheduleStatusPageComponent } from "./schedule-status-page/schedule-status-page.component";
-import { ScheduleSaveGuard } from "./schedule-task-editor-page/schedule-save.guard";
 import { ScheduleTaskEditorPageComponent } from "./schedule-task-editor-page/schedule-task-editor-page.component";
 import { ScheduleTaskListComponent } from "./schedule-task-list/schedule-task-list.component";
 import { BackupActionEditorComponent } from "./task-action-pane/backup-action-editor/backup-action-editor.component";
@@ -117,11 +114,11 @@ import { RunOnceConditionEditorComponent } from "./task-condition-pane/run-once-
 import { StartTimeEditorComponent } from "./task-condition-pane/start-time-editor/start-time-editor.component";
 import { TaskConditionPaneComponent } from "./task-condition-pane/task-condition-pane.component";
 import { TimeConditionEditorComponent } from "./task-condition-pane/time-condition-editor/time-condition-editor.component";
+import { TimePickerComponent } from "./task-condition-pane/time-picker/time-picker.component";
 import { TimeZoneSelectComponent } from "./task-condition-pane/time-zone-select/time-zone-select-component";
 import { WeeklyConditionEditorComponent } from "./task-condition-pane/weekly-condition-editor/weekly-condition-editor.component";
 import { ExecuteAsDialogComponent } from "./task-options-pane/execute-as-dialog.component";
 import { TaskOptionsPane } from "./task-options-pane/task-options-pane.component";
-import { TimePickerComponent } from "./task-condition-pane/time-picker/time-picker.component";
 
 @NgModule({
    imports: [
@@ -235,9 +232,6 @@ import { TimePickerComponent } from "./task-condition-pane/time-picker/time-pick
       BatchAddParametersDialogComponent
    ],
    providers: [
-      ScheduleConfigSaveGuard,
-      ScheduleCycleSaveGuard,
-      ScheduleSaveGuard,
       MonitoringDataService,
       {
          provide: DateAdapter,

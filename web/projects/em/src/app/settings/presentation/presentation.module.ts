@@ -22,8 +22,7 @@ import { MatButtonModule } from "@angular/material/button";
 import { MatButtonToggleModule } from "@angular/material/button-toggle";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
-import { MatNativeDateModule } from "@angular/material/core";
-import { MatOptionModule } from "@angular/material/core";
+import { MatNativeDateModule, MatOptionModule } from "@angular/material/core";
 import { MatDatepickerModule } from "@angular/material/datepicker";
 import { MatDialogModule } from "@angular/material/dialog";
 import { MatDividerModule } from "@angular/material/divider";
@@ -46,6 +45,7 @@ import { MatTabsModule } from "@angular/material/tabs";
 import { MatToolbarModule } from "@angular/material/toolbar";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { MatTreeModule } from "@angular/material/tree";
+import { ColorPickerModule } from "ngx-color-picker";
 import { LocalizedMatPaginator } from "../../../../../shared/util/localized-mat-paginator";
 import { EditorPanelModule } from "../../common/util/editor-panel/editor-panel.module";
 import { FileChooserModule } from "../../common/util/file-chooser/file-chooser.module";
@@ -63,11 +63,9 @@ import { EditFontsDialogComponent } from "./look-and-feel-settings-view/edit-fon
 import { LookAndFeelSettingsViewComponent } from "./look-and-feel-settings-view/look-and-feel-settings-view.component";
 import { EditPortalTabDialogComponent } from "./portal-integration-view/edit-portal-tab-dialog/edit-portal-tab-dialog.component";
 import { PortalIntegrationViewComponent } from "./portal-integration-view/portal-integration-view.component";
-import { AddDataSourceTypeDialogComponent } from "./presentation-data-source-visibility-settings/add-data-source-type-dialog/add-data-source-type-dialog.component";
-import { PresentationOrgSaveGuard } from "./presentation-settings-view/presentation-org-save-guard";
-import { PresentationOrgSettingsViewComponent } from "./presentation-settings-view/presentation-org-settings-view.component";
-import { PresentationTimeSettingsViewComponent } from "./presentation-time-settings-view/presentation-time-settings-view.component";
+import { PresentationComposerMessageSettingsViewComponent } from "./presentation-composer-message-settings-view/presentation-composer-message-settings-view.component";
 import { PresentationDashboardSettingsViewComponent } from "./presentation-dashboard-settings-view/presentation-dashboard-settings-view.component";
+import { AddDataSourceTypeDialogComponent } from "./presentation-data-source-visibility-settings/add-data-source-type-dialog/add-data-source-type-dialog.component";
 import { PresentationDataSourceVisibilitySettingsViewComponent } from "./presentation-data-source-visibility-settings/presentation-data-source-visibility-settings-view.component";
 import { PresentationExportMenuSettingsViewComponent } from "./presentation-export-menu-settings-view/presentation-export-menu-settings-view.component";
 import { EditFontMappingDialogComponent } from "./presentation-font-mapping-settings-view/edit-font-mapping-dialog/edit-font-mapping-dialog.component";
@@ -77,7 +75,7 @@ import { PresentationLoginBannerSettingsViewComponent } from "./presentation-log
 import { PresentationNavViewComponent } from "./presentation-nav-view/presentation-nav-view.component";
 import { PresentationPdfGenerationSettingsViewComponent } from "./presentation-pdf-generation-settings-view/presentation-pdf-generation-settings-view.component";
 import { PresentationRoutingModule } from "./presentation-routing.module";
-import { PresentationSaveGuard } from "./presentation-settings-view/presentation-save.guard";
+import { PresentationOrgSettingsViewComponent } from "./presentation-settings-view/presentation-org-settings-view.component";
 import { PresentationSettingsViewComponent } from "./presentation-settings-view/presentation-settings-view.component";
 import { PresentationShareSettingsViewComponent } from "./presentation-share-settings-view/presentation-share-settings-view.component";
 import { AddThemeDialogComponent } from "./presentation-themes-view/add-theme-dialog/add-theme-dialog.component";
@@ -86,13 +84,11 @@ import { ThemeCssViewComponent } from "./presentation-themes-view/theme-css-view
 import { ThemeEditorViewComponent } from "./presentation-themes-view/theme-editor-view/theme-editor-view.component";
 import { ThemeListViewComponent } from "./presentation-themes-view/theme-list-view/theme-list-view.component";
 import { ThemePropertiesViewComponent } from "./presentation-themes-view/theme-properties-view/theme-properties-view.component";
-import { ThemesSaveGuard } from "./presentation-themes-view/themes-save.guard";
+import { PresentationTimeSettingsViewComponent } from "./presentation-time-settings-view/presentation-time-settings-view.component";
 import { PresentationViewsheetToolbarOptionsViewComponent } from "./presentation-viewsheet-toolbar-options-view/presentation-viewsheet-toolbar-options-view.component";
 import { ToolbarOptionsTableViewComponent } from "./toolbar-options-table-view/toolbar-options-table-view.component";
 import { WebMapSettingsViewComponent } from "./webmap-settings-view/webmap-settings-view.component";
 import { WelcomePageSettingsViewComponent } from "./welcome-page-settings-view/welcome-page-settings-view.component";
-import { PresentationComposerMessageSettingsViewComponent } from "./presentation-composer-message-settings-view/presentation-composer-message-settings-view.component";
-import { ColorPickerModule } from "ngx-color-picker";
 
 @NgModule({
    imports: [
@@ -174,9 +170,6 @@ import { ColorPickerModule } from "ngx-color-picker";
       WebMapSettingsViewComponent
    ],
    providers: [
-      PresentationSaveGuard,
-      PresentationOrgSaveGuard,
-      ThemesSaveGuard,
       {provide: MatPaginatorIntl, useClass: LocalizedMatPaginator}
    ]
 })

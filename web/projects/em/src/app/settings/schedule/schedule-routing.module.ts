@@ -17,17 +17,16 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
-import { AuthorizationGuard } from "../../authorization/authorization-guard.service";
+import { authorizationGuard } from "../../authorization/authorization-guard.service";
+import { scheduleConfigSaveGuard } from "./schedule-configuration-page/schedule-config-save.guard";
 import { ScheduleConfigurationPageComponent } from "./schedule-configuration-page/schedule-configuration-page.component";
 import { ScheduleCycleEditorPageComponent } from "./schedule-cycle-editor-page/schedule-cycle-editor-page.component";
 import { ScheduleCycleListPageComponent } from "./schedule-cycle-list-page/schedule-cycle-list-page.component";
 import { ScheduleSettingsPageComponent } from "./schedule-settings-page/schedule-settings-page.component";
 import { ScheduleStatusPageComponent } from "./schedule-status-page/schedule-status-page.component";
-import { ScheduleSaveGuard } from "./schedule-task-editor-page/schedule-save.guard";
+import { scheduleSaveGuard } from "./schedule-task-editor-page/schedule-save.guard";
 import { ScheduleTaskEditorPageComponent } from "./schedule-task-editor-page/schedule-task-editor-page.component";
 import { ScheduleTaskListComponent } from "./schedule-task-list/schedule-task-list.component";
-import { ScheduleCycleSaveGuard } from "./schedule-cycle-editor-page/schedule-cycle-save.guard";
-import { ScheduleConfigSaveGuard } from "./schedule-configuration-page/schedule-config-save.guard";
 
 const routes: Routes = [
    {
@@ -37,7 +36,7 @@ const routes: Routes = [
          {
             path: "tasks",
             component: ScheduleTaskListComponent,
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/schedule",
                permissionChild: "tasks"
@@ -46,12 +45,12 @@ const routes: Routes = [
          {
             path: "tasks/:task",
             component: ScheduleTaskEditorPageComponent,
-            canDeactivate: [ScheduleSaveGuard]
+            canDeactivate: [scheduleSaveGuard]
          },
          {
             path: "cycles",
             component: ScheduleCycleListPageComponent,
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/schedule",
                permissionChild: "cycles"
@@ -60,13 +59,13 @@ const routes: Routes = [
          {
             path: "cycles/:cycle",
             component: ScheduleCycleEditorPageComponent,
-            canDeactivate: [ScheduleCycleSaveGuard]
+            canDeactivate: [scheduleConfigSaveGuard]
          },
          {
             path: "settings",
             component: ScheduleConfigurationPageComponent,
-            canDeactivate: [ScheduleConfigSaveGuard],
-            canActivate: [AuthorizationGuard],
+            canDeactivate: [scheduleConfigSaveGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/schedule",
                permissionChild: "settings"
@@ -75,7 +74,7 @@ const routes: Routes = [
          {
             path: "status",
             component: ScheduleStatusPageComponent,
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/schedule",
                permissionChild: "status"
