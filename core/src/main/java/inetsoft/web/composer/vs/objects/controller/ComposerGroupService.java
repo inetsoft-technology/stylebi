@@ -135,6 +135,11 @@ public class ComposerGroupService {
          Dimension size = new Dimension(bottomRight.x - upperLeft.x, bottomRight.y - upperLeft.y);
          GroupContainerVSAssembly group = (GroupContainerVSAssembly) VSEventUtil
             .createVSAssembly(rvs, AbstractSheet.GROUPCONTAINER_ASSET);
+
+         if(group == null) {
+            return null;
+         }
+
          String nname = group.getName();
          updateGroupContainer(group, viewsheet, childsName, pos, size);
          VSEventUtil.fixGroupContainerSize(group);
