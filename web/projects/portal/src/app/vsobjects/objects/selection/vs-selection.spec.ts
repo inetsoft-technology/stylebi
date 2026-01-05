@@ -189,7 +189,6 @@ describe("VSSelection Test", () => {
          ]
       });
       TestBed.compileComponents();
-      httpClient = TestBed.inject(HttpClient);
 
       fixture = TestBed.createComponent(VSSelection);
       fixture.componentInstance.selectionValues = createMockSelectionValues();
