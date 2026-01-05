@@ -16,20 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
-import { FormsModule } from "@angular/forms";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
-import { WizardToolBarComponent } from "./wizard-tool-bar.component";
 import {
    ContextProvider,
    VSWizardContextProviderFactory
 } from "../../../vsobjects/context-provider.service";
+import { WizardToolBarComponent } from "./wizard-tool-bar.component";
 
 describe("WizardToolBarComponent", () => {
    let component: WizardToolBarComponent;
    let fixture: ComponentFixture<WizardToolBarComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             NgbModule

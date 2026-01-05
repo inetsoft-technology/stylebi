@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {Component, EventEmitter, Input, OnInit, Output} from "@angular/core";
-import { MatLegacyDialog as MatDialog, MatLegacyDialogConfig as MatDialogConfig } from "@angular/material/legacy-dialog";
 import { NameLabelTuple } from "../../../../../../../shared/util/name-label-tuple";
 import { ComponentTool } from "../../../../common/util/component-tool";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";

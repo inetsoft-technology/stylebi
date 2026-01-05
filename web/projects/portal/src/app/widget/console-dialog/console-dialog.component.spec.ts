@@ -17,7 +17,7 @@
  */
 import { HttpClientModule } from "@angular/common/http";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ModelService } from "../services/model.service";
 import { DialogButtonsDirective } from "../standard-dialog/dialog-buttons.directive";
 import { DialogContentDirective } from "../standard-dialog/dialog-content.directive";
@@ -29,7 +29,7 @@ describe("ConsoleDialogComponent", () => {
    let component: ConsoleDialogComponent;
    let fixture: ComponentFixture<ConsoleDialogComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       TestBed.configureTestingModule({
          imports: [
             HttpClientModule

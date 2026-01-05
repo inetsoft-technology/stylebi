@@ -18,14 +18,14 @@
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
 import { SsoSettingsPageComponent } from "./sso-settings-page/sso-settings-page.component";
-import { SsoSettingsResolverService } from "./sso-settings-resolver.service";
+import { ssoSettingsResolver } from "./sso-settings-resolver.service";
 
 const routes: Routes = [
    {
       path: "",
       component: SsoSettingsPageComponent,
       resolve: {
-         model: SsoSettingsResolverService
+         model: ssoSettingsResolver
       }
    }
 ];
@@ -33,9 +33,6 @@ const routes: Routes = [
 @NgModule({
    imports: [RouterModule.forChild(routes)],
    exports: [RouterModule],
-   providers: [
-      SsoSettingsResolverService
-   ]
 })
 export class SsoSettingsRoutingModule {
 }

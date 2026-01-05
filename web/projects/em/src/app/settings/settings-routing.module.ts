@@ -17,8 +17,8 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
-import { AuthorizationGuard } from "../authorization/authorization-guard.service";
-import { SearchResultResolver } from "../search/search-result-resolver.service";
+import { authorizationGuard } from "../authorization/authorization-guard.service";
+import { searchResultResolver } from "../search/search-result-resolver.service";
 import { SearchResultsViewComponent } from "../search/search-results-view/search-results-view.component";
 import { SettingsSidenavComponent } from "./settings-sidenav/settings-sidenav.component";
 
@@ -30,7 +30,7 @@ const routes: Routes = [
          {
             path: "general",
             loadChildren: () => import("./general/general.module").then(m => m.GeneralModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings",
                permissionChild: "general"
@@ -39,7 +39,7 @@ const routes: Routes = [
          {
             path: "security",
             loadChildren: () => import("./security/security.module").then(m => m.SecurityModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings",
                permissionChild: "security"
@@ -48,7 +48,7 @@ const routes: Routes = [
          {
             path: "content",
             loadChildren: () => import("./content/content.module").then(m => m.ContentModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings",
                permissionChild: "content"
@@ -57,7 +57,7 @@ const routes: Routes = [
          {
             path: "schedule",
             loadChildren: () => import("./schedule/schedule.module").then(m => m.ScheduleModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings",
                permissionChild: "schedule"
@@ -66,7 +66,7 @@ const routes: Routes = [
          {
             path: "presentation",
             loadChildren: () => import("./presentation/presentation.module").then(m => m.PresentationModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings",
                permissionChild: "presentation"
@@ -75,7 +75,7 @@ const routes: Routes = [
          {
             path: "logging",
             loadChildren: () => import("./logging/logging.module").then(m => m.LoggingModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings",
                permissionChild: "logging"
@@ -84,7 +84,7 @@ const routes: Routes = [
          {
             path: "properties",
             loadChildren: () => import("./properties/properties.module").then(m => m.PropertiesModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings",
                permissionChild: "properties"
@@ -94,7 +94,7 @@ const routes: Routes = [
             path: "search",
             component: SearchResultsViewComponent,
             resolve: {
-               searchResults: SearchResultResolver
+               searchResults: searchResultResolver
             },
             runGuardsAndResolvers: "paramsOrQueryParamsChange",
             data: {
@@ -113,7 +113,6 @@ const routes: Routes = [
 @NgModule({
    imports: [RouterModule.forChild(routes)],
    exports: [RouterModule],
-   providers: [SearchResultResolver, AuthorizationGuard]
 })
 export class SettingsRoutingModule {
 }

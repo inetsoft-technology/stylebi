@@ -17,10 +17,10 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
-import { AuthorizationGuard } from "../authorization/authorization-guard.service";
-import { SearchResultResolver } from "../search/search-result-resolver.service";
+import { authorizationGuard } from "../authorization/authorization-guard.service";
+import { searchResultResolver } from "../search/search-result-resolver.service";
 import { SearchResultsViewComponent } from "../search/search-results-view/search-results-view.component";
-import { MonitoringLevelGuard } from "./monitoring-level-guard.service";
+import { monitoringLevelGuard } from "./monitoring-level-guard.service";
 import { MonitoringSidenavComponent } from "./monitoring-sidenav/monitoring-sidenav.component";
 
 const routes: Routes = [
@@ -31,7 +31,7 @@ const routes: Routes = [
          {
             path: "summary",
             loadChildren: () => import("./summary/summary.module").then(m => m.SummaryModule),
-            canActivate: [AuthorizationGuard, MonitoringLevelGuard],
+            canActivate: [authorizationGuard, monitoringLevelGuard],
             data: {
                permissionParentPath: "monitoring",
                permissionChild: "summary"
@@ -40,7 +40,7 @@ const routes: Routes = [
          {
             path: "viewsheets",
             loadChildren: () => import("./viewsheets/viewsheets.module").then(m => m.ViewsheetsModule),
-            canActivate: [AuthorizationGuard, MonitoringLevelGuard],
+            canActivate: [authorizationGuard, monitoringLevelGuard],
             data: {
                permissionParentPath: "monitoring",
                permissionChild: "viewsheets"
@@ -49,7 +49,7 @@ const routes: Routes = [
          {
             path: "queries",
             loadChildren: () => import("./queries/queries.module").then(m => m.QueriesModule),
-            canActivate: [AuthorizationGuard, MonitoringLevelGuard],
+            canActivate: [authorizationGuard, monitoringLevelGuard],
             data: {
                permissionParentPath: "monitoring",
                permissionChild: "queries"
@@ -58,7 +58,7 @@ const routes: Routes = [
          {
             path: "cache",
             loadChildren: () => import("./cache/cache.module").then(m => m.CacheModule),
-            canActivate: [AuthorizationGuard, MonitoringLevelGuard],
+            canActivate: [authorizationGuard, monitoringLevelGuard],
             data: {
                permissionParentPath: "monitoring",
                permissionChild: "cache"
@@ -67,7 +67,7 @@ const routes: Routes = [
          {
             path: "users",
             loadChildren: () => import("./users/users.module").then(m => m.UsersModule),
-            canActivate: [AuthorizationGuard, MonitoringLevelGuard],
+            canActivate: [authorizationGuard, monitoringLevelGuard],
             data: {
                permissionParentPath: "monitoring",
                permissionChild: "users"
@@ -76,7 +76,7 @@ const routes: Routes = [
          {
             path: "cluster",
             loadChildren: () => import("./cluster/cluster.module").then(m => m.ClusterModule),
-            canActivate: [AuthorizationGuard, MonitoringLevelGuard],
+            canActivate: [authorizationGuard, monitoringLevelGuard],
             data: {
                permissionParentPath: "monitoring",
                permissionChild: "cluster"
@@ -85,7 +85,7 @@ const routes: Routes = [
          {
             path: "log",
             loadChildren: () => import("./log/log.module").then(m => m.LogModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "monitoring",
                permissionChild: "log"
@@ -95,10 +95,10 @@ const routes: Routes = [
             path: "search",
             component: SearchResultsViewComponent,
             resolve: {
-               searchResults: SearchResultResolver
+               searchResults: searchResultResolver
             },
             runGuardsAndResolvers: "paramsOrQueryParamsChange",
-            canActivate: [MonitoringLevelGuard],
+            canActivate: [monitoringLevelGuard],
             data: {
                permissionParentPath: "monitoring",
                permissionChild: "search"
@@ -119,7 +119,6 @@ const routes: Routes = [
 @NgModule({
    imports: [RouterModule.forChild(routes)],
    exports: [RouterModule],
-   providers: [SearchResultResolver, AuthorizationGuard, MonitoringLevelGuard]
 })
 export class MonitoringRoutingModule {
 }

@@ -33,7 +33,6 @@ import { TableViewModule } from "../../common/util/table/table-view.module";
 import { AddLoggingLevelDialogComponent } from "./add-logging-level-dialog/add-logging-level-dialog.component";
 import { LoggingLevelTableComponent } from "./logging-level-table/logging-level-table.component";
 import { LoggingRoutingModule } from "./logging-routing.module";
-import { LoggingSaveGuard } from "./logging-settings-page/logging-save.guard";
 import { LoggingSettingsPageComponent } from "./logging-settings-page/logging-settings-page.component";
 import { LoggingSettingsViewComponent } from "./logging-settings-view/logging-settings-view.component";
 
@@ -62,9 +61,6 @@ import { LoggingSettingsViewComponent } from "./logging-settings-view/logging-se
       LoggingLevelTableComponent,
       AddLoggingLevelDialogComponent
    ],
-   providers: [
-      LoggingSaveGuard
-   ]
 })
 export class LoggingModule {
 }

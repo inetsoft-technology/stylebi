@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { MatCardModule } from "@angular/material/card";
 import { MatTableModule } from "@angular/material/table";
 import { MatToolbarModule } from "@angular/material/toolbar";
@@ -28,7 +28,7 @@ describe("ManageFavoritesComponent", () => {
    let component: ManageFavoritesComponent;
    let fixture: ComponentFixture<ManageFavoritesComponent>;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       const favoritesService = {
          favorites: observableOf([]),
          removeFavorite: jest.fn()

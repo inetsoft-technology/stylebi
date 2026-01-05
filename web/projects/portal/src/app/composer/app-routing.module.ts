@@ -18,11 +18,11 @@
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
 import { ComposerAppComponent } from "./app.component";
-import { ComposerResolver } from "./services/composer-resolver.service";
+import { composerResolver } from "./services/composer-resolver.service";
 
 const routes: Routes = [
    { path: "", component: ComposerAppComponent,
-      resolve: { setPrincipalCommand: ComposerResolver }
+      resolve: { setPrincipalCommand: composerResolver }
    }
 ];
 

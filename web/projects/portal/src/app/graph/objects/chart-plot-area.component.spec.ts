@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component } from "@angular/core";
-import { async, TestBed } from "@angular/core/testing";
+import { waitForAsync, TestBed } from "@angular/core/testing";
 import { By } from "@angular/platform-browser";
 import { HttpClient } from "@angular/common/http";
 import { BehaviorSubject, Subject } from "rxjs";
@@ -30,6 +30,7 @@ import { DefaultScaleService } from "../../widget/services/scale/default-scale-s
 import { ModelService } from "../../widget/services/model.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { ChartObject } from "../model/chart-object";
+import { Plot } from "../model/plot";
 import { ChartService } from "../services/chart.service";
 import { ChartPlotArea } from "./chart-plot-area.component";
 
@@ -41,7 +42,10 @@ import { ChartPlotArea } from "./chart-plot-area.component";
    `
 })
 class TestApp {
-   public mockObject: ChartObject = {
+   public mockObject: Plot = {
+      showReferenceLine: false,
+      xboundaries: [],
+      yboundaries: [],
       areaName: "plot_area",
       bounds: new Rectangle(32, 2, 367, 255),
       layoutBounds: new Rectangle(32, 2, 367, 255),
@@ -307,7 +311,7 @@ describe("ChartPlotArea Integration Tests", () => {
    httpService.get.mockImplementation(() => responseObservable);
    httpService.post.mockImplementation(() => responseObservable);
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       modelService = {};
 
       TestBed.configureTestingModule({

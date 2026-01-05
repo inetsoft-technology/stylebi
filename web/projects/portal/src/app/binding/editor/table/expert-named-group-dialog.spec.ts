@@ -17,7 +17,7 @@
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { ComponentFixture, TestBed, waitForAsync } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { ConditionExpression } from "../../../common/data/condition/condition-expression";
@@ -28,12 +28,9 @@ import { ConditionPane } from "../../../widget/condition/condition-pane.componen
 import { ConditionPipe } from "../../../widget/condition/condition.pipe";
 import { JunctionOperatorPipe } from "../../../widget/condition/junction-operator.pipe";
 import { LargeFormFieldComponent } from "../../../widget/large-form-field/large-form-field.component";
-import { OrderModel } from "../../data/table/order-model";
-import { NameInputDialog } from "../name-input-dialog.component";
-import { CalcNamedGroupDialog } from "./calc-named-group-dialog.component";
-import mock = jest.mock;
-import { ExpertNamedGroupDialog } from "./expert-named-group-dialog.component";
 import { NamedGroupInfo } from "../../data/named-group-info";
+import { NameInputDialog } from "../name-input-dialog.component";
+import { ExpertNamedGroupDialog } from "./expert-named-group-dialog.component";
 
 describe("Expert Named Group Dialog Unit Test", () => {
    let createNamedGroupIfno: () => NamedGroupInfo = () => {
@@ -69,7 +66,7 @@ describe("Expert Named Group Dialog Unit Test", () => {
    let expertNamedGroupDialog: ExpertNamedGroupDialog;
    let conditionDialogService: ConditionDialogService;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       http = {};
       modalService = { open: jest.fn() };
       const mockConditionDialogService = {

@@ -15,49 +15,45 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { HttpClient } from "@angular/common/http";
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from "@angular/router";
+import { inject } from "@angular/core";
+import {
+   ActivatedRouteSnapshot,
+   CanActivateFn,
+   Router,
+   RouterStateSnapshot
+} from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import { AuthorizationService } from "./authorization.service";
-import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
-import { MessageDialog, MessageDialogType } from "../common/util/message-dialog";
 
-@Injectable()
-export class AuthorizationGuard implements CanActivate {
-   constructor(private service: AuthorizationService, private router: Router,
-               private dialog: MatDialog, private http: HttpClient)
-   {
-   }
+export const authorizationGuard: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
+   const service = inject(AuthorizationService);
+   const router = inject(Router);
+   const parent: string = next.data.permissionParentPath;
+   const child: string = next.data.permissionChild;
 
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      const parent: string = route.data.permissionParentPath;
-      const child: string = route.data.permissionChild;
+   return service.getPermissions(parent).pipe(
+      map( p => [p.permissions, p.labels, p.multiTenancyHiddenComponents]),
+      map(([p, l, h]) => {
+         const allowed = !!p[child];
 
-      return this.service.getPermissions(parent).pipe(
-         map( p => [p.permissions, p.labels, p.multiTenancyHiddenComponents]),
-         map(([p, l, h]) => {
-            const allowed = !!p[child];
+         if(!allowed) {
+            // find first permitted child and redirect to that
+            const redirect = Object.keys(p).find(name => p[name] === true && name != "notification");
 
-            if(!allowed) {
-               // find first permitted child and redirect to that
-               const redirect = Object.keys(p).find(name => p[name] === true && name != "notification");
+            if(redirect) {
+               //force orgAdmin redirect to a page that is not external logs
+               const monitoringRedirect = Object.keys(p).find(name => p[name] === true && name === "queries");
+               const usersRedirect = Object.keys(p).find(name => p[name] === true && name === "users");
 
-               if(redirect) {
-                  //force orgAdmin redirect to a page that is not external logs
-                  const monitoringRedirect = Object.keys(p).find(name => p[name] === true && name === "queries");
-                  const usersRedirect = Object.keys(p).find(name => p[name] === true && name === "users");
-
-                  const uri = parent ? monitoringRedirect ? `${parent}/${monitoringRedirect}`
-                           : usersRedirect ? `${parent}/${usersRedirect}`
-                           :`${parent}/${redirect}` : redirect;
-                  this.router.navigate([uri]);
-               }
+               const uri = parent ? monitoringRedirect ? `${parent}/${monitoringRedirect}`
+                  : usersRedirect ? `${parent}/${usersRedirect}`
+                     :`${parent}/${redirect}` : redirect;
+               router.navigate([uri]);
             }
+         }
 
-            return allowed;
-         })
-      );
-   }
-}
+         return allowed;
+      })
+   );
+};

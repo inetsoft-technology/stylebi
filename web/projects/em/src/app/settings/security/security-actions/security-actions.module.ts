@@ -29,7 +29,6 @@ import { MessageDialogModule } from "../../../common/util/message-dialog.module"
 import { TopScrollModule } from "../../../top-scroll/top-scroll.module";
 import { ResourcePermissionModule } from "../resource-permission/resource-permission.module";
 import { SecurityActionsPageComponent } from "./security-actions-page/security-actions-page.component";
-import { SecurityActionsSaveGuard } from "./security-actions-page/security-actions-save.guard";
 import { SecurityActionsPermissionsComponent } from "./security-actions-permissions/security-actions-permissions.component";
 import { SecurityActionsRoutingModule } from "./security-actions-routing.module";
 import { SecurityActionsTreeComponent } from "./security-actions-tree/security-actions-tree.component";
@@ -55,7 +54,6 @@ import { SecurityActionsTreeComponent } from "./security-actions-tree/security-a
       SecurityActionsTreeComponent,
       SecurityActionsPermissionsComponent
    ],
-   providers: [SecurityActionsSaveGuard]
 })
 export class SecurityActionsModule {
 }

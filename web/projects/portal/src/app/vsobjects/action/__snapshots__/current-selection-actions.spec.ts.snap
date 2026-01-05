@@ -1,10 +1,10 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`CurrentSelection check status of menu actions of current selection in composer 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -12,7 +12,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -25,8 +25,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -34,7 +34,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -42,7 +42,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -50,7 +50,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -58,7 +58,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -71,8 +71,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -80,7 +80,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -88,7 +88,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -96,7 +96,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -112,10 +112,10 @@ Array [
 `;
 
 exports[`CurrentSelection check status of menu actions of current selection in composer 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -131,10 +131,10 @@ Array [
 `;
 
 exports[`CurrentSelection check status of menu actions of current selection in viewer and preview 1`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -142,7 +142,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -155,8 +155,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -164,7 +164,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -172,7 +172,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -180,7 +180,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -188,7 +188,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -201,8 +201,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -210,7 +210,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -218,7 +218,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -226,7 +226,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -242,10 +242,10 @@ Array [
 `;
 
 exports[`CurrentSelection check status of menu actions of current selection in viewer and preview 2`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -261,10 +261,10 @@ Array [
 `;
 
 exports[`CurrentSelection check status of menu actions of current selection in viewer and preview 3`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -272,7 +272,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -285,8 +285,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -294,7 +294,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -302,7 +302,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -310,7 +310,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -318,7 +318,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -331,8 +331,8 @@ Array [
     "label": [Function],
   },
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -340,7 +340,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -348,7 +348,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -356,7 +356,7 @@ Array [
         "label": [Function],
         "visible": [Function],
       },
-      Object {
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],
@@ -372,10 +372,10 @@ Array [
 `;
 
 exports[`CurrentSelection check status of menu actions of current selection in viewer and preview 4`] = `
-Array [
+[
   AssemblyActionGroup {
-    "actions": Array [
-      Object {
+    "actions": [
+      {
         "action": [Function],
         "enabled": [Function],
         "icon": [Function],

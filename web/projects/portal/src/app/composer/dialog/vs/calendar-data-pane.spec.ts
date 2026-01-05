@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { ChangeDetectorRef, NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DragService } from "../../../widget/services/drag.service";
@@ -66,7 +66,7 @@ describe("Calendar Data Pane Unit Test", () => {
    let calendarDataPane: CalendarDataPane;
    let dragService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       dragService = { currentlyDragging: false };
 
       TestBed.configureTestingModule({

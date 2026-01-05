@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable, Injector } from "@angular/core";
-import { ɵDomSharedStylesHost } from "@angular/platform-browser";
+import { ɵSharedStylesHost } from "@angular/platform-browser";
 
 @Injectable({
    providedIn: "root"
@@ -35,7 +35,7 @@ export class ShadowDomService {
          // to prevent the same shadow root from being added multiple times
          // which would just duplicate all the <style> elements
          if(!this.hosts.includes(element.getRootNode())) {
-            injector.get(ɵDomSharedStylesHost).addHost(element.getRootNode());
+            injector.get(ɵSharedStylesHost).addHost(element.getRootNode());
             this.hosts.push(element.getRootNode());
          }
       }
@@ -50,7 +50,7 @@ export class ShadowDomService {
       let elems = document.querySelectorAll("inetsoft-chart, inetsoft-viewer");
 
       if(!this.removedDocumentHead && (!elems || elems.length == 0)) {
-         injector.get(ɵDomSharedStylesHost).removeHost(document.head);
+         injector.get(ɵSharedStylesHost).removeHost(document.head);
          this.removedDocumentHead = true;
       }
    }

@@ -18,7 +18,7 @@
 import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { ElementRef, NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule } from "@angular/forms";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
@@ -164,7 +164,7 @@ describe("VSSelection Test", () => {
    scaleService.getScale.mockImplementation(() => observableOf(1));
    let httpClient: HttpClient;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       fixedDropdownService = { open: jest.fn() };
 
       TestBed.configureTestingModule({

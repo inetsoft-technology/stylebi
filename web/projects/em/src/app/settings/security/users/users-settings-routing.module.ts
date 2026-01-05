@@ -18,13 +18,13 @@
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
 import { UsersSettingsPageComponent } from "./users-settings-page/users-settings-page.component";
-import { UsersSettingsSaveGuard } from "./users-settings-page/users-settings-save.guard";
+import { usersSettingsSaveGuard } from "./users-settings-page/users-settings-save.guard";
 
 const routes: Routes = [
    {
       path: "",
       component: UsersSettingsPageComponent,
-      canDeactivate: [UsersSettingsSaveGuard]
+      canDeactivate: [usersSettingsSaveGuard]
    }
 ];
 

@@ -15,15 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
-import { ActivatedRouteSnapshot, CanDeactivate, RouterStateSnapshot } from "@angular/router";
+import { ActivatedRouteSnapshot, CanDeactivateFn, RouterStateSnapshot } from "@angular/router";
+import { Observable } from "rxjs";
 import { CanComponentDeactivate } from "../../../../../shared/util/guard/can-component-deactivate";
 
-@Injectable()
-export class CanDeactivateGuard implements CanDeactivate<CanComponentDeactivate> {
-   canDeactivate(component: CanComponentDeactivate, route: ActivatedRouteSnapshot,
-                 currentState: RouterStateSnapshot, nextState?: RouterStateSnapshot)
-   {
-      return !!component.canDeactivate ? component.canDeactivate(component, route, currentState, nextState) : true;
-   }
-}
+export const canDeactivateGuard: CanDeactivateFn<CanComponentDeactivate> = (component: CanComponentDeactivate, currentRoute: ActivatedRouteSnapshot, currentState: RouterStateSnapshot, nextState: RouterStateSnapshot): Observable<boolean> | Promise<boolean> | boolean => {
+   return !!component.canDeactivate ? component.canDeactivate(component, currentRoute, currentState, nextState) : true;
+};

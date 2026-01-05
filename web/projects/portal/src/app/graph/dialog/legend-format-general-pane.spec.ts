@@ -17,7 +17,7 @@
  */
 import { CommonModule } from "@angular/common";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
-import { async, ComponentFixture, TestBed } from "@angular/core/testing";
+import { waitForAsync, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { UIContextService } from "../../common/services/ui-context.service";
@@ -61,7 +61,7 @@ let createModel: () => LegendFormatGeneralPaneModel = () => {
 describe("LegendFormatGeneralPane Unit Tests", () => {
    let uiContextService: any;
 
-   beforeEach(async(() => {
+   beforeEach(waitForAsync(() => {
       uiContextService = {
          isVS: jest.fn(),
          isAdhoc: jest.fn(),

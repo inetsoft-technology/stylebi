@@ -15,31 +15,29 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Injectable } from "@angular/core";
+import { inject } from "@angular/core";
 import {
-   ActivatedRouteSnapshot, CanActivate, Router,
+   ActivatedRouteSnapshot,
+   CanActivateFn,
+   Router,
    RouterStateSnapshot
 } from "@angular/router";
-import { MonitorLevel, MonitorLevelService } from "./monitor-level.service";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
+import { MonitorLevel, MonitorLevelService } from "./monitor-level.service";
 
-@Injectable()
-export class MonitoringLevelGuard implements CanActivate {
-   constructor(private monitorLevelService: MonitorLevelService, private router: Router) {
-   }
+export const monitoringLevelGuard: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
+   const monitorLevelService = inject(MonitorLevelService);
+   const router = inject(Router);
+   let isException = state.url == "/monitoring/exceptions";
 
-   canActivate(route: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
-      let isException = state.url == "/monitoring/exceptions";
+   return monitorLevelService.monitorLevelForGuard().pipe(
+      map((level: number) => {
+         if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
+            router.navigate(["monitoring/monitoringoff"]);
+         }
 
-      return this.monitorLevelService.monitorLevelForGuard().pipe(
-         map((level: number) => {
-            if(level <= MonitorLevel.OFF || isException && level <= MonitorLevel.MEDIUM) {
-               this.router.navigate(["monitoring/monitoringoff"]);
-            }
-
-            return true;
-         })
-      );
-   }
-}
+         return true;
+      })
+   );
+};

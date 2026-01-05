@@ -17,7 +17,7 @@
  */
 import { NgModule } from "@angular/core";
 import { RouterModule, Routes } from "@angular/router";
-import { AuthorizationGuard } from "../../authorization/authorization-guard.service";
+import { authorizationGuard } from "../../authorization/authorization-guard.service";
 import { ContentSettingsViewComponent } from "./content-settings-view/content-settings-view.component";
 
 const routes: Routes = [
@@ -28,7 +28,7 @@ const routes: Routes = [
          {
             path: "repository",
             loadChildren: () => import("./repository/repository.module").then(m => m.RepositoryModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/content",
                permissionChild: "repository"
@@ -37,7 +37,7 @@ const routes: Routes = [
          {
             path: "data-space",
             loadChildren: () => import("./data-space/data-space.module").then(m => m.DataSpaceModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/content",
                permissionChild: "data-space"
@@ -46,7 +46,7 @@ const routes: Routes = [
          {
             path: "drivers-and-plugins",
             loadChildren: () => import("./drivers-and-plugins/drivers-and-plugins.module").then(m => m.DriversAndPluginsModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/content",
                permissionChild: "drivers-and-plugins"
@@ -55,7 +55,7 @@ const routes: Routes = [
          {
             path: "materialized-views",
             loadChildren: () => import("./materialized-views/materialized-views.module").then(m => m.MaterializedViewsModule),
-            canActivate: [AuthorizationGuard],
+            canActivate: [authorizationGuard],
             data: {
                permissionParentPath: "settings/content",
                permissionChild: "materialized-views"
