@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClientTestingModule } from "@angular/common/http/testing";
-import { TestBed, inject } from "@angular/core/testing";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { inject, TestBed } from "@angular/core/testing";
+import { MatDialogModule } from "@angular/material/dialog";
 import { SecurityActionService } from "./security-action.service";
 
 describe("SecurityActionService", () => {

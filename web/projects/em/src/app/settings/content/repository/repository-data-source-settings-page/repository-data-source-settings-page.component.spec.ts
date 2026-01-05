@@ -30,6 +30,8 @@ import { MatTabsModule } from "@angular/material/tabs";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { TestUtils } from "../../../../../../../portal/src/app/common/test/test-utils";
 import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
+import { NEVER, of as observableOf } from "rxjs";
+import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 import { DatabaseDefinitionModel } from "../../../../../../../shared/util/model/database-definition-model";
 import { DatasourceDatabaseType } from "../../../../../../../shared/util/model/datasource-database-type";
 import { ResourcePermissionModule } from "../../../security/resource-permission/resource-permission.module";
