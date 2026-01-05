@@ -36,8 +36,7 @@ import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.security.Principal;
 import java.util.*;
 
@@ -282,13 +281,16 @@ public abstract class AbstractEditableAuthenticationProvider
          return;
       }
 
+      DataSpace dataSpace = DataSpace.getDataSpace();
       CustomThemesManager manager = CustomThemesManager.getManager();
       manager.loadThemes();
       Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
 
       for(CustomTheme theme : manager.getCustomThemes()) {
          try {
-            if(Tool.equals(theme.getOrgID(), fromOrgId)) {
+            if(Tool.equals(theme.getOrgID(), fromOrgId) ||
+               (Tool.isEmptyString(theme.getOrgID()) && Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())))
+            {
                CustomTheme clone = (CustomTheme) theme.clone();
                clone.setOrgID(toOrgId);
 
@@ -297,16 +299,35 @@ public abstract class AbstractEditableAuthenticationProvider
                   newOrgs.remove(fromOrgId);
                   newOrgs.add(toOrgId);
                   clone.setOrganizations(newOrgs);
+
+                  manager.setOrgSelectedTheme(theme.getOrgID(), toOrgId);
                }
 
-               clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
-               themes.add(clone);
-            }
-            else if(theme.getOrgID() == null) {
-               if(theme.getOrganizations().contains(fromOrgId)) {
-                  manager.setOrgSelectedTheme(theme.getId(), toOrgId);
-                  theme.setOrganizations(Arrays.asList(toOrgId));
+               //if copying a global theme, need to actually copy the dataspace jar
+               //since this is usually wrapped into copying the dataspace
+               if(!Tool.isEmptyString(clone.getJarPath())) {
+                  String oldJarPath = clone.getJarPath();
+                  String newJarPath = clone.getJarPath().replace("portal/theme", "portal/" + toOrgId + "/theme");
+
+                  if(Tool.isEmptyString(theme.getOrgID()) || Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())) {
+                     if(dataSpace.exists(null, clone.getJarPath())) {
+                        try(InputStream in = dataSpace.getInputStream(null, oldJarPath)) {
+                           int index = newJarPath.lastIndexOf('/');
+                           String folder = (index >= 0) ? newJarPath.substring(0, index) : null;
+                           String fileName = (index >= 0) ? newJarPath.substring(index + 1) : newJarPath;
+
+                           dataSpace.withOutputStream(folder, fileName, out -> Tool.copyTo(in, out));
+                        }
+                     }
+
+                     clone.setJarPath(newJarPath);
+                  }
+                  else {
+                     clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
+                  }
                }
+
+               themes.add(clone);
             }
          }
          catch(Exception ex) {
