@@ -408,8 +408,7 @@ public class EventAspect {
    @Around("@annotation(HandleAssetExceptions) && within(inetsoft.web..*)")
    public Object handleAssetExceptions(ProceedingJoinPoint pjp) throws Throwable {
       List<Exception> oldExceptions = WorksheetService.ASSET_EXCEPTIONS.get();
-      List<Exception> exceptions = new ArrayList<>();
-      WorksheetService.ASSET_EXCEPTIONS.set(exceptions);
+      WorksheetService.ASSET_EXCEPTIONS.set(new ArrayList<>());
 
       Optional<CommandDispatcher> commandDispatcher =
          Arrays.stream(pjp.getArgs())
@@ -421,6 +420,9 @@ public class EventAspect {
          return pjp.proceed();
       }
       finally {
+         // exceptions list can be replaced while processing a request so retrieve it here
+         List<Exception> exceptions = WorksheetService.ASSET_EXCEPTIONS.get();
+
          if(oldExceptions == null) {
             WorksheetService.ASSET_EXCEPTIONS.remove();
          }
@@ -428,34 +430,37 @@ public class EventAspect {
             WorksheetService.ASSET_EXCEPTIONS.set(oldExceptions);
          }
 
-         commandDispatcher.ifPresent(dispatcher -> {
-            boolean mvHandled = false;
-            for(Exception ex : exceptions) {
-               if(ex instanceof ConfirmException e) {
-                  if(!(e.getEvent() instanceof CheckMissingMVEvent)) {
-                     sendMessage(e, MessageCommand.Type.CONFIRM, dispatcher);
+         if(exceptions != null) {
+            commandDispatcher.ifPresent(dispatcher -> {
+               boolean mvHandled = false;
+
+               for(Exception ex : exceptions) {
+                  if(ex instanceof ConfirmException e) {
+                     if(!(e.getEvent() instanceof CheckMissingMVEvent)) {
+                        sendMessage(e, MessageCommand.Type.CONFIRM, dispatcher);
+                     }
+                     else if(!mvHandled) {
+                        coreLifecycleService.waitForMV(e, null, dispatcher);
+                        mvHandled = true;
+                     }
                   }
-                  else if(!mvHandled) {
-                     coreLifecycleService.waitForMV(e, null, dispatcher);
-                     mvHandled = true;
+                  else if(ex instanceof MessageException e) {
+                     sendMessage(e, MessageCommand.Type.fromCode(e.getWarningLevel()), dispatcher);
+                  }
+                  else if(ex instanceof ScriptException ||
+                     ex != null && ex.getCause() instanceof ScriptException)
+                  {
+                     sendMessage(ex, MessageCommand.Type.INFO, dispatcher);
+                  }
+                  else if(ex instanceof ExpiredSheetException) {
+                     ExpiredSheetCommand command = ExpiredSheetCommand.builder()
+                        .message(ex.getMessage())
+                        .build();
+                     dispatcher.sendCommand(command);
                   }
                }
-               else if(ex instanceof MessageException e) {
-                  sendMessage(e, MessageCommand.Type.fromCode(e.getWarningLevel()), dispatcher);
-               }
-               else if(ex instanceof ScriptException ||
-                  ex != null && ex.getCause() instanceof ScriptException)
-               {
-                  sendMessage(ex, MessageCommand.Type.INFO, dispatcher);
-               }
-               else if(ex instanceof ExpiredSheetException) {
-                  ExpiredSheetCommand command = ExpiredSheetCommand.builder()
-                     .message(ex.getMessage())
-                     .build();
-                  dispatcher.sendCommand(command);
-               }
-            }
-         });
+            });
+         }
       }
    }
 
