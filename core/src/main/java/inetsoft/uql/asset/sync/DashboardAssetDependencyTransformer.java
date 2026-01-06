@@ -111,7 +111,7 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
          identifier = Tool.byteDecode(identifier);
 
          if(!needTransform(identifier, info)) {
-            return;
+            continue;
          }
 
          entryNode.setAttribute("identifier", Tool.byteEncode(info.getNewName()));
