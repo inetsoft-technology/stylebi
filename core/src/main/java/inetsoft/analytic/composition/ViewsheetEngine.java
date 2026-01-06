@@ -311,6 +311,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       String id = null;
       String nextId = originalId == null ? getNextID(entry, user) : getNextTemporaryID(originalId);
       boolean orgTempDefaultForGloballyVisible = false;
+      String originalOrg = OrganizationContextHolder.getCurrentOrgId();
 
       try {
          //if globally visible default org asset, run in org scope
@@ -329,6 +330,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
          if(orgTempDefaultForGloballyVisible) {
             OrganizationContextHolder.clear();
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
          }
       }
 

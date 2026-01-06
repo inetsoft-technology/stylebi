@@ -81,9 +81,22 @@ public class VSLifecycleService {
       throws Exception
    {
       boolean orgTempDefaultForGloballyVisible = false;
-      String originalOrg = OrganizationManager.getInstance().getCurrentOrgID();
+      String originalOrg = null;
 
       try {
+         String orgID = ((XPrincipal) principal).getOrgId();
+         AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId(), orgID);
+
+         if(entry == null || !entry.isViewsheet()) {
+            return null;
+         }
+
+         if(VSUtil.isDefaultVSGloballyViewsheet(entry, principal)) {
+            originalOrg = OrganizationContextHolder.getCurrentOrgId();
+            orgTempDefaultForGloballyVisible = true;
+            OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
+         }
+
          String id = event.getRuntimeViewsheetId();
 
          if(id != null && !id.isEmpty()) {
@@ -95,17 +108,6 @@ public class VSLifecycleService {
 
          VSUtil.OPEN_VIEWSHEET.set(true);
          AssetDataCache.monitor(true);
-         String orgID = ((XPrincipal) principal).getOrgId();
-         AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId(), orgID);
-
-         if(entry == null || !entry.isViewsheet()) {
-            return null;
-         }
-
-         if(VSUtil.isDefaultVSGloballyViewsheet(entry, principal)) {
-            orgTempDefaultForGloballyVisible = true;
-            OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
-         }
 
          if(Thread.currentThread() instanceof GroupedThread) {
             String entryPath;
@@ -161,6 +163,7 @@ public class VSLifecycleService {
 
          if(orgTempDefaultForGloballyVisible) {
             OrganizationContextHolder.clear();
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
          }
       }
    }
