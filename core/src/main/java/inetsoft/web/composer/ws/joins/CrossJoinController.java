@@ -191,10 +191,18 @@ public class CrossJoinController extends WorksheetController {
       }
    }
 
-   protected static class CrossJoinMetaInfo {
+   public static class CrossJoinMetaInfo {
       private CrossJoinMetaInfo(RelationalJoinTableAssembly joinTable, boolean newTable) {
          this.joinTable = joinTable;
          this.newTable = newTable;
+      }
+
+      public RelationalJoinTableAssembly getJoinTable() {
+         return joinTable;
+      }
+
+      public boolean isNewTable() {
+         return newTable;
       }
 
       protected final RelationalJoinTableAssembly joinTable;
