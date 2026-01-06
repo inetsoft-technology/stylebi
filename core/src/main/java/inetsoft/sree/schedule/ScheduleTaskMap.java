@@ -266,17 +266,19 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          throw new RuntimeException("Failed to list schedule tasks", e);
       }
 
-      // Add internal tasks
-      keys.add(new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE,
-         AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.ASSET_FILE_BACKUP,
-         null, Organization.getDefaultOrganizationID())
-                  .toIdentifier());
-      keys.add(new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE,
-         AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.BALANCE_TASKS,
-         null, Organization.getDefaultOrganizationID())
-                  .toIdentifier());
+      // Add internal tasks to default org only
+      if(orgID.equals(Organization.getDefaultOrganizationID())) {
+         keys.add(new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE,
+            AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.ASSET_FILE_BACKUP,
+            null, Organization.getDefaultOrganizationID())
+                     .toIdentifier());
+         keys.add(new AssetEntry(
+            AssetRepository.GLOBAL_SCOPE,
+            AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.BALANCE_TASKS,
+            null, Organization.getDefaultOrganizationID())
+                     .toIdentifier());
+      }
 
       return keys;
    }
@@ -453,28 +455,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
 
             root = getRoot();
             entries = getAllChildren(root, orgID).toArray(new AssetEntry[0]);
-
-            if(!orgID.equals(Organization.getDefaultOrganizationID())) {
-               internalTasks = new AssetEntry[3];
-
-               internalTasks[0] = new AssetEntry(
-                  AssetRepository.GLOBAL_SCOPE,
-                  AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.ASSET_FILE_BACKUP,
-                  null, Organization.getDefaultOrganizationID());
-
-               internalTasks[1] = new AssetEntry(
-                  AssetRepository.GLOBAL_SCOPE,
-                  AssetEntry.Type.SCHEDULE_TASK, "/" + InternalScheduledTaskService.BALANCE_TASKS,
-                  null, Organization.getDefaultOrganizationID());
-               internalTasks[2] = new AssetEntry(
-                  AssetRepository.GLOBAL_SCOPE,
-                  AssetEntry.Type.SCHEDULE_TASK,
-                  "/" + InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES,
-                  null, Organization.getDefaultOrganizationID());
-            }
-            else {
-               internalTasks = new AssetEntry[0];
-            }
+            internalTasks = new AssetEntry[0];
          }
          catch(Exception e) {
             throw new RuntimeException("Failed to get schedule task folder", e);
