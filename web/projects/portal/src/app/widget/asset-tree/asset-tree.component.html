@@ -31,6 +31,7 @@
   [getRecentTreeFun]="getRecentTreeFun" [searchEndNode]="searchEndNode"
   [useVirtualScroll]="useVirtualScroll" [nodeEqualsFun]="getNodeEqualsFun()"
   (searchStart)="searchStart($event)"
+  (searchStrChange) = "searchStrChange($event)"
   (nodeDrag)="nodeDrag.emit($event)"
   (nodeDrop)="nodeDrop.emit($event)">
 </virtual-scroll-tree>

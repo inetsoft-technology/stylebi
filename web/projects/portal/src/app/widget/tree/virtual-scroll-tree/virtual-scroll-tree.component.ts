@@ -74,6 +74,7 @@ export class VirtualScrollTreeComponent {
   @Output() nodeClicked = new EventEmitter<TreeNodeModel>();
   @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();
   @Output() searchStart = new EventEmitter<boolean>();
+  @Output() searchStrChange = new EventEmitter<string>();
   @ViewChild(TreeComponent) tree: TreeComponent;
   dataSource: VirtualScrollTreeDatasource = new VirtualScrollTreeDatasource();
   private _searchEndNode: (node: TreeNodeModel) => boolean;
