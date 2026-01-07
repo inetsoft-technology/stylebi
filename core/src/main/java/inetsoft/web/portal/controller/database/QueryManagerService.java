@@ -669,7 +669,7 @@ public class QueryManagerService {
       List<String> results = new ArrayList<>();
       JDBCQuery query = new JDBCQuery();
       String colPath = tableName + "." + columnName;
-      UniformSQL browseSql = createUniformSQL(sql, tableName, colPath);
+      UniformSQL browseSql = createUniformSQL(tableName, colPath);
       query.setSQLDefinition(browseSql);
       query.setDataSource(xds);
 
@@ -2321,20 +2321,14 @@ public class QueryManagerService {
       return itemList;
    }
 
-   private UniformSQL createUniformSQL(UniformSQL sql, String tableName, String colPath) {
+   private UniformSQL createUniformSQL(String tableName, String colPath) {
       JDBCSelection selection = new JDBCSelection();
       selection.addColumn(colPath);
       selection.setTable(colPath, tableName);
 
       UniformSQL bsql = new UniformSQL();
       bsql.setSelection(selection);
-
-      if(sql == null || sql.getSelectTable(tableName) == null) {
-         bsql.addTable(tableName);
-      }
-      else {
-         bsql.addTable(sql.getSelectTable(tableName));
-      }
+      bsql.addTable(tableName);
 
       return bsql;
    }
