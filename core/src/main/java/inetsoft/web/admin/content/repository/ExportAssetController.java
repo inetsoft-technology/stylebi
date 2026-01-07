@@ -54,8 +54,9 @@ public class ExportAssetController {
 
    @PostConstruct
    public void initializeCache() {
-      Cluster.getInstance().getCache(ExportAssetService.CONTENT_CACHE_NAME);
-      Cluster.getInstance().getCache(ExportAssetService.FILE_LOCATION_CACHE_NAME);
+      Cluster cluster = Cluster.getInstance();
+      cluster.registerSpringProxyPartitionedCache(ExportAssetService.FILE_LOCATION_CACHE_NAME);
+      cluster.getCache(ExportAssetService.FILE_LOCATION_CACHE_NAME);
    }
 
    @PostMapping("/api/em/content/repository/export/check-permission")
