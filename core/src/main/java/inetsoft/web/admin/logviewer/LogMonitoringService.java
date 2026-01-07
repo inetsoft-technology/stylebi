@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
 import java.util.zip.ZipOutputStream;
 
 @Service
@@ -56,6 +57,8 @@ public class LogMonitoringService implements MessageListener {
       if(cluster != null) {
          cluster.removeMessageListener(this);
       }
+
+      executor.shutdownNow();
    }
 
    /**
@@ -118,25 +121,39 @@ public class LogMonitoringService implements MessageListener {
          selectedLog = logFiles.isEmpty() ? null : logFiles.getFirst();
       }
 
+      List<Future<?>> futures = new ArrayList<>();
+
       for(String clusterNode : cluster.getClusterNodes(false)) {
          if(!clusterNode.equals(cluster.getLocalMember())) {
-            try {
-               GetLogFilesResponse response = cluster.exchangeMessages(
-                  clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class);
+            futures.add(executor.submit(() -> {
+               try {
+                  GetLogFilesResponse response = cluster.exchangeMessages(
+                     clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class);
 
-               if(LicenseManager.getInstance().isEnterprise()) {
-                  for(LogFileModel logfile : response.getLogFiles()) {
-                     boolean exists = logFiles.stream().anyMatch(f -> f.getLogFile().equals(logfile.getLogFile()));
+                  if(LicenseManager.getInstance().isEnterprise()) {
+                     for(LogFileModel logfile : response.getLogFiles()) {
+                        boolean exists = logFiles.stream().anyMatch(f -> f.getLogFile().equals(logfile.getLogFile()));
 
-                     if(!exists) {
-                        logFiles.add(logfile);
+                        if(!exists) {
+                           logFiles.add(logfile);
+                        }
                      }
                   }
                }
-            }
-            catch(Exception e) {
-               LOG.error("Failed to get log files from {}", clusterNode, e);
-            }
+               catch(Exception e) {
+                  LOG.error("Failed to get log files from {}", clusterNode, e);
+               }
+            }));
+         }
+      }
+
+      // wait for all tasks to complete
+      for(Future<?> future : futures) {
+         try {
+            future.get();
+         }
+         catch(Exception e) {
+            LOG.error("Error while waiting for a log file", e);
          }
       }
 
@@ -301,5 +318,6 @@ public class LogMonitoringService implements MessageListener {
 
    private final LogManager logManager;
    private final Cluster cluster;
+   private final ExecutorService executor = Executors.newFixedThreadPool(4);
    private static final Logger LOG = LoggerFactory.getLogger(LogMonitoringService.class);
 }
