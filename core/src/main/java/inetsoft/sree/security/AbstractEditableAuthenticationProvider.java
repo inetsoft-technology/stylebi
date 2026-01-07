@@ -294,13 +294,33 @@ public abstract class AbstractEditableAuthenticationProvider
                CustomTheme clone = (CustomTheme) theme.clone();
                clone.setOrgID(toOrgId);
 
+               String originalID = clone.getId();
+               int i = 1;
+               boolean themeExists = clone.getId() != null &&
+                  CustomThemesManager.getManager().getCustomThemes().stream()
+                     .anyMatch(t -> t.getId().equals(clone.getId()));
+
+               //should not have duplicate ids on themes, instead increment id to keep consistent with adding new theme
+               while(themeExists) {
+                  String updatedId = originalID + i;
+                  i++;
+
+                  themeExists = updatedId != null &&
+                     CustomThemesManager.getManager().getCustomThemes().stream()
+                        .anyMatch(t -> t.getId().equals(updatedId));
+
+                  if(!themeExists) {
+                     clone.setId(updatedId);
+                  }
+               }
+
                if(theme.getOrganizations().contains(fromOrgId)) {
                   List<String> newOrgs = clone.getOrganizations();
                   newOrgs.remove(fromOrgId);
                   newOrgs.add(toOrgId);
                   clone.setOrganizations(newOrgs);
 
-                  manager.setOrgSelectedTheme(theme.getOrgID(), toOrgId);
+                  manager.setOrgSelectedTheme(clone.getId(), toOrgId);
                }
 
                //if copying a global theme, need to actually copy the dataspace jar
