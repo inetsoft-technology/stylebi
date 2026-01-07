@@ -6440,7 +6440,7 @@ public class CrossTabFilter extends AbstractTableLens
    /**
     * A comparator compares two sections.
     */
-   class SectionComparer implements Comparator<Section> {
+   class SectionComparer implements Comparator<Section>, Serializable {
       /**
        * Constructor.
        *
