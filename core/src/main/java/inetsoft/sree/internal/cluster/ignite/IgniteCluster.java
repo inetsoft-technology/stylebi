@@ -21,6 +21,7 @@ import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.*;
 import inetsoft.util.config.*;
 import org.apache.ignite.*;
@@ -992,6 +993,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          switch(ex.getCause()) {
             case ExpiredSheetException ese -> throw ese;
             case MessageException me -> throw me;
+            case ConfirmException ce -> throw ce;
             default ->  throw new RuntimeException(ex);
          }
       }
