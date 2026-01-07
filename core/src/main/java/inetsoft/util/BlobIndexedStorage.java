@@ -609,22 +609,25 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          else if(entry.isDomain()) {
             executor.submit(() -> new MigrateCubeTask(entry, oorg, norg).process());
          }
-         else if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
-            XMLSerializable result = getXMLSerializable(key, null, oId);
+         else if(entry.isScheduleTask()) {
+            //ignore internal tasks, but do not let them pass to be generically handled
+            if(!ScheduleManager.isInternalTask(entry.getName())) {
+               XMLSerializable result = getXMLSerializable(key, null, oId);
 
-            if(result instanceof ScheduleTask) {
-               ScheduleTask task = (ScheduleTask) result;
-               boolean usedTimeRange = task.getConditionStream()
-                  .filter(cond -> cond instanceof TimeCondition && ((TimeCondition) cond).getTimeRange() != null)
-                  .findFirst()
-                  .isPresent();
+               if(result instanceof ScheduleTask) {
+                  ScheduleTask task = (ScheduleTask) result;
+                  boolean usedTimeRange = task.getConditionStream()
+                     .filter(cond -> cond instanceof TimeCondition && ((TimeCondition) cond).getTimeRange() != null)
+                     .findFirst()
+                     .isPresent();
 
-               if(usedTimeRange) {
-                  continue;
+                  if(usedTimeRange) {
+                     continue;
+                  }
                }
-            }
 
-            executor.submit(() -> new MigrateScheduleTask(entry, oorg, norg).process());
+               executor.submit(() -> new MigrateScheduleTask(entry, oorg, norg).process());
+            }
          }
          else if(entry.getType() == AssetEntry.Type.MV_DEF || entry.getType() == AssetEntry.Type.MV_DEF_FOLDER) {
             // done by mv manager.
@@ -637,7 +640,10 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
                AssetFolder folder = (AssetFolder) data;
 
                for(AssetEntry folderEntry : folder.getEntries()) {
-                  newEntries.add(folderEntry.cloneAssetEntry((Organization) norg));
+                  if(!ScheduleManager.isInternalTask(folderEntry.getName())) {
+                     newEntries.add(folderEntry.cloneAssetEntry((Organization) norg));
+                  }
+
                   folder.removeEntry(folderEntry);
                }
 
