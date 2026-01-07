@@ -17,7 +17,10 @@
  */
 package inetsoft.uql.asset;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.XTable;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -744,7 +747,16 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                   paths[i] = file.getAbsolutePath();
                   paths[i] = paths[i].substring(0, paths[i].lastIndexOf("_s.tdat"));
 
-                  try(InputStream in = EmbeddedTableStorage.getInstance().readTable(path)) {
+                  String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+                  if(!EmbeddedTableStorage.getInstance().tableExists(path) &&
+                     SUtil.isDefaultVSGloballyVisible())
+                  {
+                     // Filenames are unique. Checking across organizations should be fine.
+                     orgId = Organization.getDefaultOrganizationID();
+                  }
+
+                  try(InputStream in = EmbeddedTableStorage.getInstance().readTable(path, orgId)) {
                      if(in != null) {
                         // if cache file doesn't exist then just copy
                         if(!file.exists()) {

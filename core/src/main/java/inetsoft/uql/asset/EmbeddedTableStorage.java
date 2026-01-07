@@ -53,9 +53,27 @@ public class EmbeddedTableStorage implements AutoCloseable {
       }
    }
 
+   public boolean tableExists(String path, String orgId) {
+      try {
+         return getStorage(orgId).exists(path);
+      }
+      catch(Exception ignore) {
+         return false;
+      }
+   }
+
    public InputStream readTable(String path) throws IOException {
       try {
          return getStorage().getInputStream(path);
+      }
+      catch(FileNotFoundException ignore) {
+         return null;
+      }
+   }
+
+   public InputStream readTable(String path, String orgId) throws IOException {
+      try {
+         return getStorage(orgId).getInputStream(path);
       }
       catch(FileNotFoundException ignore) {
          return null;
