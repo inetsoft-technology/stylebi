@@ -329,7 +329,6 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
          lifecycleMessageService.viewsheetOpened(id);
 
          if(orgTempDefaultForGloballyVisible) {
-            OrganizationContextHolder.clear();
             OrganizationContextHolder.setCurrentOrgId(originalOrg);
          }
       }

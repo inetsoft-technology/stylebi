@@ -227,7 +227,6 @@ public class OrganizationManager {
          result = supplier.call();
       }
       finally {
-         OrganizationContextHolder.clear();
          OrganizationContextHolder.setCurrentOrgId(originalOrg);
       }
 

@@ -162,7 +162,6 @@ public class VSLifecycleService {
          AssetDataCache.monitor(false);
 
          if(orgTempDefaultForGloballyVisible) {
-            OrganizationContextHolder.clear();
             OrganizationContextHolder.setCurrentOrgId(originalOrg);
          }
       }
