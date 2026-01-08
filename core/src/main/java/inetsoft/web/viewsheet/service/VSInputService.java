@@ -2358,7 +2358,13 @@ public class VSInputService {
          return;
       }
 
-      ViewsheetSandbox box0 = getVSBox(name, box.get());
+      ViewsheetSandbox box0 = getVSBoxFromRoot(name, box.get());
+
+      if(box0 == null) {
+         // If root sandbox does not have the box, then it may be in a nested sandbox
+         box0 = getVSBox(name, box.get());
+      }
+
       ViewsheetScope scope = box0.getScope();
       String script = null;
 
@@ -2555,6 +2561,12 @@ public class VSInputService {
       box0 = box0.getSandbox(vsName);
 
       return getVSBox(name.substring(index + 1, name.length()), box0);
+   }
+
+   private ViewsheetSandbox getVSBoxFromRoot(String name, ViewsheetSandbox box) {
+      int index = name.lastIndexOf(".");
+      String vsName = name.substring(0, index);
+      return box.getSandbox(vsName);
    }
 
    /**
