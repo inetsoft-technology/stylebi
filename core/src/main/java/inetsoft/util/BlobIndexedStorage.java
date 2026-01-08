@@ -684,9 +684,9 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
 
    @Override
    public void removeStorage(String orgID) throws Exception  {
+      cachedOrgIDs.remove(orgID);
       BlobStorage<Metadata> metadataStorage = getMetadataStorage(orgID);
       metadataStorage.deleteBlobStorage();
-      cachedOrgIDs.remove(orgID);
    }
 
    private Set<String> cachedOrgIDs = new HashSet<>();
