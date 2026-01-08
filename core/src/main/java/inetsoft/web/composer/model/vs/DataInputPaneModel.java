@@ -86,6 +86,30 @@ public class DataInputPaneModel {
       this.writeBackDirectly = writeBackDirectly;
    }
 
+   public boolean isQueryDateFormat() {
+      return queryDateFormat;
+   }
+
+   public void setQueryDateFormat(boolean queryDateFormat) {
+      this.queryDateFormat = queryDateFormat;
+   }
+
+   public String getDateFormatPattern() {
+      return dateFormatPattern;
+   }
+
+   public void setDateFormatPattern(String dateFormatPattern) {
+      this.dateFormatPattern = dateFormatPattern;
+   }
+
+   public boolean getDateFormatInvalid() {
+      return dateFormatInvalid;
+   }
+
+   public void setDateFormatInvalid(boolean dateFormatInvalid) {
+      this.dateFormatInvalid = dateFormatInvalid;
+   }
+
    private String table;
    private String tableLabel;
    private String rowValue;
@@ -94,4 +118,7 @@ public class DataInputPaneModel {
    private TreeNodeModel targetTree;
    private boolean variable;
    private boolean writeBackDirectly;
+   private boolean queryDateFormat;
+   private String dateFormatPattern;
+   private boolean dateFormatInvalid;
 }

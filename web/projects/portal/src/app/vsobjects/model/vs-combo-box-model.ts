@@ -29,4 +29,6 @@ export interface VSComboBoxModel extends VSListInputModel {
    minDate?: string;
    maxDate?: string;
    dateFormat?: string;
+   queryDateFormat?: boolean;
+   dateFormatPattern?: string;
 }
