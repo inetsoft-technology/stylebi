@@ -317,6 +317,13 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
             // bug #58866, handle corruption where asset entry is in the index, but the asset data
             // file is missing
             rootFolder = new AssetFolder();
+
+            if(indexedStorage instanceof BlobIndexedStorage &&
+               !indexedStorage.isInitialized(orgID))
+            {
+               return rootFolder;
+            }
+
             indexedStorage.putXMLSerializable(rootId, rootFolder);
             ts = indexedStorage.lastModified(rootId);
          }
