@@ -129,6 +129,7 @@ import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
+import { DashboardTabModel } from "../../portal/dashboard/dashboard-tab-model";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -299,6 +300,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
    openedTabs: ComposerTabModel[] = [];
    private _focusedTab: ComposerTabModel;
    private propertyDialogModal: NgbModalRef;
+   dashboardTabModel: DashboardTabModel;
 
    constructor(private composerObjectService: ComposerObjectService,
       private resizeHandlerService: ResizeHandlerService,
@@ -431,6 +433,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             this.composerRecentService.updateRecentlyViewed();
          }
       });
+
+      this.subscriptions.add(this.http.get<DashboardTabModel>("../api/portal/dashboard-tab-model")
+         .subscribe(data => this.dashboardTabModel = data));
    }
 
    // open wizard if requested from portal

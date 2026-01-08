@@ -4248,6 +4248,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             return this.tabsHeight + 'px !important';
          }
       }
-      return null;
+      return this.tabsHeight + 'px !important';;
    }
 }
