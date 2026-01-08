@@ -220,13 +220,14 @@ public class OrganizationManager {
 
    public static <T> T runInOrgScope(String orgID, Callable<T> supplier) throws Exception {
       T result;
+      String originalOrg = OrganizationContextHolder.getCurrentOrgId();
 
       try {
          OrganizationContextHolder.setCurrentOrgId(orgID);
          result = supplier.call();
       }
       finally {
-         OrganizationContextHolder.clear();
+         OrganizationContextHolder.setCurrentOrgId(originalOrg);
       }
 
       return result;
