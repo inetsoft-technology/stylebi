@@ -189,7 +189,5 @@ public class ExportAssetService {
    private final DeployService deployService;
    private final BinaryTransferService binaryTransferService;
 
-   static final String CONTENT_CACHE_NAME = "exportAssetContexts";
    static final String FILE_LOCATION_CACHE_NAME = "exportAssetFileLocations";
-
 }
