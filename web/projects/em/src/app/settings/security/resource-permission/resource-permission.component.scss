@@ -15,6 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host ::ng-deep .mat-checkbox-field .mdc-label,
+:host ::ng-deep .mat-radio-button .mdc-label {
+  font-size: 12px;
+  line-height: 20px;
+}
+
 :host {
   display: flex;
   flex-direction: column;
