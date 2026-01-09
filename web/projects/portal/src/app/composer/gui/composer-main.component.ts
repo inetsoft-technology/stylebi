@@ -128,6 +128,7 @@ import { StylePaneComponent } from "./tablestyle/editor/style-pane.component";
 import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
+import { LayoutUndoRedoEvent } from "./vs/event/layout-undo-redo-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
 
 export enum SidebarTab {
@@ -2608,8 +2609,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                this.zone.run(() => this.updateTableStylePreview());
             }
             else if(this.layoutShowing) {
-               const uri: string = `/events/composer/vs/layouts/undo/${this.layoutRuntimeId}`;
-               this.focusedSheet.socketConnection.sendEvent(uri);
+               const event = new LayoutUndoRedoEvent(this.layoutRuntimeId);
+               const uri: string = "/events/composer/vs/layouts/undo";
+               this.focusedSheet.socketConnection.sendEvent(uri, event);
             }
             else {
                this.focusedSheet.socketConnection.sendEvent("/events/undo");
@@ -2625,8 +2627,9 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                this.zone.run(() => this.updateTableStylePreview());
             }
             else if(this.layoutShowing) {
-               const uri: string = `/events/composer/vs/layouts/redo/${this.layoutRuntimeId}`;
-               this.focusedSheet.socketConnection.sendEvent(uri);
+               const event = new LayoutUndoRedoEvent(this.layoutRuntimeId);
+               const uri: string = "/events/composer/vs/layouts/redo";
+               this.focusedSheet.socketConnection.sendEvent(uri, event);
             }
             else {
                this.focusedSheet.socketConnection.sendEvent("/events/redo");

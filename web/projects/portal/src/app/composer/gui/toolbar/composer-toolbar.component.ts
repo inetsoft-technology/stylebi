@@ -74,6 +74,7 @@ import { WorksheetTableOperator } from "../../data/ws/ws-table.operators";
 import { WSObjectType } from "../../dialog/ws/new-worksheet-dialog.component";
 import { ComposerToolbarService } from "../composer-toolbar.service";
 import { EventQueueService } from "../vs/event-queue.service";
+import { LayoutUndoRedoEvent } from "../vs/event/layout-undo-redo-event";
 import { MoveResizeLayoutObjectsEvent } from "../vs/event/move-resize-layout-objects-event";
 import { ResizeVSObjectEvent } from "../vs/objects/event/resize-vs-object-event";
 import { WSCollectVariablesOverEvent } from "../ws/socket/ws-collect-variables/ws-collect-variables-over-event";
@@ -586,8 +587,9 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
       }
       else {
          if(this.layoutShowing) {
-            const uri: string = `/events/composer/vs/layouts/undo/${this.layoutRuntimeId}`;
-            this.sheet.socketConnection.sendEvent(uri);
+            const event = new LayoutUndoRedoEvent(this.layoutRuntimeId);
+            const uri: string = "/events/composer/vs/layouts/undo";
+            this.sheet.socketConnection.sendEvent(uri, event);
          }
          else {
             this.sheet.socketConnection.sendEvent("/events/undo");
@@ -620,8 +622,9 @@ export class ComposerToolbarComponent implements OnInit, AfterViewInit, OnDestro
          this.onUpdateTableStylePreview.emit();
       }
       else if(this.layoutShowing) {
-         const uri: string = `/events/composer/vs/layouts/redo/${this.layoutRuntimeId}`;
-         this.sheet.socketConnection.sendEvent(uri);
+         const event = new LayoutUndoRedoEvent(this.layoutRuntimeId);
+         const uri: string = "/events/composer/vs/layouts/redo";
+         this.sheet.socketConnection.sendEvent(uri, event);
       }
       else {
          this.sheet.socketConnection.sendEvent("/events/redo");
