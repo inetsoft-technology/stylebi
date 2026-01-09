@@ -181,7 +181,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          this.detectChanges();
       }
 
-      if(!m.sheetMaxMode || m.maxMode || this.dataTipService.isDataTip(m.absoluteName)) {
+      if(!m.sheetMaxMode || m.maxMode || this.isDataTip()) {
          const event = new VSChartEvent(this._model, this._model.maxMode, this.container);
 
          if(this.vsInfo?.orgId) {
