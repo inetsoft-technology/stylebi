@@ -129,7 +129,7 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
                Element owner = getChildNode(entryNode, "owner");
 
                if(owner != null) {
-                  replaceCDATANode(owner, assetEntry.getUser().convertToKey());
+                  replaceCDATANode(owner, assetEntry.getUser() == null ? null : assetEntry.getUser().convertToKey());
                }
             }
          }
