@@ -19,9 +19,11 @@ package inetsoft.storage.fs;
 
 import inetsoft.storage.BlobEngine;
 import inetsoft.util.Tool;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 
 /**
  * {@code FilesystemBlobEngine} is an implementation of {@link BlobEngine} that stores blobs to a
@@ -78,6 +80,47 @@ public class FilesystemBlobEngine implements BlobEngine {
    @Override
    public void delete(String id, String digest) throws IOException {
       Files.delete(getPath(id, digest));
+   }
+
+   public void deleteStore(String id) {
+      try {
+         if(id == null || id.isBlank()) {
+            return;
+         }
+
+         Path root = base.resolve(id).normalize();
+         Path baseNorm = base.normalize();
+
+         if(!root.startsWith(baseNorm)) {
+            throw new IOException("Can not delete outside blob base: " + root);
+         }
+
+         if(!Files.exists(root)) {
+            return;
+         }
+
+         Files.walkFileTree(root, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+               Files.deleteIfExists(file);
+               return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+               if(exc != null) {
+                  throw exc;
+               }
+
+               Files.deleteIfExists(dir);
+               return FileVisitResult.CONTINUE;
+            }
+         });
+      }
+      catch(Exception e) {
+         LoggerFactory.getLogger(FilesystemBlobEngine.class)
+            .error("Failed to delete BlobEngine Storage folders: ", e);
+      }
    }
 
    private Path getPath(String id, String digest) {
