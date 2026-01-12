@@ -228,6 +228,16 @@ public class EmbeddedDataCacheHandler {
             Files.createFile(tempFile);
          }
       }
+      catch(FileAlreadyExistsException ex) {
+         // Race condition, file created in another thread
+         if(Files.exists(tempFile)) {
+            return tempFile.toFile();
+         }
+         else {
+            LOG.error("Failed to create temp file: " + tempFile.getFileName(), ex);
+            return null;
+         }
+      }
       catch(Exception ex) {
          LOG.error("Failed to create temp file: " + tempFile.getFileName(), ex);
          return null;
