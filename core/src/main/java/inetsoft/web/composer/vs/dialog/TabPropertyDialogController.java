@@ -114,7 +114,7 @@ public class TabPropertyDialogController {
       SizePositionPaneModel sizePositionPaneModel = tabGeneralPaneModel.getSizePositionPaneModel();
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
 
-      tabGeneralPaneModel.setBottomTabs(tabAssemblyInfo.isBottomTabs());
+      tabGeneralPaneModel.setBottomTabs(tabAssemblyInfo.getBottomTabsValue());
 
       generalPropPaneModel.setShowEnabledGroup(true);
       generalPropPaneModel.setEnabled(tabAssemblyInfo.getEnabledValue());
@@ -214,7 +214,7 @@ public class TabPropertyDialogController {
       tabAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       tabAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
 
-      tabAssemblyInfo.setBottomTabs(tabGeneralPaneModel.getBottomTabs());
+      tabAssemblyInfo.setBottomTabsValue(tabGeneralPaneModel.getBottomTabs());
 
       this.vsObjectPropertyService.editObjectProperty(
          viewsheet, tabAssemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri, principal,

@@ -47,6 +47,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       super();
 
       labelsValue.setDValue(new String[0]);
+      bottomTabs.setDValue("false");
       setPixelSize(new Dimension(3 * AssetUtil.defw, 24));
    }
 
@@ -104,6 +105,14 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       labelsValue.setDValue(labels);
    }
 
+   public void setBottomTabsValue(boolean bottomTabs) {
+      this.bottomTabs.setDValue(String.valueOf(bottomTabs));
+   }
+
+   public boolean getBottomTabsValue() {
+      return Boolean.parseBoolean(bottomTabs.getDValue());
+   }
+
    /**
     * Get the selected object name.
     * @return the name of the selected object.
@@ -156,7 +165,8 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
             }
          }
 
-         info.setBottomTabs(bottomTabs);
+         info.bottomTabs = bottomTabs == null ?
+            null : (DynamicValue) bottomTabs.clone();
          info.setRoundBottomCornersOnly(roundBottomCornersOnly);
 
          return info;
@@ -172,7 +182,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    protected void writeAttributes(PrintWriter writer) {
       super.writeAttributes(writer);
       writer.print(" roundTopCornersOnly=\"" + roundTopCornersOnly + "\"");
-      writer.print(" bottomTabs=\"" + bottomTabs + "\"");
+      writer.print(" bottomTabs=\"" + bottomTabs.toString() + "\"");
       writer.print(" roundBottomCornersOnly=\"" + roundBottomCornersOnly + "\"");
    }
 
@@ -188,7 +198,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
       str = Tool.getAttribute(elem, "bottomTabs");
 
       if(str != null) {
-         this.bottomTabs = Boolean.parseBoolean(str);
+         bottomTabs.setDValue(str);
       }
 
       str = Tool.getAttribute(elem, "roundBottomCornersOnly");
@@ -371,11 +381,11 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    }
 
    public boolean isBottomTabs() {
-      return this.bottomTabs;
+      return Boolean.parseBoolean(bottomTabs.getRValue().toString());
    }
 
    public void setBottomTabs(boolean bottomTabs) {
-      this.bottomTabs = bottomTabs;
+      this.bottomTabs.setRValue(bottomTabs);
    }
 
    public boolean isRoundBottomCornersOnly() {
@@ -389,7 +399,7 @@ public class TabVSAssemblyInfo extends ContainerVSAssemblyInfo {
    private ClazzHolder<String[]> labelsValue = new ClazzHolder<>();
    private DynamicValue selectedValue = new DynamicValue();
    private boolean roundTopCornersOnly = true;
-   private boolean bottomTabs;
+   private DynamicValue bottomTabs = new DynamicValue();
    private boolean roundBottomCornersOnly;
 
    public static final TableDataPath ACTIVE_TAB_PATH =
