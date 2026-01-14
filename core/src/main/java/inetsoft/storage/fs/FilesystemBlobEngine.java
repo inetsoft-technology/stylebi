@@ -19,11 +19,11 @@ package inetsoft.storage.fs;
 
 import inetsoft.storage.BlobEngine;
 import inetsoft.util.Tool;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
 
 /**
  * {@code FilesystemBlobEngine} is an implementation of {@link BlobEngine} that stores blobs to a
@@ -99,23 +99,7 @@ public class FilesystemBlobEngine implements BlobEngine {
             return;
          }
 
-         Files.walkFileTree(root, new SimpleFileVisitor<>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-               Files.deleteIfExists(file);
-               return FileVisitResult.CONTINUE;
-            }
-
-            @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-               if(exc != null) {
-                  throw exc;
-               }
-
-               Files.deleteIfExists(dir);
-               return FileVisitResult.CONTINUE;
-            }
-         });
+        FileUtils.deleteDirectory(root.toFile());
       }
       catch(Exception e) {
          LoggerFactory.getLogger(FilesystemBlobEngine.class)
