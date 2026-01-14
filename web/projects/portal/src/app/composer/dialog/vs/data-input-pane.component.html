@@ -82,6 +82,30 @@
           </div>
         </div>
       </div>
+      <div class="form-row-float-label row" *ngIf="comboBox">
+        <div class="col">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="model.queryDateFormat" id="queryDateFormat">
+            <label class="form-check-label" for="queryDateFormat">
+              _#(Format Date Values Sent to Query)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row" *ngIf="comboBox">
+        <div class="col">
+          <div class="form">
+            <input type="text" class="form-control" [(ngModel)]="model.dateFormatPattern" [disabled]="!model.queryDateFormat" id="dateFormatPattern"
+              placeholder="_#(Query Date Format)" (ngModelChange)="validateDateFormat($event)"
+            />
+            <label class="form-label" for="dateFormatPattern">
+            </label>
+            <div *ngIf="model.dateFormatInvalid" class="alert alert-danger">
+              _#(Invalid Date Format)
+            </div>
+          </div>
+        </div>
+      </div>
     </ng-container>
   </fieldset>
 </form>
