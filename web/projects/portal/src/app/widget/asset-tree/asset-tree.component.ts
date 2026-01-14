@@ -91,6 +91,7 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    @Input() getRecentTreeFun: () => Observable<TreeNodeModel[]>;
    @Input() initSelectedNodesExpanded: boolean;
    @Input() manyNodesUseVirtualScroll: boolean;
+   @Input() newVSDialog: boolean = false;
    @Output() nodesSelected = new EventEmitter<TreeNodeModel[]>();
    @Output() nodeSelected = new EventEmitter<TreeNodeModel>();
    @Output() pathSelected = new EventEmitter<TreeNodeModel[]>();
@@ -114,6 +115,8 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    datasourceLoadedAll: boolean = false;
    nodesLoading: number = 0;
    useVirtualScroll: boolean = false;
+   datasourceLoadingPlaceholder: boolean = false;
+   searchStr: string = "";
    searchEndNode: (node: TreeNodeModel) => boolean = node =>  {
       return node?.data?.type == AssetType.PHYSICAL_TABLE || node?.data?.type == AssetType.TABLE ||
          node?.data?.type == AssetType.QUERY;
@@ -669,6 +672,29 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
       return this.virtualScrollTree.tree.getNodeByData(compareType, data, parentNode);
    }
 
+   searchStrChange(searchStr: string): void {
+      this.searchStr = searchStr;
+
+      if (this.searchStr && !this.datasourceLoadingPlaceholder
+            && this.searchMode) {
+         this.checkDSPlaceholder();
+      }
+   }
+
+   checkDSPlaceholder(): void {
+      const match = "Data Source".toLocaleLowerCase().includes(this.searchStr.toLocaleLowerCase());
+
+      if(this.newVSDialog && !match && this.dataSourcesTree.loading){
+         this.datasourceLoadingPlaceholder = true;
+         this.root.children.push(<TreeNodeModel>{
+            loading: true,
+            label: "#_(js: Data Sources Loading)",
+            icon: "search-icon"
+         });
+         this.refreshView();
+      }
+   }
+
    searchStart(start: boolean): void {
       if(start) {
          if(!this.hasLoadedAllNode()) {
@@ -695,6 +721,10 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
          }
       }
       else {
+         if (this.datasourceLoadingPlaceholder) {
+            this.root.children.pop();
+            this.datasourceLoadingPlaceholder = false;
+         }
          this.activeRoot = this.root;
       }
 
@@ -827,8 +857,16 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
          return;
       }
 
+      if(node.label === "Data Source" && !loading && this.datasourceLoadingPlaceholder) {
+         this.root.children.pop();
+         this.datasourceLoadingPlaceholder = false;
+      }
+
       if(loading && !node.data.loadingDebounced) {
          // immediately apply loading if not already debounced for this node
+         if(node.label === "Data Source" && !this.datasourceLoadingPlaceholder) {
+            this.checkDSPlaceholder();
+         }
          node.loading = true;
       }
       else {
@@ -840,6 +878,16 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    private updateLoadingIndicator(node: TreeNodeModel, loading: boolean, callBack?: () => any): void {
+
+      if(node.label === "Data Source" && !loading && this.datasourceLoadingPlaceholder) {
+         this.root.children.pop();
+         this.datasourceLoadingPlaceholder = false;
+      }
+
+      if(node.label === "Data Source" && loading && !this.datasourceLoadingPlaceholder) {
+         this.checkDSPlaceholder();
+      }
+
       this.zone.run(() => {
          node.loading = loading;
          node.data.loadingDebounced = false;
