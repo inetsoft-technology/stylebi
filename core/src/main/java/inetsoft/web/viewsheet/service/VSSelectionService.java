@@ -829,10 +829,8 @@ public class VSSelectionService {
          scope.removeVariable("event");
       }
 
-      Assembly eventSourceAssembly = null;
-
-      if(!StringUtils.isEmpty(eventSource)) {
-         eventSourceAssembly = rvs.getViewsheet().getAssembly(eventSource);
+      if(rvs == null || rvs.isDisposed()) {
+         return;
       }
 
       coreLifecycleService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher,
