@@ -119,7 +119,7 @@ public abstract class AbstractEditableAuthenticationProvider
       String fromOrgId = fromOrganization.getId();
       copyScopedProperties(fromOrgId, newOrgID, replace);
       copyDataSpace(fromOrganization, newOrg, replace);
-      copyThemes(fromOrgId, newOrgID);
+      copyThemes(fromOrgId, newOrgID, replace);
 
       if(replace) {
          clearScopedProperties(fromOrgId);
@@ -276,7 +276,7 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
-   private void copyThemes(String fromOrgId, String toOrgId) {
+   private void copyThemes(String fromOrgId, String toOrgId, boolean replace) {
       if(Tool.isEmptyString(fromOrgId)) {
          return;
       }
@@ -285,6 +285,18 @@ public abstract class AbstractEditableAuthenticationProvider
       CustomThemesManager manager = CustomThemesManager.getManager();
       manager.loadThemes();
       Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
+
+      if(replace) {
+         themes.removeIf(t -> Tool.equals(t.getOrgID(), fromOrgId));
+
+         for(CustomTheme t : themes) {
+            if(Tool.isEmptyString(t.getOrgID()) && t.getOrganizations() != null && t.getOrganizations().contains(fromOrgId)) {
+               List<String> newOrgs = new ArrayList<>(t.getOrganizations());
+               newOrgs.remove(fromOrgId);
+               t.setOrganizations(newOrgs);
+            }
+         }
+      }
 
       for(CustomTheme theme : manager.getCustomThemes()) {
          try {
@@ -301,7 +313,7 @@ public abstract class AbstractEditableAuthenticationProvider
                      .anyMatch(t -> t.getId().equals(clone.getId()));
 
                //should not have duplicate ids on themes, instead increment id to keep consistent with adding new theme
-               while(themeExists) {
+               while(themeExists && !replace) {
                   String updatedId = originalID + i;
                   i++;
 
@@ -353,6 +365,10 @@ public abstract class AbstractEditableAuthenticationProvider
          catch(Exception ex) {
             LOG.error("Failed to clone custom theme", ex);
          }
+      }
+
+      if(replace) {
+         manager.setOrgSelectedTheme(null, fromOrgId);
       }
 
       manager.setCustomThemes(themes);
