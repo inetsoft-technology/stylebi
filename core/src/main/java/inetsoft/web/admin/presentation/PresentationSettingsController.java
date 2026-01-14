@@ -136,7 +136,7 @@ public class PresentationSettingsController {
       }
 
       if(model.lookAndFeelSettingsModel() != null) {
-         lookAndFeelService.setModel(model.lookAndFeelSettingsModel(), globalSettings);
+         lookAndFeelService.setModel(model.lookAndFeelSettingsModel(), principal, globalSettings);
       }
 
       if(model.loginBannerSettingsModel() != null) {
@@ -209,7 +209,7 @@ public class PresentationSettingsController {
       }
 
       formatsSettingsService.resetSettings(globalSettings);
-      lookAndFeelService.resetSettings(globalSettings);
+      lookAndFeelService.resetSettings(principal, globalSettings);
       portalIntegrationViewSettingsService.resetSettings(globalSettings);
       toolbarSettingsService.resetSettings(globalSettings);
       dashboardSettingsService.resetSettings(globalSettings);
