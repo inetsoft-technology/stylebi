@@ -95,6 +95,7 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
 
       if(selectedAssembly != null) {
          TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tabVSAssembly.getVSAssemblyInfo();
+         Point tabOffset = tabInfo.getPixelOffset();
          VSAssemblyInfo selectedInfo = selectedAssembly.getVSAssemblyInfo();
          Point selectedOffset = selectedAssembly.getPixelOffset();
          Dimension selectedSize = selectedAssembly.getPixelSize();
@@ -103,7 +104,6 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
          if(selectedOffset != null && selectedSize != null && tabSize != null) {
 
             if(bottomTabs) {
-               Point tabOffset = tabInfo.getPixelOffset();
                int newTop = tabOffset.y - selectedSize.height;
                int newLeft = tabOffset.x;
                Point newPosition = new Point(newLeft, newTop);
@@ -111,8 +111,16 @@ public class VSTabModel extends VSObjectModel<TabVSAssembly> {
             } else {
                int newTop = selectedOffset.y - tabSize.height;
                int newLeft = selectedOffset.x;
-               Point newPosition = new Point(newLeft, newTop);
-               tabInfo.setPixelOffset(newPosition);
+               Point newPosition;
+
+               if (newTop < 0) {
+                  newPosition = new Point(newLeft, 0);
+                  tabInfo.setPixelOffset(newPosition);
+                  selectedInfo.setPixelOffset(new Point(tabOffset.x, tabSize.height));
+               } else {
+                  newPosition = new Point(newLeft, newTop);
+                  tabInfo.setPixelOffset(newPosition);
+               }
             }
          }
       }
