@@ -146,9 +146,22 @@
       <div class="col">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" id="roundTopCornersOnly"
-                 [(ngModel)]="vsObjectFormat.roundTopCornersOnly" (ngModelChange)="updateFormat()">
+                 [(ngModel)]="vsObjectFormat.roundTopCornersOnly" (ngModelChange)="updateFormat()"
+                 [disabled]="vsObjectFormat.roundBottomCornersOnly">
           <label class="form-check-label" for="roundTopCornersOnly">
             _#(Round Top Corners Only)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label" *ngIf="roundTopCornersOnlyVisible">
+      <div class="col">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="roundBottomCornersOnly"
+                 [(ngModel)]="vsObjectFormat.roundBottomCornersOnly" (ngModelChange)="updateFormat()"
+                 [disabled]="vsObjectFormat.roundTopCornersOnly">
+          <label class="form-check-label" for="roundBottomCornersOnly">
+            _#(Round Bottom Corners Only)
           </label>
         </div>
       </div>
