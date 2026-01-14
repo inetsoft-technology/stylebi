@@ -18,6 +18,7 @@
 package inetsoft.web.viewsheet.model.chart;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.report.Hyperlink;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -30,6 +31,7 @@ import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.model.FormatInfoModel;
+import inetsoft.web.composer.model.vs.HyperlinkModel;
 import inetsoft.web.graph.GraphBuilder;
 import inetsoft.web.graph.model.*;
 import inetsoft.web.viewsheet.model.*;
@@ -75,6 +77,18 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.noData = info.isNoData();
       this.summarySortCol = info.getSummarySortCol();
       this.summarySortVal = info.getSummarySortVal();
+      this.titleLinkValue = info.getTitleLinkValue();
+      this.emptyPlotLinkValue = info.getEmptyPlotLinkValue();
+
+      if(titleLinkValue != null) {
+         Hyperlink.Ref ref = new Hyperlink.Ref(this.titleLinkValue);
+         this.titleLinkModel = HyperlinkModel.createHyperlinkModel(ref);
+      }
+
+      if(emptyPlotLinkValue != null) {
+         Hyperlink.Ref ref = new Hyperlink.Ref(this.emptyPlotLinkValue);
+         this.emptyPlotLinkModel = HyperlinkModel.createHyperlinkModel(ref);
+      }
    }
 
    private boolean containsDynamic(ChartVSAssembly assembly) {
@@ -511,6 +525,38 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
       this.errorFormat = errorFormat;
    }
 
+   public Hyperlink getTitleLinkValue() {
+      return titleLinkValue;
+   }
+
+   public void setTitleLinkValue(Hyperlink titleLinkValue) {
+      this.titleLinkValue = titleLinkValue;
+   }
+
+   public HyperlinkModel getTitleLinkModel() {
+      return titleLinkModel;
+   }
+
+   public void setTitleLinkModel(HyperlinkModel titleLinkModel) {
+      this.titleLinkModel = titleLinkModel;
+   }
+
+   public Hyperlink getEmptyPlotLinkValue() {
+      return emptyPlotLinkValue;
+   }
+
+   public void setEmptyPlotLinkValue(Hyperlink emptyPlotLinkValue) {
+      this.emptyPlotLinkValue = emptyPlotLinkValue;
+   }
+
+   public HyperlinkModel getEmptyPlotLinkModel() {
+      return emptyPlotLinkModel;
+   }
+
+   public void setEmptyPlotLinkModel(HyperlinkModel emptyPlotLinkModel) {
+      this.emptyPlotLinkModel = emptyPlotLinkModel;
+   }
+
    private int chartType = GraphTypes.CHART_AUTO;
    private List<Axis> axes = new ArrayList<>();
    private List<Facet> facets = new ArrayList<>();
@@ -561,6 +607,10 @@ public class VSChartModel extends VSObjectModel<ChartVSAssembly> implements Char
    private int summarySortCol;
    private int summarySortVal;
    private FormatInfoModel errorFormat;
+   private Hyperlink titleLinkValue;
+   private HyperlinkModel titleLinkModel;
+   private Hyperlink emptyPlotLinkValue;
+   private HyperlinkModel emptyPlotLinkModel;
 
    @Component
    public static final class VSChartModelFactory
