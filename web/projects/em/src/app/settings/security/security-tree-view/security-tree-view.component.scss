@@ -49,6 +49,12 @@
       -ms-text-overflow: ellipsis;
       text-overflow: ellipsis;
     }
+
+    font-size: 12px;
+
+    .mat-nested-tree-node {
+      font-size: 12px;
+    }
   }
 
   .mat-mdc-form-field {
