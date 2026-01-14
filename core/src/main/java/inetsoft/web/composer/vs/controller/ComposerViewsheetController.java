@@ -170,8 +170,10 @@ public class ComposerViewsheetController {
       String previewRuntimeID = composerViewsheetService.previewViewsheet(runtimeViewsheetRef.getRuntimeId(),
                                                 event, principal, dispatcher, linkUri);
 
-      composerViewsheetService.refreshPreviewViewsheet(previewRuntimeID, event,
-                                                       principal, dispatcher, linkUri, true);
+      if(previewRuntimeID != null) {
+         composerViewsheetService.refreshPreviewViewsheet(previewRuntimeID, event,
+                                                          principal, dispatcher, linkUri, true);
+      }
    }
 
    /**
