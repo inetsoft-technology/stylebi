@@ -67,7 +67,8 @@ export class PresentationDashboardSettingsViewComponent {
   constructor(private fb: UntypedFormBuilder) {
     this.form = fb.group({
        enabled: false,
-       tabsTop: false
+       tabsTop: false,
+       drillTabsTop: false
     });
   }
 
