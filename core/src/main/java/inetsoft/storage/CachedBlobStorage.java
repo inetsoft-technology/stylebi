@@ -19,6 +19,7 @@ package inetsoft.storage;
 
 import inetsoft.sree.internal.cluster.MessageEvent;
 import inetsoft.sree.internal.cluster.MessageListener;
+import inetsoft.storage.fs.FilesystemBlobEngine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -115,6 +116,10 @@ public final class CachedBlobStorage<T extends Serializable>
       }
 
       close();
+
+      if(BlobEngine.getInstance() instanceof FilesystemBlobEngine) {
+         ((FilesystemBlobEngine) BlobEngine.getInstance()).deleteStore(id);
+      }
    }
 
    @Override
