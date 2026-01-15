@@ -55,7 +55,6 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       authenticationService.addSessionListener(this);
       clusterInstance = Cluster.getInstance();
       clusterInstance.addMessageListener(this);
-      users = clusterInstance.getMap(USER_MAP_NAME);
    }
 
    /**
@@ -325,7 +324,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
       if(provider == null ||
          ClientInfo.ANONYMOUS.equals(user.getLoginUserID().name) &&
-         provider.getAuthenticationProvider().isVirtual())
+            provider.getAuthenticationProvider().isVirtual())
       {
          if(user == null) {
             String addr = null;
@@ -345,13 +344,13 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          else {
             principal =
                new DestinationUserNameProviderPrincipal(user, new IdentityID[0], new String[0],
-                                                   Organization.getDefaultOrganizationID(), 0L);
+                                                        Organization.getDefaultOrganizationID(), 0L);
             principal.setProperty("__internal__", "true");
          }
       }
       else if(ClientInfo.ANONYMOUS.equals(user.getLoginUserID().name)) {
          if(containsAnonymous(user.getUserIdentity().getOrgID())) {
-            principal = users.get(user.getCacheKey());
+            principal = getUsersMap().get(user.getCacheKey());
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L) {
@@ -364,16 +363,16 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                      user.getUserIdentity().orgID,
                      secureID);
                   principal.setProperty("__internal__", "true");
-                  users.remove(user);
+                  getUsersMap().remove(user);
                   principal.setProperty("login.user", "true");
-                  users.put(user.getCacheKey(), principal);
+                  getUsersMap().put(user.getCacheKey(), principal);
                   ConnectionProcessor.getInstance().setAdditionalDatasource(principal);
                }
             }
          }
       }
       else if(credential instanceof SRPrincipal ||
-              provider.authenticate(user.getLoginUserID(), credential))
+         provider.authenticate(user.getLoginUserID(), credential))
       {
          synchronized(this) {
             boolean internal = !(credential instanceof SRPrincipal);
@@ -387,7 +386,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                user.setUserName(realUser.getIdentityID());
             }
 
-            principal = users.get(user.getCacheKey());
+            principal = getUsersMap().get(user.getCacheKey());
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L)
@@ -408,9 +407,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   principal.setUser(user.getCacheKey());
                }
 
-               users.remove(user);
+               getUsersMap().remove(user);
                principal.setProperty("login.user", "true");
-               users.put(user.getCacheKey(), principal);
+               getUsersMap().put(user.getCacheKey(), principal);
             }
          }
       }
@@ -465,7 +464,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    private void logout(Principal principal) {
       if((principal instanceof SRPrincipal) && isLogin(principal)) {
          synchronized(this) {
-            users.remove(((SRPrincipal) principal).getUser());
+            getUsersMap().remove(((SRPrincipal) principal).getUser());
          }
       }
    }
@@ -1032,9 +1031,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   else {
                      perm = getPermission(ResourceType.DATA_SOURCE_FOLDER, "/");
                      boolean isSelfAndNotAdmin = Tool.equals(IdentityID.getIdentityIDFromKey(principal.getName()).orgID,
-                                                               Organization.getSelfOrganizationID()) &&
-                                                !OrganizationManager.getInstance().isSiteAdmin(principal) &&
-                                                !OrganizationManager.getInstance().isOrgAdmin(principal);
+                                                             Organization.getSelfOrganizationID()) &&
+                        !OrganizationManager.getInstance().isSiteAdmin(principal) &&
+                        !OrganizationManager.getInstance().isOrgAdmin(principal);
                      allowed = isBlank(perm) ?
                         action.equals(ResourceAction.READ) && !isSelfAndNotAdmin  :
                         checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER, "/", action);
@@ -1087,7 +1086,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          }
          else {
             throw new SRSecurityException("Security provider is not editable," +
-               "can not change password.");
+                                             "can not change password.");
          }
       }
       else {
@@ -1379,10 +1378,11 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          SRPrincipal srPrincipal = (SRPrincipal) principal;
 
          if(srPrincipal.isIgnoreLogin()) {
+
             return true;
          }
 
-         SRPrincipal srPrincipal2 = users.get(srPrincipal.getUser().getCacheKey());
+         SRPrincipal srPrincipal2 = getUsersMap().get(srPrincipal.getUser().getCacheKey());
 
          if(srPrincipal2 == null) {
             // anonymous users are not added to the users map. allow anonymous users if they exist
@@ -1390,13 +1390,12 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
             IdentityID identity = user.getLoginUserID();
             return XPrincipal.SYSTEM.equals(identity.getName()) ||
                (ClientInfo.ANONYMOUS.equals(identity.getName()) &&
-               (provider == null || provider.getAuthenticationProvider().isVirtual() ||
-                  containsAnonymous(identity.getOrgID())));
+                  (provider == null || provider.getAuthenticationProvider().isVirtual() ||
+                     containsAnonymous(identity.getOrgID())));
          }
 
          ClientInfo user1 = srPrincipal.getUser();
          ClientInfo user2 = srPrincipal2.getUser();
-
          // @by davidd bug1327353214292, checkPermission calls this method
          // and if the same user logs in twice then isLogin will return true
          // for one and false for the other causing an exception.
@@ -1425,7 +1424,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     */
    public boolean isActiveUser(Principal principal) {
       return (principal instanceof SRPrincipal) &&
-         principal.equals(users.get(((SRPrincipal) principal).getUser().getCacheKey()));
+         principal.equals(getUsersMap().get(((SRPrincipal) principal).getUser().getCacheKey()));
    }
 
    /**
@@ -1440,7 +1439,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          SRPrincipal sr = (SRPrincipal) principal;
 
          return !"true".equals(sr.getProperty("login.user")) ||
-            principal.equals(users.get(sr.getUser().getCacheKey()));
+            principal.equals(getUsersMap().get(sr.getUser().getCacheKey()));
       }
 
       return false;
@@ -1481,7 +1480,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       List<SRPrincipal> list = null;
 
       synchronized(this) {
-         list = new ArrayList<>(users.values());
+         list = new ArrayList<>(getUsersMap().values());
       }
 
       int len = list.size();
@@ -1608,11 +1607,14 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       return permission == null || permission.isBlank(orgId);
    }
 
+   private Map<ClientInfo, SRPrincipal> getUsersMap() {
+      return clusterInstance.getMap(USER_MAP_NAME);
+   }
+
    private static final Lock touchLock = new ReentrantLock();
    private SecurityProvider provider = null;
    private SecurityProvider vprovider = null;
    private SecurityProvider vpm_provider = null;
-   private final Map<ClientInfo, SRPrincipal> users;
    private final Set<LoginListener> loginListeners = new LinkedHashSet<>();
    private final Set<AuthenticationChangeListener> authenticationChangeListeners =
       new LinkedHashSet<>();
