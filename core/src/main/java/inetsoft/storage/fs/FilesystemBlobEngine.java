@@ -19,6 +19,8 @@ package inetsoft.storage.fs;
 
 import inetsoft.storage.BlobEngine;
 import inetsoft.util.Tool;
+import org.apache.commons.io.FileUtils;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -78,6 +80,31 @@ public class FilesystemBlobEngine implements BlobEngine {
    @Override
    public void delete(String id, String digest) throws IOException {
       Files.delete(getPath(id, digest));
+   }
+
+   public void deleteStore(String id) {
+      try {
+         if(id == null || id.isBlank()) {
+            return;
+         }
+
+         Path root = base.resolve(id).normalize();
+         Path baseNorm = base.normalize();
+
+         if(!root.startsWith(baseNorm)) {
+            throw new IOException("Can not delete outside blob base: " + root);
+         }
+
+         if(!Files.exists(root)) {
+            return;
+         }
+
+        FileUtils.deleteDirectory(root.toFile());
+      }
+      catch(Exception e) {
+         LoggerFactory.getLogger(FilesystemBlobEngine.class)
+            .error("Failed to delete BlobEngine Storage folders: ", e);
+      }
    }
 
    private Path getPath(String id, String digest) {

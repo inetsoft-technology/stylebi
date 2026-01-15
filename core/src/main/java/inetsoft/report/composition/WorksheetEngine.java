@@ -31,6 +31,7 @@ import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
+import inetsoft.web.ServiceProxyContext;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.ignite.cache.affinity.AffinityKey;
 import org.slf4j.Logger;
@@ -1308,7 +1309,14 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       @Override
       public String call() throws Exception {
          WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
-         return engine.openSheet(entry, user, id);
+         proxyContext.preprocess();
+
+         try {
+            return engine.openSheet(entry, user, id);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       public static String openWorksheet(WorksheetEngine engine, AssetEntry entry, Principal user,
@@ -1326,6 +1334,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       private final AssetEntry entry;
       private final Principal user;
       private final String id;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 
    private static final class OpenTemporaryWorksheetTask implements AffinityCallable<String> {
@@ -1338,7 +1347,14 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       @Override
       public String call() {
          WorksheetEngine engine = (WorksheetEngine) WorksheetEngine.getWorksheetService();
-         return doOpenTemporaryWorksheet(engine, entry, user, id);
+         proxyContext.preprocess();
+
+         try {
+            return doOpenTemporaryWorksheet(engine, entry, user, id);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       public static String openTemporaryWorksheet(WorksheetEngine engine, AssetEntry entry,
@@ -1366,6 +1382,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       private final AssetEntry entry;
       private final Principal user;
       private final String id;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 
    public static final String INVALID_VIEWSHEET =

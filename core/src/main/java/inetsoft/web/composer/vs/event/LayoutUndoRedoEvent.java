@@ -1,6 +1,6 @@
-/*!
+/*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2026  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,15 +15,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.mat-mdc-card-content .mat-divider {
-  margin: 0!important;
-}
 
-:host ::ng-deep .mat-mdc-radio-button, :host ::ng-deep .mdc-label {
-  --mdc-form-field-label-text-size: 12px !important;
-  --mdc-form-field-label-text-line-height: 16px !important;
-}
-:host ::ng-deep .mdc-label {
-  font-size: 12px !important;
-  line-height: 16px !important;
+package inetsoft.web.composer.vs.event;
+
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import org.immutables.value.Value;
+
+@Value.Immutable
+@JsonDeserialize(as = ImmutableLayoutUndoRedoEvent.class)
+public abstract class LayoutUndoRedoEvent {
+   public abstract String runtimeId();
 }

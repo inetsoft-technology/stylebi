@@ -478,7 +478,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @throws Exception if the blob could not be added.
     */
    protected final BlobReference<T> putBlob(Blob<T> blob) throws Exception {
-      return cluster.submit(id, new PutBlobTask<>(id, blob, isLocal())).get(10L, TimeUnit.SECONDS);
+      return cluster.submit(id, new PutBlobTask<>(id, blob, isLocal())).get(60L, TimeUnit.SECONDS);
    }
 
    /**

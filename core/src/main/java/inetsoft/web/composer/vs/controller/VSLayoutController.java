@@ -79,14 +79,14 @@ public class VSLayoutController {
     * @throws Exception if unable to get or refresh viewsheet
     */
    @LoadingMask
-   @MessageMapping("composer/vs/layouts/undo/{runtimeId}")
-   public void layoutUndo(@DestinationVariable("runtimeId") String runtimeId, Principal principal,
+   @MessageMapping("composer/vs/layouts/undo")
+   public void layoutUndo(@Payload() LayoutUndoRedoEvent event, Principal principal,
                           @LinkUri String linkUri, CommandDispatcher dispatcher)
       throws Exception
    {
       String layoutName = this.runtimeViewsheetRef.getFocusedLayoutName();
       this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-      vsLayoutControllerService.layoutUndo(Tool.byteDecode(runtimeId),
+      vsLayoutControllerService.layoutUndo(Tool.byteDecode(event.runtimeId()),
                                            this.runtimeViewsheetRef.getRuntimeId(),
                                            layoutName, principal, linkUri, dispatcher);
    }
@@ -100,14 +100,14 @@ public class VSLayoutController {
     * @throws Exception if unable to get or refresh viewsheet
     */
    @LoadingMask
-   @MessageMapping("composer/vs/layouts/redo/{runtimeId}")
-   public void layoutRedo(@DestinationVariable("runtimeId") String runtimeId, Principal principal,
+   @MessageMapping("composer/vs/layouts/redo")
+   public void layoutRedo(@Payload() LayoutUndoRedoEvent event, Principal principal,
                           @LinkUri String linkUri, CommandDispatcher dispatcher)
       throws Exception
    {
       String layoutName = this.runtimeViewsheetRef.getFocusedLayoutName();
       this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-      vsLayoutControllerService.layoutRedo(Tool.byteDecode(runtimeId),
+      vsLayoutControllerService.layoutRedo(Tool.byteDecode(event.runtimeId()),
                                            this.runtimeViewsheetRef.getRuntimeId(),
                                            layoutName, principal, linkUri, dispatcher);
    }
