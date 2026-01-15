@@ -413,17 +413,6 @@
         <jib.from.platforms>linux/amd64,linux/arm64</jib.from.platforms>
       </properties>
     </profile>
-    <profile>
-      <id>aks_test</id>
-      <activation>
-        <property>
-          <name>env.AKS_PREFIX</name>
-        </property>
-      </activation>
-      <properties>
-        <inetsoft.docker.repository>${env.AKS_PREFIX}.azurecr.io/inetsoft</inetsoft.docker.repository>
-      </properties>
-    </profile>
   </profiles>
 
 </project>
