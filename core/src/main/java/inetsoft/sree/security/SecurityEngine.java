@@ -324,7 +324,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
       if(provider == null ||
          ClientInfo.ANONYMOUS.equals(user.getLoginUserID().name) &&
-            provider.getAuthenticationProvider().isVirtual())
+         provider.getAuthenticationProvider().isVirtual())
       {
          if(user == null) {
             String addr = null;
@@ -344,7 +344,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          else {
             principal =
                new DestinationUserNameProviderPrincipal(user, new IdentityID[0], new String[0],
-                                                        Organization.getDefaultOrganizationID(), 0L);
+                                                   Organization.getDefaultOrganizationID(), 0L);
             principal.setProperty("__internal__", "true");
          }
       }
@@ -372,7 +372,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          }
       }
       else if(credential instanceof SRPrincipal ||
-         provider.authenticate(user.getLoginUserID(), credential))
+              provider.authenticate(user.getLoginUserID(), credential))
       {
          synchronized(this) {
             boolean internal = !(credential instanceof SRPrincipal);
@@ -1031,9 +1031,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   else {
                      perm = getPermission(ResourceType.DATA_SOURCE_FOLDER, "/");
                      boolean isSelfAndNotAdmin = Tool.equals(IdentityID.getIdentityIDFromKey(principal.getName()).orgID,
-                                                             Organization.getSelfOrganizationID()) &&
-                        !OrganizationManager.getInstance().isSiteAdmin(principal) &&
-                        !OrganizationManager.getInstance().isOrgAdmin(principal);
+                                                               Organization.getSelfOrganizationID()) &&
+                                                !OrganizationManager.getInstance().isSiteAdmin(principal) &&
+                                                !OrganizationManager.getInstance().isOrgAdmin(principal);
                      allowed = isBlank(perm) ?
                         action.equals(ResourceAction.READ) && !isSelfAndNotAdmin  :
                         checkPermission(principal, ResourceType.DATA_SOURCE_FOLDER, "/", action);
@@ -1086,7 +1086,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          }
          else {
             throw new SRSecurityException("Security provider is not editable," +
-                                             "can not change password.");
+               "can not change password.");
          }
       }
       else {
@@ -1378,7 +1378,6 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          SRPrincipal srPrincipal = (SRPrincipal) principal;
 
          if(srPrincipal.isIgnoreLogin()) {
-
             return true;
          }
 
@@ -1390,12 +1389,13 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
             IdentityID identity = user.getLoginUserID();
             return XPrincipal.SYSTEM.equals(identity.getName()) ||
                (ClientInfo.ANONYMOUS.equals(identity.getName()) &&
-                  (provider == null || provider.getAuthenticationProvider().isVirtual() ||
-                     containsAnonymous(identity.getOrgID())));
+               (provider == null || provider.getAuthenticationProvider().isVirtual() ||
+                  containsAnonymous(identity.getOrgID())));
          }
 
          ClientInfo user1 = srPrincipal.getUser();
          ClientInfo user2 = srPrincipal2.getUser();
+
          // @by davidd bug1327353214292, checkPermission calls this method
          // and if the same user logs in twice then isLogin will return true
          // for one and false for the other causing an exception.
