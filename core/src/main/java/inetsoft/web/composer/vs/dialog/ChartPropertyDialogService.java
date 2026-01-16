@@ -179,7 +179,13 @@ public class ChartPropertyDialogService {
          }
       }
 
-      if(!tipViewInPopComponents) {
+      boolean tipViewInEmbeddedAssembly = tipPaneModel.getTipView() != null &&
+                                          Arrays.stream(vs.getAssemblies(true))
+                                          .map(a -> a.getAbsoluteName())
+                                          .map(name -> name.contains(".") ? name.substring(name.lastIndexOf(".") + 1) : name)
+                                          .anyMatch(an -> Tool.equals(an,tipPaneModel.getTipView()));
+
+      if(!tipViewInPopComponents && !tipViewInEmbeddedAssembly) {
          tipPaneModel.setTipView(null);
       }
 
