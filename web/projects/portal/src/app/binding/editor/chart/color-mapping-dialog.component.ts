@@ -68,6 +68,10 @@ export class ColorMappingDialog implements OnInit {
    }
 
    ngOnInit(): void {
+      const sourceMaps = (this.model.useGlobal ? this.model.globalModel : this.model).colorMaps;
+      this._currentColorMaps = sourceMaps.map(m => ({ ...m }));
+      this.initialColorMap = sourceMaps.map(m => ({ ...m }));
+
       this.updateDimensionLabels();
 
       if(!!this.model.browseDataErrorMsg) {
@@ -75,11 +79,6 @@ export class ColorMappingDialog implements OnInit {
             {"ok": "_#(js:OK)"}, {backdrop: false })
           .then(() => {}, () => {});
       }
-
-      const sourceMaps = (this.model.useGlobal ? this.model.globalModel : this.model).colorMaps;
-
-      this._currentColorMaps = sourceMaps.map(m => ({ ...m }));
-      this.initialColorMap = sourceMaps.map(m => ({ ...m }));
 
       if(this.initialColorMap.length == 0) {
          this.addRow();
