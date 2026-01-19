@@ -28,8 +28,7 @@ import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cache.query.*;
-import org.apache.ignite.cluster.ClusterGroup;
-import org.apache.ignite.cluster.ClusterNode;
+import org.apache.ignite.cluster.*;
 import org.apache.ignite.configuration.*;
 import org.apache.ignite.events.*;
 import org.apache.ignite.events.EventType;
@@ -92,6 +91,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       listenerExecutor = Executors.newSingleThreadExecutor(
          r -> new GroupedThread(r, "IgniteMapEvents"));
 
+      if(ignite.cluster().state() == ClusterState.INACTIVE) {
+         ignite.cluster().state(ClusterState.ACTIVE);
+      }
+
       if(!config.isClientMode()) {
          initLockTimer();
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
@@ -103,6 +106,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
       ClusterConfig clusterConfig = InetsoftConfig.getInstance().getCluster();
       IgniteConfiguration config = new IgniteConfiguration();
+      DataStorageConfiguration storageCfg = new DataStorageConfiguration();
+      storageCfg.getDefaultDataRegionConfiguration().setPersistenceEnabled(true);
+      config.setDataStorageConfiguration(storageCfg);
+
       config.setMetricsLogFrequency(0);
       config.setPeerClassLoadingEnabled(true);
       config.setGridLogger(new Slf4jLogger());
