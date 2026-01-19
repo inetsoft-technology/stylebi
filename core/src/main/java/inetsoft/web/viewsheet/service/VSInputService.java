@@ -2564,9 +2564,14 @@ public class VSInputService {
    }
 
    private ViewsheetSandbox getVSBoxFromRoot(String name, ViewsheetSandbox box) {
-      int index = name.lastIndexOf(".");
-      String vsName = name.substring(0, index);
-      return box.getSandbox(vsName);
+      try {
+         int index = name.lastIndexOf(".");
+         String vsName = index > -1 ? name.substring(0, index) : name;
+         return box.getSandbox(vsName);
+      }
+      catch(Exception ignore) {
+         return null;
+      }
    }
 
    /**
