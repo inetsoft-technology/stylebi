@@ -251,7 +251,10 @@ export class AggregatePane {
       ];
 
       if(Tool.isDate(row.selectedRef.dataType) || AggregateDialog.getDateRangeRef(row.selectedRef) != null) {
-         this.examplesService.loadDateLevelExamples(this.groups[index].map(val => val.dgroup + ""),
+         const exampleTypes = this.groups[index].map(val => val.dgroup + "")
+                                       .filter(v => parseInt(v) >= 0);
+
+         this.examplesService.loadDateLevelExamples(exampleTypes,
             row.selectedRef.dataType).subscribe((data: any) => {
             this.dateLevelExamples[index] = data.dateLevelExamples;
          });
