@@ -60,12 +60,12 @@
         }
       }
 
-      .mat-mdc-checkbox, .mat-mdc-radio-group {
-        --mdc-form-field-label-text-size: 14px !important;
+      .mat-mdc-checkbox, .mat-mdc-radio-group, .mat-mdc-radio-button {
+        --mdc-form-field-label-text-size: 12px !important;
         margin-left: 8px;
 
         .mdc-label {
-          --mdc-form-field-label-text-size: 14px !important;
+          --mdc-form-field-label-text-size: 12px !important;
         }
       }
     }

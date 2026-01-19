@@ -15,3 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
+/* Target the radio button component to override the theme tokens */
+:host ::ng-deep .mat-mdc-radio-button, :host ::ng-deep .mdc-label {
+  --mdc-form-field-label-text-size: 12px !important;
+  --mdc-form-field-label-text-line-height: 16px !important;
+}
+:host ::ng-deep .mdc-label {
+  font-size: 12px !important;
+  line-height: 16px !important;
+}
