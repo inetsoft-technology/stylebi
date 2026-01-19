@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssemblyInfo;
@@ -1707,78 +1708,86 @@ public class VSBindingService {
       Viewsheet vs = rvs.getViewsheet().cloneForBindingEditor();
       final Optional<ViewsheetSandbox> box = rvs.getViewsheetSandbox();
 
-      if(box.isEmpty()) {
-         return null;
-      }
-
-      VariableTable variables = box.get().getVariableTable();
-
-      box.get().cancel();
-
-      if(variables != null) {
-         variables = (VariableTable) variables.clone();
-      }
-
-      box.get().lockWrite();
-      String id;
-      RuntimeViewsheet nrvs;
+      String originalOrg = OrganizationContextHolder.getCurrentOrgId();
+      OrganizationContextHolder.setCurrentOrgId(entry.getOrgID());
 
       try {
-         id = rvs.getBindingID();
+         if(box.isEmpty()) {
+            return null;
+         }
 
-         // check if it's still valid
+         VariableTable variables = box.get().getVariableTable();
+
+         box.get().cancel();
+
+         if(variables != null) {
+            variables = (VariableTable) variables.clone();
+         }
+
+         box.get().lockWrite();
+         String id;
+         RuntimeViewsheet nrvs;
+
          try {
-            if(id != null && engine.getViewsheet(id, principal) == null) {
+            id = rvs.getBindingID();
+
+            // check if it's still valid
+            try {
+               if(id != null && engine.getViewsheet(id, principal) == null) {
+                  id = null;
+               }
+            }
+            catch(ExpiredSheetException ex) {
                id = null;
             }
+
+            if(id == null) {
+               if(!temporarySheet) {
+                  id = engine.openViewsheet(vsId, entry, principal, viewer);
+               }
+               else {
+                  id = engine.openTemporaryViewsheet(vsId, entry, principal);
+               }
+            }
+
+            nrvs = engine.getViewsheet(id, principal);
+            // if base vs renamed, the rvs get by BindingID may not have the newest entry.
+            nrvs.setEntry(entry);
+            nrvs.setBinding(true);
+            rvs.setBindingID(id);
          }
-         catch(ExpiredSheetException ex) {
-            id = null;
+         finally {
+            box.get().unlockWrite();
          }
 
-         if(id == null) {
-            if(!temporarySheet) {
-               id = engine.openViewsheet(vsId, entry, principal, viewer);
+         nrvs.setOriginalID(vsId);
+         nrvs.setViewsheet(vs);
+         nrvs.setVSTemporaryInfo(wizardTemporaryInfoService.getVSTemporaryInfo(rvs));
+         engine.flushRuntimeSheet(id);
+
+         Optional<ViewsheetSandbox> nbox = nrvs.getViewsheetSandbox();
+
+         if(nbox.isPresent()) {
+            AssetQuerySandbox wbox = nbox.get().getAssetQuerySandbox();
+
+            if(wbox != null) {
+               wbox.refreshVariableTable(variables);
             }
-            else {
-               id = engine.openTemporaryViewsheet(vsId, entry, principal);
+
+            if(viewer) {
+               nbox.get().updateLastOnInit();
             }
+
+            nbox.get().processOnInit();
+            nbox.get().reset(null, vs.getAssemblies(), new ChangedAssemblyList(),
+                             true, true, null);
          }
 
-         nrvs = engine.getViewsheet(id, principal);
-         // if base vs renamed, the rvs get by BindingID may not have the newest entry.
-         nrvs.setEntry(entry);
-         nrvs.setBinding(true);
-         rvs.setBindingID(id);
+         return id;
       }
       finally {
-         box.get().unlockWrite();
+         OrganizationContextHolder.setCurrentOrgId(originalOrg);
       }
-
-      nrvs.setOriginalID(vsId);
-      nrvs.setViewsheet(vs);
-      nrvs.setVSTemporaryInfo(wizardTemporaryInfoService.getVSTemporaryInfo(rvs));
-      engine.flushRuntimeSheet(id);
-
-      Optional<ViewsheetSandbox> nbox = nrvs.getViewsheetSandbox();
-
-      if(nbox.isPresent()) {
-         AssetQuerySandbox wbox = nbox.get().getAssetQuerySandbox();
-
-         if(wbox != null) {
-            wbox.refreshVariableTable(variables);
-         }
-
-         if(viewer) {
-            nbox.get().updateLastOnInit();
-         }
-
-         nbox.get().processOnInit();
-         nbox.get().reset(null, vs.getAssemblies(), new ChangedAssemblyList(),
-            true, true, null);
-      }
-
-      return id;
    }
 
    /**
