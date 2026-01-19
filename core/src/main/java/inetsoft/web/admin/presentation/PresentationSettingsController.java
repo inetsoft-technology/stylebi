@@ -19,7 +19,6 @@ package inetsoft.web.admin.presentation;
 
 import inetsoft.graph.geo.service.MapboxStyle;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.portal.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.*;
@@ -29,6 +28,7 @@ import inetsoft.web.admin.presentation.model.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -131,65 +131,72 @@ public class PresentationSettingsController {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
-      if(model.formatsSettingsModel() != null) {
-         formatsSettingsService.setModel(model.formatsSettingsModel(), globalSettings);
-      }
+      settingsLock.lock();
 
-      if(model.lookAndFeelSettingsModel() != null) {
-         lookAndFeelService.setModel(model.lookAndFeelSettingsModel(), principal, globalSettings);
-      }
+      try {
+         if(model.formatsSettingsModel() != null) {
+            formatsSettingsService.setModel(model.formatsSettingsModel(), globalSettings);
+         }
 
-      if(model.loginBannerSettingsModel() != null) {
-         loginBannerSettingsService.setModel(model.loginBannerSettingsModel(), globalSettings);
-      }
+         if(model.lookAndFeelSettingsModel() != null) {
+            lookAndFeelService.setModel(model.lookAndFeelSettingsModel(), principal, globalSettings);
+         }
 
-      if(model.portalIntegrationSettingsModel() != null) {
-         portalIntegrationViewSettingsService
-            .setModel(model.portalIntegrationSettingsModel(), principal, globalSettings);
-      }
+         if(model.loginBannerSettingsModel() != null) {
+            loginBannerSettingsService.setModel(model.loginBannerSettingsModel(), globalSettings);
+         }
 
-      if(model.viewsheetToolbarOptionsModel() != null) {
-         toolbarSettingsService.setViewsheetOptions(model.viewsheetToolbarOptionsModel(), globalSettings);
-      }
+         if(model.portalIntegrationSettingsModel() != null) {
+            portalIntegrationViewSettingsService
+               .setModel(model.portalIntegrationSettingsModel(), principal, globalSettings);
+         }
 
-      if(model.dashboardSettingsModel() != null) {
-         dashboardSettingsService.setModel(model.dashboardSettingsModel(), globalSettings);
-      }
+         if(model.viewsheetToolbarOptionsModel() != null) {
+            toolbarSettingsService.setViewsheetOptions(model.viewsheetToolbarOptionsModel(), globalSettings);
+         }
 
-      if(model.welcomePageSettingsModel() != null) {
-         welcomePageService.setModel(model.welcomePageSettingsModel(), globalSettings);
-      }
+         if(model.dashboardSettingsModel() != null) {
+            dashboardSettingsService.setModel(model.dashboardSettingsModel(), globalSettings);
+         }
 
-      if(model.pdfGenerationSettingsModel() != null) {
-         pdfGenerationSettingsService.setModel(model.pdfGenerationSettingsModel(), globalSettings);
-      }
+         if(model.welcomePageSettingsModel() != null) {
+            welcomePageService.setModel(model.welcomePageSettingsModel(), globalSettings);
+         }
 
-      if(model.exportMenuSettingsModel() != null) {
-         exportMenuSettingsService.setExportMenuSettings(model.exportMenuSettingsModel(), globalSettings);
-      }
+         if(model.pdfGenerationSettingsModel() != null) {
+            pdfGenerationSettingsService.setModel(model.pdfGenerationSettingsModel(), globalSettings);
+         }
 
-      if(model.fontMappingSettingsModel() != null) {
-         fontMappingSettingsService.setModel(model.fontMappingSettingsModel());
-      }
+         if(model.exportMenuSettingsModel() != null) {
+            exportMenuSettingsService.setExportMenuSettings(model.exportMenuSettingsModel(), globalSettings);
+         }
 
-      if(model.shareSettingsModel() != null) {
-         shareSettingsService.setModel(model.shareSettingsModel(), globalSettings);
-      }
+         if(model.fontMappingSettingsModel() != null) {
+            fontMappingSettingsService.setModel(model.fontMappingSettingsModel());
+         }
 
-      if(model.composerSettingMessageModel() != null) {
-         composerMessageSettingsService.setModel(model.composerSettingMessageModel(), globalSettings);
-      }
+         if(model.shareSettingsModel() != null) {
+            shareSettingsService.setModel(model.shareSettingsModel(), globalSettings);
+         }
 
-      if(model.timeSettingsModel() != null) {
-         timeSettingsService.setModel(model.timeSettingsModel(), globalSettings);
-      }
+         if(model.composerSettingMessageModel() != null) {
+            composerMessageSettingsService.setModel(model.composerSettingMessageModel(), globalSettings);
+         }
 
-      if(model.dataSourceVisibilitySettingsModel() != null) {
-         dataSourceVisibilitySettingsService.setModel(model.dataSourceVisibilitySettingsModel(), globalSettings);
-      }
+         if(model.timeSettingsModel() != null) {
+            timeSettingsService.setModel(model.timeSettingsModel(), globalSettings);
+         }
 
-      if(model.webMapSettingsModel() != null) {
-         webMapSettingsService.setModel(model.webMapSettingsModel(), principal, globalSettings);
+         if(model.dataSourceVisibilitySettingsModel() != null) {
+            dataSourceVisibilitySettingsService.setModel(model.dataSourceVisibilitySettingsModel(), globalSettings);
+         }
+
+         if(model.webMapSettingsModel() != null) {
+            webMapSettingsService.setModel(model.webMapSettingsModel(), principal, globalSettings);
+         }
+      }
+      finally {
+         settingsLock.unlock();
       }
 
       return getSettings(principal, !globalSettings);
@@ -208,24 +215,31 @@ public class PresentationSettingsController {
          globalSettings = provider.checkPermission(principal,  ResourceType.EM, "*", ResourceAction.ACCESS);
       }
 
-      formatsSettingsService.resetSettings(globalSettings);
-      lookAndFeelService.resetSettings(principal, globalSettings);
-      portalIntegrationViewSettingsService.resetSettings(globalSettings);
-      toolbarSettingsService.resetSettings(globalSettings);
-      dashboardSettingsService.resetSettings(globalSettings);
-      pdfGenerationSettingsService.resetSettings(globalSettings);
-      exportMenuSettingsService.resetSettings(globalSettings);
-      shareSettingsService.resetSettings(globalSettings);
-      composerMessageSettingsService.resetSettings(globalSettings);
-      timeSettingsService.resetSettings(globalSettings);
-      dataSourceVisibilitySettingsService.resetSettings(globalSettings);
-      webMapSettingsService.resetSettings(principal, globalSettings);
-      dataSpaceContentSettingsService.deleteDataSpaceNode(ImageShapes.getShapesDirectory(), false);
-      welcomePageService.resetSettings(globalSettings);
-      loginBannerSettingsService.resetSettings(globalSettings);
+      settingsLock.lock();
 
-      if(globalSettings) {
-         fontMappingSettingsService.resetSettings();
+      try {
+         formatsSettingsService.resetSettings(globalSettings);
+         lookAndFeelService.resetSettings(principal, globalSettings);
+         portalIntegrationViewSettingsService.resetSettings(globalSettings);
+         toolbarSettingsService.resetSettings(globalSettings);
+         dashboardSettingsService.resetSettings(globalSettings);
+         pdfGenerationSettingsService.resetSettings(globalSettings);
+         exportMenuSettingsService.resetSettings(globalSettings);
+         shareSettingsService.resetSettings(globalSettings);
+         composerMessageSettingsService.resetSettings(globalSettings);
+         timeSettingsService.resetSettings(globalSettings);
+         dataSourceVisibilitySettingsService.resetSettings(globalSettings);
+         webMapSettingsService.resetSettings(principal, globalSettings);
+         dataSpaceContentSettingsService.deleteDataSpaceNode(ImageShapes.getShapesDirectory(), false);
+         welcomePageService.resetSettings(globalSettings);
+         loginBannerSettingsService.resetSettings(globalSettings);
+
+         if(globalSettings) {
+            fontMappingSettingsService.resetSettings();
+         }
+      }
+      finally {
+         settingsLock.unlock();
       }
 
       return getSettings(principal, !globalSettings);
@@ -248,4 +262,5 @@ public class PresentationSettingsController {
    private final PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService;
    private final WebMapSettingsService webMapSettingsService;
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
+   private final ReentrantLock settingsLock = new ReentrantLock();
 }
