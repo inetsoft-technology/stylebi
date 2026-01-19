@@ -606,7 +606,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * @param vs the specified viewsheet object.
     */
    public void setViewsheet(Viewsheet vs) {
-      if(isDisposed()) {
+      if(isDisposed() || box == null) {
          return;
       }
 
@@ -1954,7 +1954,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * @return the original viewsheet id.
     */
    public String getOriginalID() {
-      return box.getOriginalID();
+      return box != null ? box.getOriginalID() : null;
    }
 
    /**
@@ -1987,6 +1987,10 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * Get the base worksheet.
     */
    public RuntimeWorksheet getRuntimeWorksheet() {
+      if(vs == null || box == null) {
+         return null;
+      }
+
       Worksheet ws = vs.getBaseWorksheet();
 
       // @by billh, for vs binds to logical model, we need to shrink worksheet,
