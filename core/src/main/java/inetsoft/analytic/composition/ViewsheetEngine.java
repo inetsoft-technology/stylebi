@@ -929,7 +929,16 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       @Override
       public String call() {
          ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
-         return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
+         String originalOrg = OrganizationContextHolder.getCurrentOrgId();
+         String entryOrgId = entry.getOrgID();
+         OrganizationContextHolder.setCurrentOrgId(entryOrgId);
+
+         try {
+            return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
+         }
+         finally {
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+         }
       }
 
       public static String openTemporaryViewsheet(ViewsheetEngine engine, AssetEntry wentry,
