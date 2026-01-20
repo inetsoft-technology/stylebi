@@ -55,6 +55,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       authenticationService.addSessionListener(this);
       clusterInstance = Cluster.getInstance();
       clusterInstance.addMessageListener(this);
+      users = clusterInstance.getReplicatedMap(USER_MAP_NAME);
    }
 
    /**
@@ -350,7 +351,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       }
       else if(ClientInfo.ANONYMOUS.equals(user.getLoginUserID().name)) {
          if(containsAnonymous(user.getUserIdentity().getOrgID())) {
-            principal = getUsersMap().get(user.getCacheKey());
+            principal = users.get(user.getCacheKey());
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L) {
@@ -363,9 +364,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                      user.getUserIdentity().orgID,
                      secureID);
                   principal.setProperty("__internal__", "true");
-                  getUsersMap().remove(user);
+                  users.remove(user);
                   principal.setProperty("login.user", "true");
-                  getUsersMap().put(user.getCacheKey(), principal);
+                  users.put(user.getCacheKey(), principal);
                   ConnectionProcessor.getInstance().setAdditionalDatasource(principal);
                }
             }
@@ -386,7 +387,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                user.setUserName(realUser.getIdentityID());
             }
 
-            principal = getUsersMap().get(user.getCacheKey());
+            principal = users.get(user.getCacheKey());
 
             if(principal == null ||
                ((new Date()).getTime() - principal.getAge()) > 36000000L)
@@ -407,9 +408,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   principal.setUser(user.getCacheKey());
                }
 
-               getUsersMap().remove(user);
+               users.remove(user);
                principal.setProperty("login.user", "true");
-               getUsersMap().put(user.getCacheKey(), principal);
+               users.put(user.getCacheKey(), principal);
             }
          }
       }
@@ -464,7 +465,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    private void logout(Principal principal) {
       if((principal instanceof SRPrincipal) && isLogin(principal)) {
          synchronized(this) {
-            getUsersMap().remove(((SRPrincipal) principal).getUser());
+            users.remove(((SRPrincipal) principal).getUser());
          }
       }
    }
@@ -1381,7 +1382,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
             return true;
          }
 
-         SRPrincipal srPrincipal2 = getUsersMap().get(srPrincipal.getUser().getCacheKey());
+         SRPrincipal srPrincipal2 = users.get(srPrincipal.getUser().getCacheKey());
 
          if(srPrincipal2 == null) {
             // anonymous users are not added to the users map. allow anonymous users if they exist
@@ -1424,7 +1425,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     */
    public boolean isActiveUser(Principal principal) {
       return (principal instanceof SRPrincipal) &&
-         principal.equals(getUsersMap().get(((SRPrincipal) principal).getUser().getCacheKey()));
+         principal.equals(users.get(((SRPrincipal) principal).getUser().getCacheKey()));
    }
 
    /**
@@ -1439,7 +1440,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          SRPrincipal sr = (SRPrincipal) principal;
 
          return !"true".equals(sr.getProperty("login.user")) ||
-            principal.equals(getUsersMap().get(sr.getUser().getCacheKey()));
+            principal.equals(users.get(sr.getUser().getCacheKey()));
       }
 
       return false;
@@ -1480,7 +1481,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       List<SRPrincipal> list = null;
 
       synchronized(this) {
-         list = new ArrayList<>(getUsersMap().values());
+         list = new ArrayList<>(users.values());
       }
 
       int len = list.size();
@@ -1607,14 +1608,11 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       return permission == null || permission.isBlank(orgId);
    }
 
-   private Map<ClientInfo, SRPrincipal> getUsersMap() {
-      return clusterInstance.getMap(USER_MAP_NAME);
-   }
-
    private static final Lock touchLock = new ReentrantLock();
    private SecurityProvider provider = null;
    private SecurityProvider vprovider = null;
    private SecurityProvider vpm_provider = null;
+   private final Map<ClientInfo, SRPrincipal> users;
    private final Set<LoginListener> loginListeners = new LinkedHashSet<>();
    private final Set<AuthenticationChangeListener> authenticationChangeListeners =
       new LinkedHashSet<>();
