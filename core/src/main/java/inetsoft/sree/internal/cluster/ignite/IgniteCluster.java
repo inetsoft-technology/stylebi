@@ -90,10 +90,47 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          r -> new GroupedThread(r, "IgniteMessages"));
       listenerExecutor = Executors.newSingleThreadExecutor(
          r -> new GroupedThread(r, "IgniteMapEvents"));
+      org.apache.ignite.IgniteCluster cluster = ignite.cluster();
 
-//      if(ignite.cluster().state() == ClusterState.INACTIVE) {
-//         ignite.cluster().state(ClusterState.ACTIVE);
-//      }
+      if(!config.isClientMode() && cluster.state() == ClusterState.INACTIVE) {
+         cluster.state(ClusterState.ACTIVE);
+      }
+
+      LOG.warn("Ignite Cluster Node initialized and activated successfully.");
+
+      cluster.baselineAutoAdjustEnabled(true);
+      cluster.baselineAutoAdjustTimeout(10_000);
+
+      ClusterNode localNode = cluster.localNode();
+      boolean inBaseline = false;
+      int maxRetryCount = 10;
+      int retryCount = 0;
+
+      while(!inBaseline) {
+         retryCount++;
+
+         if(retryCount > maxRetryCount) {
+            String timeoutMessage = "Wait current node join to BaselineTopology timeout!";
+            LOG.warn(timeoutMessage);
+            throw new RuntimeException(timeoutMessage);
+         }
+
+         Collection<BaselineNode> baselineNodes = cluster.currentBaselineTopology();
+
+         inBaseline = baselineNodes == null || baselineNodes.stream()
+            .anyMatch(n -> n.consistentId().equals(localNode.consistentId()));
+
+         if(!inBaseline) {
+            try {
+               LOG.warn("Wait current node join to BaselineTopology");
+               Thread.sleep(3_000);
+            }
+            catch(InterruptedException e) {
+               Thread.currentThread().interrupt();
+               throw new RuntimeException(e);
+            }
+         }
+      }
 
       if(!config.isClientMode()) {
          initLockTimer();
@@ -106,9 +143,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
       ClusterConfig clusterConfig = InetsoftConfig.getInstance().getCluster();
       IgniteConfiguration config = new IgniteConfiguration();
-//      DataStorageConfiguration storageCfg = new DataStorageConfiguration();
-//      storageCfg.getDefaultDataRegionConfiguration().setPersistenceEnabled(true);
-//      config.setDataStorageConfiguration(storageCfg);
+      DataStorageConfiguration storageCfg = new DataStorageConfiguration();
+      storageCfg.getDefaultDataRegionConfiguration().setPersistenceEnabled(true);
+      config.setDataStorageConfiguration(storageCfg);
 
       config.setMetricsLogFrequency(0);
       config.setPeerClassLoadingEnabled(true);
@@ -204,7 +241,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          tcpCommunicationSpi.setAddressResolver(addressResolver);
          tcpCommunicationSpi.setLocalAddress(localIP);
 
-         if(clusterConfig.getOutboundPortNumber() != 0){
+         if(clusterConfig.getOutboundPortNumber() != 0) {
             tcpCommunicationSpi.setLocalPort(clusterConfig.getOutboundPortNumber());
          }
 
@@ -444,7 +481,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    private static <K, V> CacheConfiguration<K, V> getCacheConfiguration(
-      String name, CacheMode mode, int backupCount) {
+      String name, CacheMode mode, int backupCount)
+   {
 
       CacheConfiguration<K, V> cacheConfiguration = new CacheConfiguration<>(name);
       cacheConfiguration.setBackups(backupCount);
@@ -533,6 +571,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
     * Gets the name of the specified member node.
     *
     * @param node the node.
+    *
     * @return the node name.
     */
    private String getNodeName(ClusterNode node) {
@@ -848,7 +887,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <K, V> void addMapListener(String name, MapChangeListener<K, V> l) {
-      IgniteCache<K,V> cache = ignite.cache(name);
+      IgniteCache<K, V> cache = ignite.cache(name);
 
       if(cache == null) {
          getMap(name);
@@ -894,7 +933,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <K, V> void addReplicatedMapListener(String name, MapChangeListener<K, V> l) {
-      IgniteCache<K,V> cache = ignite.cache(name);
+      IgniteCache<K, V> cache = ignite.cache(name);
 
       if(cache == null) {
          getReplicatedMap(name);
@@ -998,10 +1037,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
       catch(ExecutionException ex) {
          switch(ex.getCause()) {
-            case ExpiredSheetException ese -> throw ese;
-            case MessageException me -> throw me;
-            case ConfirmException ce -> throw ce;
-            default ->  throw new RuntimeException(ex);
+         case ExpiredSheetException ese -> throw ese;
+         case MessageException me -> throw me;
+         case ConfirmException ce -> throw ce;
+         default -> throw new RuntimeException(ex);
          }
       }
       catch(Exception e) {
@@ -1024,9 +1063,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          return CompletableFuture.supplyAsync(() -> {
             try {
                return job.call();
-            } catch (RuntimeException ex) {
+            }
+            catch(RuntimeException ex) {
                throw ex;
-            } catch (Exception ex) {
+            }
+            catch(Exception ex) {
                throw new RuntimeException(ex);
             }
          }, affinityExecutor);
@@ -1213,7 +1254,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       // Do not use lambda expression to submit the task to ignite, it can not run with JDK21.
       ClusterGroup clusterGroup = scheduler ? ignite.cluster().forPredicate(SCHEDULE_SELECTOR) :
          ignite.cluster().forServers();
-      IgniteTaskCallable<T> igniteTask  = new IgniteTaskCallable<>(task, level);
+      IgniteTaskCallable<T> igniteTask = new IgniteTaskCallable<>(task, level);
       return new IgniteFutureWrapper<>(getIgniteCompute(ignite, clusterGroup, level).callAsync(igniteTask));
    }
 
@@ -1321,7 +1362,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    private Future<?> submit0(int level, String serviceId, SingletonRunnableTask task) {
       return CompletableFuture.supplyAsync(new IgniteServiceRunnableTask(ignite, serviceId, task, level),
-         getExecutorService(level));
+                                           getExecutorService(level));
    }
 
    /**
@@ -1619,7 +1660,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @SuppressWarnings({ "unchecked", "rawtypes" })
-   private <K,V> void addContinuousQuery(IgniteCache<K,V> cache, MapChangeListener<K, V> l) {
+   private <K, V> void addContinuousQuery(IgniteCache<K, V> cache, MapChangeListener<K, V> l) {
       if(cache != null) {
          synchronized(mapListeners) {
             MapListenerQuery query = mapListeners.get(cache.getName());
@@ -1873,9 +1914,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       implements Runnable
    {
       @Override
-         public void run() {
-            listener.messageReceived(event);
-         }
+      public void run() {
+         listener.messageReceived(event);
+      }
    }
 
    private static final class AddressedMessage implements Serializable {
@@ -2119,7 +2160,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          try {
             return igniteFuture.get();
          }
-         catch (Exception e) {
+         catch(Exception e) {
             throw new ExecutionException(e);
          }
       }
@@ -2131,7 +2172,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          try {
             return igniteFuture.get(timeout, unit);
          }
-         catch (Exception e) {
+         catch(Exception e) {
             throw new ExecutionException(e);
          }
       }
