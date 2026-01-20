@@ -116,7 +116,12 @@ public interface WorksheetService {
 
    RuntimeSheet getSheet(String id, Principal user, boolean touch);
 
-   RuntimeSheet getSheet(String id, Principal user, boolean touch, boolean peek);
+   /**
+    * Check if a sheet with the specified runtime id exists
+    * @param id runtime id
+    * @return true if it exists, false if it doesn't
+    */
+   boolean sheetExists(String id);
 
    /**
     * Save the worksheet.

@@ -514,20 +514,6 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     * @return the runtime sheet if any.
     */
    public final RuntimeSheet getSheet(String id, Principal user, boolean touch) {
-      return getSheet(id, user, touch, false);
-   }
-
-   /**
-    * Get the runtime sheet.
-    * @param id the specified sheet id.
-    * @param user the specified user.
-    * @param touch <code>true</code> to update the access time and heartbeat.
-    * @param peek <code>true</code> to only check for runtime sheet entry and skip cache update
-    * @return the runtime sheet if any.
-    */
-   public final RuntimeSheet getSheet(String id, Principal user, boolean touch,
-                                      boolean peek)
-   {
       if(!isLocal(id)) {
          LOG.error("Getting sheet from non-owner: {}", id, new Exception("Stack trace"));
       }
@@ -554,24 +540,26 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          ThreadContext.setContextPrincipal(user);
       }
 
-      // only save the runtime sheet to the distributed cache if it's not a peek
-      if(!peek) {
-         final Principal principal = ThreadContext.getContextPrincipal();
+      final Principal principal = ThreadContext.getContextPrincipal();
 
-         // debounce and execute in a different thread the call to accessSheet as it
-         // serializes the runtime sheet and saves it in the distributed cache
-         debouncer.debounce("accessSheet_" + id, 1L, TimeUnit.SECONDS, () -> {
-            try {
-               ThreadContext.setContextPrincipal(principal);
-               accessSheet(id, touch);
-            }
-            finally {
-               ThreadContext.setContextPrincipal(null);
-            }
-         });
-      }
+      // debounce and execute in a different thread the call to accessSheet as it
+      // serializes the runtime sheet and saves it in the distributed cache
+      debouncer.debounce("accessSheet_" + id, 1L, TimeUnit.SECONDS, () -> {
+         try {
+            ThreadContext.setContextPrincipal(principal);
+            accessSheet(id, touch);
+         }
+         finally {
+            ThreadContext.setContextPrincipal(null);
+         }
+      });
 
       return rs;
+   }
+
+   @Override
+   public boolean sheetExists(String id) {
+      return amap.containsKey(id);
    }
 
    /**
