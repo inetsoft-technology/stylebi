@@ -91,9 +91,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       listenerExecutor = Executors.newSingleThreadExecutor(
          r -> new GroupedThread(r, "IgniteMapEvents"));
 
-      if(ignite.cluster().state() == ClusterState.INACTIVE) {
-         ignite.cluster().state(ClusterState.ACTIVE);
-      }
+//      if(ignite.cluster().state() == ClusterState.INACTIVE) {
+//         ignite.cluster().state(ClusterState.ACTIVE);
+//      }
 
       if(!config.isClientMode()) {
          initLockTimer();
@@ -106,9 +106,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    public static IgniteConfiguration getDefaultConfig(Path workDir) {
       ClusterConfig clusterConfig = InetsoftConfig.getInstance().getCluster();
       IgniteConfiguration config = new IgniteConfiguration();
-      DataStorageConfiguration storageCfg = new DataStorageConfiguration();
-      storageCfg.getDefaultDataRegionConfiguration().setPersistenceEnabled(true);
-      config.setDataStorageConfiguration(storageCfg);
+//      DataStorageConfiguration storageCfg = new DataStorageConfiguration();
+//      storageCfg.getDefaultDataRegionConfiguration().setPersistenceEnabled(true);
+//      config.setDataStorageConfiguration(storageCfg);
 
       config.setMetricsLogFrequency(0);
       config.setPeerClassLoadingEnabled(true);
