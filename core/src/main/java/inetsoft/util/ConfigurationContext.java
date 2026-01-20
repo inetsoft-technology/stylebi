@@ -163,19 +163,34 @@ public class ConfigurationContext implements AutoCloseable {
    }
 
    public <T> T getSpringBean(Class<T> type) {
-      if(applicationContext == null && "true".equals(System.getProperty("ScheduleServer"))) {
+      if(applicationContext == null) {
+         if("true".equals(System.getProperty("ScheduleServer"))) {
          // scheduler doesn't have spring context, try SingletonManager
          return SingletonManager.getInstance(type);
+      }
+
+         throw new IllegalStateException(
+            "Spring application context is not available. The server may be starting up or shutting down.");
       }
 
       return applicationContext.getBean(type);
    }
 
    public Object getSpringBean(String name) {
+      if(applicationContext == null) {
+         throw new IllegalStateException(
+            "Spring application context is not available. The server may be starting up or shutting down.");
+      }
+
       return applicationContext.getBean(name);
    }
 
    public <T> T getSpringBean(String name, Class<T> type) {
+      if(applicationContext == null) {
+         throw new IllegalStateException(
+            "Spring application context is not available. The server may be starting up or shutting down.");
+      }
+
       return applicationContext.getBean(name, type);
    }
 
