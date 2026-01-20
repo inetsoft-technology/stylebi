@@ -218,10 +218,22 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       updateRootSandboxMap(vs.getAbsoluteName(), vs);
 
       if(resetRuntime) {
+         // Clear cached data when viewsheet is replaced (e.g., during undo/redo)
+         // to ensure table data is re-executed with the restored viewsheet state
+         for(String name : new ArrayList<>(dmap.keys())) {
+            dmap.removeAll(name);
+         }
+
+         for(String name : new ArrayList<>(dKeyMap.keys())) {
+            dKeyMap.removeAll(name);
+         }
+
+         tmap.clear();
+
          ViewsheetSandbox[] boxes = getSandboxes();
 
-         for(ViewsheetSandbox innnerBox : boxes) {
-            innnerBox.resetRuntime();
+         for(ViewsheetSandbox innerBox : boxes) {
+            innerBox.resetRuntime();
          }
       }
    }
