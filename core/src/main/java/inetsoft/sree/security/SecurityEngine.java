@@ -55,7 +55,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       authenticationService.addSessionListener(this);
       clusterInstance = Cluster.getInstance();
       clusterInstance.addMessageListener(this);
-      users = clusterInstance.getMap(USER_MAP_NAME);
+      users = clusterInstance.getReplicatedMap(USER_MAP_NAME);
    }
 
    /**
