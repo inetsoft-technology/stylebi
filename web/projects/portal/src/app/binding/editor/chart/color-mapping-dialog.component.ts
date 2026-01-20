@@ -164,10 +164,28 @@ export class ColorMappingDialog implements OnInit {
 
       // use text input to enter value if value list is not available
       if(this.model.dimensionData.length > 0) {
-         let colorOptions = this.currentColorMaps.map(map => map.option)
-            .filter(dim => this.model.dimensionData.find((valLabel) => valLabel.value == dim) == null);
-         this.dimensionData = [].concat(this.model.dimensionData)
-            .concat(colorOptions.map((option) => <ValueLabelModel>{value: option, label: option}));
+         const manualOptions: ValueLabelModel[] = [];
+
+         this.currentColorMaps.forEach(map => {
+            const exists = this.model.dimensionData.find(
+               valLabel => valLabel.value === map.option
+            );
+
+            if (exists) {
+               map.manualInput = false;
+            } else {
+               map.manualInput = true;
+               manualOptions.push({
+                  value: map.option,
+                  label: map.option
+               });
+            }
+         });
+
+         this.dimensionData = [
+            ...this.model.dimensionData,
+            ...manualOptions
+         ];
       }
       else {
          this.dimensionData = [];
