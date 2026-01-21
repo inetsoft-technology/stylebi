@@ -435,3 +435,8 @@ li.active, a.active {
 .picker.picker-dialog {
   z-index: 1000000;
 }
+
+.saving-text {
+  font-size: 1.2em;
+  color: var(--inet-primary-color)
+}
