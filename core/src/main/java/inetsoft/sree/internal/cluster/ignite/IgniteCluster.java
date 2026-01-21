@@ -106,7 +106,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       int maxRetryCount = 10;
       int retryCount = 0;
 
-      while(!inBaseline) {
+      while(!config.isClientMode() && !inBaseline) {
          retryCount++;
 
          if(retryCount > maxRetryCount) {
