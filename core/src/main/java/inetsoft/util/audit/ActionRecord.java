@@ -101,6 +101,10 @@ public class ActionRecord implements AuditRecord {
     */
    public static final String OBJECT_TYPE_FILE = "file";
    /**
+    * Object type shape.
+    */
+   public static final String OBJECT_TYPE_SHAPE = "shape";
+   /**
     * Object type script.
     */
    public static final String OBJECT_TYPE_SCRIPT = "script";
