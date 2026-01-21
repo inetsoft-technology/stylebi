@@ -26,14 +26,6 @@ import java.io.Serializable;
  * @since 12.3
  */
 public class VSChartEvent implements Serializable {
-   public String getOrgId() {
-      return orgId;
-   }
-
-   public void setOrgId(String orgId) {
-      this.orgId = orgId;
-   }
-
    /**
     * Sets the chart name.
     *
@@ -76,7 +68,6 @@ public class VSChartEvent implements Serializable {
       this.viewportHeight = viewportHeight;
    }
 
-   private String orgId;
    private String chartName;
    private Dimension maxSize;
    private int viewportWidth = 0;

@@ -40,12 +40,12 @@ public class VSChartAreasController {
    @MessageMapping("/vschart/areas")
    @ExecutionMonitoring
    @HandleAssetExceptions
-   @SwitchOrg
-   public void getChartAreas(@OrganizationID("getOrgId()") @Payload VSChartEvent event,
+   public void getChartAreas(@Payload VSChartEvent event,
                              CommandDispatcher dispatcher, Principal principal)
       throws Exception
    {
-      vsChartAreasServiceProxy.refreshChartAreasModel(runtimeViewsheetRef.getRuntimeId(), event, dispatcher, principal);
+      vsChartAreasServiceProxy.refreshChartAreasModel(runtimeViewsheetRef.getRuntimeId(), event,
+                                                      dispatcher, principal);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
