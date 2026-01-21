@@ -193,6 +193,14 @@ public class VSObjectFormatInfoModel extends FormatInfoModel {
       this.roundTopCornersOnly = roundTopCornersOnly;
    }
 
+   public boolean isRoundBottomCornersOnly() {
+      return roundBottomCornersOnly;
+   }
+
+   public void setRoundBottomCornersOnly(boolean roundBottomCornersOnly) {
+      this.roundBottomCornersOnly = roundBottomCornersOnly;
+   }
+
    private boolean shape;
    private boolean image;
    private boolean chart;
@@ -201,6 +209,7 @@ public class VSObjectFormatInfoModel extends FormatInfoModel {
    private int backgroundAlpha = 100;
    private int roundCorner = 0;
    private boolean roundTopCornersOnly;
+   private boolean roundBottomCornersOnly;
    private boolean wrapText;
    private String cssID;
    private String cssClass;

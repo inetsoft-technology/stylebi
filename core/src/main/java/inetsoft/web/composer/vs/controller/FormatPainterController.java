@@ -322,6 +322,7 @@ public class FormatPainterController {
       if(assembly instanceof TabVSAssembly) {
          TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) info;
          formatModel.setRoundTopCornersOnly(tabInfo.isRoundTopCornersOnly());
+         formatModel.setRoundBottomCornersOnly(tabInfo.isRoundBottomCornersOnly());
       }
 
       if(assembly instanceof GaugeVSAssembly) {
@@ -545,9 +546,11 @@ public class FormatPainterController {
 
                if(event.getFormat() != null && !event.isReset()) {
                   tabInfo.setRoundTopCornersOnly(event.getFormat().isRoundTopCornersOnly());
+                  tabInfo.setRoundBottomCornersOnly(event.getFormat().isRoundBottomCornersOnly());
                }
                else if(event.isReset()) {
                   tabInfo.setRoundTopCornersOnly(true);
+                  tabInfo.setRoundBottomCornersOnly(false);
                }
             }
 

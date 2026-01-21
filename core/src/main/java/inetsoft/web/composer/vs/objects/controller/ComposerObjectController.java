@@ -447,9 +447,10 @@ public class ComposerObjectController {
 
          if(assembly instanceof TabVSAssembly) {
             TabVSAssembly tab = (TabVSAssembly) assembly;
+            TabVSAssemblyInfo tabInfo = (TabVSAssemblyInfo) tab.getInfo();
             int ychange = event.getHeight() - originalSize.height;
 
-            if(ychange != 0) {
+            if(ychange != 0 && !tabInfo.isBottomTabs()) {
                this.updateContainerChildrenYChange(tab, viewsheet, ychange);
             }
          }
