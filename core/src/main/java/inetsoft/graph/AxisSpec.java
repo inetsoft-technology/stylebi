@@ -87,7 +87,8 @@ public class AxisSpec implements Cloneable, Serializable {
     */
    @TernMethod
    public int getAxisStyle() {
-      return style;
+      // if labelOnSecondaryAxis is true, add the 0x10 bit to move labels to secondary axis
+      return labelOnSecondaryAxis ? (style | 0x10) : style;
    }
 
    /**
@@ -549,6 +550,24 @@ public class AxisSpec implements Cloneable, Serializable {
       this.maxLabelSpacing = maxLabelSpacing;
    }
 
+   /**
+    * Check if labels should be displayed on the secondary axis (opposite side).
+    * For rectangular coordinates: Y-axis labels move from left to right,
+    * X-axis labels move from bottom to top.
+    */
+   @TernMethod
+   public boolean isLabelOnSecondaryAxis() {
+      return labelOnSecondaryAxis;
+   }
+
+   /**
+    * Set whether labels should be displayed on the secondary axis (opposite side).
+    */
+   @TernMethod
+   public void setLabelOnSecondaryAxis(boolean labelOnSecondaryAxis) {
+      this.labelOnSecondaryAxis = labelOnSecondaryAxis;
+   }
+
    @Override
    public boolean equals(Object o) {
       if(this == o) return true;
@@ -562,6 +581,7 @@ public class AxisSpec implements Cloneable, Serializable {
          gridStyle == axisSpec.gridStyle && gridAsShape == axisSpec.gridAsShape &&
          gridOnTop == axisSpec.gridOnTop && gridBetween == axisSpec.gridBetween &&
          facetGrid == axisSpec.facetGrid &&
+         labelOnSecondaryAxis == axisSpec.labelOnSecondaryAxis &&
          Double.compare(asize, axisSpec.asize) == 0 && minPadding == axisSpec.minPadding &&
          maxPadding == axisSpec.maxPadding && maxLabelSpacing == axisSpec.maxLabelSpacing &&
          Objects.equals(lineColor, axisSpec.lineColor) &&
@@ -578,7 +598,7 @@ public class AxisSpec implements Cloneable, Serializable {
       return Objects.hash(style, tickVisible, labelVisible, lineVisible, lineColor, line2Color,
                           labelGap, textFrame, colorFrame, fontFrame, textSpec, abbreviate,
                           allTick, truncate, inPlot, lastOrAll, gridColor, gridStyle, gridAsShape,
-                          gridOnTop, gridBetween, facetGrid, asize,
+                          gridOnTop, gridBetween, facetGrid, labelOnSecondaryAxis, asize,
                           minPadding, maxPadding, maxLabelSpacing);
    }
 
@@ -644,6 +664,7 @@ public class AxisSpec implements Cloneable, Serializable {
    private int minPadding = 0;
    private int maxPadding = 0;
    private int maxLabelSpacing = 2;
+   private boolean labelOnSecondaryAxis = false;
 
    private static final long serialVersionUID = 1L;
 }
