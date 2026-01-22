@@ -24,6 +24,10 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.region.ChartArea;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.Tool;
@@ -60,30 +64,46 @@ public class VSChartLegendsVisibilityService extends VSChartControllerService<VS
                             Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
+      RuntimeViewsheet rvs = getViewsheetEngine().getViewsheet(runtimeId, principal);
+      boolean isDefaultVS = SUtil.isDefaultVSGloballyVisible(principal) &&
+         !Tool.equals(rvs.getEntry() == null ? "" :
+                         rvs.getEntry().getOrgID(),((XPrincipal)principal).getOrgId());
 
       this.processEvent(runtimeId, event, principal, chartState -> {
-         if(event.isHide()) {
-            if(event.getAestheticType() == null) {
-               showAllLegends(chartState, linkUri, principal, dispatcher, false);
-            }
-            else {
-               hideLegend(event, chartState, linkUri, principal, dispatcher);
-            }
-         }
-         else {
-            showAllLegends(chartState, linkUri, principal, dispatcher, true);
+         String oldContext = OrganizationContextHolder.getCurrentOrgId();
+
+         if(isDefaultVS) {
+            OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
          }
 
-         if(event.isWizard()) {
-            try {
-               RuntimeViewsheet rtv = getViewsheetEngine().getViewsheet(runtimeId, principal);
-               VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rtv);
-               temporaryInfo.setShowLegend(!event.isHide());
-               getViewsheetEngine().flushRuntimeSheet(runtimeId);
+         try {
+            if(event.isHide()) {
+               if(event.getAestheticType() == null) {
+                  showAllLegends(chartState, linkUri, principal, dispatcher, false);
+               }
+               else {
+                  hideLegend(event, chartState, linkUri, principal, dispatcher);
+               }
             }
-            catch (Exception ex) {
-               throw new RuntimeException(ex);
+            else {
+               showAllLegends(chartState, linkUri, principal, dispatcher, true);
             }
+
+            if(event.isWizard()) {
+               try {
+                  RuntimeViewsheet rtv = getViewsheetEngine().getViewsheet(runtimeId, principal);
+                  VSTemporaryInfo temporaryInfo = temporaryInfoService.getVSTemporaryInfo(rtv);
+                  temporaryInfo.setShowLegend(!event.isHide());
+                  getViewsheetEngine().flushRuntimeSheet(runtimeId);
+               }
+               catch(Exception ex) {
+                  throw new RuntimeException(ex);
+               }
+            }
+         }
+         finally
+         {
+            OrganizationContextHolder.setCurrentOrgId(oldContext);
          }
       });
 
