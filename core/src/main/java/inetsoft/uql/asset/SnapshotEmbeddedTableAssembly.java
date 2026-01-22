@@ -138,6 +138,19 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
       }
    }
 
+   /**
+    * Set the column selection. Overridden to keep the default column selection
+    * in sync with the private column selection.
+    */
+   @Override
+   public void setColumnSelection(ColumnSelection selection, boolean pub) {
+      super.setColumnSelection(selection, pub);
+
+      if(!pub) {
+         this.columns = selection;
+      }
+   }
+
    @Override
    public synchronized void pasted() {
       super.pasted();

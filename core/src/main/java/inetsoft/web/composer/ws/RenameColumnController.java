@@ -58,11 +58,6 @@ public class RenameColumnController extends WorksheetController {
       ColumnRef ocolumn, String alias)
    {
       ColumnSelection columns = table.getColumnSelection(false);
-
-      if(table instanceof SnapshotEmbeddedTableAssembly && ocolumn.getDataRef() instanceof RangeRef) {
-         columns = ((SnapshotEmbeddedTableAssembly) table).getDefaultColumnSelection();
-      }
-
       int index = columns.indexOfAttribute(ocolumn);
 
       if(index < 0) {
@@ -240,11 +235,6 @@ public class RenameColumnController extends WorksheetController {
    {
       final ColumnRef originalCol = (ColumnRef) Tool.clone(ocolumn);
       ColumnSelection columns = table.getColumnSelection(false);
-
-      if(table instanceof SnapshotEmbeddedTableAssembly && originalCol.getDataRef() instanceof RangeRef) {
-         columns = ((SnapshotEmbeddedTableAssembly) table).getDefaultColumnSelection();
-      }
-
       int index = columns.indexOfAttribute(ocolumn);
 
       if(index < 0) {

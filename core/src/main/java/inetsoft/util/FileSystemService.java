@@ -278,7 +278,7 @@ public class FileSystemService {
             cdir = System.getProperty("java.io.tmpdir");
          }
 
-         cdir = cdir + "/cache";
+         cdir = cdir + File.separator + "cache";
       }
 
       Path cachePath = getPath(cdir);
