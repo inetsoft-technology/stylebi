@@ -175,6 +175,13 @@ public class ChartVSAssembly extends DataVSAssembly
     */
    public void setDetailSelection(VSSelection selection) {
       this.dselection = selection;
+
+      // When detail selection is cleared (show details dialog closed),
+      // also clear the tip condition so it can be properly refreshed
+      // when the user hovers over the datatip again.
+      if(selection == null || selection.isEmpty()) {
+         setTipConditionList(null);
+      }
    }
 
    /**

@@ -29,6 +29,7 @@ import inetsoft.uql.ConditionListWrapper;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.VSSelection;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.viewsheet.DataTipDependencyCheckResult;
@@ -110,6 +111,25 @@ public class VSDataTipService {
 
                if(clist instanceof ConditionList) {
                   clistWrapper = (ConditionList) clist;
+               }
+
+               // Don't clear the tip condition while show details is active.
+               // The show details dialog needs the tip condition to properly filter data.
+               if(clistWrapper == null || clistWrapper.isEmpty()) {
+                  if(vsobj instanceof TableDataVSAssembly) {
+                     ConditionList detailConds = ((TableDataVSAssembly) vsobj).getDetailConditionList();
+
+                     if(detailConds != null && !detailConds.isEmpty()) {
+                        return false;
+                     }
+                  }
+                  else if(vsobj instanceof ChartVSAssembly) {
+                     VSSelection detailSelection = ((ChartVSAssembly) vsobj).getDetailSelection();
+
+                     if(detailSelection != null && !detailSelection.isEmpty()) {
+                        return false;
+                     }
+                  }
                }
 
                vsobj.setTipConditionList(clistWrapper);
