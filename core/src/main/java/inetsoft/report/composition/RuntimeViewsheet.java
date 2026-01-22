@@ -612,6 +612,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
       Viewsheet ovs = this.vs;
       this.vs = vs;
+      vs.setRuntimeEntry(entry);
       resetViewsheet(this.vs, ovs);
 
       //if worksheet entry exists but worksheet is unpopulated, reset runtime to repopulate
