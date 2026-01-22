@@ -30,6 +30,7 @@ import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cache.query.*;
 import org.apache.ignite.cluster.*;
 import org.apache.ignite.configuration.*;
+import org.apache.ignite.configuration.WALMode;
 import org.apache.ignite.events.*;
 import org.apache.ignite.events.EventType;
 import org.apache.ignite.failure.StopNodeFailureHandler;
@@ -145,6 +146,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       IgniteConfiguration config = new IgniteConfiguration();
       DataStorageConfiguration storageCfg = new DataStorageConfiguration();
       storageCfg.getDefaultDataRegionConfiguration().setPersistenceEnabled(true);
+      storageCfg.setWalMode(WALMode.LOG_ONLY);
+      storageCfg.setWalSegmentSize(128 * 1024 * 1024);
+      storageCfg.setCheckpointFrequency(60_000);
       config.setDataStorageConfiguration(storageCfg);
 
       config.setMetricsLogFrequency(0);
