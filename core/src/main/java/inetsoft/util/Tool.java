@@ -4968,6 +4968,17 @@ public final class Tool extends CoreTool {
    }
 
    /**
+    * Close an iterator if it implements AutoCloseable.
+    *
+    * @param iter the iterator to close
+    */
+   public static void closeIterator(Iterator<?> iter) {
+      if(iter instanceof AutoCloseable) {
+         closeQuietly((AutoCloseable) iter);
+      }
+   }
+
+   /**
     * Use StringBuilder instead of + to concatenate strings, to avoid creating too many new objects,
     * improve performance, and reduce memory overhead.
     */

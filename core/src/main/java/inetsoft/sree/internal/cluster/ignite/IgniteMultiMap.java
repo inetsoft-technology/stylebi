@@ -89,9 +89,15 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    public Set<K> keySet() {
       return executeWithRetry(() -> {
          Set<K> set = new HashSet<>();
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            set.add(entry.getKey());
+         try {
+            while(iter.hasNext()) {
+               set.add(iter.next().getKey());
+            }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return set;
@@ -102,13 +108,19 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    public Collection<V> values() {
       return executeWithRetry(() -> {
          List<V> allValues = new ArrayList<>();
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            Collection<V> list = entry.getValue();
+         try {
+            while(iter.hasNext()) {
+               Collection<V> list = iter.next().getValue();
 
-            if(list != null) {
-               allValues.addAll(list);
+               if(list != null) {
+                  allValues.addAll(list);
+               }
             }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return allValues;
@@ -119,15 +131,22 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    public Set<Map.Entry<K, V>> entrySet() {
       return executeWithRetry(() -> {
          Set<Map.Entry<K, V>> set = new HashSet<>();
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            Collection<V> list = entry.getValue();
+         try {
+            while(iter.hasNext()) {
+               javax.cache.Cache.Entry<K, Collection<V>> entry = iter.next();
+               Collection<V> list = entry.getValue();
 
-            if(list != null) {
-               for(V value : list) {
-                  set.add(new AbstractMap.SimpleEntry<>(entry.getKey(), value));
+               if(list != null) {
+                  for(V value : list) {
+                     set.add(new AbstractMap.SimpleEntry<>(entry.getKey(), value));
+                  }
                }
             }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return set;
@@ -142,19 +161,26 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    @Override
    public boolean containsValue(V value) {
       return executeWithRetry(() -> {
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            Collection<V> list = entry.getValue();
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-            if(list != null) {
-               for(V val : list) {
-                  if(Tool.equals(value, val)) {
-                     return true;
+         try {
+            while(iter.hasNext()) {
+               Collection<V> list = iter.next().getValue();
+
+               if(list != null) {
+                  for(V val : list) {
+                     if(Tool.equals(value, val)) {
+                        return true;
+                     }
                   }
                }
             }
-         }
 
-         return false;
+            return false;
+         }
+         finally {
+            Tool.closeIterator(iter);
+         }
       });
    }
 
@@ -175,13 +201,19 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    public int size() {
       return executeWithRetry(() -> {
          int size = 0;
+         Iterator<javax.cache.Cache.Entry<K, Collection<V>>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-            Collection<V> list = entry.getValue();
+         try {
+            while(iter.hasNext()) {
+               Collection<V> list = iter.next().getValue();
 
-            if(list != null) {
-               size += list.size();
+               if(list != null) {
+                  size += list.size();
+               }
             }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return size;

@@ -18,6 +18,7 @@
 package inetsoft.sree.internal.cluster.ignite;
 
 import inetsoft.sree.internal.cluster.DistributedMap;
+import inetsoft.util.Tool;
 import org.apache.ignite.IgniteCache;
 import org.apache.ignite.lang.IgniteFuture;
 
@@ -49,13 +50,20 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    @Override
    public boolean containsValue(Object value) {
       return executeWithRetry(() -> {
-         for(IgniteCache.Entry<K, V> entry : cache) {
-            if(value.equals(entry.getValue())) {
-               return true;
-            }
-         }
+         Iterator<javax.cache.Cache.Entry<K, V>> iter = cache.iterator();
 
-         return false;
+         try {
+            while(iter.hasNext()) {
+               if(value.equals(iter.next().getValue())) {
+                  return true;
+               }
+            }
+
+            return false;
+         }
+         finally {
+            Tool.closeIterator(iter);
+         }
       });
    }
 
@@ -187,9 +195,15 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    public Set<K> keySet() {
       return executeWithRetry(() -> {
          Set<K> set = new HashSet<>();
+         Iterator<javax.cache.Cache.Entry<K, V>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, V> entry : cache) {
-            set.add(entry.getKey());
+         try {
+            while(iter.hasNext()) {
+               set.add(iter.next().getKey());
+            }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return set;
@@ -200,9 +214,15 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    public Collection<V> values() {
       return executeWithRetry(() -> {
          Set<V> set = new HashSet<>();
+         Iterator<javax.cache.Cache.Entry<K, V>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, V> entry : cache) {
-            set.add(entry.getValue());
+         try {
+            while(iter.hasNext()) {
+               set.add(iter.next().getValue());
+            }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return set;
@@ -213,9 +233,16 @@ public class IgniteDistributedMap<K, V> implements DistributedMap<K, V> {
    public Set<Entry<K, V>> entrySet() {
       return executeWithRetry(() -> {
          Set<Entry<K, V>> set = new HashSet<>();
+         Iterator<javax.cache.Cache.Entry<K, V>> iter = cache.iterator();
 
-         for(IgniteCache.Entry<K, V> entry : cache) {
-            set.add(new AbstractMap.SimpleEntry<>(entry.getKey(), entry.getValue()));
+         try {
+            while(iter.hasNext()) {
+               javax.cache.Cache.Entry<K, V> entry = iter.next();
+               set.add(new AbstractMap.SimpleEntry<>(entry.getKey(), entry.getValue()));
+            }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
 
          return set;
