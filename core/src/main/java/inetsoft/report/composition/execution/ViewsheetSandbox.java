@@ -669,20 +669,56 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
     */
    public void dispose() {
       disposed = true;
-      getQueryManager().cancel(); // cancel executing queries
-      metarep.dispose();
+
+      try {
+         getQueryManager().cancel(); // cancel executing queries
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to cancel query manager during dispose", ex);
+      }
+
+      try {
+         metarep.dispose();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to dispose metarep during dispose", ex);
+      }
 
       if(wbox != null) {
-         wbox.dispose();
+         try {
+            wbox.dispose();
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to dispose worksheet sandbox during dispose", ex);
+         }
+
          wbox = null;
       }
 
       // dispose data
-      dmap.dispose();
-      dKeyMap.dispose();
+      try {
+         dmap.dispose();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to dispose dmap during dispose", ex);
+      }
+
+      try {
+         dKeyMap.dispose();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to dispose dKeyMap during dispose", ex);
+      }
+
       tmap.clear();
 
-      cancel();
+      try {
+         cancel();
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to cancel during dispose", ex);
+      }
+
       nolimit.clear();
 
       // dispose view
@@ -702,7 +738,12 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          ViewsheetSandbox box = bmap.remove(name);
 
          if(box != null) {
-            box.dispose();
+            try {
+               box.dispose();
+            }
+            catch(Exception ex) {
+               LOG.warn("Failed to dispose nested sandbox: {}", name, ex);
+            }
          }
       }
 
