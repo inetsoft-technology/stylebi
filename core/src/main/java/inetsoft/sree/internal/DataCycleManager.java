@@ -742,7 +742,7 @@ public class DataCycleManager
          try {
             DataCycleAsset asset = (DataCycleAsset) storage.getXMLSerializable(entry, null, orgId);
 
-            if(asset.getConditions() != null) {
+            if(asset != null && asset.getConditions() != null) {
                return new Vector<>(asset.getConditions());
             }
          }
