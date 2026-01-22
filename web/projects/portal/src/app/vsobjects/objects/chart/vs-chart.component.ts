@@ -183,11 +183,6 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       if(!m.sheetMaxMode || m.maxMode || this.isDataTip()) {
          const event = new VSChartEvent(this._model, this._model.maxMode, this.container);
-
-         if(this.vsInfo?.orgId) {
-            event.setOrgId(this.vsInfo.orgId);
-         }
-
          this.showChartLoading(true, 2);
          this.viewsheetClient.sendEvent(CHART_AREAS_URI, event);
       }

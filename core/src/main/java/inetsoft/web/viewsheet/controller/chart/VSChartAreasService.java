@@ -40,6 +40,7 @@ import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.viewsheet.ColumnNotFoundException;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.log.LogLevel;
@@ -66,7 +67,15 @@ public class VSChartAreasService {
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void refreshChartAreasModel(@ClusterProxyKey String id, VSChartEvent event,
-                                             CommandDispatcher dispatcher, Principal principal)
+                                      CommandDispatcher dispatcher, Principal principal)
+      throws Exception
+   {
+      return VSUtil.globalShareVsRunInHostScope(id, principal,
+         () -> refreshChartAreasModel0(id, event, dispatcher, principal));
+   }
+
+   private Void refreshChartAreasModel0(String id, VSChartEvent event, CommandDispatcher dispatcher,
+                                       Principal principal)
       throws Exception
    {
       VSChartControllerService.VSChartStateInfo state =
