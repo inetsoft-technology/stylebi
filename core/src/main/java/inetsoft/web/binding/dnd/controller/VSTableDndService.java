@@ -25,6 +25,7 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetEngine;
 import inetsoft.report.composition.execution.*;
 import inetsoft.report.internal.Util;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
@@ -88,6 +89,8 @@ public class VSTableDndService {
       TableVSAssembly tableAssembly = (TableVSAssembly) rvs.getViewsheet().getAssembly(dropTarget.getAssembly());
       TableVSAssembly newTableAssembly = (TableVSAssembly) tableAssembly.clone();
 
+      dropTarget.setDropIndex(getVisibleToActualIndex(dropTarget.getDropIndex(), tableAssembly));
+
       if(this.checkEmbeddedTableSource(rvs.getViewsheet(), dragAssembly.getTableName(),
                                        dragAssembly, tableAssembly, dispatcher))
       {
@@ -111,6 +114,54 @@ public class VSTableDndService {
 
       return null;
    }
+
+   private int getVisibleToActualIndex(int visibleIndex, TableVSAssembly tableAssembly) {
+      if(!(tableAssembly.getInfo() instanceof TableVSAssemblyInfo info)) {
+         return visibleIndex;
+      }
+
+      ColumnSelection sel = info.getColumnSelection();
+
+      if(sel == null) {
+         return visibleIndex;
+      }
+
+      int actualCount = sel.getAttributeCount();
+      int visibleCount = 0;
+      int lastVisibleActual = -1;
+
+      if(actualCount == 0) {
+         return visibleIndex;
+      }
+
+      for(int actual = 0; actual < actualCount; actual++) {
+         Object attr = sel.getAttribute(actual);
+         boolean isVisible = true;
+         
+         if(attr instanceof ColumnRef) {
+            isVisible = ((ColumnRef) attr).isVisible();
+         }
+
+         if(!isVisible) {
+            continue;
+         }
+
+         if(visibleIndex == visibleCount) {
+            return actual;
+         }
+
+         visibleCount++;
+         lastVisibleActual = actual;
+      }
+
+      if(visibleIndex == visibleCount) {
+         return lastVisibleActual >= 0 ? lastVisibleActual + 1 : 0;
+      }
+
+      return visibleIndex;
+   }
+
+
 
    @ClusterProxyMethod(WorksheetEngine.CACHE_NAME)
    public Void dndFromTree(@ClusterProxyKey String runtimeId, VSDndEvent event, Principal principal,
