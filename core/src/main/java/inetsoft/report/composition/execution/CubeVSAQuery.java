@@ -118,6 +118,7 @@ public abstract class CubeVSAQuery extends DataVSAQuery {
       }
 
       appendAggCalcField(table, tname);
+      appendDetailCalcField(table, tname);
 
       if(!analysis) {
          ChartVSAssembly chart = box.getBrushingChart(vname);
