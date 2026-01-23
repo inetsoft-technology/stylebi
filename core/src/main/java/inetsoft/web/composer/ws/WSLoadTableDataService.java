@@ -236,7 +236,7 @@ public class WSLoadTableDataService extends WorksheetControllerService {
          .name(name)
          .count(count)
          .completed(!more)
-         .duration(elapsed.toMillis());
+         .duration(Math.max(elapsed.toMillis(), 1));
 
       // set exceeded information if completed
       if(!more) {
