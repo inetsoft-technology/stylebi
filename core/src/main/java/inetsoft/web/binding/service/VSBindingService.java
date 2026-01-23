@@ -26,6 +26,7 @@ import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -1811,49 +1812,68 @@ public class VSBindingService {
       RuntimeViewsheet nrvs = engine.getViewsheet(nid, principal);
       String oid = getOriginalRuntimeId(nid, principal);
       RuntimeViewsheet orvs = oid == null ? nrvs : engine.getViewsheet(oid, principal);
-      Optional<ViewsheetSandbox> obox = orvs.getViewsheetSandbox();
-      Optional<ViewsheetSandbox> nbox = nrvs.getViewsheetSandbox();
 
-      if(obox.isPresent() && nbox.isPresent()) {
-         obox.get().getVariableTable().addAll(nbox.get().getVariableTable());
+      AssetEntry entry = orvs.getEntry();
+      String originalOrg = null;
+      boolean orgTempDefaultForGloballyVisible = false;
+
+      // Set organization context for globally visible default org assets
+      if(VSUtil.isDefaultVSGloballyViewsheet(entry, principal)) {
+         originalOrg = OrganizationContextHolder.getCurrentOrgId();
+         orgTempDefaultForGloballyVisible = true;
+         OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
       }
 
-      updateVSAssemblyBoundAssemblies(nrvs, orvs, assemblyName);
-      Viewsheet nvs = nrvs.getViewsheet().clone();
-      VSAssembly assembly = nvs.getAssembly(assemblyName);
-      AssemblyInfo info = assembly.getInfo();
-      // In any case to clear wizard object editing flag.
-      assembly.setWizardEditing(false);
+      try {
+         Optional<ViewsheetSandbox> obox = orvs.getViewsheetSandbox();
+         Optional<ViewsheetSandbox> nbox = nrvs.getViewsheetSandbox();
 
-      if(info instanceof ChartVSAssemblyInfo) {
-         ChartVSAssemblyInfo chartInfo = (ChartVSAssemblyInfo) info;
-         chartInfo.setMaxSize(null);
-         chartInfo.setSummarySortCol(-1);
-         chartInfo.setSummarySortVal(0);
+         if(obox.isPresent() && nbox.isPresent()) {
+            obox.get().getVariableTable().addAll(nbox.get().getVariableTable());
+         }
+
+         updateVSAssemblyBoundAssemblies(nrvs, orvs, assemblyName);
+         Viewsheet nvs = nrvs.getViewsheet().clone();
+         VSAssembly assembly = nvs.getAssembly(assemblyName);
+         AssemblyInfo info = assembly.getInfo();
+         // In any case to clear wizard object editing flag.
+         assembly.setWizardEditing(false);
+
+         if(info instanceof ChartVSAssemblyInfo) {
+            ChartVSAssemblyInfo chartInfo = (ChartVSAssemblyInfo) info;
+            chartInfo.setMaxSize(null);
+            chartInfo.setSummarySortCol(-1);
+            chartInfo.setSummarySortVal(0);
+         }
+
+         if(nbox.isPresent() && VSUtil.isVSAssemblyBinding(assembly) && assembly instanceof CalcTableVSAssembly) {
+            String source = VSUtil.getVSAssemblyBinding(assembly.getTableName());
+            nbox.get().resetDataMap(source);
+         }
+
+         if(info instanceof DataVSAssemblyInfo && !VSWizardEditModes.VIEWSHEET_PANE.equals(editMode)) {
+            //once in binding, click finish, the editedByWizard is false
+            ((DataVSAssemblyInfo) info).setEditedByWizard(false);
+         }
+
+         orvs.setViewsheet(nvs);
+         orvs.setBindingID(null);
+         orvs.getViewsheet().setMaxMode(false);
+
+         if(!VSWizardEditModes.WIZARD_DASHBOARD.equals(originalMode)) {
+            orvs.addCheckpoint(nvs.prepareCheckpoint());
+         }
+
+         engine.flushRuntimeSheet(oid == null ? nid : oid);
+         engine.closeViewsheet(nid, principal);
+
+         return oid;
       }
-
-      if(nbox.isPresent() && VSUtil.isVSAssemblyBinding(assembly) && assembly instanceof CalcTableVSAssembly) {
-         String source = VSUtil.getVSAssemblyBinding(assembly.getTableName());
-         nbox.get().resetDataMap(source);
+      finally {
+         if(orgTempDefaultForGloballyVisible) {
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+         }
       }
-
-      if(info instanceof DataVSAssemblyInfo && !VSWizardEditModes.VIEWSHEET_PANE.equals(editMode)) {
-         //once in binding, click finish, the editedByWizard is false
-         ((DataVSAssemblyInfo) info).setEditedByWizard(false);
-      }
-
-      orvs.setViewsheet(nvs);
-      orvs.setBindingID(null);
-      orvs.getViewsheet().setMaxMode(false);
-
-      if(!VSWizardEditModes.WIZARD_DASHBOARD.equals(originalMode)) {
-         orvs.addCheckpoint(nvs.prepareCheckpoint());
-      }
-
-      engine.flushRuntimeSheet(oid == null ? nid : oid);
-      engine.closeViewsheet(nid, principal);
-
-      return oid;
    }
 
    /**
