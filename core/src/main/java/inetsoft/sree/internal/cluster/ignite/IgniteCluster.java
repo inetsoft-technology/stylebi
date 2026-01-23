@@ -55,8 +55,7 @@ import javax.cache.event.*;
 import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
 import java.net.UnknownHostException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
@@ -179,6 +178,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             workDir = Paths.get(workDirProp).toAbsolutePath();
          }
       }
+
+      // Clean up local persistence data before starting Ignite
+      // This prevents "Joining node has caches with data which are not presented on cluster" warnings
+      // The node will resync data from other cluster nodes after joining
+      cleanupLocalPersistenceData(workDir);
 
       config.setWorkDirectory(workDir.toString());
       SslContextFactory sslContextFactory = createSslContextFactory(clusterConfig);
@@ -1736,6 +1740,25 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final Logger LOG = LoggerFactory.getLogger(IgniteCluster.class);
 
    private static final Set<String> SPRING_PROXY_PARTITIONED_CACHES = Collections.synchronizedSet(new HashSet<>());
+
+   /**
+    * Clean up local Ignite persistence data before starting.
+    * This prevents warnings like "Joining node has caches with data which are not presented on cluster"
+    * when the node has local persistence data that is out of sync with the cluster.
+    * The node will resync data from other cluster nodes after joining.
+    */
+   private static void cleanupLocalPersistenceData(Path workDir) {
+      if(workDir == null) {
+         return;
+      }
+
+      File dbDir = workDir.resolve("db").toFile();
+
+      if(dbDir.exists()) {
+         LOG.info("Cleaning up local Ignite persistence data: {}", dbDir);
+         Tool.deleteFile(dbDir);
+      }
+   }
 
    private final class AffinityCallProcessor implements IgniteBiPredicate<UUID, Serializable> {
       @SuppressWarnings({ "rawtypes", "unchecked" })
