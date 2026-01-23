@@ -21,6 +21,7 @@ package inetsoft.web.session;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.SessionRecord;
 import inetsoft.web.admin.server.NodeProtectionService;
 import org.slf4j.Logger;
@@ -157,14 +158,21 @@ public class IgniteSessionRepository
       }
 
       Map<String, IgniteSession> result = new HashMap<>();
+      Iterator<Cache.Entry<String, MapSession>> iter = sessions.iterator();
 
-      sessions.iterator().forEachRemaining(session -> {
-         IgniteSession igniteSession = findById(session.getValue().getId());
+      try {
+         while(iter.hasNext()) {
+            Cache.Entry<String, MapSession> session = iter.next();
+            IgniteSession igniteSession = findById(session.getValue().getId());
 
-         if(isSessionForUser(igniteSession, indexValue)) {
-            result.put(session.getValue().getId(), igniteSession);
+            if(isSessionForUser(igniteSession, indexValue)) {
+               result.put(session.getValue().getId(), igniteSession);
+            }
          }
-      });
+      }
+      finally {
+         Tool.closeIterator(iter);
+      }
 
       return result;
    }
@@ -243,33 +251,47 @@ public class IgniteSessionRepository
    public void loggedOut(inetsoft.sree.security.SessionEvent event) {
       if(event.isInvalidateSession()) {
          Principal principal = event.getPrincipal();
+         Iterator<Cache.Entry<String, MapSession>> iter = sessions.iterator();
 
-         for(Iterator<Cache.Entry<String, MapSession>> i = sessions.iterator(); i.hasNext(); ) {
-            Cache.Entry<String, MapSession> entry = i.next();
-            IgniteSession igniteSession = findById(entry.getValue().getId());
+         try {
+            while(iter.hasNext()) {
+               Cache.Entry<String, MapSession> entry = iter.next();
+               IgniteSession igniteSession = findById(entry.getValue().getId());
 
-            if(principal.equals(igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE))) {
-               i.remove();
-               break;
+               if(principal.equals(igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE))) {
+                  iter.remove();
+                  break;
+               }
             }
+         }
+         finally {
+            Tool.closeIterator(iter);
          }
       }
    }
 
    public List<SRPrincipal> getActiveSessions() {
       List<SRPrincipal> result = new ArrayList<>();
-      sessions.iterator().forEachRemaining(session -> {
-         IgniteSessionRepository.IgniteSession igniteSession = findById(session.getValue().getId());
+      Iterator<Cache.Entry<String, MapSession>> iter = sessions.iterator();
 
-         // could be out of sync due to session expiration, need to check for null
-         if(igniteSession != null) {
-            SRPrincipal principal = igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+      try {
+         while(iter.hasNext()) {
+            Cache.Entry<String, MapSession> session = iter.next();
+            IgniteSessionRepository.IgniteSession igniteSession = findById(session.getValue().getId());
 
-            if(principal != null) {
-               result.add(principal);
+            // could be out of sync due to session expiration, need to check for null
+            if(igniteSession != null) {
+               SRPrincipal principal = igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+               if(principal != null) {
+                  result.add(principal);
+               }
             }
          }
-      });
+      }
+      finally {
+         Tool.closeIterator(iter);
+      }
 
       return result;
    }
@@ -291,55 +313,63 @@ public class IgniteSessionRepository
       boolean protectionExpiring = protectionRemainingTime > 0 &&
          protectionRemainingTime < PROTECTION_EXPIRATION_WARNING_TIME;
 
-      for(Cache.Entry<String, MapSession> entry : sessions) {
-         MapSession session = entry.getValue();
-         Instant lastAccessedTime = session.getLastAccessedTime();
-         Duration maxInactiveInterval = session.getMaxInactiveInterval();
-         long sessionRemainingTime = lastAccessedTime.toEpochMilli() +
-            maxInactiveInterval.toMillis() - currentTime;
+      Iterator<Cache.Entry<String, MapSession>> iter = sessions.iterator();
 
-         // only check sessions that haven't expired already
-         if(sessionRemainingTime > 0) {
-            IgniteSession igniteSession = findById(session.getId());
+      try {
+         while(iter.hasNext()) {
+            Cache.Entry<String, MapSession> entry = iter.next();
+            MapSession session = entry.getValue();
+            Instant lastAccessedTime = session.getLastAccessedTime();
+            Duration maxInactiveInterval = session.getMaxInactiveInterval();
+            long sessionRemainingTime = lastAccessedTime.toEpochMilli() +
+               maxInactiveInterval.toMillis() - currentTime;
 
-            if(protectionExpiring) {
-               Long lastProtectionWarningTime = igniteSession.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
+            // only check sessions that haven't expired already
+            if(sessionRemainingTime > 0) {
+               IgniteSession igniteSession = findById(session.getId());
 
-               if(lastProtectionWarningTime == null ||
-                  (currentTime - lastProtectionWarningTime) >= PROTECTION_EXPIRATION_WARNING_INTERVAL)
+               if(protectionExpiring) {
+                  Long lastProtectionWarningTime = igniteSession.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
+
+                  if(lastProtectionWarningTime == null ||
+                     (currentTime - lastProtectionWarningTime) >= PROTECTION_EXPIRATION_WARNING_INTERVAL)
+                  {
+                     igniteSession.setAttribute(LAST_PROTECTION_WARNING_TIME_ATTR, currentTime);
+                     sendApplicationEvent(new SessionExpiringSoonEvent(
+                        this.getClass().getName(), igniteSession, protectionRemainingTime, true,
+                        true));
+                  }
+               }
+               // if protection is no longer expiring then close the dialogs
+               // this can happen if some other node was terminated first instead
+               // and the protection on this node was extended
+               else if(protectionExpirationTime == 0 &&
+                  igniteSession.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR) != null)
                {
-                  igniteSession.setAttribute(LAST_PROTECTION_WARNING_TIME_ATTR, currentTime);
+                  igniteSession.removeAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
                   sendApplicationEvent(new SessionExpiringSoonEvent(
-                     this.getClass().getName(), igniteSession, protectionRemainingTime, true,
+                     this.getClass().getName(), igniteSession, protectionRemainingTime, false,
                      true));
                }
-            }
-            // if protection is no longer expiring then close the dialogs
-            // this can happen if some other node was terminated first instead
-            // and the protection on this node was extended
-            else if(protectionExpirationTime == 0 &&
-               igniteSession.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR) != null)
-            {
-               igniteSession.removeAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
-               sendApplicationEvent(new SessionExpiringSoonEvent(
-                  this.getClass().getName(), igniteSession, protectionRemainingTime, false,
-                  true));
-            }
 
-            // warn the user if remaining time is less than EXPIRATION_WARNING_TIME
-            if(sessionRemainingTime <= SESSION_EXPIRATION_WARNING_TIME) {
-               igniteSession.setAttribute(EXPIRING_SOON_ATTR, true);
-               sendApplicationEvent(new SessionExpiringSoonEvent(
-                  this.getClass().getName(), igniteSession, sessionRemainingTime, true,
-                  false));
-            }
-            else if(Boolean.TRUE.equals(igniteSession.getAttribute(EXPIRING_SOON_ATTR))) {
-               igniteSession.removeAttribute(EXPIRING_SOON_ATTR);
-               sendApplicationEvent(new SessionExpiringSoonEvent(
-                  this.getClass().getName(), igniteSession, sessionRemainingTime, false,
-                  false));
+               // warn the user if remaining time is less than EXPIRATION_WARNING_TIME
+               if(sessionRemainingTime <= SESSION_EXPIRATION_WARNING_TIME) {
+                  igniteSession.setAttribute(EXPIRING_SOON_ATTR, true);
+                  sendApplicationEvent(new SessionExpiringSoonEvent(
+                     this.getClass().getName(), igniteSession, sessionRemainingTime, true,
+                     false));
+               }
+               else if(Boolean.TRUE.equals(igniteSession.getAttribute(EXPIRING_SOON_ATTR))) {
+                  igniteSession.removeAttribute(EXPIRING_SOON_ATTR);
+                  sendApplicationEvent(new SessionExpiringSoonEvent(
+                     this.getClass().getName(), igniteSession, sessionRemainingTime, false,
+                     false));
+               }
             }
          }
+      }
+      finally {
+         Tool.closeIterator(iter);
       }
    }
 

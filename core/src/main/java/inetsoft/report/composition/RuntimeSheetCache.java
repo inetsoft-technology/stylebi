@@ -346,8 +346,15 @@ public class RuntimeSheetCache
          .map(this::getAffinityKey)
          .forEach(allIds::add);
 
-      for(Cache.Entry<AffinityKey<String>, RuntimeSheetState> e : cache) {
-         allIds.add(e.getKey());
+      Iterator<Cache.Entry<AffinityKey<String>, RuntimeSheetState>> iter = cache.iterator();
+
+      try {
+         while(iter.hasNext()) {
+            allIds.add(iter.next().getKey());
+         }
+      }
+      finally {
+         Tool.closeIterator(iter);
       }
 
       return Set.copyOf(cluster.getLocalCacheKeys(cache, allIds));
@@ -408,25 +415,33 @@ public class RuntimeSheetCache
 
    public List<String> getAllIds(Principal user) {
       Set<String> ids = new HashSet<>();
+      Iterator<Cache.Entry<AffinityKey<String>, RuntimeSheetState>> iter = cache.iterator();
 
-      for(Cache.Entry<AffinityKey<String>, RuntimeSheetState> e : cache) {
-         if(user == null) {
-            ids.add(e.getKey().key());
-         }
-         else if(e.getValue().getUser() != null) {
-            try {
-               Document document = Tool.parseXML(new StringReader(e.getValue().getUser()));
-               SRPrincipal principal = new SRPrincipal();
-               principal.parseXML(document.getDocumentElement());
+      try {
+         while(iter.hasNext()) {
+            Cache.Entry<AffinityKey<String>, RuntimeSheetState> e = iter.next();
 
-               if(Objects.equals(principal, user)) {
-                  ids.add(e.getKey().key());
+            if(user == null) {
+               ids.add(e.getKey().key());
+            }
+            else if(e.getValue().getUser() != null) {
+               try {
+                  Document document = Tool.parseXML(new StringReader(e.getValue().getUser()));
+                  SRPrincipal principal = new SRPrincipal();
+                  principal.parseXML(document.getDocumentElement());
+
+                  if(Objects.equals(principal, user)) {
+                     ids.add(e.getKey().key());
+                  }
+               }
+               catch(Exception ex) {
+                  LOG.error("Failed to parse principal", ex);
                }
             }
-            catch(Exception ex) {
-               LOG.error("Failed to parse principal", ex);
-            }
          }
+      }
+      finally {
+         Tool.closeIterator(iter);
       }
 
       return List.copyOf(ids);

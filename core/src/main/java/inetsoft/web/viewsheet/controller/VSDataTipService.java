@@ -21,8 +21,7 @@ package inetsoft.web.viewsheet.controller;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.cluster.*;
-import inetsoft.report.composition.RuntimeViewsheet;
-import inetsoft.report.composition.WorksheetEngine;
+import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.ConditionList;
 import inetsoft.uql.ConditionListWrapper;
@@ -136,6 +135,9 @@ public class VSDataTipService {
                return true;
             }
          }
+         catch(ExpiredSheetException ex) {
+            throw ex;
+         }
          catch(Exception ex) {
             throw new RuntimeException(ex);
          }
@@ -170,7 +172,7 @@ public class VSDataTipService {
             coreLifecycleService.refreshVSAssembly(rvs, vsobj, dispatcher);
             return true;
          }
-         catch(MessageException ex) {
+         catch(MessageException | ExpiredSheetException ex) {
             throw ex;
          }
          catch(Exception ex) {
