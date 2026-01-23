@@ -139,7 +139,9 @@ export class CrosstabPane {
       ];
 
       if(Tool.isDate(header.selectedRef.dataType) || AggregateDialog.getDateRangeRef(header.selectedRef) != null) {
-         this.examplesService.loadDateLevelExamples(header.availableGroups.map(val => val.dgroup + ""),
+         const exampleTypes = header.availableGroups.map(val => val.dgroup + "")
+            .filter(v => parseInt(v) >= 0);
+         this.examplesService.loadDateLevelExamples(exampleTypes,
             header.selectedRef.dataType).subscribe((data: any) => {
             header.dateLevelExamples = data.dateLevelExamples;
          });
