@@ -397,10 +397,13 @@ public class LogicalModelController {
       else if(model instanceof XAttributeModel) {
          String entityName = ((XAttributeModel) model).getParentEntity();
          XEntity entity = logicalModel.getEntity(entityName);
-         XAttribute attribute = entity.getAttribute(name);
 
-         if(attribute != null) {
-            ex = attribute.getDependencyException();
+         if(entity != null) {
+            XAttribute attribute = entity.getAttribute(name);
+
+            if(attribute != null) {
+               ex = attribute.getDependencyException();
+            }
          }
       }
 
