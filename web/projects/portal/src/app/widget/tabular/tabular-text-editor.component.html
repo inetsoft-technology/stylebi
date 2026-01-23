@@ -16,8 +16,9 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div *ngIf="rows <= 1">
-  <input *ngIf="!password" type="text" class="form-control" [(ngModel)]="value"
-         [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"/>
+  <textarea *ngIf="!password" class="form-control auto-size-textarea" [(ngModel)]="value"
+            [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"
+            cdkTextareaAutosize [cdkAutosizeMinRows]="1"></textarea>
   <div *ngIf="password" class="input-group">
     <input [type]="passwordVisible ? 'text' : 'password'" class="form-control"
            [(ngModel)]="value" [formControl]="valueControl" (blur)="valueChanged()"/>

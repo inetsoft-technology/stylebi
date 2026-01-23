@@ -16,14 +16,20 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import {
+   AfterViewInit,
    Component,
+   ElementRef,
    EventEmitter,
    Input,
+   NgZone,
    OnChanges,
+   OnDestroy,
    OnInit,
    Output,
-   SimpleChanges
+   SimpleChanges,
+   ViewChild
 } from "@angular/core";
+import { CdkTextareaAutosize } from "@angular/cdk/text-field";
 import { UntypedFormControl, ValidatorFn, Validators } from "@angular/forms";
 import { debounceTime } from "rxjs/operators";
 
@@ -32,7 +38,7 @@ import { debounceTime } from "rxjs/operators";
    templateUrl: "tabular-text-editor.component.html",
    styleUrls: ["tabular-text-editor.component.scss"]
 })
-export class TabularTextEditor implements OnInit, OnChanges {
+export class TabularTextEditor implements OnInit, OnChanges, AfterViewInit, OnDestroy {
    @Input() value: string;
    @Input() password: boolean = false;
    @Input() rows: number = 1;
@@ -43,9 +49,14 @@ export class TabularTextEditor implements OnInit, OnChanges {
    @Input() pattern: string;
    @Output() valueChange: EventEmitter<string> = new EventEmitter<string>();
    @Output() validChange: EventEmitter<boolean> = new EventEmitter<boolean>();
+   @ViewChild(CdkTextareaAutosize) autosize: CdkTextareaAutosize;
    valueControl: UntypedFormControl;
    lastValue: string;
    passwordVisible: boolean = false;
+   private resizeObserver: ResizeObserver;
+
+   constructor(private elementRef: ElementRef, private ngZone: NgZone) {
+   }
 
    ngOnInit(): void {
       let validators: ValidatorFn[] = [];
@@ -68,6 +79,26 @@ export class TabularTextEditor implements OnInit, OnChanges {
          .subscribe((newValue: string) => {
             this.valueChanged();
          });
+   }
+
+   ngAfterViewInit(): void {
+      if(this.autosize) {
+         this.resizeObserver = new ResizeObserver(() => {
+            this.ngZone.run(() => {
+               this.autosize.resizeToFitContent(true);
+            });
+         });
+
+         // Observe the parent dialog if available, otherwise observe the component element
+         const dialog = this.elementRef.nativeElement.closest("tabular-query-dialog");
+         this.resizeObserver.observe(dialog || this.elementRef.nativeElement);
+      }
+   }
+
+   ngOnDestroy(): void {
+      if(this.resizeObserver) {
+         this.resizeObserver.disconnect();
+      }
    }
 
    ngOnChanges(changes: SimpleChanges): void {
