@@ -75,7 +75,9 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
 
    @PreDestroy
    public void close() throws Exception {
-      nodeProtector.close();
+      if(nodeProtector != null) {
+         nodeProtector.close();
+      }
 
       if(cluster != null) {
          cluster.removeMembershipListener(this);

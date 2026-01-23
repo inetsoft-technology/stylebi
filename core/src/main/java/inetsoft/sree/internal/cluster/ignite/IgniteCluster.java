@@ -608,6 +608,51 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
+   public boolean isClusterReady() {
+      try {
+         org.apache.ignite.IgniteCluster cluster = ignite.cluster();
+
+         // Check if cluster is active
+         if(cluster.state() != ClusterState.ACTIVE) {
+            LOG.debug("Cluster is not active, state: {}", cluster.state());
+            return false;
+         }
+
+         // Check if we have server nodes
+         if(cluster.forServers().nodes().isEmpty()) {
+            LOG.debug("No server nodes in cluster");
+            return false;
+         }
+
+         // Try to get affinity for the RW_MAP cache to verify partition exchange is complete
+         // This will fail with NPE if topology version is not ready
+         try {
+            IgniteCache<Object, Object> cache = ignite.cache(RW_MAP_NAME);
+
+            if(cache != null) {
+               ignite.affinity(RW_MAP_NAME).partition(0);
+            }
+         }
+         catch(NullPointerException e) {
+            // AffinityTopologyVersion is null - partition exchange not complete
+            LOG.debug("Partition exchange not complete: {}", e.getMessage());
+            return false;
+         }
+         catch(Exception e) {
+            // Other errors during affinity check
+            LOG.debug("Error checking affinity: {}", e.getMessage());
+            return false;
+         }
+
+         return true;
+      }
+      catch(Exception e) {
+         LOG.debug("Error checking cluster readiness: {}", e.getMessage());
+         return false;
+      }
+   }
+
+   @Override
    public void debug() {
       for(ClusterNode node : ignite.cluster().nodes()) {
          System.err.println(node);

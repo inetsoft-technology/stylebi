@@ -70,6 +70,7 @@ management:
             - scheduler
             - securityProvider
             - fileSystem
+            - cluster
         liveness:
           include:
             - livenessState
@@ -80,6 +81,10 @@ management:
             - scheduler
             - securityProvider
             - fileSystem
+        readiness:
+          include:
+            - readinessState
+            - cluster
       show-details: always
       show-components: always
   health:
@@ -102,6 +107,8 @@ management:
     securityProvider:
       enabled: true
     fileSystem:
+      enabled: true
+    cluster:
       enabled: true
   server:
     port: 8081

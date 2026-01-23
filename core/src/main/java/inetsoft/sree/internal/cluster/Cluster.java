@@ -90,6 +90,15 @@ public interface Cluster extends AutoCloseable {
     */
    Set<String> getServerClusterNodes();
 
+   /**
+    * Checks if the cluster is ready to handle operations.
+    * This includes verifying that the cluster topology is stable and
+    * partition map exchange is complete.
+    *
+    * @return {@code true} if the cluster is ready, {@code false} otherwise.
+    */
+   boolean isClusterReady();
+
    void debug();
 
    /**

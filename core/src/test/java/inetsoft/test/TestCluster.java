@@ -73,6 +73,11 @@ public class TestCluster implements Cluster {
    }
 
    @Override
+   public boolean isClusterReady() {
+      return true;
+   }
+
+   @Override
    public void debug() {
       // no-op
    }
