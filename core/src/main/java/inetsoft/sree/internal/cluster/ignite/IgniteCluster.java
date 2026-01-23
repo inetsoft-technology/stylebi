@@ -1919,7 +1919,17 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    {
       @Override
       public void run() {
-         listener.messageReceived(event);
+         try {
+            listener.messageReceived(event);
+         }
+         catch(Exception e) {
+            if(Thread.currentThread().isInterrupted()) {
+               LOG.debug("Message dispatch interrupted, ignoring", e);
+            }
+            else {
+               LOG.error("Failed to dispatch message", e);
+            }
+         }
       }
    }
 
