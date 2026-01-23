@@ -109,6 +109,11 @@ public class PostgreSQLHelper extends SQLHelper {
    }
 
    @Override
+   protected boolean requiresSpecialQuoteHandling() {
+      return true;
+   }
+
+   @Override
    public String fixSQLExpression(String sql) {
       if(sql != null && sql.trim().matches("^'[^']*'$")) {
          // expression is a string constant, cannot be used in group by clause in PostgreSQL,
