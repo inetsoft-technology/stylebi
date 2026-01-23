@@ -40,7 +40,15 @@ export class LogicalModelEntityEditor {
     */
    apply(): void {
       if(this.form.get("name") && this.form.get("name").valid) {
-         this._entity.name =  (<string> this.form.get("name").value).trim();
+         const newName = (<string> this.form.get("name").value).trim();
+
+         if(this._entity.name !== newName && this._entity.attributes) {
+            for(const attr of this._entity.attributes) {
+               attr.parentEntity = newName;
+            }
+         }
+
+         this._entity.name = newName;
       }
 
       if(this.form.get("description") && this.form.get("description").valid) {
