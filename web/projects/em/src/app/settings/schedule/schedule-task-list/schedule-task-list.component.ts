@@ -312,7 +312,12 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
 
    newTask(): void {
       const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const params = new HttpParams().set("timeZone", localTimeZoneId);
+      let params = new HttpParams().set("timeZone", localTimeZoneId);
+
+      if(this.pageTitle.currentOrgId) {
+         console.log("currentorg found, passing " + this.pageTitle.currentOrgId);
+         params = params.set("orgId", this.pageTitle.currentOrgId);
+      }
 
       // http REST requests use URI and a body object with data
       this.http.post(NEW_TASKS_URI, this.currentFolder, {params}).subscribe(

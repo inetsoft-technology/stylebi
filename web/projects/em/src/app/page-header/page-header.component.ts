@@ -111,6 +111,7 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
          .subscribe((result: EmPageHeaderModel) => {
             this.model = result;
             this.currentProvider = result.providerName;
+            this.pageTitle.currentOrgId = result.currOrgID;
 
             if(oldOrg != null && this.model != null && this.model.currOrgID != oldOrg) {
                let currRoute = this.router.url;
@@ -142,6 +143,9 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
    }
 
    changeOrg(){
+      console.log("call to change org, current org is now " + this.model.currOrgID);
+      this.pageTitle.currentOrgId = this.model.currOrgID;
+
       this.http.post("../api/em/pageheader/organization", this.model)
          .subscribe(() => {
             let currRoute = this.router.url;
