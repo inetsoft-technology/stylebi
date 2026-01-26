@@ -1364,6 +1364,7 @@ public class QueryManagerService {
             synchronized(sql) {
                XJoin[] joins = sql.getJoins();
                sql.setWhere(filterNode);
+               sql.clearSQLString();
 
                if(joins != null) {
                   for(int i = 0; i < joins.length; i++) {
@@ -1375,6 +1376,7 @@ public class QueryManagerService {
             }
          case CONDITION_HAVING:
             sql.setHaving(filterNode);
+            sql.clearSQLString();
             break;
       }
    }
