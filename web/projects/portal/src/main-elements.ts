@@ -17,7 +17,7 @@
  */
 import { platformBrowserDynamic } from "@angular/platform-browser-dynamic";
 import { AppElementsModule } from "./app/embed/app-elements.module";
-import "./main-base-element.ts";
+import "./main-base-element";
 
 platformBrowserDynamic().bootstrapModule(AppElementsModule);
 

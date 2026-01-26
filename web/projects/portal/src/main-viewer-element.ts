@@ -19,7 +19,7 @@
 
 import { platformBrowserDynamic } from "@angular/platform-browser-dynamic";
 import { AppViewerElementModule } from "./app/embed/app-viewer-element.module";
-import "./main-base-element.ts";
+import "./main-base-element";
 
 (window as any).globalPostParams = null;
 
