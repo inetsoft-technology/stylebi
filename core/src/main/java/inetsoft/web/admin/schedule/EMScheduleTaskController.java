@@ -74,6 +74,7 @@ public class EMScheduleTaskController {
    @PostMapping("/api/em/schedule/new")
    public ScheduleTaskDialogModel getNewTaskDialogModel(
       @RequestParam("timeZone") String timeZone,
+      @RequestParam(value = "orgId", required = false) String orgId,
       @RequestBody(required = false) ContentRepositoryTreeNode parentInfo,
       Principal principal) throws Exception
    {
@@ -95,7 +96,7 @@ public class EMScheduleTaskController {
             "schedule.tasks.nopermission.create"));
       }
 
-      return scheduleTaskService.getNewTaskDialogModel(null, principal, true, true, parentEntry, timeZone);
+      return scheduleTaskService.getNewTaskDialogModel(null, principal, true, true, parentEntry, timeZone, orgId);
    }
 
    /**
