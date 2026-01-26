@@ -62,11 +62,14 @@
 
       .mat-mdc-checkbox, .mat-mdc-radio-group, .mat-mdc-radio-button {
         --mdc-form-field-label-text-size: 12px !important;
-        margin-left: 8px;
 
         .mdc-label {
           --mdc-form-field-label-text-size: 12px !important;
         }
+      }
+
+      .left-padding {
+        padding-left: 24px;
       }
     }
   }
