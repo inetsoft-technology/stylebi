@@ -1569,7 +1569,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       clusterFileTransfer.close();
       ignite.close();
       timer.cancel();
-new Exception("=========ignite close============").printStackTrace();
+
       for(ExecutorService value : executorServiceMap.values()) {
          if(value != null) {
             value.shutdownNow();
