@@ -1274,7 +1274,10 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          tc.getDayOfWeek() == day_of_week &&
          tc.getWeekOfMonth() == week_of_month &&
          tc.getWeekOfYear() == week_of_year && tc.getHour() == hour &&
-         tc.getMinute() == minute && tc.getSecond() == second) &&
+         tc.getMinute() == minute && tc.getSecond() == second &&
+         tc.getHourEnd() == hour_end &&
+         tc.getMinuteEnd() == minute_end &&
+         tc.getSecondEnd() == second_end) &&
          isEquals(tc.getDaysOfWeek(), days_of_week) &&
          isEquals(tc.getMonthsOfYear(), months_of_year) &&
          tc.getInterval() == interval &&
