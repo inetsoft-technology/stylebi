@@ -829,19 +829,22 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
          }
       }
 
-      Set<String> parameterNames = getParameterNames();
+      // Use fields directly instead of methods to avoid calling overridden
+      // methods in subclasses that may access distributed resources during serialization,
+      // which can cause deadlocks with Ignite.
+      Set<String> parameterNames = params != null ? params.keySet() : Set.of();
       out.writeInt(parameterNames.size());
 
       for(String name : parameterNames) {
-         Object val = getParameter(name);
-         long ts = getParameterTS(name);
+         Object val = params.get(name);
+         Long ts = paramTS.get(name);
          writeStringExternal(name, out);
          out.writeObject(val);
-         out.writeLong(ts);
+         out.writeLong(ts != null ? ts : 0L);
       }
 
-      out.writeBoolean(isIgnoreLogin());
-      out.writeBoolean(isProfiling());
+      out.writeBoolean(ignoreLogin);
+      out.writeBoolean(profiling);
       out.writeObject(client);
       out.writeLong(secureID);
       out.writeLong(age.getTime());
