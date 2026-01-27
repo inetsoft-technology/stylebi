@@ -122,7 +122,10 @@ public class ClusterStatusController implements MessageListener {
                ((XEngine) repository).removeMetaDataFiles(dataMessage.getOrgId(), datasource);
             }
             else {
-               repository.refreshMetaData();
+               // Use clearLocalMetaDataCache() instead of refreshMetaData() to avoid
+               // broadcasting messages back to cluster nodes, which would cause an
+               // infinite message loop.
+               ((XEngine) repository).clearLocalMetaDataCache();
             }
          }
 

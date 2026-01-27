@@ -1855,13 +1855,22 @@ public class XEngine implements XRepository, XQueryRepository {
     */
    @Override
    public void refreshMetaData() {
+      clearLocalMetaDataCache();
+      processClusterNodes(null);
+   }
+
+   /**
+    * Clear local meta data cache without broadcasting to cluster nodes.
+    * This method should be used when handling cluster messages to avoid
+    * infinite message loops.
+    */
+   public void clearLocalMetaDataCache() {
       File cacheFile = getMetaDataDir();
 
       if(cacheFile.isDirectory()) {
          Tool.deleteFile(cacheFile);
       }
 
-      processClusterNodes(null);
       metaDataCache.clear();
 
       // reset all XHandler for this data source because query parameters
