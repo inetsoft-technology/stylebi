@@ -144,6 +144,11 @@ public class IgniteSessionRepository
    @Override
    public void deleteById(String id) {
       MapSession session = this.sessions.get(id);
+
+      if(session == null) {
+         return;
+      }
+
       IgniteSession igniteSession = new IgniteSession(session, false);
       this.sessions.remove(id);
       sendApplicationEvent(new SessionExpiredEvent(this.getClass().getName(), igniteSession));
