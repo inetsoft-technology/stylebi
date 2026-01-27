@@ -629,8 +629,8 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    protected Map<String, String> prop;
    protected Map<String, Object> params;
    protected Map<String, Long> paramTS = new ConcurrentHashMap<>();
-   private boolean ignoreLogin = false;
-   private boolean profiling = false;
+   protected boolean ignoreLogin = false;
+   protected boolean profiling = false;
 
    private static long TIMEOUT = 10000;
    private transient IdentityID[] allRoles;
