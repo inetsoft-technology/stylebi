@@ -887,7 +887,7 @@ public final class VSUtil {
     */
    public static List<VSAssembly> getSharedVSAssemblies(Viewsheet tvs, VSAssembly fassembly) {
       Viewsheet fvs = fassembly.getViewsheet();
-      ViewsheetInfo fvinfo = fvs.getViewsheetInfo();
+      ViewsheetInfo fvinfo = fvs != null ? fvs.getViewsheetInfo() : tvs.getViewsheetInfo();
       String fname = fassembly.getName();
       String fid = fvinfo.getFilterID(fname);
       List<VSAssembly> list = new ArrayList<>();
