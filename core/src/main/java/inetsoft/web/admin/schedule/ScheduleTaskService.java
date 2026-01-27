@@ -88,6 +88,37 @@ public class ScheduleTaskService {
                                                         String timeZoneId)
       throws Exception
    {
+      return getNewTaskDialogModel(model, principal, save, em, parent, timeZoneId, null);
+   }
+
+   public ScheduleTaskDialogModel getNewTaskDialogModel(ScheduleConditionModel model,
+                                                        Principal principal, boolean save,
+                                                        boolean em,  AssetEntry parent,
+                                                        String timeZoneId, String orgId)
+      throws Exception
+   {
+      String originalOrg = OrganizationContextHolder.getCurrentOrgId();
+
+      if(!Tool.isEmptyString(orgId)) {
+         OrganizationContextHolder.setCurrentOrgId(orgId);
+      }
+
+      try {
+         return createNewTaskDialogModel(model, principal, save, em, parent, timeZoneId);
+      }
+      finally {
+         if(!Tool.isEmptyString(orgId)) {
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+         }
+      }
+   }
+
+   private ScheduleTaskDialogModel createNewTaskDialogModel(ScheduleConditionModel model,
+                                                            Principal principal, boolean save,
+                                                            boolean em,  AssetEntry parent,
+                                                            String timeZoneId)
+      throws Exception
+   {
       Catalog catalog = Catalog.getCatalog(principal);
       IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
       IdentityID owner = SUtil.getOwnerForNewTask(currentUser);
