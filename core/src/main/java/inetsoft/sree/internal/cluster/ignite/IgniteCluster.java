@@ -1995,7 +1995,14 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                LOG.debug("Message dispatch interrupted, ignoring", e);
             }
             else {
-               LOG.error("Failed to dispatch message", e);
+               IgniteState state = Ignition.state();
+
+               if(state == IgniteState.STOPPED) {
+                  LOG.debug("Ignite state is STOPPED, message dispatch aborted and exception ignored", e);
+               }
+               else {
+                  LOG.error("Failed to dispatch message", e);
+               }
             }
          }
       }
