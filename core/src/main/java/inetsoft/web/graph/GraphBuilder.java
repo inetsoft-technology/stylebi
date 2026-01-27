@@ -1847,15 +1847,29 @@ public class GraphBuilder {
                Arc2D arc2D = BarVO.getOuterArc(pieSlice);
 
                if(arc2D != null) {
-                  Rectangle bounds = pieSlice.getBounds();
-                  Rectangle innerBounds = innerShape.getBounds();
-                  Donut donutSlice = new Donut(bounds.getX(), bounds.getY(), bounds.getWidth(),
-                                               bounds.getHeight(), innerBounds.getWidth(),
-                                               innerBounds.getHeight(), arc2D.getAngleStart(),
-                                               arc2D.getAngleExtent());
-                  barVO = barVO.clone();
-                  barVO.setShape(donutSlice);
-                  childArea.setVisualizable(barVO);
+                  // Use arc dimensions (full circle) instead of slice bounding box
+                  Arc2D innerArc = BarVO.getOuterArc(innerShape);
+                  if(innerArc != null) {
+                     double innerW = innerArc.getWidth();
+                     double innerH = innerArc.getHeight();
+
+                     // If exploded, the outer pie shrinks but inner pie doesn't,
+                     // so we need to shrink the inner hole to match
+                     if("true".equals(barVO.getHint(GraphElement.HINT_EXPLODED))) {
+                        final int explodedRatio = 20;
+                        double explodeAmount = arc2D.getWidth() / 2 / explodedRatio * 2;
+                        innerW -= explodeAmount;
+                        innerH -= explodeAmount;
+                     }
+
+                     Donut donutSlice = new Donut(
+                        arc2D.getX(), arc2D.getY(), arc2D.getWidth(), arc2D.getHeight(),
+                        innerW, innerH,
+                        arc2D.getAngleStart(), arc2D.getAngleExtent());
+                     barVO = barVO.clone();
+                     barVO.setShape(donutSlice);
+                     childArea.setVisualizable(barVO);
+                  }
                }
             }
          }
