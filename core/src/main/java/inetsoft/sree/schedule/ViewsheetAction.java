@@ -512,7 +512,18 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          id = runViewsheetAction(principal);
       }
       finally {
-         closeViewsheet(id, principal);
+         // Use instance field as fallback if local id is null but viewsheet was opened.
+         // This handles cases where an exception occurs after the viewsheet is opened
+         // (and this.id is set) but before runViewsheetAction returns.
+         String closeId = id != null ? id : this.id;
+
+         if(LOG.isDebugEnabled()) {
+            LOG.debug("ViewsheetAction.run() finally block - closing viewsheet: {} (local: {}, instance: {}) for {}",
+                      closeId, id, this.id, principal);
+         }
+
+         closeViewsheet(closeId, principal);
+         this.id = null; // Clear instance field after closing
          ThreadContext.setContextPrincipal(oldPrincipal);
       }
    }
@@ -707,6 +718,11 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       }
       finally {
          if(rvs != null) {
+            if(LOG.isDebugEnabled()) {
+               LOG.debug("checkAlerts() finally block - closing viewsheet: {} for {}",
+                         rvs.getID(), principal);
+            }
+
             closeViewsheet(rvs.getID(), principal);
          }
       }

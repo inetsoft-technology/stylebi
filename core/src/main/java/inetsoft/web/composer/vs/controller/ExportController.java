@@ -298,6 +298,11 @@ public class ExportController {
       throws Exception
    {
       int index = path.lastIndexOf('/');
+
+      if(index < 0) {
+         throw new IllegalArgumentException("Invalid export path: " + path + " (expected format: runtimeId/tableName)");
+      }
+
       String runtimeId = path.substring(0, index);
       String tableAssemblyName = path.substring(index + 1);
       String assemblyName = null;
