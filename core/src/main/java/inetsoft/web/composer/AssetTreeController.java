@@ -190,7 +190,7 @@ public class AssetTreeController {
 
                try {
                   vars = rep.getConnectionParameters(
-                     assetRepository.getSession(), ":" + expandedEntry.getName());
+                     assetRepository.getSession(), ":" + expandedEntry.getPath());
                }
                catch(RemoteException re) {
                   //Expand the node directly if can't get connection parameters.

@@ -402,6 +402,16 @@ public class DataSourceRegistry implements MessageListener {
          if(wrapper != null) {
             result = wrapper.getSource();
             result = isSupported(result) ? result : null;
+
+            if(result == null) {
+               cachemap.remove(entry);
+               wrapper = (XDataSourceWrapper) getObject(entry, true, true, orgID);
+
+               if(wrapper != null) {
+                  result = wrapper.getSource();
+                  result = isSupported(result) ? result : null;
+               }
+            }
          }
       }
       catch(Exception e) {
@@ -1361,6 +1371,7 @@ public class DataSourceRegistry implements MessageListener {
 
          if(!oentry.toIdentifier().equals(nentry.toIdentifier())) {
             indexedStorage.remove(oentry.toIdentifier(), true);
+            cachemap.remove(nentry);
          }
 
          indexedStorage.putXMLSerializable(nentry.toIdentifier(), obj);
