@@ -700,7 +700,13 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       if(rsheet != null && user != null &&
          rsheet.getUser() != null && !rsheet.matches(user))
       {
-         if(!(user instanceof SRPrincipal &&
+         // Allow closing scheduled viewsheets even if principal doesn't match exactly.
+         // Scheduled tasks may have principal context changes during execution.
+         boolean isSchedulerSheet = rsheet.getEntry() != null &&
+            "true".equals(rsheet.getEntry().getProperty("_scheduler_"));
+
+         if(!isSchedulerSheet &&
+            !(user instanceof SRPrincipal &&
             Boolean.TRUE.toString().equals(((SRPrincipal) user).getProperty("supportLogin"))))
          {
             throw new InvalidUserException(Catalog.getCatalog().
