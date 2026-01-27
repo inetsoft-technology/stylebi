@@ -777,7 +777,7 @@ export namespace ChartTool {
             canvasScaleY *= currentScale;
          }
 
-         let canvasSizeScale = deviceRatio * currentScale;
+         let canvasSizeScale = deviceRatio * (currentScale || 1);
 
          // Check if the computed color and borderColor of the canvas aren't the same as the body.
          // If they are it would mean that the class is not defined in the css and we should use
@@ -812,12 +812,16 @@ export namespace ChartTool {
             context.stroke();
          }
 
-         context.beginPath();
          context.lineWidth = 2;
          context.fillStyle = fillStyle;
          context.strokeStyle = strokeStyle;
 
          const dregions = Tool.clone(regions);
+
+         // Separate curved regions (donuts/pies) from simple regions
+         // Curved regions use fill only to avoid stroke offset on inner edges
+         const simpleRegions: {region: ChartRegion, n: number, k: number}[] = [];
+         const curvedRegions: {region: ChartRegion, n: number, k: number}[] = [];
 
          for(let m = 0; m < dregions.length; m++) {
             const region: ChartRegion = dregions[m];
@@ -826,51 +830,57 @@ export namespace ChartTool {
 
             for(let n = 0; n < coordinates.length; n++) {
                for(let k = 0; k < coordinates[n].length; k++) {
-                  if(segmentTypes[n].length == 1 && segmentTypes[n][0] == RECT) {
-                     // [[x, y], [w, h]]
-                     const x = coordinates[n][k][0][0];
-                     const y = coordinates[n][k][0][1];
-                     const w = coordinates[n][k][1][0];
-                     const h = coordinates[n][k][1][1];
-                     context.moveTo(x, y);
-                     context.rect(x, y, w, h);
-                     continue;
-                  }
-                  else if(segmentTypes[n].length == 1 && segmentTypes[n][0] == ELLIPSE) {
-                     // [[x, y], [w, h]]
-                     const x = coordinates[n][k][0][0];
-                     const y = coordinates[n][k][0][1];
-                     const w = coordinates[n][k][1][0];
-                     const h = coordinates[n][k][1][1];
-                     context.moveTo(x + w, y + h / 2);
-                     context.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
-                     continue;
-                  }
-                  else if(segmentTypes[n].length == 1 && segmentTypes[n][0] == LINE) {
-                     // [[x1, y1], [x2, y2]]
-                     const x1 = coordinates[n][k][0][0];
-                     const y1 = coordinates[n][k][0][1];
-                     const x2 = coordinates[n][k][1][0];
-                     const y2 = coordinates[n][k][1][1];
-                     context.moveTo(x1, y1);
-                     context.lineTo(x2, y2);
-                     continue;
-                  }
-
                   const hasCurves = segmentTypes[n].some((segmentType) => {
                      return segmentType === 3 || segmentType === 4;
                   });
 
                   if(hasCurves) {
-                     context.setTransform(canvasSizeScale, 0, 0, canvasSizeScale, 0, 0);
-                     const x = region.centroid.x * (scaleX - 1);
-                     const y = region.centroid.y * (scaleY - 1);
-                     context.translate(x - offsetX, y - offsetY);
+                     curvedRegions.push({region, n, k});
                   }
+                  else {
+                     simpleRegions.push({region, n, k});
+                  }
+               }
+            }
+         }
 
+         // Draw simple regions with fill + stroke
+         if(simpleRegions.length > 0) {
+            context.beginPath();
+
+            for(const {region, n, k} of simpleRegions) {
+               const coordinates = region.pts;
+               const segmentTypes = region.segTypes;
+
+               if(segmentTypes[n].length == 1 && segmentTypes[n][0] == RECT) {
+                  // [[x, y], [w, h]]
+                  const x = coordinates[n][k][0][0];
+                  const y = coordinates[n][k][0][1];
+                  const w = coordinates[n][k][1][0];
+                  const h = coordinates[n][k][1][1];
+                  context.moveTo(x, y);
+                  context.rect(x, y, w, h);
+               }
+               else if(segmentTypes[n].length == 1 && segmentTypes[n][0] == ELLIPSE) {
+                  // [[x, y], [w, h]]
+                  const x = coordinates[n][k][0][0];
+                  const y = coordinates[n][k][0][1];
+                  const w = coordinates[n][k][1][0];
+                  const h = coordinates[n][k][1][1];
+                  context.moveTo(x + w, y + h / 2);
+                  context.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+               }
+               else if(segmentTypes[n].length == 1 && segmentTypes[n][0] == LINE) {
+                  // [[x1, y1], [x2, y2]]
+                  const x1 = coordinates[n][k][0][0];
+                  const y1 = coordinates[n][k][0][1];
+                  const x2 = coordinates[n][k][1][0];
+                  const y2 = coordinates[n][k][1][1];
+                  context.moveTo(x1, y1);
+                  context.lineTo(x2, y2);
+               }
+               else {
                   for(let l = 0; l < coordinates[n][k].length; l++) {
-                     // optimization on server, identical segmentTypes values at the end
-                     // are collapsed
                      const segmentType = segmentTypes[n][Math.min(l, segmentTypes[n].length - 1)];
                      let path = coordinates[n][k][l];
 
@@ -887,26 +897,62 @@ export namespace ChartTool {
                            // eslint-disable-next-line prefer-spread
                            context.quadraticCurveTo.apply(context, path);
                            break;
-                        case 3:
-                           // eslint-disable-next-line prefer-spread
-                           context.bezierCurveTo.apply(context, path);
-                           break;
-                        case 4:
-                           context.closePath();
-                           break;
                         default:
-                           console.warn("Invalid segment type found");
                            break;
                      }
                   }
                }
             }
+
+            context.fill();
+            context.stroke();
          }
 
-         // reset transformation before drawing - paths have already been transformed
-         context.setTransform(1, 0, 0, 1, 0, 0);
-         context.fill();
-         context.stroke();
+         // Draw curved regions (donuts/pies) with fill + stroke
+         for(const {region, n, k} of curvedRegions) {
+            context.beginPath();
+            context.setTransform(canvasSizeScale, 0, 0, canvasSizeScale, 0, 0);
+            const x = region.centroid.x * (scaleX - 1);
+            const y = region.centroid.y * (scaleY - 1);
+            context.translate(x - offsetX, y - offsetY);
+
+            const coordinates = region.pts;
+            const segmentTypes = region.segTypes;
+
+            for(let l = 0; l < coordinates[n][k].length; l++) {
+               const segmentType = segmentTypes[n][Math.min(l, segmentTypes[n].length - 1)];
+               let path = coordinates[n][k][l];
+
+               switch(segmentType) {
+                  case 0:
+                     // eslint-disable-next-line prefer-spread
+                     context.moveTo.apply(context, path);
+                     break;
+                  case 1:
+                     // eslint-disable-next-line prefer-spread
+                     context.lineTo.apply(context, path);
+                     break;
+                  case 2:
+                     // eslint-disable-next-line prefer-spread
+                     context.quadraticCurveTo.apply(context, path);
+                     break;
+                  case 3:
+                     // eslint-disable-next-line prefer-spread
+                     context.bezierCurveTo.apply(context, path);
+                     break;
+                  case 4:
+                     context.closePath();
+                     break;
+                  default:
+                     console.warn("Invalid segment type found");
+                     break;
+               }
+            }
+
+            context.setTransform(1, 0, 0, 1, 0, 0);
+            context.fill();
+            context.stroke();
+         }
       }
       else {
          throw new TypeError("drawShape parameters cannot be null");

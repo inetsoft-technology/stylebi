@@ -157,9 +157,31 @@ public class VisualObjectArea extends InteractiveArea implements MenuArea {
          if(inner.getWidth() == 0 || inner.getHeight() == 0) {
             shape = ((Donut) shape).getOuterArc();
          }
+         else {
+            // Create adjusted donut Area with shrunk inner hole to compensate for
+            // the highlight's inner edge being inside the actual donut area.
+            Arc2D outer = ((Donut) shape).getOuterArc();
+            double adjust = 1.0;
+
+            // Create outer ellipse area
+            Area outerArea = new Area(new Ellipse2D.Double(
+               outer.getX(), outer.getY(), outer.getWidth(), outer.getHeight()));
+
+            // Create shrunk inner ellipse (smaller = smaller hole = highlight covers more)
+            Area innerArea = new Area(new Ellipse2D.Double(
+               inner.getX() + adjust,
+               inner.getY() + adjust,
+               inner.getWidth() - adjust * 2,
+               inner.getHeight() - adjust * 2));
+
+            // Subtract to create donut, then intersect with original slice shape
+            outerArea.subtract(innerArea);
+            outerArea.intersect(new Area(shape));
+            shape = outerArea;
+         }
       }
 
-      if(shape instanceof Donut || shape instanceof Arc2D) {
+      if(shape instanceof Arc2D || shape instanceof Area) {
          if(shape instanceof Arc2D) {
             // java Arc2D path doesn't close even if the type is PIE.
             // force a lineTo to the start point to close the shape.
@@ -174,8 +196,9 @@ public class VisualObjectArea extends InteractiveArea implements MenuArea {
          }
 
          AffineTransform trans2 = new AffineTransform();
-         // flip the coordinates. take care of case where legend is on top.
-         trans2.translate(-p.getX(), topY);
+         // flip the coordinates. Use plotBounds.getMaxY() to ensure consistency
+         // with the plotBounds dimensions that define the canvas size on the frontend.
+         trans2.translate(-p.getX(), plotBounds.getMaxY());
          shape = GDefaults.FLIPY.createTransformedShape(shape);
          shape = trans2.createTransformedShape(shape);
          region = new AreaRegion(shape);
