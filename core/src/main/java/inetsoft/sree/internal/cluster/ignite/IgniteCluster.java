@@ -112,6 +112,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          if(retryCount > maxRetryCount) {
             String timeoutMessage = "Wait current node join to BaselineTopology timeout!";
             LOG.warn(timeoutMessage);
+            ignite.close();
             throw new RuntimeException(timeoutMessage);
          }
 
