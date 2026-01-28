@@ -44,12 +44,18 @@ public class AxisSpec implements Cloneable, Serializable {
    @TernField
    public static final int AXIS_SINGLE = 0x1;
    /**
+    * Bit flag to place axis labels on the opposite side (secondary axis position).
+    * When OR'd with an axis style, labels move to the opposite side:
+    * Y-axis labels move from left to right, X-axis labels move from bottom to top.
+    */
+   public static final int AXIS_LABEL_OPPOSITE_SIDE = 0x10;
+   /**
     * Use the secondary axis. For rectangular coordinate, the bottom and left are
     * considered as primary, and top/right are secondary. For facet, the top
     * is treated as primary and bottom is treated as secondary.
     */
    @TernField
-   public static final int AXIS_SINGLE2 = 0x2 | 0x10;
+   public static final int AXIS_SINGLE2 = 0x2 | AXIS_LABEL_OPPOSITE_SIDE;
    /**
     * Create two axes for each scale, with one opposite the default axis.
     */
@@ -59,7 +65,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Create two axes and display the label on the secondary axis.
     */
    @TernField
-   public static final int AXIS_DOUBLE2 = AXIS_DOUBLE | 0x10;
+   public static final int AXIS_DOUBLE2 = AXIS_DOUBLE | AXIS_LABEL_OPPOSITE_SIDE;
    /**
     * Place the axis at the zero position of the cross axis.
     */
@@ -87,8 +93,7 @@ public class AxisSpec implements Cloneable, Serializable {
     */
    @TernMethod
    public int getAxisStyle() {
-      // if labelOnSecondaryAxis is true, add the 0x10 bit to move labels to secondary axis
-      return labelOnSecondaryAxis ? (style | 0x10) : style;
+      return labelOnSecondaryAxis ? (style | AXIS_LABEL_OPPOSITE_SIDE) : style;
    }
 
    /**
