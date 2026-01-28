@@ -15,10 +15,9 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div *ngIf="rows <= 1">
-  <textarea *ngIf="!password" class="form-control auto-size-textarea" [(ngModel)]="value"
-            [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"
-            cdkTextareaAutosize [cdkAutosizeMinRows]="1"></textarea>
+<div *ngIf="rows <= 1 && !autoSize">
+  <input *ngIf="!password" type="text" class="form-control" [(ngModel)]="value"
+         [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"/>
   <div *ngIf="password" class="input-group">
     <input [type]="passwordVisible ? 'text' : 'password'" class="form-control"
            [(ngModel)]="value" [formControl]="valueControl" (blur)="valueChanged()"/>
@@ -28,6 +27,11 @@
          class="btn-icon-color align-middle" aria-hidden="true"></i>
     </button>
   </div>
+</div>
+<div *ngIf="rows <= 1 && autoSize">
+  <textarea class="form-control auto-size-textarea" [(ngModel)]="value"
+            [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"
+            cdkTextareaAutosize [cdkAutosizeMinRows]="1"></textarea>
 </div>
 <div *ngIf="rows > 1">
   <textarea class="form-control" rows="{{rows}}" cols="{{columns}}" [(ngModel)]="value"

@@ -47,9 +47,10 @@ export class TabularTextEditor implements OnInit, OnChanges, AfterViewInit, OnDe
    @Input() required: boolean = false;
    @Input() placeholder: string = "";
    @Input() pattern: string;
+   @Input() autoSize: boolean = false;
    @Output() valueChange: EventEmitter<string> = new EventEmitter<string>();
    @Output() validChange: EventEmitter<boolean> = new EventEmitter<boolean>();
-   @ViewChild(CdkTextareaAutosize) autosize: CdkTextareaAutosize;
+   @ViewChild(CdkTextareaAutosize) cdkAutosize: CdkTextareaAutosize;
    valueControl: UntypedFormControl;
    lastValue: string;
    passwordVisible: boolean = false;
@@ -82,10 +83,10 @@ export class TabularTextEditor implements OnInit, OnChanges, AfterViewInit, OnDe
    }
 
    ngAfterViewInit(): void {
-      if(this.autosize) {
+      if(this.autoSize && this.cdkAutosize) {
          this.resizeObserver = new ResizeObserver(() => {
             this.ngZone.run(() => {
-               this.autosize.resizeToFitContent(true);
+               this.cdkAutosize.resizeToFitContent(true);
             });
          });
 
