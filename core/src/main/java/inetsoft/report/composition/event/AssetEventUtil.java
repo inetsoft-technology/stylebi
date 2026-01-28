@@ -1701,9 +1701,8 @@ public class AssetEventUtil {
          return null;
       }
 
-      table = AssetQuery.shuckOffFormat(table);
-
       if(snapshot) {
+         table = AssetQuery.shuckOffFormat(table);
          SnapshotEmbeddedTableAssembly stab = (SnapshotEmbeddedTableAssembly) assembly;
          final ColumnSelection oldColumnSelection = tab.getColumnSelection();
          stab.setColumnSelection(convertColumnSelection(oldColumnSelection, tab));
