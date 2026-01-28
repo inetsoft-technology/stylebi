@@ -132,7 +132,7 @@
     </button>
     <div class="full-width" *ngIf="showMatchAndExpand">
       <mat-radio-group [(ngModel)]="matchLayout" class="flex-col left-padding" (change)="fireServerSaveChanged()">
-        <mat-radio-button class="margin-bottom" [value]="true">_#(Match Layout)</mat-radio-button>
+        <mat-radio-button [value]="true">_#(Match Layout)</mat-radio-button>
         <mat-radio-button [value]="false" [disabled]="!expandEnabled">_#(Expand Components)</mat-radio-button>
       </mat-radio-group>
       <mat-checkbox class="left-padding" [(ngModel)]="expandSelections" [disabled]="matchLayout || saveOnlyDataComponents" (change)="fireServerSaveChanged()">
