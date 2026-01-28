@@ -1197,14 +1197,7 @@ public class CoreLifecycleService {
          assembly.setVSAssemblyInfo(info);
 
          refreshVSObject(assembly, rvs, shared, box.get(), dispatcher);
-
-         for(Object infoObj : info.getChildAssemblies()) {
-            VSAssemblyInfo childInfo =
-               VSEventUtil.getAssemblyInfo(rvs, (VSAssembly) infoObj);
-            ((VSAssembly) infoObj).setVSAssemblyInfo(childInfo);
-            addDeleteVSObject(rvs, (VSAssembly) infoObj, dispatcher);
-         }
-
+         addDeleteVSObject(rvs, assembly, dispatcher);
          initTable(rvs, dispatcher, "", ((Viewsheet) assembly).getAssemblies(false, false));
       }
       else {
