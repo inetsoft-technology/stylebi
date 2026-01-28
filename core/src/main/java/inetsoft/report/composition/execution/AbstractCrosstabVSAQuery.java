@@ -448,7 +448,53 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
 
                col = col >= 0 ? col : AssetUtil.findColumn(base, headers[i]);
 
-               if(col < 0) {
+               // Check if dimension is a detail-based calc field
+               boolean isDetailCalc = false;
+               if(headers[i] instanceof VSDimensionRef) {
+                  VSDimensionRef vdim = (VSDimensionRef) headers[i];
+                  DataRef dimRef = vdim.getDataRef();
+
+                  // Check if the dimension's group (resolved DataRef) is a CalculateRef
+                  // that is based on detail (not an aggregate calc)
+                  if(dimRef instanceof CalculateRef && ((CalculateRef) dimRef).isBaseOnDetail()) {
+                     isDetailCalc = true;
+                  }
+                  // Also check if it's a ColumnRef wrapping a CalculateRef or with calc field characteristics
+                  else if(dimRef instanceof ColumnRef) {
+                     ColumnRef colRef = (ColumnRef) dimRef;
+                     DataRef innerRef = colRef.getDataRef();
+                     if(innerRef instanceof CalculateRef && ((CalculateRef) innerRef).isBaseOnDetail()) {
+                        isDetailCalc = true;
+                     }
+                     // Check if it's a CalculateRef itself (CalculateRef extends ColumnRef)
+                     else if(colRef instanceof CalculateRef && ((CalculateRef) colRef).isBaseOnDetail()) {
+                        isDetailCalc = true;
+                     }
+                  }
+
+                  // If still not detected, check against viewsheet's calc fields by name
+                  if(!isDetailCalc) {
+                     String dimName = vdim.getName();
+                     Viewsheet vs = getViewsheet();
+                     String tname = getSourceTable();
+                     if(vs != null && tname != null) {
+                        CalculateRef[] calcs = vs.getCalcFields(tname);
+                        if(calcs != null) {
+                           for(CalculateRef calc : calcs) {
+                              if(calc.getName().equals(dimName) && calc.isBaseOnDetail()) {
+                                 isDetailCalc = true;
+                                 break;
+                              }
+                           }
+                        }
+                     }
+                  }
+               }
+
+               // For detail calc fields, skip the error - they will be computed during
+               // crosstab processing. This is similar to how aggregate calc fields
+               // are handled for aggregates.
+               if(col < 0 && !isDetailCalc) {
                   LOG.warn("Column not found: " + headers[i]);
                   throw new MessageException(Catalog.getCatalog().getString(
                           "common.invalidTableColumn", headers[i]),
