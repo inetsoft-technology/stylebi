@@ -91,4 +91,9 @@ public @interface PropertyEditor {
     * tags or tagsMethod need to be specified for the suggestions
     */
    boolean autocomplete() default false;
+
+   /**
+    * Flag indicating whether the text field should auto-size to fit content.
+    */
+   boolean autoSize() default false;
 }

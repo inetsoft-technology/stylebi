@@ -53,6 +53,7 @@
                                    [columns]="cell.view.editor.columns"
                                    [enabled]="cell.view.editor.enabled"
                                    [required]="cell.view.required"
+                                   [autoSize]="cell.view.editor.autoSize"
                                    (validChange)="validChanged($event, cell)"></tabular-text-editor>
               <tabular-boolean-editor *ngIf="cell.view.editor.type == 'BOOLEAN'"
                                       [(value)]="cell.view.editor.value"

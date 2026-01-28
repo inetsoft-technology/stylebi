@@ -39,4 +39,5 @@ export interface TabularEditor {
    editorPropertyMethods: string[];
    propertyType: string;
    propertySubtype: string;
+   autoSize: boolean;
 }
