@@ -2499,6 +2499,7 @@ public abstract class GraphGenerator {
       axis.setTextFrame(axisD.getTextFrame());
       axis.setTruncate(axisD.isTruncate());
       axis.setLabelGap(axisD.getLabelGap());
+      axis.setLabelOnSecondaryAxis(axisD.isLabelOnSecondaryAxis());
    }
 
    private void assignAxisCSS(AxisDescriptor axisDesc, String axis) {
