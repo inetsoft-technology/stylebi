@@ -170,7 +170,8 @@ public class IgniteSessionRepository
             Cache.Entry<String, MapSession> session = iter.next();
             IgniteSession igniteSession = findById(session.getValue().getId());
 
-            if(isSessionForUser(igniteSession, indexValue)) {
+            // could be out of sync due to session expiration, need to check for null
+            if(igniteSession != null && isSessionForUser(igniteSession, indexValue)) {
                result.put(session.getValue().getId(), igniteSession);
             }
          }
@@ -263,7 +264,10 @@ public class IgniteSessionRepository
                Cache.Entry<String, MapSession> entry = iter.next();
                IgniteSession igniteSession = findById(entry.getValue().getId());
 
-               if(principal.equals(igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE))) {
+               // could be out of sync due to session expiration, need to check for null
+               if(igniteSession != null &&
+                  principal.equals(igniteSession.getAttribute(RepletRepository.PRINCIPAL_COOKIE)))
+               {
                   iter.remove();
                   break;
                }
@@ -332,6 +336,11 @@ public class IgniteSessionRepository
             // only check sessions that haven't expired already
             if(sessionRemainingTime > 0) {
                IgniteSession igniteSession = findById(session.getId());
+
+               // could be out of sync due to session expiration, need to check for null
+               if(igniteSession == null) {
+                  continue;
+               }
 
                if(protectionExpiring) {
                   Long lastProtectionWarningTime = igniteSession.getAttribute(LAST_PROTECTION_WARNING_TIME_ATTR);
