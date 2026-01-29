@@ -527,6 +527,50 @@ public interface Cluster extends AutoCloseable {
                                                Class<T> responseType) throws Exception;
 
    /**
+    * Performs a message exchange between the local node and a remote node with a custom timeout.
+    *
+    * @param address         the address of the remote, recipient node.
+    * @param outgoingMessage the message object to send to the recipient.
+    * @param matcher         a function that checks if an incoming message is the response to the
+    *                        sent message. If it is, it returns the expected output; otherwise it
+    *                        returns {@code null}. It is guaranteed that the message was received
+    *                        from the recipient at <i>address</i>.
+    * @param timeout         the maximum time to wait for a response.
+    * @param unit            the time unit of the timeout argument.
+    *
+    * @param <T> the return type of the matcher function.
+    *
+    * @return the result of the matcher function.
+    *
+    * @throws Exception if an error occurs while sending the outgoing message.
+    * @throws InterruptedException if no matching response is received within the specified timeout.
+    */
+   <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
+                                               Function<MessageEvent, T> matcher,
+                                               long timeout, TimeUnit unit) throws Exception;
+
+   /**
+    * Specialized version of {@link #exchangeMessages(String, Serializable, Function, long, TimeUnit)}
+    * that matches any messages of the specified return type.
+    *
+    * @param address         the address of the remote, recipient node.
+    * @param outgoingMessage the message object to send to the recipient.
+    * @param responseType    the expected type of the response message object.
+    * @param timeout         the maximum time to wait for a response.
+    * @param unit            the time unit of the timeout argument.
+    *
+    * @param <T> the type of the response message object.
+    *
+    * @return the result of the matcher function.
+    *
+    * @throws Exception if an error occurs while sending the outgoing message.
+    * @throws InterruptedException if no matching response is received within the specified timeout.
+    */
+   <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
+                                               Class<T> responseType,
+                                               long timeout, TimeUnit unit) throws Exception;
+
+   /**
     * Refresh cluster config status.
     * Cluster is instantiated during server startup, and Config is constructed in the
     * constructor, so some states may not be up to date or correct.

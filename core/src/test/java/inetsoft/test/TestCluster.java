@@ -440,6 +440,22 @@ public class TestCluster implements Cluster {
                                                       Function<MessageEvent, T> matcher)
       throws Exception
    {
+      return exchangeMessages(address, outgoingMessage, matcher, 30, TimeUnit.SECONDS);
+   }
+
+   @Override
+   public <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
+                                                      Class<T> responseType) throws Exception
+   {
+      return exchangeMessages(address, outgoingMessage, responseType, 30, TimeUnit.SECONDS);
+   }
+
+   @Override
+   public <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
+                                                      Function<MessageEvent, T> matcher,
+                                                      long timeout, TimeUnit unit)
+      throws Exception
+   {
       if(Objects.equals(address, getLocalMember())) {
          CountDownLatch latch = new CountDownLatch(1);
          AtomicReference<T> result = new AtomicReference<>(null);
@@ -460,7 +476,7 @@ public class TestCluster implements Cluster {
          try {
             sendMessage(address, outgoingMessage);
 
-            if(!latch.await(30, TimeUnit.SECONDS)) {
+            if(!latch.await(timeout, unit)) {
                throw new InterruptedException("Timed out waiting for response from " + address);
             }
          }
@@ -472,18 +488,19 @@ public class TestCluster implements Cluster {
       }
       else {
          // simulate time out to non-existent node
-         Thread.sleep(Duration.ofSeconds(30L));
+         Thread.sleep(unit.toMillis(timeout));
          throw new InterruptedException("Timed out waiting for response from " + address);
       }
    }
 
    @Override
    public <T extends Serializable> T exchangeMessages(String address, Serializable outgoingMessage,
-                                                      Class<T> responseType) throws Exception
+                                                      Class<T> responseType,
+                                                      long timeout, TimeUnit unit) throws Exception
    {
       return exchangeMessages(address, outgoingMessage, e ->
          e.getMessage() != null && responseType.isAssignableFrom(e.getMessage().getClass()) ?
-            responseType.cast(e.getMessage()) : null);
+            responseType.cast(e.getMessage()) : null, timeout, unit);
    }
 
    @Override
