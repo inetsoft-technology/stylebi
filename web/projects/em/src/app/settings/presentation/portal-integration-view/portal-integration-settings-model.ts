@@ -27,4 +27,5 @@ export interface PortalIntegrationSettingsModel {
    home: boolean;
    customLoadingText?: string;
    homeLink?: string;
+   emHomeLink?: string;
 }
