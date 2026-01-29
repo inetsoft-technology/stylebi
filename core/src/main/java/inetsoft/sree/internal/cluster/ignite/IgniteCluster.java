@@ -27,6 +27,7 @@ import inetsoft.util.config.*;
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.affinity.Affinity;
+import org.apache.ignite.cache.affinity.rendezvous.RendezvousAffinityFunction;
 import org.apache.ignite.cache.query.*;
 import org.apache.ignite.cluster.*;
 import org.apache.ignite.configuration.*;
@@ -96,7 +97,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          cluster.state(ClusterState.ACTIVE);
       }
 
-      LOG.warn("Ignite Cluster Node initialized and activated successfully.");
+      LOG.warn("Ignite Cluster Node initialized and activated successfully. Cache partitions: {}",
+               getDefaultPartitions());
 
       cluster.baselineAutoAdjustEnabled(true);
       cluster.baselineAutoAdjustTimeout(10_000);
@@ -163,6 +165,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       AtomicConfiguration atomicConfiguration = new AtomicConfiguration();
       atomicConfiguration.setBackups(getDefaultBackupCount());
       atomicConfiguration.setCacheMode(getDefaultCacheMode());
+      atomicConfiguration.setAffinity(new RendezvousAffinityFunction(false, getDefaultPartitions()));
       config.setAtomicConfiguration(atomicConfiguration);
 
       boolean clientMode = clusterConfig.isClientMode();
@@ -500,6 +503,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       cacheConfiguration.setRebalanceMode(CacheRebalanceMode.SYNC);
       cacheConfiguration.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
 
+      cacheConfiguration.setAffinity(new RendezvousAffinityFunction(false, getDefaultPartitions()));
+
       if(isSpringProxyPartitionedCache(name)) {
          cacheConfiguration.setNodeFilter(node -> {
             Boolean isScheduler = node.attribute("scheduler");
@@ -530,6 +535,25 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       ClusterConfig config = InetsoftConfig.getInstance().getCluster();
       return config.getMinNodes() > DEFAULT_BACKUP_COUNT ?
          CacheMode.PARTITIONED : CacheMode.REPLICATED;
+   }
+
+   /**
+    * Gets the default number of partitions for caches based on cluster configuration.
+    * The partition count is calculated based on maxNodes to ensure optimal data distribution.
+    *
+    * @return the number of partitions to use for caches.
+    */
+   private static int getDefaultPartitions() {
+      ClusterConfig config = InetsoftConfig.getInstance().getCluster();
+      int maxNodes = config.getMaxNodes();
+
+      if(maxNodes <= 0) {
+         // maxNodes not configured, use a conservative default
+         return DEFAULT_PARTITIONS;
+      }
+
+      // partitions = maxNodes * 20, clamped to [32, 1024]
+      return Math.max(MIN_PARTITIONS, Math.min(MAX_PARTITIONS, maxNodes * 20));
    }
 
    private void initLockTimer() {
@@ -1766,6 +1790,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final ExecutorService listenerExecutor;
 
    private static final int DEFAULT_BACKUP_COUNT = 2;
+   private static final int DEFAULT_PARTITIONS = 64;
+   private static final int MIN_PARTITIONS = 32;
+   private static final int MAX_PARTITIONS = 512;
    private static final long MIN_LOCK_DURATION_MILLIS = Duration.ofMinutes(10).toMillis();
    private static final String MESSAGE_TOPIC = IgniteCluster.class.getName() + ".messageTopic";
    private static final String AFFINITY_TOPIC = IgniteCluster.class.getName() + ".affinityTopic";

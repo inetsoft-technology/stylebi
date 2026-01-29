@@ -226,6 +226,20 @@ public class ClusterConfig implements Serializable {
    }
 
    /**
+    * The maximum number of nodes the cluster will scale up to.
+    * Used to calculate optimal cache partition count.
+    *
+    * @return the maximum number of nodes
+    */
+   public int getMaxNodes() {
+      return maxNodes;
+   }
+
+   public void setMaxNodes(int maxNodes) {
+      this.maxNodes = maxNodes;
+   }
+
+   /**
     * The minimum number of seconds that the last instance should be kept up before scaling to zero.
     *
     * @return the minimum uptime in seconds.
@@ -271,5 +285,6 @@ public class ClusterConfig implements Serializable {
    })
    private KubernetesConfig k8s;
    private int minNodes = -1;
+   private int maxNodes = -1;
    private long minSingleInstanceUptime = -1;
 }
