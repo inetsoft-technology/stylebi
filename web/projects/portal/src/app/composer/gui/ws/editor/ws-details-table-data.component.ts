@@ -259,6 +259,7 @@ export class WSDetailsTableDataComponent extends CommandProcessor
 
          this.populateWidths();
          this.selectedHeaderIndices = [];
+         this.selectedRowIndex = -1;
          this.updateCanRemoveSelectedHeaders();
          this.primarySelectedHeader = undefined;
          let resetScrollTop: boolean = false;
