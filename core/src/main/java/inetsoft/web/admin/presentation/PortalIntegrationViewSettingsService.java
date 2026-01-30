@@ -42,6 +42,7 @@ public class PortalIntegrationViewSettingsService {
       boolean home = false;
       String customLoadingText = SreeEnv.getProperty("portal.customLoadingText", false, !globalProperty);
       String homeLink = SreeEnv.getProperty("portal.home.link", false, !globalProperty);
+      String emHomeLink = SreeEnv.getProperty("em.home.link", false, !globalProperty);
 
       if(manager.isButtonVisible(PortalThemesManager.HELP_BUTTON)) {
          help = true;
@@ -110,6 +111,7 @@ public class PortalIntegrationViewSettingsService {
          .home(home)
          .customLoadingText(customLoadingText)
          .homeLink(homeLink)
+         .emHomeLink(emHomeLink)
          .build();
    }
 
@@ -131,6 +133,7 @@ public class PortalIntegrationViewSettingsService {
 
       SreeEnv.setProperty("portal.customLoadingText", model.customLoadingText(), !globalSettings);
       SreeEnv.setProperty("portal.home.link", model.homeLink(), !globalSettings);
+      SreeEnv.setProperty("em.home.link", model.emHomeLink(), !globalSettings);
 
       List<PortalTab> newPortalTabs = new ArrayList<>();
       List<PortalTab> portalTabs = manager.getPortalTabs();
@@ -214,6 +217,7 @@ public class PortalIntegrationViewSettingsService {
 
       SreeEnv.remove("portal.customLoadingText", !globalSettings);
       SreeEnv.remove("portal.home.link", !globalSettings);
+      SreeEnv.remove("em.home.link", !globalSettings);
       SreeEnv.save();
    }
 
