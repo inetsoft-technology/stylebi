@@ -22,6 +22,7 @@ import inetsoft.report.composition.ExpiredSheetException;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.ConfigurationContext;
+import inetsoft.web.ServiceProxyContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -124,27 +125,35 @@ public class RuntimeViewsheetManager {
 
       @Override
       public Void call() throws Exception {
-         ConfigurationContext configContext = ConfigurationContext.getContext();
+         proxyContext.preprocess();
 
          try {
-            configContext.getSpringBean(ViewsheetService.class).closeViewsheet(runtimeId, user);
-         }
-         catch(ExpiredSheetException expiredException) {
-            LOG.debug("Failed to close viewsheet, it is expired: {}", runtimeId);
-         }
-         catch(Exception e) {
-            if(LOG.isDebugEnabled()) {
-               LOG.debug("Failed to close viewsheet: {}", runtimeId, e);
-            }
-            else {
-               LOG.warn("Failed to close viewsheet: {}, {}", runtimeId, e.getMessage());
-            }
-         }
+            ConfigurationContext configContext = ConfigurationContext.getContext();
 
-         return null;
+            try {
+               configContext.getSpringBean(ViewsheetService.class).closeViewsheet(runtimeId, user);
+            }
+            catch(ExpiredSheetException expiredException) {
+               LOG.debug("Failed to close viewsheet, it is expired: {}", runtimeId);
+            }
+            catch(Exception e) {
+               if(LOG.isDebugEnabled()) {
+                  LOG.debug("Failed to close viewsheet: {}", runtimeId, e);
+               }
+               else {
+                  LOG.warn("Failed to close viewsheet: {}, {}", runtimeId, e.getMessage());
+               }
+            }
+
+            return null;
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       private final String runtimeId;
       private final Principal user;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 }
