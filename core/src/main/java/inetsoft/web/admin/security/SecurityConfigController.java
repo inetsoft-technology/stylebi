@@ -48,7 +48,7 @@ public class SecurityConfigController {
 
    @Audited(
       actionName = ActionRecord.ACTION_NAME_EDIT,
-      objectName = "Security-Security",
+      objectName = "Security Settings",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
    @PostMapping("/api/em/security/set-enable-security")
