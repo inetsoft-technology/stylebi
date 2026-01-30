@@ -4635,7 +4635,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
 
       switch(change) {
          case ADD:
-            changeType = AssetChangeEvent.ASSET_RENAMED;
+            changeType = AssetChangeEvent.ASSET_MODIFIED;
             break;
          case REMOVE:
             changeType = AssetChangeEvent.ASSET_DELETED;
