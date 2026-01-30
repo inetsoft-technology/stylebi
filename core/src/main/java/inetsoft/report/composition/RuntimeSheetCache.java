@@ -473,6 +473,10 @@ public class RuntimeSheetCache
    }
 
    static String getOriginalId(String id) {
+      if(id == null) {
+         return null;
+      }
+
       Matcher matcher = tempIdPattern.matcher(id);
 
       if(matcher.matches()) {

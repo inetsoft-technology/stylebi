@@ -294,6 +294,7 @@ public class ComposerViewsheetService {
                SetRuntimeIdCommand command = new SetRuntimeIdCommand();
                command.setRuntimeId(previewRuntimeID);
                dispatcher.sendCommand(command);
+               dispatcher.flush(); // force id to be set before the components are populated
 
                ChangedAssemblyList clist = coreLifecycleService.createList(
                   true, event, dispatcher, rvs2, linkUri);

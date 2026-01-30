@@ -224,6 +224,14 @@ export class PopComponentService {
    }
 
    showPopComponent(parentName: string, popName) {
+      // Guard against sending event when runtimeId is not set - this can happen
+      // in race conditions during preview initialization where the user clicks
+      // before SetRuntimeIdCommand is fully processed
+      if(!this.viewsheetClient.runtimeId) {
+         console.warn("PopComponentService: cannot show pop component, runtimeId not set");
+         return;
+      }
+
       const tipEvent = new OpenDataTipEvent();
       tipEvent.setName(popName);
       tipEvent.setParent(parentName);
