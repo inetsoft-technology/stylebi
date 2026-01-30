@@ -38,10 +38,17 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipOutputStream;
 
 @Service
 public class LogMonitoringService implements MessageListener {
+   /**
+    * Timeout for fetching logs from cluster nodes. This is longer than the default 30 seconds
+    * to accommodate clusters under heavy load (e.g., multiple users executing viewsheets).
+    */
+   private static final long LOG_FETCH_TIMEOUT_SECONDS = 60L;
+
    public LogMonitoringService() {
       this.logManager = LogManager.getInstance();
       this.cluster = Cluster.getInstance();
@@ -70,8 +77,9 @@ public class LogMonitoringService implements MessageListener {
       if(SUtil.isCluster() && !cluster.getLocalMember().equals(clusterNode)) {
          try {
             GetLogRequest request = new GetLogRequest(logFileName, offset, length);
-            GetLogResponse response =
-               cluster.exchangeMessages(clusterNode, request, GetLogResponse.class);
+            GetLogResponse response = cluster.exchangeMessages(
+               clusterNode, request, GetLogResponse.class,
+               LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             return response.getContent();
          }
          catch(Exception e) {
@@ -128,7 +136,8 @@ public class LogMonitoringService implements MessageListener {
             futures.add(executor.submit(() -> {
                try {
                   GetLogFilesResponse response = cluster.exchangeMessages(
-                     clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class);
+                     clusterNode, new GetLogFilesRequest(), GetLogFilesResponse.class,
+                     LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
                   if(LicenseManager.getInstance().isEnterprise()) {
                      for(LogFileModel logfile : response.getLogFiles()) {
