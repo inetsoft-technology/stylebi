@@ -170,7 +170,7 @@ export class ScheduleStatusPageComponent implements OnChanges, OnInit {
          width: "500px",
          data: {
             title: "_#(js:Confirm)",
-            content: "_#(js:em.confirm.heapDump.prefix)" + storagePath +"_#(js:em.confirm.heapDump.suffix)",
+            content: "_#(js:em.confirm.heapDump.prefix) " + storagePath +"_#(js:em.confirm.heapDump.suffix)",
             type: MessageDialogType.CONFIRMATION
          }
       }).afterClosed().subscribe(value => {
