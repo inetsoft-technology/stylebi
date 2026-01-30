@@ -69,8 +69,20 @@ public class TextInputPropertyDialogModel {
       return ClickableScriptPaneModel;
    }
 
+   public void setInputLabelPaneModel(InputLabelPaneModel inputLabelPaneModel) {
+      this.inputLabelPaneModel = inputLabelPaneModel;
+   }
+
+   public InputLabelPaneModel getInputLabelPaneModel() {
+      if (inputLabelPaneModel == null) {
+         inputLabelPaneModel = new InputLabelPaneModel();
+      }
+      return inputLabelPaneModel;
+   }
+
    private TextInputGeneralPaneModel textInputGeneralPaneModel;
    private DataInputPaneModel dataInputPaneModel;
    private TextInputColumnOptionPaneModel textInputColumnOptionPaneModel;
    private ClickableScriptPaneModel ClickableScriptPaneModel;
+   private InputLabelPaneModel inputLabelPaneModel;
 }

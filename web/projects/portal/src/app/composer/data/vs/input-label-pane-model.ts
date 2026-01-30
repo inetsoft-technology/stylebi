@@ -1,4 +1,4 @@
-/*!
+/*
  * This file is part of StyleBI.
  * Copyright (C) 2024  InetSoft Technology
  *
@@ -15,49 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-/* Component Defaults */
-textarea {
-  position: relative;
-  resize: none;
-  white-space: nowrap;
-  border-width: 1px;
-
-  &.wrapped {
-    white-space: normal;
-    word-wrap: break-word;
-    overflow: hidden;
-
-    &.moz-wrapped {
-      white-space: pre-wrap;
-    }
-  }
-}
-
-input {
-  border-width: 1px;
-}
-
-.TextInput {
-  position: relative;
-  resize: none;
-}
-
-.disable-input {
-  pointer-events: none;
-}
-
-.TextInput i.fa {
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.dropdown-datepicker {
-  background: white;
-}
-
-.date-editor-toggle {
-  position: absolute;
-  top: calc((100% - 20px) / 2);
-  right: 0px;
-}
+export interface InputLabelPaneModel {
+    showLabel: boolean;
+    labelText: string;
+    labelPosition: string;  // "top" | "bottom" | "left" | "right"
+    labelGap: number;
+ }

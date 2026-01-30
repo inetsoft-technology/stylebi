@@ -16,9 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { VSObjectModel } from "./vs-object-model";
+import { VSInputLabelModel } from "./vs-input-label-model";
 
 export interface VSInputModel extends VSObjectModel {
    refresh: boolean;
    hasOnClick?: boolean;
    writeBackDirectly?: boolean;
+   labelModel?: VSInputLabelModel;
 }
