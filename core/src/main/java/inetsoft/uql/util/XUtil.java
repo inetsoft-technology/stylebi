@@ -51,6 +51,9 @@ import java.rmi.RemoteException;
 import java.security.Principal;
 import java.sql.*;
 import java.text.*;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
 import java.util.*;
@@ -3977,6 +3980,24 @@ public final class XUtil {
                      }
                      else {
                         varValue = obj.toString();
+                        String dateFormat = vars.getFormat(varName);
+
+                        try {
+                           if(dateFormat != null && obj instanceof Date) {
+                              DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateFormat);
+
+                              if (obj instanceof java.sql.Date) {
+                                 varValue = ((java.sql.Date) obj).toLocalDate().format(formatter);
+                              } else {
+                                 LocalDate localDate = ((Date) obj).toInstant().
+                                    atZone(ZoneId.systemDefault()).toLocalDate();
+                                 varValue = localDate.format(formatter);
+                              }
+                           }
+                        }
+                        catch(Exception e) {
+                           varValue = obj.toString();
+                        }
 
                         if(doEncode) {
                            varValue = Tool.encodeURL(varValue);
