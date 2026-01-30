@@ -1405,8 +1405,11 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          // secureIDs. The customer use-case involved SSO and the ClusterServlet
          // The immediate fix for this is to compare the ClientInfo, instead of
          // using the SRPrincipal.equals method.
-         if(user1 != null) {
-            return user1.equals(user2);
+         // Compare only user identity to be resilient to serialization issues
+         // in clustered environments where IP/locale might differ after
+         // Ignite serialization. The map lookup already validated the key match.
+         if(user1 != null && user2 != null) {
+            return Tool.equals(user1.getUserIdentity(), user2.getUserIdentity());
          }
 
          return srPrincipal2.equals(principal);
@@ -1424,8 +1427,15 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     * @return <tt>true</tt> if active; <tt>false</tt> otherwise.
     */
    public boolean isActiveUser(Principal principal) {
-      return (principal instanceof SRPrincipal) &&
-         principal.equals(users.get(((SRPrincipal) principal).getUser().getCacheKey()));
+      if(!(principal instanceof SRPrincipal srPrincipal)) {
+         return false;
+      }
+
+      SRPrincipal stored = users.get(srPrincipal.getUser().getCacheKey());
+
+      // Compare user identity to be resilient to serialization issues in clustered environments
+      return stored != null &&
+         Tool.equals(srPrincipal.getUser().getUserIdentity(), stored.getUser().getUserIdentity());
    }
 
    /**
@@ -1436,11 +1446,17 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          return false;
       }
 
-      if(principal instanceof SRPrincipal) {
-         SRPrincipal sr = (SRPrincipal) principal;
+      if(principal instanceof SRPrincipal sr) {
+         // If not a login user, always valid
+         if(!"true".equals(sr.getProperty("login.user"))) {
+            return true;
+         }
 
-         return !"true".equals(sr.getProperty("login.user")) ||
-            principal.equals(users.get(sr.getUser().getCacheKey()));
+         SRPrincipal stored = users.get(sr.getUser().getCacheKey());
+
+         // Compare user identity to be resilient to serialization issues in clustered environments
+         return stored != null &&
+            Tool.equals(sr.getUser().getUserIdentity(), stored.getUser().getUserIdentity());
       }
 
       return false;
