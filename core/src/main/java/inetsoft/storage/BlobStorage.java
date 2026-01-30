@@ -374,6 +374,20 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    }
 
    /**
+    * Lists the blob paths in the Blob Engine
+    *
+    * @throws IOException if an I/O error occurs.
+    */
+   public final String listBlobs()  throws IOException {
+      try {
+         return (String) cluster.submit(id, new ListBlobsTask(id)).get();
+      }
+      catch(InterruptedException | ExecutionException e) {
+         throw new IOException("Failed to list blob paths", e);
+      }
+   }
+
+   /**
     * Deletes a blob from storage.
     *
     * @param blob the blob metadata.
