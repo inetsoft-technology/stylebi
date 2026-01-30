@@ -82,6 +82,14 @@ public class LegendFormatGeneralPaneModel {
       this.notShowNullVisible = notShowNullVisible;
    }
 
+   public int getSymbolSize() {
+      return symbolSize;
+   }
+
+   public void setSymbolSize(int symbolSize) {
+      this.symbolSize = symbolSize;
+   }
+
    // title dvalue
    private String title;
    // title rvalue
@@ -92,4 +100,5 @@ public class LegendFormatGeneralPaneModel {
    private boolean visible;
    private boolean notShowNull;
    private boolean notShowNullVisible;
+   private int symbolSize = 12;
 }
