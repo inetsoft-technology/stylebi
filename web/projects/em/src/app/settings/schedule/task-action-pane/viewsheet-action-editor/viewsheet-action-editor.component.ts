@@ -204,6 +204,13 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
       this.hasPrintLayout.next(false);
       this.hasHighlights = false;
 
+      // Clear highlight settings when viewsheet changes
+      if(changeSheet) {
+         this._actionModel.highlightAssemblies = [];
+         this._actionModel.highlightNames = [];
+         this._actionModel.highlightsSelected = false;
+      }
+
       if(val) {
          this.viewsheetService.getHighlights(val)
             .pipe(

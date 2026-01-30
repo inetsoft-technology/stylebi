@@ -158,6 +158,15 @@ public class ScheduleClient {
          args.add("-Dlocal.ip.addr=" + Tool.getRmiIP());
       }
 
+      // pass rmi.localhost.ip setting to scheduler subprocess
+      if(!opts.contains("-Drmi.localhost.ip=")) {
+         String rmiLocalhost = SreeEnv.getProperty("rmi.localhost.ip");
+
+         if("true".equalsIgnoreCase(rmiLocalhost)) {
+            args.add("-Drmi.localhost.ip=true");
+         }
+      }
+
       if(!opts.contains("-Dcomm.this.host=")) {
           args.add("-Dcomm.this.host=" + "localhost");
       }
