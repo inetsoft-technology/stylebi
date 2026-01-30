@@ -162,6 +162,7 @@ public class QueryManagerService {
 
          sql.setSelection(newSelection);
          sql.setDistinct(fieldPaneModel.isDistinct());
+         sql.clearSQLString();
       }
 
       if(DatabaseQueryTabs.CONDITIONS.getTab().equals(tab) || all) {
@@ -191,6 +192,8 @@ public class QueryManagerService {
 
             sql.setOrderBy(fields.get(i), orders.get(i));
          }
+
+         sql.clearSQLString();
       }
 
       if(DatabaseQueryTabs.GROUPING.getTab().equals(tab) || all) {
@@ -210,6 +213,7 @@ public class QueryManagerService {
          }
 
          sql.setGroupBy(groups.toArray());
+         sql.clearSQLString();
 
          QueryConditionPaneModel havingConditionsModel = groupingPaneModel.getHavingConditions();
          List<DataConditionItem> conditions = havingConditionsModel.getConditions();
@@ -500,6 +504,7 @@ public class QueryManagerService {
          nameAliasMap.put(alias, path);
       }
 
+      sql.clearSQLString();
       result.setColumnMap(nameAliasMap);
       saveRuntimeQuery(runtimeQuery);
 
@@ -555,6 +560,7 @@ public class QueryManagerService {
          }
       }
 
+      sql.clearSQLString();
       saveRuntimeQuery(runtimeQuery);
    }
 
@@ -600,6 +606,7 @@ public class QueryManagerService {
          }
 
          sql.updateOrderAndGroupFields(oldAlias, alias);
+         sql.clearSQLString();
       }
       else if("dataType".equals(type)) {
          selection.setType(name, column.getDataType());

@@ -434,6 +434,7 @@ public class VSChartShowDetailsService extends VSChartControllerService<VSChartS
             }
          }
 
+         chartVSAssembly.setDetailColumns(columns2);
          assembly.setColumnSelection(columns2);
       }
 
