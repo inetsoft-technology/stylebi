@@ -166,6 +166,20 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    }
 
    /**
+    * Get the symbol size for legend items.
+    */
+   public int getSymbolSize() {
+      return symbolSize;
+   }
+
+   /**
+    * Set the symbol size for legend items.
+    */
+   public void setSymbolSize(int symbolSize) {
+      this.symbolSize = symbolSize;
+   }
+
+   /**
     * Get the preferred size for legends if set by the user, if the width/height
     * is between 0-1, will treat it as proportion, otherwise treat it as really
     * size.
@@ -443,7 +457,8 @@ public class LegendDescriptor implements AssetObject, ContentObject {
 
       return logScale == des.logScale && reversed == des.reversed &&
          visible == des.visible && notShowNull == des.notShowNull &&
-         titleVisible == des.titleVisible && maxModeVisible == des.maxModeVisible;
+         titleVisible == des.titleVisible && maxModeVisible == des.maxModeVisible &&
+         symbolSize == des.symbolSize;
    }
 
    /**
@@ -485,6 +500,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       writer.print(" titleVisible=\"" + titleVisible + "\" ");
       writer.print(" notShowNull=\"" + notShowNull + "\" ");
       writer.print(" includeZero=\"" + includeZero + "\" ");
+      writer.print(" symbolSize=\"" + symbolSize + "\" ");
    }
 
    /**
@@ -618,6 +634,12 @@ public class LegendDescriptor implements AssetObject, ContentObject {
 
       if(val != null) {
          includeZero = "true".equals(val);
+      }
+
+      val = Tool.getAttribute(tag, "symbolSize");
+
+      if(val != null) {
+         symbolSize = Integer.parseInt(val);
       }
    }
 
@@ -857,6 +879,18 @@ public class LegendDescriptor implements AssetObject, ContentObject {
          return legends[legends.length - 1].getTextFrame();
       }
 
+      @Override
+      public int getSymbolSize() {
+         return legends[legends.length - 1].getSymbolSize();
+      }
+
+      @Override
+      public void setSymbolSize(int symbolSize) {
+         for(LegendDescriptor legend : legends) {
+            legend.setSymbolSize(symbolSize);
+         }
+      }
+
       private LegendDescriptor[] legends;
    }
 
@@ -882,6 +916,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    private boolean titleVisible = true;
    private boolean notShowNull = false;
    private boolean includeZero = false;
+   private int symbolSize = 12;
 
    private static final Logger LOG = LoggerFactory.getLogger(LegendDescriptor.class);
 }

@@ -60,6 +60,12 @@ public abstract class LegendItem extends BoundedContainer {
          bottomPadding = padding.bottom;
       }
 
+      int specSymbolSize = frame.getLegendSpec().getSymbolSize();
+
+      if(specSymbolSize > 0) {
+         symbolSize = specSymbolSize;
+      }
+
       // use value instead, or VLabel format will cause error
       vlabel = new VLabel(label, spec0);
       vlabel.setAlignmentX(GraphConstants.LEFT_ALIGNMENT);
@@ -145,7 +151,7 @@ public abstract class LegendItem extends BoundedContainer {
          symbolW = LINESYMBOL_WIDTH;
       }
       else {
-         symbolW = SYMBOL_SIZE;
+         symbolW = symbolSize;
       }
 
       double labelMinH = vlabel.getMinHeight();
@@ -158,13 +164,13 @@ public abstract class LegendItem extends BoundedContainer {
       }
 
       minW = symbolW + GAP + vlabel.getWidth(MIN_CHAR_COUNT) + LEFT_PADDING + RIGHT_PADDING;
-      minH = topPadding + bottomPadding + Math.max(labelMinH, SYMBOL_SIZE + 2);
+      minH = topPadding + bottomPadding + Math.max(labelMinH, symbolSize + 2);
 
       preferW = symbolW + GAP + vlabel.getPreferredWidth() + LEFT_PADDING + RIGHT_PADDING;
-      preferH = topPadding + bottomPadding + Math.max(labelMinH, SYMBOL_SIZE + 2);
+      preferH = topPadding + bottomPadding + Math.max(labelMinH, symbolSize + 2);
 
       maxW = symbolW + GAP + vlabel.getPreferredWidth() + LEFT_PADDING + RIGHT_PADDING;
-      maxH = topPadding + bottomPadding + Math.max(labelPrefH, SYMBOL_SIZE + 2);
+      maxH = topPadding + bottomPadding + Math.max(labelPrefH, symbolSize + 2);
    }
 
    /**
@@ -173,6 +179,13 @@ public abstract class LegendItem extends BoundedContainer {
     */
    public VisualFrame getVisualFrame() {
       return frame;
+   }
+
+   /**
+    * Get the symbol size for this legend item.
+    */
+   protected int getSymbolSize() {
+      return symbolSize;
    }
 
    /**
@@ -185,7 +198,7 @@ public abstract class LegendItem extends BoundedContainer {
 
       // the padding left logic has moved to VLegend
       paintSymbol(g, getPosition().getX(),
-                  getPosition().getY() + (height - SYMBOL_SIZE) / 2);
+                  getPosition().getY() + (height - symbolSize) / 2);
       vlabel.paint(g);
    }
 
@@ -206,10 +219,10 @@ public abstract class LegendItem extends BoundedContainer {
          vlabel.setPosition(pos);
       }
       else {
-         pos = new Point2D.Double(pos.getX() + SYMBOL_SIZE + GAP,
+         pos = new Point2D.Double(pos.getX() + symbolSize + GAP,
                                   pos.getY() + bottomPadding - topPadding);
 
-         vlabel.setSize(new DimensionD(width - SYMBOL_SIZE - GAP, height));
+         vlabel.setSize(new DimensionD(width - symbolSize - GAP, height));
          vlabel.setPosition(pos);
       }
 
@@ -259,10 +272,11 @@ public abstract class LegendItem extends BoundedContainer {
       return super.toString() + "[" + value + "]";
    }
 
-   protected static final int SYMBOL_SIZE = 12;
+   protected static final int DEFAULT_SYMBOL_SIZE = 12;
    protected static final int LINESYMBOL_WIDTH = 30;
    protected static final Color SYMBOL_BORDER = new Color(0xa3, 0xa3, 0xa3);
    protected static final Color SYMBOL_COLOR = new Color(0x759595);
+   protected int symbolSize = DEFAULT_SYMBOL_SIZE;
    private static final int TOP_PADDING = 0;
    private static final int BOTTOM_PADDING = 1;
    private static final int LEFT_PADDING = 5;
