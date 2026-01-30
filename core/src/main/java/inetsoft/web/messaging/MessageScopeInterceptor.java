@@ -27,6 +27,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
+import inetsoft.web.ServiceProxyContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.*;
@@ -144,11 +145,19 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
 
       @Override
       public Boolean call() {
-         return VSUtil.switchToHostOrgForGlobalShareAsset(id, principal);
+         proxyContext.preprocess();
+
+         try {
+            return VSUtil.switchToHostOrgForGlobalShareAsset(id, principal);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       private final String id;
       private final Principal principal;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 
    private static final class GetViewsheetEntryTask implements AffinityCallable<AssetEntry> {
@@ -159,10 +168,18 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
 
       @Override
       public AssetEntry call() {
-         return ViewsheetEngine.getViewsheetEngine().getSheet(id, principal).getEntry();
+         proxyContext.preprocess();
+
+         try {
+            return ViewsheetEngine.getViewsheetEngine().getSheet(id, principal).getEntry();
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       private final String id;
       private final Principal principal;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 }
