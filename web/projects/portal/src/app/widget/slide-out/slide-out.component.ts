@@ -148,6 +148,7 @@ export class SlideOutComponent implements AfterViewInit, OnDestroy {
    }
 
    startResize(event: MouseEvent) {
+      event.preventDefault();
       this.resizeX = event.pageX;
       this.explicitWidth = this.contentContainer.nativeElement.getBoundingClientRect().width;
       this.resizeW = this.explicitWidth;
