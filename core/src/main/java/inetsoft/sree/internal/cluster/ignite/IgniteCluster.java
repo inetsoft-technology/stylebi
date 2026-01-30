@@ -103,7 +103,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       ClusterNode localNode = cluster.localNode();
       boolean inBaseline = false;
-      int maxRetryCount = 10;
+      int maxRetryCount = 30;  // Increased from 10 to allow more time for baseline adjustment
       int retryCount = 0;
 
       while(!config.isClientMode() && !inBaseline) {
