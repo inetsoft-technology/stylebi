@@ -75,6 +75,13 @@ public class OrganizationManager {
          orgID = xPrincipal.getCurrentOrgId();
       }
 
+      // Check OrganizationContextHolder before falling back to default.
+      // This is needed for cluster calls where the principal may be null
+      // but OrganizationContextHolder has been set via SwitchOrgAspectTask.
+      if(Tool.isEmptyString(orgID)) {
+         orgID = OrganizationContextHolder.getCurrentOrgId();
+      }
+
       if(Tool.isEmptyString(orgID)) {
          // If org ID isn't retrieved properly, users will write to the wrong storages.
          // Check if the org id is retrieved properly by throwing this exception
