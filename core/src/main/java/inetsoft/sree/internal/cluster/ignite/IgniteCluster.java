@@ -30,7 +30,6 @@ import org.apache.ignite.cache.affinity.Affinity;
 import org.apache.ignite.cache.query.*;
 import org.apache.ignite.cluster.*;
 import org.apache.ignite.configuration.*;
-import org.apache.ignite.configuration.WALMode;
 import org.apache.ignite.events.*;
 import org.apache.ignite.events.EventType;
 import org.apache.ignite.failure.StopNodeFailureHandler;
@@ -54,6 +53,8 @@ import javax.cache.configuration.Factory;
 import javax.cache.event.*;
 import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
+import java.lang.management.ManagementFactory;
+import java.lang.management.OperatingSystemMXBean;
 import java.net.UnknownHostException;
 import java.nio.file.*;
 import java.security.PrivateKey;
@@ -90,48 +91,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          r -> new GroupedThread(r, "IgniteMessages"));
       listenerExecutor = Executors.newSingleThreadExecutor(
          r -> new GroupedThread(r, "IgniteMapEvents"));
-      org.apache.ignite.IgniteCluster cluster = ignite.cluster();
-
-      if(!config.isClientMode() && cluster.state() == ClusterState.INACTIVE) {
-         cluster.state(ClusterState.ACTIVE);
-      }
-
-      LOG.warn("Ignite Cluster Node initialized and activated successfully.");
-
-      cluster.baselineAutoAdjustEnabled(true);
-      cluster.baselineAutoAdjustTimeout(10_000);
-
-      ClusterNode localNode = cluster.localNode();
-      boolean inBaseline = false;
-      int maxRetryCount = 30;  // Increased from 10 to allow more time for baseline adjustment
-      int retryCount = 0;
-
-      while(!config.isClientMode() && !inBaseline) {
-         retryCount++;
-
-         if(retryCount > maxRetryCount) {
-            String timeoutMessage = "Wait current node join to BaselineTopology timeout!";
-            LOG.warn(timeoutMessage);
-            ignite.close();
-            throw new RuntimeException(timeoutMessage);
-         }
-
-         Collection<BaselineNode> baselineNodes = cluster.currentBaselineTopology();
-
-         inBaseline = baselineNodes == null || baselineNodes.stream()
-            .anyMatch(n -> n.consistentId().equals(localNode.consistentId()));
-
-         if(!inBaseline) {
-            try {
-               LOG.warn("Wait current node join to BaselineTopology");
-               Thread.sleep(3_000);
-            }
-            catch(InterruptedException e) {
-               Thread.currentThread().interrupt();
-               throw new RuntimeException(e);
-            }
-         }
-      }
 
       if(!config.isClientMode()) {
          initLockTimer();
@@ -145,10 +104,21 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       ClusterConfig clusterConfig = InetsoftConfig.getInstance().getCluster();
       IgniteConfiguration config = new IgniteConfiguration();
       DataStorageConfiguration storageCfg = new DataStorageConfiguration();
-      storageCfg.getDefaultDataRegionConfiguration().setPersistenceEnabled(true);
-      storageCfg.setWalMode(WALMode.LOG_ONLY);
-      storageCfg.setWalSegmentSize(128 * 1024 * 1024);
-      storageCfg.setCheckpointFrequency(60_000);
+      DataRegionConfiguration defaultRegion = storageCfg.getDefaultDataRegionConfiguration();
+      defaultRegion.setPersistenceEnabled(false);
+
+      // Set default data region max size to 40% of total container memory
+      OperatingSystemMXBean bean = ManagementFactory.getOperatingSystemMXBean();
+
+      if(bean instanceof com.sun.management.OperatingSystemMXBean) {
+         long totalMemory = ((com.sun.management.OperatingSystemMXBean) bean).getTotalMemorySize();
+         long maxSize = (long) (totalMemory * 0.4);
+         defaultRegion.setMaxSize(maxSize);
+         System.out.format(
+            "Ignite default data region max size set to %d MB (40%% of container memory: %d MB)%n",
+            maxSize / (1024 * 1024), totalMemory / (1024 * 1024));
+      }
+
       config.setDataStorageConfiguration(storageCfg);
 
       config.setMetricsLogFrequency(0);
@@ -179,11 +149,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             workDir = Paths.get(workDirProp).toAbsolutePath();
          }
       }
-
-      // Clean up local persistence data before starting Ignite
-      // This prevents "Joining node has caches with data which are not presented on cluster" warnings
-      // The node will resync data from other cluster nodes after joining
-      cleanupLocalPersistenceData(workDir);
 
       config.setWorkDirectory(workDir.toString());
       SslContextFactory sslContextFactory = createSslContextFactory(clusterConfig);
@@ -501,6 +466,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       cacheConfiguration.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
 
       if(isSpringProxyPartitionedCache(name)) {
+         cacheConfiguration.setGroupName("inetsoft-cache-spring-proxy");
          cacheConfiguration.setNodeFilter(node -> {
             Boolean isScheduler = node.attribute("scheduler");
 
@@ -510,6 +476,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
             return isScheduler == null || !isScheduler;
          });
+      }
+      else {
+         cacheConfiguration.setGroupName("inetsoft-cache");
       }
 
       return cacheConfiguration;
@@ -1804,25 +1773,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static final Logger LOG = LoggerFactory.getLogger(IgniteCluster.class);
 
    private static final Set<String> SPRING_PROXY_PARTITIONED_CACHES = Collections.synchronizedSet(new HashSet<>());
-
-   /**
-    * Clean up local Ignite persistence data before starting.
-    * This prevents warnings like "Joining node has caches with data which are not presented on cluster"
-    * when the node has local persistence data that is out of sync with the cluster.
-    * The node will resync data from other cluster nodes after joining.
-    */
-   private static void cleanupLocalPersistenceData(Path workDir) {
-      if(workDir == null) {
-         return;
-      }
-
-      File dbDir = workDir.resolve("db").toFile();
-
-      if(dbDir.exists()) {
-         LOG.info("Cleaning up local Ignite persistence data: {}", dbDir);
-         Tool.deleteFile(dbDir);
-      }
-   }
 
    private final class AffinityCallProcessor implements IgniteBiPredicate<UUID, Serializable> {
       @SuppressWarnings({ "rawtypes", "unchecked" })
