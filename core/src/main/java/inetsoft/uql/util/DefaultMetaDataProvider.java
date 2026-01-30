@@ -723,6 +723,27 @@ public class DefaultMetaDataProvider implements MetaDataProvider {
    }
 
    /**
+    * Clear the cached metadata for the specified partition.
+    *
+    * @param partition the name of the partition.
+    */
+   public synchronized void clearPartitionMetaDataCache(String partition) {
+      if(metadataCache != null && partition != null) {
+         String keyPrefix = getDataModel().getDataSource() + "::" + partition;
+         metadataCache.entrySet().removeIf(entry -> entry.getKey().startsWith(keyPrefix));
+      }
+   }
+
+   /**
+    * Clear all cached partition metadata for this datasource.
+    */
+   public synchronized void clearAllPartitionMetaDataCache() {
+      if(metadataCache != null) {
+         metadataCache.clear();
+      }
+   }
+
+   /**
     * Get the metadata for the specified partition.
     *
     * @param partition the partition.

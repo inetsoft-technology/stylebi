@@ -29,6 +29,7 @@ import inetsoft.uql.XFactory;
 import inetsoft.uql.XRepository;
 import inetsoft.uql.service.XEngine;
 import inetsoft.util.FileSystemService;
+import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.util.swap.XSwapper;
 import inetsoft.web.admin.schedule.SchedulerMonitoringService;
 import jakarta.annotation.PostConstruct;
@@ -44,9 +45,11 @@ import java.util.concurrent.locks.ReentrantLock;
 @Component
 @Lazy(false)
 public class ClusterStatusController implements MessageListener {
-   public ClusterStatusController(SchedulerMonitoringService schedulerMonitoringService)
+   public ClusterStatusController(SchedulerMonitoringService schedulerMonitoringService,
+                                  DataSourceService dataSourceService)
    {
       this.schedulerMonitoringService = schedulerMonitoringService;
+      this.dataSourceService = dataSourceService;
    }
 
    @PostConstruct
@@ -120,6 +123,8 @@ public class ClusterStatusController implements MessageListener {
 
             if(datasource != null) {
                ((XEngine) repository).removeMetaDataFiles(dataMessage.getOrgId(), datasource);
+               // Also clear the DefaultMetaDataProvider cache so logical model sees updated tables
+               dataSourceService.clearAllPartitionMetaDataCache(datasource);
             }
             else {
                // Use clearLocalMetaDataCache() instead of refreshMetaData() to avoid
@@ -165,6 +170,8 @@ public class ClusterStatusController implements MessageListener {
 
             if(datasource != null) {
                ((XEngine) repository).removeMetaCache(datasource, dataMessage.getOrgId());
+               // Also clear the DefaultMetaDataProvider cache so logical model sees updated tables
+               dataSourceService.clearAllPartitionMetaDataCache(datasource);
             }
          }
 
@@ -356,6 +363,7 @@ public class ClusterStatusController implements MessageListener {
    private MessageListener mvListener;
    private Cluster cluster;
    private final SchedulerMonitoringService schedulerMonitoringService;
+   private final DataSourceService dataSourceService;
    private final ServerClusterClient client = new ServerClusterClient(true);
    private final ReentrantLock restartLock = new ReentrantLock();
    private static final Logger LOG = LoggerFactory.getLogger(ClusterStatusController.class);
