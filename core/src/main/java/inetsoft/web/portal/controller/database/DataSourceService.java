@@ -742,6 +742,40 @@ public class DataSourceService {
    }
 
    /**
+    * Clear the cached partition metadata for the specified datasource and partition.
+    * This should be called when a physical view is modified to ensure the logical model
+    * sees the updated tables.
+    *
+    * @param dsName the datasource name.
+    * @param partitionName the partition name.
+    */
+   public void clearPartitionMetaDataCache(String dsName, String partitionName) {
+      for(DefaultMetaDataProvider provider : metaDataProviders) {
+         if(provider != null && provider.getDataSource() != null &&
+            Tool.equals(dsName, provider.getDataSource().getFullName()))
+         {
+            provider.clearPartitionMetaDataCache(partitionName);
+         }
+      }
+   }
+
+   /**
+    * Clear all cached partition metadata for the specified datasource.
+    * This should be called when a datasource's metadata needs to be completely refreshed.
+    *
+    * @param dsName the datasource name.
+    */
+   public void clearAllPartitionMetaDataCache(String dsName) {
+      for(DefaultMetaDataProvider provider : metaDataProviders) {
+         if(provider != null && provider.getDataSource() != null &&
+            Tool.equals(dsName, provider.getDataSource().getFullName()))
+         {
+            provider.clearAllPartitionMetaDataCache();
+         }
+      }
+   }
+
+   /**
     * Reuse DefaultMetaDataProvider for same datasource to share the meta data.
     * @throws Exception
     */
