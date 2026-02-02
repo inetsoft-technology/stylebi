@@ -664,14 +664,14 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
          else if("entry.paths".equals(key)) {
             entryPathPropNode = valueElem;
          }
-         else if("folder".equals(key) && value != null && oname != null && nname != null) {
-            replaceCDATANode(valueElem, value.replace(oname, nname));
+         else if("folder".equals(key) && value != null) {
+            renameFolderProperty(valueElem, value, oname, nname);
          }
-         else if("folder_description".equals(key) && value != null && oname != null && nname != null) {
-            replaceCDATANode(valueElem, value.replace(oname, nname));
+         else if("folder_description".equals(key) && value != null) {
+            renameFolderProperty(valueElem, value, oname, nname);
          }
-         else if("__query_folder__".equals(key) && value != null && oname != null && nname != null) {
-            replaceCDATANode(valueElem, value.replace(oname, nname));
+         else if("__query_folder__".equals(key) && value != null) {
+            renameFolderProperty(valueElem, value, oname, nname);
          }
       }
 
@@ -680,28 +680,65 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
       doRenameLMFolder(entryPathPropNode, prefix, source, oname, nname, "^_^", false);
    }
 
+   /**
+    * Rename folder property value, handling moves to/from root folder.
+    * @param valueElem the element containing the folder value
+    * @param value the current value
+    * @param oname old folder name (null if moving from root)
+    * @param nname new folder name (null if moving to root)
+    */
+   private void renameFolderProperty(Element valueElem, String value, String oname, String nname) {
+      if(oname != null && nname != null) {
+         // Folder to folder: simple replacement
+         replaceCDATANode(valueElem, value.replace(oname, nname));
+      }
+      else if(oname != null && nname == null) {
+         // Folder to root: remove the old folder name from the value
+         String newValue = value.replace(oname + "/", "");
+         newValue = newValue.replace("/" + oname, "");
+         newValue = newValue.replace(oname, "");
+         replaceCDATANode(valueElem, newValue);
+      }
+      else if(oname == null && nname != null) {
+         // Root to folder: the value should be updated to include new folder
+         // For simple folder properties, replace with the new folder name
+         if(!value.contains("/")) {
+            replaceCDATANode(valueElem, nname);
+         }
+         else {
+            // For path-like values, this case is handled by doRenameLMFolder
+            replaceCDATANode(valueElem, value);
+         }
+      }
+      // Both null: no change needed
+   }
+
    private void doRenameLMFolder(Element node, String prefix, String suffix, String oname,
                                  String nname, String separator, boolean description)
    {
-      if(node != null && Tool.getValue(node) != null) {
+      if(node != null && Tool.getValue(node) != null && prefix != null && suffix != null) {
          String path = Tool.getValue(node);
-         String oldPath = null;
-         String newPath = null;
+         String oldPath;
+         String newPath;
 
-         if(prefix != null && suffix != null) {
-            if(oname != null) {
-               oldPath = prefix + separator + oname + separator + suffix;
-            }
-            else {
-               oldPath = prefix + separator + suffix;
-            }
-
-            if(nname != null) {
-               newPath = prefix + separator + nname + separator + suffix;
-            }
-            else {
-               newPath = prefix + separator + suffix;
-            }
+         if(oname != null && nname != null) {
+            // Folder to folder
+            oldPath = prefix + separator + oname + separator + suffix;
+            newPath = prefix + separator + nname + separator + suffix;
+         }
+         else if(oname != null && nname == null) {
+            // Folder to root: remove folder from path
+            oldPath = prefix + separator + oname + separator + suffix;
+            newPath = prefix + separator + suffix;
+         }
+         else if(oname == null && nname != null) {
+            // Root to folder: add folder to path
+            oldPath = prefix + separator + suffix;
+            newPath = prefix + separator + nname + separator + suffix;
+         }
+         else {
+            // Both null: no change
+            return;
          }
 
          if(description) {
