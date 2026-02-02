@@ -848,11 +848,19 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
       @Override
       public T call() throws Exception {
-         ViewsheetService service = ViewsheetEngine.getViewsheetEngine();
-         return task.apply(service);
+         proxyContext.preprocess();
+
+         try {
+            ViewsheetService service = ViewsheetEngine.getViewsheetEngine();
+            return task.apply(service);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       private final Task<T> task;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 
    private static final class OpenViewsheetTask implements AffinityCallable<String> {
@@ -928,16 +936,23 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
       @Override
       public String call() {
-         ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
-         String originalOrg = OrganizationContextHolder.getCurrentOrgId();
-         String entryOrgId = entry.getOrgID();
-         OrganizationContextHolder.setCurrentOrgId(entryOrgId);
+         proxyContext.preprocess();
 
          try {
-            return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
+            ViewsheetEngine engine = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
+            String originalOrg = OrganizationContextHolder.getCurrentOrgId();
+            String entryOrgId = entry.getOrgID();
+            OrganizationContextHolder.setCurrentOrgId(entryOrgId);
+
+            try {
+               return doOpenTemporaryViewsheet(engine, wentry, entry, user, id);
+            }
+            finally {
+               OrganizationContextHolder.setCurrentOrgId(originalOrg);
+            }
          }
          finally {
-            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+            proxyContext.postprocess();
          }
       }
 
@@ -969,6 +984,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       private final AssetEntry entry;
       private final Principal user;
       private final String id;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 
    private static final class SwitchToHostOrgForGlobalShareAssetTask implements AffinityCallable<Boolean> {
@@ -979,8 +995,15 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
       @Override
       public Boolean call() {
-         ViewsheetEngine service = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
-         return doSwitchToHostOrg(service, principal, runtimeId);
+         proxyContext.preprocess();
+
+         try {
+            ViewsheetEngine service = (ViewsheetEngine) ViewsheetEngine.getViewsheetEngine();
+            return doSwitchToHostOrg(service, principal, runtimeId);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       public static boolean switchTOHostOrg(ViewsheetEngine service, Principal principal,
@@ -1026,6 +1049,8 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
          return false;
       }
+
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
 
       private final Principal principal;
       private final String runtimeId;

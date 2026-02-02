@@ -2222,7 +2222,8 @@ public class CSSDictionary {
          }
 
          MapKey mapKey = (MapKey) o;
-         return (isReport == mapKey.isReport && Objects.equals(orgId, mapKey.orgId) || !isReport) &&
+         return isReport == mapKey.isReport &&
+            Objects.equals(orgId, mapKey.orgId) &&
             Objects.equals(cssDir, mapKey.cssDir) &&
             Objects.equals(cssFile, mapKey.cssFile);
       }
