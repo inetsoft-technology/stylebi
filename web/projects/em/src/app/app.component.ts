@@ -28,7 +28,9 @@ import {
    ViewContainerRef
 } from "@angular/core";
 import { MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { NavigationError, Router } from "@angular/router";
 import { Subscription } from "rxjs";
+import { filter } from "rxjs/operators";
 import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat-dispatcher.service";
 import { StompClientConnection } from "../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../shared/stomp/stomp-client.service";
@@ -68,7 +70,8 @@ export class AppComponent implements OnInit, OnDestroy {
                private ssoHeartbeatDispatcher: SsoHeartbeatDispatcherService,
                public viewContainerRef: ViewContainerRef,
                private logoutService: LogoutService,
-               private orgDropdownService: OrganizationDropdownService,)
+               private orgDropdownService: OrganizationDropdownService,
+               private router: Router)
    {
       // viewContainerRef is used by the color picker in the theme page
    }
@@ -136,7 +139,28 @@ export class AppComponent implements OnInit, OnDestroy {
          }
       });
 
+      // Handle ChunkLoadError during lazy module loading
+      this.subscription.add(
+         this.router.events.pipe(
+            filter((event): event is NavigationError => event instanceof NavigationError)
+         ).subscribe((event: NavigationError) => {
+            if(this.isChunkLoadError(event.error)) {
+               console.error("ChunkLoadError detected, reloading page:", event.error);
+               window.location.reload();
+            }
+         })
+      );
+
       this.ssoHeartbeatDispatcher.dispatch();
+   }
+
+   /**
+    * Check if the error is a ChunkLoadError (webpack dynamic import failure)
+    */
+   private isChunkLoadError(error: any): boolean {
+      return error?.name === "ChunkLoadError" ||
+             error?.message?.includes("Loading chunk") ||
+             error?.message?.includes("ChunkLoadError");
    }
 
    ngOnDestroy(): void {
