@@ -410,6 +410,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       cacheConfiguration.setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL);
       cacheConfiguration.setRebalanceMode(CacheRebalanceMode.SYNC);
       cacheConfiguration.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
+      cacheConfiguration.setGroupName("inetsoft-cache");
       return cacheConfiguration;
    }
 
