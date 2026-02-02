@@ -18,7 +18,7 @@
 
 FROM eclipse-temurin:21.0.8_9-jdk
 
-ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=50.0'
+ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=75.0'
 ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC'
 ENV JAVA_LOCALE_OPTS='-Duser.language=en -Duser.country=US -Djava.locale.providers=COMPAT,SPI'
 ENV JAVA_CODECACHE_OPTS='-XX:InitialCodeCacheSize=100M -XX:ReservedCodeCacheSize=200m -XX:+UseCodeCacheFlushing'
