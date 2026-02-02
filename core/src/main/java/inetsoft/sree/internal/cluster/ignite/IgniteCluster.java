@@ -53,8 +53,6 @@ import javax.cache.configuration.Factory;
 import javax.cache.event.*;
 import javax.cache.expiry.ExpiryPolicy;
 import java.io.*;
-import java.lang.management.ManagementFactory;
-import java.lang.management.OperatingSystemMXBean;
 import java.net.UnknownHostException;
 import java.nio.file.*;
 import java.security.PrivateKey;
@@ -106,19 +104,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       DataStorageConfiguration storageCfg = new DataStorageConfiguration();
       DataRegionConfiguration defaultRegion = storageCfg.getDefaultDataRegionConfiguration();
       defaultRegion.setPersistenceEnabled(false);
-
-      // Set default data region max size to 40% of total container memory
-      OperatingSystemMXBean bean = ManagementFactory.getOperatingSystemMXBean();
-
-      if(bean instanceof com.sun.management.OperatingSystemMXBean) {
-         long totalMemory = ((com.sun.management.OperatingSystemMXBean) bean).getTotalMemorySize();
-         long maxSize = (long) (totalMemory * 0.4);
-         defaultRegion.setMaxSize(maxSize);
-         System.out.format(
-            "Ignite default data region max size set to %d MB (40%% of container memory: %d MB)%n",
-            maxSize / (1024 * 1024), totalMemory / (1024 * 1024));
-      }
-
       config.setDataStorageConfiguration(storageCfg);
 
       config.setMetricsLogFrequency(0);
