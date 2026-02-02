@@ -27,6 +27,8 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
+import inetsoft.web.ServiceProxyContext;
+import inetsoft.web.viewsheet.EventAspect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.*;
@@ -70,6 +72,7 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
 
       MessageContextHolder.setMessageAttributes(null);
       OrganizationContextHolder.clear();
+      ServiceProxyContext.aspectTasks.get().removeIf((task) -> task instanceof EventAspect.SwitchOrgAspectTask);
 
       if(Thread.currentThread() instanceof GroupedThread groupedThread) {
          groupedThread.setPrincipal(null);
@@ -129,7 +132,9 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
             runtimeId, new SwitchToHostOrgTask(runtimeId, principal));
 
          if(shouldSwitch) {
-            OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
+            String defaultOrgId = Organization.getDefaultOrganizationID();
+            OrganizationContextHolder.setCurrentOrgId(defaultOrgId);
+            ServiceProxyContext.aspectTasks.get().add(new EventAspect.SwitchOrgAspectTask(defaultOrgId));
          }
       }
    }
