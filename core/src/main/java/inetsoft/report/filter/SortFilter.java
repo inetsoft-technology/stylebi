@@ -663,6 +663,11 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public int getRowBorder(int r, int c) {
+
+      if(rowmap == null) {
+         rowmap = checkInit();
+      }
+
       return table.getRowBorder(r < hrow ? r : rowmap.get(r), c);
    }
 
