@@ -122,6 +122,33 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             .anyMatch(n -> n.consistentId().equals(localNode.consistentId()));
 
          if(!inBaseline) {
+            Set<Object> liveServerNodeIds = cluster.forServers().nodes().stream()
+               .map(ClusterNode::consistentId)
+               .collect(Collectors.toSet());
+
+            // Check if baseline contains dead server nodes
+            boolean hasDeadServerInBaseline = baselineNodes != null && baselineNodes.stream()
+               .anyMatch(n -> !liveServerNodeIds.contains(n.consistentId()));
+
+            if(hasDeadServerInBaseline) {
+               cluster.baselineAutoAdjustEnabled(false);
+               cluster.setBaselineTopology(cluster.forServers().nodes());
+               Collection<String> cacheNames = ignite.cacheNames();
+
+               if(cacheNames != null && !cacheNames.isEmpty()) {
+                  try {
+                     ignite.resetLostPartitions(cacheNames);
+                     LOG.warn("Lost partitions reset.");
+                  }
+                  catch(Exception e) {
+                     LOG.debug("Failed to reset lost partitions: {}", e.getMessage());
+                  }
+               }
+
+               cluster.baselineAutoAdjustEnabled(true);
+               continue;
+            }
+
             try {
                LOG.warn("Wait current node join to BaselineTopology");
                Thread.sleep(3_000);
