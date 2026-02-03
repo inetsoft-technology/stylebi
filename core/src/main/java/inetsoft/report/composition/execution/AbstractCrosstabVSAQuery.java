@@ -448,53 +448,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
 
                col = col >= 0 ? col : AssetUtil.findColumn(base, headers[i]);
 
-               // Check if dimension is a detail-based calc field
-               boolean isDetailCalc = false;
-               if(headers[i] instanceof VSDimensionRef) {
-                  VSDimensionRef vdim = (VSDimensionRef) headers[i];
-                  DataRef dimRef = vdim.getDataRef();
-
-                  // Check if the dimension's group (resolved DataRef) is a CalculateRef
-                  // that is based on detail (not an aggregate calc)
-                  if(dimRef instanceof CalculateRef && ((CalculateRef) dimRef).isBaseOnDetail()) {
-                     isDetailCalc = true;
-                  }
-                  // Also check if it's a ColumnRef wrapping a CalculateRef or with calc field characteristics
-                  else if(dimRef instanceof ColumnRef) {
-                     ColumnRef colRef = (ColumnRef) dimRef;
-                     DataRef innerRef = colRef.getDataRef();
-                     if(innerRef instanceof CalculateRef && ((CalculateRef) innerRef).isBaseOnDetail()) {
-                        isDetailCalc = true;
-                     }
-                     // Check if it's a CalculateRef itself (CalculateRef extends ColumnRef)
-                     else if(colRef instanceof CalculateRef && ((CalculateRef) colRef).isBaseOnDetail()) {
-                        isDetailCalc = true;
-                     }
-                  }
-
-                  // If still not detected, check against viewsheet's calc fields by name
-                  if(!isDetailCalc) {
-                     String dimName = vdim.getName();
-                     Viewsheet vs = getViewsheet();
-                     String tname = getSourceTable();
-                     if(vs != null && tname != null) {
-                        CalculateRef[] calcs = vs.getCalcFields(tname);
-                        if(calcs != null) {
-                           for(CalculateRef calc : calcs) {
-                              if(calc.getName().equals(dimName) && calc.isBaseOnDetail()) {
-                                 isDetailCalc = true;
-                                 break;
-                              }
-                           }
-                        }
-                     }
-                  }
-               }
-
-               // For detail calc fields, skip the error - they will be computed during
-               // crosstab processing. This is similar to how aggregate calc fields
-               // are handled for aggregates.
-               if(col < 0 && !isDetailCalc) {
+               if(col < 0) {
                   LOG.warn("Column not found: " + headers[i]);
                   throw new MessageException(Catalog.getCatalog().getString(
                           "common.invalidTableColumn", headers[i]),
@@ -1283,6 +1237,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
 
       groupInfo = new AggregateInfo();
       ColumnSelection cols = table.getColumnSelection();
+
       AggregateInfo allGroupInfo = new AggregateInfo();
       DataRef[] grows = cinfo.getRuntimeRowHeaders();
       DataRef[] gcols = cinfo.getRuntimeColHeaders();
@@ -1301,9 +1256,60 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             VSDimensionRef ref = (VSDimensionRef) grps[i][j];
             GroupRef gref = ref.createGroupRef(cols);
 
-            if(gref == null) {
+            // Bug #73729: Handle detail-based calc fields used as crosstab dimensions.
+            //
+            // When a detail calc field (e.g., "CalcField1") is used as a dimension,
+            // the column selection may contain both:
+            //   - "CalcField1" (CalculateRef) - contains the formula expression
+            //   - "Sales.CalcField1" (ColumnRef) - entity-qualified name wrapper
+            //
+            // The createGroupRef() method above may find the ColumnRef wrapper instead
+            // of the CalculateRef. Since the ColumnRef doesn't contain the formula,
+            // the calc field won't be computed in the query, causing "column not found"
+            // errors later.
+            //
+            // Solution: Explicitly search for the CalculateRef and use it directly,
+            // bypassing whatever createGroupRef() returned.
+            String dimName = ref.getGroupColumnValue();
+            if(dimName == null || dimName.isEmpty()) {
+               dimName = ref.getName();
+            }
+
+            CalculateRef calcRef = null;
+            for(int c = 0; c < cols.getAttributeCount(); c++) {
+               DataRef colRef = cols.getAttribute(c);
+               if(colRef instanceof CalculateRef &&
+                  ((CalculateRef) colRef).isBaseOnDetail() &&
+                  dimName.equals(colRef.getName()))
+               {
+                  calcRef = (CalculateRef) colRef;
+                  break;
+               }
+            }
+
+            if(calcRef != null) {
+               // Use the CalculateRef directly to ensure the formula is included
+               gref = new GroupRef(calcRef);
+
+               cols.removeAttribute(calcRef);
+               cols.addAttribute(calcRef);
+
+               if(!groupInfo.containsGroup(gref)) {
+                  groupInfo.addGroup(gref);
+               }
+
+               if(!allGroupInfo.containsGroup(gref)) {
+                  allGroupInfo.addGroup(gref);
+               }
+
+               // Skip normal processing below - it would call getColumnRefFromAttribute()
+               // which could replace our CalculateRef with the wrong column reference
                continue;
             }
+            else if(gref == null) {
+               continue;
+            }
+            // End Bug #73729 handling
 
             DataRef dref = gref.getDataRef();
             cols.removeAttribute(dref);
