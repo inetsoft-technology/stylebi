@@ -2651,11 +2651,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                lassembly.setValues(ldata.getValues());
                lassembly.setFormats(ldata.getFormats());
             }
-            else {
-               lassembly.setLabels(null);
-               lassembly.setValues(null);
-               lassembly.setFormats(null);
-            }
          }
       }
       catch(Exception ex) {
