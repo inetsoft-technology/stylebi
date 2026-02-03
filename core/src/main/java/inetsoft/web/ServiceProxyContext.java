@@ -50,6 +50,7 @@ public class ServiceProxyContext {
    private final List<AspectTask> tasks;
    private final boolean async;
    private CommandDispatcher dispatcher;
+   private MessageAttributes previousMessageAttributes;
    public static final ThreadLocal<List<AspectTask>> aspectTasks =
       ThreadLocal.withInitial(ArrayList::new);
 
@@ -168,6 +169,9 @@ public class ServiceProxyContext {
       }
 
       if(messageId != null) {
+         // Save the previous message attributes so we can restore them in postprocess()
+         previousMessageAttributes = MessageContextHolder.getMessageAttributes();
+
          MessageHeaders headers;
 
          try {
@@ -232,7 +236,12 @@ public class ServiceProxyContext {
 
       Tool.clearUserMessage();
       ThreadContext.setContextPrincipal(null);
-      MessageContextHolder.setMessageAttributes(null);
+
+      // Restore the previous message attributes instead of clearing
+      // This allows nested ServiceProxyContext calls to work correctly
+      if(messageId != null) {
+         MessageContextHolder.setMessageAttributes(previousMessageAttributes);
+      }
    }
 
    public RuntimeViewsheetRef createRuntimeViewsheetRef() {
