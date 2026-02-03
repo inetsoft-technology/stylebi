@@ -23,7 +23,6 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.AbstractDataRef;
-import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
@@ -421,25 +420,11 @@ public class VSCrosstabBindingHandler {
     */
    private VSDimensionRef createDim(AssetEntry entry) {
       VSDimensionRef dim = new VSDimensionRef();
-      String columnValue = getColumnValue(entry);
-      dim.setGroupColumnValue(columnValue);
+      dim.setGroupColumnValue(getColumnValue(entry));
       dim.setDataType(entry.getProperty("dtype"));
 
       if(entry.getProperty("refType") != null) {
          dim.setRefType(Integer.parseInt(entry.getProperty("refType")));
-      }
-
-      // For calculated fields, create a ColumnRef with AttributeRef to properly
-      // identify the column. This is needed so that dim.getDataRef() returns a
-      // proper reference that can be found in the ColumnSelection during update.
-      if("true".equals(entry.getProperty("isCalc")) ||
-         "true".equals(entry.getProperty("formula")))
-      {
-         AttributeRef attr = new AttributeRef(null, columnValue);
-         attr.setDataType(entry.getProperty("dtype"));
-         ColumnRef colRef = new ColumnRef(attr);
-         colRef.setDataType(entry.getProperty("dtype"));
-         dim.setDataRef(colRef);
       }
 
       return dim;

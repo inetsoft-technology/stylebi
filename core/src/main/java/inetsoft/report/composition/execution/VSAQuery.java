@@ -1494,9 +1494,16 @@ public abstract class VSAQuery {
          if(ref instanceof CalculateRef && ((CalculateRef) ref).isBaseOnDetail()) {
             CalculateRef calc = (CalculateRef) ref;
 
-            if(!usedInSelection(pubcols, calc) && !usedInGroup(ainfo, calc) &&
-               !usedInAggregate(ainfo, calc) && !allCols.contains(ref.getName()) &&
-               !usedInSelection(child.getName(), calc))
+            boolean inSelection = usedInSelection(pubcols, calc);
+            boolean inGroup = usedInGroup(ainfo, calc);
+            boolean inAggregate = usedInAggregate(ainfo, calc);
+            boolean inAllCols = allCols.contains(ref.getName());
+            boolean inSelectionAssembly = usedInSelection(child.getName(), calc);
+            // Bug #73729: preserve calc fields for crosstab dimensions
+            boolean inCrosstabDim = usedInCrosstabDimension(calc);
+
+            if(!inSelection && !inGroup && !inAggregate && !inAllCols &&
+               !inSelectionAssembly && !inCrosstabDim)
             {
                pubcols.getAttribute(ref.getName());
                childPriv.removeAttribute(i);
@@ -1570,6 +1577,19 @@ public abstract class VSAQuery {
 
          return false;
       });
+   }
+
+   /**
+    * Bug #73729: Check if calc field should be preserved for crosstab dimension use.
+    *
+    * For crosstab assemblies, keep all detail calc fields in the column selection.
+    * This ensures they are available when used as row/column dimensions. The
+    * pushDownAggregate() method in AbstractCrosstabVSAQuery needs to find these
+    * CalculateRef instances to properly include calc field formulas in the query.
+    */
+   private boolean usedInCrosstabDimension(CalculateRef calc) {
+      VSAssembly assembly = getAssembly();
+      return assembly instanceof CrosstabDataVSAssembly;
    }
 
    /**
