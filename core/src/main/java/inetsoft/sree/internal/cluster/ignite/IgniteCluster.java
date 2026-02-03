@@ -1481,6 +1481,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                                                       long timeout, TimeUnit unit)
       throws Exception
    {
+      // Check if target node is still in the cluster before attempting to send
+      if(!getClusterNodes(true).contains(address)) {
+         throw new InterruptedException("Target node is not in the cluster: " + address);
+      }
+
       CountDownLatch latch = new CountDownLatch(1);
       AtomicReference<T> result = new AtomicReference<>(null);
 
@@ -1495,7 +1500,23 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          }
       };
 
+      // Add a membership listener to release the latch if the target node leaves
+      MembershipListener membershipListener = new MembershipListener() {
+         @Override
+         public void memberAdded(MembershipEvent event) {
+            // no-op
+         }
+
+         @Override
+         public void memberRemoved(MembershipEvent event) {
+            if(address.equals(event.getMember())) {
+               latch.countDown();
+            }
+         }
+      };
+
       addMessageListener(listener);
+      addMembershipListener(membershipListener);
 
       try {
          sendMessage(address, outgoingMessage);
@@ -1503,9 +1524,15 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          if(!latch.await(timeout, unit)) {
             throw new InterruptedException("Timed out waiting for response from " + address);
          }
+
+         // Check if the result is null (which would happen if the node left)
+         if(result.get() == null && !getClusterNodes(true).contains(address)) {
+            throw new InterruptedException("Target node left the cluster: " + address);
+         }
       }
       finally {
          removeMessageListener(listener);
+         removeMembershipListener(membershipListener);
       }
 
       return result.get();
