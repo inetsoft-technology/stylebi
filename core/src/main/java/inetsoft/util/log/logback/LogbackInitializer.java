@@ -41,6 +41,7 @@ public class LogbackInitializer implements LogInitializer {
    public void initializeForStartup() {
       LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
       context.reset();
+      context.addTurboFilter(new IgniteBinaryWarningFilter());
 
       Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
       rootLogger.setLevel(Level.ERROR);
@@ -73,6 +74,7 @@ public class LogbackInitializer implements LogInitializer {
       LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
       context.reset();
       context.putProperty("LOCAL_IP_ADDR", Tool.getIP());
+      context.addTurboFilter(new IgniteBinaryWarningFilter());
       context.addTurboFilter(new LogbackSpringExceptionFilter());
       context.addTurboFilter(new LogbackContextFilter());
 
