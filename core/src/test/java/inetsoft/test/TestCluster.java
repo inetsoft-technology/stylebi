@@ -281,6 +281,11 @@ public class TestCluster implements Cluster {
    }
 
    @Override
+   public <K, V> MultiMap<K, V> getReplicatedMultiMap(String name) {
+      return getMultiMap(name);
+   }
+
+   @Override
    public void destroyReplicatedMap(String name) {
       maps.remove(name);
    }

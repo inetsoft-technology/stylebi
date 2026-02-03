@@ -358,6 +358,8 @@ public interface Cluster extends AutoCloseable {
 
    <K, V> DistributedMap<K, V> getReplicatedMap(String name);
 
+   <K, V> MultiMap<K, V> getReplicatedMultiMap(String name);
+
    void destroyReplicatedMap(String name);
 
    <K, V> void addReplicatedMapListener(String name, MapChangeListener<K, V> l);
