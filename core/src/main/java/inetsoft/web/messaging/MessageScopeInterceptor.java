@@ -87,12 +87,16 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
    }
 
    private void addViewsheetRecord(GroupedThread thread) {
-      List<String> id = MessageContextHolder.currentMessageAttributes()
-         .getHeaderAccessor().getNativeHeader("sheetRuntimeId");
+      MessageAttributes messageAttributes = MessageContextHolder.getMessageAttributes();
+
+      if(messageAttributes == null) {
+         return;
+      }
+
+      List<String> id = messageAttributes.getHeaderAccessor().getNativeHeader("sheetRuntimeId");
 
       if(id != null && !id.isEmpty()) {
-         Principal principal =
-            MessageContextHolder.getMessageAttributes().getHeaderAccessor().getUser();
+         Principal principal = messageAttributes.getHeaderAccessor().getUser();
 
          try {
             String runtimeId = id.getFirst();
