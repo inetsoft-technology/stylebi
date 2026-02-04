@@ -17,12 +17,14 @@
   -->
 <app-error-message></app-error-message>
 <vs-input-label-wrapper *ngIf="model" [labelModel]="model.labelModel"
+     [labelSelected]="model.labelSelected"
      [style.display]="getVisible() ? null : 'none'"
      [class.fade-assembly]="!viewer && !model.visible"
      [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
      [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
      [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
-     [style.z-index]="viewer ? model.objectFormat.zIndex : null">
+     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+     (selectLabel)="selectLabel($event)">
   <div [title]="viewer && model.text ? model.text : ''"
        class="TextInput"
        VSDataTip [dataTipName]="getAssemblyName()"
@@ -31,7 +33,8 @@
        [class.disable-actions-fade]="!model.enabled"
        [style.width.px]="model.objectFormat.width"
        [style.height.px]="model.objectFormat.height"
-       (dblclick)="enableEditing()">
+       (dblclick)="enableEditing()"
+       (click)="clearLabelSelection()">
      <textarea *ngIf="model.option == 'Text' && model.multiLine" #thisTextArea
                [(ngModel)]="model.text"
                (keyup)="onKey($event)"

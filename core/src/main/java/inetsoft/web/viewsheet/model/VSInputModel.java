@@ -45,6 +45,7 @@ public abstract class VSInputModel<T extends InputVSAssembly> extends VSObjectMo
          labelModel.setLabelText(labelInfo.getLabelText());
          labelModel.setLabelPosition(labelInfo.getLabelPosition());
          labelModel.setLabelGap(labelInfo.getLabelGap());
+         labelModel.setLabelFormat(new VSFormatModel(labelInfo.getLabelFormat()));
       }
    }
 
@@ -80,8 +81,17 @@ public abstract class VSInputModel<T extends InputVSAssembly> extends VSObjectMo
       this.labelModel = labelModel;
    }
 
+   public boolean isLabelSelected() {
+      return labelSelected;
+   }
+
+   public void setLabelSelected(boolean labelSelected) {
+      this.labelSelected = labelSelected;
+   }
+
    private boolean refresh;
    private boolean hasOnClick;
    private boolean writeBackDirectly;
    private VSInputLabelModel labelModel;
+   private boolean labelSelected;
 }

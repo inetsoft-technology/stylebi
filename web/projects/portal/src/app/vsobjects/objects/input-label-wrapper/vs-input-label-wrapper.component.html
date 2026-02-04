@@ -18,7 +18,18 @@
 <div class="vs-input-label-wrapper" [ngClass]="wrapperClass" [ngStyle]="gapStyle">
   <label *ngIf="showLabel"
          class="vs-input-label"
-         [ngStyle]="labelStyles">
+         [class.bd-selected-cell]="labelSelected"
+         [style.color]="labelColor"
+         [style.background]="labelFormat?.background"
+         [style.font]="labelFormat?.font"
+         [style.text-align]="labelFormat?.hAlign"
+         [style.text-decoration]="labelFormat?.decoration"
+         [style.border-bottom]="labelFormat?.border.bottom"
+         [style.border-top]="labelFormat?.border.top"
+         [style.border-left]="labelFormat?.border.left"
+         [style.border-right]="labelFormat?.border.right"
+         [style.border-radius.px]="labelFormat?.roundCorner"
+         (click)="onLabelClick($event)">
     {{ labelText }}
   </label>
   <div class="vs-input-content">

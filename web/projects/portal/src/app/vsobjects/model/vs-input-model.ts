@@ -23,4 +23,5 @@ export interface VSInputModel extends VSObjectModel {
    hasOnClick?: boolean;
    writeBackDirectly?: boolean;
    labelModel?: VSInputLabelModel;
+   labelSelected?: boolean;
 }

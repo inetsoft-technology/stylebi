@@ -320,12 +320,11 @@ public class TextInputPropertyDialogController {
          textInputAssemblyInfo.setColumnOption(passwordColumnOption);
       }
 
-      LabelInfo labelInfo = new LabelInfo();
+      LabelInfo labelInfo = textInputAssemblyInfo.getLabelInfo();
       labelInfo.setLabelText(inputLabelPaneModel.getLabelText());
       labelInfo.setLabelGap(inputLabelPaneModel.getLabelGap());
       labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
       labelInfo.setLabelVisible(inputLabelPaneModel.isShowLabel());
-      textInputAssemblyInfo.setLabelInfo(labelInfo);
 
       textInputAssemblyInfo.setScriptEnabled(clickableScriptPaneModel.scriptEnabled());
       textInputAssemblyInfo.setScript(clickableScriptPaneModel.scriptExpression());

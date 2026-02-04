@@ -54,8 +54,17 @@ public class VSInputLabelModel {
       this.labelGap = labelGap;
    }
 
+   public VSFormatModel getLabelFormat() {
+      return this.labelFormat;
+   }
+
+   public void setLabelFormat(VSFormatModel labelFormat) {
+      this.labelFormat = labelFormat;
+   }
+
    private boolean showLabel;
    private String labelText = "";
    private String labelPosition = "left";
    private int labelGap = 5;
+   private VSFormatModel labelFormat;
 }

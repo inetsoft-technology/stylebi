@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, Input } from "@angular/core";
+import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { VSInputLabelModel } from "../../model/vs-input-label-model";
 
 @Component({
@@ -25,6 +25,13 @@ import { VSInputLabelModel } from "../../model/vs-input-label-model";
 })
 export class VSInputLabelWrapper {
    @Input() labelModel: VSInputLabelModel;
+   @Input() labelSelected: boolean = false;
+   @Output() selectLabel = new EventEmitter<MouseEvent>();
+
+   onLabelClick(event: MouseEvent): void {
+      // Don't stop propagation - let it bubble up to editable-object-container for proper selection
+      this.selectLabel.emit(event);
+   }
 
    get showLabel(): boolean {
       return this.labelModel?.showLabel ?? false;
@@ -42,27 +49,13 @@ export class VSInputLabelWrapper {
       return this.labelModel?.labelText ?? "";
    }
 
-   get labelStyles(): { [key: string]: string } {
-      const styles: { [key: string]: string } = {};
+   get labelFormat() {
+      return this.labelModel?.labelFormat;
+   }
 
-      if (this.labelModel?.labelFormat) {
-         const format = this.labelModel.labelFormat;
-
-         if (format.foreground) {
-            styles["color"] = format.foreground;
-         }
-         if (format.font) {
-            styles["font"] = format.font;
-         }
-         if (format.hAlign) {
-            styles["text-align"] = format.hAlign;
-         }
-         if (format.decoration) {
-            styles["text-decoration"] = format.decoration;
-         }
-      }
-
-      return styles;
+   get labelColor(): string {
+      // Return format color or default to black to prevent inheriting .txt-primary color
+      return this.labelModel?.labelFormat?.foreground || "black";
    }
 
    get wrapperClass(): string {
