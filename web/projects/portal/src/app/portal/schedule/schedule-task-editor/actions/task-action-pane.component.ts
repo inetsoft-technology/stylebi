@@ -248,6 +248,7 @@ export class TaskActionPane implements OnInit {
       if(action.sheet != sheet) {
          action.highlightAssemblies = [];
          action.highlightNames = [];
+         action.highlightsSelected = false;
       }
    }
 
