@@ -641,6 +641,13 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
       }
 
       writer.print("</properties>");
+
+      if(orgId != null) {
+         writer.print("<orgId>");
+         writer.print("<![CDATA[" + orgId + "]]>");
+         writer.print("</orgId>");
+      }
+
       writer.println("</principal>");
    }
 
@@ -733,6 +740,12 @@ public class SRPrincipal extends XPrincipal implements Serializable, Externaliza
          }
 
          setProperty(Tool.getValue(knodes.item(0)), Tool.getValue(vnodes.item(0)));
+      }
+
+      Element orgIdNode = Tool.getChildNodeByTagName(elem, "orgId");
+
+      if(orgIdNode != null) {
+         orgId = Tool.getValue(orgIdNode);
       }
    }
 
