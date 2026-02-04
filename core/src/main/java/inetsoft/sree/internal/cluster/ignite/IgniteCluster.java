@@ -450,11 +450,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       cacheConfiguration.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
 
       if(isSpringProxyPartitionedCache(name)) {
-         cacheConfiguration.setGroupName("inetsoft-cache-spring-proxy");
+         cacheConfiguration.setGroupName("inetsoft-cache-spring-proxy-" + mode.toString().toLowerCase());
          cacheConfiguration.setNodeFilter(SPRING_PROXY_NODE_FILTER);
       }
       else {
-         cacheConfiguration.setGroupName("inetsoft-cache");
+         cacheConfiguration.setGroupName("inetsoft-cache-" + mode.toString().toLowerCase());
       }
 
       return cacheConfiguration;
