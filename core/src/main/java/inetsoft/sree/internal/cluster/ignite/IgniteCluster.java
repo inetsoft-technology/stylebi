@@ -450,19 +450,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       cacheConfiguration.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
 
       if(isSpringProxyPartitionedCache(name)) {
-         cacheConfiguration.setGroupName("inetsoft-cache-spring-proxy");
-         cacheConfiguration.setNodeFilter(node -> {
-            Boolean isScheduler = node.attribute("scheduler");
-
-            if(Boolean.TRUE.equals(isScheduler)) {
-               LOG.debug("Scheduler node {} is excluded from holding any partition of cache {}", node.id(), name);
-            }
-
-            return isScheduler == null || !isScheduler;
-         });
+         cacheConfiguration.setGroupName("inetsoft-cache-spring-proxy-" + mode.toString().toLowerCase());
+         cacheConfiguration.setNodeFilter(SPRING_PROXY_NODE_FILTER);
       }
       else {
-         cacheConfiguration.setGroupName("inetsoft-cache");
+         cacheConfiguration.setGroupName("inetsoft-cache-" + mode.toString().toLowerCase());
       }
 
       return cacheConfiguration;
@@ -1814,6 +1806,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       return Boolean.TRUE.equals(node.attribute("scheduler"));
    };
+   private static final IgnitePredicate<ClusterNode> SPRING_PROXY_NODE_FILTER = new SpringProxyNodeFilter();
    private static final ThreadLocal<Integer> TASK_EXECUTE_LEVEL = new ThreadLocal<>();
    private static final String IGNITE_EXECUTE_POOL = "IGNITE_EXECUTE_POOL";
    private static final int IGNITE_EXECUTE_POOL_COUNT = 2;
@@ -2179,6 +2172,17 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       }
 
       private final String cacheName;
+   }
+
+   /**
+    * Node filter that excludes scheduler nodes from holding cache partitions for Spring proxy caches.
+    */
+   private static final class SpringProxyNodeFilter implements IgnitePredicate<ClusterNode> {
+      @Override
+      public boolean apply(ClusterNode node) {
+         Boolean isScheduler = node.attribute("scheduler");
+         return isScheduler == null || !isScheduler;
+      }
    }
 
    private static final class RebalanceListenerAdapter
