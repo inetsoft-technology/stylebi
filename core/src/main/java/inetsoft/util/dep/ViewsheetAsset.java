@@ -377,7 +377,8 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
    @Override
    public void parseIdentifier(String path, IdentityID userIdentity) {
       int scope = userIdentity != null ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
-      entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, userIdentity);
+      String orgID = userIdentity != null ? userIdentity.getOrgID() : null;
+      entry = new AssetEntry(scope, AssetEntry.Type.VIEWSHEET, path, userIdentity, orgID);
    }
 
    /**
