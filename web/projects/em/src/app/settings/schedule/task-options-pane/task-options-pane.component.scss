@@ -60,3 +60,12 @@
 .flex-row .margin-bottom {
   margin-bottom: 1em;
 }
+
+:host ::ng-deep .mat-mdc-slide-toggle, :host ::ng-deep .mdc-label {
+  --mdc-form-field-label-text-size: 12px !important;
+  --mdc-form-field-label-text-line-height: 16px !important;
+}
+:host ::ng-deep .mdc-label {
+  font-size: 12px !important;
+  line-height: 16px !important;
+}
