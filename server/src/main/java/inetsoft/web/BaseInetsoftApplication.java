@@ -235,10 +235,6 @@ public abstract class BaseInetsoftApplication {
 
    private void configure(String home) {
       if(configured.compareAndSet(false, true)) {
-         // Disable Ignite's default shutdown hook(see IgniteNamedInstance.start methond) so that
-         // shutdown is managed by our code
-         System.setProperty("IGNITE_NO_SHUTDOWN_HOOK", "true");
-
          if(home == null) {
             home = System.getProperty("sree.home");
          }

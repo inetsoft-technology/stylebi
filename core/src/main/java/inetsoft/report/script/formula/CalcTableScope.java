@@ -177,23 +177,26 @@ public class CalcTableScope extends PropertyScriptable implements DynamicScope {
     * @param cond optional condition expression for conditional summary.
     */
    public Object none(Object column, String group, String cond) {
+      Formula formula = new NoneFormula();
+      formula.setDefaultResult(isDefaultToZero());
+
       // because js does not support function overloading, the function
       // defined in the report scope would not be found if it's called from
       // this cope, we need to check for the object type and forward the call
       if(isCellRange(column)) {
-         return summarize((String) column, "none", new NoneFormula());
+         return summarize((String) column, "none", formula);
       }
 
       TableLens lens = (TableLens)
          PropertyDescriptor.convert(column, TableLens.class);
 
       if(lens == null) {
-         return summarize2(column, new NoneFormula());
+         return summarize2(column, formula);
       }
       else {
          // report scope function, (table, column)
          return ReportJavaScriptEngine.summarize(
-            column, group, "none", new NoneFormula(), cond, this);
+            column, group, "none", formula, cond, this);
       }
    }
 

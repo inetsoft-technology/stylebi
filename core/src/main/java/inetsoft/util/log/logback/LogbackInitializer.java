@@ -41,10 +41,11 @@ public class LogbackInitializer implements LogInitializer {
    public void initializeForStartup() {
       LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
       context.reset();
+      context.addTurboFilter(new IgniteBinaryWarningFilter());
 
       Logger rootLogger = context.getLogger(Logger.ROOT_LOGGER_NAME);
       rootLogger.setLevel(Level.ERROR);
-      rootLogger.addAppender(createConsoleAppender(context));
+      rootLogger.addAppender(createConsoleAppender(context, true));
 
       context.getLogger("inetsoft.scheduler_test").setLevel(Level.OFF);
       context.getLogger("mv_debug").setLevel(Level.OFF);
@@ -73,6 +74,7 @@ public class LogbackInitializer implements LogInitializer {
       LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
       context.reset();
       context.putProperty("LOCAL_IP_ADDR", Tool.getIP());
+      context.addTurboFilter(new IgniteBinaryWarningFilter());
       context.addTurboFilter(new LogbackSpringExceptionFilter());
       context.addTurboFilter(new LogbackContextFilter());
 
@@ -161,18 +163,29 @@ public class LogbackInitializer implements LogInitializer {
    }
 
    private PatternLayoutEncoder createEncoder(LoggerContext context) {
+      return createEncoder(context, false);
+   }
+
+   private PatternLayoutEncoder createEncoder(LoggerContext context, boolean startup) {
       PatternLayoutEncoder encoder = new PatternLayoutEncoder();
       encoder.setContext(context);
-      encoder.setPattern(SreeEnv.getProperty("log.message.pattern"));
+      String pattern = startup
+         ? SreeEnv.getEarlyLoadedProperty("log.message.pattern")
+         : SreeEnv.getProperty("log.message.pattern");
+      encoder.setPattern(pattern);
       encoder.start();
       return encoder;
    }
 
    private AsyncAppender createConsoleAppender(LoggerContext context) {
+      return createConsoleAppender(context, false);
+   }
+
+   private AsyncAppender createConsoleAppender(LoggerContext context, boolean startup) {
       ConsoleAppender<ILoggingEvent> appender = new ConsoleAppender<>();
       appender.setName("STDOUT");
       appender.setContext(context);
-      appender.setEncoder(createEncoder(context));
+      appender.setEncoder(createEncoder(context, startup));
       appender.addFilter(new AuditLogFilter(true));
       appender.start();
       return createAsyncAppender("ASYNC_STDOUT", appender, context);

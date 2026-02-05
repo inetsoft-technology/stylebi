@@ -104,6 +104,14 @@ public class KubernetesCloudRunnerConfig implements Serializable {
       this.tolerations = tolerations;
    }
 
+   public String getServiceAccount() {
+      return serviceAccount;
+   }
+
+   public void setServiceAccount(String serviceAccount) {
+      this.serviceAccount = serviceAccount;
+   }
+
    private String configFilePath;
    private String namespace = "default";
    private String dockerImageUri;
@@ -113,4 +121,5 @@ public class KubernetesCloudRunnerConfig implements Serializable {
    private int backoffLimit = 4;
    private String[] volumeMounts;
    private String[] tolerations;
+   private String serviceAccount;
 }

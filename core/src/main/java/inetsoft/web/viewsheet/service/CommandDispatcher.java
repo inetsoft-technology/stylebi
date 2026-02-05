@@ -276,13 +276,16 @@ public class CommandDispatcher implements Iterable<CommandDispatcher.Command> {
             // NO-OP
          }
       };
+      // Save the previous message attributes so we can restore them
+      MessageAttributes previousAttributes = MessageContextHolder.getMessageAttributes();
       MessageContextHolder.setMessageAttributes(messageAttributes);
 
       try {
          return fn.apply(dispatcher);
       }
       finally {
-         MessageContextHolder.setMessageAttributes(null);
+         // Restore the previous message attributes instead of clearing
+         MessageContextHolder.setMessageAttributes(previousAttributes);
       }
    }
 

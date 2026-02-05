@@ -25,8 +25,6 @@ import inetsoft.web.admin.monitoring.StatusMetricsType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.beans.PropertyChangeListener;
-import java.beans.PropertyChangeSupport;
 import java.util.Queue;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -176,29 +174,6 @@ public class ServerClusterClient {
       return sendMessage(server, new CleanCacheMessage());
    }
 
-   public void addPropertyChangeListener(PropertyChangeListener l) {
-      synchronized(support) {
-         boolean start = support.getPropertyChangeListeners().length == 0;
-         support.addPropertyChangeListener(l);
-
-         if(start) {
-            mapListener = createMapListener();
-            cluster.addMapListener(CLUSTER_STATUS_MAP, mapListener);
-         }
-      }
-   }
-
-   public void removePropertyChangeListener(PropertyChangeListener l) {
-      synchronized(support) {
-         support.removePropertyChangeListener(l);
-
-         if(support.getPropertyChangeListeners().length == 0 && mapListener != null) {
-            cluster.removeMapListener(CLUSTER_STATUS_MAP, mapListener);
-            mapListener = null;
-         }
-      }
-   }
-
    public void refresh(String property, String defaultValue) {
       refresh(property, defaultValue, true);
    }
@@ -327,10 +302,6 @@ public class ServerClusterClient {
          .collect(Collectors.toSet());
    }
 
-   private MapChangeListener<String, ServerClusterStatus> createMapListener() {
-      return new ClusterStatusListener();
-   }
-
    public <T> Queue<T> getStatusHistory(StatusMetricsType type, String server, Object subtype) {
       if(cluster == null) {
          return null;
@@ -393,33 +364,9 @@ public class ServerClusterClient {
       return colon > 0 ? server.substring(0, colon) : server;
    }
 
-   private class ClusterStatusListener implements MapChangeListener<String, ServerClusterStatus> {
-      @Override
-      public void entryAdded(EntryEvent<String, ServerClusterStatus> event) {
-         support.firePropertyChange(getKey(event), null, event.getValue());
-      }
-
-      @Override
-      public void entryRemoved(EntryEvent<String, ServerClusterStatus> event) {
-         support.firePropertyChange(getKey(event), event.getOldValue(), null);
-      }
-
-      @Override
-      public void entryUpdated(EntryEvent<String, ServerClusterStatus> event) {
-         support.firePropertyChange(getKey(event), event.getOldValue(), event.getValue());
-      }
-
-      private String getKey(EntryEvent<String, ServerClusterStatus> event) {
-         return "status:" + event.getKey();
-      }
-   }
-
    private final Cluster cluster;
    private final Map<String, String> serverAddressCache = new ConcurrentHashMap<>();
    private final Map<String, String> addressServerCache = new ConcurrentHashMap<>();
-   private final PropertyChangeSupport support = new PropertyChangeSupport(this);
-
-   private MapChangeListener<String, ServerClusterStatus> mapListener;
    private final List<Consumer<ServerClusterStatus>> updaters = new ArrayList<>();
 
    private volatile Set<String> configuredServers = null;

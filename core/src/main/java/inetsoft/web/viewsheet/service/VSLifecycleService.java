@@ -26,6 +26,7 @@ import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.AffinityCallable;
 import inetsoft.sree.security.*;
+import inetsoft.web.ServiceProxyContext;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -359,12 +360,20 @@ public class VSLifecycleService {
 
       @Override
       public Void call() throws Exception {
-         ViewsheetEngine.getViewsheetEngine().closeViewsheet(rid, user);
-         return null;
+         proxyContext.preprocess();
+
+         try {
+            ViewsheetEngine.getViewsheetEngine().closeViewsheet(rid, user);
+            return null;
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       private final String rid;
       private final Principal user;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 
    private static final class OpenViewsheet implements Serializable, Comparable<OpenViewsheet> {

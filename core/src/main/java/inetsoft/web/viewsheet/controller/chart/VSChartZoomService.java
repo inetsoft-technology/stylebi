@@ -29,10 +29,15 @@ import inetsoft.report.composition.execution.DataMap;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.composition.graph.VSDataSet;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationContextHolder;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.DateComparisonUtil;
+import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.ClearChartLoadingCommand;
 import inetsoft.web.viewsheet.event.chart.VSChartZoomEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
@@ -58,7 +63,18 @@ public class VSChartZoomService extends VSChartControllerService<VSChartZoomEven
                             String linkUri, Principal principal,
                             CommandDispatcher dispatcher) throws Exception
    {
+      RuntimeViewsheet rvs = getViewsheetEngine().getViewsheet(runtimeId, principal);
+      boolean isDefaultVS = SUtil.isDefaultVSGloballyVisible(principal) &&
+         !Tool.equals(rvs.getEntry() == null ? "" :
+                         rvs.getEntry().getOrgID(), ((XPrincipal) principal).getOrgId());
+
       processEvent(runtimeId, event, principal, linkUri, dispatcher, chartState -> {
+         String oldContext = OrganizationContextHolder.getCurrentOrgId();
+
+         if(isDefaultVS) {
+            OrganizationContextHolder.setCurrentOrgId(Organization.getDefaultOrganizationID());
+         }
+
          try {
             return doZoom(event, chartState, linkUri, dispatcher);
          }
@@ -66,6 +82,7 @@ public class VSChartZoomService extends VSChartControllerService<VSChartZoomEven
             throw new RuntimeException(e);
          }
          finally {
+            OrganizationContextHolder.setCurrentOrgId(oldContext);
             // clear chart loading mask after zoom finished
             dispatcher.sendCommand(event.getChartName(), new ClearChartLoadingCommand());
          }

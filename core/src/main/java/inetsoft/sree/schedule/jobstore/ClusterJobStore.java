@@ -50,23 +50,17 @@ public class ClusterJobStore implements JobStore, Serializable {
 
       this.schedSignaler = signaler;
 
-      // initializing Cluster maps
+      // initializing Cluster maps - use replicated maps so all nodes have local copies
       final Cluster cluster = Cluster.getInstance();
       LOG.debug("Initializing Cluster maps...");
-      jobsByKey = new LocalClusterMap<>("jobstore.jobsByKey", cluster,
-                                        cluster.getMap("jobstore.jobsByKey"));
-      triggersByKey = new LocalClusterMap<>("jobstore.triggersByKey", cluster,
-                                            cluster.getMap("jobstore.triggersByKey"));
-      jobsByGroup = new LocalClusterMultiMap<>(
-         "jobstore.jobsByGroup", cluster, cluster.getMultiMap("jobstore.jobsByGroup"));
-      triggersByGroup = new LocalClusterMultiMap<>(
-         "jobstore.triggersByGroup", cluster, cluster.getMultiMap("jobstore.triggersByGroup"));
-      triggersByJob = new LocalClusterMultiMap<>(
-         "jobstore.triggersByJob", cluster, cluster.getMultiMap("jobstore.triggersByJob"));
+      jobsByKey = cluster.getReplicatedMap("jobstore.jobsByKey");
+      triggersByKey = cluster.getReplicatedMap("jobstore.triggersByKey");
+      jobsByGroup = cluster.getReplicatedMultiMap("jobstore.jobsByGroup");
+      triggersByGroup = cluster.getReplicatedMultiMap("jobstore.triggersByGroup");
+      triggersByJob = cluster.getReplicatedMultiMap("jobstore.triggersByJob");
       pausedTriggerGroups = cluster.getSet("jobstore.pausedTriggerGroups");
       pausedJobGroups = cluster.getSet("jobstore.pausedJobGroups");
-      calendarsByName = new LocalClusterMap<>("jobstore.calendarsByName", cluster,
-                                              cluster.getMap("jobstore.calendarsByName"));
+      calendarsByName = cluster.getReplicatedMap("jobstore.calendarsByName");
 
       // only shutdown the cluster when running in a separate process
       shutdownClusterOnShutdown = "true".equals(System.getProperty("ScheduleServer"));
@@ -1136,11 +1130,13 @@ public class ClusterJobStore implements JobStore, Serializable {
       Collection<TriggerKey> triggerKeys = triggersByJob.get(jobKey);
       ArrayList<TriggerWrapper> trigList = new ArrayList<>();
 
-      for(TriggerKey key : triggerKeys) {
-         TriggerWrapper tw = triggersByKey.get(key);
+      if(triggerKeys != null) {
+         for(TriggerKey key : triggerKeys) {
+            TriggerWrapper tw = triggersByKey.get(key);
 
-         if(tw != null) {
-            trigList.add(tw);
+            if(tw != null) {
+               trigList.add(tw);
+            }
          }
       }
 
@@ -1316,12 +1312,12 @@ public class ClusterJobStore implements JobStore, Serializable {
    }
 
    private SchedulerSignaler schedSignaler;
-   private LocalClusterMap<JobKey, JobDetail> jobsByKey;
-   private LocalClusterMap<TriggerKey, TriggerWrapper> triggersByKey;
-   private LocalClusterMultiMap<String, JobKey> jobsByGroup;
-   private LocalClusterMultiMap<String, TriggerKey> triggersByGroup;
-   private LocalClusterMultiMap<JobKey, TriggerKey> triggersByJob;
-   private LocalClusterMap<String, Calendar> calendarsByName;
+   private DistributedMap<JobKey, JobDetail> jobsByKey;
+   private DistributedMap<TriggerKey, TriggerWrapper> triggersByKey;
+   private MultiMap<String, JobKey> jobsByGroup;
+   private MultiMap<String, TriggerKey> triggersByGroup;
+   private MultiMap<JobKey, TriggerKey> triggersByJob;
+   private DistributedMap<String, Calendar> calendarsByName;
    private Set<String> pausedTriggerGroups;
    private Set<String> pausedJobGroups;
    private volatile boolean schedulerRunning = false;

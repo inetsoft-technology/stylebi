@@ -8770,7 +8770,7 @@ public final class VSUtil {
       String orgId = ((XPrincipal) principal).getOrgId();
 
       return SUtil.isDefaultVSGloballyVisible(principal) &&
-         !orgId.equals(Organization.getDefaultOrganizationID()) &&
+         !Tool.equals(orgId,Organization.getDefaultOrganizationID()) &&
          Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID());
    }
 

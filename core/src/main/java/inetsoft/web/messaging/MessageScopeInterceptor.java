@@ -89,12 +89,16 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
    }
 
    private void addViewsheetRecord(GroupedThread thread) {
-      List<String> id = MessageContextHolder.currentMessageAttributes()
-         .getHeaderAccessor().getNativeHeader("sheetRuntimeId");
+      MessageAttributes messageAttributes = MessageContextHolder.getMessageAttributes();
+
+      if(messageAttributes == null) {
+         return;
+      }
+
+      List<String> id = messageAttributes.getHeaderAccessor().getNativeHeader("sheetRuntimeId");
 
       if(id != null && !id.isEmpty()) {
-         Principal principal =
-            MessageContextHolder.getMessageAttributes().getHeaderAccessor().getUser();
+         Principal principal = messageAttributes.getHeaderAccessor().getUser();
 
          try {
             String runtimeId = id.getFirst();
@@ -149,11 +153,19 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
 
       @Override
       public Boolean call() {
-         return VSUtil.switchToHostOrgForGlobalShareAsset(id, principal);
+         proxyContext.preprocess();
+
+         try {
+            return VSUtil.switchToHostOrgForGlobalShareAsset(id, principal);
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       private final String id;
       private final Principal principal;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 
    private static final class GetViewsheetEntryTask implements AffinityCallable<AssetEntry> {
@@ -164,10 +176,18 @@ public class MessageScopeInterceptor implements ExecutorChannelInterceptor {
 
       @Override
       public AssetEntry call() {
-         return ViewsheetEngine.getViewsheetEngine().getSheet(id, principal).getEntry();
+         proxyContext.preprocess();
+
+         try {
+            return ViewsheetEngine.getViewsheetEngine().getSheet(id, principal).getEntry();
+         }
+         finally {
+            proxyContext.postprocess();
+         }
       }
 
       private final String id;
       private final Principal principal;
+      private final ServiceProxyContext proxyContext = new ServiceProxyContext(false);
    }
 }
