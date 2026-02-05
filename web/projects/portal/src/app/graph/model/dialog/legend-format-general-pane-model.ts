@@ -24,4 +24,5 @@ export interface LegendFormatGeneralPaneModel {
    visible: boolean;
    notShowNull: boolean;
    notShowNullVisible: boolean;
+   symbolSize: number;
 }

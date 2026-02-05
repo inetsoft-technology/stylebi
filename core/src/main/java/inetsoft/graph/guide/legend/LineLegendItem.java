@@ -48,8 +48,9 @@ public class LineLegendItem extends LegendItem {
    protected void paintSymbol(Graphics2D g, double x, double y) {
       LineFrame frame = (LineFrame) getVisualFrame();
       GLine gline = frame.getLine(getValue());
-      Point2D start = new Point2D.Double(x, y + SYMBOL_SIZE / 2);
-      Point2D end = new Point2D.Double(x + LINESYMBOL_WIDTH, y + SYMBOL_SIZE/2);
+      int symbolSz = getSymbolSize();
+      Point2D start = new Point2D.Double(x, y + symbolSz / 2.0);
+      Point2D end = new Point2D.Double(x + LINESYMBOL_WIDTH, y + symbolSz / 2.0);
       double size = gline.getLineWidth();
       Shape shape = gline.getShape(start, end, size, size, gline, gline);
       Color lineColor = getSymbolColor();

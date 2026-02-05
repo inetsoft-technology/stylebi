@@ -310,6 +310,22 @@ public class LegendSpec implements Cloneable, Serializable {
    }
 
    /**
+    * Get the symbol size for legend items.
+    */
+   @TernMethod
+   public int getSymbolSize() {
+      return symbolSize;
+   }
+
+   /**
+    * Set the symbol size for legend items.
+    */
+   @TernMethod
+   public void setSymbolSize(int symbolSize) {
+      this.symbolSize = symbolSize;
+   }
+
+   /**
     * Set the visibility of legend item.
     */
    @TernMethod
@@ -363,7 +379,7 @@ public class LegendSpec implements Cloneable, Serializable {
       LegendSpec that = (LegendSpec) o;
       return visible == that.visible && border == that.border &&
          titleVisible == that.titleVisible && partial == that.partial && topY == that.topY &&
-         gap == that.gap && Objects.equals(borderColor, that.borderColor) &&
+         gap == that.gap && symbolSize == that.symbolSize && Objects.equals(borderColor, that.borderColor) &&
          Objects.equals(bg, that.bg) && Objects.equals(title, that.title) &&
          Objects.equals(titleSpec, that.titleSpec) && Objects.equals(textFrame, that.textFrame) &&
          Objects.equals(textSpec, that.textSpec) && Objects.equals(position, that.position) &&
@@ -375,7 +391,7 @@ public class LegendSpec implements Cloneable, Serializable {
    public int hashCode() {
       return Objects.hash(visible, border, borderColor, bg, title, titleVisible, titleSpec,
                           textFrame, textSpec, partial, position, epos, preferredSize, topY, gap,
-                          padding, hiddenItems);
+                          padding, hiddenItems, symbolSize);
    }
 
    private int border = GraphConstants.THIN_LINE;
@@ -394,6 +410,7 @@ public class LegendSpec implements Cloneable, Serializable {
    private int gap = 0;
    private Insets padding;
    private Set hiddenItems = new HashSet();
+   private int symbolSize = 12;
 
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(LegendSpec.class);
