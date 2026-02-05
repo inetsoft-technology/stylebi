@@ -268,7 +268,6 @@ public class LookAndFeelService {
          updateFonts(
             Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), Collections.emptyList(),
             true, dataSpace, principal);
-         dataSpace.delete(null, "userformat.xml");
          resetUserFormatFile();
       }
       else {
