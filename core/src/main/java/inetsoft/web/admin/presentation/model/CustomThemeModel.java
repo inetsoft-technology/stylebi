@@ -63,7 +63,7 @@ public interface CustomThemeModel {
          String orgSelected = CustomThemesManager.getManager().getOrgSelectedTheme();
          String globalSelected = CustomThemesManager.getManager().getGlobalSelectedTheme();
          defaultThemeGlobal(Objects.equals(globalSelected, theme.getId()));
-         defaultThemeOrg(theme.getOrganizations().contains(OrganizationManager.getInstance().getCurrentOrgID()) || theme.getId().equals(orgSelected));
+         defaultThemeOrg(Objects.equals(theme.getId(), orgSelected));
 
          return this;
       }
