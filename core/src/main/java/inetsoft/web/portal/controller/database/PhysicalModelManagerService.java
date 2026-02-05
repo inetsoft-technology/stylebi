@@ -409,6 +409,12 @@ public class PhysicalModelManagerService {
          throw new RuntimeException("Failed to update data model", e);
       }
 
+      // Clear the partition metadata cache so the logical model sees the updated tables.
+      // This clears the local cache and triggers cluster-wide cache invalidation.
+      dataSourceService.clearPartitionMetaDataCache(dataModel.getDataSource(),
+         xPartition.getName());
+      repository.refreshMetaData(dataModel.getDataSource());
+
       String user = entry.getCreatedUsername();
       Date date = entry.getCreatedDate();
 
