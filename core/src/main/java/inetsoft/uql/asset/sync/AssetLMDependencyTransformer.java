@@ -640,7 +640,23 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
       return Tool.equals(source, info.getSource()) && Tool.equals(prefix, info.getPrefix());
    }
 
+   /**
+    * Normalize folder name representation. Root folder can be represented as
+    * null, "/" or "" - this method normalizes all to null.
+    */
+   private String normalizeFolder(String folder) {
+      if(folder == null || "/".equals(folder) || "".equals(folder)) {
+         return null;
+      }
+
+      return folder;
+   }
+
    private void renameLMFolder(Element elem, String oname, String nname) {
+      // Normalize root folder representation: null, "/" and "" all represent root
+      oname = normalizeFolder(oname);
+      nname = normalizeFolder(nname);
+
       Element pathNode = Tool.getChildNodeByTagName(elem, "path");
       Element descriptionNode = Tool.getChildNodeByTagName(elem, "description");
       Element entryPathPropNode = null;
@@ -700,14 +716,9 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
          replaceCDATANode(valueElem, newValue);
       }
       else if(oname == null && nname != null) {
-         // Root to folder: the value should be updated to include new folder
-         // For simple folder properties, replace with the new folder name
-         if(!value.contains("/")) {
+         // Root to folder: root is represented as "/" or "" in property values
+         if("/".equals(value) || "".equals(value)) {
             replaceCDATANode(valueElem, nname);
-         }
-         else {
-            // For path-like values, this case is handled by doRenameLMFolder
-            replaceCDATANode(valueElem, value);
          }
       }
       // Both null: no change needed
