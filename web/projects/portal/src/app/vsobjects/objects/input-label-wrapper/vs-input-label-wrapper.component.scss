@@ -15,6 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+:host {
+  display: inline-block;
+}
+
 .vs-input-label-wrapper {
   display: flex;
   width: 100%;
@@ -50,4 +54,5 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
+  position: relative;
 }

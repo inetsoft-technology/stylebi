@@ -42,6 +42,12 @@
       <a ngbNavLink>_#(Advanced)</a>
       <ng-template ngbNavContent><slider-advanced-pane [model]="model.sliderAdvancedPaneModel"></slider-advanced-pane></ng-template>
     </ng-container>
+    <ng-container ngbNavItem="labelTab">
+      <a ngbNavLink>_#(Label)</a>
+      <ng-template ngbNavContent>
+        <input-label-pane [model]="model.inputLabelPaneModel"></input-label-pane>
+      </ng-template>
+    </ng-container>
     <ng-container [ngbNavItem]="scriptTab">
       <a ngbNavLink>_#(Script)</a>
       <ng-template ngbNavContent><vsassembly-script-pane [model]="model.vsAssemblyScriptPaneModel" [scriptTreeModel]="scriptTreeModel"></vsassembly-script-pane></ng-template>

@@ -17,7 +17,7 @@
  */
 /* Component Defaults */
 div.vs-combo-box {
-  position: absolute;
+  position: relative;
   // don't set bg otherwise it can't be changed to transparent. the default bg is already
   // white in combobox assembly
   //background-color: white;

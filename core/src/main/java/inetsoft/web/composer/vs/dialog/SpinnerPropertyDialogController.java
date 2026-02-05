@@ -21,6 +21,7 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.SpinnerVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.internal.LabelInfo;
 import inetsoft.uql.viewsheet.internal.SpinnerVSAssemblyInfo;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.vs.*;
@@ -108,6 +109,7 @@ public class SpinnerPropertyDialogController {
          spinnerGeneralPaneModel.getSizePositionPaneModel();
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
       DataInputPaneModel dataInputPaneModel = result.getDataInputPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = result.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel.Builder vsAssemblyScriptPaneModel = VSAssemblyScriptPaneModel.builder();
 
       numericRangePaneModel.setMinimum(spinnerAssemblyInfo.getMinValue());
@@ -138,6 +140,13 @@ public class SpinnerPropertyDialogController {
       dataInputPaneModel.setTargetTree(
          this.vsInputService.getInputTablesTree(rvs, false, principal));
       dataInputPaneModel.setWriteBackDirectly(spinnerAssemblyInfo.getWriteBackValue());
+
+      LabelInfo labelInfo = spinnerAssemblyInfo.getLabelInfo();
+
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelText());
+      inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
+      inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
+      inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
 
       vsAssemblyScriptPaneModel.scriptEnabled(spinnerAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(spinnerAssemblyInfo.getScript() == null ?
@@ -184,6 +193,7 @@ public class SpinnerPropertyDialogController {
          spinnerGeneralPaneModel.getSizePositionPaneModel();
       BasicGeneralPaneModel basicGeneralPaneModel = generalPropPaneModel.getBasicGeneralPaneModel();
       DataInputPaneModel dataInputPaneModel = value.getDataInputPaneModel();
+      InputLabelPaneModel inputLabelPaneModel = value.getInputLabelPaneModel();
       VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel = value.getVsAssemblyScriptPaneModel();
 
       spinnerAssemblyInfo.setEnabledValue(generalPropPaneModel.getEnabled());
@@ -231,6 +241,12 @@ public class SpinnerPropertyDialogController {
 
          spinnerAssemblyInfo.setValue(dvalue);
       }
+
+      LabelInfo labelInfo = spinnerAssemblyInfo.getLabelInfo();
+      labelInfo.setLabelText(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGap(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
+      labelInfo.setLabelVisible(inputLabelPaneModel.isShowLabel());
 
       spinnerAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       spinnerAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());

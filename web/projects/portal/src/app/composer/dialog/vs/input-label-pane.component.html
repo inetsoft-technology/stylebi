@@ -38,19 +38,24 @@
       </div>
     </div>
     <div class="form-row-float-label row" *ngIf="model.showLabel">
-      <div class="col-6 form-floating">
+      <div class="col-6 form-floating mb-2">
         <select class="form-control" [(ngModel)]="model.labelPosition" id="labelPosition">
           <option *ngFor="let opt of positionOptions" [value]="opt.value">
             {{ opt.label }}
           </option>
         </select>
-        <label for="labelPosition"><span>_#(Position)</span></label>
+        <label for="labelPosition"><span>_#(Label Position)</span></label>
       </div>
-      <div class="col-6 form-floating">
+      <div class="col-6 form-floating mb-2">
         <input class="form-control" type="number" [(ngModel)]="model.labelGap"
-               placeholder="_#(Gap)" id="labelGap" min="0">
-        <label for="labelGap"><span>_#(Gap (px))</span></label>
+               placeholder="_#(Gap)" id="labelGap" min="0" #gap="ngModel">
+        <label for="labelGap"><span>_#(Gap px)</span></label>
       </div>
+        <div class="col form-floating">
+          <div class="alert alert-danger"*ngIf="gap.invalid && gap.touched">
+            _#(Gap must be a number greater than or equal to 0)
+          </div>
+        </div>
     </div>
   </fieldset>
 </form>
