@@ -49,8 +49,8 @@ public class ServiceProxyContext {
    private final List<UserMessage> userMessages;
    private final List<AspectTask> tasks;
    private final boolean async;
-   private CommandDispatcher dispatcher;
-   private MessageAttributes previousMessageAttributes;
+   private transient CommandDispatcher dispatcher;
+   private transient MessageAttributes previousMessageAttributes;
    public static final ThreadLocal<List<AspectTask>> aspectTasks =
       ThreadLocal.withInitial(ArrayList::new);
 
