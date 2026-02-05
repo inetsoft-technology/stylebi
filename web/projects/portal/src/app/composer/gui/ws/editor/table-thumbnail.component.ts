@@ -303,7 +303,7 @@ export class TableThumbnailComponent extends WSAssemblyThumbnail
       }
 
       this.titleTooltip = titleTooltip.replace(/(OUTER_|_\d+)/g, "");
-      this.titleTooltip = titleTooltip + "\n" + this.table.description;
+      this.titleTooltip = this.table.description ? titleTooltip + "\n" + this.table.description : titleTooltip;
    }
 
    private queueUpdateDragOverlayDimensions() {
