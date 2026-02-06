@@ -179,8 +179,6 @@ public class Scheduler {
     * @throws SchedulerException if the scheduler could not be stopped.
     */
    public void stop() throws SchedulerException {
-      Cluster cluster = Cluster.getInstance();
-
       if(healthCheckExecutor != null) {
          healthCheckExecutor.shutdown();
          healthCheckExecutor = null;
@@ -193,14 +191,16 @@ public class Scheduler {
 
       startTime = null;
 
-      if(listeners != null) {
-         listeners.forEach(cluster::removeMessageListener);
-         listeners.clear();
-      }
-
       // only shutdown the cluster when running in a separate process
       if("true".equals(System.getProperty("ScheduleServer"))) {
          try {
+            Cluster cluster = Cluster.getInstance();
+
+            if(listeners != null) {
+               listeners.forEach(cluster::removeMessageListener);
+               listeners.clear();
+            }
+
             cluster.close();
          }
          catch(Exception ex) {
@@ -552,16 +552,21 @@ public class Scheduler {
 
          loadTasks();
          first = false;
-         listeners = new ArrayList<>();
-         MessageListener listener = MVTool.newMVMessageHandler();
 
-         if(listener != null) {
-            listeners.add(listener);
+         // Only add listeners if running as standalone scheduler.
+         // Otherwise, we get duplicate messages
+         if("true".equals(System.getProperty("ScheduleServer"))) {
+            listeners = new ArrayList<>();
+            MessageListener listener = MVTool.newMVMessageHandler();
+
+            if(listener != null) {
+               listeners.add(listener);
+            }
+
+            listeners.add(new ServerServiceMessageListener(cluster));
+            listeners.add(new LogMonitoringService());
+            listeners.forEach(cluster::addMessageListener);
          }
-
-         listeners.add(new ServerServiceMessageListener(cluster));
-         listeners.add(new LogMonitoringService());
-         listeners.forEach(cluster::addMessageListener);
       }
    }
 
