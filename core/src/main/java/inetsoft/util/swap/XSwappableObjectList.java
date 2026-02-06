@@ -47,10 +47,6 @@ public final class XSwappableObjectList<T> implements Serializable {
       this.kryoClass = kryoClass;
       this.fragments = new XObjectFragment[10];
       this.pos = 0;
-
-      if(kryoClass != null) {
-         XSwapUtil.getKryo().register(kryoClass);
-      }
    }
 
    /**
