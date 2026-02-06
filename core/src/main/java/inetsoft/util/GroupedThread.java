@@ -222,7 +222,13 @@ public class GroupedThread extends Thread {
       }
 
       this.user = user;
-      LogContext.setUser(user);
+
+      try {
+         LogContext.setUser(user);
+      }
+      catch(SingletonManager.ResurrectException ignore) {
+         // server is shutting down, ignore
+      }
    }
 
    /**

@@ -53,6 +53,10 @@ public final class SingletonManager {
    private <T> T doGetInstance(Class<T> type, Object... parameters) {
       Reference<T> reference = (Reference<T>) instances.get(type);
 
+      if(reference == null && shutdown) {
+         throw new ResurrectException(true);
+      }
+
       if(reference == null) {
          try {
             while(!resetLock.readLock().tryLock(5, TimeUnit.SECONDS)) {
@@ -62,7 +66,7 @@ public final class SingletonManager {
                   throw new RuntimeException("Thread cancelled while waiting for lock");
                }
                else if(resetting) {
-                  throw new ResurrectException();
+                  throw new ResurrectException(false);
                }
             }
          }
@@ -75,8 +79,8 @@ public final class SingletonManager {
                reference = (Reference<T>) instances.get(type);
 
                if(reference == null) {
-                  if(resetting) {
-                     throw new ResurrectException();
+                  if(resetting || shutdown) {
+                     throw new ResurrectException(shutdown);
                   }
 
                   if(type.isAnnotationPresent(Singleton.class)) {
@@ -111,7 +115,7 @@ public final class SingletonManager {
       }
 
       if(reference.disposed) {
-         throw new ResurrectException();
+         throw new ResurrectException(false);
       }
 
       return reference.get(parameters);
@@ -119,9 +123,22 @@ public final class SingletonManager {
 
    /**
     * Closes all existing singleton service instances.
+    *
+    * @param shutdown if true, prevents creation of new singleton instances after reset completes.
+    */
+   public static void reset(boolean shutdown) {
+      if(shutdown) {
+         INSTANCE.shutdown = true;
+      }
+
+      INSTANCE.doReset();
+   }
+
+   /**
+    * Closes all existing singleton service instances.
     */
    public static void reset() {
-      INSTANCE.doReset();
+      reset(false);
    }
 
    @SuppressWarnings("unchecked")
@@ -213,6 +230,7 @@ public final class SingletonManager {
 
    private final Map<Class<?>, Reference<?>> instances = new ConcurrentHashMap<>();
    private volatile boolean resetting = false;
+   private volatile boolean shutdown = false;
    private final ReadWriteLock resetLock = new ReentrantReadWriteLock(true);
 
    private static final SingletonManager INSTANCE = new SingletonManager();
@@ -413,8 +431,9 @@ public final class SingletonManager {
    }
 
    public static final class ResurrectException extends IllegalStateException {
-      public ResurrectException() {
-         super("Singleton manager is being reset, cannot resurrect instances");
+      public ResurrectException(boolean shutdown) {
+         super(shutdown ? "Server is shutting down" :
+                  "Singleton manager is being reset, cannot resurrect instances");
       }
    }
 }
