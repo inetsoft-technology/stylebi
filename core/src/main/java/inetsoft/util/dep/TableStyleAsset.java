@@ -201,7 +201,11 @@ public class TableStyleAsset extends AbstractXAsset {
                (folder + LibManager.SEPARATOR + folders[i]);
 
             if(!manager.containsFolder(folder) || manager.isAuditStyleFolder(folder)) {
-               StyleTreeModel.addFolder(folder);
+               // Don't save immediately during import - the folder will be saved along with
+               // the table style at the end of the import process. Saving here would trigger
+               // a cluster message that causes reloadLibrary() to clear in-memory state,
+               // losing the table style that's about to be added.
+               StyleTreeModel.addFolder(folder, false);
             }
          }
       }
