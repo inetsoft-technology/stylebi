@@ -663,6 +663,11 @@ public class TestCluster implements Cluster {
       }
    }
 
+   @Override
+   public void setClosed(boolean closed) {
+      // no-op
+   }
+
    private final ConcurrentMap<String, Map<String, Object>> clusterNodeProperties =
       new ConcurrentHashMap<>();
    private final ConcurrentMap<String, Lock> locks = new ConcurrentHashMap<>();
