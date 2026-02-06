@@ -125,7 +125,7 @@ public class LabelInfo implements AssetObject {
     * @return true if label is visible, otherwise false.
     */
    public boolean isLabelVisible() {
-      return labelVisible.getBooleanValue(false, false);
+      return labelVisible.getBooleanValue(false, getLabelVisibleValue());
    }
 
    /**
@@ -417,6 +417,8 @@ public class LabelInfo implements AssetObject {
    public List<DynamicValue> getViewDynamicValues() {
       List<DynamicValue> list = new ArrayList<>();
       list.add(labelText);
+      list.add(labelVisible);
+      list.add(labelGap);
       return list;
    }
 

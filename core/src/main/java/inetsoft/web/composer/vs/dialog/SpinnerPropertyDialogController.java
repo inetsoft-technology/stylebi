@@ -143,7 +143,7 @@ public class SpinnerPropertyDialogController {
 
       LabelInfo labelInfo = spinnerAssemblyInfo.getLabelInfo();
 
-      inputLabelPaneModel.setLabelText(labelInfo.getLabelText());
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
       inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
       inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
       inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
@@ -243,10 +243,10 @@ public class SpinnerPropertyDialogController {
       }
 
       LabelInfo labelInfo = spinnerAssemblyInfo.getLabelInfo();
-      labelInfo.setLabelText(inputLabelPaneModel.getLabelText());
-      labelInfo.setLabelGap(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
       labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
-      labelInfo.setLabelVisible(inputLabelPaneModel.isShowLabel());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       spinnerAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       spinnerAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());

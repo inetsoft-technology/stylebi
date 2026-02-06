@@ -32,9 +32,13 @@
     </div>
     <div class="form-row-float-label row" *ngIf="model.showLabel">
       <div class="col form-floating">
-        <input class="form-control" type="text" [(ngModel)]="model.labelText"
-               placeholder="_#(Label Text)" id="labelText">
-        <label for="labelText"><span>_#(Label Text)</span></label>
+        <dynamic-combo-box [editable]="true"
+                           [variables]="variableValues"
+                           [(value)]="model.labelText"
+                           [vsId]="vsId"
+                           (typeChange)="selectTextType($event)">
+        </dynamic-combo-box>
+        <label><span>_#(Label Text)</span></label>
       </div>
     </div>
     <div class="form-row-float-label row" *ngIf="model.showLabel">

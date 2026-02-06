@@ -192,7 +192,7 @@ public class TextInputPropertyDialogController {
 
       LabelInfo labelInfo = textInputAssemblyInfo.getLabelInfo();
 
-      inputLabelPaneModel.setLabelText(labelInfo.getLabelText());
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
       inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
       inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
       inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
@@ -321,10 +321,10 @@ public class TextInputPropertyDialogController {
       }
 
       LabelInfo labelInfo = textInputAssemblyInfo.getLabelInfo();
-      labelInfo.setLabelText(inputLabelPaneModel.getLabelText());
-      labelInfo.setLabelGap(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
       labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
-      labelInfo.setLabelVisible(inputLabelPaneModel.isShowLabel());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       textInputAssemblyInfo.setScriptEnabled(clickableScriptPaneModel.scriptEnabled());
       textInputAssemblyInfo.setScript(clickableScriptPaneModel.scriptExpression());

@@ -229,7 +229,7 @@ public class ComboboxPropertyDialogController {
 
       LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
 
-      inputLabelPaneModel.setLabelText(labelInfo.getLabelText());
+      inputLabelPaneModel.setLabelText(labelInfo.getLabelTextValue());
       inputLabelPaneModel.setLabelGap(labelInfo.getLabelGap());
       inputLabelPaneModel.setLabelPosition(labelInfo.getLabelPosition());
       inputLabelPaneModel.setShowLabel(labelInfo.isLabelVisible());
@@ -307,10 +307,10 @@ public class ComboboxPropertyDialogController {
       comboBoxAssemblyInfo.setRefreshValue(basicGeneralPaneModel.isRefresh() + "");
 
       LabelInfo labelInfo = comboBoxAssemblyInfo.getLabelInfo();
-      labelInfo.setLabelText(inputLabelPaneModel.getLabelText());
-      labelInfo.setLabelGap(inputLabelPaneModel.getLabelGap());
+      labelInfo.setLabelTextValue(inputLabelPaneModel.getLabelText());
+      labelInfo.setLabelGapValue(inputLabelPaneModel.getLabelGap());
       labelInfo.setLabelPosition(inputLabelPaneModel.getLabelPosition());
-      labelInfo.setLabelVisible(inputLabelPaneModel.isShowLabel());
+      labelInfo.setLabelVisibleValue(inputLabelPaneModel.isShowLabel() + "");
 
       comboBoxAssemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
       comboBoxAssemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());

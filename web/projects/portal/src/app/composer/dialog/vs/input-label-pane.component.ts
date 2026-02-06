@@ -17,6 +17,7 @@
  */
 import { Component, Input } from "@angular/core";
 import { InputLabelPaneModel } from "../../data/vs/input-label-pane-model";
+import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 
 @Component({
    selector: "input-label-pane",
@@ -24,6 +25,8 @@ import { InputLabelPaneModel } from "../../data/vs/input-label-pane-model";
 })
 export class InputLabelPane {
    @Input() model: InputLabelPaneModel;
+   @Input() variableValues: string[];
+   @Input() vsId: string;
 
    positionOptions = [
     { label: "_#(Left)", value: "left" },
@@ -31,4 +34,32 @@ export class InputLabelPane {
     { label: "_#(Top)", value: "top" },
     { label: "_#(Bottom)", value: "bottom" }
    ];
+
+   selectTextType(type: ComboMode) {
+      let oldType = ComboMode.VALUE;
+
+      if(this.model && this.model.labelText && this.model.labelText.startsWith("=")) {
+         oldType = ComboMode.EXPRESSION;
+      }
+      else if(this.model && this.model.labelText && this.model.labelText.startsWith("$(")) {
+         oldType = ComboMode.VARIABLE;
+      }
+
+      if(type !== oldType) {
+         if(type == ComboMode.EXPRESSION && (!this.model.labelText || !this.model.labelText.startsWith("="))) {
+            this.model.labelText = "=";
+         }
+         else if(type == ComboMode.VARIABLE && (!this.model.labelText || !this.model.labelText.startsWith("$("))) {
+            if(this.variableValues && this.variableValues.length > 0) {
+               this.model.labelText = this.variableValues[0];
+            }
+            else {
+               this.model.labelText = "";
+            }
+         }
+         else {
+            this.model.labelText = "";
+         }
+      }
+   }
 }

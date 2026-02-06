@@ -41,7 +41,9 @@
     <ng-container ngbNavItem="labelTab">
       <a ngbNavLink>_#(Label)</a>
       <ng-template ngbNavContent>
-        <input-label-pane [model]="model.inputLabelPaneModel"></input-label-pane>
+        <input-label-pane [model]="model.inputLabelPaneModel"
+                          [variableValues]="variableValues"
+                          [vsId]="runtimeId"></input-label-pane>
       </ng-template>
     </ng-container>
     <ng-container [ngbNavItem]="scriptTab">

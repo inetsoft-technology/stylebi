@@ -193,6 +193,21 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
 
       list.add(autoRefresh);
 
+      if(labelInfo != null) {
+         list.addAll(labelInfo.getViewDynamicValues());
+      }
+
+      return list;
+   }
+
+   @Override
+   public List<DynamicValue> getViewDynamicValues(boolean all) {
+      List<DynamicValue> list = super.getViewDynamicValues(all);
+
+      if(labelInfo != null) {
+         list.addAll(labelInfo.getViewDynamicValues());
+      }
+
       return list;
    }
 
