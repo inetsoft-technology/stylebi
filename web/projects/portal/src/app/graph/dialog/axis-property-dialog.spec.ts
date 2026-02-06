@@ -35,7 +35,8 @@ import { AxisPropertyDialog } from "./axis-property-dialog.component";
 let createLabelModel: () => AxisLabelPaneModel = () => {
    return {
       rotationRadioGroupModel: {rotation: "auto"},
-      showAxisLabel: true
+      showAxisLabel: true,
+      labelOnSecondaryAxis: false
    };
 };
 

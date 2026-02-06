@@ -44,12 +44,18 @@ public class AxisSpec implements Cloneable, Serializable {
    @TernField
    public static final int AXIS_SINGLE = 0x1;
    /**
+    * Bit flag to place axis labels on the opposite side (secondary axis position).
+    * When OR'd with an axis style, labels move to the opposite side:
+    * Y-axis labels move from left to right, X-axis labels move from bottom to top.
+    */
+   public static final int AXIS_LABEL_OPPOSITE_SIDE = 0x10;
+   /**
     * Use the secondary axis. For rectangular coordinate, the bottom and left are
     * considered as primary, and top/right are secondary. For facet, the top
     * is treated as primary and bottom is treated as secondary.
     */
    @TernField
-   public static final int AXIS_SINGLE2 = 0x2 | 0x10;
+   public static final int AXIS_SINGLE2 = 0x2 | AXIS_LABEL_OPPOSITE_SIDE;
    /**
     * Create two axes for each scale, with one opposite the default axis.
     */
@@ -59,7 +65,7 @@ public class AxisSpec implements Cloneable, Serializable {
     * Create two axes and display the label on the secondary axis.
     */
    @TernField
-   public static final int AXIS_DOUBLE2 = AXIS_DOUBLE | 0x10;
+   public static final int AXIS_DOUBLE2 = AXIS_DOUBLE | AXIS_LABEL_OPPOSITE_SIDE;
    /**
     * Place the axis at the zero position of the cross axis.
     */
@@ -87,7 +93,7 @@ public class AxisSpec implements Cloneable, Serializable {
     */
    @TernMethod
    public int getAxisStyle() {
-      return style;
+      return labelOnSecondaryAxis ? (style | AXIS_LABEL_OPPOSITE_SIDE) : style;
    }
 
    /**
@@ -549,6 +555,24 @@ public class AxisSpec implements Cloneable, Serializable {
       this.maxLabelSpacing = maxLabelSpacing;
    }
 
+   /**
+    * Check if labels should be displayed on the secondary axis (opposite side).
+    * For rectangular coordinates: Y-axis labels move from left to right,
+    * X-axis labels move from bottom to top.
+    */
+   @TernMethod
+   public boolean isLabelOnSecondaryAxis() {
+      return labelOnSecondaryAxis;
+   }
+
+   /**
+    * Set whether labels should be displayed on the secondary axis (opposite side).
+    */
+   @TernMethod
+   public void setLabelOnSecondaryAxis(boolean labelOnSecondaryAxis) {
+      this.labelOnSecondaryAxis = labelOnSecondaryAxis;
+   }
+
    @Override
    public boolean equals(Object o) {
       if(this == o) return true;
@@ -562,6 +586,7 @@ public class AxisSpec implements Cloneable, Serializable {
          gridStyle == axisSpec.gridStyle && gridAsShape == axisSpec.gridAsShape &&
          gridOnTop == axisSpec.gridOnTop && gridBetween == axisSpec.gridBetween &&
          facetGrid == axisSpec.facetGrid &&
+         labelOnSecondaryAxis == axisSpec.labelOnSecondaryAxis &&
          Double.compare(asize, axisSpec.asize) == 0 && minPadding == axisSpec.minPadding &&
          maxPadding == axisSpec.maxPadding && maxLabelSpacing == axisSpec.maxLabelSpacing &&
          Objects.equals(lineColor, axisSpec.lineColor) &&
@@ -578,7 +603,7 @@ public class AxisSpec implements Cloneable, Serializable {
       return Objects.hash(style, tickVisible, labelVisible, lineVisible, lineColor, line2Color,
                           labelGap, textFrame, colorFrame, fontFrame, textSpec, abbreviate,
                           allTick, truncate, inPlot, lastOrAll, gridColor, gridStyle, gridAsShape,
-                          gridOnTop, gridBetween, facetGrid, asize,
+                          gridOnTop, gridBetween, facetGrid, labelOnSecondaryAxis, asize,
                           minPadding, maxPadding, maxLabelSpacing);
    }
 
@@ -644,6 +669,7 @@ public class AxisSpec implements Cloneable, Serializable {
    private int minPadding = 0;
    private int maxPadding = 0;
    private int maxLabelSpacing = 2;
+   private boolean labelOnSecondaryAxis = false;
 
    private static final long serialVersionUID = 1L;
 }
