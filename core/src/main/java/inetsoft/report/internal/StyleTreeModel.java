@@ -64,10 +64,22 @@ public class StyleTreeModel implements XMLSerializable {
     * @param folder the folder name to be added.
     */
    public static void addFolder(String folder) {
+      addFolder(folder, true);
+   }
+
+   /**
+    * Add a folder.
+    * @param folder the folder name to be added.
+    * @param save whether to save the library immediately.
+    */
+   public static void addFolder(String folder, boolean save) {
       try {
          LibManager mgr = LibManager.getManager();
          mgr.addTableStyleFolder(folder);
-         mgr.save();
+
+         if(save) {
+            mgr.save();
+         }
       }
       catch(Exception ex) {
          LOG.error("Failed to add folder: " + folder, ex);
