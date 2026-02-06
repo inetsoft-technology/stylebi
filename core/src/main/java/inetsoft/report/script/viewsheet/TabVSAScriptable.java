@@ -86,6 +86,8 @@ public class TabVSAScriptable extends VSAScriptable {
          TabVSAScriptable.class, this);
       addProperty("selectedIndex", "getSelectedIndex", "setSelectedIndex", int.class,
          TabVSAScriptable.class, this);
+      addProperty("bottomTabs", "getBottomTabs", "setBottomTabs", boolean.class,
+         TabVSAScriptable.class, this);
    }
 
    /**
@@ -142,6 +144,14 @@ public class TabVSAScriptable extends VSAScriptable {
       idx = Math.max(0, idx);
       String[] labels = getInfo().getAssemblies();
       setSelectedValue(labels[idx]);
+   }
+
+   public void setBottomTabs(boolean bottomTabs) {
+      getInfo().setBottomTabs(bottomTabs);
+   }
+
+   public boolean getBottomTabs() {
+      return getInfo().isBottomTabs();
    }
 
    /**
