@@ -17,7 +17,7 @@
  */
 /* Component Defaults */
 .slider {
-   position: absolute;
+   position: relative;
    vertical-align: top;
    text-align: left;
 }
@@ -28,7 +28,6 @@
 }
 
 .unselectable-canvas {
-   position:absolute;
    z-index:5;
    -moz-user-select: none;
    -webkit-user-select: none;

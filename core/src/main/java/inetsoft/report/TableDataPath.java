@@ -89,6 +89,10 @@ public class TableDataPath implements XMLSerializable, DataSerializable,
     */
    public static final int MONTH_CALENDAR = 0x4004;
    /**
+    * Input label.
+    */
+   public static final int INPUT_LABEL = 0x5000;
+   /**
     * Object.
     */
    public static final int OBJECT = 0x8000;

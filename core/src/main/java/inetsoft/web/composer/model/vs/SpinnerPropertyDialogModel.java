@@ -61,7 +61,19 @@ public class SpinnerPropertyDialogModel {
       this.spinnerGeneralPaneModel = spinnerGeneralPaneModel;
    }
 
+   public void setInputLabelPaneModel(InputLabelPaneModel inputLabelPaneModel) {
+      this.inputLabelPaneModel = inputLabelPaneModel;
+   }
+
+   public InputLabelPaneModel getInputLabelPaneModel() {
+      if (inputLabelPaneModel == null) {
+         inputLabelPaneModel = new InputLabelPaneModel();
+      }
+      return inputLabelPaneModel;
+   }
+
    private SpinnerGeneralPaneModel spinnerGeneralPaneModel;
    private DataInputPaneModel dataInputPaneModel;
    private VSAssemblyScriptPaneModel vsAssemblyScriptPaneModel;
+   private InputLabelPaneModel inputLabelPaneModel;
 }
