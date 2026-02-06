@@ -425,9 +425,9 @@ public class ServerServiceMessageListener implements MessageListener {
     *
     * @return the file length in bytes.
     */
-   public int getHeapDumpLength(String id) {
+   public long getHeapDumpLength(String id) {
       File file = FileSystemService.getInstance().getCacheFile( id + ".hprof.gz");
-      return !file.isFile() ? 0 : (int) file.length();
+      return !file.isFile() ? 0L : file.length();
    }
 
    /**
@@ -438,7 +438,7 @@ public class ServerServiceMessageListener implements MessageListener {
     *
     * @return the file length in bytes.
     */
-   public int getHeapDumpLength(String id, String node) throws Exception {
+   public long getHeapDumpLength(String id, String node) throws Exception {
       if(node == null) {
          return getHeapDumpLength(id);
       }
@@ -447,7 +447,7 @@ public class ServerServiceMessageListener implements MessageListener {
       req.setId(id);
 
       return cluster.exchangeMessages(node, req, e -> {
-         Integer result = null;
+         Long result = null;
 
          if(e.getMessage() instanceof GetHeapDumpLengthCompleteMessage) {
             GetHeapDumpLengthCompleteMessage msg = (GetHeapDumpLengthCompleteMessage) e.getMessage();
@@ -471,7 +471,7 @@ public class ServerServiceMessageListener implements MessageListener {
     *
     * @return the file content.
     */
-   public byte[] getHeapDumpContent(String id, int offset, int length) {
+   public byte[] getHeapDumpContent(String id, long offset, int length) {
       File file = FileSystemService.getInstance().getCacheFile( id + ".hprof.gz");
       byte[] data = new byte[length];
       ByteBuffer buffer = ByteBuffer.wrap(data);
@@ -481,7 +481,7 @@ public class ServerServiceMessageListener implements MessageListener {
       try {
          raFile = new RandomAccessFile(file, "r");
          channel = raFile.getChannel();
-         channel.read(buffer, (long) offset);
+         channel.read(buffer, offset);
       }
       catch(Throwable exc) {
          LOG.error("Failed to read heap dump", exc);
@@ -505,7 +505,7 @@ public class ServerServiceMessageListener implements MessageListener {
     *
     * @return the file content.
     */
-   public byte[] getHeapDumpContent(String id, int offset, int length, String node) throws Exception {
+   public byte[] getHeapDumpContent(String id, long offset, int length, String node) throws Exception {
       if(node == null) {
          return getHeapDumpContent(id, offset, length);
       }

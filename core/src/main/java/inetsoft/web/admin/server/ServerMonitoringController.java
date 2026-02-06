@@ -363,17 +363,17 @@ public class ServerMonitoringController {
          throw new RuntimeException("Heap dump operation failed: " + exceptionMessage[0]);
       }
 
-      int length = serverService.getHeapDumpLength(heapId, clusterNode);
+      long length = serverService.getHeapDumpLength(heapId, clusterNode);
 
       if(length > 0) {
          try {
-            int bufferSize = 1024 * 1024 * 1024;
-            int offset = 0;
+            int bufferSize = 100 * 1024 * 1024;
+            long offset = 0;
             file = FileSystemService.getInstance().getCacheTempFile("HeapDump", ".hprof.gz");
 
             try(OutputStream output = new FileOutputStream(file)) {
                while(offset < length) {
-                  int toRead = Math.min(bufferSize, length - offset);
+                  int toRead = (int) Math.min(bufferSize, length - offset);
                   byte[] buffer =
                      serverService.getHeapDumpContent(heapId, offset, toRead, clusterNode);
                   output.write(buffer);

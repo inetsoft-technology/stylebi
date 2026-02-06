@@ -28,11 +28,11 @@ public class GetHeapDumpContentMessage implements Serializable {
       this.id = id;
    }
 
-   public int getOffset() {
+   public long getOffset() {
       return offset;
    }
 
-   public void setOffset(int offset) {
+   public void setOffset(long offset) {
       this.offset = offset;
    }
 
@@ -45,6 +45,6 @@ public class GetHeapDumpContentMessage implements Serializable {
    }
 
    private String id;
-   private int offset;
+   private long offset;
    private int length;
 }

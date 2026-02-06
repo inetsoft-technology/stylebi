@@ -248,11 +248,11 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       return serverServiceMessageListener.isHeapDumpComplete(heapId, clusterNode);
    }
 
-   public int getHeapDumpLength(String heapId, String clusterNode) throws Exception {
+   public long getHeapDumpLength(String heapId, String clusterNode) throws Exception {
       return serverServiceMessageListener.getHeapDumpLength(heapId, clusterNode);
    }
 
-   public int getHeapDumpLength(String heapId) {
+   public long getHeapDumpLength(String heapId) {
       return serverServiceMessageListener.getHeapDumpLength(heapId);
    }
 
@@ -264,7 +264,7 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       return serverServiceMessageListener.isHeapDumpComplete(id);
    }
 
-   public byte[] getHeapDumpContent(String id, int offset, int length) {
+   public byte[] getHeapDumpContent(String id, long offset, int length) {
       return serverServiceMessageListener.getHeapDumpContent(id, offset, length);
    }
 
@@ -272,7 +272,7 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       serverServiceMessageListener.disposeHeapDump(id);
    }
 
-   public byte[] getHeapDumpContent(String heapId, int offset,
+   public byte[] getHeapDumpContent(String heapId, long offset,
                                     int toRead, String clusterNode) throws Exception
    {
       return serverServiceMessageListener.getHeapDumpContent(heapId, offset, toRead, clusterNode);

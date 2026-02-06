@@ -96,7 +96,7 @@ public class ServerMonitorMBean {
     * @since 12.0
     */
    @ManagedOperation
-   public int getHeapDumpLength(String id) {
+   public long getHeapDumpLength(String id) {
       return serverService.getHeapDumpLength(id);
    }
 
@@ -113,7 +113,7 @@ public class ServerMonitorMBean {
     * @since 12.0
     */
    @ManagedOperation
-   public byte[] getHeapDumpContent(String id, int offset, int length) {
+   public byte[] getHeapDumpContent(String id, long offset, int length) {
       return serverService.getHeapDumpContent(id, offset, length);
    }
 
