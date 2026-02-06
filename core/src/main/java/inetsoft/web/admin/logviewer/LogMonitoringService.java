@@ -80,7 +80,8 @@ public class LogMonitoringService implements MessageListener {
             GetLogResponse response = cluster.exchangeMessages(
                clusterNode, request, GetLogResponse.class,
                LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            return response.getContent();
+            List<String> content = response.getContent();
+            return content != null ? content : List.of();
          }
          catch(Exception e) {
             LOG.error("Failed to get log file {} from {}", logFileName, clusterNode, e);
@@ -90,7 +91,7 @@ public class LogMonitoringService implements MessageListener {
          return getLocalLog(logFileName, offset, length);
       }
 
-      return null;
+      return List.of();
    }
 
    private List<String> getLocalLog(String logFileName, int offset, int length) {
@@ -108,7 +109,7 @@ public class LogMonitoringService implements MessageListener {
          LOG.error("Failed to read log file: {}", logFileName, exc);
       }
 
-      return null;
+      return List.of();
    }
 
    public LogMonitoringModel getLogs() {
@@ -156,10 +157,14 @@ public class LogMonitoringService implements MessageListener {
          }
       }
 
-      // wait for all tasks to complete
+      // wait for all tasks to complete, skip unresponsive nodes
       for(Future<?> future : futures) {
          try {
-            future.get();
+            future.get(LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+         }
+         catch(TimeoutException e) {
+            future.cancel(true);
+            LOG.warn("Timed out waiting for log file list from remote node, skipping");
          }
          catch(Exception e) {
             LOG.error("Error while waiting for a log file", e);

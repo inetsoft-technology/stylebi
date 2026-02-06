@@ -66,6 +66,7 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
    logContents = new Subject<string[]>();
    private subscriptions;
    private destroy$ = new Subject<void>();
+   private lastReloadTime = 0;
 
    constructor(private http: HttpClient,
                private pageTitle: PageHeaderService,
@@ -87,11 +88,21 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
             }),
             concatMap(() => this.http.get<LogMonitoringModel>(GET_LOGVIEWER_MODEL_URL))
          )
-         .subscribe(data => {
-            this.model = data;
+         .subscribe({
+            next: (data) => {
+               this.model = data;
 
-            if(!this.fluentdLogging) {
-               this.updateSubscription();
+               if(!this.fluentdLogging) {
+                  if(this.isLogSelected()) {
+                     this.updateSubscription();
+                  }
+                  else {
+                     setTimeout(() => this.reloadLogFiles(), 5000);
+                  }
+               }
+            },
+            error: () => {
+               setTimeout(() => this.reloadLogFiles(), 5000);
             }
          });
    }
@@ -115,7 +126,12 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
          this.subscriptions.add(
             this.monitoringDataService.connect(AUTO_REFRESH_LOG_URL + this.refreshUrlVars)
                .subscribe((data: string[]) => {
-                  this.logContents.next(data);
+                  if(data && data.length > 0) {
+                     this.logContents.next(data);
+                  }
+                  else {
+                     this.reloadLogFiles();
+                  }
                }));
       }
    }
@@ -144,14 +160,52 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
          return;
       }
 
-      this.http.get(REFRESH_LOG_URL + this.refreshUrlVars)
-         .subscribe((data: string[]) => {
-            this.logContents.next(data);
+      this.http.get<string[]>(REFRESH_LOG_URL + this.refreshUrlVars)
+         .subscribe({
+            next: (data) => {
+               if(data && data.length > 0) {
+                  this.logContents.next(data);
+               }
+               else {
+                  this.reloadLogFiles();
+               }
+            },
+            error: () => {
+               this.reloadLogFiles();
+            }
          });
 
       if(updateSub) {
          this.updateSubscription();
       }
+   }
+
+   private reloadLogFiles() {
+      const now = Date.now();
+
+      if(now - this.lastReloadTime < 10000) {
+         return;
+      }
+
+      this.lastReloadTime = now;
+
+      if(this.subscriptions) {
+         this.subscriptions.unsubscribe();
+         this.subscriptions = null;
+      }
+
+      this.http.get<LogMonitoringModel>(GET_LOGVIEWER_MODEL_URL)
+         .subscribe(data => {
+            this.model = data;
+
+            if(this.isLogSelected()) {
+               this.http.get<string[]>(REFRESH_LOG_URL + this.refreshUrlVars)
+                  .subscribe((logData) => {
+                     this.logContents.next(logData || []);
+                     this.updateSubscription();
+                  });
+            }
+         });
    }
 
    private get refreshUrlVars(): string {
