@@ -2698,13 +2698,32 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                      }
                   }
 
-                  // get full sheet
-                  dsheet = getSheet(dentry, user, false, AssetContent.ALL);
-                  IndexedStorage dstorage = getStorage(dentry);
-                  String didentifier = dentry.toIdentifier();
-                  dsheet.addOuterDependency(entry);
-                  dstorage.putXMLSerializable(didentifier, dsheet);
-                  sheetmap.put(didentifier, dsheet);
+                  //Set correct org context for the dependent worksheet's org
+                  //to ensure data files are read/written to the correct org's storage
+                  String prevOrgId = OrganizationContextHolder.getCurrentOrgId();
+                  String dentryOrgId = dentry.getOrgID();
+
+                  try {
+                     if(dentryOrgId != null) {
+                        OrganizationContextHolder.setCurrentOrgId(dentryOrgId);
+                     }
+
+                     // get full sheet
+                     dsheet = getSheet(dentry, user, false, AssetContent.ALL);
+                     IndexedStorage dstorage = getStorage(dentry);
+                     String didentifier = dentry.toIdentifier();
+                     dsheet.addOuterDependency(entry);
+                     dstorage.putXMLSerializable(didentifier, dsheet);
+                     sheetmap.put(didentifier, dsheet);
+                  }
+                  finally {
+                     if(prevOrgId != null) {
+                        OrganizationContextHolder.setCurrentOrgId(prevOrgId);
+                     }
+                     else {
+                        OrganizationContextHolder.clear();
+                     }
+                  }
                }
             }
 

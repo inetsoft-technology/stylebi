@@ -19,6 +19,7 @@ package inetsoft.report.composition;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
@@ -695,6 +696,7 @@ public abstract class RuntimeSheet {
       public XSwappableSheet(AbstractSheet sheet, XPrincipal contextPrincipal) {
          this.sheet = sheet;
          this.contextPrincipal = contextPrincipal;
+         this.contextOrgId = OrganizationContextHolder.getCurrentOrgId();
          this.valid = true;
          this.monitor = XSwapper.getMonitor();
 
@@ -797,7 +799,12 @@ public abstract class RuntimeSheet {
       @Override
       public synchronized boolean swap() {
          XPrincipal oldContextPrincipal = (XPrincipal) ThreadContext.getContextPrincipal();
+         String oldOrgId = OrganizationContextHolder.getCurrentOrgId();
          ThreadContext.setContextPrincipal(this.contextPrincipal);
+
+         if(this.contextOrgId != null) {
+            OrganizationContextHolder.setCurrentOrgId(this.contextOrgId);
+         }
 
          try {
 
@@ -811,6 +818,13 @@ public abstract class RuntimeSheet {
          }
          finally {
             ThreadContext.setContextPrincipal(oldContextPrincipal);
+
+            if(oldOrgId != null) {
+               OrganizationContextHolder.setCurrentOrgId(oldOrgId);
+            }
+            else {
+               OrganizationContextHolder.clear();
+            }
          }
       }
 
@@ -879,6 +893,7 @@ public abstract class RuntimeSheet {
 
       private AbstractSheet sheet = null;
       private XPrincipal contextPrincipal;
+      private String contextOrgId;
       private boolean valid = false;
       private boolean lastValid = false;
       private boolean completed = false;
