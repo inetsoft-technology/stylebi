@@ -675,6 +675,8 @@ public interface Cluster extends AutoCloseable {
     */
    void undeploySingletonService(String serviceName);
 
+   void setClosed(boolean closed);
+
    final class Reference extends SingletonManager.Reference<Cluster> {
       @Override
       public Cluster get(Object... parameters) {

@@ -179,6 +179,8 @@ public class Scheduler {
     * @throws SchedulerException if the scheduler could not be stopped.
     */
    public void stop() throws SchedulerException {
+      Cluster cluster = Cluster.getInstance();
+
       if(healthCheckExecutor != null) {
          healthCheckExecutor.shutdown();
          healthCheckExecutor = null;
@@ -190,7 +192,6 @@ public class Scheduler {
       }
 
       startTime = null;
-      Cluster cluster = Cluster.getInstance();
 
       if(listeners != null) {
          listeners.forEach(cluster::removeMessageListener);

@@ -24,6 +24,7 @@ import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.swap.XSwapper;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.metrics.*;
 import inetsoft.web.security.*;
@@ -192,6 +193,9 @@ public abstract class BaseInetsoftApplication {
 
    @PreDestroy
    public void shutdownInetsoft() {
+      // Ignite's jvm shutdown hook will execute its own shutdown logic so just
+      // mark the cluster instance as closed
+      Cluster.getInstance().setClosed(true);
       Logger log = LoggerFactory.getLogger(getClass());
 
       try {
@@ -219,7 +223,14 @@ public abstract class BaseInetsoftApplication {
       }
 
       try {
-         SingletonManager.reset();
+         XSwapper.stop();
+      }
+      catch(Exception ex) {
+         log.debug("Failed to stop XSwapper", ex);
+      }
+
+      try {
+         SingletonManager.reset(true);
       }
       catch(Exception ex) {
          log.debug("Failed to shutdown SingletonManager", ex);

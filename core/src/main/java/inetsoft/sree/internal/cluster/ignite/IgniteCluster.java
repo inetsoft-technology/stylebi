@@ -1564,8 +1564,28 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    public void close() {
       fireLifecycleEvent(ClusterLifecycleEvent.Type.CLOSED);
       lifecycleListeners.clear();
+
+      if(!closed) {
+         synchronized(mapListeners) {
+            for(MapListenerRegistration registration : mapListeners.values()) {
+               if(registration.replicated()) {
+                  ignite.events().stopLocalListen(registration.adapter(),
+                                                  EventType.EVT_CACHE_OBJECT_PUT,
+                                                  EventType.EVT_CACHE_OBJECT_REMOVED,
+                                                  EventType.EVT_CACHE_OBJECT_EXPIRED);
+               }
+               else {
+                  ignite.events().stopRemoteListen(registration.remoteListenerId());
+               }
+            }
+
+            mapListeners.clear();
+         }
+      }
+
       clusterFileTransfer.close();
       ignite.close();
+      closed = true;
       timer.cancel();
 
       for(ExecutorService value : executorServiceMap.values()) {
@@ -1578,6 +1598,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       messageExecutor.shutdownNow();
       affinityExecutor.shutdownNow();
       listenerExecutor.shutdownNow();
+   }
+
+   public void setClosed(boolean closed) {
+      this.closed = closed;
    }
 
    /**
@@ -1756,14 +1780,16 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
          if(registration != null) {
             if(registration.adapter().removeListener((MapChangeListener) l)) {
-               if(registration.replicated()) {
-                  ignite.events().stopLocalListen(registration.adapter(),
-                     EventType.EVT_CACHE_OBJECT_PUT,
-                     EventType.EVT_CACHE_OBJECT_REMOVED,
-                     EventType.EVT_CACHE_OBJECT_EXPIRED);
-               }
-               else {
-                  ignite.events().stopRemoteListen(registration.remoteListenerId());
+               if(!closed) {
+                  if(registration.replicated()) {
+                     ignite.events().stopLocalListen(registration.adapter(),
+                        EventType.EVT_CACHE_OBJECT_PUT,
+                        EventType.EVT_CACHE_OBJECT_REMOVED,
+                        EventType.EVT_CACHE_OBJECT_EXPIRED);
+                  }
+                  else {
+                     ignite.events().stopRemoteListen(registration.remoteListenerId());
+                  }
                }
 
                mapListeners.remove(name);
@@ -1778,6 +1804,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    private final Ignite ignite;
+   private volatile boolean closed;
    private final Set<inetsoft.sree.internal.cluster.MessageListener> messageListeners = new CopyOnWriteArraySet<>();
    private final Set<inetsoft.sree.internal.cluster.MembershipListener> membershipListeners = new CopyOnWriteArraySet<>();
    private final Map<String, MapListenerRegistration> mapListeners = new HashMap<>();
