@@ -101,6 +101,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
    @Output() nodeClicked = new EventEmitter<TreeNodeModel>();
    @Output() onContextmenu = new EventEmitter<[MouseEvent | any, TreeNodeModel, TreeNodeModel[]]>();
    @Output() searchStart = new EventEmitter<boolean>();
+   @Output() searchStrChange = new EventEmitter<string>();
    _searchEnabled: boolean = false;
    @ViewChild(forwardRef(() => TreeNodeComponent)) rootNode: TreeNodeComponent;
    @ViewChild("treeContainer") treeContainer: ElementRef;
@@ -312,6 +313,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
             this.searchStart.emit(true);
          }
 
+         this.searchStrChange.emit(this.searchStr.trim());
          setTimeout(() => {
             this.expandAll(this.root);
 
