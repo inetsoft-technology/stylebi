@@ -692,7 +692,7 @@ public class ScheduleService {
    public UsersModel getUsersModel(Principal principal, boolean em) {
       Map<IdentityID, User> allUsers = new HashMap<>();
       IdentityIDWithLabel[] allowedUsers;
-      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       if(Organization.getSelfOrganizationID().equals(((XPrincipal) principal).getOrgId())) {
          String alias = ((XPrincipal) principal).getAlias();
