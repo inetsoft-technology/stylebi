@@ -245,6 +245,20 @@ public class ViewsheetInfo implements AssetObject {
    }
 
    /**
+    * Check if the notifications should be hidden in viewsheet.
+    */
+   public boolean isHideNotifications() {
+      return hideNotifications;
+   }
+
+   /**
+    * Set whether notifications should be hidden in viewsheet.
+    */
+   public void setHideNotifications(boolean hideNotifications) {
+      this.hideNotifications = hideNotifications;
+   }
+
+   /**
     * Get the interval time of fire TouchAssetEvent.
     */
    public int getTouchInterval() {
@@ -739,6 +753,7 @@ public class ViewsheetInfo implements AssetObject {
       writer.print(" disableFlag=\"" + disableFlag + "\"");
       writer.print(" meta=\"" + meta + "\"");
       writer.print(" maxRowsWarning=\"" + maxRowsWarning+ "\"");
+      writer.print(" hideNotifications=\"" + hideNotifications+ "\"");
       writer.print(" warningIfNotHitMV=\"" + warningIfNotHitMV + "\"");
       writer.print(" touchInterval=\"" + touchInterval + "\"");
       writer.print(" maxrows=\"" + maxrows + "\"");
@@ -785,6 +800,7 @@ public class ViewsheetInfo implements AssetObject {
       this.scaleToScreen = "true".equals(Tool.getAttribute(elem, "scaleToScreen"));
       this.fitToWidth = "true".equals(Tool.getAttribute(elem, "fitToWidth"));
       this.warningIfNotHitMV = !"false".equals(Tool.getAttribute( elem, "warningIfNotHitMV"));
+      this.hideNotifications = "true".equals(Tool.getAttribute( elem, "hideNotifications"));
       String prop;
 
       prop = Tool.getAttribute(elem, "maxRowsWarning");
@@ -1149,6 +1165,7 @@ public class ViewsheetInfo implements AssetObject {
    private boolean meta = false;
    private boolean warningIfNotHitMV = false;
    private boolean maxRowsWarning;
+   private boolean hideNotifications;
    private int touchInterval = 10; // the unit is second
    private String desc;
    private final Map<String, String> idmap;
