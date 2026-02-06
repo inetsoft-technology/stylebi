@@ -298,7 +298,8 @@ public class DataCycleManager
 
                if(!taskList.contains(task)) {
                   taskList.add(task);
-                  taskAdded(task);
+                  // Message sending moved to ScheduleManager.reloadExtensions0() to ensure
+                  // the task is in extensionTasks before the UI receives the notification.
                }
             }
          }
@@ -309,23 +310,6 @@ public class DataCycleManager
 
       if(reloadExtensions) {
          ScheduleManager.getScheduleManager().reloadExtensions(currOrgID);
-      }
-   }
-
-   /**
-    * Send a message when cycle task is created so it will show up in EM.
-    */
-   private void taskAdded(ScheduleTask task) {
-      ScheduleTaskMessage message = new ScheduleTaskMessage();
-      message.setTaskName(task.getTaskId());
-      message.setTask(task);
-      message.setAction(ScheduleTaskMessage.Action.ADDED);
-
-      try {
-         Cluster.getInstance().sendMessage(message);
-      }
-      catch(Exception ex) {
-         LOG.debug("Failed to send task message", ex);
       }
    }
 

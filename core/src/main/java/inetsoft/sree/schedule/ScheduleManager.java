@@ -232,6 +232,20 @@ public class ScheduleManager {
                      LOG.error("Failed to update scheduler with extension task: " +
                                   task.getTaskId(), e);
                   }
+
+                  // Send message to notify UI about the new task (after it's in extensionTasks)
+                  ScheduleTaskMessage message = new ScheduleTaskMessage();
+                  message.setTaskName(task.getTaskId());
+                  message.setTask(task);
+                  message.setAction(oldTask == null ?
+                     ScheduleTaskMessage.Action.ADDED : ScheduleTaskMessage.Action.MODIFIED);
+
+                  try {
+                     Cluster.getInstance().sendMessage(message);
+                  }
+                  catch(Exception e) {
+                     LOG.debug("Failed to send task message", e);
+                  }
                }
             }
             else {
