@@ -124,8 +124,9 @@ public class AssetLMDependencyTransformer extends AssetDependencyTransformer {
          Element pnode = Tool.getChildNodeByTagName(elem, "prefix");
          String opre = Tool.getValue(pnode);
 
-         if(Tool.equals(opre, oname)) {
-            replaceCDATANode(pnode, nname);
+         // Match exactly or at path boundary to avoid false positives (e.g., "folder1" matching "f1")
+         if(opre != null && (opre.equals(oname) || opre.endsWith("/" + oname))) {
+            replaceCDATANode(pnode, opre.replace(oname, nname));
          }
       }
       else if(info.getType() == (RenameInfo.LOGIC_MODEL | RenameInfo.FOLDER)) {
