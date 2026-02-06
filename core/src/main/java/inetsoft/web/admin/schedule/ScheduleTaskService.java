@@ -308,7 +308,7 @@ public class ScheduleTaskService {
       String userOrgId = pId.orgID;
       boolean multitenant = SUtil.isMultiTenant();
       boolean timeRangeEnabled = (!multitenant || OrganizationManager.getInstance().isSiteAdmin(principal) &&
-         Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), userOrgId)) && securityProvider.checkPermission(
+         Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(principal), userOrgId)) && securityProvider.checkPermission(
       principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ);
       List<TimeZoneModel> timeZoneOptions = TimeZoneModel.getTimeZoneOptions();
       String defaultTimeProp = SreeEnv.getProperty("schedule.condition.taskDefaultTime");
@@ -509,6 +509,14 @@ public class ScheduleTaskService {
                                            Principal principal, boolean em)
       throws Exception
    {
+      String orgId = model.orgId();
+      String originalOrg = OrganizationContextHolder.getCurrentOrgId();
+
+      if(!Tool.isEmptyString(orgId)) {
+         OrganizationContextHolder.setCurrentOrgId(orgId);
+      }
+
+      try {
       String oldTaskName = model.oldTaskName();
       Catalog catalog = Catalog.getCatalog(principal);
       ScheduleTask task;
@@ -615,6 +623,12 @@ public class ScheduleTaskService {
       }
 
       return getDialogModel(taskName, principal, em);
+      }
+      finally {
+         if(!Tool.isEmptyString(orgId)) {
+            OrganizationContextHolder.setCurrentOrgId(originalOrg);
+         }
+      }
    }
 
    private void renameBackupAction(IndividualAssetBackupAction action, String path, String oid, String nid) {
@@ -1082,7 +1096,7 @@ public class ScheduleTaskService {
          return new ArrayList<>();
       }
 
-      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
       List<IdentityID> executeAsUsers =  Arrays.stream(securityProvider.getUsers())
          .filter(identityId -> Tool.equals(currOrgId, identityId.getOrgID()) && securityProvider.checkPermission(
             principal, ResourceType.SECURITY_USER, identityId.convertToKey(), ResourceAction.ADMIN))
@@ -1104,7 +1118,7 @@ public class ScheduleTaskService {
          return new ArrayList<>();
       }
 
-      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
       return Arrays.stream(securityProvider.getGroups())
          .filter(group -> Tool.equals(currOrgId, group.getOrgID()) && securityProvider.checkPermission(
             principal, ResourceType.SECURITY_GROUP, group.convertToKey(), ResourceAction.ADMIN))

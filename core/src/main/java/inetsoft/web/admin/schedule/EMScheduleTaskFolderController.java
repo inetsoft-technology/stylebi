@@ -98,7 +98,7 @@ public class EMScheduleTaskFolderController {
    public ContentRepositoryTreeModel getFolder(Principal principal)
            throws Exception
    {
-      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       if(SecurityEngine.getSecurity().getSecurityProvider().getOrganization(currOrgID) == null) {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
