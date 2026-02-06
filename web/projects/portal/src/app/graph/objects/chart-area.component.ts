@@ -101,6 +101,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
    @Input() isDataTip: boolean = false;
    @Input() pan: boolean = false;
    @Input() dateComparisonDefined: boolean = false;
+   @Input() emptyPlotLinkTooltip: string = null;
    @ViewChild("axisResize") axisResize_: ElementRef;
    onTitle: boolean = false;
 
@@ -594,6 +595,10 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
          tipInfo.region.hyperlinks.length == 1)
       {
          tooltipString += "_#(js:composer.graph.ctrlSelect)";
+      }
+
+      if (!this.mobileDevice && this.emptyPlotLinkTooltip && !tipInfo) {
+         tooltipString += this.emptyPlotLinkTooltip;
       }
 
       if(tooltipString != this.tooltipString) {
