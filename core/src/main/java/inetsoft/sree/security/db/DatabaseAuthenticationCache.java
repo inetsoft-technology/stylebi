@@ -21,6 +21,7 @@ package inetsoft.sree.security.db;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.IdentityID;
+import org.apache.ignite.IgniteException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +81,16 @@ class DatabaseAuthenticationCache implements AutoCloseable {
 
       try {
          if(service != null) {
-            service.disconnect();
+            try {
+               service.disconnect();
+            }
+            catch(IgniteException e) {
+               // Service may have been undeployed by another node, ignore
+               LOG.debug("Error disconnecting from service, may have been undeployed", e);
+            }
+            finally {
+               service = null;
+            }
          }
       }
       finally {
@@ -89,14 +99,44 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    public void load() {
-      if(initialize()) {
+      if(!initialize()) {
+         return;
+      }
+
+      try {
          service.load();
+      }
+      catch(IgniteException e) {
+         if(isServiceNotFoundError(e)) {
+            resetService();
+            if(initialize()) {
+               service.load();
+            }
+         }
+         else {
+            throw e;
+         }
       }
    }
 
    public void refresh() {
-      if(initialize()) {
+      if(!initialize()) {
+         return;
+      }
+
+      try {
          service.refresh();
+      }
+      catch(IgniteException e) {
+         if(isServiceNotFoundError(e)) {
+            resetService();
+            if(initialize()) {
+               service.refresh();
+            }
+         }
+         else {
+            throw e;
+         }
       }
    }
 
@@ -217,15 +257,85 @@ class DatabaseAuthenticationCache implements AutoCloseable {
    }
 
    public boolean isLoading() {
-      return initialize() && service.isLoading();
+      if(!initialize()) {
+         return false;
+      }
+
+      try {
+         return service.isLoading();
+      }
+      catch(IgniteException e) {
+         if(isServiceNotFoundError(e)) {
+            resetService();
+            return initialize() && service.isLoading();
+         }
+         throw e;
+      }
    }
 
    public boolean isInitialized() {
-      return initialize() && service.isInitialized();
+      if(!initialize()) {
+         return false;
+      }
+
+      try {
+         return service.isInitialized();
+      }
+      catch(IgniteException e) {
+         if(isServiceNotFoundError(e)) {
+            resetService();
+            return initialize() && service.isInitialized();
+         }
+         throw e;
+      }
    }
 
    public long getAge() {
-      return initialize() ? service.getAge() : 0L;
+      if(!initialize()) {
+         return 0L;
+      }
+
+      try {
+         return service.getAge();
+      }
+      catch(IgniteException e) {
+         if(isServiceNotFoundError(e)) {
+            resetService();
+            return initialize() ? service.getAge() : 0L;
+         }
+         throw e;
+      }
+   }
+
+   /**
+    * Checks if the exception indicates that the Ignite service was not found.
+    */
+   private boolean isServiceNotFoundError(IgniteException e) {
+      String message = e.getMessage();
+      return message != null && message.contains("Failed to find deployed service");
+   }
+
+   /**
+    * Resets the service reference so it can be reinitialized on next access.
+    * This is used to recover from cases where the service was unexpectedly undeployed.
+    */
+   private void resetService() {
+      serviceLock.lock();
+
+      try {
+         LOG.warn("Service not found, resetting for reinitialization: DatabaseSecurity:{}",
+            provider.getProviderName());
+         service = null;
+         lists = null;
+         orgNames = null;
+         orgMembers = null;
+         groupUsers = null;
+         userRoles = null;
+         userEmails = null;
+      }
+      finally {
+         serviceLock.unlock();
+      }
    }
 
    private final DatabaseAuthenticationProvider provider;

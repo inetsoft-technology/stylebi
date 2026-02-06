@@ -73,6 +73,11 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
       this.lastFailureTime = cluster.getLong(prefix + ".lastFailureTime");
       this.executor = Executors.newScheduledThreadPool(2, r ->
          new Thread(r, "DatabaseAuthenticationCache"));
+      this.zeroSince = cluster.getLong(prefix + ".zeroSince");
+
+      // Schedule periodic cleanup check
+      executor.scheduleAtFixedRate(
+         this::checkAndCleanup, CLEANUP_CHECK_INTERVAL_MS, CLEANUP_CHECK_INTERVAL_MS, TimeUnit.MILLISECONDS);
    }
 
    public boolean isLoading() {
@@ -99,15 +104,54 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    public void connect() {
       provider = getProvider(providerName);
       clientCount.incrementAndGet();
+      zeroSince.set(0L); // Clear the zero timestamp since we have an active client
    }
 
    public void disconnect() {
-      if(clientCount.compareAndSet(1L, 0L)) {
-         destroyCache();
+      // Only decrement the client count. Don't undeploy the service or destroy the cache
+      // because other nodes in the cluster may still be using them. The service will be
+      // cleaned up by the lazy cleanup task when no clients remain for the grace period.
+      long newCount = clientCount.decrementAndGet();
 
-         if(cluster != null) {
-            cluster.undeploySingletonService(prefix);
+      if(newCount <= 0) {
+         // Record when the count became zero for lazy cleanup
+         zeroSince.set(System.currentTimeMillis());
+      }
+   }
+
+   public void destroyService() {
+      // Force client count to 0 and destroy all resources
+      clientCount.set(0);
+      zeroSince.set(0L);
+      destroyCache();
+
+      if(cluster != null) {
+         cluster.undeploySingletonService(prefix);
+      }
+   }
+
+   /**
+    * Checks if the service should be cleaned up due to no active clients for the grace period.
+    * This runs periodically as a background task.
+    */
+   private void checkAndCleanup() {
+      if(cancelled.get()) {
+         return;
+      }
+
+      try {
+         long count = clientCount.get();
+         long zeroTs = zeroSince.get();
+         long now = System.currentTimeMillis();
+
+         if(count <= 0 && zeroTs > 0 && (now - zeroTs) > CLEANUP_GRACE_PERIOD_MS) {
+            LOG.info("Cleaning up unused database security service: {}", prefix);
+            destroyService();
          }
+      }
+      catch(Exception e) {
+         // Don't let exceptions kill the scheduled task
+         LOG.debug("Error during cleanup check for {}", prefix, e);
       }
    }
 
@@ -151,6 +195,14 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
 
          if(lastFailureTime != null) {
             cluster.destroyLong(prefix + ".lastFailureTime");
+         }
+
+         if(zeroSince != null) {
+            cluster.destroyLong(prefix + ".zeroSince");
+         }
+
+         if(clientCount != null) {
+            cluster.destroyLong(prefix + ".clientCount");
          }
       }
    }
@@ -411,6 +463,7 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    private transient DistributedLong loadingCount;
    private transient AtomicBoolean cancelled;
    private transient DistributedLong clientCount;
+   private transient DistributedLong zeroSince;
    private transient ScheduledExecutorService executor;
 
    private static final Logger LOG =
@@ -420,4 +473,9 @@ public class DatabaseAuthenticationCacheServiceImpl implements DatabaseAuthentic
    private static final String USER_LIST = "users";
    private static final String GROUP_LIST = "groups";
    private static final String ROLE_LIST = "roles";
+
+   // Grace period before cleaning up a service with no active clients (5 minutes)
+   private static final long CLEANUP_GRACE_PERIOD_MS = 5 * 60 * 1000L;
+   // How often to check for cleanup (5 minute)
+   private static final long CLEANUP_CHECK_INTERVAL_MS = 5 * 60 * 1000L;
 }
