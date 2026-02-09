@@ -90,9 +90,10 @@ export class AiAssistantService {
 
    loadCurrentUser(em: boolean = false): void {
       const uri = em ? EM_CURRENT_USER_URI : PORTAL_CURRENT_USER_URI;
+
       this.http.get(uri).subscribe((model: CurrentUser) => {
          this.userId = convertToKey(model.name);
-         this.email = model.email;
+         this.email = this.email = model.email?.[0] ?? null;
       });
    }
 
