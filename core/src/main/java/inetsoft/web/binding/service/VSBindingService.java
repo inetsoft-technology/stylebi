@@ -1381,7 +1381,7 @@ public class VSBindingService {
       if(factory == null) {
          throw new IllegalArgumentException(
             "No model factory registered for assembly type " +
-               assembly.getClass().getName());
+            assembly.getClass().getName());
       }
 
       VSAssembly oassembly = (VSAssembly) assembly.clone();
@@ -1509,7 +1509,7 @@ public class VSBindingService {
          if(!VSEventUtil.isValidDataRefs(table, refs)) {
             Catalog catalog = Catalog.getCatalog();
             throw new MessageException(catalog.getString("viewer.viewsheet.createSelectionTreeFailed") +
-                                          " " + catalog.getString("viewer.viewsheet.editSelectionTree"));
+               " " + catalog.getString("viewer.viewsheet.editSelectionTree"));
          }
       }
       else if(XSchema.isDateType(dtype) || XSchema.isNumericType(dtype)) {
