@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 
 @Component({
    selector: "modal-header",
@@ -25,13 +26,21 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 export class ModalHeaderComponent {
    @Input() title: string = "";
    @Input() cshid: string = "";
+   @Input() isShowAiAssistant: boolean = false;
    @Input() isShow: boolean = false;
    @Input() isDataTip: boolean = false;
    @Output() onCancel = new EventEmitter<any>();
    @Output() onShowStyle = new EventEmitter<any>();
    @Output() onExportTable = new EventEmitter<any>();
 
+   constructor(public aiAssistantService: AiAssistantService) {
+   }
+
    get showHelpLink(): boolean {
       return !!this.cshid && this.cshid.length > 0;
+   }
+
+   get showAssistant(): boolean {
+      return !!this.isShowAiAssistant;
    }
 }

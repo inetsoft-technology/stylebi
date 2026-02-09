@@ -24,11 +24,16 @@ import {
 } from "@angular/router";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
+import {
+   AiAssistantService,
+   ContextType
+} from "../../../../shared/ai-assistant/ai-assistant.service";
 import { AuthorizationService } from "./authorization.service";
 
 export const authorizationGuard: CanActivateFn = (next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> => {
    const service = inject(AuthorizationService);
    const router = inject(Router);
+   const aiAssistantService = inject(AiAssistantService);
    const parent: string = next.data.permissionParentPath;
    const child: string = next.data.permissionChild;
 
@@ -52,6 +57,9 @@ export const authorizationGuard: CanActivateFn = (next: ActivatedRouteSnapshot, 
                router.navigate([uri]);
             }
          }
+
+         aiAssistantService.loadCurrentUser(true);
+         aiAssistantService.setContextTypeFieldValue(ContextType.EM);
 
          return allowed;
       })

@@ -17,23 +17,19 @@
  */
 package inetsoft.web.binding.service;
 
-import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
-import inetsoft.sree.AnalyticRepository;
-import inetsoft.sree.security.Organization;
-import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.erm.*;
-import inetsoft.uql.schema.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -42,43 +38,35 @@ import inetsoft.util.*;
 import inetsoft.web.binding.dnd.TableTransfer;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
-import inetsoft.web.binding.handler.VSBindingHelper;
-import inetsoft.web.binding.model.*;
+import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.VSTableTrapModel;
-import inetsoft.web.composer.vs.VSObjectTreeNode;
-import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.controller.*;
-import inetsoft.web.composer.vs.objects.event.ChangeVSObjectBindingEvent;
-import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
-import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.InsertSelectionChildEvent;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
-import inetsoft.web.viewsheet.service.*;
+import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.VSSelectionContainerService;
 import inetsoft.web.vswizard.model.VSWizardEditModes;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 
 /**
  * Class that acts as a facade for all registered instances of
  *
  * @since 12.3
  */
-@Service
-@ClusterProxy
+@Component
 public class VSBindingService {
    @Autowired
    public VSBindingService(VSTrapService trapService,
@@ -86,6 +74,7 @@ public class VSBindingService {
                            GroupingService groupingService,
                            ViewsheetService viewsheetService,
                            List<VSBindingFactory<?, ?>> factories,
+                           RuntimeViewsheetRef runtimeViewsheetRef,
                            DataRefModelFactoryService dataRefService,
                            VSObjectModelFactoryService objectModelService,
                            VSWizardTemporaryInfoService wizardTemporaryInfoService,
@@ -101,6 +90,7 @@ public class VSBindingService {
       this.groupingService = groupingService;
       this.viewsheetService = viewsheetService;
       this.objectModelService = objectModelService;
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.wizardTemporaryInfoService = wizardTemporaryInfoService;
       this.vsSelectionContainerService = vsSelectionContainerService;
       this.analyticAssistant =  analyticAssistant;
@@ -1218,6 +1208,7 @@ public class VSBindingService {
       BindingModel model = factory.createModel(assembly);
       model.setSource(createSourceInfo(assembly));
       model.setAvailableFields(createAvailableFields(assembly));
+      model.setTables(createSourceTables(model, assembly));
 
       return model;
    }
@@ -1262,6 +1253,132 @@ public class VSBindingService {
       return availableFields;
    }
 
+   /**
+    * Create tables of vs source for ai to use it in script pane.
+    */
+   private List<BindingModel.SourceTable> createSourceTables(BindingModel model,
+                                                             VSAssembly assembly)
+   {
+      List<BindingModel.SourceTable> tables = new ArrayList<>();
+
+      // do not support cube to show its sources since cube tables is a lot.
+      if(VSUtil.getCubeSource(assembly) != null && !VSUtil.isWorksheetCube(assembly)) {
+         return tables;
+      }
+
+      Viewsheet vs = assembly == null ? null : assembly.getViewsheet();
+      Worksheet ws = vs == null ? null : vs.getBaseWorksheet();
+
+      if(ws == null) {
+         return tables;
+      }
+
+      Assembly[] assemblies = ws.getAssemblies();
+
+      for(int i = 0; i < assemblies.length; i++) {
+         Assembly ass = assemblies[i];
+
+         if(ass instanceof AbstractTableAssembly) {
+            BindingModel.SourceTable table = model.new SourceTable();
+            table.setName(ass.getAbsoluteName());
+            AbstractTableAssembly abstractTableAssembly = (AbstractTableAssembly) ass;
+            ColumnSelection cols = abstractTableAssembly.getColumnSelection(true);
+            table.setColumns(createTableColumns(model, cols));
+            tables.add(table);
+         }
+      }
+
+      return tables;
+   }
+
+   private List<BindingModel.SourceTableColumn> createTableColumns(BindingModel model,
+                                                                   ColumnSelection cols)
+   {
+      List<BindingModel.SourceTableColumn> columns = new ArrayList<>();
+
+      if(cols == null || cols.getAttributeCount() == 0) {
+         return columns;
+      }
+
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         DataRef ref = cols.getAttribute(i);
+         BindingModel.SourceTableColumn col =
+            model.new SourceTableColumn(ref.getName(), ref.getDataType());
+
+         if(ref instanceof ColumnRef) {
+            col.setDescription(((ColumnRef) ref).getDescription());
+         }
+
+         columns.add(col);
+      }
+
+      return columns;
+   }
+
+   public void insertChild(InsertSelectionChildEvent event, String linkUri,
+                           Principal principal, CommandDispatcher dispatcher)
+      throws Exception
+   {
+      RuntimeViewsheet rvs =
+         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+
+      VSAssembly containerAssembly = viewsheet.getAssembly(event.getName());
+      List<AssetEntry> bindings = event.getBinding();
+      TableTransfer tableData = event.getComponentBinding();
+
+      if((bindings == null || bindings.size() < 1) && tableData == null &&
+         event.getColumns() == null)
+      {
+         return;
+      }
+
+      OutputColumnRefModel[] columnModels = event.getColumns();
+
+      if(columnModels != null) {
+         if(columnModels.length > 0) {
+            int to = event.getToIndex();
+
+            for(int i = 0; i < columnModels.length; i++) {
+               OutputColumnRefModel col = columnModels[i];
+               VSAssembly child = getNewAssemblyFromColumn(col, rvs);
+               boolean added = addAssembly(rvs, containerAssembly, child, to, linkUri, dispatcher);
+
+               if(added) {
+                  to++;
+               }
+            }
+         }
+
+         return;
+      }
+
+      VSAssembly vsassembly;
+
+      if(tableData != null) {
+         final VSAssembly tableAssembly = viewsheet.getAssembly(tableData.getAssembly());
+
+         // Table assembly should be from the same viewsheet as the container assembly.
+         if(tableAssembly == null ||
+            !Objects.equals(tableAssembly.getViewsheet().getAbsoluteName(),
+                           containerAssembly.getViewsheet().getAbsoluteName()))
+         {
+            return;
+         }
+
+         vsassembly = getNewAssemblyFromComponentBinding(
+            tableData, viewsheet, event.getX(), event.getY());
+      }
+      else {
+         vsassembly = getNewAssemblyFromBindings(
+            bindings, event.getX(), event.getY(), rvs, principal);
+      }
+
+      if(vsassembly != null) {
+         addAssembly(rvs, containerAssembly, vsassembly, event.getToIndex(), linkUri, dispatcher);
+      }
+   }
+
    // add bottom border for selections inside container
    private boolean addAssembly(RuntimeViewsheet rvs, VSAssembly container,
                             VSAssembly vsassembly, int toIndex, String linkUri,
@@ -1302,6 +1419,47 @@ public class VSBindingService {
       this.vsSelectionContainerService.applySelection(rvs, vsassembly.getAbsoluteName(), false,
                                                       dispatcher, linkUri);
       return true;
+   }
+
+   public VSTableTrapModel checkVSSelectionTrap(InsertSelectionChildEvent event,
+                                                String runtimeId,
+                                                Principal principal)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Viewsheet viewsheet = rvs.getViewsheet();
+      List<AssetEntry> bindings = event.getBinding();
+      OutputColumnRefModel[] columns = event.getColumns();
+      VSAssembly vsassembly = null;
+      VSAssemblyInfo oldAssemblyInfo;
+      VSAssemblyInfo newAssemblyInfo;
+
+      if(event.getComponentBinding() != null) {
+         vsassembly = getNewAssemblyFromComponentBinding(
+            event.getComponentBinding(), viewsheet, event.getX(), event.getY());
+      }
+      else if(bindings != null) {
+         vsassembly = getNewAssemblyFromBindings(
+            bindings, event.getX(), event.getY(), rvs, principal);
+      }
+      else if(columns != null) {
+         oldAssemblyInfo = null;
+
+         for(int i = 0; i < columns.length; i++) {
+            vsassembly = getNewAssemblyFromColumn(columns[i],  rvs);
+            newAssemblyInfo = vsassembly != null ? vsassembly.getVSAssemblyInfo() : null;
+            VSTableTrapModel trap = trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
+
+            if(trap.showTrap()) {
+               return trap;
+            }
+         }
+      }
+
+      oldAssemblyInfo = null;
+      newAssemblyInfo = vsassembly != null ? vsassembly.getVSAssemblyInfo() : null;
+
+      return trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
    }
 
    /**
@@ -1990,6 +2148,7 @@ public class VSBindingService {
    private final VSTableService vsTableService;
    private final GroupingService groupingService;
    private final ViewsheetService viewsheetService;
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final DataRefModelFactoryService dataRefService;
    private final VSObjectModelFactoryService objectModelService;
    private final VSWizardTemporaryInfoService wizardTemporaryInfoService;
