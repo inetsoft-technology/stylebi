@@ -44,6 +44,7 @@ export class DataTabComponent implements AfterViewInit, OnDestroy {
                private aiAssistantSerivice: AiAssistantService)
    {
       this.aiAssistantSerivice.setContextTypeFieldValue(ContextType.PORTAL_DATA);
+
       this.subscription = this.physicalModelService.onFullScreen.subscribe((fullScreen: boolean) => {
          this.hiddenCollapsed = fullScreen;
          this.treePaneCollapsed = fullScreen;
