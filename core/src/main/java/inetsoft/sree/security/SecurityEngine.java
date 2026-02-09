@@ -229,27 +229,44 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    }
 
    public void enableSecurity() throws Exception {
-      setSecurityEnabled(true);
-      AuthenticationChain authcChain = new AuthenticationChain();
-      AuthorizationChain authzChain = new AuthorizationChain();
+      initLock.lock();
 
-      if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
-         provider = CompositeSecurityProvider.create(authcChain, authzChain);
-         authcChain.addAuthenticationChangeListener(authzChain);
-         authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
+      try {
+         setSecurityEnabled(true);
+         AuthenticationChain authcChain = new AuthenticationChain();
+         AuthorizationChain authzChain = new AuthorizationChain();
+
+         if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
+            provider = CompositeSecurityProvider.create(authcChain, authzChain);
+            authcChain.addAuthenticationChangeListener(authzChain);
+            authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
+         }
+         else {
+            authcChain.tearDown();
+            authzChain.tearDown();
+            newChain();
+         }
       }
-      else {
-         newChain();
+      finally {
+         initLock.unlock();
       }
 
       clusterInstance.sendMessage(new SecurityChangedMessage(true));
    }
 
    public void disableSecurity() throws Exception {
-      setSecurityEnabled(false);
+      initLock.lock();
 
-      if(provider != null) {
-         provider.tearDown();
+      try {
+         setSecurityEnabled(false);
+
+         if(provider != null) {
+            provider.tearDown();
+            provider = null;
+         }
+      }
+      finally {
+         initLock.unlock();
       }
 
       clusterInstance.sendMessage(new SecurityChangedMessage(false));
