@@ -1212,7 +1212,7 @@ public class VSBindingService {
       if(factory == null) {
          throw new IllegalArgumentException(
             "No model factory registered for assembly type " +
-               assembly.getClass().getName());
+            assembly.getClass().getName());
       }
 
       BindingModel model = factory.createModel(assembly);
