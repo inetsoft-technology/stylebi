@@ -417,6 +417,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
    private userSetStartTime(time: NgbTimeStruct): void {
       this.setStartTime(time);
       this.model.taskDefaultTime = !!time;
+      this.form?.controls["startTime"]?.setValue(time,
+         {emitEvent: false, emitModelToViewChange: false});
    }
 
    private onStartTimeDataChanged(data: StartTimeData): void {
