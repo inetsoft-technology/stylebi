@@ -327,6 +327,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
                private aiAssistantService: AiAssistantService)
    {
       this.aiAssistantService.loadCurrentUser();
+
       GuiTool.isTouchDevice().then((value: boolean) => {
          this.touchDevice = value;
       });
