@@ -88,6 +88,7 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
    @Input() columnEditorEnabled: boolean = false;
    @Input() isWrapped: boolean = false;
    @Input() dataTip: string = null;
+   @Input() dataTipOnClick: boolean = false;
    @Input() isFlyOnClick: boolean = false;
    @Input() width: number = 0;
    @Input() height: number = 0;
@@ -380,10 +381,10 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
       }
 
       if(this.viewer || this.preview) {
-         if(this.dataTip) {
+         if(this.dataTip && !this.dataTipOnClick) {
             this.showDataTip(event);
          }
-         else if(this.table.dataTip) {
+         else if(this.table.dataTip && !this.dataTipOnClick) {
             this.debounceService.debounce(DataTipService.DEBOUNCE_KEY, () => {
                this.zone.run(() => this.dataTipService.hideDataTip());
             }, 100, []);
@@ -407,6 +408,17 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
          this.zone.run(() => {
             this.onSelectCell.emit(event);
          });
+      }
+
+      if(this.dataTipOnClick && this.dataTip && (this.viewer || this.preview) &&
+         event instanceof MouseEvent)
+      {
+         const hasLinks = this.numLinks > 0;
+
+         if(!hasLinks || event.ctrlKey || event.metaKey) {
+            this.showDataTip(event);
+            setTimeout(() => this.dataTipService.setFrozen(true), 0);
+         }
       }
    }
 

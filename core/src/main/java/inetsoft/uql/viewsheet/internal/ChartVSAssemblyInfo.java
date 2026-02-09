@@ -64,6 +64,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
 
       tipOptionValue = new DynamicValue2(TOOLTIP_OPTION + "", XSchema.INTEGER);
       flyClickValue = new DynamicValue("false", XSchema.BOOLEAN);
+      tipClickValue = new DynamicValue("false", XSchema.BOOLEAN);
 
       summarySortCol = new DynamicValue2("-1", XSchema.INTEGER);
       summarySortVal = new DynamicValue2("0", XSchema.INTEGER);
@@ -1264,6 +1265,8 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       writer.print(" tipOptionValue=\"" + getTipOptionValue() + "\"");
       writer.print(" flyClick=\"" + isFlyOnClick() + "\"");
       writer.print(" flyClickValue=\"" + getFlyOnClickValue() + "\"");
+      writer.print(" tipClick=\"" + isTipOnClick() + "\"");
+      writer.print(" tipClickValue=\"" + getTipOnClickValue() + "\"");
       writer.print(" summarySortCol=\"" + getSummarySortCol() + "\"");
       writer.print(" summarySortVal=\"" + getSummarySortValValue() + "\"");
 
@@ -1282,6 +1285,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       setTipOptionValue(Integer.parseInt(prop));
 
       setFlyOnClickValue(Tool.getAttribute(element, "flyClickValue"));
+      setTipOnClickValue(Tool.getAttribute(element, "tipClickValue"));
 
       prop = getAttributeStr(element, "summarySortCol", "-1");
       setSummarySortColValue(Integer.parseInt(prop));
@@ -1577,6 +1581,13 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          result = true;
       }
 
+      if(!Tool.equals(getTipOnClickValue(), ninfo.getTipOnClickValue()) ||
+         !Tool.equals(isTipOnClick(), ninfo.isTipOnClick()))
+      {
+         tipClickValue = ninfo.tipClickValue;
+         result = true;
+      }
+
       if(cinfo.getUnitWidthRatio() !=
          ninfo.getVSChartInfo().getUnitWidthRatio())
       {
@@ -1721,6 +1732,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
          Tool.equals(tipViewValue, info.tipViewValue) &&
          Tool.equals(alphaValue, info.alphaValue) &&
          Tool.equals(flyClickValue, info.flyClickValue) &&
+         Tool.equals(tipClickValue, info.tipClickValue) &&
          Tool.equals(getTipView(), info.getTipView()) &&
          Tool.equals(getAlpha(), info.getAlpha()) &&
          Tool.equals(getFlyoverViewsValue(), info.getFlyoverViewsValue()) &&
@@ -2305,6 +2317,34 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    }
 
    /**
+    * Check if only show data tip when clicked.
+    */
+   public String getTipOnClickValue() {
+      return tipClickValue.getDValue();
+   }
+
+   /**
+    * Set if only show data tip when clicked.
+    */
+   public void setTipOnClickValue(String val) {
+      tipClickValue.setDValue(val);
+   }
+
+   /**
+    * Check if only show data tip when clicked.
+    */
+   public boolean isTipOnClick() {
+      return (Boolean) tipClickValue.getRuntimeValue(true);
+   }
+
+   /**
+    * Set if only show data tip when clicked.
+    */
+   public void setTipOnClick(boolean val) {
+      tipClickValue.setRValue(val);
+   }
+
+   /**
     * Reset runtime values.
     */
    @Override
@@ -2315,6 +2355,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
       tipViewValue.setRValue(null);
       flyoverValue.setRValue(null);
       flyClickValue.setRValue(null);
+      tipClickValue.setRValue(null);
       summarySortCol.setRValue(null);
       summarySortVal.setRValue(null);
 
@@ -2718,6 +2759,7 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
    private ChartDescriptor rdesc; // runtime chart descriptor
    private DynamicValue2 tipOptionValue;
    private DynamicValue flyClickValue;
+   private DynamicValue tipClickValue;
    private DynamicValue tipViewValue = new DynamicValue();
    private DynamicValue alphaValue = new DynamicValue();
    private ClazzHolder<String[]> flyoverValue = new ClazzHolder<>();
