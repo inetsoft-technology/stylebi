@@ -558,7 +558,13 @@ public class VSSelectionService {
       final RuntimeViewsheet rvs = context.rvs();
       final CommandDispatcher dispatcher = context.dispatcher();
       final String linkUri = context.linkUri();
-      String embedded = VSUtil.getEmbeddedTableWithSameSource(rvs.getViewsheet(), assembly);
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         return;
+      }
+
+      String embedded = VSUtil.getEmbeddedTableWithSameSource(vs, assembly);
 
       if(embedded != null) {
          String msg = Catalog.getCatalog().getString(
@@ -596,7 +602,7 @@ public class VSSelectionService {
       SelectionVSAssemblyInfo info = (SelectionVSAssemblyInfo) assembly.getInfo();
 
       if(!assembly.containsSelection() && info.isCreatedByAdhoc()) {
-         VSAssembly selectionAssembly = rvs.getViewsheet().getAssembly(assembly.getAbsoluteName());
+         VSAssembly selectionAssembly = vs.getAssembly(assembly.getAbsoluteName());
 
          // @by: ChrisSpagnoli bug1412261632374 #5 2014-10-16
          // As both VSLayoutEvent and ApplySelectionListEvent try to
@@ -606,7 +612,7 @@ public class VSSelectionService {
          // the Viewsheet before deleting it.
          if(selectionAssembly != null) {
             if(selectionAssembly instanceof MaxModeSupportAssembly &&
-               rvs.getViewsheet().isMaxMode() &&
+               vs.isMaxMode() &&
                ((MaxModeSupportAssembly) selectionAssembly).getMaxModeInfo().getMaxSize() != null)
             {
                this.maxModeAssemblyService.toggleMaxMode(rvs, assembly.getAbsoluteName(),
@@ -620,7 +626,7 @@ public class VSSelectionService {
       // Iterate over all assemblies and for add to view list if they have
       // hyperlinks that "send selection parameters"
       coreLifecycleService.executeInfluencedHyperlinkAssemblies(
-         rvs.getViewsheet(), dispatcher, rvs, linkUri, Collections.singletonList(table));
+         vs, dispatcher, rvs, linkUri, Collections.singletonList(table));
    }
 
    /**
@@ -836,8 +842,14 @@ public class VSSelectionService {
       coreLifecycleService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher,
                                    true);
 
+      Viewsheet viewsheet = rvs.getViewsheet();
+
+      if(viewsheet == null) {
+         return;
+      }
+
       // Bug #59654, reapply scale to vs assemblies after changing a selection value
-      if(rvs.getViewsheet().getViewsheetInfo().isScaleToScreen() &&
+      if(viewsheet.getViewsheetInfo().isScaleToScreen() &&
          (rvs.isPreview() || rvs.isViewer()))
       {
          Object scaleSize = rvs.getProperty("viewsheet.appliedScale");
@@ -853,7 +865,7 @@ public class VSSelectionService {
          }
       }
 
-      List<VSAssembly> tassemblies = VSUtil.getSharedVSAssemblies(rvs.getViewsheet(), assembly);
+      List<VSAssembly> tassemblies = VSUtil.getSharedVSAssemblies(viewsheet, assembly);
 
       for(VSAssembly tassembly : tassemblies) {
          coreLifecycleService.refreshVSObject(tassembly, rvs, null, box.get(), dispatcher);
