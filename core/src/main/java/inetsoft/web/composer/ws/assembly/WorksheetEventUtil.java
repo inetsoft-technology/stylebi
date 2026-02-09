@@ -563,7 +563,7 @@ public class WorksheetEventUtil {
          XTable data = etable instanceof SnapshotEmbeddedTableAssembly
             ? ((SnapshotEmbeddedTableAssembly) etable).getTable()
             : etable.getEmbeddedData();
-         int count = data.getRowCount() - 1;
+         int count = data != null ? data.getRowCount() - 1 : 0;
          count = Math.max(0, count);
          ((EmbeddedTableAssemblyInfo) info).setRowCount(count);
       }
