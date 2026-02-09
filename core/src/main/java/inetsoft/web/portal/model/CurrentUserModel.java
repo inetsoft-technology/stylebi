@@ -36,7 +36,7 @@ public abstract class CurrentUserModel {
    @Nullable
    public abstract String alias();
    @Nullable
-   public abstract String email();
+   public abstract String[] email();
    @Nullable
    public abstract String localeLanguage();
    @Nullable

@@ -17,19 +17,23 @@
  */
 package inetsoft.web.binding.service;
 
+import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.cluster.*;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.erm.*;
+import inetsoft.uql.schema.*;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
@@ -38,35 +42,43 @@ import inetsoft.util.*;
 import inetsoft.web.binding.dnd.TableTransfer;
 import inetsoft.web.binding.drm.CalculateRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
-import inetsoft.web.binding.model.BindingModel;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.binding.handler.VSBindingHelper;
+import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.model.SourceInfo;
 import inetsoft.web.composer.model.vs.OutputColumnRefModel;
 import inetsoft.web.composer.model.vs.VSTableTrapModel;
+import inetsoft.web.composer.vs.VSObjectTreeNode;
+import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.controller.*;
+import inetsoft.web.composer.vs.objects.event.ChangeVSObjectBindingEvent;
+import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.command.RefreshVSObjectCommand;
+import inetsoft.web.viewsheet.controller.table.BaseTableService;
 import inetsoft.web.viewsheet.event.InsertSelectionChildEvent;
-import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
-import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.VSSelectionContainerService;
+import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.model.VSWizardEditModes;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.security.Principal;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 
 /**
  * Class that acts as a facade for all registered instances of
  *
  * @since 12.3
  */
-@Component
+@Service
+@ClusterProxy
 public class VSBindingService {
    @Autowired
    public VSBindingService(VSTrapService trapService,
@@ -74,7 +86,6 @@ public class VSBindingService {
                            GroupingService groupingService,
                            ViewsheetService viewsheetService,
                            List<VSBindingFactory<?, ?>> factories,
-                           RuntimeViewsheetRef runtimeViewsheetRef,
                            DataRefModelFactoryService dataRefService,
                            VSObjectModelFactoryService objectModelService,
                            VSWizardTemporaryInfoService wizardTemporaryInfoService,
@@ -90,7 +101,6 @@ public class VSBindingService {
       this.groupingService = groupingService;
       this.viewsheetService = viewsheetService;
       this.objectModelService = objectModelService;
-      this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.wizardTemporaryInfoService = wizardTemporaryInfoService;
       this.vsSelectionContainerService = vsSelectionContainerService;
       this.analyticAssistant =  analyticAssistant;
@@ -368,7 +378,7 @@ public class VSBindingService {
       throws Exception
    {
       String id = createRuntimeSheet(vsId, viewer, temporarySheet,
-                                                           principal, assemblyName);
+                                     principal, assemblyName);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(id, principal);
       Viewsheet vs = rvs.getViewsheet();
       return new BindingPaneData(id, vs.getViewsheetInfo().isMetadata());
@@ -1202,7 +1212,7 @@ public class VSBindingService {
       if(factory == null) {
          throw new IllegalArgumentException(
             "No model factory registered for assembly type " +
-            assembly.getClass().getName());
+               assembly.getClass().getName());
       }
 
       BindingModel model = factory.createModel(assembly);
@@ -1211,46 +1221,6 @@ public class VSBindingService {
       model.setTables(createSourceTables(model, assembly));
 
       return model;
-   }
-
-   /**
-    * Create a availableFields.
-    */
-   private List<DataRefModel> createAvailableFields(VSAssembly assembly) {
-      List<DataRefModel> availableFields = new ArrayList<>();
-
-      // fix Bug #22230.
-      // availableFields is used in formula option to support select a second
-      // column, but cube don't support second formula, and cube datasource
-      // have handreds of fields which size may exceed the max message size
-      // of websocket, so don't write the availableFields for cube binding.
-      if(VSUtil.getCubeSource(assembly) != null && !VSUtil.isWorksheetCube(assembly)) {
-         return availableFields;
-      }
-
-      ColumnSelection cols = VSUtil.getBaseColumns(assembly, true);
-      XUtil.addDescriptionsFromSource(assembly, cols);
-
-      for(int i = 0; i < cols.getAttributeCount(); i++) {
-         if(VSUtil.isPreparedCalcField(cols.getAttribute(i))) {
-            continue;
-         }
-
-         availableFields.add(dataRefService.createDataRefModel(cols.getAttribute(i)));
-      }
-
-      // @by davezhang fixBug #20306 add Calculate to availableFields.
-      ColumnSelection columnSelection = VSUtil.getColumnsForCalc(assembly);
-
-      for(int i = 0; i < columnSelection.getAttributeCount(); i++) {
-         if(VSUtil.isAggregateCalc(columnSelection.getAttribute(i))) {
-            CalculateRefModel ref = new CalculateRefModel(
-               (CalculateRef) columnSelection.getAttribute(i));
-            availableFields.add(ref);
-         }
-      }
-
-      return availableFields;
    }
 
    /**
@@ -1315,74 +1285,50 @@ public class VSBindingService {
       return columns;
    }
 
-   public void insertChild(InsertSelectionChildEvent event, String linkUri,
-                           Principal principal, CommandDispatcher dispatcher)
-      throws Exception
-   {
-      RuntimeViewsheet rvs =
-         viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
+   /**
+    * Create a availableFields.
+    */
+   private List<DataRefModel> createAvailableFields(VSAssembly assembly) {
+      List<DataRefModel> availableFields = new ArrayList<>();
 
-      VSAssembly containerAssembly = viewsheet.getAssembly(event.getName());
-      List<AssetEntry> bindings = event.getBinding();
-      TableTransfer tableData = event.getComponentBinding();
-
-      if((bindings == null || bindings.size() < 1) && tableData == null &&
-         event.getColumns() == null)
-      {
-         return;
+      // fix Bug #22230.
+      // availableFields is used in formula option to support select a second
+      // column, but cube don't support second formula, and cube datasource
+      // have handreds of fields which size may exceed the max message size
+      // of websocket, so don't write the availableFields for cube binding.
+      if(VSUtil.getCubeSource(assembly) != null && !VSUtil.isWorksheetCube(assembly)) {
+         return availableFields;
       }
 
-      OutputColumnRefModel[] columnModels = event.getColumns();
+      ColumnSelection cols = VSUtil.getBaseColumns(assembly, true);
+      XUtil.addDescriptionsFromSource(assembly, cols);
 
-      if(columnModels != null) {
-         if(columnModels.length > 0) {
-            int to = event.getToIndex();
-
-            for(int i = 0; i < columnModels.length; i++) {
-               OutputColumnRefModel col = columnModels[i];
-               VSAssembly child = getNewAssemblyFromColumn(col, rvs);
-               boolean added = addAssembly(rvs, containerAssembly, child, to, linkUri, dispatcher);
-
-               if(added) {
-                  to++;
-               }
-            }
+      for(int i = 0; i < cols.getAttributeCount(); i++) {
+         if(VSUtil.isPreparedCalcField(cols.getAttribute(i))) {
+            continue;
          }
 
-         return;
+         availableFields.add(dataRefService.createDataRefModel(cols.getAttribute(i)));
       }
 
-      VSAssembly vsassembly;
+      // @by davezhang fixBug #20306 add Calculate to availableFields.
+      ColumnSelection columnSelection = VSUtil.getColumnsForCalc(assembly);
 
-      if(tableData != null) {
-         final VSAssembly tableAssembly = viewsheet.getAssembly(tableData.getAssembly());
-
-         // Table assembly should be from the same viewsheet as the container assembly.
-         if(tableAssembly == null ||
-            !Objects.equals(tableAssembly.getViewsheet().getAbsoluteName(),
-                           containerAssembly.getViewsheet().getAbsoluteName()))
-         {
-            return;
+      for(int i = 0; i < columnSelection.getAttributeCount(); i++) {
+         if(VSUtil.isAggregateCalc(columnSelection.getAttribute(i))) {
+            CalculateRefModel ref = new CalculateRefModel(
+               (CalculateRef) columnSelection.getAttribute(i));
+            availableFields.add(ref);
          }
-
-         vsassembly = getNewAssemblyFromComponentBinding(
-            tableData, viewsheet, event.getX(), event.getY());
-      }
-      else {
-         vsassembly = getNewAssemblyFromBindings(
-            bindings, event.getX(), event.getY(), rvs, principal);
       }
 
-      if(vsassembly != null) {
-         addAssembly(rvs, containerAssembly, vsassembly, event.getToIndex(), linkUri, dispatcher);
-      }
+      return availableFields;
    }
 
    // add bottom border for selections inside container
    private boolean addAssembly(RuntimeViewsheet rvs, VSAssembly container,
-                            VSAssembly vsassembly, int toIndex, String linkUri,
-                            CommandDispatcher dispatcher) throws Exception
+                               VSAssembly vsassembly, int toIndex, String linkUri,
+                               CommandDispatcher dispatcher) throws Exception
    {
       Viewsheet viewsheet = container.getViewsheet();
       CurrentSelectionVSAssembly containerAssembly = (CurrentSelectionVSAssembly) container;
@@ -1421,47 +1367,6 @@ public class VSBindingService {
       return true;
    }
 
-   public VSTableTrapModel checkVSSelectionTrap(InsertSelectionChildEvent event,
-                                                String runtimeId,
-                                                Principal principal)
-      throws Exception
-   {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      Viewsheet viewsheet = rvs.getViewsheet();
-      List<AssetEntry> bindings = event.getBinding();
-      OutputColumnRefModel[] columns = event.getColumns();
-      VSAssembly vsassembly = null;
-      VSAssemblyInfo oldAssemblyInfo;
-      VSAssemblyInfo newAssemblyInfo;
-
-      if(event.getComponentBinding() != null) {
-         vsassembly = getNewAssemblyFromComponentBinding(
-            event.getComponentBinding(), viewsheet, event.getX(), event.getY());
-      }
-      else if(bindings != null) {
-         vsassembly = getNewAssemblyFromBindings(
-            bindings, event.getX(), event.getY(), rvs, principal);
-      }
-      else if(columns != null) {
-         oldAssemblyInfo = null;
-
-         for(int i = 0; i < columns.length; i++) {
-            vsassembly = getNewAssemblyFromColumn(columns[i],  rvs);
-            newAssemblyInfo = vsassembly != null ? vsassembly.getVSAssemblyInfo() : null;
-            VSTableTrapModel trap = trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
-
-            if(trap.showTrap()) {
-               return trap;
-            }
-         }
-      }
-
-      oldAssemblyInfo = null;
-      newAssemblyInfo = vsassembly != null ? vsassembly.getVSAssemblyInfo() : null;
-
-      return trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
-   }
-
    /**
     * Update assembly.
     *
@@ -1476,7 +1381,7 @@ public class VSBindingService {
       if(factory == null) {
          throw new IllegalArgumentException(
             "No model factory registered for assembly type " +
-            assembly.getClass().getName());
+               assembly.getClass().getName());
       }
 
       VSAssembly oassembly = (VSAssembly) assembly.clone();
@@ -1604,7 +1509,7 @@ public class VSBindingService {
          if(!VSEventUtil.isValidDataRefs(table, refs)) {
             Catalog catalog = Catalog.getCatalog();
             throw new MessageException(catalog.getString("viewer.viewsheet.createSelectionTreeFailed") +
-                    " " + catalog.getString("viewer.viewsheet.editSelectionTree"));
+                                          " " + catalog.getString("viewer.viewsheet.editSelectionTree"));
          }
       }
       else if(XSchema.isDateType(dtype) || XSchema.isNumericType(dtype)) {
@@ -1632,7 +1537,7 @@ public class VSBindingService {
 
    /**
     * Make a new assembly to add to the viewsheet from event column.
-   */
+    */
    public VSAssembly getNewAssemblyFromColumn(OutputColumnRefModel col, RuntimeViewsheet rvs) {
       Viewsheet viewsheet = rvs.getViewsheet();
 
@@ -2079,8 +1984,8 @@ public class VSBindingService {
     * @param assemblyName abosulate name of the current editing assembly.
     */
    private void updateVSAssemblyBoundAssemblies(RuntimeViewsheet nrvs,
-                                               RuntimeViewsheet orvs,
-                                               String assemblyName)
+                                                RuntimeViewsheet orvs,
+                                                String assemblyName)
    {
       Viewsheet vs = nrvs.getViewsheet();
       Assembly[] assemblies = vs.getAssemblies();
@@ -2148,7 +2053,6 @@ public class VSBindingService {
    private final VSTableService vsTableService;
    private final GroupingService groupingService;
    private final ViewsheetService viewsheetService;
-   private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final DataRefModelFactoryService dataRefService;
    private final VSObjectModelFactoryService objectModelService;
    private final VSWizardTemporaryInfoService wizardTemporaryInfoService;
