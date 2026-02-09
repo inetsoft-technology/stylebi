@@ -75,9 +75,10 @@ public interface CustomThemeModel {
          portalCss(portalCss);
          emCss(emCss);
 
-         String selected = CustomThemesManager.getManager().getSelectedTheme();
-         defaultThemeGlobal(Objects.equals(selected, theme.getId()));
-         defaultThemeOrg(theme.getOrganizations().contains(OrganizationManager.getInstance().getCurrentOrgID()));
+         String orgSelected = CustomThemesManager.getManager().getOrgSelectedTheme();
+         String globalSelected = CustomThemesManager.getManager().getGlobalSelectedTheme();
+         defaultThemeGlobal(Objects.equals(globalSelected, theme.getId()));
+         defaultThemeOrg(Objects.equals(theme.getId(), orgSelected));
 
          return this;
       }

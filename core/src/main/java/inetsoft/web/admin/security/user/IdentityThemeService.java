@@ -67,6 +67,7 @@ public class IdentityThemeService {
       }
 
       themeManager.setCustomThemes(themes);
+      themeManager.setOrgSelectedTheme("default", orgID);
    }
 
    public void updateTheme(String oldId, String id, Function<CustomTheme, List<String>> fn) {
