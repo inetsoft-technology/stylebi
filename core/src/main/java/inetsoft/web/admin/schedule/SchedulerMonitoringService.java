@@ -63,8 +63,13 @@ public class SchedulerMonitoringService
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
+      try {
+         if(cluster != null) {
+            cluster.removeMessageListener(this);
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listener during shutdown", e);
       }
    }
 

@@ -140,10 +140,13 @@ public class RepletRegistry implements Serializable {
             return null;
          }
 
-         return SingletonManager.getInstance(RepletRegistry.class, key);
+         return SingletonManager.getInstance(RepletRegistry.class, key, create);
       }
       catch(Exception ex) {
-         LOG.error("Failed to get registry", ex);
+         if(create) {
+            LOG.error("Failed to get registry", ex);
+         }
+
          throw ex;
       }
    }
@@ -165,10 +168,13 @@ public class RepletRegistry implements Serializable {
             return null;
          }
 
-         return SingletonManager.getInstance(RepletRegistry.class, key);
+         return SingletonManager.getInstance(RepletRegistry.class, key, create);
       }
       catch(Exception ex) {
-         LOG.error("Failed to get registry", ex);
+         if(create) {
+            LOG.error("Failed to get registry", ex);
+         }
+
          throw ex;
       }
    }
@@ -1609,11 +1615,16 @@ public class RepletRegistry implements Serializable {
       public RepletRegistry get(Object ... parameters) {
          isolateOrgRegistryFiles();
          ResourceCache<String, RepletRegistry> registryCache = getRegistryCache();
+         boolean create = parameters.length < 2 || (Boolean) parameters[1];
+
          try {
             return registryCache.get((String) parameters[0]);
          }
          catch(Exception e) {
-            LOG.error("Failed to create replet registry: " + parameters[0], e);
+            if(create) {
+               LOG.error("Failed to create replet registry: " + parameters[0], e);
+            }
+
             return null;
          }
       }

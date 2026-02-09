@@ -37,6 +37,8 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.socket.messaging.*;
 
@@ -77,20 +79,25 @@ public class AssetTreeRefreshController {
    }
 
    @PreDestroy
-   public void preDestroy() throws Exception {
-      assetRepository.removeAssetChangeListener(listener);
-      DataSourceRegistry.getRegistry().removeRefreshedListener(this::dataSourceRefreshed);
-      AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
+   public void preDestroy() {
+      try {
+         assetRepository.removeAssetChangeListener(listener);
+         DataSourceRegistry.getRegistry().removeRefreshedListener(this::dataSourceRefreshed);
+         AssetRepository runtimeAssetRepository = AssetUtil.getAssetRepository(false);
 
-      if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
-         runtimeAssetRepository.removeAssetChangeListener(listener);
+         if(runtimeAssetRepository != null && runtimeAssetRepository != assetRepository) {
+            runtimeAssetRepository.removeAssetChangeListener(listener);
+         }
+
+         for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+            removeLibManagerListener(orgId);
+         }
+
+         this.debouncer.close();
       }
-
-      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
-         removeLibManagerListener(orgId);
+      catch(Exception e) {
+         LOG.debug("Failed to clean up during shutdown", e);
       }
-
-      this.debouncer.close();
    }
 
    @SubscribeMapping("/asset-changed")
@@ -186,6 +193,7 @@ public class AssetTreeRefreshController {
    private AssetRepository assetRepository;
    private SimpMessagingTemplate messagingTemplate;
    private final Map<String, Principal> subscriptions = new ConcurrentHashMap<>();
+   private static final Logger LOG = LoggerFactory.getLogger(AssetTreeRefreshController.class);
 
    private final Debouncer<String> debouncer = new DefaultDebouncer<>(false);
    private final Set<String> libManagerListenerOrgs = new HashSet<>();

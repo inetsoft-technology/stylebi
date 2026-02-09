@@ -72,7 +72,12 @@ public class ScheduleTaskChangeController {
 
    @PreDestroy
    public synchronized void removeListeners() {
-      cluster.removeMessageListener(listener);
+      try {
+         cluster.removeMessageListener(listener);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
+      }
    }
 
    @SubscribeMapping(PORTAL_TOPIC)

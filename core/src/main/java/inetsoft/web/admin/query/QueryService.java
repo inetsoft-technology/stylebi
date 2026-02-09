@@ -68,12 +68,17 @@ public class QueryService
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
-      }
+      try {
+         if(cluster != null) {
+            cluster.removeMessageListener(this);
+         }
 
-      XSessionManager.removeQueryExecutionListener(this);
-      XNodeTable.removeQueryExecutionListener(this);
+         XSessionManager.removeQueryExecutionListener(this);
+         XNodeTable.removeQueryExecutionListener(this);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listener during shutdown", e);
+      }
    }
 
    @Override

@@ -74,11 +74,16 @@ public class ViewsheetService
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
-      }
+      try {
+         if(cluster != null) {
+            cluster.removeMessageListener(this);
+         }
 
-      viewsheetLifecycleMessageChannel.unsubscribe(listener);
+         viewsheetLifecycleMessageChannel.unsubscribe(listener);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listener during shutdown", e);
+      }
    }
 
    @Override

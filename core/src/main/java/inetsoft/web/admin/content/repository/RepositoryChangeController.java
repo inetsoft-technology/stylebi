@@ -83,29 +83,39 @@ public class RepositoryChangeController {
    }
 
    @PreDestroy
-   public void removeListeners() throws Exception {
+   public void removeListeners() {
       closed = true;
-      RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
-      assetRepository.removeAssetChangeListener(this.assetListener);
-      assetRepository.removeAssetChangeListener(this.autoSaveListener);
-      DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
-      DataSourceRegistry.getRegistry().removeRefreshedListener(dataSourceListener);
-      cluster.removeMessageListener(this.clusterMessageListener);
 
-      for(PropertyChangeListener listener : adminReportListeners.values()) {
-         RepletRegistry.removeGlobalPropertyChangeListener(listener);
+      try {
+         RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
+         assetRepository.removeAssetChangeListener(this.assetListener);
+         assetRepository.removeAssetChangeListener(this.autoSaveListener);
+         DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
+         DataSourceRegistry.getRegistry().removeRefreshedListener(dataSourceListener);
+         cluster.removeMessageListener(this.clusterMessageListener);
+
+         for(PropertyChangeListener listener : adminReportListeners.values()) {
+            RepletRegistry.removeGlobalPropertyChangeListener(listener);
+         }
+
+         for(Map.Entry<Principal, PropertyChangeListener> entry : userReportListeners.entrySet()) {
+            IdentityID pId = IdentityID.getIdentityIDFromKey(entry.getKey().getName());
+            RepletRegistry registry = RepletRegistry.getRegistry(pId, false);
+
+            if(registry != null) {
+               registry.removePropertyChangeListener(entry.getValue());
+            }
+         }
+
+         for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
+            removeLibManagerListener(orgId);
+         }
+
+         debouncer.close();
       }
-
-      for(Map.Entry<Principal, PropertyChangeListener> entry : userReportListeners.entrySet()) {
-         IdentityID pId = IdentityID.getIdentityIDFromKey(entry.getKey().getName());
-         RepletRegistry.getRegistry(pId).removePropertyChangeListener(entry.getValue());
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
       }
-
-      for(String orgId : SecurityEngine.getSecurity().getOrganizations()) {
-         removeLibManagerListener(orgId);
-      }
-
-      debouncer.close();
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
