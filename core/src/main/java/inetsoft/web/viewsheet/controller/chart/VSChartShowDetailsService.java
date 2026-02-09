@@ -456,6 +456,11 @@ public class VSChartShowDetailsService extends VSChartControllerService<VSChartS
 
          PreviewTableCellModel[][] tableCells = new PreviewTableCellModel[end][colCount];
          final ColumnSelection infos0 = chartVSAssembly.getDetailColumns();
+
+         if(infos0 != null) {
+            colCount = Math.min(colCount, infos0.getAttributeCount());
+         }
+
          int[] colWidths = {};
 
          if(infos0 != null) {
