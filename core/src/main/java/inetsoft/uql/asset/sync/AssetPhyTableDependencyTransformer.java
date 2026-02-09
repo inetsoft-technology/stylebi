@@ -179,15 +179,16 @@ public class AssetPhyTableDependencyTransformer extends AssetDependencyTransform
          Element node = Tool.getChildNodeByTagName(elem, "prefix");
          String opre = Tool.getValue(node);
 
-         if(Tool.equals(opre, oname)) {
-            replaceCDATANode(node, nname);
+         // Match exactly or at path boundary to avoid false positives (e.g., "folder1" matching "f1")
+         if(opre != null && (opre.equals(oname) || opre.endsWith("/" + oname))) {
+            replaceCDATANode(node, opre.replace(oname, nname));
          }
 
          node = Tool.getChildNodeByTagName(elem, "source");
          opre = Tool.getValue(node);
 
-         if(Tool.equals(opre, oname)) {
-            replaceCDATANode(node, nname);
+         if(opre != null && (opre.equals(oname) || opre.endsWith("/" + oname))) {
+            replaceCDATANode(node, opre.replace(oname, nname));
          }
       }
    }
