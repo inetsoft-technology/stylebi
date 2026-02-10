@@ -25,5 +25,5 @@ export class ScheduleTaskEditorModel {
    conditions: ScheduleConditionModel[];
    actions: ScheduleActionModel[];
    options: TaskOptionsPaneModel;
-   orgId: string;
+   orgId?: string;
 }
