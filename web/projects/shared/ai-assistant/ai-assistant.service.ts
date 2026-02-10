@@ -69,7 +69,7 @@ export enum ContextType {
    providedIn: "root"
 })
 export class AiAssistantService {
-   assistantBaseUrl: string = "";
+   chatAppServerUrl: string = "";
    styleBIUrl: string = "";
    userId: string = "";
    email: string = "";
@@ -80,8 +80,8 @@ export class AiAssistantService {
    constructor(private http: HttpClient,
                private modalService: NgbModal)
    {
-      this.http.get("../api/assistant/get-assistant-base-url").subscribe((url: string) => {
-         this.assistantBaseUrl = url || "";
+      this.http.get("../api/assistant/get-chat-app-server-url").subscribe((url: string) => {
+         this.chatAppServerUrl = url || "";
       });
 
       this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {

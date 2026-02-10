@@ -27,9 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class AIAssistantController {
 
-   @GetMapping("/api/assistant/get-assistant-base-url")
-   public String getAssistantBaseUrl() {
-      return SreeEnv.getProperty(ASSISTANT_BASE_URL_PROP_KEY);
+   @GetMapping("/api/assistant/get-chat-app-server-url")
+   public String getChatAppServerUrl() {
+      return SreeEnv.getProperty(CHAT_APP_SERVER_URL);
    }
 
    /**
@@ -50,5 +50,5 @@ public class AIAssistantController {
       return url;
    }
 
-   public static final String ASSISTANT_BASE_URL_PROP_KEY = "assistant.base.url";
+   public static final String CHAT_APP_SERVER_URL = "chat.app.server.url";
 }
