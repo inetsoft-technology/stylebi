@@ -70,12 +70,17 @@ public class ClusterStatusController implements MessageListener {
 
    @PreDestroy
    public void removeListener() {
-      if(cluster != null) {
-         cluster.removeMessageListener(this);
+      try {
+         if(cluster != null) {
+            cluster.removeMessageListener(this);
 
-         if(mvListener != null) {
-            cluster.removeMessageListener(mvListener);
+            if(mvListener != null) {
+               cluster.removeMessageListener(mvListener);
+            }
          }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
       }
    }
 

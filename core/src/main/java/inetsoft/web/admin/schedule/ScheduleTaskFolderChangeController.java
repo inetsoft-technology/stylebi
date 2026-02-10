@@ -30,6 +30,8 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -55,7 +57,12 @@ public class ScheduleTaskFolderChangeController {
 
    @PreDestroy
    public synchronized void removeListener() {
-      assetRepository.removeAssetChangeListener(this.assetListener);
+      try {
+         assetRepository.removeAssetChangeListener(this.assetListener);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listener during shutdown", e);
+      }
    }
 
    @SubscribeMapping(FOLDER_TOPIC)
@@ -115,4 +122,5 @@ public class ScheduleTaskFolderChangeController {
 
    private static final String EM_FOLDER_TOPIC = "/em-schedule-folder-changed";
    private static final String FOLDER_TOPIC = "/schedule-folder-changed";
+   private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskFolderChangeController.class);
 }

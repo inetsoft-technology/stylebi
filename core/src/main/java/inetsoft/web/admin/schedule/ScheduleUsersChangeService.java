@@ -36,6 +36,9 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -47,9 +50,14 @@ public class ScheduleUsersChangeService extends BaseSubscribeChangeHandler imple
    }
 
    @PreDestroy
-   public void destroyInstance() throws Exception {
-      this.debouncer.close();
-      Cluster.getInstance().removeMessageListener(this);
+   public void destroyInstance() {
+      try {
+         this.debouncer.close();
+         Cluster.getInstance().removeMessageListener(this);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to clean up during shutdown", e);
+      }
    }
 
    @EventListener
@@ -108,4 +116,5 @@ public class ScheduleUsersChangeService extends BaseSubscribeChangeHandler imple
    }
 
    private final DefaultDebouncer<String> debouncer = new DefaultDebouncer<>();
+   private static final Logger LOG = LoggerFactory.getLogger(ScheduleUsersChangeService.class);
 }

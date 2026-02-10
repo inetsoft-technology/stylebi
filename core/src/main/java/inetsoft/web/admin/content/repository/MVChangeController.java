@@ -34,6 +34,8 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.socket.messaging.*;
 
@@ -61,10 +63,15 @@ public class MVChangeController implements MessageListener {
    }
 
    @PreDestroy
-   public void removeListeners() throws Exception {
-      MVManager.getManager().removePropertyChangeListener(this.mvListener);
-      Cluster.getInstance().removeMessageListener(this);
-      debouncer.close();
+   public void removeListeners() {
+      try {
+         MVManager.getManager().removePropertyChangeListener(this.mvListener);
+         Cluster.getInstance().removeMessageListener(this);
+         debouncer.close();
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
+      }
    }
 
    @SubscribeMapping(CHANGE_TOPIC)
@@ -127,4 +134,5 @@ public class MVChangeController implements MessageListener {
    private final PropertyChangeListener mvListener = this::mvPropertyChanged;
 
    private static final String CHANGE_TOPIC = "/em-mv-changed";
+   private static final Logger LOG = LoggerFactory.getLogger(MVChangeController.class);
 }

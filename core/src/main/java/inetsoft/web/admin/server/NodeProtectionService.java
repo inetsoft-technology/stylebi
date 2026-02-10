@@ -22,6 +22,8 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.util.config.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -74,15 +76,20 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
    }
 
    @PreDestroy
-   public void close() throws Exception {
-      if(nodeProtector != null) {
-         nodeProtector.close();
-      }
+   public void close() {
+      try {
+         if(nodeProtector != null) {
+            nodeProtector.close();
+         }
 
-      if(cluster != null) {
-         cluster.removeMembershipListener(this);
-         cluster.removeReplicatedMapListener(NODE_PROTECTION_MAP, this);
-         cluster = null;
+         if(cluster != null) {
+            cluster.removeMembershipListener(this);
+            cluster.removeReplicatedMapListener(NODE_PROTECTION_MAP, this);
+            cluster = null;
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to clean up during shutdown", e);
       }
    }
 
@@ -221,4 +228,5 @@ public class NodeProtectionService implements MembershipListener, MapChangeListe
    private final Lock lock = new ReentrantLock();
    private static final String COUNTER_NAME = NodeProtectionService.class.getName() + ".counter";
    public static final String NODE_PROTECTION_MAP = NodeProtectionService.class.getName() + ".nodeProtectionMap";
+   private static final Logger LOG = LoggerFactory.getLogger(NodeProtectionService.class);
 }

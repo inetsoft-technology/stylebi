@@ -692,6 +692,9 @@ public final class XSwapper {
                      doGC();
                   }
                }
+               catch(SingletonManager.ResurrectException ignore) {
+                  // server is shutting down, ignore
+               }
                catch(Throwable ex) {
                   LOG.error(
                               "Failed to swap objects out of memory", ex);

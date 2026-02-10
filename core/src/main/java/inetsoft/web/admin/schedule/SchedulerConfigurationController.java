@@ -85,8 +85,13 @@ public class SchedulerConfigurationController implements MessageListener {
    }
 
    @PreDestroy
-   public void removeListeners() throws Exception {
-      Cluster.getInstance().removeMessageListener(this);
+   public void removeListeners() {
+      try {
+         Cluster.getInstance().removeMessageListener(this);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
+      }
    }
 
    @Override

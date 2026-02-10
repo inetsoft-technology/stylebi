@@ -73,13 +73,22 @@ public class RepositoryTreeChangeController {
    }
 
    @PreDestroy
-   public void preDestroy() throws Exception {
-      RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
-      assetRepository.removeAssetChangeListener(this.viewsheetListener);
+   public void preDestroy() {
+      try {
+         RepletRegistry.getRegistry().removePropertyChangeListener(this.reportListener);
+         assetRepository.removeAssetChangeListener(this.viewsheetListener);
 
-      for(Map.Entry<Principal, PropertyChangeListener> e : reportListeners.entrySet()) {
-         IdentityID pId = IdentityID.getIdentityIDFromKey(e.getKey().getName());
-         RepletRegistry.getRegistry(pId).removePropertyChangeListener(e.getValue());
+         for(Map.Entry<Principal, PropertyChangeListener> e : reportListeners.entrySet()) {
+            IdentityID pId = IdentityID.getIdentityIDFromKey(e.getKey().getName());
+            RepletRegistry registry = RepletRegistry.getRegistry(pId, false);
+
+            if(registry != null) {
+               registry.removePropertyChangeListener(e.getValue());
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
       }
    }
 

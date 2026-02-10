@@ -32,6 +32,8 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
@@ -55,8 +57,13 @@ public class OrganizationChangedController implements MessageListener {
    }
 
    @PreDestroy
-   public void removeListeners() throws Exception {
-      Cluster.getInstance().removeMessageListener(this);
+   public void removeListeners() {
+      try {
+         Cluster.getInstance().removeMessageListener(this);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to remove listeners during shutdown", e);
+      }
    }
 
    @Override
@@ -100,4 +107,5 @@ public class OrganizationChangedController implements MessageListener {
    private final transient SimpMessagingTemplate messagingTemplate;
    private Principal principal;
    private static final String CHANGE_TOPIC = "/current-org-changed";
+   private static final Logger LOG = LoggerFactory.getLogger(OrganizationChangedController.class);
 }
