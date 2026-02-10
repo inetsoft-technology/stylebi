@@ -269,6 +269,8 @@ public class ScheduleManager {
             }
          }
       }
+
+      extensionTasksLoadedOrgs.add(orgID);
    }
 
    private ExtTaskKey createExtensionTaskKey(ScheduleTask task) {
@@ -401,6 +403,10 @@ public class ScheduleManager {
     * Get schedule tasks.
     */
    public Vector<ScheduleTask> getScheduleTasks(String orgID) {
+      if(!extensionTasksLoadedOrgs.contains(orgID)) {
+         reloadExtensions(orgID);
+      }
+
       Vector<ScheduleTask> list = new Vector<>(getOrgTaskMap(orgID).values());
       extensionLock.lock();
 
@@ -441,6 +447,10 @@ public class ScheduleManager {
       }
 
       if(loadExtension) {
+         if(!extensionTasksLoadedOrgs.contains(orgID)) {
+            reloadExtensions(orgID);
+         }
+
          extensionLock.lock();
 
          try {
@@ -1659,6 +1669,7 @@ public class ScheduleManager {
    private final Map<String, ScheduleTaskMap> taskMap = new HashMap<>();
    private final Vector<ScheduleExt> extensions = new Vector<>();
    private final Map<ExtTaskKey, ScheduleTask> extensionTasks = new ConcurrentHashMap<>();
+   private final Set<String> extensionTasksLoadedOrgs = ConcurrentHashMap.newKeySet();
    private final Lock extensionLock;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleManager.class);
