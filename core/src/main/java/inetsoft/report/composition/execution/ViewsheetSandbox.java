@@ -339,6 +339,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       try {
          Worksheet ws = getWorksheet();
 
+         parametersApplied = false;
          metarep.clear();
          shrink();
          vs.resetWS();
@@ -1683,6 +1684,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             clist.mergeCore(clist2);
             clist.mergeFilters(clist2);
          }
+      }
+
+      if(initing) {
+         parametersApplied = true;
       }
 
       for(int i = 0; i < thisParameterScriptAssemblies.size(); i++) {
@@ -3855,6 +3860,13 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private void refreshVariable(InputVSAssembly iassembly, boolean initing, ChangedAssemblyList clist)
       throws Exception
    {
+      // During init, if the variable table already has a value for this assembly
+      // (e.g. from hyperlink parameters), apply it to the assembly so it takes
+      // effect as the default selected value.
+      if(initing && wbox != null && !parametersApplied) {
+         applyParameterToInput(iassembly);
+      }
+
       Object cdata = null; // single value
       Object mdata = null; // multiple value (null or array)
 
@@ -3922,6 +3934,60 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       else if(wbox != null) {
          vt.put(iassembly.getName(), mdata == null ? cdata : mdata);
          wbox.refreshVariableTable(vt);
+      }
+   }
+
+   /**
+    * If the variable table has a parameter value matching this input assembly's name,
+    * apply it as the assembly's selected value with type coercion. This handles
+    * hyperlink parameters defaulting matching input components in child viewsheets.
+    */
+   private void applyParameterToInput(InputVSAssembly iassembly) {
+      VariableTable vt = wbox.getVariableTable();
+      String name = iassembly.getName();
+
+      if(!vt.contains(name)) {
+         return;
+      }
+
+      try {
+         Object val = vt.get(name);
+         String dtype = iassembly.getDataType();
+
+         if(iassembly instanceof SingleInputVSAssembly) {
+            Object raw = val;
+
+            if(raw instanceof Object[] && ((Object[]) raw).length > 0) {
+               raw = ((Object[]) raw)[0];
+            }
+
+            Object coerced = Tool.getData(dtype, raw);
+
+            if(coerced != null) {
+               ((SingleInputVSAssembly) iassembly).setSelectedObject(coerced);
+            }
+         }
+         else if(iassembly instanceof CompositeInputVSAssembly) {
+            Object[] arr = val instanceof Object[] ? (Object[]) val
+               : new Object[] { val };
+            List<Object> coerced = new ArrayList<>();
+
+            for(Object item : arr) {
+               Object c = Tool.getData(dtype, item);
+
+               if(c != null) {
+                  coerced.add(c);
+               }
+            }
+
+            if(!coerced.isEmpty()) {
+               ((CompositeInputVSAssembly) iassembly)
+                  .setSelectedObjects(coerced.toArray());
+            }
+         }
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to apply parameter to input assembly: " + name, e);
       }
    }
 
@@ -7791,6 +7857,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    private Map<String, String> limitMessages; //record the asselby limit message.
    private VSBookmarkInfo openedBookmark; // the current opened bookmark
    private boolean onLoadExeced = false;
+   private boolean parametersApplied = false;
    private Map<String, Boolean> normalColumns = new ConcurrentHashMap<>();
    private boolean binding; // true if in binding pane
    private final Map<Integer, Set<String>> delayedVisibilityAssemblies = new ConcurrentHashMap<>();
