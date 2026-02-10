@@ -70,6 +70,7 @@ export enum ContextType {
 })
 export class AiAssistantService {
    assistantBaseUrl: string = "";
+   styleBIUrl: string = "";
    userId: string = "";
    email: string = "";
    calcTableCellBindings: { [key: string]: CellBindingInfo } = {};
@@ -82,6 +83,10 @@ export class AiAssistantService {
       this.http.get("../api/assistant/get-assistant-base-url").subscribe((url: string) => {
          this.assistantBaseUrl = url || "";
       });
+
+      this.http.get("../api/assistant/get-stylebi-url").subscribe((url: string) => {
+         this.styleBIUrl = url || "";
+      });
    }
 
    resetContextMap(): void {
@@ -92,7 +97,7 @@ export class AiAssistantService {
       const uri = em ? EM_CURRENT_USER_URI : PORTAL_CURRENT_USER_URI;
       this.http.get(uri).subscribe((model: CurrentUser) => {
          this.userId = convertToKey(model.name);
-         this.email = model.email;
+         this.email = model.email?.length > 0 ? model.email[0] : null;
       });
    }
 

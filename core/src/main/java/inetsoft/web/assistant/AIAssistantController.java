@@ -19,6 +19,8 @@
 package inetsoft.web.assistant;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,6 +30,24 @@ public class AIAssistantController {
    @GetMapping("/api/assistant/get-assistant-base-url")
    public String getAssistantBaseUrl() {
       return SreeEnv.getProperty(ASSISTANT_BASE_URL_PROP_KEY);
+   }
+
+   /**
+    * Returns the full StyleBI server URL.
+    * This URL is used as the JWT issuer for SSO tokens and should be passed
+    * to external applications (like chat-app) to enable them to verify tokens
+    * by fetching the JWKS from ${styleBIUrl}/sso/jwks.
+    */
+   @GetMapping("/api/assistant/get-stylebi-url")
+   public String getStyleBIUrl(HttpServletRequest request) {
+      String url = LinkUriArgumentResolver.getLinkUri(request);
+
+      // Remove trailing slash for consistency
+      if(url != null && url.endsWith("/")) {
+         url = url.substring(0, url.length() - 1);
+      }
+
+      return url;
    }
 
    public static final String ASSISTANT_BASE_URL_PROP_KEY = "assistant.base.url";
