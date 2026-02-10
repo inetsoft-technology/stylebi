@@ -436,7 +436,8 @@ public class OpenViewsheetEvent implements Serializable {
    }
 
    public String getOrgId() {
-      return AssetEntry.createAssetEntry(entryId).getOrgID();
+      AssetEntry entry = AssetEntry.createAssetEntry(entryId);
+      return entry == null ? null : entry.getOrgID();
    }
 
    public boolean isEmbed() {
