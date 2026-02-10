@@ -144,7 +144,7 @@ public class ScheduleTaskChangeController {
    private boolean shouldHandleReceivedMessage(String taskId, Principal subscriber) {
       IdentityID owner = SUtil.getTaskOwner(taskId);
       String taskOrgId = owner == null ?
-         OrganizationManager.getInstance().getCurrentOrgID() : owner.getOrgID();
+         OrganizationManager.getInstance().getCurrentOrgID(subscriber) : owner.getOrgID();
 
       return Tool.equals(taskOrgId, getSubscriberOrgId(subscriber));
    }

@@ -213,7 +213,7 @@ public class EMScheduleTaskController {
    public ExecuteAsIdentitiesModel getExecuteAsUsers(@RequestParam("owner") String owner,
                                                      Principal principal)
    {
-      IdentityID ownerId = new IdentityID(owner, OrganizationManager.getInstance().getCurrentOrgID());
+      IdentityID ownerId = new IdentityID(owner, OrganizationManager.getInstance().getCurrentOrgID(principal));
       ExecuteAsIdentitiesModel model = new ExecuteAsIdentitiesModel();
       model.setUsers(this.scheduleTaskService.getExecuteAsUsers(ownerId, principal)
                         .stream()
