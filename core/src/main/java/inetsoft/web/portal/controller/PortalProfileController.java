@@ -90,6 +90,7 @@ public class PortalProfileController {
          List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(profileResult.recordsKey);
 
          if(records != null) {
+            records = new ArrayList<>(records);
             list.getFields().addAll(records.stream()
                                        .flatMap(r -> r.getContexts().stream())
                                        .distinct()
@@ -232,6 +233,9 @@ public class PortalProfileController {
       if(records == null) {
          return null;
       }
+
+      // snapshot the list to avoid concurrent modification while the viewsheet is still loading
+      records = new ArrayList<>(records);
 
       if(showSummarize) {
          long postCycle = pinfo.getCyclePost(name);
@@ -382,6 +386,8 @@ public class PortalProfileController {
       if(records == null) {
          return Stream.empty();
       }
+
+      records = new ArrayList<>(records);
 
       return records.stream()
          .filter(r -> r.getContext(context) != null)
