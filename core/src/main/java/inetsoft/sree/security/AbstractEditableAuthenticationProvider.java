@@ -285,6 +285,7 @@ public abstract class AbstractEditableAuthenticationProvider
       CustomThemesManager manager = CustomThemesManager.getManager();
       manager.loadThemes();
       Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
+      List<CustomTheme> sourceThemes = new ArrayList<>(themes);
 
       if(replace) {
          themes.removeIf(t -> Tool.equals(t.getOrgID(), fromOrgId));
@@ -298,7 +299,7 @@ public abstract class AbstractEditableAuthenticationProvider
          }
       }
 
-      for(CustomTheme theme : manager.getCustomThemes()) {
+      for(CustomTheme theme : sourceThemes) {
          try {
             if(Tool.equals(theme.getOrgID(), fromOrgId) ||
                (Tool.isEmptyString(theme.getOrgID()) && Tool.equals(fromOrgId, Organization.getDefaultOrganizationID())))
@@ -309,7 +310,7 @@ public abstract class AbstractEditableAuthenticationProvider
                String originalID = clone.getId();
                int i = 1;
                boolean themeExists = clone.getId() != null &&
-                  CustomThemesManager.getManager().getCustomThemes().stream()
+                  themes.stream()
                      .anyMatch(t -> t.getId().equals(clone.getId()));
 
                //should not have duplicate ids on themes, instead increment id to keep consistent with adding new theme
@@ -317,9 +318,8 @@ public abstract class AbstractEditableAuthenticationProvider
                   String updatedId = originalID + i;
                   i++;
 
-                  themeExists = updatedId != null &&
-                     CustomThemesManager.getManager().getCustomThemes().stream()
-                        .anyMatch(t -> t.getId().equals(updatedId));
+                  themeExists = themes.stream()
+                     .anyMatch(t -> t.getId().equals(updatedId));
 
                   if(!themeExists) {
                      clone.setId(updatedId);

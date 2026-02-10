@@ -1961,20 +1961,23 @@ public class IdentityService {
 
    private void updateCustomThemeOrganization(String oldThemeId, String themeID, String oldOrgID, String newOrgID) {
       if(!Tool.equals(oldThemeId, themeID)) {
+         CustomThemesManager manager = CustomThemesManager.getManager();
+         Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
+         boolean modified = false;
 
          if(oldThemeId != null) {
-            CustomTheme oldTheme = CustomThemesManager.getManager().getCustomThemes().stream()
+            CustomTheme oldTheme = themes.stream()
                .filter(t -> Tool.equals(t.getId(), oldThemeId))
                .findFirst().orElse(null);
 
             if(oldTheme != null) {
-               List<String> themeOrgs = oldTheme.getOrganizations();
-               themeOrgs.remove(oldOrgID);
+               oldTheme.getOrganizations().remove(oldOrgID);
+               modified = true;
             }
          }
 
          if(themeID != null) {
-            CustomTheme theme = CustomThemesManager.getManager().getCustomThemes().stream()
+            CustomTheme theme = themes.stream()
                .filter(t -> Tool.equals(t.getId(), themeID))
                .findFirst().orElse(null);
 
@@ -1986,7 +1989,22 @@ public class IdentityService {
                }
 
                theme.setOrganizations(themeOrgs);
+               modified = true;
             }
+
+            manager.setOrgSelectedTheme(themeID, newOrgID);
+         }
+         else {
+            manager.setOrgSelectedTheme("default", newOrgID);
+         }
+
+         // If org ID changed, clean up old org's selection property
+         if(!Tool.equals(oldOrgID, newOrgID)) {
+            manager.setOrgSelectedTheme("default", oldOrgID);
+         }
+
+         if(modified) {
+            manager.setCustomThemes(themes);
          }
       }
    }
