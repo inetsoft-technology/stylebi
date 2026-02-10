@@ -28,12 +28,14 @@ export class AiAssistantDialogComponent {
    userId: string = "";
    userEmail: string = "";
    context: string = "";
-   assistantBaseUrl: string = "";
+   chatAppServerUrl: string = "";
+   styleBIUrl: string = "";
 
    constructor(private aiAssistantService: AiAssistantService) {
       this.userId = this.aiAssistantService.userId;
       this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
-      this.assistantBaseUrl = this.aiAssistantService.assistantBaseUrl;
+      this.chatAppServerUrl = this.aiAssistantService.assistantBaseUrl;
+      this.styleBIUrl = this.aiAssistantService.styleBIUrl;
    }
 }
