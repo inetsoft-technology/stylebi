@@ -35,7 +35,7 @@ export class AiAssistantDialogComponent {
       this.userId = this.aiAssistantService.userId;
       this.userEmail = this.aiAssistantService.email;
       this.context = this.aiAssistantService.getFullContext();
-      this.chatAppServerUrl = this.aiAssistantService.assistantBaseUrl;
+      this.chatAppServerUrl = this.aiAssistantService.chatAppServerUrl;
       this.styleBIUrl = this.aiAssistantService.styleBIUrl;
    }
 }
