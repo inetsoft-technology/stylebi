@@ -51,11 +51,12 @@ public class ServiceProxyContext {
    private final boolean async;
    private transient CommandDispatcher dispatcher;
    private transient MessageAttributes previousMessageAttributes;
+   private transient Principal previousContextPrincipal;
    public static final ThreadLocal<List<AspectTask>> aspectTasks =
       ThreadLocal.withInitial(ArrayList::new);
 
    public ServiceProxyContext(boolean async) {
-      this.contextPrincipal = ThreadContext.getPrincipal();
+      this.contextPrincipal = ThreadContext.getContextPrincipal();
       this.userMessages = new ArrayList<>();
       this.threadContextRecords = new HashSet<>();
       this.tasks = new ArrayList<>(aspectTasks.get());
@@ -158,6 +159,9 @@ public class ServiceProxyContext {
    }
 
    public void preprocess() {
+      // Save the previous principal so we can restore it in postprocess()
+      previousContextPrincipal = ThreadContext.getContextPrincipal();
+
       if(contextPrincipal != null) {
          ThreadContext.setContextPrincipal(contextPrincipal);
       }
@@ -235,7 +239,11 @@ public class ServiceProxyContext {
       }
 
       Tool.clearUserMessage();
-      ThreadContext.setContextPrincipal(null);
+
+      // Restore the previous principal instead of clearing
+      // This allows nested ServiceProxyContext calls to work correctly and
+      // prevents clearing the principal set by MessageScopeInterceptor for local calls
+      ThreadContext.setContextPrincipal(previousContextPrincipal);
 
       // Restore the previous message attributes instead of clearing
       // This allows nested ServiceProxyContext calls to work correctly
