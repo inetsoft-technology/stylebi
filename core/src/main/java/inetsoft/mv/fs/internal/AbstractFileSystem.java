@@ -223,6 +223,8 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
                   sblock.add(new SNBlock(fileBlock));
                }
             }
+
+            xfilemap.put(file.getName(), file);
          }
          finally {
             file.getWriteLock().unlock();
