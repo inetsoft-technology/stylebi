@@ -1288,11 +1288,34 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
             }
 
             if(calcRef != null) {
-               // Use the CalculateRef directly to ensure the formula is included
-               gref = new GroupRef(calcRef);
-
+               // Ensure the CalculateRef is in the column selection so the formula
+               // is computed in the query.
                cols.removeAttribute(calcRef);
                cols.addAttribute(calcRef);
+
+               // If the dimension has a named group, use the GroupRef from
+               // createGroupRef() which wraps a NamedRangeRef for the group
+               // mapping. The CalculateRef above ensures the calc field formula
+               // runs, and the NamedRangeRef transforms the computed values
+               // into group names.
+               if(ref.isNameGroup() && gref != null) {
+                  DataRef dref = gref.getDataRef();
+                  cols.removeAttribute(dref);
+                  cols.addAttribute(dref);
+
+                  if(!groupInfo.containsGroup(gref)) {
+                     groupInfo.addGroup(gref);
+                  }
+
+                  if(!allGroupInfo.containsGroup(gref)) {
+                     allGroupInfo.addGroup(gref);
+                  }
+
+                  continue;
+               }
+
+               // No named group - use the CalculateRef directly (Bug #73729)
+               gref = new GroupRef(calcRef);
 
                if(!groupInfo.containsGroup(gref)) {
                   groupInfo.addGroup(gref);
