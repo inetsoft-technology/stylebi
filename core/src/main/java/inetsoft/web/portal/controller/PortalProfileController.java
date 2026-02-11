@@ -352,6 +352,11 @@ public class PortalProfileController {
       Catalog catalog = Catalog.getCatalog(principal);
       ProfileInfo pinfo = profileResult.info;
       String name = profileResult.recordsKey;
+
+      if(pinfo == null) {
+         return null;
+      }
+
       Object[] header;
       Stream<Object[]> values;
 
@@ -381,6 +386,10 @@ public class PortalProfileController {
    }
 
    private Stream<Object[]> prepareContextChartData(String name, LogContext context, ProfileInfo pinfo) {
+      if(pinfo == null) {
+         return Stream.empty();
+      }
+
       List<ExecutionBreakDownRecord> records = pinfo.getProfileRecords(name);
 
       if(records == null) {
