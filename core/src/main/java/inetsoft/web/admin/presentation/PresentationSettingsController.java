@@ -19,6 +19,7 @@ package inetsoft.web.admin.presentation;
 
 import inetsoft.graph.geo.service.MapboxStyle;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.*;
@@ -28,7 +29,7 @@ import inetsoft.web.admin.presentation.model.*;
 
 import java.security.Principal;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.Lock;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -131,6 +132,7 @@ public class PresentationSettingsController {
          throw new InvalidOrgException(Catalog.getCatalog().getString("em.security.invalidOrganizationPassed"));
       }
 
+      Lock settingsLock = Cluster.getInstance().getLock(SETTINGS_LOCK);
       settingsLock.lock();
 
       try {
@@ -215,6 +217,7 @@ public class PresentationSettingsController {
          globalSettings = provider.checkPermission(principal,  ResourceType.EM, "*", ResourceAction.ACCESS);
       }
 
+      Lock settingsLock = Cluster.getInstance().getLock(SETTINGS_LOCK);
       settingsLock.lock();
 
       try {
@@ -262,5 +265,6 @@ public class PresentationSettingsController {
    private final PresentationDataSourceVisibilitySettingsService dataSourceVisibilitySettingsService;
    private final WebMapSettingsService webMapSettingsService;
    private final DataSpaceContentSettingsService dataSpaceContentSettingsService;
-   private final ReentrantLock settingsLock = new ReentrantLock();
+
+   private static final String SETTINGS_LOCK = PresentationSettingsController.class.getName() + ".settingsLock";
 }
