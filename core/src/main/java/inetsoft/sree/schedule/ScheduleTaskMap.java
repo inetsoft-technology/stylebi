@@ -308,7 +308,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
     */
    private AssetFolder getRoot() throws Exception {
       String rootId = getRootIdentifier(orgID);
-      long ts = indexedStorage.lastModified(rootId);
+      long ts = indexedStorage.lastModified(rootId, orgID);
       Long ots = rootTS.containsKey(orgID) ? rootTS.get(orgID) : 0;
       AssetFolder rootFolder = rootFolders.get(orgID);
 
@@ -327,10 +327,11 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
             }
 
             indexedStorage.putXMLSerializable(rootId, rootFolder);
-            ts = indexedStorage.lastModified(rootId);
+            ts = indexedStorage.lastModified(rootId, orgID);
          }
 
-         rootTS.put(orgID, ots);
+         rootFolders.put(orgID, rootFolder);
+         rootTS.put(orgID, ts);
       }
 
       return rootFolder;

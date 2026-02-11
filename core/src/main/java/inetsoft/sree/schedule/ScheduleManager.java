@@ -422,7 +422,9 @@ public class ScheduleManager {
       }
 
       for(int i = list.size() - 1; i >= 0; i--) {
-         if(list.get(i) == null) {
+         ScheduleTask t = list.get(i);
+
+         if(t == null || t.getOwner() != null && !Tool.equals(t.getOwner().getOrgID(), orgID)) {
             list.remove(i);
          }
       }
@@ -464,6 +466,15 @@ public class ScheduleManager {
          }
          finally {
             extensionLock.unlock();
+         }
+      }
+
+      //ensure only tasks for current org are returned
+      for(int i = list.size() - 1; i >= 0; i--) {
+         ScheduleTask t = list.get(i);
+
+         if(t != null && t.getOwner() != null && !Tool.equals(t.getOwner().getOrgID(), orgID)) {
+            list.remove(i);
          }
       }
 
