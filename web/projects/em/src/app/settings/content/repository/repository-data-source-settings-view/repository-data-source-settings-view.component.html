@@ -25,7 +25,7 @@
 <mat-tab-group color="accent" [selectedIndex]="selectedTab" (selectedIndexChange)="selectedTabChanged.emit($event)">
     <mat-tab label="_#(Security)">
       <ng-template matTabContent>
-        <em-resource-permission [model]="permissions" (permissionChanged)="changeDatasource()">
+        <em-resource-permission [model]="permissions" [showCopyPaste]="true" (permissionChanged)="changeDatasource()">
         </em-resource-permission>
       </ng-template>
     </mat-tab>
