@@ -746,6 +746,7 @@ public class EventAspect {
       @Override
       public void preprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
          if(orgId != null) {
+            savedOrgId = OrganizationContextHolder.getCurrentOrgId();
             OrganizationContextHolder.setCurrentOrgId(orgId);
          }
       }
@@ -753,10 +754,11 @@ public class EventAspect {
       @Override
       public void postprocess(CommandDispatcher dispatcher, Principal contextPrincipal) {
          if(orgId != null) {
-            OrganizationContextHolder.clear();
+            OrganizationContextHolder.setCurrentOrgId(savedOrgId);
          }
       }
 
       private final String orgId;
+      private transient String savedOrgId;
    }
 }
