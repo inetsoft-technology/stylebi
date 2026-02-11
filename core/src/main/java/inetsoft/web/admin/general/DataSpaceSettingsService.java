@@ -99,7 +99,7 @@ public class DataSpaceSettingsService extends BackupSupport {
          record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
       }
       catch(Exception e) {
-         LOG.error("Failed to back up storage: " + e.getMessage(), e);
+         LOG.error("Failed to back up storage", e);
          status = "Failed to back up storage: " + e.getMessage();
          record.setActionError(status);
          return status;
