@@ -422,9 +422,7 @@ public class ScheduleManager {
       }
 
       for(int i = list.size() - 1; i >= 0; i--) {
-         ScheduleTask t = list.get(i);
-
-         if(t == null || t.getOwner() != null && !Tool.equals(t.getOwner().getOrgID(), orgID)) {
+         if(list.get(i) == null) {
             list.remove(i);
          }
       }
@@ -466,15 +464,6 @@ public class ScheduleManager {
          }
          finally {
             extensionLock.unlock();
-         }
-      }
-
-      //ensure only tasks for current org are returned
-      for(int i = list.size() - 1; i >= 0; i--) {
-         ScheduleTask t = list.get(i);
-
-         if(t != null && t.getOwner() != null && !Tool.equals(t.getOwner().getOrgID(), orgID)) {
-            list.remove(i);
          }
       }
 
@@ -565,6 +554,8 @@ public class ScheduleManager {
          .stream()
          .filter(key -> Tool.equals(key.orgId, orgId0))
          .map(extensionTasks::get)
+         .filter(task -> task != null && task.getOwner() != null &&
+            Tool.equals(task.getOwner().getOrgID(), orgId0))
          .collect(Collectors.toCollection(HashSet::new));
    }
 
