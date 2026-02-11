@@ -26,6 +26,8 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import org.quartz.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 import java.util.concurrent.locks.Lock;
@@ -75,6 +77,10 @@ public class ScheduleTaskJob implements InterruptableJob {
                ThreadContext.setContextPrincipal(principal);
             }
 
+            if(principal == null) {
+               LOG.error("User is null", new Exception("User is null"));
+            }
+
             SUtil.runTask(principal, task, addr);
          }
          catch(InterruptedException e) {
@@ -107,7 +113,7 @@ public class ScheduleTaskJob implements InterruptableJob {
          }
       }
    }
-   
+
    @Override
    public void interrupt() {
       executionLock.lock();
@@ -128,4 +134,5 @@ public class ScheduleTaskJob implements InterruptableJob {
    private Thread executionThread = null;
    private ScheduleTask executionTask = null;
    private final Lock executionLock = new ReentrantLock();
+   private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskJob.class);
 }
