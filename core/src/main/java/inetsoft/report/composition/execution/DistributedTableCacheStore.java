@@ -178,7 +178,7 @@ public class DistributedTableCacheStore {
    }
 
    private String getStorageId(String orgId) {
-      return orgId.toLowerCase() + "__" + "tableCacheStore";
+      return orgId.toLowerCase() + "__tableCacheStore";
    }
 
    private String getKey(DataKey dataKey) {
