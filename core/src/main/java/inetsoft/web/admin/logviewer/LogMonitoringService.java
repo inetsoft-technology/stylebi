@@ -130,7 +130,7 @@ public class LogMonitoringService implements MessageListener {
          selectedLog = logFiles.isEmpty() ? null : logFiles.getFirst();
       }
 
-      List<Future<?>> futures = new ArrayList<>();
+      List<Future<List<LogFileModel>>> futures = new ArrayList<>();
 
       for(String clusterNode : cluster.getClusterNodes(false)) {
          if(!clusterNode.equals(cluster.getLocalMember())) {
@@ -141,26 +141,32 @@ public class LogMonitoringService implements MessageListener {
                      LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
                   if(LicenseManager.getInstance().isEnterprise()) {
-                     for(LogFileModel logfile : response.getLogFiles()) {
-                        boolean exists = logFiles.stream().anyMatch(f -> f.getLogFile().equals(logfile.getLogFile()));
-
-                        if(!exists) {
-                           logFiles.add(logfile);
-                        }
-                     }
+                     return response.getLogFiles();
                   }
                }
                catch(Exception e) {
                   LOG.error("Failed to get log files from {}", clusterNode, e);
                }
+
+               return List.<LogFileModel>of();
             }));
          }
       }
 
-      // wait for all tasks to complete, skip unresponsive nodes
-      for(Future<?> future : futures) {
+      // wait for all tasks to complete, merge results on main thread
+      for(Future<List<LogFileModel>> future : futures) {
          try {
-            future.get(LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            List<LogFileModel> remoteLogFiles =
+               future.get(LOG_FETCH_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+            for(LogFileModel logfile : remoteLogFiles) {
+               boolean exists = logFiles.stream()
+                  .anyMatch(f -> f.getLogFile().equals(logfile.getLogFile()));
+
+               if(!exists) {
+                  logFiles.add(logfile);
+               }
+            }
          }
          catch(TimeoutException e) {
             future.cancel(true);
