@@ -183,7 +183,7 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
     */
    public final void update(XBlockSystem bsys) {
       Map<String, List<NBlock>> fileblocks = new HashMap<>();
-      List<XFile> xfiles = new ArrayList<>();
+      Map<String, XFile> filesMap = new HashMap<>();
       final NBlock[] nodes = bsys.list(true);
 
       for(NBlock node : nodes) {
@@ -204,10 +204,10 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
             continue;
          }
 
-         xfiles.add(file);
+         filesMap.put(name, file);
       }
 
-      for(XFile file : xfiles) {
+      filesMap.forEach((name, file) -> {
          List<NBlock> fileBlocks = fileblocks.get(file.getName());
 
          // file write lock is required
@@ -223,11 +223,13 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
                   sblock.add(new SNBlock(fileBlock));
                }
             }
+
+            xfilemap.put(name, file);
          }
          finally {
             file.getWriteLock().unlock();
          }
-      }
+      });
 
       XFile[] all = list();
 
