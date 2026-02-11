@@ -26,6 +26,7 @@ import inetsoft.uql.jdbc.*;
 import inetsoft.uql.path.XSelection;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.schema.XTypeNode;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,7 +68,14 @@ public class RuntimeQueryService {
    }
 
    public String openNewRuntimeQuery(String oldId) throws Exception {
-      RuntimeXQuery query = this.getRuntimeQuery(oldId).clone();
+      RuntimeXQuery oldQuery = this.getRuntimeQuery(oldId);
+
+      if(oldQuery == null) {
+         throw new MessageException(
+            "The query session has expired. Please close and reopen the query editor.");
+      }
+
+      RuntimeXQuery query = oldQuery.clone();
       String newId = generateRuntimeId(query.query.getName());
       query.setId(newId);
 
