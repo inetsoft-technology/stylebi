@@ -289,9 +289,20 @@ public final class XSwapper {
          (new Thread() {
             @Override
             public void run() {
-               Cluster cluster = Cluster.getInstance();
-               Lock lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
-               lock.lock();
+               Cluster cluster;
+               Lock lock;
+
+               try {
+                  cluster = Cluster.getInstance();
+                  lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
+                  lock.lock();
+               }
+               catch(Exception e) {
+                  DEBUG_LOG.debug(
+                     "Unable to acquire swap file map lock for cache cleanup, " +
+                     "cluster may be stopped", e);
+                  return;
+               }
 
                try {
                   Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
@@ -306,7 +317,12 @@ public final class XSwapper {
                   }
                }
                finally {
-                  lock.unlock();
+                  try {
+                     lock.unlock();
+                  }
+                  catch(Exception e) {
+                     DEBUG_LOG.debug("Unable to release swap file map lock", e);
+                  }
                }
             }
          }).start();
@@ -757,11 +773,20 @@ public final class XSwapper {
             }
          }
 
-         Cluster cluster = Cluster.getInstance();
          // optimization, lock the map and bulk add files to cleaner instead
-         // of doing so individually.
-         Lock lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
-         lock.lock();
+         // of doing so individually. If the cluster is unavailable (e.g.
+         // Ignite stopped), skip locking and still add files to the cleaner.
+         Lock lock = null;
+
+         try {
+            Cluster cluster = Cluster.getInstance();
+            lock = cluster.getLock(SWAP_FILE_MAP_LOCK);
+            lock.lock();
+         }
+         catch(Exception e) {
+            LOG.debug("Unable to acquire swap file map lock, cluster may be stopped", e);
+            lock = null;
+         }
 
          try {
             // if there are any swap files then add them to the cleaner so that
@@ -776,7 +801,14 @@ public final class XSwapper {
             }
          }
          finally {
-            lock.unlock();
+            if(lock != null) {
+               try {
+                  lock.unlock();
+               }
+               catch(Exception e) {
+                  LOG.debug("Unable to release swap file map lock", e);
+               }
+            }
          }
       }
 
