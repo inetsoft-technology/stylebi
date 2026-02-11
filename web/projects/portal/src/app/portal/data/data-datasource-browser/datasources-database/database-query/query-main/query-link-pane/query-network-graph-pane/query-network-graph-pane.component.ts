@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { DOCUMENT } from "@angular/common";
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    AfterViewChecked,
    AfterViewInit,
@@ -37,7 +37,7 @@ import {
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ConnectionMadeEventInfo } from "jsplumb";
-import { Observable } from "rxjs";
+import { Observable, Subscription, timer as observableTimer } from "rxjs";
 import { AssetEntry } from "../../../../../../../../../../../shared/data/asset-entry";
 import { Tool } from "../../../../../../../../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../../../../../../../../common/action/assembly-action-group";
@@ -109,6 +109,8 @@ const GRAPH_CLEAR_TABLES_URI = "../api/data/datasource/query/table/";
 const GRAPH_ADD_TABLES_URI = "../api/data/datasource/query/table/add";
 const GRAPH_REMOVE_TABLES_URI = "../api/data/datasource/query/table/remove";
 const GRAPH_MOVE_TABLES_URI = "../api/data/datasource/query/table/move";
+const HEARTBEAT_URI = "../api/data/query/heartbeat";
+const HEARTBEAT_INTERVAL_TIME = 20000;
 
 @Component({
    selector: "query-network-graph-pane",
@@ -144,6 +146,7 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    private dragNodes: GraphModel[] = [];
    private nodes: {[sourceIds: string]: GraphModel} = {}; // element id --> node model
    private sourceIds: {[nodeId: string]: string} = {}; // node id --> element id
+   private heartbeatSubscription: Subscription;
 
    constructor(private readonly zone: NgZone,
                private readonly http: HttpClient,
@@ -275,6 +278,9 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
 
    ngOnInit(): void {
       this.setRepaintTimer(); // waiting jsPlumb auto setting graph id.
+      this.heartbeatSubscription = observableTimer(0, HEARTBEAT_INTERVAL_TIME).subscribe(() => {
+         this.sendHeartBeat();
+      });
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -304,6 +310,11 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    }
 
    ngOnDestroy(): void {
+      if(this.heartbeatSubscription) {
+         this.heartbeatSubscription.unsubscribe();
+         this.heartbeatSubscription = null;
+      }
+
       this.jsp.deleteEveryConnection({fireEvent: false});
       this.jsp.reset();
       this.jsp = null;
@@ -441,6 +452,15 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    private openJoinEditPane(): Observable<string> {
       return this.http.get<string>(OPEN_JOIN_EDIT_PANE_URI
          + Tool.encodeURIComponentExceptSlash(this.runtimeId));
+   }
+
+   private sendHeartBeat(): void {
+      if(!!this.runtimeId) {
+         const params: HttpParams = new HttpParams()
+            .set("id", this.runtimeId);
+
+         this.http.get(HEARTBEAT_URI, {params}).subscribe(() => {});
+      }
    }
 
    private refreshAnchors(connection: any): void {
