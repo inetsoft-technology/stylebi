@@ -101,9 +101,10 @@ export class RunOnceConditionEditorComponent implements OnInit {
          oldTZ, newTZ, this.dateValue);
 
       if(!!this.form.get("startTime").value) {
-         this.timeValue = this.dateTimeService.getTimeString(newDateTime);
+         const newTimeValue = this.dateTimeService.getTimeString(newDateTime);
 
-         if(this.form.get("startTime").value) {
+         if(newTimeValue) {
+            this.timeValue = newTimeValue;
             this.form.get("startTime").setValue(this.timeValue);
          }
       }
