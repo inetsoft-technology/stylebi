@@ -71,7 +71,7 @@ public class SchedulerStatus implements Serializable {
    }
 
    public boolean isHealthy() {
-      boolean healthy = started && !shutdown && !standby;
+      boolean healthy = (started || standby) && !shutdown;
 
       if(healthy) {
          if(lastCheck >= 0 &&
