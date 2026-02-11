@@ -681,8 +681,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       lock.lock();
 
       try {
-         String oldOrgID = getOrganization(id) != null ? id : null;
-         processAuthenticationChange(new IdentityID(getOrganization(id).getName(), oldOrgID), null, oldOrgID, null, Identity.ORGANIZATION, true);
+         Organization org = getOrganization(id);
+
+         if(org == null) {
+            LOG.warn("Organization {} not found for removal, skipping", id);
+            return;
+         }
+
+         processAuthenticationChange(new IdentityID(org.getName(), id), null, id, null, Identity.ORGANIZATION, true);
          organizationStorage.remove(id).get(10L, TimeUnit.SECONDS);
       }
       catch(Exception e) {
