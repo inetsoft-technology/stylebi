@@ -2496,7 +2496,7 @@ public class CoreLifecycleService {
             permissions.add("Viewsheet_Write");
          }
 
-         boolean profiling = ((XPrincipal) user).isProfiling() &&
+         boolean profiling = user instanceof XPrincipal xUser && xUser.isProfiling() &&
             SecurityEngine.getSecurity().checkPermission(user, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
 
          if(profiling) {
