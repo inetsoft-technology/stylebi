@@ -554,6 +554,8 @@ public class ScheduleManager {
          .stream()
          .filter(key -> Tool.equals(key.orgId, orgId0))
          .map(extensionTasks::get)
+         .filter(task -> task != null && task.getOwner() != null &&
+            Tool.equals(task.getOwner().getOrgID(), orgId0))
          .collect(Collectors.toCollection(HashSet::new));
    }
 

@@ -962,6 +962,7 @@ public class IdentityService {
          RecycleBin.getRecycleBin().copyStorageData(oOrg.getId(), nOrg.getId());
          updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
          IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg, rename);
+         IndexedStorage.getIndexedStorage().setInitialized(nOrg.getId());
 
          //FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
          updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), MVWorksheetStorage.Metadata.class, true);
