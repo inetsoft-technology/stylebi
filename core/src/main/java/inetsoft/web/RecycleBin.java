@@ -60,9 +60,15 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
     * Get all paths in recycle bin.
     */
    public Collection<Entry> getEntries() {
-      return getStorage().stream()
-         .map(KeyValuePair::getValue)
-         .collect(Collectors.toList());
+      try {
+         return getStorage().stream()
+            .map(KeyValuePair::getValue)
+            .collect(Collectors.toList());
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to get recycle bin entries, storage may be unavailable", e);
+         return Collections.emptyList();
+      }
    }
 
    /**

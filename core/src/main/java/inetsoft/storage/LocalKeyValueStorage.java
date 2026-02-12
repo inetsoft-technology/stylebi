@@ -95,12 +95,20 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
 
    @Override
    public Stream<KeyValuePair<T>> stream() {
+      if(isClosed) {
+         return Stream.empty();
+      }
+
       return map.entrySet().stream()
          .map(e -> new KeyValuePair<>(e.getKey(), e.getValue()));
    }
 
    @Override
    public Stream<String> keys() {
+      if(isClosed) {
+         return Stream.empty();
+      }
+
       return map.keySet().stream();
    }
 
@@ -137,7 +145,7 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
    private final Set<Listener<T>> listeners =
       new ConcurrentSkipListSet<>(Comparator.comparing(Listener::hashCode));
    private final ListenerDelegate listenerDelegate = new ListenerDelegate();
-   private boolean isClosed = false;
+   private volatile boolean isClosed = false;
 
    private final class ListenerDelegate implements MapChangeListener<String, T> {
       @Override
