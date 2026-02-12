@@ -166,6 +166,11 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
             DataSourceRegistry registry = DataSourceRegistry.getRegistry();
             JDBCDataSource ds =
                (JDBCDataSource) registry.getDataSource(getSourceInfo().getSource(), orgID);
+
+            if(ds == null) {
+               return;
+            }
+
             Principal principal = ThreadContext.getContextPrincipal();
             String userName = principal == null ? null : principal.getName();
             JDBCUtil.fixUniformSQLInfo(uniformSQL, XFactory.getRepository(), userName, ds);
