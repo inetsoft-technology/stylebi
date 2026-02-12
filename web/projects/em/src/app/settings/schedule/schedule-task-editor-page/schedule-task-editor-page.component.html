@@ -45,6 +45,7 @@
             </mat-card-content>
             <mat-card-actions>
               <button mat-stroked-button (click)="addCondition()">_#(Add)</button>
+              <button mat-button (click)="copyCondition()" [disabled]="selectedConditionIndex < 0 || !condition">_#(Copy)</button>
               <button mat-button (click)="deleteConditions()" [disabled]="!canDeleteConditions">_#(Delete)</button>
             </mat-card-actions>
           </mat-card>
@@ -88,6 +89,7 @@
               </mat-card-content>
               <mat-card-actions>
                 <button mat-stroked-button (click)="addAction()">_#(Add)</button>
+                <button mat-button (click)="copyAction()" [disabled]="selectedActionIndex < 0 || !action">_#(Copy)</button>
                 <button mat-button (click)="deleteActions()" [disabled]="!canDeleteActions">_#(Delete)</button>
               </mat-card-actions>
             </mat-card>

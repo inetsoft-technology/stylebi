@@ -230,6 +230,20 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       this.taskChanged = true;
    }
 
+   copyCondition(): void {
+      if(this.selectedConditionIndex < 0 || !this.condition) {
+         return;
+      }
+
+      const copy: ScheduleConditionModel = Tool.clone(this.condition);
+      copy.label = "_#(js:Copy of) " + (copy.label || "_#(js:New Condition)");
+      this.model.taskConditionPaneModel.conditions.push(copy);
+      const item = new TaskItem(`condition-${this.nextConditionId++}`, copy.label);
+      this.conditionItems.push(item);
+      this.selectedConditionIndex = this.conditionItems.length - 1;
+      this.taskChanged = true;
+   }
+
    deleteConditions(): void {
       this.dialog.open(MessageDialog, {
          width: "500px",
@@ -257,6 +271,20 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
 
    addAction(): void {
       this.appendAction(true);
+      this.selectedActionIndex = this.actionItems.length - 1;
+      this.taskChanged = true;
+   }
+
+   copyAction(): void {
+      if(this.selectedActionIndex < 0 || !this.action) {
+         return;
+      }
+
+      const copy: ScheduleActionModel = Tool.clone(this.action);
+      copy.label = "_#(js:Copy of) " + (copy.label || "_#(js:New Action)");
+      this.model.taskActionPaneModel.actions.push(copy);
+      const item = new TaskItem(`action-${this.nextActionId++}`, copy.label);
+      this.actionItems.push(item);
       this.selectedActionIndex = this.actionItems.length - 1;
       this.taskChanged = true;
    }

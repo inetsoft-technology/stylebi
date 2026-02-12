@@ -375,6 +375,24 @@ export class TaskActionPane implements OnInit {
       this.changeActionType(0);
    }
 
+   public copyAction(): void {
+      if(this.selectedActions.length !== 1) {
+         return;
+      }
+
+      const sourceIndex = this.selectedActions[0];
+      const source = this.model.actions[sourceIndex];
+
+      if(!source) {
+         return;
+      }
+
+      const copy: ScheduleActionModel = Tool.clone(source);
+      copy.label = "_#(js:Copy of) " + (copy.label || "_#(js:New Action)");
+      this.model.actions.push(copy);
+      this.selectedActions = [this.model.actions.length - 1];
+   }
+
    public deleteAction(): void {
       const message: string = "_#(js:em.scheduler.actions.removeNote)";
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message).then(

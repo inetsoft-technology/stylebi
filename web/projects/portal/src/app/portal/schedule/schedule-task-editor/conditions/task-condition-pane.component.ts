@@ -638,6 +638,24 @@ export class TaskConditionPane implements OnInit, OnChanges {
       this.listView = false;
    }
 
+   public copyCondition(): void {
+      if(this.selectedConditions.length !== 1) {
+         return;
+      }
+
+      const sourceIndex = this.selectedConditions[0];
+      const source = this.model.conditions[sourceIndex];
+
+      if(!source) {
+         return;
+      }
+
+      const copy: ScheduleConditionModel = Tool.clone(source);
+      copy.label =  "_#(js:Copy of) " + (copy.label || "_#(js:New Condition)");
+      this.model.conditions.push(copy);
+      this.selectedConditions = [this.model.conditions.length - 1];
+   }
+
    public deleteCondition(): void {
       const message: string = "_#(em.scheduler.conditions.removeNote)";
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message).then(
