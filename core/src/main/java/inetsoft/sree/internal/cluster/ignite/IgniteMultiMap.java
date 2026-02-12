@@ -290,18 +290,18 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
 
    private <T> T executeWithRetry(Supplier<T> operation) {
       int retries = 0;
+      RuntimeException lastException = null;
 
       while(retries < MAX_RETRIES) {
          try {
             return operation.get();
          }
-         catch(CacheException e) {
+         catch(CacheException | IllegalStateException e) {
+            lastException = (e instanceof RuntimeException) ?
+               (RuntimeException) e : new RuntimeException(e);
             retries++;
 
-            if(retries == MAX_RETRIES) {
-               throw e;
-            }
-            else {
+            if(retries < MAX_RETRIES) {
                try {
                   Thread.sleep(200);
                }
@@ -312,7 +312,7 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
          }
       }
 
-      throw new RuntimeException("Operation failed after retries.");
+      throw lastException;
    }
 
    private final IgniteCache<K, Collection<V>> cache;
