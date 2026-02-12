@@ -827,13 +827,19 @@ public class DeployManagerService {
                         }
 
                         ((AssetEntry) assetObject).toIdentifier(true);
-                        AssetEntry newOrgAsset = (AssetEntry) assetObject.clone();
-                        newOrgAsset.setOrgID(currOrg);
+                        AssetEntry assetEntry = (AssetEntry) assetObject;
+                        IdentityID currentUser = assetEntry.getUser();
+                        AssetEntry newOrgAsset;
 
-                        if(newOrgAsset.getUser() != null) {
-                           newOrgAsset.getUser().setOrgID(currOrg);
+                        if(currentUser != null) {
+                           newOrgAsset = assetEntry.cloneAssetEntry(
+                              currentUser, new IdentityID(currentUser.getName(), currOrg));
+                        }
+                        else {
+                           newOrgAsset = (AssetEntry) assetEntry.clone();
                         }
 
+                        newOrgAsset.setOrgID(currOrg);
                         newOrgAsset.toIdentifier(true);
                         changeAssetMap.put(assetObject, newOrgAsset);
                      }
