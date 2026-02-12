@@ -46,6 +46,8 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 public class RuntimeSheetCache
    implements Map<String, RuntimeSheet>, Closeable
@@ -79,8 +81,8 @@ public class RuntimeSheetCache
    }
 
    @SuppressWarnings("unchecked")
-   private static IgniteCache<AffinityKey<String>, RuntimeSheetState> getCache(Cluster cluster, String name) {
-      Cache<String, RuntimeSheetState> cache = cluster.getCache(name);
+   private static IgniteCache<AffinityKey<String>, CompressedSheetState> getCache(Cluster cluster, String name) {
+      Cache<String, CompressedSheetState> cache = cluster.getCache(name);
       return cache.unwrap(IgniteCache.class);
    }
 
@@ -223,7 +225,8 @@ public class RuntimeSheetCache
 
    private Future<RuntimeSheet> putCache(AffinityKey<String> key, RuntimeSheet value) {
       try {
-         IgniteFuture<Void> igniteFuture = cache.putAsync(key, value.saveState(mapper));
+         CompressedSheetState compressed = compressState(value.saveState(mapper));
+         IgniteFuture<Void> igniteFuture = cache.putAsync(key, compressed);
          CompletableFuture<RuntimeSheet> future = new CompletableFuture<>();
 
          igniteFuture.listen(f -> {
@@ -246,6 +249,63 @@ public class RuntimeSheetCache
 
          return failed;
       }
+   }
+
+   private CompressedSheetState compressState(RuntimeSheetState state) {
+      try {
+         CompressedSheetState.SheetType type = state instanceof RuntimeViewsheetState
+            ? CompressedSheetState.SheetType.VIEWSHEET
+            : CompressedSheetState.SheetType.WORKSHEET;
+
+         byte[] json = mapper.writeValueAsBytes(state);
+         byte[] compressed = compress(json);
+
+         return new CompressedSheetState(compressed, type, state.getUser());
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to compress sheet state", e);
+      }
+   }
+
+   private RuntimeSheetState decompressState(CompressedSheetState compressed) {
+      try {
+         byte[] json = decompress(compressed.getCompressedData());
+         Class<? extends RuntimeSheetState> clazz =
+            compressed.getType() == CompressedSheetState.SheetType.VIEWSHEET
+               ? RuntimeViewsheetState.class
+               : RuntimeWorksheetState.class;
+
+         return mapper.readValue(json, clazz);
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to decompress sheet state", e);
+      }
+   }
+
+   private static byte[] compress(byte[] data) throws IOException {
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+      try(GZIPOutputStream gzip = new GZIPOutputStream(baos)) {
+         gzip.write(data);
+      }
+
+      return baos.toByteArray();
+   }
+
+   private static byte[] decompress(byte[] compressed) throws IOException {
+      ByteArrayInputStream bais = new ByteArrayInputStream(compressed);
+      ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+      try(GZIPInputStream gzip = new GZIPInputStream(bais)) {
+         byte[] buffer = new byte[8192];
+         int len;
+
+         while((len = gzip.read(buffer)) > 0) {
+            baos.write(buffer, 0, len);
+         }
+      }
+
+      return baos.toByteArray();
    }
 
    @Override
@@ -276,10 +336,10 @@ public class RuntimeSheetCache
 
    @Override
    public void putAll(Map<? extends String, ? extends RuntimeSheet> m) {
-      Map<AffinityKey<String>, RuntimeSheetState> states = new HashMap<>();
+      Map<AffinityKey<String>, CompressedSheetState> states = new HashMap<>();
 
       for(Map.Entry<? extends String, ? extends RuntimeSheet> e : m.entrySet()) {
-         states.put(getAffinityKey(e.getKey()), e.getValue().saveState(mapper));
+         states.put(getAffinityKey(e.getKey()), compressState(e.getValue().saveState(mapper)));
       }
 
       lock.writeLock().lock();
@@ -346,7 +406,7 @@ public class RuntimeSheetCache
          .map(this::getAffinityKey)
          .forEach(allIds::add);
 
-      Iterator<Cache.Entry<AffinityKey<String>, RuntimeSheetState>> iter = cache.iterator();
+      Iterator<Cache.Entry<AffinityKey<String>, CompressedSheetState>> iter = cache.iterator();
 
       try {
          while(iter.hasNext()) {
@@ -371,7 +431,7 @@ public class RuntimeSheetCache
             cache.removeAsync(affinityKey);
          }
          else {
-            cache.putAsync(affinityKey, sheet.saveState(mapper));
+            cache.putAsync(affinityKey, compressState(sheet.saveState(mapper)));
          }
       }
       finally {
@@ -383,13 +443,13 @@ public class RuntimeSheetCache
       lock.writeLock().lock();
 
       try {
-         Map<AffinityKey<String>, RuntimeSheetState> changeset = new HashMap<>();
+         Map<AffinityKey<String>, CompressedSheetState> changeset = new HashMap<>();
 
          for(AffinityKey<String> key : getLocalKeys()) {
             RuntimeSheet sheet = local.get(key.key());
 
             if(sheet != null) {
-               changeset.put(key, sheet.saveState(mapper));
+               changeset.put(key, compressState(sheet.saveState(mapper)));
             }
          }
 
@@ -400,7 +460,12 @@ public class RuntimeSheetCache
       }
    }
 
-   private RuntimeSheet toSheet(RuntimeSheetState state) {
+   private RuntimeSheet toSheet(CompressedSheetState compressed) {
+      if(compressed == null) {
+         return null;
+      }
+
+      RuntimeSheetState state = decompressState(compressed);
       RuntimeSheet sheet = null;
 
       if(state instanceof RuntimeViewsheetState vsState) {
@@ -415,11 +480,11 @@ public class RuntimeSheetCache
 
    public List<String> getAllIds(Principal user) {
       Set<String> ids = new HashSet<>();
-      Iterator<Cache.Entry<AffinityKey<String>, RuntimeSheetState>> iter = cache.iterator();
+      Iterator<Cache.Entry<AffinityKey<String>, CompressedSheetState>> iter = cache.iterator();
 
       try {
          while(iter.hasNext()) {
-            Cache.Entry<AffinityKey<String>, RuntimeSheetState> e = iter.next();
+            Cache.Entry<AffinityKey<String>, CompressedSheetState> e = iter.next();
 
             if(user == null) {
                ids.add(e.getKey().key());
@@ -488,7 +553,7 @@ public class RuntimeSheetCache
 
    private final Cluster cluster;
    private final Map<String, RuntimeSheet> local;
-   private final IgniteCache<AffinityKey<String>, RuntimeSheetState> cache;
+   private final IgniteCache<AffinityKey<String>, CompressedSheetState> cache;
    private final int maxSheetCount;
    private final ReadWriteLock lock = new ReentrantReadWriteLock();
    private final ScheduledExecutorService executor;
