@@ -587,7 +587,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public int getRowHeight(int row) {
-      return table.getRowHeight(row < hrow ? row : getRowMap().get(row));
+      return table.getRowHeight(getBaseRowIndex(row));
    }
 
    /**
@@ -629,7 +629,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public Color getRowBorderColor(int r, int c) {
-      return table.getRowBorderColor(r < hrow ? r : getRowMap().get(r), c);
+      return table.getRowBorderColor(getBaseRowIndex(r), c);
    }
 
    /**
@@ -640,7 +640,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public Color getColBorderColor(int r, int c) {
-      return table.getColBorderColor(r < hrow ? r : getRowMap().get(r), c);
+      return table.getColBorderColor(getBaseRowIndex(r), c);
    }
 
    /**
@@ -654,7 +654,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public int getRowBorder(int r, int c) {
-      return table.getRowBorder(r < hrow ? r : getRowMap().get(r), c);
+      return table.getRowBorder(getBaseRowIndex(r), c);
    }
 
    /**
@@ -668,7 +668,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public int getColBorder(int r, int c) {
-      return table.getColBorder(r < hrow ? r : getRowMap().get(r), c);
+      return table.getColBorder(getBaseRowIndex(r), c);
    }
 
    /**
@@ -679,7 +679,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public Insets getInsets(int r, int c) {
-      return table.getInsets(r < hrow ? r : getRowMap().get(r), c);
+      return table.getInsets(getBaseRowIndex(r), c);
    }
 
    /**
@@ -694,7 +694,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public Dimension getSpan(int r, int c) {
-      Dimension span = table.getSpan(r < hrow ? r : getRowMap().get(r), c);
+      Dimension span = table.getSpan(getBaseRowIndex(r), c);
 
       if(span != null) {
          int rows = getRowCount();
@@ -717,7 +717,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public int getAlignment(int r, int c) {
-      return table.getAlignment(r < hrow ? r : getRowMap().get(r), c);
+      return table.getAlignment(getBaseRowIndex(r), c);
    }
 
    /**
@@ -728,7 +728,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public Font getFont(int r, int c) {
-      return table.getFont(r < hrow ? r : getRowMap().get(r), c);
+      return table.getFont(getBaseRowIndex(r), c);
    }
 
    /**
@@ -741,7 +741,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public boolean isLineWrap(int r, int c) {
-      return table.isLineWrap(r < hrow ? r : getRowMap().get(r), c);
+      return table.isLineWrap(getBaseRowIndex(r), c);
    }
 
    /**
@@ -753,7 +753,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public Color getForeground(int r, int c) {
-      return table.getForeground(r < hrow ? r : getRowMap().get(r), c);
+      return table.getForeground(getBaseRowIndex(r), c);
    }
 
    /**
@@ -765,7 +765,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public Color getBackground(int r, int c) {
-      return table.getBackground(r < hrow ? r : getRowMap().get(r), c);
+      return table.getBackground(getBaseRowIndex(r), c);
    }
 
    /**
@@ -785,7 +785,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public final boolean isNull(int r, int c) {
-      return table.isNull(r < hrow ? r : getRowMap().get(r), c);
+      return table.isNull(getBaseRowIndex(r), c);
    }
 
    /**
@@ -809,7 +809,7 @@ public class SortFilter extends AbstractTableLens
    public Object getData(int r, int c) {
       if(table instanceof DataTableLens) {
          return ((DataTableLens) table).getData(
-            r < hrow ? r : getRowMap().get(r), c);
+            getBaseRowIndex(r), c);
       }
 
       return getObject(r, c);
@@ -823,7 +823,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public final double getDouble(int r, int c) {
-      return table.getDouble(r < hrow ? r : getRowMap().get(r), c);
+      return table.getDouble(getBaseRowIndex(r), c);
    }
 
    /**
@@ -834,7 +834,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public final float getFloat(int r, int c) {
-      return table.getFloat(r < hrow ? r : getRowMap().get(r), c);
+      return table.getFloat(getBaseRowIndex(r), c);
    }
 
    /**
@@ -845,7 +845,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public final long getLong(int r, int c) {
-      return table.getLong(r < hrow ? r : getRowMap().get(r), c);
+      return table.getLong(getBaseRowIndex(r), c);
    }
 
    /**
@@ -856,7 +856,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public final int getInt(int r, int c) {
-      return table.getInt(r < hrow ? r : getRowMap().get(r), c);
+      return table.getInt(getBaseRowIndex(r), c);
    }
 
    /**
@@ -867,7 +867,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public final short getShort(int r, int c) {
-      return table.getShort(r < hrow ? r : getRowMap().get(r), c);
+      return table.getShort(getBaseRowIndex(r), c);
    }
 
    /**
@@ -878,7 +878,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public final byte getByte(int r, int c) {
-      return table.getByte(r < hrow ? r : getRowMap().get(r), c);
+      return table.getByte(getBaseRowIndex(r), c);
    }
 
    /**
@@ -889,7 +889,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public final boolean getBoolean(int r, int c) {
-      return table.getBoolean(r < hrow ? r : getRowMap().get(r), c);
+      return table.getBoolean(getBaseRowIndex(r), c);
    }
 
    /**
@@ -900,7 +900,7 @@ public class SortFilter extends AbstractTableLens
     */
    @Override
    public void setObject(int r, int c, Object v) {
-      table.setObject(r < hrow ? r : getRowMap().get(r), c, v);
+      table.setObject(getBaseRowIndex(r), c, v);
    }
 
    /**
