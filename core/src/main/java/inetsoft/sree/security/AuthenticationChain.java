@@ -40,6 +40,11 @@ public class AuthenticationChain
       initialize();
    }
 
+   AuthenticationChain(boolean readOnly) {
+      super(readOnly);
+      initialize();
+   }
+
    @Override
    public User getUser(IdentityID userIdentity) {
       return stream()

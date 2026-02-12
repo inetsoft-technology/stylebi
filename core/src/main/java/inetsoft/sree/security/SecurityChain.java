@@ -43,6 +43,19 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
     * Creates a new instance of <tt>SecurityChain</tt>.
     */
    public SecurityChain() {
+      this.readOnly = false;
+   }
+
+   /**
+    * Creates a new instance of <tt>SecurityChain</tt>.
+    *
+    * @param readOnly if {@code true}, the chain will not write an empty configuration file during
+    *                 initialization when the config file does not yet exist. This is used on remote
+    *                 cluster nodes to avoid overwriting a valid configuration that has not yet
+    *                 propagated through distributed storage.
+    */
+   protected SecurityChain(boolean readOnly) {
+      this.readOnly = readOnly;
    }
 
    /**
@@ -63,17 +76,18 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    // variables are initialized when this is called
    void initialize() {
       DataSpace dataSpace = DataSpace.getDataSpace();
+      String configFile = getConfigFile();
 
       try {
-         if(dataSpace.exists(null, getConfigFile())) {
+         if(dataSpace.exists(null, configFile)) {
             loadConfiguration();
          }
-         else {
+         else if(!readOnly) {
             // create empty configuration file to watch
             saveConfiguration();
          }
 
-         dataSpace.addChangeListener(null, getConfigFile(), this);
+         dataSpace.addChangeListener(null, configFile, this);
       }
       catch(IOException e) {
          throw new RuntimeException("Failed to initialize security chain", e);
@@ -144,23 +158,24 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
     */
    void loadConfiguration() throws IOException {
       DataSpace dataSpace = DataSpace.getDataSpace();
-      long now = dataSpace.exists(null, getConfigFile()) ?
-         dataSpace.getLastModified(null, getConfigFile()) : 1;
+      String configFile = getConfigFile();
+      boolean exists = dataSpace.exists(null, configFile);
+      long now = exists ? dataSpace.getLastModified(null, configFile) : 1;
 
       if(timestamp < now) {
          lock.lock();
 
          try {
             if(timestamp < now) {
-               if(dataSpace.exists(null, getConfigFile())) {
+               if(dataSpace.exists(null, configFile)) {
                   ObjectMapper mapper = new ObjectMapper();
                   ObjectNode root;
 
-                  try(InputStream input = dataSpace.getInputStream(null, getConfigFile())) {
+                  try(InputStream input = dataSpace.getInputStream(null, configFile)) {
                      root = (ObjectNode) mapper.readTree(input);
                   }
 
-                  timestamp = dataSpace.getLastModified(null, getConfigFile());
+                  timestamp = dataSpace.getLastModified(null, configFile);
 
                   ArrayNode providersArray = (ArrayNode) root.get("providers");
                   List<T> list = new ArrayList<>();
@@ -207,7 +222,9 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
       ArrayNode providerArray = mapper.createArrayNode();
       root.set("providers", providerArray);
 
-      for(T provider : getProviderList()) {
+      List<T> currentProviders = getProviderList();
+
+      for(T provider : currentProviders) {
          ObjectNode wrapperNode = mapper.createObjectNode();
          wrapperNode.put("name", provider.getProviderName());
          wrapperNode.put("providerClass", provider.getClass().getName());
@@ -215,12 +232,14 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
          providerArray.add(wrapperNode);
       }
 
+      String configFile = getConfigFile();
+
       lock.lock();
 
       try {
          DataSpace dataSpace = DataSpace.getDataSpace();
-         dataSpace.withOutputStream(null, getConfigFile(), out -> mapper.writeValue(out, root));
-         timestamp = dataSpace.getLastModified(null, getConfigFile());
+         dataSpace.withOutputStream(null, configFile, out -> mapper.writeValue(out, root));
+         timestamp = dataSpace.getLastModified(null, configFile);
       }
       finally {
          lock.unlock();
@@ -290,6 +309,7 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
       clear();
    }
 
+   private final boolean readOnly;
    private volatile List<T> providers = new ArrayList<>();
    private volatile long timestamp = 0L;
    private final Lock lock = new ReentrantLock();
