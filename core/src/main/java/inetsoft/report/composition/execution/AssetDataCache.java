@@ -28,7 +28,6 @@ import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.report.lens.SetTableLens;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.OrganizationContextHolder;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
@@ -980,7 +979,6 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
          this.vsobj = vsobj;
          this.parentThread = parent;
          this.messageContext = MessageContextHolder.getMessageAttributes();
-         this.parentOrgId = OrganizationContextHolder.getCurrentOrgId();
       }
 
       protected boolean isCancelable() {
@@ -1002,17 +1000,10 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
             return;
          }
 
-         String originalOrgId = OrganizationContextHolder.getCurrentOrgId();
-
          try {
             // share same LockHolder for current thread and parent thread
             getCache().lockEntries.set(lockHolder);
             XUtil.VS_ASSEMBLY.set(vsobj);
-
-            // propagate org context from parent thread for globally visible assets
-            if(parentOrgId != null) {
-               OrganizationContextHolder.setCurrentOrgId(parentOrgId);
-            }
 
             // if this query is cancelled by query manager, to execute the query
             // is meaningless. Here we avoid executing it to save memory and cpu
@@ -1063,7 +1054,6 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
             XUtil.VS_ASSEMBLY.set(null);
             MessageContextHolder.setMessageAttributes(null);
             PostProcessor.setCreatingMV(false);
-            OrganizationContextHolder.setCurrentOrgId(originalOrgId);
          }
       }
 
@@ -1190,7 +1180,6 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       private String vsobj;
       private Thread parentThread;
       private final MessageAttributes messageContext;
-      private final String parentOrgId;
    }
 
    /**
