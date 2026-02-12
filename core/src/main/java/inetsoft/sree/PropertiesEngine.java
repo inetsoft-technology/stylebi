@@ -459,6 +459,22 @@ public class PropertiesEngine {
       LOG.info("InetSoft {} build {} started", Tool.getReportVersion(), Tool.getBuildNumber());
    }
 
+   /**
+    * Reads a property directly from the backing key-value storage, bypassing the in-memory
+    * cache. Use this when a stale null from the cache would cause irreversible side effects.
+    */
+   public String getPropertyFromStorage(String name) {
+      name = fixPropertyNameCase(name);
+
+      try {
+         return getStorage().get(name);
+      }
+      catch(Exception e) {
+         LOG.debug("Failed to read property from storage: {}", name, e);
+         return null;
+      }
+   }
+
    private KeyValueStorage<String> getStorage() {
       KeyValueStorage<String> storage = ConfigurationContext.getContext().get(STORAGE_KEY);
 

@@ -337,6 +337,11 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
          SecretKey key;
          String property = SreeEnv.getProperty("password.encryption.key");
 
+         // Fallback to backing store if in-memory cache hasn't refreshed yet
+         if(property == null) {
+            property = SreeEnv.getPropertyFromStorage("password.encryption.key");
+         }
+
          if(property == null) {
             key = createSecretKey();
             byte[] data = encryptSecretKey(key, masterKey);

@@ -71,6 +71,10 @@ public class SreeEnv {
       return PropertiesEngine.getInstance().getProperty(name, fn, false);
    }
 
+   public static String getPropertyFromStorage(String name) {
+      return PropertiesEngine.getInstance().getPropertyFromStorage(name);
+   }
+
    public static boolean getBooleanProperty(String name, boolean earlyLoaded, boolean orgScope, String ... trueValues) {
       String property = getProperty(name, earlyLoaded, orgScope);
 
