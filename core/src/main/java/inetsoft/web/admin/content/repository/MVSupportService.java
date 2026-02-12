@@ -403,6 +403,11 @@ public class MVSupportService {
 
       for(String mv : mvs) {
          MVDef def = manager.get(mv);
+
+         if(def == null) {
+            continue;
+         }
+
          def.setCycle(getCycle(dataCycle));
          def.setChanged(true);
          manager.add(def, false);
