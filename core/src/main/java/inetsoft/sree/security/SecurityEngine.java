@@ -28,10 +28,10 @@ import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -75,6 +75,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
    private void doInit() {
       XUtil.setXIdentityFinder(new SRIdentityFinder());
+      boolean secEnabled = isSecurityEnabled();
+      int userCount = LicenseManager.getInstance().getNamedUserCount();
 
       if(provider != null) {
          provider.tearDown();
@@ -88,9 +90,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
       vprovider = CompositeSecurityProvider.create(
          new VirtualAuthenticationProvider(), new VirtualAuthorizationProvider());
-      int userCount = LicenseManager.getInstance().getNamedUserCount();
 
-      if(isSecurityEnabled() || userCount > 0) {
+      if(secEnabled || userCount > 0) {
          AuthenticationChain authcChain = new AuthenticationChain();
          AuthorizationChain authzChain = new AuthorizationChain();
 
@@ -251,7 +252,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          initLock.unlock();
       }
 
-      clusterInstance.sendMessage(new SecurityChangedMessage(true));
+      initRemoteNodes(true);
    }
 
    public void disableSecurity() throws Exception {
@@ -269,7 +270,31 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          initLock.unlock();
       }
 
-      clusterInstance.sendMessage(new SecurityChangedMessage(false));
+      initRemoteNodes(false);
+   }
+
+   /**
+    * Synchronously initializes all remote cluster nodes after a security state change.
+    * Uses Ignite compute broadcast so that the controller does not return until all
+    * nodes have been updated. Falls back to async messaging if the broadcast fails.
+    */
+   private void initRemoteNodes(boolean enabled) {
+      try {
+         Future<Collection<Void>> future =
+            clusterInstance.submitAll(new SecurityInitCallable(enabled));
+         future.get(30L, TimeUnit.SECONDS);
+      }
+      catch(Exception e) {
+         LOG.warn(
+            "Cluster broadcast for security init failed, falling back to async message", e);
+
+         try {
+            clusterInstance.sendMessage(new SecurityChangedMessage(enabled));
+         }
+         catch(Exception ex) {
+            LOG.error("Async fallback for security init also failed", ex);
+         }
+      }
    }
 
    public void enableSelfSignup() throws Exception {
@@ -292,6 +317,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
    @Override
    public void close() throws Exception {
+      retryExecutor.shutdownNow();
+
       if(provider != null) {
          provider.tearDown();
       }
@@ -1126,7 +1153,11 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       initLock.lock();
 
       try {
-         return isSecurityEnabled() && provider != null ? provider : vprovider;
+         if(isSecurityEnabled() && provider != null) {
+            return provider;
+         }
+
+         return vprovider;
       }
       finally {
          initLock.unlock();
@@ -1601,19 +1632,108 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    @Override
    public void messageReceived(MessageEvent event) {
       if(!event.isLocal() && (event.getMessage() instanceof SecurityChangedMessage)) {
-         try {
-            boolean enabled = ((SecurityChangedMessage) event.getMessage()).isEnabled();
+         boolean enabled = ((SecurityChangedMessage) event.getMessage()).isEnabled();
 
-            if(enabled && !isSecurityEnabled()) {
-               enableSecurity();
+         if(enabled && !isSecurityEnabled()) {
+            handleRemoteSecurityEnable();
+         }
+         else if(!enabled && isSecurityEnabled()) {
+            handleRemoteSecurityDisable();
+         }
+      }
+   }
+
+   private void handleRemoteSecurityEnable() {
+      initLock.lock();
+
+      try {
+         setSecurityEnabled(true);
+         AuthenticationChain authcChain = new AuthenticationChain(true);
+         AuthorizationChain authzChain = new AuthorizationChain(true);
+
+         if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
+            provider = CompositeSecurityProvider.create(authcChain, authzChain);
+            authcChain.addAuthenticationChangeListener(authzChain);
+            authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
+         }
+         else {
+            authcChain.tearDown();
+            authzChain.tearDown();
+         }
+      }
+      catch(Exception e) {
+         LOG.error("Failed to enable security on remote node", e);
+      }
+      finally {
+         initLock.unlock();
+      }
+
+      if(provider == null) {
+         scheduleProviderRetry(1);
+      }
+   }
+
+   private void scheduleProviderRetry(int attempt) {
+      if(attempt > MAX_PROVIDER_RETRIES) {
+         LOG.error(
+            "Failed to initialize security provider after {} retries",
+            MAX_PROVIDER_RETRIES);
+         return;
+      }
+
+      long delayMs = INITIAL_RETRY_DELAY_MS * (1L << (attempt - 1));
+
+      providerRetryFuture = retryExecutor.schedule(() -> {
+         initLock.lock();
+
+         try {
+            if(!isSecurityEnabled() || provider != null) {
+               return;
             }
-            else if(!enabled && isSecurityEnabled()) {
-               disableSecurity();
+
+            AuthenticationChain authcChain = new AuthenticationChain(true);
+            AuthorizationChain authzChain = new AuthorizationChain(true);
+
+            if(!authcChain.getProviders().isEmpty() && !authzChain.getProviders().isEmpty()) {
+               provider = CompositeSecurityProvider.create(authcChain, authzChain);
+               authcChain.addAuthenticationChangeListener(authzChain);
+               authcChain.addAuthenticationChangeListener(this::fireAuthenticationChange);
+            }
+            else {
+               authcChain.tearDown();
+               authzChain.tearDown();
+               scheduleProviderRetry(attempt + 1);
             }
          }
-         catch(Exception e) {
-            LOG.error("Failed to update security", e);
+         finally {
+            initLock.unlock();
          }
+      }, delayMs, TimeUnit.MILLISECONDS);
+   }
+
+   private void handleRemoteSecurityDisable() {
+      ScheduledFuture<?> future = providerRetryFuture;
+
+      if(future != null) {
+         future.cancel(false);
+         providerRetryFuture = null;
+      }
+
+      initLock.lock();
+
+      try {
+         setSecurityEnabled(false);
+
+         if(provider != null) {
+            provider.tearDown();
+            provider = null;
+         }
+      }
+      catch(Exception e) {
+         LOG.error("Failed to disable security on remote node", e);
+      }
+      finally {
+         initLock.unlock();
       }
    }
 
@@ -1642,6 +1762,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    }
 
    private static final Lock touchLock = new ReentrantLock();
+   private static final int MAX_PROVIDER_RETRIES = 5;
+   private static final long INITIAL_RETRY_DELAY_MS = 1000L;
    private SecurityProvider provider = null;
    private SecurityProvider vprovider = null;
    private SecurityProvider vpm_provider = null;
@@ -1652,6 +1774,13 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
    private final Lock initLock = new ReentrantLock();
    private final AuthenticationService authenticationService;
    private final Cluster clusterInstance;
+   private final ScheduledExecutorService retryExecutor =
+      Executors.newSingleThreadScheduledExecutor(r -> {
+         Thread t = new Thread(r, "SecurityEngine-Retry");
+         t.setDaemon(true);
+         return t;
+      });
+   private volatile ScheduledFuture<?> providerRetryFuture;
    private static final SreeEnv.Value securityDatasourceEveryone =
       new SreeEnv.Value("security.datasource.everyone", 10000, "true");
    private static final SreeEnv.Value securityScriptEveryone =
@@ -1678,5 +1807,77 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
        * @return <tt>true</tt> if valid; <tt>false</tt> otherwise.
        */
       boolean isValid(IdentityID userId, Object credential, SecurityProvider provider);
+   }
+
+   /**
+    * Callable that initializes security on each cluster node. Executed synchronously
+    * via {@code Cluster.submitAll()} so that the originating node can wait for all
+    * remote nodes to complete initialization before returning to the caller.
+    */
+   private static final class SecurityInitCallable implements Callable<Void>, Serializable {
+      private final boolean enabled;
+
+      SecurityInitCallable(boolean enabled) {
+         this.enabled = enabled;
+      }
+
+      @Override
+      public Void call() {
+         SecurityEngine engine = SecurityEngine.getSecurity();
+
+         if(enabled) {
+            engine.initLock.lock();
+
+            try {
+               if(engine.isSecurityEnabled() && engine.provider != null) {
+                  return null;
+               }
+
+               engine.setSecurityEnabled(true);
+               AuthenticationChain authcChain = new AuthenticationChain();
+               AuthorizationChain authzChain = new AuthorizationChain();
+
+               if(!authcChain.getProviders().isEmpty() &&
+                  !authzChain.getProviders().isEmpty())
+               {
+                  engine.provider =
+                     CompositeSecurityProvider.create(authcChain, authzChain);
+                  authcChain.addAuthenticationChangeListener(authzChain);
+                  authcChain.addAuthenticationChangeListener(engine::fireAuthenticationChange);
+               }
+               else {
+                  authcChain.tearDown();
+                  authzChain.tearDown();
+                  engine.newChain();
+               }
+            }
+            catch(Exception e) {
+               LOG.error("Failed to enable security via cluster broadcast", e);
+            }
+            finally {
+               engine.initLock.unlock();
+            }
+         }
+         else {
+            engine.initLock.lock();
+
+            try {
+               engine.setSecurityEnabled(false);
+
+               if(engine.provider != null) {
+                  engine.provider.tearDown();
+                  engine.provider = null;
+               }
+            }
+            catch(Exception e) {
+               LOG.error("Failed to disable security via cluster broadcast", e);
+            }
+            finally {
+               engine.initLock.unlock();
+            }
+         }
+
+         return null;
+      }
    }
 }

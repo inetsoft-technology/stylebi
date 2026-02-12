@@ -39,6 +39,11 @@ public class AuthorizationChain
       initialize();
    }
 
+   AuthorizationChain(boolean readOnly) {
+      super(readOnly);
+      initialize();
+   }
+
    @Override
    public void setPermission(ResourceType type, String resource, Permission perm) {
       setPermission(type, resource, perm, null);
