@@ -20,7 +20,7 @@ import {Component, OnDestroy, OnInit} from "@angular/core";
 import {MatDialog} from "@angular/material/dialog";
 import {MatSnackBar} from "@angular/material/snack-bar";
 import {NavigationExtras, Router} from "@angular/router";
-import {Observable, Subject, throwError, timer} from "rxjs";
+import {EMPTY, Observable, Subject, throwError, timer} from "rxjs";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { OrganizationDropdownService } from "../../../../navbar/organization-dropdown.service";
 import {catchError, concatMap, map, takeUntil} from "rxjs/operators";
@@ -59,11 +59,11 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
 
    ngOnInit() {
       const uri = "../api/em/security/configured-authentication-providers";
-      const providers$ = this.http.get<SecurityProviderStatusList>(uri);
       timer(0, 5000)
          .pipe(
-            concatMap(() => providers$),
-            catchError(error => this.handleGetProvidersError(error)),
+            concatMap(() => this.http.get<SecurityProviderStatusList>(uri).pipe(
+               catchError(error => this.handleGetProvidersError(error))
+            )),
             takeUntil(this.destroy$),
             map(list => list.providers.map(p => this.formatCacheAgeLabel(p)))
          )
@@ -183,7 +183,7 @@ export class AuthenticationProviderViewComponent implements OnInit, OnDestroy {
          duration: Tool.SNACKBAR_DURATION
       });
       console.error("Failed to get list of authentication providers: ", error);
-      return throwError(error);
+      return EMPTY;
    }
 
    private handleReorderError(error: HttpErrorResponse, source: number, destination: number): Observable<any> {
