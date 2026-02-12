@@ -18,6 +18,7 @@
 package inetsoft.web.admin.security.user;
 
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.security.*;
@@ -62,9 +63,23 @@ public class RoleController {
    @GetMapping("/api/em/security/user/get-security-tree-root/{provider}/{providerChanged}")
    public SecurityTreeRootModel getSecurityTreeRoot(@DecodePathVariable("provider") String provider,
                                                     @PathVariable("providerChanged") boolean providerChanged,
-                                                    Principal principal)
+                                                    Principal principal,
+                                                    HttpServletRequest request)
    {
-      return securityTreeServer.getSecurityTree(provider, principal, false, providerChanged);
+      SecurityTreeRootModel result =
+         securityTreeServer.getSecurityTree(provider, principal, false, providerChanged);
+
+      if(providerChanged) {
+         // Persist the updated principal properties (curr_org_id, curr_provider_name)
+         // to the distributed session so they are available on other cluster nodes
+         HttpSession session = request.getSession(false);
+
+         if(session != null) {
+            session.setAttribute(RepletRepository.EM_PRINCIPAL_COOKIE, principal);
+         }
+      }
+
+      return result;
    }
 
    @GetMapping("/api/em/security/user/create-role/{provider}")
