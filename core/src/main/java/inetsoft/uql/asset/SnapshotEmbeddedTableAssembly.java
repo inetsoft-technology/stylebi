@@ -310,7 +310,9 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
                .anyMatch(p -> getLastModified(p, Long.MAX_VALUE) > dataTS);
          }
 
-         if(dataPaths == null || fileDirty) {
+         boolean writeDateFile = dataPaths == null || fileDirty;
+
+         if(writeDateFile) {
             writeDataFiles(stable);
          }
 
@@ -351,7 +353,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly {
             }
          }
 
-         if(creators == null) {
+         if(creators == null || writeDateFile) {
             XTableColumnCreator[] xcreators = stable.getCreators();
             creators = new String[xcreators.length];
 
