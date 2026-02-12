@@ -2125,7 +2125,7 @@ public final class Tool extends CoreTool {
          return mapper.readTree(credential);
       }
       catch(Exception e) {
-         throw new RuntimeException("Failed to load credential by secret ID '" + secretId + "'");
+         throw new RuntimeException("Failed to load credential by secret ID '" + secretId + "'", e);
       }
    }
 
