@@ -252,6 +252,7 @@ public class QueryGraphModelService {
 
          sql = (UniformSQL) query.getSQLDefinition();
          sql.syncTableAlias(aliasMap);
+         sql.clearSQLString();
          queryService.fixUniformSQLInfo(sql, (JDBCDataSource) query.getDataSource(), principal);
          sql.syncTable();
          runtimeQueryService.saveRuntimeQuery(runtimeQuery);
