@@ -34,6 +34,7 @@ import {
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
 import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
+import { AiAssistantDialogService } from "../../../../common/services/ai-assistant-dialog.service";
 import { AssetEntry, createAssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
@@ -188,7 +189,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    _vs: Viewsheet;
    @Input() set vs(vs: Viewsheet) {
       this._vs = vs;
-      this.aiAssistantService.setViewsheetScriptContext(vs);
+      this.aiAssistantDialogService.setViewsheetScriptContext(vs);
    }
 
    get vs(): Viewsheet {
@@ -437,6 +438,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    ];
 
    constructor(private aiAssistantService: AiAssistantService,
+               private aiAssistantDialogService: AiAssistantDialogService,
                private element: ElementRef,
                private composerObjectService: ComposerObjectService,
                private viewsheetClient: ViewsheetClientService,
@@ -1056,7 +1058,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
             }
          });
 
-         this.aiAssistantService.setViewsheetScriptContext(this.vs);
+         this.aiAssistantDialogService.setViewsheetScriptContext(this.vs);
       }
 
       // Update z-indexes
@@ -1134,7 +1136,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.dialogService.objectDelete(absoulateName);
       this.dataTipService.clearDataTips(absoulateName);
       this.viewsheetClient.sendEvent("/events/vs/bindingtree/gettreemodel", new RefreshBindingTreeEvent(null));
-      this.aiAssistantService.setViewsheetScriptContext(this.vs);
+      this.aiAssistantDialogService.setViewsheetScriptContext(this.vs);
 
       // Update z-indexes
       for(let object of this.vs.vsObjects) {
@@ -1180,7 +1182,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       if(!updated) {
          this.vs.vsObjects.push(command.info);
          this.vs.variableNames = VSUtil.getVariableList(this.vs.vsObjects, null);
-         this.aiAssistantService.setViewsheetScriptContext(this.vs);
+         this.aiAssistantDialogService.setViewsheetScriptContext(this.vs);
       }
 
       if(command.info.objectType == "VSGroupContainer") {
@@ -1231,7 +1233,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       for(let i = 0; i < this.vs.vsObjects.length; i++) {
          if(this.vs.vsObjects[i].absoluteName === command.oldName) {
             this.vs.vsObjects[i].absoluteName = command.newName;
-            this.aiAssistantService.setViewsheetScriptContext(this.vs);
+            this.aiAssistantDialogService.setViewsheetScriptContext(this.vs);
             break;
          }
       }
