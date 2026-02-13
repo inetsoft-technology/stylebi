@@ -272,7 +272,7 @@ public abstract class LegendItem extends BoundedContainer {
       return super.toString() + "[" + value + "]";
    }
 
-   protected static final int DEFAULT_SYMBOL_SIZE = 12;
+   public static final int DEFAULT_SYMBOL_SIZE = 12;
    protected static final int LINESYMBOL_WIDTH = 30;
    protected static final Color SYMBOL_BORDER = new Color(0xa3, 0xa3, 0xa3);
    protected static final Color SYMBOL_COLOR = new Color(0x759595);

@@ -20,6 +20,7 @@ package inetsoft.graph;
 import com.inetsoft.build.tern.TernClass;
 import com.inetsoft.build.tern.TernMethod;
 import inetsoft.graph.aesthetic.TextFrame;
+import inetsoft.graph.guide.legend.LegendItem;
 import inetsoft.graph.internal.GDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -410,7 +411,7 @@ public class LegendSpec implements Cloneable, Serializable {
    private int gap = 0;
    private Insets padding;
    private Set hiddenItems = new HashSet();
-   private int symbolSize = 12;
+   private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
 
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(LegendSpec.class);

@@ -19,6 +19,7 @@ package inetsoft.uql.viewsheet.graph;
 
 import inetsoft.graph.aesthetic.DefaultTextFrame;
 import inetsoft.graph.aesthetic.TextFrame;
+import inetsoft.graph.guide.legend.LegendItem;
 import inetsoft.graph.internal.DimensionD;
 import inetsoft.graph.internal.GDefaults;
 import inetsoft.uql.XFormatInfo;
@@ -916,7 +917,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
    private boolean titleVisible = true;
    private boolean notShowNull = false;
    private boolean includeZero = false;
-   private int symbolSize = 12;
+   private int symbolSize = LegendItem.DEFAULT_SYMBOL_SIZE;
 
    private static final Logger LOG = LoggerFactory.getLogger(LegendDescriptor.class);
 }
