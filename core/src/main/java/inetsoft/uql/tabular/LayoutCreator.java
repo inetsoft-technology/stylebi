@@ -332,6 +332,7 @@ public class LayoutCreator {
          tEditor.setDefined(true);
          tEditor.setLineWrap(editor.lineWrap());
          tEditor.setAutocomplete(editor.autocomplete());
+         tEditor.setAutoSize(editor.autoSize());
 
          if(editor.editorProperties() == null) {
             tEditor.setEditorPropertyNames(null);
