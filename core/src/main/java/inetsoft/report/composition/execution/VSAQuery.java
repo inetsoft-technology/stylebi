@@ -1381,14 +1381,12 @@ public abstract class VSAQuery {
                continue;
             }
 
-            if(!calcs[i].isBaseOnDetail()) {
-               // clear the mirror table aggregate entity.calc_field,
-               // only keep the calc_field
-               DataRef old = columns.getAttribute(calcs[i].getName());
+            // clear the mirror table entity-prefixed calc_field
+            // to avoid duplicates when adding the bare calc_field
+            DataRef old = columns.getAttribute(calcs[i].getName());
 
-               if(old != null) {
-                  columns.removeAttribute(old);
-               }
+            if(old != null) {
+               columns.removeAttribute(old);
             }
 
             calcs[i].setVisible(true);
