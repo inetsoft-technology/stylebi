@@ -137,6 +137,10 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
       return getHistory(clusterNode, ServerMetricsCalculator.HistoryType.GC);
    }
 
+   public List<OffHeapHistory> getOffHeapHistory(String clusterNode) {
+      return getHistory(clusterNode, ServerMetricsCalculator.HistoryType.OFF_HEAP);
+   }
+
    public long getMaxHeapSize(String clusterNode) {
       ServerClusterStatus status = getServerClusterStatus(clusterNode);
 
@@ -146,6 +150,21 @@ public class ServerService extends MonitorLevelService implements StatusUpdater 
 
          if(metrics != null) {
             return metrics.maxHeapSize();
+         }
+      }
+
+      return 0L;
+   }
+
+   public long getMaxOffHeapSize(String clusterNode) {
+      ServerClusterStatus status = getServerClusterStatus(clusterNode);
+
+      if(status != null) {
+         ServerMetrics metrics =
+            client.getMetrics(StatusMetricsType.SERVER_METRICS, status.getAddress());
+
+         if(metrics != null) {
+            return metrics.maxOffHeapSize();
          }
       }
 

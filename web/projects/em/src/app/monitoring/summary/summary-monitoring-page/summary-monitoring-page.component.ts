@@ -61,6 +61,7 @@ export interface ChartInfo {
    label: "Summary",
    children: [
       { route: "/monitoring/summary/heapMemory", label: "Heap Memory Usage" },
+      { route: "/monitoring/summary/offHeapMemory", label: "Off-Heap Memory Usage" },
       { route: "/monitoring/summary/cpuUsage", label: "CPU Usage" },
       { route: "/monitoring/summary/gcCount", label: "GC Count" },
       { route: "/monitoring/summary/gcTime", label: "GC Time" },
@@ -97,6 +98,12 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    heapMemoryInfo: SummaryChartInfo = {
       title: "_#(js:Heap Memory Usage)",
       name: "memUsage",
+      monitorLevel: MonitorLevel.OFF
+   };
+
+   offHeapMemoryInfo: SummaryChartInfo = {
+      title: "_#(js:Off-Heap Memory Usage)",
+      name: "offHeapMemory",
       monitorLevel: MonitorLevel.OFF
    };
 
@@ -143,6 +150,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    executionLegends: SummaryChartLegend[];
    diskCacheLegends: SummaryChartLegend[];
    memLegends: SummaryChartLegend[];
+   offHeapMemLegends: SummaryChartLegend[];
    cpuLegends: SummaryChartLegend[];
    gcCountLegends: SummaryChartLegend[];
    gcTimeLegends: SummaryChartLegend[];
@@ -170,6 +178,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    private top5Subscription = Subscription.EMPTY;
 
    heapMemoryVisible = false;
+   offHeapMemoryVisible = false;
    cpuUsageVisible = false;
    gcCountVisible = false;
    gcTimeVisible = false;
@@ -208,6 +217,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
             }),
             tap(permissions => {
                this.heapMemoryVisible = permissions.permissions.heapMemory;
+               this.offHeapMemoryVisible = permissions.permissions.offHeapMemory;
                this.cpuUsageVisible = permissions.permissions.cpuUsage;
                this.gcCountVisible = permissions.permissions.gcCount;
                this.gcTimeVisible = permissions.permissions.gcTime;
@@ -258,6 +268,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
             this.diskCacheLegends = model.legends.diskCache;
             this.executionLegends = model.legends.execution;
             this.memLegends = model.legends.memUsage;
+            this.offHeapMemLegends = model.legends.offHeapMemory;
             this.cpuLegends = model.legends.cpuUsage;
             this.gcCountLegends = model.legends.gcCount;
             this.gcTimeLegends = model.legends.gcTime;
@@ -340,6 +351,16 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
 
    getUsageHistory() {
       let url = "../em/monitoring/server/get-usage-history";
+
+      if(this.clusterEnabled && this.selectedClusterNode) {
+         url += "?clusterNode=" + encodeURIComponent(this.selectedClusterNode);
+      }
+
+      this.downloadService.download(url);
+   }
+
+   getClusterCacheUsage() {
+      let url = "../em/monitoring/server/get-cluster-cache-usage";
 
       if(this.clusterEnabled && this.selectedClusterNode) {
          url += "?clusterNode=" + encodeURIComponent(this.selectedClusterNode);

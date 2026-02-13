@@ -27,6 +27,7 @@ export interface SummaryChartLegends {
    diskCache: SummaryChartLegend[];
    memCache: SummaryChartLegend[];
    memUsage: SummaryChartLegend[];
+   offHeapMemory: SummaryChartLegend[];
    cpuUsage: SummaryChartLegend[];
    gcCount: SummaryChartLegend[];
    gcTime: SummaryChartLegend[];

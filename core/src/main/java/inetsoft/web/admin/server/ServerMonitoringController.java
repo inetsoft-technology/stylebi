@@ -79,7 +79,8 @@ public class ServerMonitoringController {
                                      QueryService queryService,
                                      SchedulerMonitoringService schedulerMonitoringService,
                                      ServerClusterClient client,
-                                     UsageHistoryService usageHistoryService)
+                                     UsageHistoryService usageHistoryService,
+                                     ClusterCacheUsageService clusterCacheUsageService)
    {
       this.serverService = serverService;
       this.monitoringDataService = monitoringDataService;
@@ -89,6 +90,7 @@ public class ServerMonitoringController {
       this.schedulerMonitoringService = schedulerMonitoringService;
       this.client = client;
       this.usageHistoryService = usageHistoryService;
+      this.clusterCacheUsageService = clusterCacheUsageService;
       this.externalStorageService = ExternalStorageService.getInstance();
       this.scheduleCluster = "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
          ScheduleClient.getScheduleClient().isCluster();
@@ -436,6 +438,26 @@ public class ServerMonitoringController {
       }
    }
 
+   @GetMapping("/em/monitoring/server/get-cluster-cache-usage")
+   public void getClusterCacheUsage(
+      @RequestParam(value = "clusterNode", required = false) String clusterNode,
+      HttpServletResponse response)
+   {
+      try {
+         response.setHeader("Content-Disposition", "attachment; filename=\"ClusterCacheUsage.csv\"");
+         response.setContentType("text/csv; charset=\"UTF-8\"");
+
+         try(PrintWriter writer = response.getWriter()) {
+            if(!clusterCacheUsageService.writeCacheUsageCsv(writer)) {
+               writer.println("Error: Cluster is not an Ignite cluster");
+            }
+         }
+      }
+      catch(IOException exc) {
+         LOG.error("Failed to write cache usage file", exc);
+      }
+   }
+
    @GetMapping("/em/monitoring/server/summary")
    public ServerSummaryModel getServerSummaryModel(
       @RequestParam(value = "clusterNode", required = false) String clusterNode,
@@ -579,6 +601,11 @@ public class ServerMonitoringController {
          }
 
          legends.addMemUsage(SummaryChartLegend.builder()
+                                 .text(host + " (Bytes)")
+                                 .color(COLOR_PALETTE[counter])
+                                 .link(null)
+                                 .build());
+         legends.addOffHeapMemory(SummaryChartLegend.builder()
                                  .text(host + " (Bytes)")
                                  .color(COLOR_PALETTE[counter])
                                  .link(null)
@@ -819,6 +846,33 @@ public class ServerMonitoringController {
 
             max = Math.max(max, max0);
          }
+      }
+      else if("offHeapMemory".equals(imageId)) {
+         if(clusterEnabled) {
+            for(String node : clusterNodes) {
+               Object[][] grid = createHistoryGrid(
+                  node, serverService.getOffHeapHistory(node),
+                  h -> new Object[] { new Time(h.timestamp()), h.usedOffHeap() });
+
+               if(data == null) {
+                  data = grid;
+               }
+               else {
+                  data = MonitorUtil.mergeGridData(data, grid);
+               }
+
+               max = Math.max(max, serverService.getMaxOffHeapSize(node));
+            }
+         }
+         else {
+            data = createHistoryGrid(
+               null, serverService.getOffHeapHistory(null),
+               h -> new Object[] { new Time(h.timestamp()), h.usedOffHeap() });
+            max = serverService.getMaxOffHeapSize(null);
+         }
+
+         format = "million";
+         title = catalog.getString("Memory Usage");
       }
       else if("memCache".equals(imageId)) {
          data = cacheService.getCacheHistory(clusterNode).stream()
@@ -1065,6 +1119,7 @@ public class ServerMonitoringController {
    private final SchedulerMonitoringService schedulerMonitoringService;
    private final ServerClusterClient client;
    private final UsageHistoryService usageHistoryService;
+   private final ClusterCacheUsageService clusterCacheUsageService;
    private final ExternalStorageService externalStorageService;
    private final boolean scheduleCluster;
    private static final String[] COLOR_PALETTE = {

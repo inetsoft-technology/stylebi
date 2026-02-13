@@ -32,6 +32,7 @@ public interface SummaryChartLegends {
    List<SummaryChartLegend> diskCache();
    List<SummaryChartLegend> memCache();
    List<SummaryChartLegend> memUsage();
+   List<SummaryChartLegend> offHeapMemory();
    List<SummaryChartLegend> cpuUsage();
    List<SummaryChartLegend> gcCount();
    List<SummaryChartLegend> gcTime();
