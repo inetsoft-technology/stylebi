@@ -42,7 +42,16 @@ public class AxisLabelPaneModel {
       this.rotationRadioGroupModel = rotationModel;
    }
 
+   public boolean isLabelOnSecondaryAxis() {
+      return labelOnSecondaryAxis;
+   }
+
+   public void setLabelOnSecondaryAxis(boolean labelOnSecondaryAxis) {
+      this.labelOnSecondaryAxis = labelOnSecondaryAxis;
+   }
+
    private boolean showAxisLabel;
    private boolean showAxisLabelEnabled;
    private RotationRadioGroupModel rotationRadioGroupModel;
+   private boolean labelOnSecondaryAxis;
 }
