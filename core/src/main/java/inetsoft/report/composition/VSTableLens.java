@@ -857,6 +857,10 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
       if(table instanceof AttributeTableLens) {
          hyperlink = ((AttributeTableLens) table).getHyperlink(r, c);
 
+         if(hyperlink != null && "__NULL_LINK__".equals(hyperlink.getLink())) {
+            hyperlink = null;
+         }
+
          if(hyperlink != null) {
             if(hyperlink.isSendReportParameters()) {
                addLinkParameter(hyperlink, linkVarTable);

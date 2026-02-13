@@ -385,7 +385,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
 
    removeItems(): void {
       ComponentTool.showConfirmDialog(this.modal, "_#(js:Confirm)",
-         "_#(js:em.schedule.delete.confirm)")
+         "_#(js:em.schedule.delete.item.confirm)")
          .then((buttonClicked) => {
             if(buttonClicked === "ok") {
                let taskModels: ScheduleTaskModel[] = this.getSelectedTaskModels();

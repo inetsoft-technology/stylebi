@@ -1512,7 +1512,9 @@ public abstract class StyleCore extends AbstractAssetEngine
       }
 
       if(elem instanceof BindableElement) {
-         recordMaxRowHint((BindableElement) elem, page);
+         int actualRowCount = table != null ?
+            table.getRowCount() - table.getHeaderRowCount() : -1;
+         recordMaxRowHint((BindableElement) elem, page, actualRowCount);
       }
 
       boolean querytimeout = table != null && Util.isTimeoutTable(table);
@@ -1552,7 +1554,7 @@ public abstract class StyleCore extends AbstractAssetEngine
    /**
     * Add max row limits hint.
     */
-   private void recordMaxRowHint(BindableElement elem, StylePage page) {
+   private void recordMaxRowHint(BindableElement elem, StylePage page, int actualRowCount) {
       int amax = -1;
       int tmax = 0;
       TableLens table = null;
@@ -1589,6 +1591,12 @@ public abstract class StyleCore extends AbstractAssetEngine
          // should show min row limit.
          if(limitRow instanceof Integer && amax > 0 && (Integer) limitRow > amax) {
             limitRow = amax;
+         }
+
+         if(actualRowCount != -1 && limitRow instanceof Integer &&
+            actualRowCount < (Integer) limitRow)
+         {
+            return;
          }
 
          String tableOutputLimit = catalog.getString("table.output.maxrow.limited");

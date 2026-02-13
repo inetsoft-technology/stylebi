@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
 
@@ -238,7 +239,7 @@ public class GTexture implements Cloneable, Serializable {
     */
    @TernMethod
    public int getLineGap() {
-      int gap = gaps.size() == 0 ? 0 : gaps.get(0);
+      int gap = gaps.isEmpty() ? 0 : gaps.getFirst();
 
       return Math.max(gap, 1);
    }
@@ -261,7 +262,7 @@ public class GTexture implements Cloneable, Serializable {
     */
    @TernMethod
    public int getLineWidth() {
-      return widths.size() == 0 ? 0 : widths.get(0);
+      return widths.isEmpty() ? 0 : widths.getFirst();
    }
 
    /**
@@ -279,9 +280,7 @@ public class GTexture implements Cloneable, Serializable {
       double gap = getLineGap() + lineW;
       Color saveColor = g2.getColor();
 
-      if(widths.size() == 0 && gaps.size() == 0 && rotations.size() == 0 ||
-         gap == 0)
-      {
+      if(widths.isEmpty() && gaps.isEmpty() && rotations.isEmpty() || gap == 0) {
          g2.fill(clip);
          g2.dispose();
          return;
@@ -305,22 +304,87 @@ public class GTexture implements Cloneable, Serializable {
          boolean ver = rotation != 0 && rotation % (Math.PI / 2) < 0.01;
 
          if(ver) {
-            for(double x2 = x + gap; x2 < x + w; x2 += gap) {
-               g2.draw(new Line2D.Double(x2, y, x2, y + h));
-            }
+            float[] dashes = { (float) lineW, (float) gap };
+            BasicStroke stroke = new BasicStroke(
+               (float) h, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, dashes, 0);
+            g2.setStroke(stroke);
+            g2.draw(new Line2D.Double(x + gap, y + (h / 2), x + w, y + (h / 2)));
 
             continue;
          }
 
-         double yInc = w * Math.tan(rotation);
-         // extra to make sure the entire area is covered
-         double extra = Math.abs(yInc);
-         double sin2 = Math.sin(Math.PI / 2 - rotation);
-         double gap2 = (sin2 == 0) ? gap : Math.abs(gap / sin2);
+         double normalRotation = rotation % (2 * Math.PI);
 
-         for(double y2 = y - extra; y2 < y + h + extra; y2 += gap2) {
-            g2.draw(new Line2D.Double(x, y2, x + w, y2 + yInc));
+         if(normalRotation < 0) {
+            normalRotation += 2 * Math.PI;
          }
+
+         double lw;
+         double x1;
+         double y1;
+         double x2;
+         double y2;
+
+         if(normalRotation >= 0 && normalRotation < Math.PI / 2 ||
+            normalRotation >= Math.PI && normalRotation < 3 * Math.PI / 2)
+         {
+            double theta;
+
+            if(normalRotation < Math.PI / 2) {
+               theta = normalRotation;
+            }
+            else {
+               theta = normalRotation - Math.PI;
+            }
+
+            x1 = x;
+            y1 = y + h;
+
+            if(w <= h) {
+               double w2 = Math.abs(h / Math.tan(theta));
+               lw = 2 * Math.abs(h / Math.sin(theta));
+               x2 = x + w2;
+               y2 = y;
+            }
+            else {
+               double h2 = Math.abs(Math.tan(theta) * w);
+               lw = 2 * Math.abs(w / Math.cos(theta));
+               x2 = x + w;
+               y2 = y + h - h2;
+            }
+         }
+         else {
+            double theta;
+
+            if(normalRotation < Math.PI) {
+               theta = normalRotation - Math.PI / 2;
+            }
+            else {
+               theta = normalRotation - 3 * Math.PI / 2;
+            }
+
+            x1 = x;
+            y1 = y;
+
+            if(w <= h) {
+               double w2 = Math.abs(h / Math.tan(theta));
+               lw = 2 * Math.abs(h / Math.sin(theta));
+               x2 = x + w2;
+               y2 = y + h;
+            }
+            else {
+               double h2 = Math.abs(Math.tan(theta) * w);
+               lw = 2 * Math.abs(w / Math.cos(theta));
+               x2 = x + w;
+               y2 = y + h2;
+            }
+         }
+
+         float[] dashes = { (float) lineW, (float) gap };
+         BasicStroke stroke = new BasicStroke(
+            (float) lw, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, dashes, 0);
+         g2.setStroke(stroke);
+         g2.draw(new Line2D.Double(x1, y1, x2, y2));
       }
 
       g2.dispose();
@@ -344,11 +408,9 @@ public class GTexture implements Cloneable, Serializable {
 
    @Override
    public boolean equals(Object obj) {
-      if(!(obj instanceof GTexture)) {
+      if(!(obj instanceof GTexture texture)) {
          return false;
       }
-
-      GTexture texture = (GTexture) obj;
 
       return gaps.equals(texture.gaps) && widths.equals(texture.widths) &&
          rotations.equals(texture.rotations);
@@ -363,10 +425,11 @@ public class GTexture implements Cloneable, Serializable {
       return "GTexture[" + gaps + ", " + widths + ", " + rotations + "]";
    }
 
-   private ArrayList<Integer> gaps = new ArrayList<>();
-   private ArrayList<Integer> widths = new ArrayList<>();
-   private ArrayList<Double> rotations = new ArrayList<>();
+   private final java.util.List<Integer> gaps = new ArrayList<>();
+   private final java.util.List<Integer> widths = new ArrayList<>();
+   private final java.util.List<Double> rotations = new ArrayList<>();
 
+   @Serial
    private static final long serialVersionUID = 1L;
    private static final Logger LOG = LoggerFactory.getLogger(GTexture.class);
 }

@@ -399,7 +399,7 @@ public class AssetDependencyTransformer extends DependencyTransformer {
             return new ArrayList<>();
          }
          //rename auto drill
-         else if(info.isAutoDrill()) {
+         else if(info.isAutoDrill() || info.isViewsheet()) {
             renameAutoDrill(doc, info);
 
             return new ArrayList<>();

@@ -24,7 +24,7 @@ import inetsoft.sree.security.IdentityID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -177,6 +177,20 @@ class DatabaseAuthenticationCache implements AutoCloseable {
 
       return userRoles.computeIfAbsent(userId, k ->
          new IdentityArray(provider.getDao().getRoles(k).result())).getValue();
+   }
+
+   public Map<IdentityID, IdentityID[]> getAllUserRoles() {
+      if(!initialize()) {
+         return Map.of();
+      }
+
+      Map<IdentityID, IdentityID[]> result = new HashMap<IdentityID, IdentityID[]>();
+
+      for(Map.Entry<IdentityID, IdentityArray> entry : userRoles.entrySet()) {
+         result.put(entry.getKey(), entry.getValue().getValue());
+      }
+
+      return result;
    }
 
    @SuppressWarnings("unchecked")

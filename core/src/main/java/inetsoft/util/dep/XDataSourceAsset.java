@@ -281,7 +281,7 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
     * Parse content of the specified asset from input stream.
     */
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       Document doc = Tool.parseXML(input);

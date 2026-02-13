@@ -22,6 +22,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.security.*;
+import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
@@ -143,6 +144,7 @@ public class QueryManagerService {
 
          sql.setSelection(newSelection);
          sql.setDistinct(fieldPaneModel.isDistinct());
+         sql.clearSQLString();
       }
 
       if(DatabaseQueryTabs.CONDITIONS.getTab().equals(tab) || all) {
@@ -172,6 +174,8 @@ public class QueryManagerService {
 
             sql.setOrderBy(fields.get(i), orders.get(i));
          }
+
+         sql.clearSQLString();
       }
 
       if(DatabaseQueryTabs.GROUPING.getTab().equals(tab) || all) {
@@ -191,6 +195,7 @@ public class QueryManagerService {
          }
 
          sql.setGroupBy(groups.toArray());
+         sql.clearSQLString();
 
          QueryConditionPaneModel havingConditionsModel = groupingPaneModel.getHavingConditions();
          List<DataConditionItem> conditions = havingConditionsModel.getConditions();
@@ -202,19 +207,19 @@ public class QueryManagerService {
       }
    }
 
-   public AdvancedSQLQueryModel getQueryModel(String runtimeId) {
+   public AdvancedSQLQueryModel getQueryModel(String runtimeId, Principal principal) {
       RuntimeQueryService.RuntimeXQuery runtimeQuery =
          runtimeQueryService.getRuntimeQuery(runtimeId);
 
       if(runtimeQuery != null) {
-         return getAdvancedQueryModel(runtimeQuery);
+         return getAdvancedQueryModel(runtimeQuery, principal);
       }
 
       return null;
    }
 
    public AdvancedSQLQueryModel getAdvancedQueryModel(
-      RuntimeQueryService.RuntimeXQuery runtimeQuery)
+      RuntimeQueryService.RuntimeXQuery runtimeQuery, Principal principal)
    {
       if(runtimeQuery == null || runtimeQuery.getQuery() == null) {
          return null;
@@ -261,6 +266,18 @@ public class QueryManagerService {
 
       fieldPaneModel.setFields(queryFields);
       model.setFieldPaneModel(fieldPaneModel);
+
+      boolean expressionAllowed = true;
+
+      try {
+         expressionAllowed = SecurityEngine.getSecurity().checkPermission(
+            principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS);
+      }
+      catch(SecurityException e) {
+         expressionAllowed = false;
+      }
+
+      fieldPaneModel.setExpressionAllowed(expressionAllowed);
 
       QueryConditionPaneModel conditionPaneModel = new QueryConditionPaneModel();
       List<Column> fields = new ArrayList<>();
@@ -366,7 +383,7 @@ public class QueryManagerService {
          createNewRuntimeQuery(runtimeId, tableName, dataSource);
 
       if(advancedEdit) {
-         AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery);
+         AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery, principal);
          model.setAdvancedModel(advancedModel);
       }
       else {
@@ -461,6 +478,7 @@ public class QueryManagerService {
          nameAliasMap.put(alias, path);
       }
 
+      sql.clearSQLString();
       result.setColumnMap(nameAliasMap);
 
       return result;
@@ -508,6 +526,8 @@ public class QueryManagerService {
             newSelection.setExpression(index, selection.isExpression(i));
          }
       }
+
+      sql.clearSQLString();
    }
 
    public void updateColumn(String runtimeId, QueryFieldModel column, String type, String oldAlias)
@@ -552,6 +572,7 @@ public class QueryManagerService {
          }
 
          sql.updateOrderAndGroupFields(oldAlias, alias);
+         sql.clearSQLString();
       }
       else if("dataType".equals(type)) {
          selection.setType(name, column.getDataType());
@@ -615,7 +636,13 @@ public class QueryManagerService {
          }
 
          String column = col.substring(dot + 1);
-         String ctbl = sql.getFieldByPath(col).getTable();
+         XField field = sql.getFieldByPath(col);
+
+         if(field == null) {
+            return null;
+         }
+
+         String ctbl = field.getTable();
          String dataType = Tool.isEmptyString(sql.getSelection().getType(col)) ?
             XField.STRING_TYPE : sql.getSelection().getType(col);
 
@@ -650,7 +677,7 @@ public class QueryManagerService {
       List<String> results = new ArrayList<>();
       JDBCQuery query = new JDBCQuery();
       String colPath = tableName + "." + columnName;
-      UniformSQL browseSql = createUniformSQL(sql, tableName, colPath);
+      UniformSQL browseSql = createUniformSQL(tableName, colPath);
       query.setSQLDefinition(browseSql);
       query.setDataSource(xds);
 
@@ -712,7 +739,7 @@ public class QueryManagerService {
          model.setAdvancedEdit(assembly.isAdvancedEditing());
 
          if(assembly.isAdvancedEditing()) {
-            AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery);
+            AdvancedSQLQueryModel advancedModel = getAdvancedQueryModel(runtimeQuery, principal);
             model.setAdvancedModel(advancedModel);
          }
          else {
@@ -903,7 +930,7 @@ public class QueryManagerService {
          parseSqlString(model.getRuntimeId(), simpleModel.getSqlString(), false, true, principal);
       }
 
-      AdvancedSQLQueryModel sqlQueryModel = getAdvancedQueryModel(runtimeQuery);
+      AdvancedSQLQueryModel sqlQueryModel = getAdvancedQueryModel(runtimeQuery, principal);
       AdvancedSQLQueryModel oldSqlQueryModel = model.getAdvancedModel();
 
       if(oldSqlQueryModel != null && oldSqlQueryModel.getConditionPaneModel() != null) {
@@ -2302,20 +2329,14 @@ public class QueryManagerService {
       return itemList;
    }
 
-   private UniformSQL createUniformSQL(UniformSQL sql, String tableName, String colPath) {
+   private UniformSQL createUniformSQL(String tableName, String colPath) {
       JDBCSelection selection = new JDBCSelection();
       selection.addColumn(colPath);
       selection.setTable(colPath, tableName);
 
       UniformSQL bsql = new UniformSQL();
       bsql.setSelection(selection);
-
-      if(sql == null || sql.getSelectTable(tableName) == null) {
-         bsql.addTable(tableName);
-      }
-      else {
-         bsql.addTable(sql.getSelectTable(tableName));
-      }
+      bsql.addTable(tableName);
 
       return bsql;
    }

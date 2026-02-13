@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet;
 
 import inetsoft.report.TableDataPath;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssemblyInfo;
@@ -53,13 +54,23 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
    public static VSAssembly createVSAssembly(Element elem, Viewsheet vs)
       throws Exception
    {
+      return createVSAssembly(elem, vs, false);
+   }
+
+   public static VSAssembly createVSAssembly(Element elem, Viewsheet vs, boolean isSiteAdminImport)
+      throws Exception
+   {
       String cls = Tool.getAttribute(elem, "class");
       VSAssembly assembly = null;
 
       try {
          assembly = (VSAssembly) Class.forName(cls).newInstance();
          assembly.setViewsheet(vs);
-         assembly.parseXML(elem);
+         assembly.parseXML(elem, isSiteAdminImport);
+
+         if(isSiteAdminImport) {
+            updateAssemblyEntriesToCurrentOrg(assembly);
+         }
       }
       catch(InstantiationException ex) {
          // sometimes CalcTableVSAQuery.CrosstabVSAssembly may be not removed
@@ -69,6 +80,36 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
       }
 
       return assembly;
+   }
+
+   private static void updateAssemblyEntriesToCurrentOrg(VSAssembly assembly) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(assembly instanceof Viewsheet) {
+         if(((Viewsheet) assembly).getEntry() != null) {
+            ((Viewsheet) assembly).getEntry().setOrgID(currentOrgID);
+
+            if(((Viewsheet) assembly).getEntry().getUser() != null) {
+               ((Viewsheet) assembly).getEntry().getUser().setOrgID(currentOrgID);
+            }
+         }
+
+         if(((Viewsheet) assembly).getBaseEntry() != null) {
+            ((Viewsheet) assembly).getBaseEntry().setOrgID(currentOrgID);
+
+            if(((Viewsheet) assembly).getBaseEntry().getUser() != null) {
+               ((Viewsheet) assembly).getBaseEntry().getUser().setOrgID(currentOrgID);
+            }
+         }
+
+         for(AssetEntry entry : ((Viewsheet) assembly).getOuterDependencies()) {
+            entry.setOrgID(currentOrgID);
+
+            if(entry.getUser() != null) {
+               entry.getUser().setOrgID(currentOrgID);
+            }
+         }
+      }
    }
 
    /**
@@ -567,11 +608,12 @@ public abstract class AbstractVSAssembly extends AbstractAssembly implements VSA
    /**
     * Parse contents.
     * @param elem the specified xml element.
+    * @param isSiteAdminImport flag to force into current organization if site admin.
     */
    @Override
-   protected final void parseContents(Element elem) throws Exception {
+   protected final void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
       Element inode = Tool.getChildNodeByTagName(elem, "assemblyInfo");
-      getInfo().parseXML(inode);
+      getInfo().parseXML(inode, isSiteAdminImport);
       parseStateContent(elem, false);
    }
 

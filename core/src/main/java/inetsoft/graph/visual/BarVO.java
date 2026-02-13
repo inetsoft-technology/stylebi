@@ -929,7 +929,7 @@ public class BarVO extends ElementVO {
    /**
     * Set shape.
     */
-   private void setShape(Shape shape) {
+   public void setShape(Shape shape) {
       this.shape = shape;
       cachedShape.clear(); // clear cached path
    }
@@ -1098,7 +1098,7 @@ public class BarVO extends ElementVO {
    /**
     * Get the outer (surrounding) arc of the shape.
     */
-   static Arc2D getOuterArc(Shape shape) {
+   public static Arc2D getOuterArc(Shape shape) {
       if(shape instanceof Arc2D) {
          return (Arc2D) shape;
       }

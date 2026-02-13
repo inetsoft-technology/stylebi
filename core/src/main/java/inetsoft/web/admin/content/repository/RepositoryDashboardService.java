@@ -69,14 +69,9 @@ public class RepositoryDashboardService {
       final ResourcePermissionModel tableModel = owner != null ? null :
          permissionService.getTableModel(dashboardName, ResourceType.DASHBOARD,
                                          EnumSet.of(ResourceAction.ACCESS, ResourceAction.ADMIN), principal);
-      Identity anonymous = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
-      Identity user = owner == null ? anonymous : new DefaultIdentity(owner, Identity.USER);
-      final String dashName = dashboardName;
-      boolean enable = Arrays.asList(dashboardManager.getDashboards(anonymous))
-         .contains(dashboardName) ||
-         Arrays.asList(dashboardManager.getDeselectedDashboards(anonymous)).contains(dashboardName) ||
-         (!SecurityEngine.getSecurity().isSecurityEnabled() &&
-            Arrays.stream(dashboardManager.getDashboards(user)).anyMatch(dash -> Tool.equals(dash, dashName)));
+      Identity user = effectiveIdentity(owner, principal);
+      boolean enable = Arrays.asList(dashboardManager.getDashboards(user))
+         .contains(dashboardName);
       String path = null;
       ViewsheetEntry vsEntry = dashboard.getViewsheet();
 
@@ -94,6 +89,21 @@ public class RepositoryDashboardService {
                            .visible(!SecurityEngine.getSecurity().isSecurityEnabled())
                            .permissions(tableModel)
                            .build();
+   }
+
+   private static Identity effectiveIdentity(IdentityID owner, Principal principal) {
+      if(!SecurityEngine.getSecurity().isSecurityEnabled()) {
+         return new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
+      }
+
+      if(owner != null) {
+         return new DefaultIdentity(owner, Identity.USER);
+      }
+
+      XPrincipal xp = (principal instanceof XPrincipal) ? (XPrincipal) principal : null;
+
+      return (xp != null) ? new DefaultIdentity(xp.getIdentityID(), Identity.USER)
+                          : new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.USER);
    }
 
    public RepositoryDashboardSettingsModel setSettings(String path,

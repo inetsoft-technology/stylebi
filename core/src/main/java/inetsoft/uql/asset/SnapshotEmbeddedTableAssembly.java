@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.groovy.io.StringBuilderWriter;
@@ -170,6 +171,19 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
       data.addDataChangeListener(this);
    }
 
+   /**
+    * Set the column selection. Overridden to keep the default column selection
+    * in sync with the private column selection.
+    */
+   @Override
+   public void setColumnSelection(ColumnSelection selection, boolean pub) {
+      super.setColumnSelection(selection, pub);
+
+      if(!pub) {
+         this.columns = selection;
+      }
+   }
+
    @Override
    public synchronized void pasted() {
       // make sure data files are saved to a new file instead of sharing with original assembly
@@ -232,7 +246,22 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
             String fileName = file.getName();
             String dataPath = containsTablePrefix(fileName) ? fileName : tprefix + fileName;
             ZipEntry zipEntry = new ZipEntry("__WS_EMBEDDED_TABLE_" + PDATA + "^_^" + dataPath);
-            out.putNextEntry(zipEntry);
+
+            try {
+               out.putNextEntry(zipEntry);
+            }
+            catch(ZipException e) {
+               if (e.getMessage() != null && e.getMessage().contains("duplicate entry")) {
+                  // Ignore error for duplicate entries and move on
+                  LOG.debug("Duplicate embedded table", e);
+                  continue;
+               }
+               else {
+                  // Log error for other errors
+                  throw e;
+               }
+            }
+
             // 1: should not use dataspace to release the input, because
             // the input is not opened by space
             // 2: should not release the output

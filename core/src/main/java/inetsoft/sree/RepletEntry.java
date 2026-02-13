@@ -207,6 +207,14 @@ public class RepletEntry extends RepositoryEntry {
       paramOnly = "true".equals(Tool.getAttribute(tag, "paramOnly"));
    }
 
+   public void parseAttributes(Element tag, boolean isSiteAdminImport) throws Exception{
+      super.parseAttributes(tag, isSiteAdminImport);
+      visible = "true".equals(Tool.getAttribute(tag, "visible"));
+      fileReplet = "true".equals(Tool.getAttribute(tag, "fileReplet"));
+      pregen = "true".equals(Tool.getAttribute(tag, "pregen"));
+      paramOnly = "true".equals(Tool.getAttribute(tag, "paramOnly"));
+   }
+
    /**
     * Write contents.
     * @param writer the destination print writer.

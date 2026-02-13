@@ -269,7 +269,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
    }
 
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       Element elem = Tool.parseXML(input).getDocumentElement();
@@ -305,7 +305,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       }
 
       ScheduleTask newTask = new ScheduleTask();
-      newTask.parseXML(Tool.getChildNodeByTagName(elem, "Task"));
+      newTask.parseXML(Tool.getChildNodeByTagName(elem, "Task"), isSiteAdmin);
       String parentPath = newTask.getPath();
 
       Principal principal = new SRPrincipal(newTask.getOwner());

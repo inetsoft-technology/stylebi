@@ -63,6 +63,11 @@ public interface ContainerVSAssembly extends VSAssembly {
    public void calcChildZIndex();
 
    /**
+    * Calc the sub component z index with calculated z index
+    */
+   public void calcChildZIndex(int zIndex);
+
+   /**
     * Layout the Container Assembly.
     * @return the names of the assemblies relocated.
     */

@@ -275,7 +275,7 @@ public class DashboardAsset extends AbstractXAsset {
    }
 
    @Override
-   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception
    {
       Element elem = Tool.parseXML(input).getDocumentElement();
@@ -294,7 +294,8 @@ public class DashboardAsset extends AbstractXAsset {
 
          if(cls != null) {
             board = new VSDashboard();
-            board.parseXML(node);
+            board.parseXML(node, isSiteAdmin);
+
             String identifier = ((VSDashboard) board).getViewsheet().getIdentifier();
             AssetEntry assetEntry = AssetEntry.createAssetEntryForCurrentOrg(identifier);
             ((VSDashboard) board).getViewsheet().setIdentifier(assetEntry.toIdentifier());

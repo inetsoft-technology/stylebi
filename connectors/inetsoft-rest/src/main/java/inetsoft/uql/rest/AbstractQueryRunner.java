@@ -19,6 +19,7 @@ package inetsoft.uql.rest;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.jayway.jsonpath.InvalidJsonException;
+import com.jayway.jsonpath.InvalidPathException;
 import inetsoft.uql.rest.json.EndpointJsonQuery;
 import inetsoft.uql.rest.pagination.PaginationParameter;
 import inetsoft.uql.util.BaseJsonTable;
@@ -132,7 +133,14 @@ public abstract class AbstractQueryRunner<T extends AbstractRestQuery> implement
          CoreTool.addUserMessage("Error executing Rest query: " + ex.getMessage());
       }
 
-      LOG.error("Failed to run query.", ex);
+      boolean warn = ex instanceof InvalidPathException && !LOG.isDebugEnabled();
+
+      if(warn) {
+         LOG.error("Failed to run query: {}", ex.getMessage());
+      }
+      else {
+         LOG.error("Failed to run query.", ex);
+      }
    }
 
    protected Object selectData(Object input, String path, InputTransformer transformer) {

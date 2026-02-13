@@ -65,14 +65,11 @@ public class DirectStorageTransfer extends AbstractStorageTransfer {
       AtomicBoolean first = new AtomicBoolean(true);
       AtomicBoolean blob = new AtomicBoolean(false);
       AtomicBoolean empty = new AtomicBoolean(true);
-      Set<String> blobIncludedKeys = DataSpaceSettingsService.getBlobIncludedKeys(id);
 
       keyValueEngine.stream(id).forEach(pair -> {
          try {
-            boolean includedInBlob = pair.getValue() instanceof Blob && blobIncludedKeys != null &&
-               !blobIncludedKeys.isEmpty() && !blobIncludedKeys.contains(pair.getKey());
-
-            if(!includedInBlob) {
+            // Do not back up the plugins, initialization will install/upgrade plugins
+            if(!id.equals("plugins")) {
                export(id, pair, first.get(), kvGenerator, blobGenerator, blobDir);
 
                if(first.compareAndSet(true, false)) {

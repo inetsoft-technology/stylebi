@@ -191,7 +191,12 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
     */
    @Override
    public void parseXML(Element action) throws Exception {
-      viewsheet = byteDecode(action.getAttribute("viewsheet"));
+      parseXML(action, false);
+   }
+
+   @Override
+   public void parseXML(Element action, boolean isSiteAdminImport) throws Exception {
+      viewsheet = SUtil.handleViewsheetLinkOrgMismatch(byteDecode(action.getAttribute("viewsheet")), isSiteAdminImport);
       bookmarkReadOnly = "true".equals(action.getAttribute("bookmarkReadOnly"));
       String type = action.getAttribute("bookmarkType");
 
@@ -208,6 +213,11 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             bookmarkNames[i] = bookmark.getAttribute("name");
             bookmarkUsers[i] = IdentityID.getIdentityIDFromKey(bookmark.getAttribute("user"));
 
+            if(isSiteAdminImport) {
+               bookmarkUsers[i] = bookmarkUsers[i] == null || bookmarkUsers[i].getOrgID() == null ? bookmarkUsers[i] :
+                                  new IdentityID(bookmarkUsers[i].getName(), OrganizationManager.getInstance().getCurrentOrgID());
+            }
+
             if(!org.apache.commons.lang3.StringUtils.isEmpty(bType)) {
                bookmarkTypes[i] = Integer.parseInt(bType);
             }
@@ -216,6 +226,12 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       else {
          String bookmarkName = action.getAttribute("bookmarkName");
          IdentityID bookmarkUser = IdentityID.getIdentityIDFromKey(action.getAttribute("bookmarkUser"));
+
+         if(isSiteAdminImport) {
+            bookmarkUser = bookmarkUser == null || bookmarkUser.getOrgID() == null ? bookmarkUser :
+                           new IdentityID(bookmarkUser.getName(), OrganizationManager.getInstance().getCurrentOrgID());
+         }
+
          String bType = action.getAttribute("bookmarkType");
          bookmarkNames = new String[]{bookmarkName};
          bookmarkUsers = new IdentityID[]{bookmarkUser};
@@ -496,7 +512,18 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
          id = runViewsheetAction(principal);
       }
       finally {
-         closeViewsheet(id, principal);
+         // Use instance field as fallback if local id is null but viewsheet was opened.
+         // This handles cases where an exception occurs after the viewsheet is opened
+         // (and this.id is set) but before runViewsheetAction returns.
+         String closeId = id != null ? id : this.id;
+
+         if(LOG.isDebugEnabled()) {
+            LOG.debug("ViewsheetAction.run() finally block - closing viewsheet: {} (local: {}, instance: {}) for {}",
+                      closeId, id, this.id, principal);
+         }
+
+         closeViewsheet(closeId, principal);
+         this.id = null; // Clear instance field after closing
          ThreadContext.setContextPrincipal(oldPrincipal);
       }
    }
@@ -688,6 +715,11 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
       }
       finally {
          if(rvs != null) {
+            if(LOG.isDebugEnabled()) {
+               LOG.debug("checkAlerts() finally block - closing viewsheet: {} for {}",
+                         rvs.getID(), principal);
+            }
+
             closeViewsheet(rvs.getID(), principal);
          }
       }

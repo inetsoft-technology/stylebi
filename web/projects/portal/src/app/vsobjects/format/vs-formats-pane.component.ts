@@ -358,8 +358,14 @@ export class VSFormatsPane implements OnInit, OnChanges {
             return false;
          }
 
+         let parentContainers = new Set(this._focusedAssemblies
+            .map((assembly) => assembly.container)
+            .filter(container => !!container));
+         let nonGroupAssemblies = this._focusedAssemblies
+            .filter(assembly => !parentContainers.has(assembly.absoluteName));
+
          //disabled if textInput, calendar comboBox, or shape is focused
-         return !!this._focusedAssemblies.find((object) => {
+         return !!nonGroupAssemblies.find((object) => {
             return object.objectType == "VSTextInput" || object.objectType == "VSLine" ||
                object.objectType == "VSGroupContainer" || object.objectType == "VSTab" ||
                object.objectType == "VSRectangle" || object.objectType == "VSOval" ||

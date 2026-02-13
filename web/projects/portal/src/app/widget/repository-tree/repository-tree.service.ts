@@ -192,6 +192,11 @@ export class RepositoryTreeService implements OnDestroy {
          });
       }
 
+      if(url[url.length - 1].indexOf(";hasBaseEntry=") != -1) {
+         let index = url[url.length - 1].indexOf(";hasBaseEntry=");
+         url[url.length - 1] = url[url.length - 1].substring(0, index);
+      }
+
       return this.getRouteParamsEntry(
          url.map((s) => decodeURIComponent(s)), convertToParamMap(params));
    }

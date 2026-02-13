@@ -20,9 +20,15 @@ package inetsoft.sree.security.db;
 
 import inetsoft.sree.security.IdentityID;
 
+import java.util.List;
+
 class IdentityArray {
    public IdentityArray(IdentityID[] value) {
       this.value = value;
+   }
+
+   public IdentityArray(List<IdentityID> value) {
+      this(value.toArray(new IdentityID[0]));
    }
 
    public IdentityID[] getValue() {

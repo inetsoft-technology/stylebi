@@ -285,22 +285,29 @@ public abstract class AbstractEditableAuthenticationProvider
       Set<CustomTheme> themes = new HashSet<>(manager.getCustomThemes());
 
       manager.getCustomThemes().stream()
-         .filter(t -> Tool.equals(t.getOrgID(), fromOrgId))
+         .filter(t -> Tool.equals(t.getOrgID(), fromOrgId) || t.getOrgID() == null)
          .forEach(t -> {
             try {
-               CustomTheme clone = (CustomTheme) t.clone();
-               clone.setOrgID(toOrgId);
+               if(t.getOrgID() != null) {
+                  CustomTheme clone = (CustomTheme) t.clone();
+                  clone.setOrgID(toOrgId);
 
-               if(t.getOrganizations().contains(fromOrgId)) {
-                  List<String> newOrgs = clone.getOrganizations();
-                  newOrgs.remove(fromOrgId);
-                  newOrgs.add(toOrgId);
-                  clone.setOrganizations(newOrgs);
+                  if(t.getOrganizations().contains(fromOrgId)) {
+                     List<String> newOrgs = clone.getOrganizations();
+                     newOrgs.remove(fromOrgId);
+                     newOrgs.add(toOrgId);
+                     clone.setOrganizations(newOrgs);
+                  }
+
+                  clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
+
+                  themes.add(clone);
                }
-
-               clone.setJarPath(clone.getJarPath().replace(fromOrgId, toOrgId));
-
-               themes.add(clone);
+               else {
+                  if(t.getOrganizations().contains(fromOrgId)) {
+                     t.getOrganizations().add(toOrgId);
+                  }
+               }
             }
             catch(Exception ex) {
                LOG.error("Failed to clone custom theme", ex);

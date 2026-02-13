@@ -24,15 +24,14 @@ import inetsoft.report.io.viewsheet.snapshot.WorksheetAsset2;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.sree.web.dashboard.DashboardRegistry;
-import inetsoft.sree.web.dashboard.VSDashboard;
+import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.tabular.TabularDataSource;
-import inetsoft.uql.util.XUtil;
+import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.xmla.XMLADataSource;
@@ -320,7 +319,7 @@ public class DeployManagerService {
                   setFolderProperty(folder, info);
                }
 
-               asset.parseContent(in, config, true);
+               asset.parseContent(in, config, true, false);
             }
          }
 
@@ -414,7 +413,7 @@ public class DeployManagerService {
    /**
     * Get jar info.
     */
-   public static PartialDeploymentJarInfo getInfo(String filePath)
+   public static PartialDeploymentJarInfo getInfo(String filePath, boolean isImportAsSiteAdmin)
       throws Exception
    {
       File file = FileSystemService.getInstance().getFile(filePath, "JarFileInfo.xml");
@@ -433,7 +432,49 @@ public class DeployManagerService {
          Element root = infoDom.getDocumentElement();
          final PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
          info.parseXML(root);
+         String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(isImportAsSiteAdmin) {
+            handleImportAsSiteAdmin(info, currOrgID);
+         }
+
          return info;
+      }
+   }
+
+   //if importing as site admin, should import all assets and update pointers to current organization
+   public static void handleImportAsSiteAdmin(PartialDeploymentJarInfo info, String currOrgID) throws Exception {
+      for(PartialDeploymentJarInfo.SelectedAsset asset : info.getSelectedEntries()) {
+         if(asset.getUser() != null && asset.getUser().orgID != null) {
+            asset.getUser().orgID = currOrgID;
+         }
+      }
+
+      for(PartialDeploymentJarInfo.RequiredAsset asset : info.getDependentAssets()) {
+         if(asset.getUser() != null && asset.getUser().orgID != null) {
+            asset.getUser().orgID = currOrgID;
+         }
+      }
+
+      Map<String, String> oFolderAlias = new HashMap<>(info.getFolderAlias());
+      info.getFolderAlias().clear();
+
+      for(String key : oFolderAlias.keySet()) {
+         String path = oFolderAlias.get(key);
+
+         if(key.indexOf("^") > -1) {
+            key = key.substring(0, key.lastIndexOf("^") + 1) + currOrgID;
+
+            for(String keySection : key.split("\\^")) {
+               if(keySection.contains(IdentityID.KEY_DELIMITER)) {
+                  IdentityID updatedUser = IdentityID.getIdentityIDFromKey(keySection);
+                  updatedUser.orgID = OrganizationManager.getInstance().getCurrentOrgID();
+                  key = key.replace(keySection, updatedUser.convertToKey());
+               }
+            }
+         }
+
+         info.getFolderAlias().put(key, path);
       }
    }
 
@@ -635,6 +676,7 @@ public class DeployManagerService {
       Map<String, String> names = info.getNames();
       List<PartialDeploymentJarInfo.RequiredAsset> ignoreAssets = new ArrayList<>();
       List<String> ignoreSub = new ArrayList<>();
+      String currOrg = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(int i = 0; i < info.getDependentAssets().size(); i++) {
          if(ignoreList != null && ignoreList.contains(i + "")) {
@@ -706,6 +748,13 @@ public class DeployManagerService {
                }
 
                changeAssetMap.put(supportEntry, getAssetObjectByAsset(newAsset));
+
+               if(OrganizationManager.getInstance().isSiteAdmin(principal) && supportEntry instanceof AssetEntry) {
+                  AssetObject currOrgEntry = ((AssetEntry) supportEntry).cloneAssetEntry(
+                                             new Organization(OrganizationManager.getInstance().getCurrentOrgID()));
+                  changeAssetMap.put(currOrgEntry, getAssetObjectByAsset(newAsset));
+               }
+
             }
 
             List<File> unImportedFile = new ArrayList<>();
@@ -764,7 +813,55 @@ public class DeployManagerService {
 
                Set<AssetObject> dependencies = helper.getDependencies(asset);
                File transformFile = helper.getTransformFile(asset);
+               String originalOrg = asset != null && asset.getUser() != null ? asset.getUser().orgID : null;
+
+               if(OrganizationManager.getInstance().isSiteAdmin(principal) && asset != null) {
+                  if(asset.getUser() != null) {
+                     asset.getUser().setOrgID(currOrg);
+                  }
+
+                  if(asset instanceof AbstractSheetAsset) {
+                     ((AbstractSheetAsset) asset).getAssetEntry().setOrgID(currOrg);
+
+                     if(((AbstractSheetAsset) asset).getAssetEntry().getUser() != null) {
+                        ((AbstractSheetAsset) asset).getAssetEntry().getUser().setOrgID(currOrg);
+                     }
+
+                     ((AbstractSheetAsset) asset).getAssetEntry().toIdentifier(true);
+                  }
+               }
+
                AssetObject entry = getAssetObjectByAsset(asset);
+
+               //requires checking against raw dependency on file, revert to original
+               if(OrganizationManager.getInstance().isSiteAdmin(principal) && originalOrg != null) {
+                  Set<AssetObject> originalDependencies = dependencies.stream()
+                     .map(dep -> (AssetObject) dep.clone())
+                     .collect(Collectors.toSet());
+
+                  for(AssetObject assetObject : originalDependencies) {
+                     if(assetObject instanceof AssetEntry) {
+                        ((AssetEntry) assetObject).setOrgID(originalOrg);
+
+                        if(((AssetEntry) assetObject).getUser() != null) {
+                           ((AssetEntry) assetObject).getUser().setOrgID(originalOrg);
+                        }
+
+                        ((AssetEntry) assetObject).toIdentifier(true);
+                        AssetEntry newOrgAsset = (AssetEntry) assetObject.clone();
+                        newOrgAsset.setOrgID(currOrg);
+
+                        if(newOrgAsset.getUser() != null) {
+                           newOrgAsset.getUser().setOrgID(currOrg);
+                        }
+
+                        newOrgAsset.toIdentifier(true);
+                        changeAssetMap.put(assetObject, newOrgAsset);
+                     }
+                  }
+
+                  dependencies.addAll(originalDependencies);
+               }
 
                // sync file if any depends on asset was auto renamed.
                if(dependencies != null && !dependencies.isEmpty()) {
@@ -911,12 +1008,14 @@ public class DeployManagerService {
 
          AssetObject originDependency = dependency;
 
+         AssetObject changedNewEntry = changeAssetMap.get(originDependency);
+
          if(originDependency instanceof AssetEntry entry) {
             originDependency = entry.cloneAssetEntry(
                new Organization(OrganizationManager.getInstance().getCurrentOrgID()));
+            changedNewEntry = changeAssetMap.get(originDependency) == null ? changedNewEntry :
+                                                                             changeAssetMap.get(originDependency);
          }
-
-         AssetObject changedNewEntry = changeAssetMap.get(originDependency);
 
          boolean isTaskAsset = supportEntry instanceof AssetEntry && ((AssetEntry) supportEntry).isScheduleTask();
          boolean taskDependencyExtend = false;
@@ -961,7 +1060,7 @@ public class DeployManagerService {
 
          if(dependency instanceof AssetEntry) {
             AssetEntry assetEntry = (AssetEntry) dependency;
-            isCubeDs = "true".equals(assetEntry.getProperty("isCube")) && !assetEntry.isWorksheet();
+            isCubeDs = "true".equals(assetEntry.getProperty("isCube")) && !assetEntry.isWorksheet() && !assetEntry.isViewsheet();
 
             if(assetEntry.isWorksheet()) {
                types.add(RenameInfo.ASSET | RenameInfo.SOURCE);
@@ -1094,8 +1193,8 @@ public class DeployManagerService {
                else {
                   boolean rest =
                      (type & RenameInfo.TABULAR_SOURCE) == RenameInfo.TABULAR_SOURCE;
-                  String oldName = dependencyAsset.toIdentifier();
-                  String newName = changedNewEntryAsset.toIdentifier();
+                  String oldName = dependencyAsset.toIdentifier(true);
+                  String newName = changedNewEntryAsset.toIdentifier(true);
 
                   if(rest || (type & RenameInfo.SQL_TABLE) == RenameInfo.SQL_TABLE) {
                      oldName = dependencyAsset.getPath();
@@ -1477,7 +1576,7 @@ public class DeployManagerService {
 
             if(asset instanceof VSAutoSaveAsset || asset instanceof WSAutoSaveAsset) {
                if(input.available() > 0) {
-                  asset.parseContent(input, config, true);
+                  asset.parseContent(input, config, true, false);
                }
 
                return false;
@@ -1497,8 +1596,9 @@ public class DeployManagerService {
                   }
                }
 
+               alias = jarInfo.getFolderAlias().get(entry.toIdentifier());
+
                if(selected) {
-                  alias = jarInfo.getFolderAlias().get(entry.toIdentifier());
                   desc = jarInfo.getFolderDescription().get(entry.getPath());
                }
                else {
@@ -1562,7 +1662,7 @@ public class DeployManagerService {
 
             if(input.available() > 0) {
                // there import file.
-               asset.parseContent(input, config, true);
+               asset.parseContent(input, config, true, OrganizationManager.getInstance().isSiteAdmin(principal));
 
                if(asset instanceof ScheduleTaskAsset) {
                   DependencyHandler.getInstance().updateTaskDependencies((ScheduleTaskAsset) asset);
@@ -1610,6 +1710,13 @@ public class DeployManagerService {
                if(dashboard != null && dashboard.getViewsheet() != null) {
                   String id = dashboard.getViewsheet().getIdentifier();
                   UpdateDependencyHandler.addDashboardDepedency(id, entry);
+
+                  if(user != null) {
+                     Identity identity = new User(user, new String[0], new String[0],
+                                                  new IdentityID[0], null, null);
+                     DashboardManager manager = DashboardManager.getManager();
+                     manager.addDashboard(identity, name);
+                  }
                }
             }
 
@@ -1751,8 +1858,8 @@ public class DeployManagerService {
          }
          else {
             if(createUserFolder && asset.getUser() != null &&
-               !Tool.isEmptyString(asset.getUser().name) &&
-               !Tool.equals(asset.getUser(), commonPrefixFolder.getUser()))
+               !Tool.isEmptyString(asset.getUser().name) && !(commonPrefixFolder.getUser() == null) &&
+               !Tool.equals(asset.getUser().getName(), commonPrefixFolder.getUser().getName()))
             {
                targetFolderPath += "/" + asset.getUser().name;
             }

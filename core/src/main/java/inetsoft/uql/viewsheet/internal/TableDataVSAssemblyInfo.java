@@ -1090,10 +1090,11 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
    /**
     * Parse contents.
     * @param elem the specified xml element.
+    * @param isSiteAdminImport flag to force into current organization if site admin.
     */
    @Override
-   protected void parseContents(Element elem) throws Exception {
-      super.parseContents(elem);
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
+      super.parseContents(elem, isSiteAdminImport);
 
       styleValue.setDValue(getContentsStr(elem, "style", null));
       titleInfo.parseXML(elem);
@@ -1101,14 +1102,14 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
 
       if(node != null) {
          hyperlinkAttr = new TableHyperlinkAttr();
-         hyperlinkAttr.parseXML((Element) node.getFirstChild());
+         hyperlinkAttr.parseXML((Element) node.getFirstChild(), isSiteAdminImport);
       }
 
       node = Tool.getChildNodeByTagName(elem, "highlightAttr");
 
       if(node != null) {
          highlightAttr = new TableHighlightAttr();
-         highlightAttr.parseXML((Element) node.getFirstChild());
+         highlightAttr.parseXML((Element) node.getFirstChild(), isSiteAdminImport);
       }
 
       node = Tool.getChildNodeByTagName(elem, "tipViewValue");

@@ -615,8 +615,6 @@ public class VSCalendar extends VSFloatable {
                           VSCompositeFormat format0, boolean center,
                           boolean highlight)
    {
-      FontMetrics fm = g.getFontMetrics();
-
       if(highlight) {
          g.setColor(new Color(0xBB, 0xBB, 0xDD, 192));
          g.fillRect(x, y, w, h);
@@ -630,6 +628,8 @@ public class VSCalendar extends VSFloatable {
          g.setFont(format0.getFont());
       }
 
+      FontMetrics fm = g.getFontMetrics();
+
       if(format0.getForeground() != null) {
          g.setColor(format0.getForeground());
       }
@@ -640,7 +640,7 @@ public class VSCalendar extends VSFloatable {
       int tx = x;
 
       if(center) {
-         tx = x + Math.round((w - fm.stringWidth(txt)) / 2.0f);
+         tx = x + (w - fm.stringWidth(txt)) / 2;
       }
       // default right align
       else {

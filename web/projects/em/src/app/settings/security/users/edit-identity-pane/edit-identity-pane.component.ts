@@ -23,6 +23,7 @@ import { MessageDialog, MessageDialogType } from "../../../../common/util/messag
 import {SecurityTreeNode} from "../../security-tree-view/security-tree-node";
 import {IdentityType} from "../../../../../../../shared/data/identity-type";
 import {convertToKey, IdentityId} from "../identity-id";
+import { SecurityBusyService } from "../security-busy.service";
 import {
    EditGroupPaneModel,
    EditIdentityPaneModel,
@@ -30,7 +31,7 @@ import {
    EditRolePaneModel,
    EditUserPaneModel
 } from "./edit-identity-pane.model";
-import {catchError} from "rxjs/operators";
+import {catchError, finalize } from "rxjs/operators";
 import {Tool} from "../../../../../../../shared/util/tool";
 
 @Component({
@@ -55,7 +56,7 @@ export class EditIdentityPaneComponent implements OnChanges {
    @Output() loadIdentityError = new EventEmitter<void>();
    public editModel$: Observable<EditIdentityPaneModel>;
 
-   constructor(private http: HttpClient, private dialog: MatDialog) {
+   constructor(private http: HttpClient, private dialog: MatDialog, private orgBusy: SecurityBusyService) {
    }
 
    ngOnChanges(changes: SimpleChanges): void {

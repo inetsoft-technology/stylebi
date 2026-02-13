@@ -132,6 +132,14 @@ export class DatabaseProviderViewComponent implements OnInit {
          callback: () => this.securityProviderService.triggerUserRolesQuery(this.form, this.isMultiTenant)
       },
       {
+         label: "_#(js:User Role List Query)",
+         formControlName: "userRoleListQuery",
+         hint: "_#(js:em.security.database.userRoleListQueryDesc)",
+         btnLabel: "_#(js:Show User Roles)",
+         validators: [],
+         callback: () => this.securityProviderService.triggerUserRoleListQuery(this.form)
+      },
+      {
          label: "_#(js:User Emails Query)",
          formControlName: "userEmailsQuery",
          hint: "_#(js:em.security.database.userEmailsQueryDesc)",

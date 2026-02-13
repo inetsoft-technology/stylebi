@@ -332,6 +332,7 @@ public class AssemblyImageService {
                   if(pair == null || !pair.isCompleted() || pair.isCancelled() ||
                      !pair.isPlotted())
                   {
+                     response.setIntHeader("Retry-After", 1);
                      return;
                   }
 
@@ -479,6 +480,11 @@ public class AssemblyImageService {
 
       final String name = Tool.byteDecode(chartId);
       Assembly assembly = vs.getAssembly(name);
+
+      if(assembly == null) {
+         return new Dimension(width, height);
+      }
+
       Dimension assemblySize = assembly.getPixelSize();
 
       if(height == 0 && width == 0) {

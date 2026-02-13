@@ -32,6 +32,7 @@
      [searchMatch]="searchMatches[_i]" [searchQueryLength]="searchQuery?.length"
      [searchTarget]="isSearchTarget(_i)"
      [wrapColumnHeaders]="wrapColumnHeaders"
+     [expressionColumnEnabled]="expressionColumnEnabled"
      outOfZone (onMousemove)="oozColumnMousemove($event, table.colInfos[_i])"
      (onMouseleave)="oozColumnMouseLeave($event)"
      (dragstart)="dragHeader($event, _i)" (mousedown)="mousedownHeader($event, _i)"

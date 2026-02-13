@@ -250,6 +250,10 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.gettingStartedService.showGettingStartedMessage = show;
    }
 
+   get expressionColumnEnabled(): boolean {
+      return this.composerToolbarService.expressionColumnEnabled;
+   }
+
    constructor(private aiAssistantService: AiAssistantService,
                private resizeHandlerService: ResizeHandlerService,
                private changeDetector: ChangeDetectorRef,
@@ -872,6 +876,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       this.composerToolbarService.sqlEnabled = command.sqlEnabled;
       this.composerToolbarService.freeFormSqlEnabled = command.freeFormSqlEnabled;
       this.composerToolbarService.crossJoinEnabled = command.crossJoinEnabled;
+      this.composerToolbarService.expressionColumnEnabled = command.expressionColumnEnabled;
    }
 
    private processRefreshWorksheetCommand(command: RefreshWorksheetCommand): void {
@@ -1161,6 +1166,7 @@ export class WSPaneComponent extends CommandProcessor implements OnDestroy, OnIn
       const table = tables[index];
 
       if(table) {
+         table.duration = command.duration;
          table.rowsCompleted = command.completed;
          table.totalRows = command.count;
          table.exceededMaximum = command.exceededMsg;

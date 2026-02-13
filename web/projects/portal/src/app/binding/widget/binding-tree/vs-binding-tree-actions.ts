@@ -70,6 +70,7 @@ export class VSBindingTreeActions extends ContextMenuActions {
    protected CONVERT_TO_DIMENSION: number = 2;
    protected runtimeId: string;
    protected socket: ViewsheetClientService;
+   private calculatedFieldEnabled: boolean;
 
    constructor(viewsheet: Viewsheet,
                protected selectedNode: TreeNodeModel,
@@ -82,6 +83,7 @@ export class VSBindingTreeActions extends ContextMenuActions {
                private isWizard: boolean, private wizardOriginalMode?: VsWizardEditModes)
    {
       super();
+      this.calculatedFieldEnabled = treeService.isCalculatedFieldEnabled();
 
       if(viewsheet) {
          this.runtimeId = viewsheet.runtimeId;
@@ -151,6 +153,10 @@ export class VSBindingTreeActions extends ContextMenuActions {
     * Return if New Calculated Field action visible.
     */
    private isNewCalculatedVisible(): boolean {
+      if(!this.calculatedFieldEnabled) {
+         return false;
+      }
+
       if(!this.currentEntry || this.isEmbedded()) {
          return false;
       }
@@ -189,6 +195,10 @@ export class VSBindingTreeActions extends ContextMenuActions {
     * Return if Edit/Remove Calculated Field action visible.
     */
    private isEditCalculatedVisible(): boolean {
+      if(!this.calculatedFieldEnabled) {
+         return false;
+      }
+
       if(!this.currentEntry || this.isEmbedded() ||
          this.currentEntry.properties["isPreparedCalc"] == "true")
       {

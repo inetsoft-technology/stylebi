@@ -130,7 +130,7 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
          LOG.debug("Failed to retrieve all variables", ex);
       }
 
-      fixUserVariables(query.getSQLDefinition(), list);
+      fixUserVariables(query.getSQLDefinition(), query.getOrganizationId(), list);
       vars = new UserVariable[list.size()];
       list.toArray(vars);
 
@@ -141,30 +141,31 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
       return getSQLBoundTableInfo().getQuery();
    }
 
-   private void fixUserVariables(SQLDefinition sqlDefinition, List<UserVariable> list) {
+   private void fixUserVariables(SQLDefinition sqlDefinition, String orgID, List<UserVariable> list) {
       if(sqlDefinition instanceof UniformSQL) {
          UniformSQL uniformSQL = (UniformSQL) sqlDefinition;
 
          try {
-            fixUniformSQLInfo(uniformSQL);
+            fixUniformSQLInfo(uniformSQL, orgID);
          }
          catch(Exception ex) {
             LOG.error(ex.getMessage(), ex);
             return;
          }
 
-         fixXFilterVariable(((UniformSQL) sqlDefinition).getWhere(), list);
-         fixXFilterVariable(((UniformSQL) sqlDefinition).getHaving(), list);
+         fixXFilterVariable(((UniformSQL) sqlDefinition).getWhere(), orgID, list);
+         fixXFilterVariable(((UniformSQL) sqlDefinition).getHaving(), orgID, list);
       }
    }
 
-   private void fixUniformSQLInfo(UniformSQL uniformSQL) throws Exception {
+   private void fixUniformSQLInfo(UniformSQL uniformSQL, String orgID) throws Exception {
       if(uniformSQL.getTableCount() > 0) {
          XField[] fields = uniformSQL.getFieldList();
 
          if(fields.length == 0) {
             DataSourceRegistry registry = DataSourceRegistry.getRegistry();
-            JDBCDataSource ds = (JDBCDataSource) registry.getDataSource(getSourceInfo().getSource());
+            JDBCDataSource ds =
+               (JDBCDataSource) registry.getDataSource(getSourceInfo().getSource(), orgID);
             Principal principal = ThreadContext.getContextPrincipal();
             String userName = principal == null ? null : principal.getName();
             JDBCUtil.fixUniformSQLInfo(uniformSQL, XFactory.getRepository(), userName, ds);
@@ -172,13 +173,13 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
       }
    }
 
-   private void fixXFilterVariable(XFilterNode xFilterNode, List<UserVariable> list) {
+   private void fixXFilterVariable(XFilterNode xFilterNode, String orgID, List<UserVariable> list) {
       if(xFilterNode == null) {
          return;
       }
 
       if(xFilterNode instanceof XBinaryCondition) {
-         fixConditionVariable((XBinaryCondition) xFilterNode, list);
+         fixConditionVariable((XBinaryCondition) xFilterNode, orgID, list);
       }
       else if(xFilterNode instanceof XSet) {
          XSet conditions = (XSet) xFilterNode;
@@ -188,10 +189,10 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
             XNode condition = conditions.getChild(i);
 
             if(condition instanceof XBinaryCondition) {
-               fixConditionVariable((XBinaryCondition) condition, list);
+               fixConditionVariable((XBinaryCondition) condition, orgID, list);
             }
             else if(condition instanceof XSet) {
-               fixXFilterVariable((XSet) condition, list);
+               fixXFilterVariable((XSet) condition, orgID, list);
             }
          }
       }
@@ -202,7 +203,7 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
     * and update variable type.
     * @param condition
     */
-   private void fixConditionVariable(XBinaryCondition condition, List<UserVariable> list) {
+   private void fixConditionVariable(XBinaryCondition condition, String orgID, List<UserVariable> list) {
       if(condition == null || list == null || list.isEmpty()) {
          return;
       }
@@ -238,7 +239,7 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
          }
       }
       else if(value instanceof UniformSQL) {
-         fixUserVariables((UniformSQL) value, list);
+         fixUserVariables((UniformSQL) value, orgID, list);
       }
    }
 
@@ -412,10 +413,11 @@ public class SQLBoundTableAssembly extends BoundTableAssembly {
    /**
     * Parse contents.
     * @param elem the specified xml element.
+    * @param isSiteAdminImport flag to force into current organization if site admin.
     */
    @Override
-   protected void parseContents(Element elem) throws Exception {
-      super.parseContents(elem);
+   protected void parseContents(Element elem, boolean isSiteAdminImport) throws Exception {
+      super.parseContents(elem, isSiteAdminImport);
 
       Element node = Tool.getChildNodeByTagName(elem, "sqlEdited");
 

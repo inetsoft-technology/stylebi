@@ -22,6 +22,7 @@ import inetsoft.report.filter.DCMergeCell;
 import inetsoft.report.filter.GroupedTable;
 import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.DrillPath;
@@ -772,10 +773,32 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
     */
    @Override
    public void parseXML(Element tag) throws Exception {
+      parseXML(tag, false);
+   }
+
+   /**
+    * Method to parse an xml segment.
+    */
+   @Override
+   public void parseXML(Element tag, boolean isSiteAdminImport) throws Exception {
       String attr;
 
+      if((attr = Tool.getAttribute(tag, "LinkType")) != null) {
+         setLinkType(Integer.parseInt(attr));
+      }
+
       if((attr = Tool.getAttribute(tag, "Link")) != null) {
-         setLink(handleAssetLinkOrgMismatch(attr));
+         if(getLinkType() == Hyperlink.VIEWSHEET_LINK) {
+            attr = SUtil.handleViewsheetLinkOrgMismatch(attr, true);
+         }
+
+         setLink(attr);
+
+         if(isSiteAdminImport && linkType == Hyperlink.VIEWSHEET_LINK) {
+            String linkPath = this.getLink();
+            linkPath = linkPath.substring(0, linkPath.lastIndexOf("^") + 1) + OrganizationManager.getInstance().getCurrentOrgID();
+            setLink(linkPath);
+         }
       }
 
       if((attr = Tool.getAttribute(tag, "TargetFrame")) != null) {
@@ -796,10 +819,6 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
 
       if((attr = Tool.getAttribute(tag, "IsSnapshot")) != null) {
          setIsSnapshot(attr.equals("true"));
-      }
-
-      if((attr = Tool.getAttribute(tag, "LinkType")) != null) {
-         setLinkType(Integer.parseInt(attr));
       }
 
       if((attr = Tool.getAttribute(tag, "SendReportParameters")) != null) {
@@ -845,24 +864,6 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
          setParameterLabel(name, label);
          setParameterType(name, type);
       }
-   }
-
-   /**
-    * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
-    */
-   public static String handleAssetLinkOrgMismatch(String link) {
-      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
-      int orgIdx = link.lastIndexOf("^");
-
-      if(orgIdx > 0) {
-         String linkOrg = link.substring(orgIdx + 1);
-
-         if(!Tool.equals(linkOrg, curOrgId)) {
-            return link.substring(0, orgIdx + 1) + curOrgId;
-         }
-      }
-
-      return link;
    }
 
    /**
@@ -1661,15 +1662,33 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
        * Parse and recreate a Hyperlink.
        */
       @Override
-      public void parseXML(Element tag) throws IOException {
+      public void parseXML(Element element) throws IOException{
+         parseXML(element, false);
+      }
+
+      @Override
+      public void parseXML(Element tag, boolean isSiteAdminImport) throws IOException {
          String attr;
 
          if((attr = Tool.getAttribute(tag, "Name")) != null) {
             name = attr;
          }
 
+         if((attr = Tool.getAttribute(tag, "LinkType")) != null) {
+            linkType = Integer.parseInt(attr);
+         }
+
          if((attr = Tool.getAttribute(tag, "Link")) != null) {
+            if(linkType == VIEWSHEET_LINK) {
+               attr = SUtil.handleViewsheetLinkOrgMismatch(attr, true);
+            }
+
             setLink(attr);
+
+            if(isSiteAdminImport && linkType == Hyperlink.VIEWSHEET_LINK) {
+               attr = attr.substring(0, attr.lastIndexOf("^") + 1) + OrganizationManager.getInstance().getCurrentOrgID();
+               setLink(attr);
+            }
          }
 
          if((attr = Tool.getAttribute(tag, "Query")) != null) {
@@ -1690,10 +1709,6 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
 
          if((attr = Tool.getAttribute(tag, "BookmarkUser")) != null) {
             setBookmarkUser(attr);
-         }
-
-         if((attr = Tool.getAttribute(tag, "LinkType")) != null) {
-            linkType = Integer.parseInt(attr);
          }
 
          if((attr = Tool.getAttribute(tag, "SendReportParameters")) != null) {

@@ -76,6 +76,15 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    }
 
    @Input()
+   set hideLoadingIndicator(value: boolean | string) {
+      this._hideLoadingIndicator = this.isTrue(value);
+   }
+
+   get hideLoadingIndicator(): boolean {
+      return this._hideLoadingIndicator;
+   }
+
+   @Input()
    set hideMiniToolbar(value: boolean | string) {
       this._hideMiniToolbar = this.isTrue(value);
    }
@@ -105,6 +114,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    private _hideToolbar: boolean = true;
    private _hideMiniToolbar: boolean = true;
    private _globalLoadingIndicator: boolean = true;
+   private _hideLoadingIndicator: boolean = false;
    private _scale: boolean = false;
    assetId: string;
    queryParams: Map<string, string[]>;
@@ -119,6 +129,7 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    private loadingSet: Set<string> = new Set<string>();
    @ViewChild("embedViewer") embedViewer: ElementRef;
    @ViewChild("viewerApp") viewerApp: ViewerAppComponent;
+   overlayContainer: HTMLElement;
 
    private subscriptions: Subscription = new Subscription();
 
@@ -185,15 +196,17 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
             }
          });
       }
+
+      this.createOverlayContainer();
    }
 
    ngAfterViewInit(): void {
-      this.tooltipService.container = this.embedViewer.nativeElement;
-      this.modalConfig.container = this.embedViewer.nativeElement;
-      this.dropdownService.container = this.embedViewer.nativeElement;
+      this.tooltipService.container = this.overlayContainer;
+      this.modalConfig.container = this.overlayContainer;
+      this.dropdownService.container = this.overlayContainer;
       // handle dropdown in a dialog outside the bounds of the element
       this.dropdownService.allowPositionOutsideContainer = true;
-      this.dialogService.container = this.embedViewer.nativeElement;
+      this.dialogService.container = this.overlayContainer;
    }
 
    ngOnDestroy() {
@@ -278,5 +291,15 @@ export class EmbedViewerComponent implements OnInit, OnDestroy, AfterViewInit {
    onViewerSizeChanged(size: {width: number, height: number}) {
       this.width = size.width;
       this.height = size.height;
+   }
+
+   private createOverlayContainer() {
+      this.overlayContainer = document.getElementById("inetsoft-viewer-overlay");
+
+      if(!this.overlayContainer) {
+         this.overlayContainer = document.createElement("div");
+         this.overlayContainer.id = "inetsoft-viewer-overlay";
+         document.body.appendChild(this.overlayContainer);
+      }
    }
 }

@@ -229,6 +229,19 @@ public class Scheduler {
     */
    public void runTask(String taskName) throws SchedulerException {
       if(running.get()) {
+         ScheduleStatusDao.Status status = ScheduleStatusDao.getInstance().getStatus(taskName);
+
+         if(status != null && status.getStatus() == Status.STARTED) {
+            long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
+            long currTime = System.currentTimeMillis();
+
+            // in case the status did not update due to a node abruptly shutting down
+            // only consider it as running if it's still within the timeout window
+            if((currTime - status.getStartTime()) < timeout) {
+               throw new SchedulerException("Task is still running: " + taskName);
+            }
+         }
+
          JobKey key = new JobKey(taskName, GROUP_NAME);
          JobDataMap data = new JobDataMap();
          data.put("runNow", true);
@@ -412,6 +425,7 @@ public class Scheduler {
       if(scheduler != null) {
          Catalog catalog = Catalog.getCatalog();
          Map<JobKey, Long> runningJobs = new HashMap<>();
+         ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
 
          for(JobExecutionContext context : scheduler.getCurrentlyExecutingJobs()) {
             runningJobs.put(
@@ -421,6 +435,16 @@ public class Scheduler {
 
          for(JobKey jobKey : scheduler.getJobKeys(GroupMatcher.jobGroupEquals(GROUP_NAME))) {
             String taskName = jobKey.getName();
+
+            // local instance is not executing the schedule task, get the distributed status
+            if(!runningJobs.containsKey(jobKey)) {
+               ScheduleStatusDao.Status lastStatus = dao.getStatus(taskName);
+
+               if(lastStatus != null && lastStatus.getStatus() == Status.STARTED) {
+                  runningJobs.put(jobKey, lastStatus.getStartTime());
+               }
+            }
+
             TaskActivity activity = new TaskActivity(taskName);
             boolean running = false;
 
@@ -434,7 +458,6 @@ public class Scheduler {
          }
 
          for(String taskName : activities.keySet()) {
-            ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
             ScheduleStatusDao.Status lastStatus = dao.getStatus(taskName);
             TaskActivity activity = activities.get(taskName);
 

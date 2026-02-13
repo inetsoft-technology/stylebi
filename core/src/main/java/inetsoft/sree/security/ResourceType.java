@@ -345,8 +345,10 @@ public enum ResourceType {
    UPLOAD_DRIVERS(false),
    VIEWSHEET(false),
    VIEWSHEET_ACTION(false),
+   VIEWSHEET_CALCULATED_FIELD(false),
    VIEWSHEET_TOOLBAR_ACTION(false),
    WORKSHEET(false),
+   WORKSHEET_EXPRESSION_COLUMN(false),
    CREATE_SCRIPT(false),
    CREATE_TABLE_STYLE(false);
 

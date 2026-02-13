@@ -81,6 +81,10 @@ export class OneOfVpmConditionEditor implements OnChanges {
 
       let model = Tool.clone(this._valueModel);
       this.editingModel = model;
+
+      if(this.editorType == ClauseValueTypes.VALUE) {
+         this.editingModel.expression = null;
+      }
    }
 
    private updateValues(): void {

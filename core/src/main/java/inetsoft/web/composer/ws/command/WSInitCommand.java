@@ -65,6 +65,14 @@ public class WSInitCommand implements ViewsheetCommand {
       catch(Exception ex) {
          crossJoinEnabled = false;
       }
+
+      try {
+         expressionColumnEnabled = security.checkPermission(
+            principal, ResourceType.WORKSHEET_EXPRESSION_COLUMN, "*", ResourceAction.ACCESS);
+      }
+      catch(Exception ex) {
+         expressionColumnEnabled = false;
+      }
    }
 
    public boolean isJdbcExists() {
@@ -83,8 +91,13 @@ public class WSInitCommand implements ViewsheetCommand {
       return crossJoinEnabled;
    }
 
+   public boolean isExpressionColumnEnabled() {
+      return expressionColumnEnabled;
+   }
+
    private boolean hasJDBC;
    private boolean sqlEnabled;
    private boolean freeFormSqlEnabled;
    private boolean crossJoinEnabled;
+   private boolean expressionColumnEnabled;
 }

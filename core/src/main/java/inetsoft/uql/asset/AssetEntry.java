@@ -579,7 +579,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
    public AssetEntry(int scope, Type type, String path, IdentityID user, String orgID) {
       this();
 
-      if(orgID == null) {
+      if(Tool.isEmptyString(orgID)) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
@@ -1809,11 +1809,21 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
     */
    @Override
    public void parseXML(Element elem) throws Exception {
+      parseXML(elem, false);
+   }
+
+   @Override
+   public void parseXML(Element elem, boolean isImportAsSiteAdmin) throws Exception {
       this.scope = Integer.parseInt(Tool.getAttribute(elem, "scope"));
       this.type = Type.forId(Integer.parseInt(Tool.getAttribute(elem, "type")));
       this.user = IdentityID.getIdentityIDFromKey(Tool.getChildValueByTagName(elem, "user"));
       this.orgID = Tool.getChildValueByTagName(elem, "organizationID");
-      if(orgID == null) {
+
+      if(isImportAsSiteAdmin && this.user != null) {
+         this.user.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
+      }
+
+      if(orgID == null || isImportAsSiteAdmin) {
          this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
       else {
@@ -1888,8 +1898,39 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
             continue;
          }
 
+         //assert that bookmark property organization matches asset organization
+         if(Tool.equals("__bookmark_id__", key)) {
+            val = updateBookmarkPropertyOrg(val, getOrgID());
+         }
+
          setProperty(key, val);
       }
+   }
+
+   private String updateBookmarkPropertyOrg(String val, String orgID) {
+      if(val == null) {
+         return null;
+      }
+
+      String updateVal = Arrays.stream(val.split("__"))
+                               .map(uid -> {
+                                  if(uid.contains(IdentityID.KEY_DELIMITER)) {
+                                     IdentityID id = IdentityID.getIdentityIDFromKey(uid);
+                                     id.setOrgID(orgID);
+                                     return id.convertToKey();
+                                  }
+
+                                  return uid;
+                               })
+                              .collect(Collectors.joining("__"));
+
+      boolean hasOrgDelim = val.split("__", -1).length > 3;
+
+      if(hasOrgDelim) {
+         updateVal = updateVal.substring(0, updateVal.lastIndexOf("__") + 2) + orgID;
+      }
+
+      return updateVal;
    }
 
    /**
@@ -2095,8 +2136,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       IdentityID user = getUser();
 
       if(user != null) {
-         user.setOrgID(org.getId());
-         newEntry.user = user;
+         newEntry.user = new IdentityID(user.name, org.getId());
       }
 
       if(newEntry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {

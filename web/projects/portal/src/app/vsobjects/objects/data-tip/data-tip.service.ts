@@ -88,20 +88,24 @@ export class DataTipService {
 
    // remove data tip mapping, name is the parent
    clearDataTips(name: string): void {
-      this._dataTips.forEach((val, key, map) => {
-         if(key === name) {
-            map.delete(key);
-         }
-      });
+      if(name) {
+         this._dataTips.forEach((val, key, map) => {
+            if(key === name) {
+               map.delete(key);
+            }
+         });
+      }
    }
 
    // name is the child (data tip view)
    clearDataTipChild(name: string): void {
-      this._dataTips.forEach((val, key, map) => {
-         if(val === name) {
-            map.delete(key);
-         }
-      });
+      if(name) {
+         this._dataTips.forEach((val, key, map) => {
+            if(val === name) {
+               map.delete(key);
+            }
+         });
+      }
    }
 
    /**

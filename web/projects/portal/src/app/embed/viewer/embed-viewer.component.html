@@ -26,8 +26,9 @@
               [queryParameters]="queryParams"
               [hideToolbar]="hideToolbar"
               [hideMiniToolbar]="hideMiniToolbar"
-              [globalLoadingIndicator]="globalLoadingIndicator"
+              [globalLoadingIndicator]="globalLoadingIndicator || hideLoadingIndicator"
               [viewerOffsetFunc]="getViewerOffsetFunc()"
+              [embedViewer]="true"
               (onEmbedError)="onEmbedError($event)"
               (onLoadingStateChanged)="onLoadingStateChanged($event)"
               (onDataTipPopComponentVisible)="onDataTipPopComponentVisible($event)"
@@ -39,7 +40,7 @@
     </span>
   </div>
 
-  <vs-loading-display *ngIf="globalLoadingIndicator && loading"
+  <vs-loading-display *ngIf="globalLoadingIndicator && loading && !hideLoadingIndicator"
                       [allowInteraction]="true"
                       [justShowIcon]="true">
   </vs-loading-display>

@@ -473,6 +473,7 @@ public class CoreLifecycleService {
          infoMap.put("statusText", rvs.getEntry().getDescription() + " ");
          infoMap.put("lastModifiedTime", vs.getLastModified());
          infoMap.put("dateFormat", Tool.getDateFormatPattern());
+         infoMap.put("templateWidth", vsInfo.getTemplateWidth());
          infoMap.put("templateHeight", vsInfo.getTemplateHeight());
          infoMap.put("templateEnabled", vsInfo.isTemplateEnabled());
          infoMap.put("metadata", vsInfo.isMetadata());
@@ -1471,14 +1472,7 @@ public class CoreLifecycleService {
          assembly.setVSAssemblyInfo(info);
 
          refreshVSObject(assembly, rvs, shared, box, dispatcher);
-
-         for(Object infoObj : info.getChildAssemblies()) {
-            VSAssemblyInfo childInfo =
-               VSEventUtil.getAssemblyInfo(rvs, (VSAssembly) infoObj);
-            ((VSAssembly) infoObj).setVSAssemblyInfo(childInfo);
-            addDeleteVSObject(rvs, (VSAssembly) infoObj, dispatcher);
-         }
-
+         addDeleteVSObject(rvs, assembly, dispatcher);
          initTable(rvs, dispatcher, "", ((Viewsheet) assembly).getAssemblies(false, false));
       }
       else {

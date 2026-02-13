@@ -206,56 +206,6 @@ public class DataSpaceSettingsService extends BackupSupport {
       return name;
    }
 
-   /**
-    * Returns a set of included keys for a store ID. If a set is null or empty then all
-    * blobs keys are allowed.
-    */
-   public static Set<String> getBlobIncludedKeys(String storeID) {
-      Set<String> includedKeys = new HashSet<>();
-
-      // only get plugins for which there is a data source created
-      if("plugins".equals(storeID)) {
-         try {
-            XRepository rep = XFactory.getRepository();
-            String[] names = rep.getDataSourceFullNames();
-
-            for(String name : names) {
-               XDataSource ds = rep.getDataSource(name);
-
-               for(Plugin plugin : Plugins.getInstance().getPlugins()) {
-                  if(ds instanceof JDBCDataSource) {
-                     List<DriverService> services = plugin.getServices(DriverService.class);
-
-                     if(!services.isEmpty()) {
-                        for(DriverService service : services) {
-                           if(service.matches(((JDBCDataSource) ds).getDriver(), null)) {
-                              includedKeys.add(plugin.getId());
-                           }
-                        }
-                     }
-                  }
-                  else if(ds instanceof TabularDataSource) {
-                     List<TabularService> services = plugin.getServices(TabularService.class);
-
-                     if(!services.isEmpty()) {
-                        for(TabularService service : services) {
-                           if(Tool.equals(service.getDataSourceType(), ds.getType())) {
-                              includedKeys.add(plugin.getId());
-                           }
-                        }
-                     }
-                  }
-               }
-            }
-         }
-         catch(RemoteException e) {
-            throw new RuntimeException(e);
-         }
-      }
-
-      return includedKeys;
-   }
-
    // Backups are in a fixed folder to ensure that we exclude backup files on our second backup.
    private static final String BACKUP_FOLDER = "backup";
    private static final String BACKUP_PATH_SPLIT = "-";

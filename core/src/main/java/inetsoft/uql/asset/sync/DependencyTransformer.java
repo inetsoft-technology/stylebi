@@ -19,8 +19,8 @@ package inetsoft.uql.asset.sync;
 
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -1382,10 +1382,12 @@ public abstract class DependencyTransformer {
 
                for(int i = 0; i < linkList.getLength(); i++) {
                   String link = Tool.getAttribute((Element) linkList.item(i), "Link");
+                  String linkTypeString =  Tool.getAttribute((Element) linkList.item(i), "LinkType");
+                  int linkType = linkTypeString == null ? -1 : Integer.parseInt(linkTypeString);
 
                   if(link != null) {
                      ((Element) linkList.item(i)).setAttribute("Link",
-                        Hyperlink.handleAssetLinkOrgMismatch(link));
+                       linkType == Hyperlink.VIEWSHEET_LINK ? SUtil.handleViewsheetLinkOrgMismatch(link, true) : link);
                   }
                }
             }
@@ -1399,7 +1401,7 @@ public abstract class DependencyTransformer {
 
                if(link != null && (Hyperlink.VIEWSHEET_LINK + "").equals(linkType)) {
                   ((Element) dirllList.item(i)).setAttribute("link",
-                     Hyperlink.handleAssetLinkOrgMismatch(link));
+                     SUtil.handleViewsheetLinkOrgMismatch(link, true));
                }
             }
 

@@ -17,7 +17,7 @@
  */
 package inetsoft.uql.erm;
 
-import inetsoft.uql.XPrincipal;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
@@ -45,7 +45,7 @@ import java.util.*;
  * @author InetSoft Technology Corp.
  * @version 8.0
  */
-public class XDataModel implements Cloneable, Serializable,
+public class XDataModel implements Cloneable, Serializable, XDomain,
         XMLFragment, XMLSerializable
 {
    public static final String DATAMODEL = "DataModel";
@@ -76,6 +76,16 @@ public class XDataModel implements Cloneable, Serializable,
 
    public void setDataSource(String datasource) {
       this.datasource = datasource;
+   }
+
+   @Override
+   public Enumeration getCubes() {
+      return Collections.emptyEnumeration();
+   }
+
+   @Override
+   public XCube getCube(String name) {
+      return null;
    }
 
    /**
@@ -812,6 +822,11 @@ public class XDataModel implements Cloneable, Serializable,
          Element node = (Element) nlist.item(i);
          addFolder(Tool.getAttribute(node, "name"));
       }
+   }
+
+   @Override
+   public void clearCache() {
+
    }
 
    public void startWriteDTO(Map<String, Object> properties) {

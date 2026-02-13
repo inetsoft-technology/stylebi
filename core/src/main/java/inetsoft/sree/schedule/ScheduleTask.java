@@ -1206,7 +1206,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          try {
             Document document = Tool.parseXML(new StringReader(buffer.toString()));
             Element element = document.getDocumentElement();
-            ScheduleAction copy = parseScheduleAction(element);
+            ScheduleAction copy = parseScheduleAction(element, false);
 
             if(copy != null) {
 
@@ -1312,8 +1312,25 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
 
    @Override
    public void parseXML(Element elem) throws Exception {
+      parseXML(elem, false);
+   }
+
+   @Override
+   public void parseXML(Element elem, boolean isSiteAdminImport) throws Exception {
       name = elem.getAttribute("name");
+
+      //older versions are userName:taskName, breaks unless IdentityID:taskname
+      if(name.indexOf(":") > -1 && name.indexOf(IdentityID.KEY_DELIMITER) == -1) {
+         IdentityID nameUser = new IdentityID(name.substring(0,name.indexOf(":")), OrganizationManager.getInstance().getCurrentOrgID());
+         name = nameUser.convertToKey() + name.substring(name.indexOf(":"));
+      }
+
       owner = IdentityID.getIdentityIDFromKey(elem.getAttribute("owner"));
+
+      if(isSiteAdminImport) {
+         owner.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
+      }
+
       path = elem.getAttribute("path");
       path = Tool.isEmptyString(path) ? "/" : path;
       // backward compatibility, null is administrator
@@ -1404,6 +1421,11 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          else if(type.equals("Completion")) {
             CompletionCondition condition = new CompletionCondition();
             condition.parseXML(cond);
+
+            if(isSiteAdminImport) {
+               updateConditionTaskPath(condition);
+            }
+
             addCondition(condition);
          }
          else if(type.equals("TaskBalancer")) {
@@ -1422,7 +1444,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       for(int j = 0; j < actions.getLength(); j++) {
          try {
             ScheduleAction action =
-               parseScheduleAction((Element) actions.item(j));
+               parseScheduleAction((Element) actions.item(j), isSiteAdminImport);
 
             if(action instanceof MVAction) {
                editable = false;
@@ -1435,6 +1457,19 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          catch(Throwable exc) {
             LOG.error("Failed to parse schedule action from task '{}'", name, exc);
          }
+      }
+   }
+
+   private void updateConditionTaskPath(CompletionCondition condition) {
+      String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      String path = condition.getTaskName();
+      String pathUserID = path.substring(0, path.indexOf(":"));
+      String remaining = path.substring(path.indexOf(":"));
+      IdentityID userID = IdentityID.getIdentityIDFromKey(pathUserID);
+
+      if(!Tool.equals(userID.orgID, currOrgID)) {
+         userID.setOrgID(currOrgID);
+         condition.setTaskName(userID.convertToKey() + remaining);
       }
    }
 
@@ -1479,7 +1514,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     *
     * @throws Exception if the action could not be parsed.
     */
-   private static ScheduleAction parseScheduleAction(Element action)
+   private static ScheduleAction parseScheduleAction(Element action, boolean isSiteAdminImport)
       throws Exception
    {
       String type = action.getAttribute("type");
@@ -1495,7 +1530,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
       else if(type.equals("Backup")) {
          IndividualAssetBackupAction backupAction = new IndividualAssetBackupAction();
-         backupAction.parseXML(action);
+         backupAction.parseXML(action, isSiteAdminImport);
          return backupAction;
       }
       else if(type.equals("MV")) {
@@ -1514,13 +1549,20 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
       else if(type.equals("Batch")) {
          BatchAction batchAction = new BatchAction();
-         batchAction.parseXML(action);
+         batchAction.parseXML(action, isSiteAdminImport);
          return batchAction;
       }
 
       if(action0 != null) {
          action0.setEncoding(true);
-         action0.parseXML(action);
+
+         if(action0 instanceof ViewsheetAction) {
+            ((ViewsheetAction) action0).parseXML(action, isSiteAdminImport);
+         }
+         else {
+            action0.parseXML(action);
+         }
+
          action0.setEncoding(false);
       }
 

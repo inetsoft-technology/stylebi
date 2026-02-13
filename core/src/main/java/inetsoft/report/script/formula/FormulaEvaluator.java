@@ -80,7 +80,7 @@ public class FormulaEvaluator {
 
       Script script = getScript(expr, scope);
       Context cx = TimeoutContext.enter();
-      TimeoutContext.startClock();
+      TimeoutContext.startClock(cx);
 
       try {
          Object rc = script.exec(cx, scope);
@@ -92,7 +92,8 @@ public class FormulaEvaluator {
          LOG.error("Failed to execute formula script: " + expr, ex);
       }
       finally {
-         cx.exit();
+         TimeoutContext.stopClock(cx);
+         Context.exit();
       }
 
       return null;

@@ -19,6 +19,7 @@ package inetsoft.uql.rest;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.rest.auth.RestAuthenticator;
 import inetsoft.uql.rest.auth.RestAuthenticatorFactory;
 import inetsoft.uql.tabular.HttpParameter;
@@ -145,8 +146,10 @@ public class HttpHandler implements IHttpHandler {
          // thread to be interrupted if the query is cancelled. If blocking I/O is used, the thread
          // cannot be interrupted until any socket wait time is completed, which could make the
          // application unresponsive.
+         Long timeout = SreeEnv.getLong("rest.query.timeout.minutes");
+         timeout = timeout != null ? timeout : 30;
          org.apache.http.HttpResponse response = getClient()
-            .execute(request, context, null).get(5, TimeUnit.MINUTES);
+            .execute(request, context, null).get(timeout, TimeUnit.MINUTES);
          log(request, response);
 
          if(response.getStatusLine().getStatusCode() < 200 || response.getStatusLine().getStatusCode() >= 300)

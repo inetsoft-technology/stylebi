@@ -23,6 +23,7 @@ import inetsoft.sree.security.Organization;
 import org.apache.commons.lang3.StringUtils;
 import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
+import org.jdbi.v3.core.result.RowView;
 import org.jdbi.v3.core.statement.Query;
 import org.jdbi.v3.core.statement.StatementContext;
 import org.slf4j.Logger;
@@ -300,6 +301,42 @@ class AuthenticationDAO {
       return new QueryResult<>(new IdentityID[0], true);
    }
 
+   public QueryResult<Map<IdentityID, IdentityArray>> getUserRoles() {
+      if(StringUtils.isBlank(provider.getUserRoleListQuery())) {
+         return new QueryResult<>(new HashMap<>(), false);
+      }
+
+      try(Connection connection = provider.getConnectionProvider().getConnection()) {
+         Jdbi jdbi = Jdbi.create(connection);
+
+         try(Handle handle = jdbi.open()) {
+            Query query = handle.createQuery(provider.getUserRoleListQuery());
+            Map<IdentityID, List<IdentityID>> userRoles = query.reduceRows(new HashMap<>(), (map, row) -> {
+               IdentityID user = mapViewToIdentity(row);
+               IdentityID role = mapViewToRoleIdentity(row);
+               map.computeIfAbsent(user, k -> new ArrayList<>()).add(role);
+               return map;
+            });
+            Map<IdentityID, IdentityArray> result = new HashMap<>();
+
+            for(Map.Entry<IdentityID, List<IdentityID>> entry : userRoles.entrySet()) {
+               result.put(entry.getKey(), new IdentityArray(entry.getValue()));
+            }
+
+            return new QueryResult<>(result, false);
+         }
+         catch(Exception ex) {
+            LOG.warn(
+               "Failed to retrieve user roles, user roles query is not defined properly.", ex);
+         }
+      }
+      catch(Exception ex) {
+         LOG.warn("Failed to retrieve user roles, connection failed.", ex);
+      }
+
+      return new QueryResult<>(Map.of(), true);
+   }
+
    public QueryResult<IdentityID[]> getGroups() {
       try(Connection connection = provider.getConnectionProvider().getConnection()) {
          Jdbi jdbi = Jdbi.create(connection);
@@ -393,6 +430,28 @@ class AuthenticationDAO {
       return new IdentityID(username, orgId);
    }
 
+   private IdentityID mapViewToIdentity(RowView row) {
+      String username = row.getColumn(1, String.class);
+      String orgId;
+
+      if(StringUtils.isBlank(username) || "null".equalsIgnoreCase(username)) {
+         return null;
+      }
+
+      if(provider.isMultiTenant()) {
+         orgId = row.getColumn(3, String.class);
+
+         if(StringUtils.isBlank(orgId)) {
+            return null;
+         }
+      }
+      else {
+         orgId = Organization.getDefaultOrganizationID();
+      }
+
+      return new IdentityID(username, orgId);
+   }
+
    private String mapToOrganizationId(ResultSet rs, StatementContext ctx) throws SQLException {
       String orgId = rs.getString(1);
 
@@ -469,6 +528,31 @@ class AuthenticationDAO {
       }
       else if(provider.isMultiTenant()) {
          orgID = rs.getString(2);
+      }
+      else {
+         orgID = Organization.getDefaultOrganizationID();
+      }
+
+      if(StringUtils.isBlank(orgID) || "null".equalsIgnoreCase(orgID)) {
+         orgID = null;
+      }
+
+      return new IdentityID(role, orgID);
+   }
+
+   private IdentityID mapViewToRoleIdentity(RowView row) {
+      String role = row.getColumn(2, String.class);
+      String orgID;
+
+      if(StringUtils.isBlank(role) || "null".equalsIgnoreCase(role)) {
+         return null;
+      }
+
+      if(provider.isAdminRole(role)) {
+         orgID = null;
+      }
+      else if(provider.isMultiTenant()) {
+         orgID = row.getColumn(3, String.class);
       }
       else {
          orgID = Organization.getDefaultOrganizationID();

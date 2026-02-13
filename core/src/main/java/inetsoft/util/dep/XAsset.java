@@ -106,7 +106,7 @@ public interface XAsset extends Cloneable, Serializable {
    /**
     * Parse content of the specified asset from input stream.
     */
-   void parseContent(InputStream input, XAssetConfig config, boolean isImport)
+   void parseContent(InputStream input, XAssetConfig config, boolean isImport, boolean isSiteAdmin)
       throws Exception;
 
    /**

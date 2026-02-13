@@ -39,6 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -92,6 +94,8 @@ public class TableAssemblyModelFactory {
          return;
       }
 
+      Instant start = Instant.now();
+
       try {
          lens = box.getTableLens(assembly.getAbsoluteName(), WorksheetEventUtil.getMode(assembly));
       }
@@ -111,6 +115,10 @@ public class TableAssemblyModelFactory {
       numRows = numRows < 0 ? -numRows - 1 : numRows;
       model.setTotalRows(Math.max(numRows - 1, 0));
       model.setHasMaxRow(AssetEventUtil.hasMaxRowSetting(assembly));
+
+      Instant end = Instant.now();
+      Duration elapsed = Duration.between(start, end);
+      model.setDuration(elapsed.toMillis());
 
       if(model.isHasMaxRow()) {
          model.setExceededMaximum(AssetEventUtil.getExceededMsg(assembly, model.getTotalRows()));
