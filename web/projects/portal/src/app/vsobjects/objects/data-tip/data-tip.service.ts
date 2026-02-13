@@ -265,14 +265,6 @@ export class DataTipService {
       }
    }
 
-   /**
-    * Set the frozen state directly without triggering the re-show/hide cycle.
-    * Used by click-only data tips to freeze after showing without a redundant re-open.
-    */
-   setFrozen(frozen: boolean): void {
-      this._freeze = frozen;
-   }
-
    get dataTipX(): number {
       return this._dataTipX;
    }

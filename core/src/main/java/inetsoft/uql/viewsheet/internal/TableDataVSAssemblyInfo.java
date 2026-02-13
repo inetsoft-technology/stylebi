@@ -1521,6 +1521,8 @@ public abstract class TableDataVSAssemblyInfo extends DataVSAssemblyInfo
       titleInfo.resetRuntimeValues();
       shrinkValue.setRValue(null);
       flyoverValue.setRValue(null);
+      flyClickValue.setRValue(null);
+      tipClickValue.setRValue(null);
       enableAdhocValue.setRValue(null);
       explicitTableWidth.setRValue(null);
       resetSizeInfo();

@@ -416,8 +416,19 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
          const hasLinks = this.numLinks > 0;
 
          if(!hasLinks || event.ctrlKey || event.metaKey) {
-            this.showDataTip(event);
-            setTimeout(() => this.dataTipService.setFrozen(true), 0);
+            this.dataTipService.unfreeze();
+
+            if(this.cell.bindingType != CellBindingInfo.BIND_TEXT &&
+               this.cell.dataPath?.type != TableDataPathTypes.HEADER &&
+               !this.cell.grandTotalHeaderCell)
+            {
+               this.dataTipService.showDataTip(
+                  this.tableName, this.dataTip, event.clientX, event.clientY,
+                  this.cell.row + "X" + this.cell.col, this.table.dataTipAlpha);
+               this.changeDetectionRef.detectChanges();
+            }
+
+            setTimeout(() => this.dataTipService.freeze(), 0);
          }
       }
    }

@@ -730,8 +730,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          let tip = plotCondition ? this.model.dataTip : null;
 
          if(this.model.dataTipOnClick) {
-            // Temporarily clear frozen state so the DataTipService guard allows the update.
-            this.dataTipService.setFrozen(false);
+            this.dataTipService.unfreeze();
 
             this.chartService.showDataTip(this.dataTipService, tipData.tooltipLeft,
                                           tipData.tooltipTop, this.getAssemblyName(),
@@ -743,7 +742,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                // vs-data-tip.directive only dismisses when isFrozen() is true, so
                // deferring prevents the same click that triggered the data tip from
                // immediately dismissing it.
-               setTimeout(() => this.dataTipService.setFrozen(true), 0);
+               setTimeout(() => this.dataTipService.freeze(), 0);
             }
          }
          else {

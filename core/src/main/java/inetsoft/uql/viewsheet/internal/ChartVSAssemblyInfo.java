@@ -1236,6 +1236,14 @@ public class ChartVSAssemblyInfo extends DataVSAssemblyInfo
                info.tipViewValue = tipViewValue.clone();
             }
 
+            if(flyClickValue != null) {
+               info.flyClickValue = (DynamicValue) flyClickValue.clone();
+            }
+
+            if(tipClickValue != null) {
+               info.tipClickValue = (DynamicValue) tipClickValue.clone();
+            }
+
             if(drillFilter != null) {
                info.drillFilter = drillFilter.clone();
             }

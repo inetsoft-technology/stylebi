@@ -245,7 +245,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                this.showDataTip.emit(chartSelection);
             }, 100, []);
          }
-         else if(!this.dataTip || this.dataTipOnClick) {
+         else {
             this.emitTooltip(regions);
          }
 
@@ -382,24 +382,9 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             this.sendFlyover.emit(flyoverPayload);
          }
 
-         // Show data tip on click (use unfiltered regions like onMove does).
-         // When the region has hyperlinks, the hyperlink dropdown takes priority
-         // on regular click. Use Ctrl+Click to show the data tip instead
-         // (the hyperlink service already skips its dropdown on Ctrl).
          if(this.dataTipOnClick && this.dataTip) {
-            if(!hyperlinkRegion || event.ctrlKey || event.metaKey) {
-               this.showDataTip.emit({
-                  chartObject: this.chartObject,
-                  regions: this.getTreeRegions(x1, y1)
-               });
-            }
-            else {
-               // Hyperlink takes priority — hide any existing data tip
-               this.showDataTip.emit({
-                  chartObject: this.chartObject,
-                  regions: []
-               });
-            }
+            this.emitClickDataTip(!!hyperlinkRegion, event, x1, y1,
+               s => this.showDataTip.emit(s));
          }
 
          this.selectionWidth = 0;

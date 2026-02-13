@@ -397,7 +397,7 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
             this.emitDataTip(chartSelection);
          }, 100, []);
       }
-      else if(!this.dataTip || this.dataTipOnClick) {
+      else {
          this.emitTooltip(regions);
       }
 
@@ -510,26 +510,10 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
                this.sendFlyover.emit(flyoverPayload);
             }
 
-            // Show data tip on click (use unfiltered regions like onMove does).
-            // When the region has hyperlinks, the hyperlink dropdown takes priority
-            // on regular click. Use Ctrl+Click to show the data tip instead
-            // (the hyperlink service already skips its dropdown on Ctrl).
             if(this.dataTipOnClick && this.dataTip) {
                const hasHyperlinks = regions.some(r => r && r.hyperlinks != null);
-
-               if(!hasHyperlinks || event.ctrlKey || event.metaKey) {
-                  this.emitDataTip({
-                     chartObject: this.chartObject,
-                     regions: this.getTreeRegions(x1, y1)
-                  });
-               }
-               else {
-                  // Hyperlink takes priority — hide any existing data tip
-                  this.emitDataTip({
-                     chartObject: this.chartObject,
-                     regions: []
-                  });
-               }
+               this.emitClickDataTip(hasHyperlinks, event, x1, y1,
+                  s => this.emitDataTip(s));
             }
          }
       }
