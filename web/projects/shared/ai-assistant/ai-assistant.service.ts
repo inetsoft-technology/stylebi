@@ -253,26 +253,6 @@ export class AiAssistantService {
          return;
       }
 
-      let contextType = "";
-
-      switch(objectModel.objectType) {
-         case "VSChart":
-            contextType = ContextType.CHART_SCRIPT;
-            break;
-         case "VSCrosstab":
-            contextType = ContextType.CROSSTAB_SCRIPT;
-            break;
-         case "VSCalcTable":
-            contextType = ContextType.FREEHAND;
-            break;
-         case "VSTable":
-            contextType = ContextType.TABLE;
-            break;
-         default:
-            contextType = ContextType.VIEWSHEET_SCRIPT;
-      }
-
-      this.setContextTypeFieldValue(contextType);
       this.setContextField("scriptContext", objectModel.script);
    }
 
