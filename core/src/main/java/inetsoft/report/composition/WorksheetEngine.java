@@ -358,6 +358,19 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       // fix bug1341215663394
       entry.setProperty("preview", null);
 
+      String owner = getLockOwner(entry);
+      String uname = user == null ? null : user.getName();
+
+      if(owner != null && !owner.equals(uname)) {
+         IdentityID ownerIdentity = IdentityID.getIdentityIDFromKey(owner);
+         IdentityID userIdentity = IdentityID.getIdentityIDFromKey(uname);
+         String ownerName = ownerIdentity.getName() != null ? ownerIdentity.getName() : "";
+         String unameName =
+            userIdentity != null && userIdentity.getName() != null ? userIdentity.getName() : "";
+         Tool.addUserWarning(Catalog.getCatalog().getString("common.worksheetLocked.warning",
+                                                            entry.getPath(), ownerName, unameName));
+      }
+
       for(Assembly obj : sheet.getAssemblies()) {
          if(obj instanceof TableAssembly) {
             ((TableAssembly) obj).setRuntime(false);
