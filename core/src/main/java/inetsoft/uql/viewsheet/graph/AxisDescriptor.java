@@ -312,6 +312,20 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
    }
 
    /**
+    * Check whether to display labels on the secondary axis (opposite side).
+    */
+   public boolean isLabelOnSecondaryAxis() {
+      return labelOnSecondaryAxis;
+   }
+
+   /**
+    * Set whether to display labels on the secondary axis (opposite side).
+    */
+   public void setLabelOnSecondaryAxis(boolean labelOnSecondaryAxis) {
+      this.labelOnSecondaryAxis = labelOnSecondaryAxis;
+   }
+
+   /**
     * Set if the range (linear) is shared across the entire facet.
     */
    public void setSharedRange(boolean shared) {
@@ -503,6 +517,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
          reversed == desc.reversed &&
          nonull == desc.nonull &&
          truncate == desc.truncate &&
+         labelOnSecondaryAxis == desc.labelOnSecondaryAxis &&
          shared == desc.shared &&
          ticksVisible == desc.ticksVisible &&
          fixedWidth == desc.fixedWidth &&
@@ -605,6 +620,12 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
 
       if(val != null) {
          truncate = "true".equals(val);
+      }
+
+      val = Tool.getAttribute(node, "labelOnSecondaryAxis");
+
+      if(val != null) {
+         labelOnSecondaryAxis = "true".equals(val);
       }
 
       val = Tool.getAttribute(node, "shared");
@@ -746,6 +767,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
       writer.print(" reversed=\"" + reversed + "\" ");
       writer.print(" nonull=\"" + nonull + "\" ");
       writer.print(" truncate=\"" + truncate + "\" ");
+      writer.print(" labelOnSecondaryAxis=\"" + labelOnSecondaryAxis + "\" ");
       writer.print(" shared=\"" + shared + "\" ");
       writer.print(" ticksVisible=\"" + ticksVisible + "\" ");
       writer.print(" axisLblVisible=\"" + labelVisible + "\" ");
@@ -876,6 +898,7 @@ public class AxisDescriptor implements Cloneable, Serializable, XMLSerializable,
    private boolean maxModeLineVisible = true;
    private boolean nonull = false;
    private boolean truncate = true;
+   private boolean labelOnSecondaryAxis = false;
    private CompositeTextFormat fmt;
    private Map<Object, String> titles;
    private Map<String, CompositeTextFormat> fmtMap;

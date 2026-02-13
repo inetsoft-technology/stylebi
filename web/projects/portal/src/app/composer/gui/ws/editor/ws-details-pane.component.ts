@@ -33,6 +33,7 @@ import {
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { map } from "rxjs/operators";
+import { AiAssistantService } from "../../../../../../../shared/ai-assistant/ai-assistant.service";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { Range } from "../../../../common/data/range";
@@ -171,7 +172,8 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
       }
    }
 
-   constructor(private modalService: DialogService,
+   constructor(private aiAssistantService: AiAssistantService,
+               private modalService: DialogService,
                private ngbModal: NgbModal,
                private worksheetClient: ViewsheetClientService,
                private modelService: ModelService,
@@ -466,6 +468,8 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
 
       this.modelService.getModel(EXPRESSION_REST_URI + Tool.byteEncode(this.worksheet.runtimeId), params)
          .subscribe((model: ExpressionDialogModel) => {
+            this.aiAssistantService.setWorksheetScriptContext(model.columnTree?.children[0]?.children);
+
             const onCommit = (result: any) => {
                const newModel: ExpressionDialogModel = {
                   tableName: model.tableName,
@@ -477,13 +481,16 @@ export class WSDetailsPaneComponent implements OnChanges, OnDestroy, OnInit {
                };
 
                this.worksheetClient.sendEvent(EXPRESSION_SOCKET_URI, newModel);
+               this.aiAssistantService.setWorksheetScriptContext(null);
             };
+
+            const onCancel = () => this.aiAssistantService.setWorksheetScriptContext(null);
 
             const dialog = ComponentTool.showDialog(this.modalService, FormulaEditorDialog, onCommit, {
                objectId: this.table.name,
                windowClass: "formula-dialog",
                limitResize: false
-            } as SlideOutOptions);
+            } as SlideOutOptions, onCancel);
             dialog.formulaName = model.oldName;
             dialog.dataType = model.dataType;
             dialog.formulaType = model.formulaType;

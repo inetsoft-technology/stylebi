@@ -269,7 +269,9 @@
   <i *ngIf="pendingSubmit" class="submit-icon pending-alert"
      [class.left]="model.dropdown || model.maxMode || inContainer"
      [class.top]="!model.titleVisible"
-     title="_#(common.viewsheet.pending.submit)"></i>
+     title="_#(common.viewsheet.pending.submit)"
+     (click)="this.controller.applySelections()"
+     [style.cursor]="'pointer'"></i>
 
   <vs-loading-display *ngIf="model?.submitPadding"
                       [assemblyLoading]="true"></vs-loading-display>

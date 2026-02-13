@@ -95,6 +95,7 @@ public class AxisPropertyDialogModel implements Serializable {
       axisLabelPaneModel.setShowAxisLabel(
          maxMode ? axisDesc.isMaxModeLabelVisible() : axisDesc.isLabelVisible());
       axisLabelPaneModel.setShowAxisLabelEnabled(showAxisLabelEnabled);
+      axisLabelPaneModel.setLabelOnSecondaryAxis(axisDesc.isLabelOnSecondaryAxis());
 
       RotationRadioGroupModel rotationRadioGroupModel = new RotationRadioGroupModel();
       CompositeTextFormat textFormat;
@@ -240,6 +241,8 @@ public class AxisPropertyDialogModel implements Serializable {
       else {
          axisDesc.setLabelVisible(axisLabelPaneModel.isShowAxisLabel());
       }
+
+      axisDesc.setLabelOnSecondaryAxis(axisLabelPaneModel.isLabelOnSecondaryAxis());
 
       RotationRadioGroupModel rotationRadioGroupModel =
          axisLabelPaneModel.getRotationRadioGroupModel();

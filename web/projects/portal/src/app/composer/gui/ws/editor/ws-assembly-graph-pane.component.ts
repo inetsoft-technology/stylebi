@@ -832,6 +832,7 @@ export class WSAssemblyGraphPaneComponent
          conn.source != undefined && conn.target != undefined && conn.source !== conn.target)
       {
          const connection = this.jsp.connect(conn);
+         connection.endpoints[0].canvas.title = "_#(js:common.worksheet.graph.endpoint)";
 
          if(dimmed) {
             this.dimConnection(connection);

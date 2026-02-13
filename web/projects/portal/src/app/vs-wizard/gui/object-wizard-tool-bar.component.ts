@@ -17,6 +17,7 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { ToolbarActionGroup } from "../../widget/toolbar/toolbar-action-group";
@@ -38,7 +39,10 @@ export class ObjectWizardToolBarComponent {
    @Output() onFullEditor = new EventEmitter<VSObjectModel>();
    elementName: string = "_#(js:Visualization Recommender)";
 
-   constructor(private context: ContextProvider, private http: HttpClient) {
+   constructor(public aiAssistantService: AiAssistantService,
+               private context: ContextProvider,
+               private http: HttpClient)
+   {
    }
 
    get helpLink(): string {

@@ -27,8 +27,9 @@ import org.slf4j.LoggerFactory;
 import javax.crypto.SecretKey;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.Properties;
 import java.util.concurrent.Callable;
@@ -253,6 +254,46 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
       return signingKey;
    }
 
+   @Override
+   public final KeyPair getSSOKeyPair() throws IOException {
+      Lock lock = Cluster.getInstance().getLock(LOCK_NAME);
+      lock.lock();
+
+      try {
+         String privateKeyProperty = SreeEnv.getPassword("sso.rsa.private.key");
+         String publicKeyProperty = SreeEnv.getProperty("sso.rsa.public.key");
+
+         if(privateKeyProperty == null || publicKeyProperty == null) {
+            KeyPair keyPair = createSSOKeyPair();
+            byte[] encryptedPrivateKey = encryptSSOPrivateKey(keyPair.getPrivate(), getMasterKey());
+            String encodedPrivateKey = Base64.getEncoder().encodeToString(encryptedPrivateKey);
+            String encodedPublicKey = Base64.getEncoder().encodeToString(
+               keyPair.getPublic().getEncoded());
+
+            SreeEnv.setPassword("sso.rsa.private.key", encodedPrivateKey);
+            SreeEnv.setProperty("sso.rsa.public.key", encodedPublicKey);
+            SreeEnv.save();
+
+            return keyPair;
+         }
+         else {
+            PrivateKey privateKey = decryptSSOPrivateKey(privateKeyProperty, getMasterKey());
+            byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyProperty);
+            X509EncodedKeySpec pubSpec = new X509EncodedKeySpec(publicKeyBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            PublicKey publicKey = keyFactory.generatePublic(pubSpec);
+
+            return new KeyPair(publicKey, privateKey);
+         }
+      }
+      catch(GeneralSecurityException e) {
+         throw new IOException("Failed to get SSO key pair", e);
+      }
+      finally {
+         lock.unlock();
+      }
+   }
+
    private String decryptPassword(String input, SecretKey secretKey) {
       int index = input.indexOf(':', 4);
 
@@ -399,6 +440,12 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
    protected abstract byte[] encryptJwtSigningKey(SecretKey key, SecretKey masterKey);
 
    protected abstract SecretKey decryptJwtSigningKey(String encryptedKey, SecretKey masterKey);
+
+   protected abstract KeyPair createSSOKeyPair();
+
+   protected abstract byte[] encryptSSOPrivateKey(PrivateKey key, SecretKey masterKey);
+
+   protected abstract PrivateKey decryptSSOPrivateKey(String encryptedKey, SecretKey masterKey);
 
    protected final boolean isMasterPasswordInvalid(SecretKey masterKey) {
       String home = ConfigurationContext.getContext().getHome();
