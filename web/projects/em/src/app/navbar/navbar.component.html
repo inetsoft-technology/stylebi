@@ -39,6 +39,9 @@
   <a mat-icon-button *ngIf="notifyVisible" class="em-button" aria-label="_#(Send Notification)" title="_#(Send Notification)" (click)="showNotifyDialog()">
     <mat-icon fontSet="ineticons" fontIcon="message-icon"></mat-icon>
   </a>
+  <button mat-icon-button class="em-button" aria-label="_#(Assistant)" [title]="'_#(Assistant)'" [disabled]="!this.helpLink" (click)="showAiAssistantDialog()">
+    <mat-icon fontSet="ineticons" fontIcon="ai-assistant-icon"></mat-icon>
+  </button>
   <a mat-icon-button class="em-button" [href]="this.helpLink?.link" target="_blank" aria-label="_#(Help)" [title]="'_#(Help)'" [disabled]="!this.helpLink">
     <mat-icon fontSet="ineticons" fontIcon="help-question-mark-icon"></mat-icon>
   </a>
