@@ -177,7 +177,7 @@ public class LegendDescriptor implements AssetObject, ContentObject {
     * Set the symbol size for legend items.
     */
    public void setSymbolSize(int symbolSize) {
-      this.symbolSize = symbolSize;
+      this.symbolSize = Math.max(6, Math.min(50, symbolSize));
    }
 
    /**
@@ -640,7 +640,12 @@ public class LegendDescriptor implements AssetObject, ContentObject {
       val = Tool.getAttribute(tag, "symbolSize");
 
       if(val != null) {
-         symbolSize = Integer.parseInt(val);
+         try {
+            symbolSize = Integer.parseInt(val);
+         }
+         catch(NumberFormatException ex) {
+            LOG.error("Failed to parse symbolSize: " + val, ex);
+         }
       }
    }
 

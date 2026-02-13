@@ -323,7 +323,7 @@ public class LegendSpec implements Cloneable, Serializable {
     */
    @TernMethod
    public void setSymbolSize(int symbolSize) {
-      this.symbolSize = symbolSize;
+      this.symbolSize = Math.max(6, Math.min(50, symbolSize));
    }
 
    /**

@@ -60,11 +60,7 @@ public abstract class LegendItem extends BoundedContainer {
          bottomPadding = padding.bottom;
       }
 
-      int specSymbolSize = frame.getLegendSpec().getSymbolSize();
-
-      if(specSymbolSize > 0) {
-         symbolSize = specSymbolSize;
-      }
+      symbolSize = frame.getLegendSpec().getSymbolSize();
 
       // use value instead, or VLabel format will cause error
       vlabel = new VLabel(label, spec0);
@@ -276,7 +272,7 @@ public abstract class LegendItem extends BoundedContainer {
    protected static final int LINESYMBOL_WIDTH = 30;
    protected static final Color SYMBOL_BORDER = new Color(0xa3, 0xa3, 0xa3);
    protected static final Color SYMBOL_COLOR = new Color(0x759595);
-   protected int symbolSize = DEFAULT_SYMBOL_SIZE;
+   private int symbolSize = DEFAULT_SYMBOL_SIZE;
    private static final int TOP_PADDING = 0;
    private static final int BOTTOM_PADDING = 1;
    private static final int LEFT_PADDING = 5;
