@@ -86,6 +86,15 @@
         </div>
       </div>
     </div>
+    <div class="form-row-float-label row" *ngIf="!tooltipOnly && (model.chart || model.dataViewEnabled)">
+      <div class="col">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [(ngModel)]="model.tipOnClick"
+                 [disabled]="!model.tipOption || model.tipView == null || !model.dataViewEnabled" id="tipOnClick">
+          <label class="form-check-label" for="tipOnClick">_#(On Click Only)</label>
+        </div>
+      </div>
+    </div>
     <div *ngIf=alphaInvalid class="alert alert-danger">
       _#(viewer.flash.format.invalidTransparencyError)
     </div>
