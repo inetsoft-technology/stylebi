@@ -17,13 +17,15 @@
  */
 package inetsoft.web.admin.server;
 
-import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.internal.cluster.ignite.IgniteCluster;
 import inetsoft.util.Tool;
 import org.apache.ignite.*;
-import org.apache.ignite.binary.BinaryObject;
 import org.apache.ignite.cache.CachePeekMode;
 import org.apache.ignite.internal.binary.BinaryObjectImpl;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import javax.cache.Cache;
@@ -31,31 +33,123 @@ import java.io.PrintWriter;
 import java.util.*;
 
 @Service
-public class ClusterCacheUsageService {
+public class ClusterCacheUsageService implements MessageListener {
+   public ClusterCacheUsageService() {
+      cluster = Cluster.getInstance();
+
+      if(SUtil.isCluster()) {
+         cluster.addMessageListener(this);
+      }
+   }
 
    /**
-    * Writes local cache usage data as CSV to the provided PrintWriter.
-    * Gets cache data for the local node only.
+    * Checks if the cluster is an Ignite cluster.
     *
-    * @param writer the PrintWriter to write CSV data to
-    *
-    * @return true if successful, false if cluster is not an Ignite cluster
+    * @return true if the cluster is an Ignite cluster
     */
-   public boolean writeCacheUsageCsv(PrintWriter writer) {
-      Cluster cluster = Cluster.getInstance();
+   public boolean isIgniteCluster() {
+      return cluster instanceof IgniteCluster;
+   }
 
-      if(!(cluster instanceof IgniteCluster igniteCluster)) {
-         return false;
-      }
+   /**
+    * Writes cache usage data as CSV to the provided PrintWriter.
+    * Gets cache data for the specified cluster node, or the local node if not specified.
+    *
+    * @param clusterNode the cluster node address, or null for the local node
+    * @param writer      the PrintWriter to write CSV data to
+    */
+   public void writeCacheUsageCsv(String clusterNode, PrintWriter writer) {
+      List<GetClusterCacheUsageResponse.CacheUsageRow> rows = getCacheUsageRows(clusterNode);
 
       writer.println("Host,Cache Name,Local Entries,Total Entries,Avg Entry Size (KB),Estimated Local Size (KB),Estimated Total Size (KB)");
 
+      for(GetClusterCacheUsageResponse.CacheUsageRow row : rows) {
+         writer.format("%s,%s,%d,%d,%.2f,%.2f,%.2f%n",
+                       escapeCsv(row.host()),
+                       escapeCsv(row.cacheName()),
+                       row.localEntries(),
+                       row.totalEntries(),
+                       row.avgEntrySize() / 1024.0,
+                       row.localEstimatedSize() / 1024.0,
+                       row.estimatedTotalSize() / 1024.0);
+      }
+   }
+
+   /**
+    * Gets cache usage rows for the specified cluster node.
+    *
+    * @param clusterNode the cluster node address, or null for the local node
+    *
+    * @return the list of cache usage rows
+    */
+   private List<GetClusterCacheUsageResponse.CacheUsageRow> getCacheUsageRows(String clusterNode) {
+      if(SUtil.isCluster() && !isLocalNode(clusterNode)) {
+         try {
+            String targetNode = resolveClusterNode(clusterNode);
+
+            if(targetNode == null) {
+               LOG.error("Could not resolve cluster node: {}", clusterNode);
+               return Collections.emptyList();
+            }
+
+            GetClusterCacheUsageResponse response = cluster.exchangeMessages(
+               targetNode, new GetClusterCacheUsageRequest(),
+               GetClusterCacheUsageResponse.class);
+            return response.getRows();
+         }
+         catch(Exception e) {
+            LOG.error("Failed to get cache usage from {}", clusterNode, e);
+            return Collections.emptyList();
+         }
+      }
+
+      return getLocalCacheUsageRows();
+   }
+
+   private boolean isLocalNode(String clusterNode) {
+      if(clusterNode == null || clusterNode.isEmpty()) {
+         return true;
+      }
+
+      String localMember = cluster.getLocalMember();
+      return localMember.equals(clusterNode) || localMember.startsWith(clusterNode + ":");
+   }
+
+   private String resolveClusterNode(String clusterNode) {
+      if(clusterNode == null || clusterNode.isEmpty()) {
+         return cluster.getLocalMember();
+      }
+
+      // If it already contains a port, return as-is
+      if(clusterNode.contains(":")) {
+         return clusterNode;
+      }
+
+      // Find the full address from cluster nodes
+      for(String node : cluster.getClusterNodes()) {
+         if(node.equals(clusterNode) || node.startsWith(clusterNode + ":")) {
+            return node;
+         }
+      }
+
+      return null;
+   }
+
+   /**
+    * Gets cache usage rows for the local node.
+    *
+    * @return the list of cache usage rows
+    */
+   List<GetClusterCacheUsageResponse.CacheUsageRow> getLocalCacheUsageRows() {
+      if(!(cluster instanceof IgniteCluster igniteCluster)) {
+         return Collections.emptyList();
+      }
+
       Ignite ignite = igniteCluster.getIgniteInstance();
       IgniteBinary binary = ignite.binary();
+      String host = cluster.getLocalMember();
 
-      String host = ignite.cluster().localNode().attribute("local.ip.addr");
-
-      List<CacheUsageRow> rows = new ArrayList<>();
+      List<GetClusterCacheUsageResponse.CacheUsageRow> rows = new ArrayList<>();
 
       for(String cacheName : ignite.cacheNames()) {
          try {
@@ -69,7 +163,7 @@ public class ClusterCacheUsageService {
                long localEstimatedSize = avgEntrySize * localEntries;
                long estimatedTotalSize = avgEntrySize * totalEntries;
 
-               rows.add(new CacheUsageRow(
+               rows.add(new GetClusterCacheUsageResponse.CacheUsageRow(
                   host,
                   cacheName,
                   localEntries,
@@ -81,29 +175,36 @@ public class ClusterCacheUsageService {
             }
          }
          catch(Exception e) {
-            // Skip caches that can't be accessed
+            LOG.debug("Failed to access cache: {}", cacheName, e);
          }
       }
 
       // Sort by local estimated size descending
-      rows.sort(Comparator.comparing(CacheUsageRow::localEstimatedSize).reversed());
+      rows.sort(Comparator.comparing(
+         GetClusterCacheUsageResponse.CacheUsageRow::localEstimatedSize).reversed());
 
-      for(CacheUsageRow row : rows) {
-         writer.format("%s,%s,%d,%d,%.2f,%.2f,%.2f%n",
-                       escapeCsv(row.host()),
-                       escapeCsv(row.cacheName()),
-                       row.localEntries(),
-                       row.totalEntries(),
-                       row.avgEntrySize() / 1024.0,
-                       row.localEstimatedSize() / 1024.0,
-                       row.estimatedTotalSize() / 1024.0);
+      return rows;
+   }
+
+   @Override
+   public void messageReceived(MessageEvent event) {
+      if(event.getMessage() instanceof GetClusterCacheUsageRequest) {
+         handleGetCacheUsageRequest(event.getSender());
       }
+   }
 
-      return true;
+   private void handleGetCacheUsageRequest(String sender) {
+      try {
+         GetClusterCacheUsageResponse response =
+            new GetClusterCacheUsageResponse(getLocalCacheUsageRows());
+         cluster.sendMessage(sender, response);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to send cache usage response", e);
+      }
    }
 
    private long estimateAverageEntrySize(IgniteCache<?, ?> cache, IgniteBinary binary) {
-      final int SAMPLE_SIZE = 50;
       long totalSize = 0;
       int sampledCount = 0;
       Iterator<? extends Cache.Entry<?, ?>> iterator = null;
@@ -119,33 +220,26 @@ public class ClusterCacheUsageService {
                Object key = entry.getKey();
 
                if(key != null) {
-                  BinaryObject keyBinary = binary.toBinary(key);
-
-                  if(keyBinary instanceof BinaryObjectImpl keyImpl) {
-                     entrySize += keyImpl.array().length;
-                  }
+                  entrySize += estimateObjectSize(binary.toBinary(key));
                }
 
                Object value = entry.getValue();
 
                if(value != null) {
-                  BinaryObject valueBinary = binary.toBinary(value);
-
-                  if(valueBinary instanceof BinaryObjectImpl valueImpl) {
-                     entrySize += valueImpl.array().length;
-                  }
+                  entrySize += estimateObjectSize(binary.toBinary(value));
                }
 
                totalSize += entrySize;
                sampledCount++;
             }
             catch(Exception e) {
-               totalSize += 1024;
-               sampledCount++;
+               // Skip entries that can't be serialized for size estimation
+               LOG.debug("Failed to serialize cache entry for size estimation", e);
             }
          }
       }
       catch(Exception e) {
+         LOG.debug("Failed to estimate entry size for cache: {}", cache.getName(), e);
          return 0;
       }
       finally {
@@ -157,6 +251,29 @@ public class ClusterCacheUsageService {
       }
 
       return totalSize / sampledCount;
+   }
+
+   private long estimateObjectSize(Object obj) {
+      if(obj instanceof BinaryObjectImpl binaryObj) {
+         return binaryObj.array().length;
+      }
+      else if(obj instanceof String str) {
+         return (long) str.length() * 2;
+      }
+      else if(obj instanceof Long || obj instanceof Double) {
+         return 8;
+      }
+      else if(obj instanceof Integer || obj instanceof Float) {
+         return 4;
+      }
+      else if(obj instanceof Short || obj instanceof Character) {
+         return 2;
+      }
+      else if(obj instanceof Byte || obj instanceof Boolean) {
+         return 1;
+      }
+
+      return 0;
    }
 
    private String escapeCsv(String value) {
@@ -171,14 +288,7 @@ public class ClusterCacheUsageService {
       return value;
    }
 
-   private record CacheUsageRow(
-      String host,
-      String cacheName,
-      long localEntries,
-      long totalEntries,
-      long avgEntrySize,
-      long localEstimatedSize,
-      long estimatedTotalSize
-   ) {
-   }
+   private final Cluster cluster;
+   private static final int SAMPLE_SIZE = 50;
+   private static final Logger LOG = LoggerFactory.getLogger(ClusterCacheUsageService.class);
 }
