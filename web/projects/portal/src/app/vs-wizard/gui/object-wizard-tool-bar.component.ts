@@ -17,11 +17,11 @@
  */
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
-import { AiAssistantService } from "../../../../../shared/ai-assistant/ai-assistant.service";
-import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
+import { AiAssistantDialogService } from "../../common/services/ai-assistant-dialog.service";
 import { ContextProvider } from "../../vsobjects/context-provider.service";
-import { ToolbarActionGroup } from "../../widget/toolbar/toolbar-action-group";
+import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
 import { ToolbarAction } from "../../widget/toolbar/toolbar-action";
+import { ToolbarActionGroup } from "../../widget/toolbar/toolbar-action-group";
 
 @Component({
    selector: "object-wizard-tool-bar",
@@ -39,7 +39,7 @@ export class ObjectWizardToolBarComponent {
    @Output() onFullEditor = new EventEmitter<VSObjectModel>();
    elementName: string = "_#(js:Visualization Recommender)";
 
-   constructor(public aiAssistantService: AiAssistantService,
+   constructor(public aiAssistantDialogService: AiAssistantDialogService,
                private context: ContextProvider,
                private http: HttpClient)
    {

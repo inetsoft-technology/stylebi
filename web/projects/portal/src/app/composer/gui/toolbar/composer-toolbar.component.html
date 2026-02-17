@@ -386,7 +386,7 @@
     [mergeActionGroup]="mergeMenuOperations" [asMenu]="true" [placeOnRight]="true"
     [snapToObjects]="snapToObjects" [snapToGrid]="snapToGrid"></toolbar-group>
   <button type="button" class="btn-toolbar btn composer-btn ai-assistant-icon" [ngbTooltip]="Assistant"
-          (click)="aiAssistantService.openAiAssistantDialog()">
+          (click)="aiAssistantDialogService.openAiAssistantDialog()">
   </button>
 </div>
 <ng-template #Assistant>
