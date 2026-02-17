@@ -79,7 +79,8 @@ public class ServerMonitoringController {
                                      QueryService queryService,
                                      SchedulerMonitoringService schedulerMonitoringService,
                                      ServerClusterClient client,
-                                     UsageHistoryService usageHistoryService)
+                                     UsageHistoryService usageHistoryService,
+                                     ClusterCacheUsageService clusterCacheUsageService)
    {
       this.serverService = serverService;
       this.monitoringDataService = monitoringDataService;
@@ -89,6 +90,7 @@ public class ServerMonitoringController {
       this.schedulerMonitoringService = schedulerMonitoringService;
       this.client = client;
       this.usageHistoryService = usageHistoryService;
+      this.clusterCacheUsageService = clusterCacheUsageService;
       this.externalStorageService = ExternalStorageService.getInstance();
       this.scheduleCluster = "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
          ScheduleClient.getScheduleClient().isCluster();
@@ -188,6 +190,7 @@ public class ServerMonitoringController {
       }
    }
 
+   @DeniedMultiTenancyOrgUser
    @GetMapping("/em/monitoring/scheduler/get-thread-dump")
    public void getSchedulerThreadDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
                                       HttpServletResponse response)
@@ -217,6 +220,7 @@ public class ServerMonitoringController {
       return false;
    }
 
+   @DeniedMultiTenancyOrgUser
    @GetMapping("/em/monitoring/server/get-thread-dump")
    public void getThreadDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
                              HttpServletResponse response) throws Exception
@@ -258,6 +262,7 @@ public class ServerMonitoringController {
       }
    }
 
+   @DeniedMultiTenancyOrgUser
    @PostMapping("/api/em/monitoring/scheduler/get-heap-dump")
    public void getSchedulerHeapDump(@RequestBody HeapDumpRequest request) {
       ThreadPool.addOnDemand(new Runnable() {
@@ -291,6 +296,7 @@ public class ServerMonitoringController {
       return false;
    }
 
+   @DeniedMultiTenancyOrgUser
    @PostMapping("/api/em/monitoring/server/get-heap-dump")
    public void getHeapDump(@RequestBody HeapDumpRequest request) {
       String node = request.clusterNode() == null ? Cluster.getInstance().getLocalMember() :
@@ -396,6 +402,7 @@ public class ServerMonitoringController {
       return heapId;
    }
 
+   @DeniedMultiTenancyOrgUser
    @GetMapping("/em/monitoring/server/get-usage-history")
    public void getUsageHistory(
       @RequestParam(value = "clusterNode", required = false) String clusterNode,
@@ -436,6 +443,26 @@ public class ServerMonitoringController {
       }
    }
 
+   @DeniedMultiTenancyOrgUser
+   @GetMapping("/em/monitoring/server/get-cluster-cache-usage")
+   public void getClusterCacheUsage(
+      @RequestParam(value = "clusterNode", required = false) String clusterNode,
+      HttpServletResponse response) throws IOException
+   {
+      if(!clusterCacheUsageService.isIgniteCluster()) {
+         response.sendError(HttpServletResponse.SC_NOT_IMPLEMENTED, "Cluster is not an Ignite cluster");
+         return;
+      }
+
+      response.setHeader("Content-Disposition", "attachment; filename=\"ClusterCacheUsage.csv\"");
+      response.setContentType("text/csv; charset=\"UTF-8\"");
+
+      try(PrintWriter writer = response.getWriter()) {
+         clusterCacheUsageService.writeCacheUsageCsv(clusterNode, writer);
+      }
+   }
+
+   @DeniedMultiTenancyOrgUser
    @GetMapping("/em/monitoring/server/summary")
    public ServerSummaryModel getServerSummaryModel(
       @RequestParam(value = "clusterNode", required = false) String clusterNode,
@@ -513,6 +540,7 @@ public class ServerMonitoringController {
       return s.replaceAll("[\\r\\n]", "").replace(File.pathSeparator, "<br>");
    }
 
+   @DeniedMultiTenancyOrgUser
    @GetMapping("/em/monitoring/server/get-monitoring-summary-chart-legends")
    public SummaryChartLegends getMonitoringChartLegends(
       @RequestParam(value = "clusterNode", required = false) String clusterNode)
@@ -583,6 +611,11 @@ public class ServerMonitoringController {
                                  .color(COLOR_PALETTE[counter])
                                  .link(null)
                                  .build());
+         legends.addOffHeapMemory(SummaryChartLegend.builder()
+                                 .text(host + " (Bytes)")
+                                 .color(COLOR_PALETTE[counter])
+                                 .link(null)
+                                 .build());
          legends.addCpuUsage(SummaryChartLegend.builder()
                                  .text(host)
                                  .color(COLOR_PALETTE[counter])
@@ -609,6 +642,11 @@ public class ServerMonitoringController {
                .color(COLOR_PALETTE[counter])
                .link(null)
                .build());
+            legends.addOffHeapMemory(SummaryChartLegend.builder()
+               .text("Scheduler(" + scheduleServer + ")/(Bytes)")
+               .color(COLOR_PALETTE[counter])
+               .link(null)
+               .build());
             legends.addCpuUsage(SummaryChartLegend.builder()
                .text("Scheduler(" + scheduleServer + ")")
                .color(COLOR_PALETTE[counter])
@@ -630,6 +668,7 @@ public class ServerMonitoringController {
       return legends.build();
    }
 
+   @DeniedMultiTenancyOrgUser
    @GetMapping("/em/monitoring/server/threads/{id}")
    public ThreadStackTrace getThreadInfo(@PathVariable("id") long id) {
       String stackTrace = serverService.getStackTrace(id);
@@ -819,6 +858,50 @@ public class ServerMonitoringController {
 
             max = Math.max(max, max0);
          }
+      }
+      else if("offHeapMemory".equals(imageId)) {
+         if(clusterEnabled) {
+            for(String node : clusterNodes) {
+               Object[][] grid = createHistoryGrid(
+                  node, serverService.getOffHeapHistory(node),
+                  h -> new Object[] { new Time(h.timestamp()), h.usedOffHeap() });
+
+               if(data == null) {
+                  data = grid;
+               }
+               else {
+                  data = MonitorUtil.mergeGridData(data, grid);
+               }
+
+               max = Math.max(max, serverService.getMaxOffHeapSize(node));
+            }
+         }
+         else {
+            data = createHistoryGrid(
+               null, serverService.getOffHeapHistory(null),
+               h -> new Object[] { new Time(h.timestamp()), h.usedOffHeap() });
+            max = serverService.getMaxOffHeapSize(null);
+         }
+
+         for(String scheduleServer : scheduleServers) {
+            if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
+               Object[][] grid = createHistoryGrid(
+                  "Scheduler(" + scheduleServer + ")",
+                  schedulerMonitoringService.getOffHeapHistory(scheduleServer),
+                  h -> new Object[]{ new Time(h.timestamp()), h.usedOffHeap() });
+               data = MonitorUtil.mergeGridData(data, grid);
+
+               try {
+                  max = Math.max(max, schedulerMonitoringService.getMaxOffHeapSize(scheduleServer));
+               }
+               catch(RemoteException e) {
+                  LOG.warn("Failed to get max off-heap size: " + e, e);
+               }
+            }
+         }
+
+         format = "million";
+         title = catalog.getString("Off-Heap Usage");
       }
       else if("memCache".equals(imageId)) {
          data = cacheService.getCacheHistory(clusterNode).stream()
@@ -1065,6 +1148,7 @@ public class ServerMonitoringController {
    private final SchedulerMonitoringService schedulerMonitoringService;
    private final ServerClusterClient client;
    private final UsageHistoryService usageHistoryService;
+   private final ClusterCacheUsageService clusterCacheUsageService;
    private final ExternalStorageService externalStorageService;
    private final boolean scheduleCluster;
    private static final String[] COLOR_PALETTE = {

@@ -48,6 +48,7 @@
               <button mat-raised-button (click)="getThreadDump()">_#(Get Thread Dump)</button>
               <button mat-raised-button (click)="getHeapDump()">_#(Get Heap Dump)</button>
               <button mat-raised-button (click)="getUsageHistory()">_#(Get Usage History)</button>
+              <button mat-raised-button (click)="getClusterCacheUsage()">_#(Get Cluster Cache Usage)</button>
             </div>
           </section>
         </section>
@@ -59,6 +60,16 @@
                                           class="fill-container"
                                           [info]="heapMemoryInfo"
                                           [legends]="memLegends"
+                                          [timestamp]="serverModel.timestamp"
+                                          [clusterEnabled]="clusterEnabled"
+                                          [selectedClusterNode]="selectedClusterNode">
+        </em-summary-monitoring-chart-view>
+      </mat-grid-tile>
+      <mat-grid-tile *ngIf="offHeapMemoryVisible">
+        <em-summary-monitoring-chart-view *ngIf="serverModel" id="offHeapMemory"
+                                          class="fill-container"
+                                          [info]="offHeapMemoryInfo"
+                                          [legends]="offHeapMemLegends"
                                           [timestamp]="serverModel.timestamp"
                                           [clusterEnabled]="clusterEnabled"
                                           [selectedClusterNode]="selectedClusterNode">

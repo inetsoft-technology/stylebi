@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,20 +15,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-export interface SummaryChartLegend {
-   text: string;
-   color: string;
-   link: string;
-}
+package inetsoft.web.admin.server;
 
-export interface SummaryChartLegends {
-   execution: SummaryChartLegend[];
-   swapping: SummaryChartLegend[];
-   diskCache: SummaryChartLegend[];
-   memCache: SummaryChartLegend[];
-   memUsage: SummaryChartLegend[];
-   offHeapMemory: SummaryChartLegend[];
-   cpuUsage: SummaryChartLegend[];
-   gcCount: SummaryChartLegend[];
-   gcTime: SummaryChartLegend[];
+import java.io.Serializable;
+
+public class GetClusterCacheUsageRequest implements Serializable {
+   public GetClusterCacheUsageRequest() {
+   }
+
+   @Override
+   public String toString() {
+      return "GetClusterCacheUsageRequest{}";
+   }
 }

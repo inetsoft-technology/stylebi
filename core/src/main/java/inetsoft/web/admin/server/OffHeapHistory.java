@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,28 +19,23 @@ package inetsoft.web.admin.server;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.serial.Serial;
 import org.immutables.value.Value;
 
-import java.util.List;
+import java.io.Serializable;
 
 @Value.Immutable
-@JsonSerialize(as = ImmutableSummaryChartLegends.class)
-@JsonDeserialize(as = ImmutableSummaryChartLegends.class)
-public interface SummaryChartLegends {
-   List<SummaryChartLegend> execution();
-   List<SummaryChartLegend> swapping();
-   List<SummaryChartLegend> diskCache();
-   List<SummaryChartLegend> memCache();
-   List<SummaryChartLegend> memUsage();
-   List<SummaryChartLegend> offHeapMemory();
-   List<SummaryChartLegend> cpuUsage();
-   List<SummaryChartLegend> gcCount();
-   List<SummaryChartLegend> gcTime();
+@Serial.Structural
+@JsonSerialize(as = ImmutableOffHeapHistory.class)
+@JsonDeserialize(as = ImmutableOffHeapHistory.class)
+public interface OffHeapHistory extends Serializable {
+   long timestamp();
+   long usedOffHeap();
 
    static Builder builder() {
       return new Builder();
    }
 
-   final class Builder extends ImmutableSummaryChartLegends.Builder {
+   final class Builder extends ImmutableOffHeapHistory.Builder {
    }
 }

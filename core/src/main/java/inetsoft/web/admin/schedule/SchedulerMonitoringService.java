@@ -549,6 +549,10 @@ public class SchedulerMonitoringService
       return getHistory(ServerMetricsCalculator.HistoryType.GC, server);
    }
 
+   public List<OffHeapHistory> getOffHeapHistory(String server) {
+      return getHistory(ServerMetricsCalculator.HistoryType.OFF_HEAP, server);
+   }
+
    public long getMaxHeapSize(String server) throws RemoteException {
       String address = getServerClusterStatus(server).getAddress();
       address = Objects.toString(address, server);
@@ -556,6 +560,15 @@ public class SchedulerMonitoringService
       ServerMetrics metrics =
          ScheduleClient.getServerMetrics(serverMetrics, System.currentTimeMillis(), address);
       return metrics.maxHeapSize();
+   }
+
+   public long getMaxOffHeapSize(String server) throws RemoteException {
+      String address = getServerClusterStatus(server).getAddress();
+      address = Objects.toString(address, server);
+      ServerMetrics serverMetrics = this.oldMetrics == null ? null : this.oldMetrics.getServerMetrics();
+      ServerMetrics metrics =
+         ScheduleClient.getServerMetrics(serverMetrics, System.currentTimeMillis(), address);
+      return metrics.maxOffHeapSize();
    }
 
    public Optional<ServerMetrics> getServerMetrics() {
