@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>inetsoft-stylebi</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.2-SNAPSHOT</version>
   </parent>
 
   <artifactId>inetsoft-stylebi-bom</artifactId>
@@ -296,7 +296,7 @@
       <dependency>
         <groupId>com.inetsoft.stylebi.build</groupId>
         <artifactId>tern-annotations</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.2-SNAPSHOT</version>
       </dependency>
 
       <dependency>
@@ -1267,7 +1267,7 @@
         <plugin>
           <groupId>com.inetsoft.stylebi.build</groupId>
           <artifactId>inetsoft-runner-maven-plugin</artifactId>
-          <version>1.0.0-SNAPSHOT</version>
+          <version>1.0.2-SNAPSHOT</version>
         </plugin>
         <plugin>
           <groupId>org.springframework.boot</groupId>
