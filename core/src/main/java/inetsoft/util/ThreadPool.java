@@ -18,6 +18,7 @@
 package inetsoft.util;
 
 import inetsoft.report.internal.license.*;
+import inetsoft.sree.security.OrganizationContextHolder;
 import org.slf4j.*;
 
 import java.security.Principal;
@@ -209,10 +210,17 @@ public class ThreadPool {
 
       // is a context runnable? set the context principal to it
       if(cmd instanceof ContextRunnable) {
+         ContextRunnable contextRunnable = (ContextRunnable) cmd;
          user = ThreadContext.getContextPrincipal();
 
          if(user != null) {
-            ((ContextRunnable) cmd).setPrincipal(user);
+            contextRunnable.setPrincipal(user);
+         }
+
+         String orgId = OrganizationContextHolder.getCurrentOrgId();
+
+         if(orgId != null) {
+            contextRunnable.setOrgId(orgId);
          }
 
          if(Thread.currentThread() instanceof GroupedThread) {
@@ -220,7 +228,7 @@ public class ThreadPool {
 
             for(Object record : groupedThread.getRecords()) {
                if(record instanceof String) {
-                  ((ContextRunnable) cmd).addRecord((String) record);
+                  contextRunnable.addRecord((String) record);
                }
             }
          }
@@ -372,6 +380,16 @@ public class ThreadPool {
        *         an instance of <tt>GroupedThread</tt>.
        */
       StackTraceElement[] getParentStackTrace();
+
+      /**
+       * Set the organization ID for multi-tenancy context propagation.
+       */
+      void setOrgId(String orgId);
+
+      /**
+       * Get the organization ID for multi-tenancy context propagation.
+       */
+      String getOrgId();
    }
 
    /**
@@ -500,8 +518,19 @@ public class ThreadPool {
          return parentStackTrace;
       }
 
+      @Override
+      public void setOrgId(String orgId) {
+         this.orgId = orgId;
+      }
+
+      @Override
+      public String getOrgId() {
+         return orgId;
+      }
+
       private final List<String> records = new ArrayList<>();
       private Principal user = null;
+      private String orgId;
       private final StackTraceElement[] stackTrace;
       private final StackTraceElement[] parentStackTrace;
 
@@ -579,6 +608,8 @@ public class ThreadPool {
             boolean replacedStack = false;
             StackTraceElement[] oldStackTrace = null;
             StackTraceElement[] oldParentStackTrace = null;
+            String originalOrg = OrganizationContextHolder.getCurrentOrgId();
+            boolean orgChanged = false;
 
             try {
                if(unwrapCmd instanceof PoolRunnable) {
@@ -596,6 +627,13 @@ public class ThreadPool {
 
                   if(user != null) {
                      setPrincipal(user);
+                  }
+
+                  String orgId = contextRunnable.getOrgId();
+
+                  if(orgId != null) {
+                     orgChanged = true;
+                     OrganizationContextHolder.setCurrentOrgId(orgId);
                   }
 
                   Thread currentThread = Thread.currentThread();
@@ -680,6 +718,10 @@ public class ThreadPool {
                busy.decrementAndGet();
                removeRecords(); // discard context records
                setPrincipal(null); // discard context user
+
+               if(orgChanged) {
+                  OrganizationContextHolder.setCurrentOrgId(originalOrg);
+               }
             }
 
             if(pri != npri) {
