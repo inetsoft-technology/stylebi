@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ServiceLoader;
+import java.util.Set;
 
 /**
  * {@code BlobEngine} is an interface for classes that handle loading and saving blobs to some
@@ -72,6 +73,20 @@ public interface BlobEngine extends AutoCloseable {
     * @throws IOException if an I/O error occurs.
     */
    void delete(String id, String digest) throws IOException;
+
+   /**
+    * Deletes multiple blobs from storage.
+    *
+    * @param id      the unique identifier of the storage.
+    * @param digests the MD5 digests of the blobs as hexadecimal strings.
+    *
+    * @throws IOException if an I/O error occurs.
+    */
+   default void deleteAll(String id, Set<String> digests) throws IOException {
+      for(String digest : digests) {
+         delete(id, digest);
+      }
+   }
 
    @Override
    default void close() throws Exception {

@@ -291,7 +291,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
 
       try {
          BlobReference<T> ref =
-            cluster.submit(id, new DeleteBlobTask<T>(id, path, isLocal())).get(10L, TimeUnit.SECONDS);
+            cluster.submit(id, new DeleteBlobTask<T>(id, path)).get(10L, TimeUnit.SECONDS);
 
          if(ref.getBlob() == null) {
             throw new FileNotFoundException(path);
@@ -306,6 +306,32 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       }
       finally {
          lock.unlock();
+      }
+   }
+
+   /**
+    * Deletes multiple blobs at the specified paths. This is more efficient than calling
+    * {@link #delete(String)} in a loop as it performs the deletion in a single cluster operation.
+    *
+    * @param paths the paths to the blobs to delete.
+    *
+    * @throws IOException if an I/O error occurs.
+    */
+   public final void deleteAll(Set<String> paths) throws IOException {
+      if(paths == null || paths.isEmpty()) {
+         return;
+      }
+
+      try {
+         Set<String> digestsToDelete = cluster.submit(
+            id, new DeleteAllBlobTask<T>(id, paths)).get(60L, TimeUnit.SECONDS);
+
+         for(String digest : digestsToDelete) {
+            deleteByDigest(digest);
+         }
+      }
+      catch(InterruptedException | ExecutionException | TimeoutException e) {
+         throw new IOException("Failed to delete blobs", e);
       }
    }
 
@@ -383,6 +409,15 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    protected abstract void delete(Blob<T> blob) throws IOException;
 
    /**
+    * Deletes a blob from storage by its digest.
+    *
+    * @param digest the blob digest.
+    *
+    * @throws IOException if an I/O error occurs.
+    */
+   protected abstract void deleteByDigest(String digest) throws IOException;
+
+   /**
     * Gets a stream of the blobs in this store.
     *
     * @return a blob stream.
@@ -453,13 +488,6 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
    protected abstract Path createTempFile(String prefix, String suffix) throws IOException;
 
    /**
-    * Determines if this instance uses local blob storage.
-    *
-    * @return {@code true} if local or {@code false} if not.
-    */
-   protected abstract boolean isLocal();
-
-   /**
     * Gets the metadata storage.
     *
     * @return the storage.
@@ -478,7 +506,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     * @throws Exception if the blob could not be added.
     */
    protected final BlobReference<T> putBlob(Blob<T> blob) throws Exception {
-      return cluster.submit(id, new PutBlobTask<>(id, blob, isLocal())).get(60L, TimeUnit.SECONDS);
+      return cluster.submit(id, new PutBlobTask<>(id, blob)).get(60L, TimeUnit.SECONDS);
    }
 
    /**

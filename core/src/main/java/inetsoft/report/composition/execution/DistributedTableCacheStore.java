@@ -20,7 +20,7 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.report.TableLens;
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.security.*;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.XTable;
@@ -31,11 +31,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.security.Principal;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @SingletonManager.Singleton
 public class DistributedTableCacheStore {
@@ -47,10 +44,17 @@ public class DistributedTableCacheStore {
    }
 
    public DistributedTableCacheStore() {
-      clusterId = Cluster.getInstance().getId();
+      Cluster cluster = Cluster.getInstance();
+      clusterId = cluster.getId();
       storages = new ConcurrentHashMap<>();
-      executor.scheduleAtFixedRate(this::cleanUpCache, 1L, CLEANUP_FREQUENCY_TIME,
-                                   TimeUnit.MINUTES);
+
+      // Use distributed executor so cleanup only runs on one node in the cluster
+      if(cluster.getLong(COUNTER_NAME).getAndIncrement() == 0) {
+         cluster.getScheduledExecutor().scheduleAtFixedRate(
+            new CleanupTableCacheTask(), 1L, CLEANUP_FREQUENCY_TIME,
+            TimeUnit.MINUTES);
+      }
+
       this.debouncer = new DefaultDebouncer<>(false);
    }
 
@@ -131,37 +135,6 @@ public class DistributedTableCacheStore {
       }
    }
 
-   private void cleanUpCache() {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      String[] orgIds = provider.getOrganizationIDs();
-      Instant validInstant = Instant.now().minus(CACHE_EXPIRATION_TIME, ChronoUnit.MINUTES);
-
-      for(String orgId : orgIds) {
-         BlobStorage<Metadata> storage = getStorage(getStorageId(orgId));
-         Set<String> keysToRemove = new HashSet<>();
-         storage.paths().forEach(key -> {
-            try {
-               if(!key.startsWith(clusterId) || storage.getLastModified(key).isBefore(validInstant)) {
-                  keysToRemove.add(key);
-               }
-            }
-            catch(FileNotFoundException e) {
-               // ignore
-            }
-         });
-
-         // TODO: add BlobStorage.removeAll() and DeleteAllBlobTask
-         for(String key : keysToRemove) {
-            try {
-               storage.delete(key);
-            }
-            catch(IOException e) {
-               throw new RuntimeException(e);
-            }
-         }
-      }
-   }
-
    private BlobStorage<Metadata> getStorage() {
       return getStorage(getStorageId(OrganizationManager.getInstance().getCurrentOrgID()));
    }
@@ -187,12 +160,10 @@ public class DistributedTableCacheStore {
 
    private final String clusterId;
    private final ConcurrentHashMap<String, BlobStorage<Metadata>> storages;
-   private final ScheduledExecutorService executor =
-      Executors.newSingleThreadScheduledExecutor(r -> new GroupedThread(r, "DistributedTableCacheStore"));
    private final Debouncer<String> debouncer;
 
-   private static final long CACHE_EXPIRATION_TIME = 30L; // minutes
    private static final long CLEANUP_FREQUENCY_TIME = 30L; // minutes
+   private static final String COUNTER_NAME = DistributedTableCacheStore.class.getName() + ".counter";
    private static final Logger LOG = LoggerFactory.getLogger(DistributedTableCacheStore.class);
 
    public static final class Metadata implements Serializable {

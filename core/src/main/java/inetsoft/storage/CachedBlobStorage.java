@@ -88,6 +88,11 @@ public final class CachedBlobStorage<T extends Serializable>
    }
 
    @Override
+   protected void deleteByDigest(String digest) throws IOException {
+      cache.remove(id, digest);
+   }
+
+   @Override
    protected Path copyToTemp(Blob<T> blob) throws IOException {
       Path path = cache.get(id, blob);
       Path tempFile = createTempFile("blob", ".dat");
@@ -98,11 +103,6 @@ public final class CachedBlobStorage<T extends Serializable>
    @Override
    protected Path createTempFile(String prefix, String suffix) throws IOException {
       return cache.createTempFile(id, prefix, suffix);
-   }
-
-   @Override
-   protected boolean isLocal() {
-      return false;
    }
 
    @Override
@@ -131,7 +131,6 @@ public final class CachedBlobStorage<T extends Serializable>
    @Override
    public void messageReceived(MessageEvent event) {
       if(event.getMessage() instanceof ClearBlobCacheMessage message) {
-
          if(getId().equals(message.getStoreId())) {
             String digest = message.getDigest();
 
@@ -140,6 +139,18 @@ public final class CachedBlobStorage<T extends Serializable>
             }
             catch(IOException e) {
                logger.warn("Failed to delete local cache file {}", digest, e);
+            }
+         }
+      }
+      else if(event.getMessage() instanceof ClearAllBlobCacheMessage message) {
+         if(getId().equals(message.getStoreId())) {
+            for(String digest : message.getDigests()) {
+               try {
+                  cache.remove(id, digest);
+               }
+               catch(IOException e) {
+                  logger.warn("Failed to delete local cache file {}", digest, e);
+               }
             }
          }
       }
