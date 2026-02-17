@@ -6271,6 +6271,7 @@ public abstract class GraphGenerator {
       LegendSpec legend = frame.getLegendSpec();
       String fld = frame.getField();
       legend.setTitleVisible(desc.isTitleVisible());
+      legend.setSymbolSize(desc.getSymbolSize());
 
       if(desc.isNotShowNull()) {
          frame.setScaleOption(Scale.NO_NULL);
